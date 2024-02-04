@@ -1023,7 +1023,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if self.cfg.data.get(
                     "return_output_tensors", False
                 ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
-                    loss_for_ub, q_hs, d_hs, avg_pos_cs, avg_neg_cs = loss_for_ub
+                    loss_for_ub, q_hs, d_hs, avg_pos_cs, avg_neg_cs, diff_cs = loss_for_ub
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return (
                         loss_for_ub * cp_size,
@@ -1033,6 +1033,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             'doc_hs': d_hs,
                             'avg_pos_cs': avg_pos_cs,
                             'avg_neg_cs': avg_neg_cs,
+                            'diff_cs': diff_cs,
                         },
                     )
                 elif validation_step and not self.cfg.data.get('validation_drop_last', True):
