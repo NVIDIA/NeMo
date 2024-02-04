@@ -14,10 +14,10 @@
 import os
 import tempfile
 
-import pytest
-import torch
 import numpy as np
+import pytest
 import soundfile as sf
+import torch
 
 from nemo.collections.asr.data import audio_to_text
 from nemo.collections.asr.parts.utils.asr_batching import SemiSortBatchSampler
@@ -68,8 +68,7 @@ class TestASRSamplers:
         _rng = np.random.default_rng(seed=random_seed)
 
         def generate_samples(num_examples: int) -> list:
-            data_duration = np.round(_rng.uniform(low=data_min_duration, high=data_max_duration,
-                                                  size=num_examples), 3)
+            data_duration = np.round(_rng.uniform(low=data_min_duration, high=data_max_duration, size=num_examples), 3)
             data_duration_samples = np.floor(data_duration * sample_rate).astype(int)
             samples = []
             for data_duration_sample in data_duration_samples:
@@ -81,9 +80,7 @@ class TestASRSamplers:
             metadata = []
 
             # Test size of dataloader with and without ssb
-            for num_samples in np.concatenate([
-                np.array([1, 2]), _rng.integers(3, 10, 2), _rng.integers(10, 1000, 2)]
-            ):
+            for num_samples in np.concatenate([np.array([1, 2]), _rng.integers(3, 10, 2), _rng.integers(10, 1000, 2)]):
                 samples = generate_samples(num_samples)
 
                 for n, sample in enumerate(samples):
@@ -140,9 +137,7 @@ class TestASRSamplers:
                         shuffle=True,
                     )
 
-                    assert (
-                        abs(len(dataloader) - len(dataloader_with_ssb)) == 0
-                    ), (
+                    assert abs(len(dataloader) - len(dataloader_with_ssb)) == 0, (
                         "Different num of batches with batch! Num of batches with ssb is "
                         f"{len(dataloader_with_ssb)} and without ssb is {len(dataloader)}!"
                     )
