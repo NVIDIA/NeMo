@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import MutableMapping
+
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning.loggers import WandbLogger
@@ -19,17 +21,14 @@ from pytorch_lightning.loggers import WandbLogger
 from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
-
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from collections.abc import MutableMapping
-
 
 mp.set_start_method("spawn", force=True)
 
 
-def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> MutableMapping:
+def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str = '.') -> MutableMapping:
     items = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -38,6 +37,7 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
         else:
             items.append((new_key, v))
     return dict(items)
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_embedder_tuning_config")
 def main(cfg) -> None:
