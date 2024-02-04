@@ -48,7 +48,7 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model_cfg = MegatronGPTEmbeddingModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    if trainer.global_rank == 0: 
+    if trainer.global_rank == 0:
         for logger in trainer.loggers:
             if isinstance(logger, WandbLogger):
                 fd = flatten_dict(dict(model_cfg), sep="/")
