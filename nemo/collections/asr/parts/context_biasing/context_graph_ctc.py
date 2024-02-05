@@ -37,6 +37,7 @@ from typing import Dict, List, Optional, Union
 
 try:
     import graphviz
+
     _GRAPHVIZ_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     _GRAPHVIZ_AVAILABLE = False

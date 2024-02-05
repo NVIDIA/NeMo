@@ -21,8 +21,8 @@ import texterrors
 
 from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WSHyp
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.utils import logging
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.utils import logging
 
 
 def merge_alignment_with_ws_hyps(
@@ -143,9 +143,7 @@ def merge_alignment_with_ws_hyps(
     return boosted_text, initial_text_transcript
 
 
-def compute_fscore(
-    recognition_results_manifest: str, key_words_list: List,
-) -> tuple[float, float, float]:
+def compute_fscore(recognition_results_manifest: str, key_words_list: List,) -> tuple[float, float, float]:
     """
     Compute fscore for list of context biasing words/phrases.
     The idea is to get a word-level alignment for ground truth text and prediction results from manifest file.
@@ -212,7 +210,7 @@ def compute_fscore(
     recall = tp / (gt + 1e-8)
     fscore = 2 * (precision * recall) / (precision + recall + 1e-8)
 
-    logging.info("="*60)
+    logging.info("=" * 60)
     logging.info("Per words statistic (word: correct/totall | false positive):\n")
     max_len = max([len(x) for x in key_words_stat if key_words_stat[x][1] > 0 or key_words_stat[x][2] > 0])
     for word in key_words_list:
@@ -223,11 +221,11 @@ def compute_fscore(
             logging.info(
                 f"{word:>{max_len}}: {key_words_stat[word][0]:3}/{key_words_stat[word][1]:<3} |{false_positive:>3}"
             )
-    logging.info("="*60)
-    logging.info("="*60)
+    logging.info("=" * 60)
+    logging.info("=" * 60)
     logging.info(f"Precision: {precision:.4f} ({tp}/{tp + fp}) fp:{fp}")
     logging.info(f"Recall:    {recall:.4f} ({tp}/{gt})")
     logging.info(f"Fscore:    {fscore:.4f}")
-    logging.info("="*60)
+    logging.info("=" * 60)
 
     return (precision, recall, fscore)
