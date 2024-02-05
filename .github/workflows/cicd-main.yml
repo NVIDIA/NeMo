@@ -40,6 +40,6 @@ jobs:
     - name: Run cmd line test
       run: |
         whoami
-        /usr/bin/nvidia-smi
         bash
+        /usr/bin/nvidia-smi
         nvidia-smi
