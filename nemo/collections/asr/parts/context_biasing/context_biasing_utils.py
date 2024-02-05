@@ -143,7 +143,9 @@ def merge_alignment_with_ws_hyps(
     return boosted_text, initial_text_transcript
 
 
-def compute_fscore(recognition_results_manifest: str, key_words_list: List, eps: str = "<eps>") -> tuple[float, float, float]:
+def compute_fscore(
+    recognition_results_manifest: str, key_words_list: List, eps: str = "<eps>"
+) -> tuple[float, float, float]:
     """
     Compute fscore for list of context biasing words/phrases.
     The idea is to get a word-level alignment for ground truth text and prediction results from manifest file.
@@ -208,7 +210,7 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, eps:
                     if word == eps:
                         continue
                     else:
-                        item_ref.append((word, idx-1))
+                        item_ref.append((word, idx - 1))
                 if len(item_ref) == ngram_order:
                     phrase_ref = " ".join([item[0] for item in item_ref])
                     phrase_hyp = " ".join([ali[item[1]][1] for item in item_ref])
@@ -229,7 +231,7 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List, eps:
                     if word == eps:
                         continue
                     else:
-                        item_hyp.append((word, idx-1))
+                        item_hyp.append((word, idx - 1))
                 if len(item_hyp) == ngram_order:
                     phrase_hyp = " ".join([item[0] for item in item_hyp])
                     phrase_ref = " ".join([ali[item[1]][0] for item in item_hyp])
