@@ -57,7 +57,8 @@ def get_args():
         "--hf-in-path",
         type=str,
         default=None,
-        help="A HF model path, " "e.g. a folder containing https://huggingface.co/baichuan-inc/Baichuan2-7B-Base/tree/main",
+        help="A HF model path, "
+        "e.g. a folder containing https://huggingface.co/baichuan-inc/Baichuan2-7B-Base/tree/main",
     )
     parser.add_argument(
         "--hf-out-path",
@@ -86,7 +87,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     """
     Convert NeMo weights to HF weights
     """
-    
+
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
     if cpu_only:
         map_location = torch.device('cpu')
@@ -147,7 +148,15 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
 
         qkv_weights_base_name = f'model.layers.{l}.self_attn.W_pack.weight'
-        checkpoint[qkv_weights_base_name] = param_to_weights(torch.cat([qkv_weights[q_slice].reshape(-1, hidden_size), qkv_weights[k_slice].reshape(-1, hidden_size), qkv_weights[v_slice].reshape(-1, hidden_size)]))
+        checkpoint[qkv_weights_base_name] = param_to_weights(
+            torch.cat(
+                [
+                    qkv_weights[q_slice].reshape(-1, hidden_size),
+                    qkv_weights[k_slice].reshape(-1, hidden_size),
+                    qkv_weights[v_slice].reshape(-1, hidden_size),
+                ]
+            )
+        )
 
         # attention dense
         o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
