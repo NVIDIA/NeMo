@@ -32,7 +32,7 @@
 # https://github.com/k2-fsa/icefall/blob/11d816d174076ec9485ab8b1d36af2592514e348/icefall/context_graph.py
 
 from collections import deque
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 
 try:
