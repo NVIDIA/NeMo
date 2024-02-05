@@ -315,8 +315,8 @@ def write_transcription(
         raise TypeError
 
     # create output dir if not exists
-    Path(cfg.output_filename).parent.mkdir(parents=True, exist_ok=True)
-    with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
+    Path(cfg.output_manifest).parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg.output_manifest, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
                 if not return_hypotheses:  # transcription is str

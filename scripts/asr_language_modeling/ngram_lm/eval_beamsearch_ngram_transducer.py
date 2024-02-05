@@ -98,7 +98,7 @@ class EvalBeamSearchNGramConfig:
     acoustic_batch_size: int = 128  # The batch size to calculate log probabilities
     beam_batch_size: int = 128  # The batch size to be used for beam search decoding
     device: str = "cuda"  # The device to load the model onto to calculate log probabilities
-    use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
+    amp: bool = False  # Whether to use AMP if available to calculate log probabilities
     num_workers: int = 1  # Number of workers for DataLoader
 
     # The decoding scheme to be used for evaluation
@@ -300,7 +300,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
         def default_autocast():
             yield
 
-        if cfg.use_amp:
+        if cfg.amp:
             if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast

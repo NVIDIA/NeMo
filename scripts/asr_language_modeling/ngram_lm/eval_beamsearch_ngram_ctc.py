@@ -99,11 +99,11 @@ class EvalBeamSearchNGramConfig:
     acoustic_batch_size: int = 16  # The batch size to calculate log probabilities
     beam_batch_size: int = 1  # The batch size to be used for beam search decoding
     device: str = "cuda"  # The device to load the model onto to calculate log probabilities
-    use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
+    amp: bool = False  # Whether to use AMP if available to calculate log probabilities
 
     # Beam Search hyperparameters
     ctc_decoding: CTCDecodingConfig = field(default_factory=lambda: CTCDecodingConfig(
-        strategy="beam", # gready flashlight
+        strategy="beam", # gready, beam = pyctcdecode, flashlight
         beam = ctc_beam_decoding.BeamCTCInferConfigList(
             beam_size=[4],
             beam_alpha=[0.5], # LM weight
@@ -320,7 +320,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
         def default_autocast():
             yield
 
-        if cfg.use_amp:
+        if cfg.amp:
             if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
@@ -379,7 +379,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
     asr_model = asr_model.to('cpu')
 
-    if cfg.ctc_decoding.strategy == "beam":
+    if cfg.ctc_decoding.strategy == "beam" or cfg.ctc_decoding.strategy == "pyctcdecode" or cfg.ctc_decoding.strategy == "flashlight":
         if not os.path.exists(cfg.ctc_decoding.beam.kenlm_path):
             raise FileNotFoundError(f"Could not find the KenLM model file '{cfg.ctc_decoding.beam.kenlm_path}'.")
         lm_path = cfg.ctc_decoding.beam.kenlm_path
@@ -387,7 +387,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
         lm_path = None
 
     # 'greedy' decoding_mode would skip the beam search decoding
-    if cfg.ctc_decoding.strategy in ["beam"]:
+    if cfg.ctc_decoding.strategy in ["beam", "pyctcdecode", "flashlight"]:
         if cfg.ctc_decoding.beam.beam_size is None or cfg.ctc_decoding.beam.beam_alpha is None or cfg.ctc_decoding.beam.beam_beta is None:
             raise ValueError("beam_size, beam_alpha and beam_beta are needed to perform beam search decoding.")
         params = {'beam_size': cfg.ctc_decoding.beam.beam_size, 'beam_alpha': cfg.ctc_decoding.beam.beam_alpha, 'beam_beta': cfg.ctc_decoding.beam.beam_beta}
