@@ -251,9 +251,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         if audio is None or len(audio) == 0:
             return {}
 
-        if return_hypotheses:
-            logging.warning("return_hypotheses=True is currently not supported, returning text instead.")
-
         manifest_path = None
         if isinstance(audio, list):
             logging.debug(f"Found 'paths2audio_files' to be a list of {len(audio)} items.")
@@ -301,6 +298,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         # We will store transcriptions here
         hypotheses = []
+        all_hypotheses = []
 
         # Model's mode and device
         mode = self.training
@@ -341,18 +339,30 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
 
-                    beam_hypotheses = self.decoding.decode_predictions_tensor(
+                    beam_hypotheses, topk_hypotheses = self.decoding.decode_predictions_tensor(
                         encoder_hidden_states=enc_states,
                         encoder_input_mask=enc_mask,
                         decoder_input_ids=test_batch[2][:, : self.context_len_for_AR_decoding].to(device)
                         if self.context_len_for_AR_decoding > 0
                         else None,
-                        return_hypotheses=False,
-                    )[0]
+                        return_hypotheses=return_hypotheses,
+                    )
 
-                    beam_hypotheses = [self.decoding.strip_special_tokens(text) for text in beam_hypotheses]
+                    if not return_hypotheses:
+                        beam_hypotheses = [self.decoding.strip_special_tokens(text) for text in beam_hypotheses]
+                        if topk_hypotheses is not None:
+                            topk_hypotheses = [self.decoding.strip_special_tokens(text) for text in topk_hypotheses]
+                    else:
+                        for hyp in beam_hypotheses:
+                            hyp.text = self.decoding.strip_special_tokens(hyp.text)
+
+                        if topk_hypotheses is not None:
+                            for topk_hyp in topk_hypotheses:
+                                for hyp in topk_hyp:
+                                    hyp.text = self.decoding.strip_special_tokens(hyp.text)
 
                     hypotheses += beam_hypotheses
+                    all_hypotheses += topk_hypotheses
 
                     del test_batch, log_probs, encoded_len, enc_states, enc_mask
         finally:
@@ -365,7 +375,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 self.transf_decoder.unfreeze()
             logging.set_verbosity(logging_level)
 
-        return hypotheses
+        return hypotheses, all_hypotheses
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         assert config.get("use_lhotse", False), (
