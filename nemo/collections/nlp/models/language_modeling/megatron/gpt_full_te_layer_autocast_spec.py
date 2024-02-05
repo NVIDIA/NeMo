@@ -13,16 +13,22 @@
 # limitations under the License.
 
 from typing import Any, Callable, Optional
+
 import torch
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal, scaled_init_method_normal
+
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    init_method_normal,
+    scaled_init_method_normal,
+)
 from nemo.collections.nlp.parts import utils_funcs
 
 try:
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
-    from megatron.core import parallel_state, tensor_parallel
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-    from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
 
     HAVE_MEGATRON_CORE = True
 
@@ -159,7 +165,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             attention_dropout=config.attention_dropout,
             layer_number=layer_number + self._get_layer_offset(),
             kv_channels=config.kv_channels,
-            #self_attn_mask_type='causal', # Use default 'causal'
+            # self_attn_mask_type='causal', # Use default 'causal'
             tp_size=parallel_state.get_tensor_model_parallel_world_size(),
             params_dtype=config.params_dtype,
             get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
@@ -169,7 +175,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             sequence_parallel=config.sequence_parallel,
             apply_residual_connection_post_layernorm=config.apply_residual_connection_post_layernorm,
             autocast_dtype=precision,
-            #use_emha=False, # Use default 'False'
+            # use_emha=False, # Use default 'False'
             ub_tp_comm_overlap=config.tp_comm_overlap,
             zero_centered_gamma=config.layernorm_zero_centered_gamma,
             device='cpu' if config.use_cpu_initialization else 'cuda',
@@ -193,7 +199,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             enc_dec_attn_mask=context_mask,
             inference_params=inference_params,
             is_first_microbatch=self.is_first_microbatch,
-            #checkpoint_core_attention,
+            # checkpoint_core_attention,
         )
         self.is_first_microbatch = False
         context = None
@@ -237,18 +243,21 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
         }
 
         state_dict = self.state_dict(prefix='', keep_vars=True)
-        sharded_state_dict = make_sharded_tensors_for_checkpoint(state_dict, prefix, TENSOR_PARALLEL_LAYERS_AXIS_MAP, sharded_offsets)
+        sharded_state_dict = make_sharded_tensors_for_checkpoint(
+            state_dict, prefix, TENSOR_PARALLEL_LAYERS_AXIS_MAP, sharded_offsets
+        )
 
         # TODO: we need to add sharded_state_dict_keys_map to the config. Like in TransformerLayer submodules config
-        #prefixed_map = {
+        # prefixed_map = {
         #    f'{prefix}{k}': f'{prefix}{v}'
         #    for k, v in self.config.sharded_state_dict_keys_map.items()
-        #}
+        # }
 
-        #if prefixed_map:
+        # if prefixed_map:
         #    apply_prefix_mapping(sharded_state_dict, prefixed_map)
 
         return sharded_state_dict
+
 
 # Use this spec to use the full Transformer layer from Transformer Engine
 def get_gpt_full_te_layer_autocast_spec() -> TransformerBlockSubmodules:
@@ -261,6 +270,4 @@ def get_gpt_full_te_layer_autocast_spec() -> TransformerBlockSubmodules:
             "TransformerEngine was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
         )
 
-    return TransformerBlockSubmodules(
-        layer_specs=ModuleSpec(module=TETransformerLayerAutocast)
-    )
+    return TransformerBlockSubmodules(layer_specs=ModuleSpec(module=TETransformerLayerAutocast))
