@@ -45,9 +45,7 @@ jobs:
     - name: Cmd test run
       run: |
         echo helloworld
-    - name: Run cmd line test
+    - name: PyTorch version
       run: |
-        whoami
-        bash
-        /usr/bin/nvidia-smi
-        nvidia-smi
+        sh 'python -c "import torch; print(torch.__version__)"'
+        sh 'python -c "import torchvision; print(torchvision.__version__)"'
