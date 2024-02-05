@@ -341,7 +341,6 @@ def main(cfg: EvalContextBiasingConfig):
     if not isinstance(asr_model, (EncDecCTCModelBPE, EncDecHybridRNNTCTCModel)):
         raise ValueError("ASR model must be CTC BPE or Hybrid Transducer-CTC")
 
-
     # load nemo manifest
     target_transcripts = []
     durations = []
