@@ -345,7 +345,7 @@ pipeline {
         sh "rm -rf /home/TestData/multimodal/neva_pretrain_tp1"
         sh "pip install webdataset==0.2.48"
         sh "python examples/multimodal/multimodal_llm/neva/neva_pretrain.py \
-            trainer.precision=bf16 \
+            trainer.precision=16 \
             model.megatron_amp_O2=False \
             trainer.num_nodes=1 \
             trainer.devices=1 \

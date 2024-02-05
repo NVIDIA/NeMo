@@ -996,7 +996,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return generate(self, **inference_config)
 
     def generate(
-        self, inputs, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
+        self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
@@ -1020,6 +1020,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             length_params = get_default_length_params()
 
         # Supports only one prompt at a time
-        result = megatron_neva_generate(self.cuda(), inputs, length_params, sampling_params, inference_config)
+        result = megatron_neva_generate(self.cuda(), input_prompts, length_params, sampling_params, inference_config)
 
         return result
