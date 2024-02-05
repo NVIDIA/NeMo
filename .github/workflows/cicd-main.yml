@@ -23,6 +23,7 @@ on:
 jobs:
   cicd-tests0:
     runs-on: self-hosted-azure
+    steps:
     - name: Run cmd line test
       run: |
         whoami
