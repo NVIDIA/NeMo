@@ -40,6 +40,4 @@ jobs:
     - name: Run cmd line test
       run: |
         whoami
-    - name: Run cmd line test
-      run: |
         nvidia-smi
