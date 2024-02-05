@@ -59,7 +59,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
 
   output_manifest: Output filename where the transcriptions will be written
-  acoustic_batch_size: batch size during inference
+  batch_size: batch size during inference
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
   allow_mps: Bool to allow using MPS (Apple Silicon M-series GPU) device if available
@@ -91,7 +91,7 @@ python transcribe_speech.py \
     output_manifest="<remove or specify output filename>" \
     clean_groundtruth_text=True \
     langid='en' \
-    acoustic_batch_size=32 \
+    batch_size=32 \
     compute_timestamps=False \
     compute_langs=False \
     cuda=0 \
@@ -123,7 +123,7 @@ class TranscriptionConfig:
 
     # General configs
     output_manifest: Optional[str] = None
-    acoustic_batch_size: int = 32
+    batch_size: int = 32
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
@@ -355,7 +355,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 transcriptions = transcribe_partial_audio(
                     asr_model=asr_model,
                     path2manifest=cfg.input_manifest,
-                    batch_size=cfg.acoustic_batch_size,
+                    batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
                     return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,
@@ -365,7 +365,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             else:
                 transcriptions = asr_model.transcribe(
                     paths2audio_files=filepaths,
-                    batch_size=cfg.acoustic_batch_size,
+                    batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
                     return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,

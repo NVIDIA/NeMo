@@ -95,7 +95,7 @@ class EvalBeamSearchNGramConfig:
     probs_cache_file: Optional[str] = None  # The cache file for storing the logprobs of the model
 
     # Parameters for inference
-    acoustic_batch_size: int = 128  # The batch size to calculate log probabilities
+    batch_size: int = 128  # The batch size to calculate log probabilities
     beam_batch_size: int = 128  # The batch size to be used for beam search decoding
     device: str = "cuda"  # The device to load the model onto to calculate log probabilities
     amp: bool = False  # Whether to use AMP if available to calculate log probabilities
@@ -325,7 +325,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                             fp.write(json.dumps(entry) + '\n')
                     config = {
                         'paths2audio_files': audio_file_paths,
-                        'batch_size': cfg.acoustic_batch_size,
+                        'batch_size': cfg.batch_size,
                         'temp_dir': tmpdir,
                         'num_workers': cfg.num_workers,
                         'channel_selector': None,
