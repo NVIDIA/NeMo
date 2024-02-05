@@ -21,6 +21,14 @@ on:
     branches: [ "main", "pagaray/nemo_cicd" ]
 
 jobs:
+  cicd-tests0:
+    runs-on: self-hosted-azure
+    - name: Run cmd line test
+      run: |
+        whoami
+        /usr/bin/nvidia-smi
+        nvidia-smi
+
   cicd-tests:
     runs-on: self-hosted-azure
     container:
