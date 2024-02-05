@@ -33,7 +33,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import get_gpt_full_te_layer_autocast_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -107,8 +106,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def get_specs(spec_name):
-    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(), "megatron_falcon_gpt": get_falcon_layer_spec(),
-                      "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec()}
+    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(), "megatron_falcon_gpt": get_falcon_layer_spec()}
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
@@ -227,8 +225,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
         self.spec_name = cfg.get('name', '')
-        if cfg.get('fp8', False):
-            self.prev_step_training = True
 
         self.rampup_batch_size = self.cfg.get('rampup_batch_size', None)
         if self.rampup_batch_size:
@@ -287,7 +283,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Convert the global-batch-based profile index to micro-batch index
         if hasattr(self, '_nsys_profile_enabled'):
             mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
-            data_parallel_world_size = trainer.world_size // mp_size
+            cp_size = cfg.get('context_parallel_size', 1)
+            data_parallel_world_size = trainer.world_size // (mp_size * cp_size)
             grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
             self._nsys_profile_start_step *= grad_accum_steps
             self._nsys_profile_end_step *= grad_accum_steps
@@ -499,7 +496,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -529,7 +526,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
-            first_val_step=first_val_step,
         )
 
         # only the last stages of the pipeline return losses
@@ -569,7 +565,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
         input_shape = [
-            self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
+            self.cfg.get('encoder_seq_length')
+            * self.cfg.get('micro_batch_size')
+            // self.cfg.get('context_parallel_size', 1),
             self.cfg.get('hidden_size'),
         ]
 
@@ -621,9 +619,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         param.data_ptr()
 
         loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
-
-        if self.cfg.get('fp8', False):
-            self.prev_step_training = self.training
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -853,6 +848,32 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO @tmoon: Use once available in Megatron-LM
         # return DataIteratorList(iters)
 
+    def get_batch_on_this_context_parallel_rank(self, batch):
+        cp_size = self.cfg.get('context_parallel_size', 1)
+        num_valid_tokens_in_ub = None
+        if 'loss_mask' in batch and batch['loss_mask'] is not None:
+            num_valid_tokens_in_ub = batch['loss_mask'].sum()
+
+        if cp_size > 1:
+            cp_rank = parallel_state.get_context_parallel_rank()
+            for key, val in batch.items():
+                if val is not None:
+                    seq_dim = 1 if key != 'attention_mask' else 2
+                    val = val.view(
+                        *val.shape[0:seq_dim],
+                        2 * cp_size,
+                        val.shape[seq_dim] // (2 * cp_size),
+                        *val.shape[(seq_dim + 1) :],
+                    )
+                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device=val.device)
+                    val = val.index_select(seq_dim, index)
+                    val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
+                    batch[key] = val
+
+        batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
+
+        return batch
+
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
@@ -876,15 +897,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
                     required_keys.update(('labels', 'loss_mask'))
-            if self.get_attention_mask_from_fusion:
+            if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
+
+            batch = self.get_batch_on_this_context_parallel_rank(batch)
 
             # Model forward pass
             forward_args = {
                 'input_ids': batch['tokens'],
                 'position_ids': batch['position_ids'],
-                'attention_mask': batch['attention_mask'],
+                'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
             }
@@ -916,9 +939,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], output_tensor)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
+                cp_size = self.cfg.get('context_parallel_size', 1)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_tokens_in_ub = batch['loss_mask'].sum()
+                    num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
                         assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
                         loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
@@ -935,10 +959,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     torch.distributed.all_reduce(
                         loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub, {'avg': reduced_loss}
+                    return loss_for_ub * cp_size, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -1012,13 +1036,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for model_module in self.model:
                 model_module.eval()
 
-        if self.cfg.get('fp8', False):
-            first_val_step = self.prev_step_training and not self.training
-            self.prev_step_training = self.training
-        else:
-            first_val_step = None
-
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
         if isinstance(self.model, list):
             for model_module in self.model:
@@ -1044,10 +1062,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.loss_broadcast_src_rank is None:
                 dp_size = parallel_state.get_data_parallel_world_size()
+                cp_size = parallel_state.get_context_parallel_world_size()
                 tp_size = parallel_state.get_tensor_model_parallel_world_size()
                 pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * tp_size)
-                last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
+                rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * cp_size * tp_size)
+                last_pipeline_stage_offset = (tp_size * cp_size * dp_size) * (pp_size - 1)
                 self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
             torch.distributed.broadcast(
                 averaged_loss, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
@@ -1066,11 +1085,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info(f'test_loss: {averaged_loss[0]}')
         self.test_step_outputs.clear()  # free memory
 
-    def loss_func(self, loss_mask, output_tensor):
+    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+        loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
+        cp_size = self.cfg.get('context_parallel_size', 1)
+        if cp_size > 1:
+            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         return loss
 
     def build_train_valid_test_datasets(self):
@@ -1210,6 +1232,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
+            self.setup_transformer_engine_cp_groups()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -1268,6 +1291,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             if self.cfg.get('transformer_engine', False):
                 self.setup_transformer_engine_tp_groups()
+                self.setup_transformer_engine_cp_groups()
 
         # set the default sampling params if it is None.
         # default do greedy sampling
@@ -1580,7 +1604,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
             'normalization': normalization,
             'fp8': fp8,
-            'tp_comm_overlap': ub_tp_comm_overlap,
+            'ub_tp_comm_overlap': ub_tp_comm_overlap,
         }
 
         transformer_config = super().build_transformer_config()

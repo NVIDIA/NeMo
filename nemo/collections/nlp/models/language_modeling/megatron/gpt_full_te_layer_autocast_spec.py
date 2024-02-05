@@ -170,7 +170,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
             apply_residual_connection_post_layernorm=config.apply_residual_connection_post_layernorm,
             autocast_dtype=precision,
             #use_emha=False, # Use default 'False'
-            ub_tp_comm_overlap=config.tp_comm_overlap, # TODO: ub_tp_comm_overlap?
+            ub_tp_comm_overlap=config.tp_comm_overlap,
             zero_centered_gamma=config.layernorm_zero_centered_gamma,
             device='cpu' if config.use_cpu_initialization else 'cuda',
         )
