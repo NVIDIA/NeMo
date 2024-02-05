@@ -39,7 +39,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import
     is_dataset_built_on_rank,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import get_gpt_full_te_layer_autocast_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
+    get_gpt_full_te_layer_autocast_spec,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -132,9 +134,11 @@ def get_specs(spec_name, num_experts=None):
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
 
-    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(num_experts),
-                      "megatron_falcon_gpt": get_falcon_layer_spec(),
-                      "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec()}
+    name_spec_dict = {
+        "": get_gpt_layer_with_transformer_engine_spec(num_experts),
+        "megatron_falcon_gpt": get_falcon_layer_spec(),
+        "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
+    }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
