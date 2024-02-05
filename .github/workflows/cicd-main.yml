@@ -28,7 +28,7 @@ jobs:
       options: 
         # --device=/dev/nvidia0 
         # --gpus all 
-        --user 0:128 
+        # --user 0:128
         --shm-size=8g 
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
@@ -37,6 +37,9 @@ jobs:
     - name: Cmd test run
       run: |
         echo helloworld
+    - name: Run cmd line test
+      run: |
+        whoami
     - name: Run cmd line test
       run: |
         nvidia-smi
