@@ -96,7 +96,7 @@ class EvalBeamSearchNGramConfig:
     probs_cache_file: Optional[str] = None  # The cache file for storing the logprobs of the model
 
     # Parameters for inference
-    batch_size: int = 16  # The batch size to calculate log probabilities
+    acoustic_batch_size: int = 16  # The batch size to calculate log probabilities
     beam_batch_size: int = 1  # The batch size to be used for beam search decoding
     device: str = "cuda"  # The device to load the model onto to calculate log probabilities
     use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
@@ -335,7 +335,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
-                all_probs = asr_model.transcribe(audio_file_paths, batch_size=cfg.batch_size, logprobs=True)
+                all_probs = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
 
         if cfg.probs_cache_file:
             os.makedirs(os.path.split(cfg.probs_cache_file)[0], exist_ok=True)
