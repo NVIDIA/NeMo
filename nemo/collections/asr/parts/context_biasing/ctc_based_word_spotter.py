@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
 from dataclasses import dataclass
+from typing import List, Optional
+
 import numpy as np
 
 from nemo.collections.asr.parts.context_biasing.context_graph_ctc import ContextGraphCTC, ContextState
@@ -30,6 +31,7 @@ class Token:
         start_frame: index of acoustic frame from which the token was created
         alive: token status (alive or dead)
     """
+
     state: ContextState
     score: float = 0.0
     start_frame: Optional[int] = None
@@ -47,6 +49,7 @@ class WSHyp:
         start_frame: index of acoustic frame from which the best token was created
         end_frame: index of acoustic frame from which the final state of ContextGraph was reached
     """
+
     word: str
     score: float
     start_frame: int
@@ -334,7 +337,9 @@ def run_word_spotter(
                 # add a word as spotted if token reached the end of word state in context graph:
                 if new_token.state.is_end and new_token.score > keyword_threshold:
                     word = new_token.state.word
-                    spotted_words.append(WSHyp(word=word, score=new_token.score, start_frame=new_token.start_frame, end_frame=frame))
+                    spotted_words.append(
+                        WSHyp(word=word, score=new_token.score, start_frame=new_token.start_frame, end_frame=frame)
+                    )
                     # check case when the current state is the last in the branch (only one self-loop transition)
                     if len(new_token.state.next) == 1:
                         if current_score is best_score:
