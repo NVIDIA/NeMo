@@ -16,6 +16,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -313,7 +314,9 @@ def write_transcription(
     else:
         raise TypeError
 
-    with open(cfg.output_manifest, 'w', encoding='utf-8', newline='\n') as f:
+    # create output dir if not exists
+    Path(cfg.output_filename).parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
                 if not return_hypotheses:  # transcription is str
