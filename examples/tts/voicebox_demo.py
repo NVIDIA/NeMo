@@ -35,8 +35,9 @@ tgt_word_masks = {
 
 def get_audio_data(audio_path, device):
     # audio_data, orig_sr = sf.read(audio_path)
-    audio_data, orig_sr = librosa.load(audio_path, sr=sampling_rate)
-    audio_data = audio_data / max(np.abs(audio_data))
+    _, orig_sr = librosa.load(audio_path)
+    audio_data, _ = librosa.load(audio_path, sr=sampling_rate)
+    # audio_data = audio_data / max(np.abs(audio_data))
     audio = torch.tensor(audio_data, dtype=torch.float, device=device).unsqueeze(0)
     audio_len = torch.tensor(audio.shape[1], device=device).unsqueeze(0)
     return audio, audio_len, orig_sr
@@ -243,8 +244,22 @@ def audio_frame_mask_by_phn(ori_audio, model, ori_phn_dur, ori_phn_mask, new_phn
         new_phoneme_ids.append(p)
     new_phoneme_ids = model.tokenizer.text_to_ids(new_phoneme_ids)[0]
     aligned_phoneme_ids = model.tokenizer.text_to_ids(aligned_phonemes)[0]
+
+    ori_aligned_phonemes = []
+    ori_dur = []
+    ori_phoneme_ids = []
+    for p, st, ed in ori_phn_dur:
+        ori_aligned_phonemes += [p] * (round(dur_ratio*ed) - round(dur_ratio*st))
+        ori_dur.append(round(dur_ratio*ed) - round(dur_ratio*st))
+        ori_phoneme_ids.append(p)
+    ori_phoneme_ids = model.tokenizer.text_to_ids(ori_phoneme_ids)[0]
+    ori_aligned_phoneme_ids = model.tokenizer.text_to_ids(ori_aligned_phonemes)[0]
     return {
         "ori_mel": ori_mel,
+        "ori_self_attn_mask": torch.ones_like(ori_mel[0, :, 0]).unsqueeze(0),
+        "ori_phoneme_ids": ori_phoneme_ids,
+        "ori_aligned_phoneme_ids": torch.tensor(ori_aligned_phoneme_ids).to(ori_mel.device).unsqueeze(0),
+        "ori_dur": ori_dur,
         "new_cond": new_cond,
         "new_frame_mask": new_frame_mask,
         "new_phoneme_ids": new_phoneme_ids,
@@ -265,6 +280,7 @@ def get_edit_data(model, device, ori_audio_path, ori_textgrid_path, tgt_textgrid
     new_phn_dur, new_phn_mask, _ = combine_masked_dur(ori_word_dur=ori_phn_dur, tgt_word_dur=tgt_phn_dur, ori_word_mask=ori_phn_mask, tgt_word_mask=tgt_phn_mask)
     outputs = audio_frame_mask_by_phn(ori_audio=ori_audio, model=model, ori_phn_dur=ori_phn_dur, ori_phn_mask=ori_phn_mask, new_phn_dur=new_phn_dur)
     outputs.update({
+        "ori_sr": orig_sr,
         "ori_audio": ori_audio,
         "new_phn_dur": new_phn_dur,
         "new_phn_mask": new_phn_mask,

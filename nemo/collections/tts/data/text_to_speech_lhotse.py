@@ -158,7 +158,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         audio_22050, audio_lens_22050, _ = self.load_audio(cuts.resample(22050))
         audio_24k, audio_lens_24k, _ = self.load_audio(cuts.resample(24000))
         batch.update({
-            # "cuts": cuts,
+            "cuts": cuts,
             "audio": audio,
             "audio_lens": audio_lens,
             "audio_22050": audio_22050,
