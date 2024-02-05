@@ -143,7 +143,7 @@ def merge_alignment_with_ws_hyps(
     return boosted_text, initial_text_transcript
 
 
-def compute_fscore(recognition_results_manifest: str, key_words_list: List,) -> tuple[float, float, float]:
+def compute_fscore(recognition_results_manifest: str, key_words_list: List, eps: str = "<eps>") -> tuple[float, float, float]:
     """
     Compute fscore for list of context biasing words/phrases.
     The idea is to get a word-level alignment for ground truth text and prediction results from manifest file.
@@ -153,6 +153,7 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List,) -> 
         recognition_results_manifest: path to nemo manifest file with recognition results in pred_text field.
         key_words_list: list of context biasing words/phrases.
         return_scores: if True, return precision, recall and fscore (not only print).
+        eps: epsilon symbol for alignment ('<eps>' in case of texterrors aligner).
     Returns:
         Returns tuple of precision, recall and fscore.
     """
@@ -181,26 +182,59 @@ def compute_fscore(recognition_results_manifest: str, key_words_list: List,) -> 
         for i in range(len(texterrors_ali[0])):
             ali.append((texterrors_ali[0][i], texterrors_ali[1][i]))
 
-        for idx, pair in enumerate(ali):
-            # check all the ngrams:
-            # TODO: add epsilon skipping to ge more accurate results for phrases...
-            for ngram_order in range(1, max_ngram_order + 1):
-                if (idx + ngram_order - 1) < len(ali):
-                    item_ref, item_hyp = [], []
-                    for order in range(1, ngram_order + 1):
-                        item_ref.append(ali[idx + order - 1][0])
-                        item_hyp.append(ali[idx + order - 1][1])
-                    item_ref = " ".join(item_ref)
-                    item_hyp = " ".join(item_hyp)
-                    # update key_words_stat
-                    if item_ref in key_words_stat:
-                        key_words_stat[item_ref][1] += 1  # add to gt
-                        if item_ref == item_hyp:
-                            key_words_stat[item_ref][0] += 1  # add to tp
-                    elif item_hyp in key_words_stat:
-                        key_words_stat[item_hyp][2] += 1  # add to fp
-                else:
-                    break
+        # 1-grams
+        for idx in range(len(ali)):
+            word_ref = ali[idx][0]
+            word_hyp = ali[idx][1]
+            if word_ref in key_words_stat:
+                key_words_stat[word_ref][1] += 1  # add to gt
+                if word_ref == word_hyp:
+                    key_words_stat[word_ref][0] += 1  # add to tp
+            elif word_hyp in key_words_stat:
+                key_words_stat[word_hyp][2] += 1  # add to fp
+
+        # 2-grams and higher (takes into account epsilons in alignment)
+        for ngram_order in range(2, max_ngram_order + 1):
+            # for reference phrase
+            idx = 0
+            item_ref = []
+            while idx < len(ali):
+                if item_ref:
+                    item_ref = [item_ref[1]]
+                    idx = item_ref[0][1] + 1  # idex of second non eps word + 1
+                while len(item_ref) != ngram_order and idx < len(ali):
+                    word = ali[idx][0]
+                    idx += 1
+                    if word == eps:
+                        continue
+                    else:
+                        item_ref.append((word, idx-1))
+                if len(item_ref) == ngram_order:
+                    phrase_ref = " ".join([item[0] for item in item_ref])
+                    phrase_hyp = " ".join([ali[item[1]][1] for item in item_ref])
+                    if phrase_ref in key_words_stat:
+                        key_words_stat[phrase_ref][1] += 1  # add to gt
+                        if phrase_ref == phrase_hyp:
+                            key_words_stat[phrase_ref][0] += 1  # add to tp
+            # in case of false positive hypothesis phrase
+            idx = 0
+            item_hyp = []
+            while idx < len(ali):
+                if item_hyp:
+                    item_hyp = [item_hyp[1]]
+                    idx = item_hyp[0][1] + 1  # idex of first non eps word in previous ngram + 1
+                while len(item_hyp) != ngram_order and idx < len(ali):
+                    word = ali[idx][1]
+                    idx += 1
+                    if word == eps:
+                        continue
+                    else:
+                        item_hyp.append((word, idx-1))
+                if len(item_hyp) == ngram_order:
+                    phrase_hyp = " ".join([item[0] for item in item_hyp])
+                    phrase_ref = " ".join([ali[item[1]][0] for item in item_hyp])
+                    if phrase_hyp in key_words_stat and phrase_hyp != phrase_ref:
+                        key_words_stat[phrase_hyp][2] += 1  # add to fp
 
     tp = sum([key_words_stat[x][0] for x in key_words_stat])
     gt = sum([key_words_stat[x][1] for x in key_words_stat])
