@@ -28,6 +28,7 @@ from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -891,7 +892,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Broadcast data.
         if data_iterator is not None:
-            data, _, _ = next(data_iterator)
+            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+            # from the dataloader_iter are already extracted in the child class training/validation steps
+            if isinstance(data_iterator, _DataFetcherWrapper):
+                data, _, _ = next(data_iterator)
+            elif isinstance(data_iterator, itertools.chain):
+                data = next(data_iterator)
         else:
             data = None
 
