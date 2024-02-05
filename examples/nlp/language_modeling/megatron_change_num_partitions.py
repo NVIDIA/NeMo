@@ -20,7 +20,6 @@ from argparse import ArgumentParser
 from typing import Dict, List
 
 import torch
-import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
@@ -1218,7 +1217,7 @@ def main():
             model.cfg.virtual_pipeline_model_parallel_size = None
 
         logging.info(f"<<<<<<<< Building TP 1 PP 1 base model >>>>>>>>>")
-        model = cls(model.cfg, trainer)  # type: nn.Module
+        model = cls(model.cfg, trainer)  # type: torch.nn.Module
         model.freeze()
         model = model.to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()

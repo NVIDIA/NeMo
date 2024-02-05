@@ -27,7 +27,6 @@ from nemo.utils import logging
 try:
     from pytorch_quantization import calib
     from pytorch_quantization import nn as quant_nn
-    from pytorch_quantization import quant_modules
     from pytorch_quantization.tensor_quant import QuantDescriptor
 except ImportError:
     raise ImportError(

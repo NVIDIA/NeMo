@@ -24,12 +24,10 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
      --pipeline_model_parallel_size <pipeline_model_parallel_size>
 """
 
-import dis
 import os
 from argparse import ArgumentParser
 
 import torch
-from genericpath import isdir
 from megatron.core import parallel_state
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment

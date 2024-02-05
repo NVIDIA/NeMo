@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronT5TrainerBuilder
