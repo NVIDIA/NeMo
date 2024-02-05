@@ -17,8 +17,7 @@ Conversion script to convert Huggingface Baichuan2 checkpoints into nemo checkpo
   Example to run this conversion script:
     python convert_hf_baichuan2_to_nemo.py \
      --in-file <path_to_hf_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file> \
-     [--fast-swiglu\
+     --out-file <path_to_output_nemo_file>
 """
 
 import os
@@ -27,13 +26,11 @@ from collections import OrderedDict
 
 import torch
 from omegaconf import OmegaConf
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -41,6 +38,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper, torch_dtype_from_precision
 from nemo.utils import logging
 
 
@@ -97,15 +95,20 @@ def load_config(args, baichuan2_config):
     ).model
     if 'max_position_embeddings' in baichuan2_config:
         nemo_config.encoder_seq_length = baichuan2_config['max_position_embeddings']
-    nemo_config.num_layers = int(baichuan2_config['num_hidden_layers'])
+    nemo_config.num_layers = baichuan2_config['num_hidden_layers']
     nemo_config.hidden_size = baichuan2_config['hidden_size']
     nemo_config.ffn_hidden_size = baichuan2_config['intermediate_size']
     nemo_config.num_attention_heads = baichuan2_config['num_attention_heads']
+    nemo_config.num_query_groups = baichuan2_config['num_attention_heads']
     nemo_config.init_method_std = baichuan2_config['initializer_range']
     nemo_config.layernorm_epsilon = baichuan2_config['rms_norm_eps']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
     nemo_config.tokenizer.model = baichuan2_config['tokenizer_model']
+    if nemo_config.num_layers == 32:
+        nemo_config.position_embedding_type = 'rope'
+    elif nemo_config.num_layers == 40:
+        nemo_config.position_embedding_type = 'alibi'
 
     base = 128
     while baichuan2_config['vocab_size'] % base != 0:
@@ -157,15 +160,6 @@ def convert(args):
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-
-    if precision == 32:
-        dtype = torch.float32
-    elif precision in [16, "16", "16-mixed"]:
-        dtype = torch.float16
-    elif precision in ["bf16", "bf16-mixed"]:
-        dtype = torch.bfloat16
-    else:
-        dtype = torch.float32  # fallback
 
     nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
@@ -302,11 +296,12 @@ def convert(args):
         for key in keys:
             checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
 
-    model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
+    model = load_state_dict_helper(MegatronGPTModel, nemo_config, trainer, checkpoint['state_dict'])
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
     # cast to target precision and disable cpu init
+    dtype = torch_dtype_from_precision(precision)
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
