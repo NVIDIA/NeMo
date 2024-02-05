@@ -186,6 +186,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self,
         blank_id: int,
         beam_size: int,
+        search_type: str = "default",
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
@@ -193,9 +194,11 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         beam_beta: float = 0.0,
         kenlm_path: str = None,
         flashlight_cfg: Optional['FlashlightConfig'] = None,
+        pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
     ):
         super().__init__(blank_id=blank_id, beam_size=beam_size)
 
+        self.search_type = search_type
         self.return_best_hypothesis = return_best_hypothesis
         self.preserve_alignments = preserve_alignments
         self.compute_timestamps = compute_timestamps
@@ -204,13 +207,30 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             raise ValueError(f"Currently this flag is not supported for beam search algorithms.")
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
-        self.search_algorithm = self.flashlight_beam_search
+
+        if search_type == "beam" or search_type == "pyctcdecode":
+            self.search_algorithm = self._pyctcdecode_beam_search
+        elif search_type == "flashlight":
+            self.search_algorithm = self.flashlight_beam_search
+        else:
+            raise NotImplementedError(
+                f"The search type ({search_type}) supplied is not supported!\n"
+                f"Please use one of : (beam, pyctcdecode, flashlight)"
+            )
+
+        # Log the beam search algorithm
+        logging.info(f"Beam search algorithm: {search_type}")
 
         self.beam_alpha = beam_alpha
         self.beam_beta = beam_beta
 
         # Default beam search args
         self.kenlm_path = kenlm_path
+
+        # PyCTCDecode params
+        if pyctcdecode_cfg is None:
+            pyctcdecode_cfg = PyCTCDecodeConfig()
+        self.pyctcdecode_cfg = pyctcdecode_cfg  # type: PyCTCDecodeConfig
 
         if flashlight_cfg is None:
             flashlight_cfg = FlashlightConfig()
@@ -265,6 +285,94 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
 
         return (packed_result,)
+
+    @torch.no_grad()
+    def _pyctcdecode_beam_search(
+        self, x: torch.Tensor, out_len: torch.Tensor
+    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
+        """
+        PyCTCDecode Beam Search Algorithm. Should support Char and Subword models.
+        Args:
+            x: Tensor of shape [B, T, V+1], where B is the batch size, T is the maximum sequence length,
+                and V is the vocabulary size. The tensor contains log-probabilities.
+            out_len: Tensor of shape [B], contains lengths of each sequence in the batch.
+        Returns:
+            A list of NBestHypotheses objects, one for each sequence in the batch.
+        """
+        if self.compute_timestamps:
+            raise ValueError(
+                f"Beam Search with strategy `{self.search_type}` does not support time stamp calculation!"
+            )
+
+        try:
+            import pyctcdecode
+        except (ImportError, ModuleNotFoundError):
+            raise ImportError(
+                f"Could not load `pyctcdecode` library. Please install it from pip using :\n"
+                f"pip install --upgrade pyctcdecode"
+            )
+
+        if self.pyctcdecode_beam_scorer is None:
+            self.pyctcdecode_beam_scorer = pyctcdecode.build_ctcdecoder(
+                labels=self.vocab, kenlm_model_path=self.kenlm_path, alpha=self.beam_alpha, beta=self.beam_beta
+            )  # type: pyctcdecode.BeamSearchDecoderCTC
+
+        x = x.to('cpu').numpy()
+
+        with typecheck.disable_checks():
+            beams_batch = []
+            for sample_id in range(len(x)):
+                logprobs = x[sample_id, : out_len[sample_id], :]
+                result = self.pyctcdecode_beam_scorer.decode_beams(
+                    logprobs,
+                    beam_width=self.beam_size,
+                    beam_prune_logp=self.pyctcdecode_cfg.beam_prune_logp,
+                    token_min_logp=self.pyctcdecode_cfg.token_min_logp,
+                    prune_history=self.pyctcdecode_cfg.prune_history,
+                    hotwords=self.pyctcdecode_cfg.hotwords,
+                    hotword_weight=self.pyctcdecode_cfg.hotword_weight,
+                    lm_start_state=None,
+                )  # Output format: text, last_lm_state, text_frames, logit_score, lm_score
+                beams_batch.append(result)
+
+        nbest_hypotheses = []
+        for beams_idx, beams in enumerate(beams_batch):
+            hypotheses = []
+            for candidate_idx, candidate in enumerate(beams):
+                # Candidate = (text, last_lm_state, text_frames, logit_score, lm_score)
+                hypothesis = rnnt_utils.Hypothesis(
+                    score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
+                )
+
+                # TODO: Requires token ids to be returned rather than text.
+                if self.decoding_type == 'subword':
+                    if self.tokenizer is None:
+                        raise ValueError("Tokenizer must be provided for subword decoding. Use set_tokenizer().")
+
+                    pred_token_ids = self.tokenizer.text_to_ids(candidate[0])
+                else:
+                    if self.vocab is None:
+                        raise ValueError("Vocab must be provided for character decoding. Use set_vocab().")
+
+                    chars = list(candidate[0])
+                    pred_token_ids = [self.vocab_index_map[c] for c in chars]
+
+                hypothesis.y_sequence = pred_token_ids
+                hypothesis.text = candidate[0]  # text
+                hypothesis.score = candidate[4]  # score
+
+                # Inject word level timestamps
+                hypothesis.timestep = candidate[2]  # text_frames
+
+                if self.preserve_alignments:
+                    hypothesis.alignments = torch.from_numpy(x[beams_idx][: out_len[beams_idx]])
+
+                hypotheses.append(hypothesis)
+
+            hypotheses = rnnt_utils.NBestHypotheses(hypotheses)
+            nbest_hypotheses.append(hypotheses)
+
+        return nbest_hypotheses
 
     @torch.no_grad()
     def flashlight_beam_search(
@@ -361,6 +469,18 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
 
 @dataclass
+class PyCTCDecodeConfig:
+    # These arguments cannot be imported from pyctcdecode (optional dependency)
+    # Therefore we copy the values explicitly
+    # Taken from pyctcdecode.constant
+    beam_prune_logp: float = -10.0
+    token_min_logp: float = -5.0
+    prune_history: bool = False
+    hotwords: Optional[List[str]] = None
+    hotword_weight: float = 10.0
+
+
+@dataclass
 class FlashlightConfig:
     lexicon_path: Optional[str] = None
     boost_path: Optional[str] = None
@@ -373,6 +493,7 @@ class FlashlightConfig:
 @dataclass
 class BeamCTCInferConfig:
     beam_size: int
+    search_type: str = 'default'
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     return_best_hypothesis: bool = True
@@ -382,6 +503,7 @@ class BeamCTCInferConfig:
     kenlm_path: Optional[str] = None
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
+    pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
 
 
 @dataclass
