@@ -40,7 +40,7 @@ python eval_greedy_decoding_with_context_biasing.py \
 
 # Description of context biasing graph:
 Context biasing file contains words/phrases with their spellings
-(one word/phrase per line, spellings are separated from word/phrase by dash symbol):
+(one word/phrase per line, spellings are separated from word/phrase by underscore symbol):
 WORD1_SPELLING1
 WORD2_SPELLING1_SPELLING2
 ...
@@ -69,7 +69,7 @@ import os
 import tempfile
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 import editdistance
 import numpy as np
@@ -108,11 +108,11 @@ class EvalContextBiasingConfig:
 
     # Context-Biasing params
     apply_context_biasing: bool = False  # True in case of context biasing
-    context_file: Optional[str] = None  # text file with context biasing words and their spellings
+    context_file: str = MISSING  # text file with context biasing words and their spellings
     spelling_separator: str = "_"  # separator between word and its spellings in context biasing file
-    beam_threshold: List[float] = field(default_factory=lambda: [5.0])  # beam pruning threshold for ctc-ws decoding
-    context_score: List[float] = field(default_factory=lambda: [3.0])  # per token weight for context biasing words
-    ctc_ali_token_weight: List[float] = field(
+    beam_threshold: list[float] = field(default_factory=lambda: [5.0])  # beam pruning threshold for ctc-ws decoding
+    context_score: list[float] = field(default_factory=lambda: [3.0])  # per token weight for context biasing words
+    ctc_ali_token_weight: list[float] = field(
         default_factory=lambda: [0.6]
     )  # weight of CTC tokens to prevent false accept errors
     print_cb_stats: bool = False  # print context biasing stats (mostly for debugging)
@@ -126,17 +126,17 @@ class EvalContextBiasingConfig:
 def decoding_step(
     asr_model: nemo_asr.models.ASRModel,
     cfg: EvalContextBiasingConfig,
-    encoder_outputs: List[torch.Tensor],
-    ctc_logprobs: List[np.ndarray],
-    target_transcripts: List[str],
-    audio_file_paths: List[str],
-    durations: List[str],
+    encoder_outputs: list[torch.Tensor],
+    ctc_logprobs: list[np.ndarray],
+    target_transcripts: list[str],
+    audio_file_paths: list[str],
+    durations: list[str],
     preds_output_manifest: str,
     beam_batch_size: int = 128,
     progress_bar: bool = True,
     context_graph: context_biasing.ContextGraphCTC = None,
     blank_idx: int = 0,
-    hp: Dict = None,
+    hp: Optional[Dict] = None,
 ) -> tuple[float, float]:
 
     # run CTC-based Word Spotter:
@@ -160,7 +160,7 @@ def decoding_step(
     # Reset config
     asr_model.change_decoding_strategy(None)
 
-    # preserve aligmnet:
+    # preserve alignment:
     asr_model.cfg.decoding.preserve_alignments = cfg.preserve_alignments
 
     # Update model's decoding strategy config
@@ -231,7 +231,7 @@ def decoding_step(
                     'pred_text': pred_text,
                     'wer': f"{wer_dist/len(target_split_w):.4f}",
                 }
-                out_manifest.write(json.dumps(item) + "\n")
+                print(json.dumps(item), file=out_manifest)
         out_manifest.close()
 
         return wer_dist_first / words_count, cer_dist_first / chars_count
@@ -264,9 +264,7 @@ def decoding_step(
                 target_split_c = list(target)
                 words_count += len(target_split_w)
                 chars_count += len(target_split_c)
-                for candidate_idx, candidate in enumerate(
-                    beams
-                ):  # type: (int, rnnt_beam_decoding.rnnt_utils.Hypothesis)
+                for candidate_idx, candidate in enumerate(beams):
                     if cfg.apply_context_biasing and ws_results[audio_file_paths[sample_idx + beams_idx]]:
                         # make new text by mearging alignment with ctc-ws predictions:
                         if cfg.print_cb_stats:
@@ -310,7 +308,7 @@ def decoding_step(
                         'wer': f"{wer_dist_tosave/len(target_split_w):.3f}",
                         'alignment': f"{alignment}",
                     }
-                    out_manifest.write(json.dumps(item) + "\n")
+                    print(json.dumps(item), file=out_manifest)
 
             sample_idx += len(probs_batch)
         out_manifest.close()
@@ -324,8 +322,7 @@ def main(cfg: EvalContextBiasingConfig):
         cfg = OmegaConf.structured(cfg)
 
     assert os.path.isfile(cfg.input_manifest), f"input_manifest {cfg.input_manifest} does not exist"
-    if cfg.apply_context_biasing:
-        assert cfg.context_file, "context_file must be provided in case of context biasing"
+    assert cfg.context_file, "context_file must be provided for f-score computation"
     assert os.path.isfile(cfg.context_file), f"context_file {cfg.context_file} does not exist"
     assert cfg.decoder_type in ["ctc", "rnnt"], "decoder_type must be ctc or rnnt"
     assert cfg.preds_output_folder, "preds_output_folder must be provided"
@@ -341,9 +338,9 @@ def main(cfg: EvalContextBiasingConfig):
         asr_model = nemo_asr.models.ASRModel.from_pretrained(
             cfg.nemo_model_file, map_location=torch.device(cfg.device)
         )
-    assert isinstance(
-        asr_model, (EncDecCTCModelBPE, EncDecHybridRNNTCTCModel)
-    ), "ASR model must be CTC BPE or Hybrid Transducer-CTC"
+    if not isinstance(asr_model, (EncDecCTCModelBPE, EncDecHybridRNNTCTCModel)):
+        raise ValueError("ASR model must be CTC BPE or Hybrid Transducer-CTC")
+
 
     # load nemo manifest
     target_transcripts = []
@@ -420,20 +417,19 @@ def main(cfg: EvalContextBiasingConfig):
                     blank_idx = asr_model.decoder.blank_idx
 
     # load context biasing words
-    if cfg.context_file:
-        context_transcripts = []
-        for line in open(cfg.context_file).readlines():
-            item = line.strip().lower().split(cfg.spelling_separator)
-            word = item[0]
-            word_tokenization = [asr_model.tokenizer.text_to_ids(x) for x in item[1:]]
-            context_transcripts.append([word, word_tokenization])
-        context_words = [item[0] for item in context_transcripts]
-        # build context graph:
-        if cfg.apply_context_biasing:
-            context_graph = context_biasing.ContextGraphCTC(blank_id=blank_idx)
-            context_graph.add_to_graph(context_transcripts)
-        else:
-            context_graph = None
+    context_transcripts = []
+    for line in open(cfg.context_file).readlines():
+        item = line.strip().lower().split(cfg.spelling_separator)
+        word = item[0]
+        word_tokenization = [asr_model.tokenizer.text_to_ids(x) for x in item[1:]]
+        context_transcripts.append([word, word_tokenization])
+    context_words = [item[0] for item in context_transcripts]
+    # build context graph:
+    if cfg.apply_context_biasing:
+        context_graph = context_biasing.ContextGraphCTC(blank_id=blank_idx)
+        context_graph.add_to_graph(context_transcripts)
+    else:
+        context_graph = None
 
     # sort encoder_outputs according to length:
     if cfg.decoder_type == "rnnt" and cfg.sort_logits:
