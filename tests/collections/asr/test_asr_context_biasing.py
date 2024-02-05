@@ -27,6 +27,7 @@ from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WS
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 
+@pytest.fixture(scope="module")
 def conformer_ctc_bpe_model():
     model = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
     model.set_trainer(Trainer(devices=1, accelerator="cpu"))
@@ -39,7 +40,7 @@ class TestContextGraphCTC:
     def test_graph_building(self):
         context_biasing_list = [["gpu", [['▁g', 'p', 'u'], ['▁g', '▁p', '▁u']]]]
         context_graph = context_biasing.ContextGraphCTC(blank_id=1024)
-        context_graph.build(context_biasing_list)
+        context_graph.add_to_graph(context_biasing_list)
         assert context_graph.num_nodes == 8
         assert context_graph.blank_token == 1024
         assert not context_graph.root.next['▁g'].is_end
@@ -51,8 +52,9 @@ class TestContextGraphCTC:
 
 class TestCTCWordSpotter:
     @pytest.mark.unit
-    def test_run_word_spotter(self, test_data_dir):
-        asr_model = conformer_ctc_bpe_model()
+    @pytest.mark.with_downloads
+    def test_run_word_spotter(self, test_data_dir, conformer_ctc_bpe_model):
+        asr_model = conformer_ctc_bpe_model
         audio_file_path = os.path.join(test_data_dir, "asr/test/an4/wav/cen3-mjwl-b.wav")
         target_text = "nineteen"
         target_tokenization = asr_model.tokenizer.text_to_ids(target_text)
@@ -60,7 +62,7 @@ class TestCTCWordSpotter:
 
         context_biasing_list = [[target_text, [target_tokenization]]]
         context_graph = context_biasing.ContextGraphCTC(blank_id=asr_model.decoding.blank_id)
-        context_graph.build(context_biasing_list)
+        context_graph.add_to_graph(context_biasing_list)
 
         # without context biasing
         ws_results = context_biasing.run_word_spotter(
@@ -93,10 +95,11 @@ class TestCTCWordSpotter:
 
 class TestContextBiasingUtils:
     @pytest.mark.unit
-    def test_merge_alignment_with_ws_hyps(self):
-        asr_model = conformer_ctc_bpe_model()
+    @pytest.mark.with_downloads
+    def test_merge_alignment_with_ws_hyps(self, conformer_ctc_bpe_model):
+        asr_model = conformer_ctc_bpe_model
         blank_idx = asr_model.decoding.blank_id
-        ws_results = [WSHyp("gpu", 6.0, 0, 2)]
+        ws_results = [WSHyp(word="gpu", score=6.0, start_frame=0, end_frame=2)]
 
         # ctc argmax predictions
         preds = np.array([120, 29, blank_idx, blank_idx])
@@ -131,7 +134,7 @@ class TestContextBiasingUtils:
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
             f.write(recog_manifest)
             f.seek(0)
-            fscore_stats = context_biasing.compute_fscore(f.name, context_words, return_scores=True)
+            fscore_stats = context_biasing.compute_fscore(f.name, context_words)
             assert (round(fscore_stats[0], 4), round(fscore_stats[1], 4), round(fscore_stats[2], 4)) == (
                 1.0,
                 0.5,

@@ -13,30 +13,30 @@
 # limitations under the License.
 
 from typing import List, Optional
-
+from dataclasses import dataclass
 import numpy as np
 
 from nemo.collections.asr.parts.context_biasing.context_graph_ctc import ContextGraphCTC, ContextState
 
 
+@dataclass
 class Token:
     """
-    Class of alignment tracking according to the Token Passing Algoritm (TPA).
+    Dataclass of alignment tracking according to the Token Passing Algoritm (TPA).
 
     Args:
         state: state of Context-Biasing graph
         score: accumulated token score in log space
         start_frame: index of acoustic frame from which the token was created
+        alive: token status (alive or dead)
     """
-
-    def __init__(self, state: ContextState, score: float = 0.0, start_frame: Optional[int] = None):
-        self.state = state
-        self.score = score
-        self.start_frame = start_frame
-        # whether a token is alive or not
-        self.alive = True
+    state: ContextState
+    score: float = 0.0
+    start_frame: Optional[int] = None
+    alive: bool = True
 
 
+@dataclass
 class WSHyp:
     """
     Hypothesis of Word Spotter prediction
@@ -47,14 +47,10 @@ class WSHyp:
         start_frame: index of acoustic frame from which the best token was created
         end_frame: index of acoustic frame from which the final state of ContextGraph was reached
     """
-
-    def __init__(
-        self, word: str, score: float, start_frame: int, end_frame: int,
-    ):
-        self.word = word
-        self.score = score
-        self.start_frame = start_frame
-        self.end_frame = end_frame
+    word: str
+    score: float
+    start_frame: int
+    end_frame: int
 
 
 def beam_pruning(next_tokens: List[Token], beam_threshold: float) -> List[Token]:
@@ -338,7 +334,7 @@ def run_word_spotter(
                 # add a word as spotted if token reached the end of word state in context graph:
                 if new_token.state.is_end and new_token.score > keyword_threshold:
                     word = new_token.state.word
-                    spotted_words.append(WSHyp(word, new_token.score, new_token.start_frame, frame))
+                    spotted_words.append(WSHyp(word=word, score=new_token.score, start_frame=new_token.start_frame, end_frame=frame))
                     # check case when the current state is the last in the branch (only one self-loop transition)
                     if len(new_token.state.next) == 1:
                         if current_score is best_score:

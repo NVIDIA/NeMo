@@ -431,7 +431,7 @@ def main(cfg: EvalContextBiasingConfig):
         # build context graph:
         if cfg.apply_context_biasing:
             context_graph = context_biasing.ContextGraphCTC(blank_id=blank_idx)
-            context_graph.build(context_transcripts)
+            context_graph.add_to_graph(context_transcripts)
         else:
             context_graph = None
 
@@ -493,7 +493,7 @@ def main(cfg: EvalContextBiasingConfig):
         )
 
         # compute fscore
-        fscore_stats = context_biasing.compute_fscore(preds_output_manifest, context_words, return_scores=True)
+        fscore_stats = context_biasing.compute_fscore(preds_output_manifest, context_words)
 
         # find the best wer value
         if candidate_wer < best_wer:
@@ -503,24 +503,23 @@ def main(cfg: EvalContextBiasingConfig):
             best_wer = candidate_wer
             best_fscore_stats = fscore_stats
 
-        logging.info(
-            f"============================================================================================================="
-        )
+        logging.info(f"======================================================================")
         logging.info(f"Greedy WER/CER = {candidate_wer:.2%}/{candidate_cer:.2%}")
+        logging.info(f"Precision/Recall/Fscore = {fscore_stats[0]:.4f}/{fscore_stats[1]:.4f}/{fscore_stats[2]:.4f}")
         logging.info(
-            f"Params: b_thr={hp['beam_threshold']}, cs={hp['context_score']}, ctc_ali_weight = {hp['ctc_ali_token_weight']}"
+            f"Params: b_thr = {hp['beam_threshold']}, cs = {hp['context_score']}, ctc_ali_weight = {hp['ctc_ali_token_weight']}"
         )
-        logging.info(
-            f"============================================================================================================="
-        )
+        logging.info(f"======================================================================")
 
-    logging.info(f"Best WER = {best_wer:.2%}")
-    logging.info(
-        f"Best Precision/Recall/Fscore = {best_fscore_stats[0]:.4f}/{best_fscore_stats[1]:.4f}/{best_fscore_stats[2]:.4f}"
-    )
-    logging.info(
-        f"Best beam_threshold = {best_beam_threshold}, context_score = {best_context_score}, ctc_ali_token_weight = {best_ctc_ali_token_weight}"
-    )
+    if len(hp_grid) > 1:
+        logging.info(f"=========================Best Results=================================")
+        logging.info(f"Best WER = {best_wer:.2%}")
+        logging.info(
+            f"Best Precision/Recall/Fscore = {best_fscore_stats[0]:.4f}/{best_fscore_stats[1]:.4f}/{best_fscore_stats[2]:.4f}"
+        )
+        logging.info(
+            f"Best beam_threshold = {best_beam_threshold}, context_score = {best_context_score}, ctc_ali_token_weight = {best_ctc_ali_token_weight}"
+        )
 
 
 if __name__ == '__main__':

@@ -35,6 +35,13 @@ from collections import deque
 from typing import Dict, List, Optional, Union
 
 
+try:
+    import graphviz
+    _GRAPHVIZ_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    _GRAPHVIZ_AVAILABLE = False
+
+
 class ContextState:
     """The state in ContextGraph"""
 
@@ -78,9 +85,9 @@ class ContextGraphCTC:
         self.root = ContextState(index=self.num_nodes, is_end=False)
         self.blank_token = blank_id
 
-    def build(self, word_items: List[Union[str, List[List[Union[str, int]]]]]):
+    def add_to_graph(self, word_items: List[tuple[str, List[List[tuple[str, int]]]]]):
         """
-        Build the context graph based on given word_items.
+        Adding nodes to the context graph based on given word_items.
 
         Args:
             word_items: a list of word items, each word item is a tuple of (word, tokenizations)
@@ -146,7 +153,7 @@ class ContextGraphCTC:
                         prev_node = prev_node.next[self.blank_token].next[token]
                     prev_token = token
 
-    def draw(self, title: Optional[str] = None, symbol_table: Optional[Dict[int, str]] = None,) -> "Digraph":  # noqa
+    def draw(self, title: Optional[str] = None, symbol_table: Optional[Dict[int, str]] = None,) -> "graphviz.Digraph":
         """Visualize a ContextGraph via graphviz.
 
         Render ContextGraph as an image via graphviz, and return the Digraph object
@@ -163,11 +170,8 @@ class ContextGraphCTC:
         Returns:
           A Diagraph from grahpviz.
         """
-        try:
-            import graphviz
-        except Exception:
-            print("You cannot use `to_dot` unless the graphviz package is installed.")
-            raise
+        if _GRAPHVIZ_AVAILABLE is False:
+            raise ImportError("graphviz is not installed")
 
         graph_attr = {
             "rankdir": "LR",
