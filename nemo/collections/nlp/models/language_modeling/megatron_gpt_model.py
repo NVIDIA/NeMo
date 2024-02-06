@@ -657,7 +657,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.get('fp8', False):
             self.prev_step_training = self.training
-        
+
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
