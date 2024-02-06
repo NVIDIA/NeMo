@@ -69,3 +69,56 @@ jobs:
     - name: NeMo Installation
       run: |
         ./reinstall.sh release
+
+    # Transformer Engine 1.2.0
+    - name: Transformer Engine installation
+      run: |
+         git clone https://github.com/NVIDIA/TransformerEngine.git && \
+             cd TransformerEngine && \
+             git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
+             git checkout FETCH_HEAD && \
+             git submodule init && git submodule update && \
+             NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
+
+    # Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
+    - name: Apex installation
+      run: |
+         git clone https://github.com/NVIDIA/apex.git && \
+             cd apex && \
+             git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
+             cp -R apex /usr/local/lib/python3.10/dist-packages
+      
+
+    # pip package should be working with main, if not we can update the commit here
+    # until the pip package is updated
+    - name: Megatron Core installation
+      run: |
+         git clone https://github.com/NVIDIA/Megatron-LM.git && \
+             cd Megatron-LM && \
+             git checkout bed60a881f4b238b1c14b6c6a64997cc636e77b6 && \
+             pip install .
+
+
+    - name: PyTorch Lightning version
+      run: |
+        python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
+
+    - name: PyTorch Lightning DDP Checks
+      run: |
+        CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
+
+
+    - name: Basic Import Checks
+      run: |
+        python -c "import nemo.collections.asr as nemo_asr"
+        python -c "import nemo.collections.nlp as nemo_nlp"
+        python -c "import nemo.collections.tts as nemo_tts"
+      
+    - name: L0: Unit Tests GPU
+      run: |
+        NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
+
+
+
+
+ 
