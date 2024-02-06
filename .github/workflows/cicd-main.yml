@@ -114,7 +114,7 @@ jobs:
         python -c "import nemo.collections.nlp as nemo_nlp"
         python -c "import nemo.collections.tts as nemo_tts"
       
-    - name: L0: Unit Tests GPU
+    - name: "L0: Unit Tests GPU"
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
 
