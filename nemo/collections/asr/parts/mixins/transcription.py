@@ -390,6 +390,13 @@ class TranscriptionMixin(ABC):
     """
 
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
+        """
+        Internal function to setup the model for transcription. Perform all setup and pre-checks here.
+
+        Args:
+            audio: Of type `GenericTranscriptionType`
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+        """
         if audio is None:
             return {}
 
@@ -438,12 +445,24 @@ class TranscriptionMixin(ABC):
         logging.set_verbosity(logging.WARNING)
 
     def _transcribe_input_processing(self, audio, trcfg: TranscribeConfig):
+        """
+        Internal function to process the input audio data and return a DataLoader. This function is called by
+        `transcribe()` and `transcribe_generator()` to setup the input data for transcription.
+
+        Args:
+            audio: Of type `GenericTranscriptionType`
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            A DataLoader object that is used to iterate over the input audio data.
+        """
         if isinstance(audio, (list, tuple)):
             if len(audio) == 0:
                 raise ValueError("Input `audio` is empty")
         else:
             audio = [audio]
 
+        # Check if audio is a list of strings (filepaths or manifests)
         if isinstance(audio[0], str):
             audio_files = list(audio)
 
@@ -453,6 +472,7 @@ class TranscriptionMixin(ABC):
             temp_dataloader = self._setup_transcribe_dataloader(ds_config)
             return temp_dataloader
 
+        # Check if audio is a list of numpy or torch tensors
         elif isinstance(audio[0], (np.ndarray, torch.Tensor)):
             audio_tensors = list(audio)
 
@@ -479,6 +499,18 @@ class TranscriptionMixin(ABC):
     def _transcribe_input_tensor_processing(
         self, audio_tensors: List[Union[np.ndarray, torch.Tensor]], temp_dir: str, trcfg: TranscribeConfig
     ):
+        """
+        Internal function to process the input audio tensors and return a config dict for the dataloader.
+
+        Args:
+            audio_tensors: A list of numpy or torch tensors. The user must ensure that they satisfy the correct
+                sample rate and channel format.
+            temp_dir: A temporary directory to store intermediate files.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            A config dict that is used to setup the dataloader for transcription.
+        """
         # Check if sample rate is set
         sample_rate = None
         if hasattr(self, 'cfg') and 'sample_rate' in self.cfg:
@@ -511,21 +543,74 @@ class TranscriptionMixin(ABC):
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig
     ) -> Dict[str, Any]:
+        """
+        Internal function to process the input audio filepaths and return a config dict for the dataloader.
+
+        Args:
+            audio_files: A list of string filepaths for audio files, or a single string filepath for a manifest file.
+            temp_dir: A temporary directory to store intermediate files.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            A config dict that is used to setup the dataloader for transcription.
+        """
         pass
 
     @abstractmethod
     def _setup_transcribe_dataloader(self, config: Dict) -> DataLoader:
+        """
+        Internal function to setup the dataloader for transcription. This function is called by
+        `transcribe()` and `transcribe_generator()` to setup the input data for transcription.
+
+        Args:
+            config: A config dict that is used to setup the dataloader for transcription. It can be generated either
+                by `_transcribe_input_manifest_processing()` or `_transcribe_input_tensor_processing()`.
+
+        Returns:
+            A DataLoader object that is used to iterate over the input audio data.
+        """
         pass
 
     @abstractmethod
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
+        """
+        Internal function to perform the model's custom forward pass to return outputs that are processed by
+        `_transcribe_output_processing()`.
+        This function is called by `transcribe()` and `transcribe_generator()` to perform the model's forward pass.
+
+        Args:
+            batch: A batch of input data from the data loader that is used to perform the model's forward pass.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            The model's outputs that are processed by `_transcribe_output_processing()`.
+        """
         pass
 
     @abstractmethod
     def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
+        """
+        Internal function to process the model's outputs to return the results to the user. This function is called by
+        `transcribe()` and `transcribe_generator()` to process the model's outputs.
+
+        Args:
+            outputs: The model's outputs that are processed by `_transcribe_forward()`.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            The output can be a list of
+            objects, list of list of objects, tuple of objects, tuple of list of objects, or a dict of list of objects.
+            Its type is defined in `TranscriptionReturnType`.
+        """
         pass
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
+        """
+        Internal function to teardown the model after transcription. Perform all teardown and post-checks here.
+
+        Args:
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+        """
         # set mode back to its original value
         self.train(mode=trcfg._internal.training_mode)
 
@@ -540,6 +625,18 @@ class TranscriptionMixin(ABC):
             logging.set_verbosity(trcfg._internal.logging_level)
 
     def _setup_transcribe_tensor_dataloader(self, config: Dict, trcfg: TranscribeConfig) -> DataLoader:
+        """
+        Internal function to setup the dataloader for transcription. This function is called by
+        `transcribe()` and `transcribe_generator()` to setup the input data for transcription.
+
+        Args:
+            config: A config dict that is used to setup the dataloader for transcription. It can be generated either
+                by `_transcribe_input_manifest_processing()` or `_transcribe_input_tensor_processing()`.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            A DataLoader object that is used to iterate over the input audio data.
+        """
         dataset = TranscriptionTensorDataset(config)
 
         # Import collate function here to avoid circular imports
@@ -572,13 +669,44 @@ class TranscriptionMixin(ABC):
 
 
 class ASRTranscriptionMixin(TranscriptionMixin):
+    """
+    An abstract class for ASR models that can transcribe audio. This class is a subclass of `TranscriptionMixin` that
+    implements the default implementation of common abstract methods among the speech recognition model classes.
+
+    The following abstract classes must be implemented by the subclass:
+    - _transcribe_forward(): Implements the model's custom forward pass to return outputs that are processed by
+        `_transcribe_output_processing()`.
+    - _transcribe_output_processing(): Implements the post processing of the model's outputs to return the results to
+        the user. The result can be a list of objects, list of list of objects, tuple of objects, tuple of list of
+    """
+
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: TranscribeConfig
     ) -> Dict[str, Any]:
+        """
+        Internal function to process the input audio filepaths and return a config dict for the dataloader.
+        Specializes to ASR models which can have Encoder-Decoder-Joint architectures.
+
+        Args:
+            audio_files: A list of string filepaths for audio files.
+            temp_dir: A temporary directory to store intermediate files.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            A config dict that is used to setup the dataloader for transcription.
+        """
         with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_files:
-                entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                fp.write(json.dumps(entry) + '\n')
+                if isinstance(audio_file, str):
+                    entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
+                    fp.write(json.dumps(entry) + '\n')
+                elif isinstance(audio_file, dict):
+                    fp.write(json.dumps(audio_file) + '\n')
+                else:
+                    raise ValueError(
+                        f"Input `audio` is of type {type(audio_file)}. "
+                        "Only `str` (path to audio file) or `dict` are supported as input."
+                    )
 
         ds_config = {
             'paths2audio_files': audio_files,
@@ -595,6 +723,13 @@ class ASRTranscriptionMixin(TranscriptionMixin):
         return ds_config
 
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
+        """
+        Internal function to setup the model for transcription. Perform all setup and pre-checks here.
+
+        Args:
+            audio: Of type `GenericTranscriptionType`
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+        """
         super()._transcribe_on_begin(audio, trcfg)
 
         # Freeze the encoder and decoder modules
@@ -608,6 +743,12 @@ class ASRTranscriptionMixin(TranscriptionMixin):
             self.joint.freeze()
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
+        """
+        Internal function to teardown the model after transcription. Perform all teardown and post-checks here.
+
+        Args:
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+        """
         super()._transcribe_on_end(trcfg)
 
         # Unfreeze the encoder and decoder modules
@@ -624,6 +765,7 @@ class ASRTranscriptionMixin(TranscriptionMixin):
     def get_transcribe_config(cls) -> TranscribeConfig:
         """
         Utility method that returns the default config for transcribe() function.
+
         Returns:
             A dataclass
         """

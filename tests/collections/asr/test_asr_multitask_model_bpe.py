@@ -21,6 +21,8 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
 from nemo.collections.asr.parts.submodules import multitask_beam_decoding as beam_decode
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+
 
 @pytest.fixture()
 def asr_model(test_data_dir):
@@ -83,6 +85,10 @@ def asr_model(test_data_dir):
             'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
             'type': 'wpe',
         },
+        'de': {
+            'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
+            'type': 'wpe',
+        }
     },
     'custom_tokenizer': {
         '_target_': 'nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer',
@@ -96,6 +102,7 @@ def asr_model(test_data_dir):
     modelConfig = DictConfig(
         {
             'prompt_format': 'canary',
+            'sample_rate': 16000,
             'preprocessor': DictConfig(preprocessor),
             'model_defaults': DictConfig(model_defaults),
             'encoder': DictConfig(encoder),
@@ -257,3 +264,48 @@ class TestEncDecMultiTaskModel:
         assert isinstance(asr_model.decoding.decoding, beam_decode.TransformerAEDBeamInfer)
         assert asr_model.decoding.decoding.search_type == "default"
 
+    @pytest.mark.unit
+    def test_transcribe_single_file(self, asr_model, test_data_dir):
+        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+
+        # Numpy array test
+        outputs = asr_model.transcribe(audio_file, batch_size=1)
+        assert len(outputs) == 1
+        assert isinstance(outputs[0], str)
+
+    @pytest.mark.unit
+    def test_transcribe_single_file_translation(self, asr_model, test_data_dir):
+        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+
+        # Numpy array test
+        outputs = asr_model.transcribe(audio_file, batch_size=1, task="ast", source_lang='en', target_lang='de')
+        assert len(outputs) == 1
+        assert isinstance(outputs[0], str)
+
+    @pytest.mark.unit
+    def test_transcribe_return_hypothesis(self, asr_model, test_data_dir):
+        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+
+        # Numpy array test
+        outputs = asr_model.transcribe(audio_file, batch_size=1, return_hypotheses=True)
+        assert len(outputs) == 1
+        assert isinstance(outputs[0], Hypothesis)
+
+        hyp = outputs[0]
+        assert isinstance(hyp.text, str)
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.alignments is None
+
+    @pytest.mark.unit
+    def test_transcribe_tensor(self, asr_model, test_data_dir):
+        # Load audio file
+        import soundfile as sf
+
+        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+        audio, sr = sf.read(audio_file, dtype='float32')
+
+        # Numpy array test
+        with pytest.raises(NotImplementedError):
+            outputs = asr_model.transcribe(audio, batch_size=1)
+        # assert len(outputs) == 1
+        # assert isinstance(outputs[0], str)

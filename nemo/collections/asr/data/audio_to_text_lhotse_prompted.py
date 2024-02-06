@@ -152,7 +152,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]
             task = cut.custom['taskname']
             if task == 'asr':
                 prompted_tokens.append(tokenizer.transcribe_id)
-            elif task == 's2t_translation':
+            elif task == 's2t_translation' or task == 'ast':
                 prompted_tokens.append(tokenizer.translate_id)
             else:
                 raise ValueError(f"Unknown task: {task} for cut ID: {cut.id}")
