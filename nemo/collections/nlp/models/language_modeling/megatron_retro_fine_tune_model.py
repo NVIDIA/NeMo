@@ -11,30 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 from functools import partial
 
 import torch
-from omegaconf import DictConfig, ListConfig
-from pytorch_lightning.trainer.trainer import Trainer
-
-from nemo.collections.common.data import ConcatMapDataset
-from nemo.collections.common.metrics import MetricStringToTorchMetric
-from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-    get_train_valid_test_split_,
-)
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import RetroQAFineTuneDataset
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
-from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state

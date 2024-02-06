@@ -27,7 +27,6 @@ from nemo.core.config import OptimizerParams, get_optimizer_config, register_opt
 from nemo.core.optim.adafactor import Adafactor
 from nemo.core.optim.adan import Adan
 from nemo.core.optim.novograd import Novograd
-from nemo.utils import logging
 from nemo.utils.model_utils import maybe_update_config_version
 
 AVAILABLE_OPTIMIZERS = {

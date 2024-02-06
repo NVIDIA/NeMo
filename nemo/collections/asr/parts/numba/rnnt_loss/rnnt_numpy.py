@@ -29,7 +29,7 @@
 
 import numpy as np
 import torch
-from torch.autograd import Function, Variable
+from torch.autograd import Function
 from torch.nn import Module
 
 

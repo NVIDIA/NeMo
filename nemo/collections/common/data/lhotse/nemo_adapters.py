@@ -26,7 +26,6 @@ from lhotse import AudioSource, Recording, SupervisionSegment
 from lhotse.cut import Cut
 from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
 from lhotse.serialization import open_best
-from lhotse.utils import compute_num_samples
 
 
 class LazyNeMoIterator:

@@ -31,7 +31,6 @@ from nemo.collections.asr.parts.utils.audio_utils import db2mag, wrap_to_pi
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import FloatType, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = [
     'MaskEstimatorRNN',

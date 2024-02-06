@@ -14,7 +14,6 @@
 
 """Utilities for generating text."""
 
-import os
 import pickle
 import re
 from collections.abc import Iterable

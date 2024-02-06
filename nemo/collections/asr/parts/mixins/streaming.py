@@ -14,8 +14,6 @@
 
 from abc import ABC, abstractmethod
 
-import torch
-
 
 class StreamingEncoder(ABC):
     @abstractmethod

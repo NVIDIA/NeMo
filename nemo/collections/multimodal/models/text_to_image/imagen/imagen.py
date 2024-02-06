@@ -33,7 +33,6 @@ from nemo.core.classes.common import Serialization
 from nemo.utils import logging
 
 try:
-    from apex import amp
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True

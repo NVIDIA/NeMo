@@ -14,7 +14,6 @@
 
 import torch
 import torch.nn.functional as F
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.transformer.attention import SelfAttention

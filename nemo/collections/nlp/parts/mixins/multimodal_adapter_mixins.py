@@ -12,30 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import tempfile
 from typing import List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.peft_config import (
     PEFT_CONFIG_MAP,
-    CanonicalAdaptersPEFTConfig,
-    LoraPEFTConfig,
     PEFTConfig,
     PtuningPEFTConfig,
 )
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from megatron.core import parallel_state
-
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
 
 except (ImportError, ModuleNotFoundError):

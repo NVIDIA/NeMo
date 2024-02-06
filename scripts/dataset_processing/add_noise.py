@@ -25,7 +25,6 @@ import copy
 import json
 import multiprocessing
 import os
-import random
 
 import numpy as np
 import soundfile as sf

@@ -13,8 +13,6 @@
 # limitations under the License.
 
 """Transformer based language model."""
-from ast import Mod
-
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -36,7 +34,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:

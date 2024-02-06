@@ -14,7 +14,6 @@
 
 import copy
 import enum
-from typing import Dict, Optional
 
 import torch
 import torch.nn.init as init

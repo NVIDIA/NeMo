@@ -16,7 +16,7 @@ import copy
 import os
 import shutil
 from collections import defaultdict
-from typing import IO, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch

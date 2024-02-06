@@ -12,14 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import re
-from collections import OrderedDict
-from typing import Any, Optional
 
 import torch
 from omegaconf.dictconfig import DictConfig
-from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
@@ -35,8 +31,7 @@ from nemo.collections.nlp.modules.common import (
 )
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.utils import AppState, logging
+from nemo.utils import AppState
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator

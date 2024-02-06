@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, List
+from typing import Any
 
 import torch
 from omegaconf import OmegaConf
@@ -33,11 +33,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
         get_micro_batch_size,
         get_num_microbatches,
     )

@@ -36,12 +36,9 @@ import torch
 
 from nemo.collections.asr.parts.utils.offline_clustering import (
     NMESC,
-    SpeakerClustering,
     SpectralClustering,
-    get_scale_interpolated_embs,
     getAffinityGraphMat,
     getCosAffinityMatrix,
-    split_input_data,
 )
 from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment
 

@@ -31,7 +31,7 @@ from nemo.core import adapter_mixins
 
 try:
     from apex.normalization import MixedFusedRMSNorm
-    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer import tensor_parallel
 
     HAVE_APEX = True
 
@@ -44,7 +44,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, tensor_parallel
     from megatron.core.parallel_state import get_tensor_model_parallel_world_size
 
     HAVE_MEGATRON_CORE = True

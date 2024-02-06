@@ -35,10 +35,9 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core import adapter_mixins
-from nemo.utils import logging
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core import ModelParallelConfig
 
     HAVE_MEGATRON_CORE = True
 

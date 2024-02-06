@@ -15,7 +15,6 @@
 import functools
 import itertools
 import os
-import re
 import shutil
 import tempfile
 from collections import OrderedDict, defaultdict

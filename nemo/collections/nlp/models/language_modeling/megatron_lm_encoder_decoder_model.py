@@ -34,7 +34,6 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
     MegatronTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )

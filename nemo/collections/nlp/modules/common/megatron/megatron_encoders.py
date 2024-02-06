@@ -25,13 +25,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from MeCab import Model
-
-    HAVE_MECAB = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_MECAB = False
-
-try:
     from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True

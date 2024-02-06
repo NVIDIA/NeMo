@@ -18,7 +18,6 @@ import math
 from typing import Dict, Iterator, List, Tuple, Union
 
 import torch
-import torch.nn as nn
 
 from torch import Tensor
 

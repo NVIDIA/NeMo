@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
-
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import (

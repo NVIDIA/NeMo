@@ -15,7 +15,7 @@ import itertools
 import os
 import time
 from functools import partial
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -70,14 +70,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, model_utils
 
 try:
-    from apex import amp
-    from apex.transformer.enums import AttnMaskType
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True

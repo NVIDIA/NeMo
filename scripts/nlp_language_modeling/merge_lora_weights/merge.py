@@ -48,15 +48,6 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 
 class RequestDataSet(Dataset):
     def __init__(self, sentences):

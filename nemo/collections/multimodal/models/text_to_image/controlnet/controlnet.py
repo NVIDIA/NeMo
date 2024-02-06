@@ -46,8 +46,6 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.utils import logging
 
 try:
-    from apex import amp
-    from apex.transformer.enums import AttnMaskType
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True

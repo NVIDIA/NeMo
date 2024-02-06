@@ -33,7 +33,6 @@ import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
-import nemo
 from nemo.core import ModelPT
 from nemo.core.classes import Exportable
 from nemo.core.config.pytorch_lightning import TrainerConfig
