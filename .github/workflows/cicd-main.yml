@@ -56,7 +56,7 @@ jobs:
     
     - name: Install test requirements
       run: |
-        apt-get update && apt-get install -y bc && pip install -r ${GITHUB_WORKSPACE}/requirements/requirements_test.txt && pip install -r ${GITHUB_WORKSPACE}/requirements/requirements_lightning.txt
+        apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt && pip install -r requirements/requirements_lightning.txt
       
     - name: Code formatting checks
       run: |
