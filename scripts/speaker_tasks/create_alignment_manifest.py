@@ -106,7 +106,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
                 start_time=align1,
                 duration=align2,
                 token=word,
-                conf=0,
+                conf=0.0,
                 type_of_token='lex',
                 speaker=speaker_id,
                 output_precision=output_precision,
