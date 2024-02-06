@@ -168,7 +168,6 @@ class TestEncDecMultiTaskModel:
         diff = torch.max(torch.abs(logits_instance - logprobs_batch))
         assert diff <= 1e-5
 
-    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
         asr_model.train()
@@ -180,7 +179,7 @@ class TestEncDecMultiTaskModel:
             new_model = EncDecMultiTaskModel.restore_from(path)
             assert isinstance(new_model, type(asr_model))
 
-            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 32 + 128
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 32 + 128 + 128
 
     # @pytest.mark.with_downloads()
     # @pytest.mark.unit
@@ -252,7 +251,6 @@ class TestEncDecMultiTaskModel:
     #         joint_joint = 3 * (asr_model.joint.joint_hidden + 1)
     #         assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint))
 
-    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_decoding_change(self, asr_model):
         assert isinstance(asr_model.decoding.decoding, beam_decode.TransformerAEDBeamInfer)
