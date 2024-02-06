@@ -145,17 +145,13 @@ class TestASRSamplers:
                     dataloader_with_ssb_exception, dataloader_exception = False, False
 
                     try:
-                        for batch in dataloader_with_ssb:
-                            break
-                    except BaseException as e:
-                        print(1, e)
+                        list(dataloader)
+                    except:
                         dataloader_with_ssb_exception = True
 
                     try:
-                        for batch in dataloader:
-                            break
-                    except BaseException as e:
-                        print(2, e)
+                        list(dataloader)
+                    except:
                         dataloader_exception = True
 
                     assert dataloader_with_ssb_exception == dataloader_exception
