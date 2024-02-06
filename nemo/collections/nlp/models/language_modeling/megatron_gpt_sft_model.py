@@ -372,7 +372,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+            if (not forward_only) or self._validation_drop_last:
                 # average loss across micro batches
                 loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
@@ -380,9 +380,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             else:
                 # Get the total loss since micro batches sizes are not uniform
                 loss_sum_tensors_list = [
-                    loss_sum['loss_sum_and_ub_size']
+                    loss_sum['loss_sum_and_ub_num_valid']
                     for loss_sum in losses_reduced_per_micro_batch
-                    if loss_sum['loss_sum_and_ub_size'][1] > 0
+                    if loss_sum['loss_sum_and_ub_num_valid'][1] > 0
                 ]
                 loss_sum = (
                     torch.vstack(loss_sum_tensors_list).sum(axis=0)
@@ -475,7 +475,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             loss_vals = [x['loss'] for x in output]
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss with their batch size
-                if self.cfg.data.get('validation_drop_last', True):
+                if self._validation_drop_last:
                     loss = torch.stack(loss_vals).mean()
                 else:
                     # Compute the avg loss by total_loss across all samples / total number of samples

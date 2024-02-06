@@ -433,6 +433,8 @@ class GPTDataset(Dataset):
         if idx < 0:
             logging.debug('Got negative index. Masking loss from this sample')
             loss_mask = torch.zeros_like(loss_mask)
+        elif loss_mask.sum().item() == 0:
+            logging.warning(f"Sample at index {idx} is fully masked, it will have zero loss")
 
         if self.get_attention_mask_from_fusion:
             return {

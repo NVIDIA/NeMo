@@ -456,6 +456,8 @@ class GPTSFTDataset(Dataset):
         )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
+        if (loss_mask.sum(dim=1) == 0).any():
+            logging.warning("Empty loss mask, such samples will have zero loss")
         contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
         answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
@@ -562,6 +564,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         input_ids = self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
         labels = self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id)
         loss_mask = self._collate_item(loss_mask, max_length=max_length, pad_id=0)
+        if (loss_mask.sum(dim=1) == 0).any():
+            logging.warning("Empty loss mask, such samples will have zero loss")
         position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=0)
 
         # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.

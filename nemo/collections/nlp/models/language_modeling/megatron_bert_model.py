@@ -555,14 +555,13 @@ class MegatronBertModel(MegatronBaseModel):
         lm_loss_ = lm_loss_.float()
         loss_mask = loss_mask.float()
 
-        # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction. In that case loss mask is all zeros
-        # i.e Happens when the entire batch is masked out (Practically when MBS=1 or 2, and the number of tokens in each batch is < 7 )
-        if loss_mask.sum() == 0:
-            lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
-        else:
-            lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
+        # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction.=
+        # In that case loss mask is all zeros.
+        lm_loss = torch.sum(lm_loss_ * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)
+        lm_loss = lm_loss.mean()  # average across all samples in the micro-batch
 
         if sop_logits is not None:
+            # TODO does this also need fixing?
             sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(), sentence_order.view(-1), ignore_index=-1)
             sop_loss = sop_loss.float()
             return {'lm loss': lm_loss, 'sop loss': sop_loss}

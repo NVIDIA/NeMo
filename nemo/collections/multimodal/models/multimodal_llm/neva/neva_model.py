@@ -626,7 +626,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def loss_func(output_tensor, loss_mask):
             loss_for_ub = self.loss_func(loss_mask, output_tensor)
-            if validation_step and not self.cfg.data.get('validation_drop_last', True):
+            if validation_step and not self._validation_drop_last:
                 raise NotImplementedError(f"`validation_drop_last=False` is not implemented in Neva!")
             else:
                 reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
@@ -752,7 +752,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
-            if self.cfg.data.get('validation_drop_last', True):
+            if self._validation_drop_last:
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()
             else:
                 # Compute the avg loss by total_loss across all samples / total number of samples
@@ -782,9 +782,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
-        loss_mask = loss_mask.view(-1).float()
-        # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+        loss_mask = loss_mask.float()
+        # Compute (per-sample) sequence-level NLL. Fully masked samples have zero loss.
+        loss = torch.sum(losses * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)
+        loss = loss.mean()  # average across all samples in the micro-batch
         return loss
 
     def setup(self, stage=None):

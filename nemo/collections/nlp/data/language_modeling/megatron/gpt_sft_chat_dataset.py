@@ -382,6 +382,10 @@ class GPTSFTChatDataset(GPTSFTDataset):
         )
         labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
         loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
+        if (loss_mask.sum(dim=1) == 0).any():
+            logging.warning(
+                "Empty loss mask (likely due to truncation to `max_seq_length`), such samples will have zero loss"
+            )
         context_lengths = torch.LongTensor([len(x) for x in contexts])
         contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
         answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))

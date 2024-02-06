@@ -253,6 +253,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO: add type hint once pip package is out
         self.transformer_config = self.build_transformer_config()
 
+        self._validation_drop_last = cfg.data.get('validation_drop_last', True)
+
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
@@ -563,7 +565,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+            if (not forward_only) or self._validation_drop_last:
                 # average loss across micro batches
                 loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
@@ -571,9 +573,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 # Get the total loss since micro batches sizes are not uniform
                 loss_sum_tensors_list = [
-                    loss_sum['loss_sum_and_ub_size']
+                    loss_sum['loss_sum_and_ub_num_valid']
                     for loss_sum in losses_reduced_per_micro_batch
-                    if loss_sum['loss_sum_and_ub_size'][1] > 0
+                    if loss_sum['loss_sum_and_ub_num_valid'][1] > 0
                 ]
                 loss_sum = (
                     torch.vstack(loss_sum_tensors_list).sum(axis=0)
@@ -914,9 +916,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return batch
 
     def get_batch_on_this_context_parallel_rank(self, batch):
-        num_valid_tokens_in_ub = None
-        if 'loss_mask' in batch and batch['loss_mask'] is not None:
-            num_valid_tokens_in_ub = batch['loss_mask'].sum()
+        num_valid_tokens_per_sample = None
+        if batch.get('loss_mask') is not None:
+            num_valid_tokens_per_sample = batch['loss_mask'].sum(dim=1)
 
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size > 1:
@@ -935,7 +937,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
                     batch[key] = val
 
-        batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
+        batch['num_valid_tokens_per_sample'] = num_valid_tokens_per_sample
 
         return batch
 
@@ -1014,27 +1016,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_per_sample'], output_tensor)
                 cp_size = parallel_state.get_context_parallel_world_size()
-                if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
-                    if loss_for_ub.isnan():
-                        assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
-                        loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
-                    else:
-                        loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
+                if validation_step and not self._validation_drop_last:
+                    num_valid_tokens_per_sample = batch['num_valid_tokens_per_sample']
+                    # Since `loss_for_ub` is an average across the micro-batch, to obtain the sum we need to
+                    # multiply it by the micro-batch size.
+                    loss_sum_for_ub = loss_for_ub * len(num_valid_tokens_per_sample)
 
-                    loss_sum_and_ub_size_all_gpu = torch.cat(
-                        [
-                            loss_sum_for_ub.clone().detach().view(1),
-                            torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
-                        ]
+                    num_valid_samples_in_ub = (num_valid_tokens_per_sample > 0).float().sum()
+                    loss_sum_and_ub_num_valid_all_gpu = torch.cat(
+                        [loss_sum_for_ub.clone().detach().view(1), num_valid_samples_in_ub]
                     )
-                    # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
                     torch.distributed.all_reduce(
-                        loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
+                        loss_sum_and_ub_num_valid_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub * cp_size, {'loss_sum_and_ub_num_valid': loss_sum_and_ub_num_valid_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub * cp_size, {'avg': reduced_loss}
@@ -1128,7 +1125,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def on_validation_epoch_end(self):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
-            if self.cfg.data.get('validation_drop_last', True):
+            if self._validation_drop_last:
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()
             else:
                 # Compute the avg loss by total_loss across all samples / total number of samples
@@ -1166,11 +1163,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info(f'test_loss: {averaged_loss[0]}')
         self.test_step_outputs.clear()  # free memory
 
-    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
+    def loss_func(self, loss_mask, num_valid_tokens_per_sample, output_tensor):
         losses = output_tensor.float()
-        loss_mask = loss_mask.view(-1).float()
-        # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
+        loss_mask = loss_mask.float()
+        # Compute (per-sample) sequence-level NLL. Fully masked samples have zero loss.
+        loss = torch.sum(losses * loss_mask, dim=1) / num_valid_tokens_per_sample.clamp(min=1)
+        loss = loss.mean()  # average across all samples in the micro-batch
         if parallel_state.get_context_parallel_world_size() > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         return loss
@@ -1347,7 +1345,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
             drop_last = True
-            if not self.cfg.data.get('validation_drop_last', True):
+            if not self._validation_drop_last:
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
             pad_samples_to_global_batch_size = False
