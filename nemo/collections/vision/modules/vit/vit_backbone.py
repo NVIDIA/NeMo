@@ -23,10 +23,7 @@ import torch.nn.functional as F
 
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    init_method_normal,
-    scaled_init_method_normal,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
 from nemo.collections.vision.modules.common.megatron.vision_transformer import ParallelVisionTransformer
 
 

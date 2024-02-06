@@ -18,11 +18,7 @@ import torch
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
-from nemo.collections.nlp.parts.peft_config import (
-    PEFT_CONFIG_MAP,
-    PEFTConfig,
-    PtuningPEFTConfig,
-)
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig, PtuningPEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, model_utils
 

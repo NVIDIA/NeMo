@@ -27,6 +27,7 @@ from nemo.utils import logging
 
 try:
     from pytorch_quantization import nn as quant_nn
+
     PYTORCH_QUANTIZATION_AVAILABLE = True
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
