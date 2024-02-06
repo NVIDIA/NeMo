@@ -57,13 +57,9 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
-<<<<<<< HEAD
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-=======
-    from megatron.core.transformer.transformer_config import TransformerConfig
->>>>>>> bbc80b585 (runable training code, with already implemented eval code)
 
     HAVE_MEGATRON_CORE = True
 
