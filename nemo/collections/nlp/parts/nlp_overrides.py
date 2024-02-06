@@ -817,6 +817,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         precision: Union[int, str] = 'bf16-mixed',
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
+        set_buffer_dtype: Union[int, str] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -829,7 +830,7 @@ class NLPFSDPStrategy(FSDPStrategy):
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         # Set the mixed precision recipe
-        kwargs['mixed_precision'] = self._set_mixed_precision_recipe(precision, grad_reduce_dtype)
+        kwargs['mixed_precision'] = self._set_mixed_precision_recipe(precision, grad_reduce_dtype, set_buffer_dtype)
         # Use the default FSDP backward-prefetch policy for proper communication overlap.
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
 
@@ -865,7 +866,10 @@ class NLPFSDPStrategy(FSDPStrategy):
         super().__init__(**kwargs)
 
     def _set_mixed_precision_recipe(
-        self, precision: Union[int, str], grad_reduce_dtype: Union[int, str]
+        self,
+        precision: Union[int, str],
+        grad_reduce_dtype: Union[int, str],
+        set_buffer_dtype: Union[int, str] = None
     ) -> MixedPrecision:
         """
         Set FSDP mixed precision recipe.
@@ -883,6 +887,8 @@ class NLPFSDPStrategy(FSDPStrategy):
             param_dtype = reduce_dtype = buffer_dtype = torch.float
         else:
             raise ValueError(f"Was unable to infer precision type, received {precision!r}.")
+        if set_buffer_dtype is not None:
+            buffer_dtype = utils_funcs.torch_dtype_from_precision(buffer_dtype, None)
         # Over-write gradient reduction dtype to support bf16 computation with fp32 grad reduction
         if grad_reduce_dtype is not None:
             reduce_dtype = utils_funcs.torch_dtype_from_precision(grad_reduce_dtype, None)

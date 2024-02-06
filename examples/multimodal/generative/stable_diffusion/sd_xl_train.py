@@ -57,6 +57,7 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
                 grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
                 precision=self.cfg.trainer.precision,
                 use_orig_params=self.cfg.model.inductor,
+                set_buffer_dtype=self.cfg.get('fsdp_set_buffer_dtype', None)
             )
 
         return NLPDDPStrategy(

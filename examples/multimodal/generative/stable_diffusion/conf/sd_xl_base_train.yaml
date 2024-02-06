@@ -4,7 +4,7 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16-mixed
+  precision: bf16-mixed
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
@@ -57,8 +57,9 @@ model:
   inductor: False # Not working right now
   capture_cudagraph_iters: -1
   scale_by_std: False
-  channels_last: True
-  fsdp: False
+  channels_last: False
+  fsdp: True
+  fsdp_set_buffer_dtype: null
   precache_mode: null # [text, both, null]
 
   loss_fn_config:
@@ -105,7 +106,7 @@ model:
     use_flash_attention: True
 
   first_stage_config:
-    _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper
+    _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper
     from_pretrained: /sdxl_ckpts/stable-diffusion-xl-base-1.0/vae/diffusion_pytorch_model.safetensors
     embed_dim: 4
     monitor: val/rec_loss
