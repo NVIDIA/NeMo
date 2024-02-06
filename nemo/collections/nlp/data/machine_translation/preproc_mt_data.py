@@ -824,6 +824,7 @@ class MTDataPreproc:
                         logging.info(
                             f'Encoder tokenizer model {encoder_tokenizer_model} not found. Training tokenizer model.'
                         )
+                        dir_name = os.path.dirname(encoder_tokenizer_model)
                         create_spt_model(
                             data_file=src_fname,
                             vocab_size=encoder_tokenizer_vocab_size,
