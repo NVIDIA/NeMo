@@ -329,12 +329,18 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         pos_doc_hs = torch.nn.functional.normalize(pos_doc_hs, dim=1)
         neg_doc_hs = torch.nn.functional.normalize(neg_doc_hs, dim=1)
 
-        if self.use_all_possible_negatives:
-            cs = self.contrast_all_possible_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
-        elif self.num_soft_negatives > 0:
-            cs = self.contrast_with_sampled_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
+        if self.training:
+            if self.use_all_possible_negatives:
+                cs = self.contrast_all_possible_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
+            elif self.num_soft_negatives > 0:
+                cs = self.contrast_with_sampled_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
+            else:
+                cs = self.constrast_with_hard_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
         else:
+            # (@adithyare) during validation, we contrast only with hard negatives.
+            # this is to ensure that the validation loss is comparable accross different batch sizes.
             cs = self.constrast_with_hard_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
+            
 
         cs = cs.clamp(-1.0, 1.0)
         avg_pos_cs = cs[:, 0].mean().item()
