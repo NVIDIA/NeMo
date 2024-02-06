@@ -47,9 +47,8 @@ def create_rename_keys(num_hidden_layers):
     for i in range(num_hidden_layers):
         # Attention layers
         rename_keys.extend([
-            (
-                f"model.layers.{i}.self_attn.o_proj.weight",
-                f"model.decoder.layers.{i}.self_attention.linear_proj.weight"),
+            (f"model.layers.{i}.self_attn.o_proj.weight",
+             f"model.decoder.layers.{i}.self_attention.linear_proj.weight"),
             (f"model.layers.{i}.self_attn.qkv_proj.weight",
              f"model.decoder.layers.{i}.self_attention.linear_qkv.weight"),
             # MLP and LayerNorm
@@ -165,7 +164,8 @@ def adjust_nemo_config(model_config, ref_config):
     model_config["num_attention_heads"] = ref_config["num_attention_heads"]
     model_config["num_query_groups"] = ref_config["num_key_value_heads"]
     model_config["kv_channels"] = ref_config["head_dim"]
-    model_config["override_vocab_size"] = ref_config["model_vocab_size"]
+    if "model_vocab_size" in ref_config:
+        model_config["override_vocab_size"] = ref_config["model_vocab_size"]
     model_config["layernorm_epsilon"] = ref_config["rms_norm_eps"]
     return model_config
 
