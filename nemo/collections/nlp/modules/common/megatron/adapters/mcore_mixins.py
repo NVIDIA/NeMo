@@ -20,9 +20,9 @@ from megatron.core.models.common.embeddings.language_model_embedding import Lang
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.custom_layers.transformer_engine import (
+    SplitAlongDim,
     TEColumnParallelLinear,
     TELayerNormColumnParallelLinear,
-    SplitAlongDim,
 )
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
@@ -194,9 +194,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                 cu_seqlens_kv = packed_seq_params.cu_seqlens_kv
             else:
                 cu_seqlens_q = cu_seqlens_kv = None
-            query = apply_rotary_pos_emb(
-                query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q
-            )
+            query = apply_rotary_pos_emb(query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q)
             key = apply_rotary_pos_emb(key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv)
             # TODO, can apply positional embedding to value_layer so it has
             # absolute positional embedding.
@@ -209,21 +207,11 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 
         if self.checkpoint_core_attention:
             core_attn_out = self._checkpointed_attention_forward(
-                query,
-                key,
-                value,
-                attention_mask,
-                attn_mask_type=attn_mask_type,
-                packed_seq_params=packed_seq_params,
+                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
             )
         else:
             core_attn_out = self.core_attention(
-                query,
-                key,
-                value,
-                attention_mask,
-                attn_mask_type=attn_mask_type,
-                packed_seq_params=packed_seq_params,
+                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
             )
 
         if packed_seq_params is not None:
@@ -291,7 +279,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
 
         # [s, b, h]
         output, output_bias = self.linear_fc2(intermediate_parallel)
-        
+
         # LoRA logic
         if self.is_adapter_available():
             lora_linear_fc2_adapter = self.get_adapter_module(AdapterName.LORA_4HtoH_ADAPTER)
