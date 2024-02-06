@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 
 from nemo.core import ModelPT
 from nemo.utils import logging
-from nemo.utils.exp_manager import CallbackParams, ExpManagerConfig, StatelessTimer, exp_manager
+from nemo.utils.exp_manager import CallbackParams, ExpManagerConfig, exp_manager
 
 
 class OnesDataset(torch.utils.data.Dataset):

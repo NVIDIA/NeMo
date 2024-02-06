@@ -11,21 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import shutil
-import tempfile
-from typing import Tuple
 
 import pytest
 import torch
-from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapter
-from nemo.core import ModelPT, NeuralModule
-from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
-from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
-from nemo.utils import logging, logging_mode
+from nemo.core import NeuralModule
+from nemo.core.classes.mixins import adapter_mixins
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
 
 class MockLinearAdapter1(LinearAdapter):

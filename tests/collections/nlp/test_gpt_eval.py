@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import numpy as np
 import pytest
 from pytorch_lightning.trainer.trainer import Trainer

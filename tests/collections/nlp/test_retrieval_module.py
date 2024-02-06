@@ -45,7 +45,6 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig
-    from megatron.core.enums import ModelType
 
     HAVE_MEGATRON_CORE = True
 

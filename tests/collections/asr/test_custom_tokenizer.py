@@ -15,7 +15,6 @@
 from unittest.mock import Mock
 
 import pytest
-import sentencepiece as spm
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.mixins import ASRBPEMixin

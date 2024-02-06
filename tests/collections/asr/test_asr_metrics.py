@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import dataclasses
 import io
 import random
 import string
@@ -34,7 +33,6 @@ from nemo.collections.asr.parts.submodules.ctc_decoding import (
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers import CharTokenizer
-from nemo.utils.config_utils import assert_dataclass_signature_match
 
 
 def build_char_tokenizer_with_vocabulary(vocabulary: List[str]) -> CharTokenizer:

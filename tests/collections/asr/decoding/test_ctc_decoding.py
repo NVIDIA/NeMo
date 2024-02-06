@@ -17,7 +17,7 @@ from functools import lru_cache
 
 import pytest
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules.ctc_decoding import (

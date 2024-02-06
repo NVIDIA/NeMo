@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 import tempfile
-from typing import List, Type, Union
 
 import numpy as np
 import pytest

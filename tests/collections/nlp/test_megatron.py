@@ -22,7 +22,6 @@ except Exception:
 import os
 import tempfile
 
-import onnx
 import pytest
 import torch
 from omegaconf import OmegaConf
