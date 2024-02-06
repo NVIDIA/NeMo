@@ -42,6 +42,10 @@ from nemo.utils.get_rank import get_rank, is_global_rank_zero
 __all__ = ['ModelPT']
 
 
+# multiple interpolated values in the config
+OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
+
+
 class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
@@ -588,32 +592,20 @@ class ModelPT(LightningModule, Model):
         # Setup the optimizer parameter groups (by default use all parameters that are trainable)
         self.setup_optimizer_param_groups()
 
-        # If config was not explicitly passed to us
-        if optim_config is None:
-            # See if internal config has `optim` namespace
-            if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                optim_config = self._cfg.optim
+        # Make copy of the config so it can be modified later
+        optim_config = self._optim_config_copy(optim_config)
 
-        # If config is still None, or internal config has no Optim, return without instantiation
+        # If config is still None, return without instantiation
         if optim_config is None:
             logging.info('No optimizer config provided, therefore no optimizer was created')
             return
 
-        else:
-            # Preserve the configuration
-            if not isinstance(optim_config, DictConfig):
-                optim_config = OmegaConf.create(optim_config)
-
-            # See if internal config has `optim` namespace before preservation
-            if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                if self._cfg.optim is None:
-                    self._cfg.optim = copy.deepcopy(optim_config)
-                else:
-                    with open_dict(self._cfg.optim):
-                        self._cfg.optim = copy.deepcopy(optim_config)
+        # See if internal config has `optim` namespace before preservation
+        if self._cfg is not None and hasattr(self._cfg, 'optim'):
+            self._cfg.optim = optim_config
 
         # Setup optimizer and scheduler
-        if optim_config is not None and isinstance(optim_config, DictConfig):
+        if optim_config is not None:
             optim_config = OmegaConf.to_container(optim_config, resolve=True)
 
         if self._trainer is None:
@@ -1831,3 +1823,20 @@ class ModelPT(LightningModule, Model):
         elif isinstance(device, int):
             device = torch.device("cuda", index=device)
         return super().cuda(device=device)
+
+    def _optim_config_copy(self, optim_config: Optional[Union[DictConfig, Dict]]) -> Optional[DictConfig]:
+        """
+        Return a copy of `optim_config` if provided (and otherwise of the internal optim config, if available).
+        """
+        if optim_config is None:
+            # See if internal config has `optim` namespace
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                optim_config = self._cfg.optim
+
+        if optim_config is None:
+            return None
+
+        if isinstance(optim_config, DictConfig):
+            return copy.deepcopy(optim_config)
+        else:
+            return OmegaConf.create(optim_config)

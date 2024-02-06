@@ -13,13 +13,12 @@
 # limitations under the License.
 
 import datetime
-import functools
 import json
 import multiprocessing as mp
 import os
 import pickle
 import time
-from functools import partial
+from functools import lru_cache, partial
 from typing import Callable, List, Optional, Type
 
 import numpy as np
@@ -650,7 +649,7 @@ class OnlineSampleMapping:
         self.block_bins = np.cumsum(block_size_list)
 
         # NOTE: MAKE get_sample_block A CACHED FUNCTION!!!
-        self.get_sample_block = functools.lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
+        self.get_sample_block = lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
 
     def __str__(self):
         return f"OnlineSampleMapping(dataset_size={self.dataset_size}, num_samples={self.num_samples}, block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})"
@@ -700,10 +699,30 @@ class OnlineSampleMapping:
     def __len__(self) -> int:
         return self.num_samples
 
+    def __reduce__(self):
+        """Add support for pickling. Needed due to functools.lru_cache."""
+        # Return a tuple with a callable and arguments to recreate the object
+        return (
+            self.__class__,
+            (
+                self.dataset_size,
+                self.num_samples,
+                self.block_size,
+                self.cache_maxsize,
+                self.seed,
+                self.shuffle,
+                self.truncate_to_block_boundary,
+            ),
+        )
+
+    def __reduce_ex__(self, protocol):
+        # Optional method that defines the protocol version
+        return self.__reduce__()
+
     def get_sample_block(self, block_idx: int) -> np.ndarray:
         """
         Returns a block of samples of size self.block_size, shuffled if needed.
-        This method will be cached using functools.lru_cache for efficiency during construction.
+        NOTE: This method will be cached using functools.lru_cache for efficiency during construction.
         """
         if block_idx >= self.num_blocks:
             raise IndexError(f"block_idx {block_idx} is out of range. Maximum block_idx is {self.num_blocks-1}")
