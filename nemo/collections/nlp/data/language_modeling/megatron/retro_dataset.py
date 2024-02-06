@@ -33,19 +33,13 @@ from nemo.utils import logging
 
 try:
     from megatron.core import mpu, tensor_parallel
-    # from megatron.core.models.retro.data.query.retro_dataset import RetroDataset as MCoreRETRODataset
-    # from megatron.core.models.retro.data.db.utils import get_merged_train_dataset as get_db_dataset
-    # from megatron.core.models.retro.data.query.chunk_dataset import get_chunk_dataset_map
-    # from megatron.core.models.retro.data.utils import BlockPathMap
-    # from megatron.core.models.retro.data.query.utils import get_neighbor_dir
     from megatron.core.models.retro.data.config import RetroGPTDatasets
     from megatron.core.models.retro.model import RetroConfig
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.blended_megatron_dataset_config import GPTDatasetConfig
     from megatron.core.datasets.gpt_dataset import GPTDataset
     from megatron.core.models.retro.data.query import get_retro_datasets
-    from megatron.utils import get_ltor_masks_and_position_ids
-
+    from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
     HAVE_MEGATRON_CORE = True
 
