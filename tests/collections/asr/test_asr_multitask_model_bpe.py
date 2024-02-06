@@ -60,7 +60,7 @@ def asr_model(test_data_dir):
             'num_attention_heads': 2,
             'pre_ln': True,
             'vocab_size': None,
-        }
+        },
     }
 
     head = {
@@ -75,29 +75,24 @@ def asr_model(test_data_dir):
     decoding = {'strategy': 'beam', 'beam': {'beam_size': 1}}
 
     # os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128")
-    tokenizer = {'dir': None, 'type': 'agg',
-    'langs': {
-        'spl_tokens': {
-            'dir': os.path.join(test_data_dir, "asr", "tokenizers", "canary"),
-            'type': 'bpe',
+    tokenizer = {
+        'dir': None,
+        'type': 'agg',
+        'langs': {
+            'spl_tokens': {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "canary"), 'type': 'bpe',},
+            'en': {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe',},
+            'de': {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe',},
         },
-        'en': {
-            'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
-            'type': 'wpe',
+        'custom_tokenizer': {
+            '_target_': 'nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer',
+            'tokenizers': None,
         },
-        'de': {
-            'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
-            'type': 'wpe',
-        }
-    },
-    'custom_tokenizer': {
-        '_target_': 'nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer',
-        'tokenizers': None
-    }
     }
 
-    loss = {'_target_': 'nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss',
-            'label_smoothing': 0.0}
+    loss = {
+        '_target_': 'nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss',
+        'label_smoothing': 0.0,
+    }
 
     modelConfig = DictConfig(
         {
@@ -119,7 +114,6 @@ def asr_model(test_data_dir):
 
 
 class TestEncDecMultiTaskModel:
-
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor(self, asr_model):
@@ -151,16 +145,22 @@ class TestEncDecMultiTaskModel:
             logprobs_instance = []
             for i in range(input_signal.size(0)):
                 log_probs, _, _, _ = asr_model.forward(
-                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1],
-                    transcript=targets[i : i + 1], transcript_length=targets_len[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_signal_length=length[i : i + 1],
+                    transcript=targets[i : i + 1],
+                    transcript_length=targets_len[i : i + 1],
                 )
                 print(log_probs.shape)
                 logprobs_instance.append(log_probs)
             logits_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
-            logprobs_batch, _, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length,
-                                                        transcript=targets, transcript_length=targets_len)
+            logprobs_batch, _, _, _ = asr_model.forward(
+                input_signal=input_signal,
+                input_signal_length=length,
+                transcript=targets,
+                transcript_length=targets_len,
+            )
 
         assert logits_instance.shape == logprobs_batch.shape
         diff = torch.mean(torch.abs(logits_instance - logprobs_batch))

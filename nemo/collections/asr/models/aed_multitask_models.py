@@ -13,21 +13,20 @@
 # limitations under the License.
 
 import itertools
-import numpy as np
 import os
 import tempfile
+from dataclasses import dataclass, field
 from math import ceil
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
 
 import editdistance
+import numpy as np
 import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf, open_dict
-from dataclasses import dataclass, field
 from pytorch_lightning import Trainer
 from torchmetrics.text import SacreBLEUScore
 from tqdm.auto import tqdm
-
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
@@ -36,9 +35,9 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import (
-    TranscribeConfig,
-    InternalTranscribeConfig,
     GenericTranscriptionType,
+    InternalTranscribeConfig,
+    TranscribeConfig,
 )
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
@@ -303,7 +302,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         else:
             if not isinstance(override_config, MultiTaskTranscriptionConfig):
                 raise ValueError(
-                    f"override_config must be of type {MultiTaskTranscriptionConfig}, " f"but got {type(override_config)}"
+                    f"override_config must be of type {MultiTaskTranscriptionConfig}, "
+                    f"but got {type(override_config)}"
                 )
             trcfg = override_config
 
@@ -750,7 +750,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             encoder_input_mask=enc_mask,
             decoder_input_ids=decoder_input_ids if self.context_len_for_AR_decoding > 0 else None,
             return_hypotheses=trcfg.return_hypotheses,
-        )[0]  # type: List[str] | List[Hypothesis]
+        )[
+            0
+        ]  # type: List[str] | List[Hypothesis]
 
         if trcfg.return_hypotheses:
             for hyp in beam_hypotheses:
@@ -856,4 +858,3 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             A dataclass
         """
         return MultiTaskTranscriptionConfig()
-
