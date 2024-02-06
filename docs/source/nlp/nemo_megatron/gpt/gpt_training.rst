@@ -35,7 +35,7 @@ Now, ``train_data.jsonl`` will contain our training data in the json line format
 
 **Step 3: Train tokenizer**
 
-Below we will condider 2 options for training data tokenizers: Using pre-built HuggingFace BPE and training and using your own Google Sentencepiece tokenizer.
+Below we will consider 2 options for training data tokenizers: Using pre-built HuggingFace BPE and training and using your own Google Sentencepiece tokenizer.
 Note that only second option allows you to experiment with vocabulary size.
 
 *Option 1:* Using HuggingFace GPT2 tokenizer files.
