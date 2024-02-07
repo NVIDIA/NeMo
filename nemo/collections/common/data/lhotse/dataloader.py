@@ -19,10 +19,6 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, Optional
 
-from lhotse import CutSet
-from lhotse.lazy import LazyFlattener
-from lhotse.utils import fastcopy
-
 import torch
 from lhotse import CutSet
 from lhotse.cut import Cut
@@ -33,6 +29,8 @@ from lhotse.dataset import (
     IterableDatasetWrapper,
     make_worker_init_fn,
 )
+from lhotse.lazy import LazyFlattener
+from lhotse.utils import fastcopy
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
@@ -297,6 +295,6 @@ def _flatten_paired_text(cut) -> list:
         text_instance = cut.map_supervisions(lambda s: fastcopy(s, text=data["text"], language=lang))
         text_instance.custom.update(data)
         for sup in text_instance.supervisions:
-            assert sup.text == text_instance.custom["text"] 
+            assert sup.text == text_instance.custom["text"]
         ans.append(text_instance)
     return ans

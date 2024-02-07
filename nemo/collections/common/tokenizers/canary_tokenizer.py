@@ -15,10 +15,11 @@
 from functools import cached_property
 from pathlib import Path
 from typing import Dict
+
 from omegaconf import DictConfig
 
-from nemo.collections.common.tokenizers.lang_codes import LANGUAGES_ISO_2, LANGUAGES_BCP_37
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.common.tokenizers.lang_codes import LANGUAGES_BCP_37, LANGUAGES_ISO_2
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 __all__ = ['CanaryTokenizer']
