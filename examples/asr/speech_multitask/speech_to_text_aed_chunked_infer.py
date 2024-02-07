@@ -173,7 +173,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     else:
 
         @contextlib.contextmanager
-        def autocast():
+        def autocast(*args, **kwargs):
             yield
 
     # Compute output filename
