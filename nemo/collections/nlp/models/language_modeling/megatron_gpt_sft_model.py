@@ -19,6 +19,7 @@ from typing import Any, Optional
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -328,9 +329,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             return base_key + f"dataloader{dataloader_idx}"
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
-        # return only batch as the (batch, batch_idx, dataloader_idx) are returned in the
-        # inference step
-        batch = next(dataloader_iter)
+        # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
+        # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        elif isinstance(dataloader_iter, itertools.chain):
+            batch = next(dataloader_iter)
 
         log_token_counts = self.cfg.get('log_token_counts', False)
         if log_token_counts:
