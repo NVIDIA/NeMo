@@ -22,6 +22,7 @@ from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -679,7 +680,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
 
         def fwd_output_only_func(dataloader_iter, model):
-            batch, _, _ = next(dataloader_iter)
+            # Extract batch, batch_idx, dataloader_idx only if dataloader_iter is an object of PTL's _DataFetcherWrapper
+            if isinstance(dataloader_iter, _DataFetcherWrapper):
+                batch, _, _ = next(dataloader_iter)
+            else:
+                batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
 
             # map batch and shared args into forward args
