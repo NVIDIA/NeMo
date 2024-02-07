@@ -1,0 +1,31 @@
+LANGUAGES_BCP_37 = {
+"ar-ar": "arabic_standard",
+"de-de": "german_standard",
+"en-us": "english_united_states",
+"en-gb": "english_britain",
+"es-us": "spanish_united_states",
+"es-es": "spanish_spain",
+"fr-fr": "french_france",
+"hi-hi": "hindi_standard",
+"it-it": "italian_standard",
+"ja-jp": "japanese_standard",
+"ko-kr": "korean_standard",
+"pt-br": "portuguese_brazil",
+"ru-ru": "russian_standard",
+"zh-cn": "mandarin_mainland",
+}
+
+LANGUAGES_ISO_2 = {
+"ar": "arabic",
+"de": "german",
+"en": "english",
+"es": "spanish",
+"fr": "french",
+"hi": "hindi",
+"it": "italian",
+"ko": "korean",
+"pt": "portuguese",
+"jp": "japanese", 
+"ru": "russian", 
+"zh": "mandarin", 
+}

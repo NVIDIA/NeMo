@@ -15,23 +15,17 @@
 from functools import cached_property
 from pathlib import Path
 from typing import Dict
+from omegaconf import DictConfig
 
+from nemo.collections.common.tokenizers.lang_codes import LANGUAGES_ISO_2, LANGUAGES_BCP_37
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 __all__ = ['CanaryTokenizer']
 
-
-LANGUAGES = {
-    "en": "english",
-    "de": "german",
-    "es": "spanish",
-    "fr": "french",
-}
-
-TO_LANGUAGE_CODE = {
-    **{language: code for code, language in LANGUAGES.items()},
-}
+LANGUAGES = {**LANGUAGES_ISO_2, **LANGUAGES_BCP_37}
+print(LANGUAGES)
+TO_LANGUAGE_CODE = {language: code for code, language in LANGUAGES.items()}
 
 SPECIAL_TOKENS = [
     "<pad>",
@@ -44,7 +38,6 @@ SPECIAL_TOKENS = [
     "<|pnc|>",
     "<|nospeech|>",
 ]
-
 UNUSED_SPECIAL_TOKENS = [f"<|spltoken{i}|>" for i in range(18)]
 
 
@@ -54,13 +47,14 @@ class CanaryTokenizer(AggregateTokenizer):
     """
 
     def __init__(self, tokenizers: Dict):
+        # for easy access of special s
+        if 'spl_tokens' not in tokenizers:
+            tokenizers['spl_tokens'] = CanaryTokenizer.build_special_tokenizer()
         super().__init__(tokenizers)
-
-        # for easy access of special tokens
-        special_tokens: Dict[str, int] = {}
+        # Sanity check in case special tokens aren't valid
+        special_tokens = {}
         for special in SPECIAL_TOKENS:
             special_tokens[special] = self.token_to_id(special, lang_id='spl_tokens')
-
         self.special_tokens = special_tokens
 
     @cached_property
@@ -102,7 +96,7 @@ class CanaryTokenizer(AggregateTokenizer):
         raise KeyError(f"Language {language} not found in tokenizer.")
 
     @staticmethod
-    def build_special_tokenizer(output_dir: str | Path) -> SentencePieceTokenizer:
+    def build_special_tokenizer(output_dir: str | Path = ".") -> SentencePieceTokenizer:
         output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
         text_path = output_dir / "train_text.txt"
@@ -112,7 +106,7 @@ class CanaryTokenizer(AggregateTokenizer):
         model_path = output_dir / "tokenizer.model"
         create_spt_model(
             str(text_path),
-            vocab_size=32,
+            vocab_size=len(SPECIAL_TOKENS + UNUSED_SPECIAL_TOKENS) + 2,
             sample_size=-1,
             do_lower_case=False,
             output_dir=str(output_dir),
