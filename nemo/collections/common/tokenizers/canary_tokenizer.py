@@ -16,30 +16,27 @@ from functools import cached_property
 from pathlib import Path
 from typing import Dict
 
-from omegaconf import DictConfig
-
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.lang_codes import LANGUAGES_BCP_37, LANGUAGES_ISO_2
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 __all__ = ['CanaryTokenizer']
 
-LANGUAGES = {**LANGUAGES_ISO_2, **LANGUAGES_BCP_37}
-print(LANGUAGES)
-TO_LANGUAGE_CODE = {language: code for code, language in LANGUAGES.items()}
+# Import list of NeMo+Riva languages
+SUPPORTED_LANGUAGES = {**LANGUAGES_ISO_2, **LANGUAGES_BCP_37}
+TO_LANGUAGE_CODE = {language: code for code, language in SUPPORTED_LANGUAGES.items()}
 
 SPECIAL_TOKENS = [
     "<pad>",
     "<|endoftext|>",
     "<|startoftranscript|>",
-    *[f"<|{lang}|>" for lang in list(LANGUAGES.keys())],
+    *[f"<|{lang}|>" for lang in list(SUPPORTED_LANGUAGES.keys())],
     "<|transcribe|>",
     "<|translate|>",
     "<|nopnc|>",
     "<|pnc|>",
     "<|nospeech|>",
 ]
-UNUSED_SPECIAL_TOKENS = [f"<|spltoken{i}|>" for i in range(18)]
 
 
 class CanaryTokenizer(AggregateTokenizer):
@@ -48,11 +45,12 @@ class CanaryTokenizer(AggregateTokenizer):
     """
 
     def __init__(self, tokenizers: Dict):
-        # for easy access of special s
+        # Creates spl_tokens if not passed
         if 'spl_tokens' not in tokenizers:
             tokenizers['spl_tokens'] = CanaryTokenizer.build_special_tokenizer()
         super().__init__(tokenizers)
-        # Sanity check in case special tokens aren't valid
+
+        # for easy access of special tokens
         special_tokens = {}
         for special in SPECIAL_TOKENS:
             special_tokens[special] = self.token_to_id(special, lang_id='spl_tokens')
@@ -93,7 +91,6 @@ class CanaryTokenizer(AggregateTokenizer):
     def to_language_id(self, language):
         if token_id := self.special_tokens.get(f"<|{language}|>", None):
             return token_id
-
         raise KeyError(f"Language {language} not found in tokenizer.")
 
     @staticmethod
@@ -101,13 +98,13 @@ class CanaryTokenizer(AggregateTokenizer):
         output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
         text_path = output_dir / "train_text.txt"
-        all_tokens = SPECIAL_TOKENS + UNUSED_SPECIAL_TOKENS
+        all_tokens = SPECIAL_TOKENS
         train_text = "\n".join(all_tokens)
         text_path.write_text(train_text)
         model_path = output_dir / "tokenizer.model"
         create_spt_model(
             str(text_path),
-            vocab_size=len(SPECIAL_TOKENS + UNUSED_SPECIAL_TOKENS) + 2,
+            vocab_size=len(SPECIAL_TOKENS),
             sample_size=-1,
             do_lower_case=False,
             output_dir=str(output_dir),

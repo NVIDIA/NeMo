@@ -49,9 +49,9 @@ class ASRModel(ModelPT, ABC):
         if "val_bleu_num" in outputs[0]:
             bleu_pred_len = torch.stack([x[f"val_bleu_pred_len"] for x in outputs]).sum()
             bleu_target_len = torch.stack([x[f"val_bleu_target_len"] for x in outputs]).sum()
-            bleu_num = torch.stack([x[f"val_bleu_num"] for x in outputs]).sum()
-            bleu_denom = torch.stack([x[f"val_bleu_denom"] for x in outputs]).sum()
-            val_bleu = {"val_bleu": self.wer._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+            bleu_num = torch.stack([x[f"val_bleu_num"] for x in outputs]).sum(dim=0)
+            bleu_denom = torch.stack([x[f"val_bleu_denom"] for x in outputs]).sum(dim=0)
+            val_bleu = {"val_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
 
             tensorboard_logs.update(val_bleu)
 

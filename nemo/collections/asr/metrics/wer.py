@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import editdistance
 import jiwer
@@ -21,6 +21,7 @@ from torchmetrics import Metric
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
 from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
+from nemo.collections.asr.parts.submodules.multitask_decoding import AbstractMultiTaskDecoding
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'word_error_rate_detail', 'WER']
@@ -247,7 +248,7 @@ class WER(Metric):
 
     def __init__(
         self,
-        decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding],
+        decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
         use_cer=False,
         log_prediction=True,
         fold_consecutive=True,
@@ -264,14 +265,21 @@ class WER(Metric):
 
         self.decode = None
         if isinstance(self.decoding, AbstractRNNTDecoding):
-            self.decode = lambda predictions, predictions_lengths: self.decoding.rnnt_decoder_predictions_tensor(
+            self.decode = lambda predictions, predictions_lengths,  predictions_mask, input_ids, targets: self.decoding.rnnt_decoder_predictions_tensor(
                 encoder_output=predictions, encoded_lengths=predictions_lengths
             )
         elif isinstance(self.decoding, AbstractCTCDecoding):
-            self.decode = lambda predictions, predictions_lengths: self.decoding.ctc_decoder_predictions_tensor(
+            self.decode = lambda predictions, predictions_lengths,  predictions_mask, input_ids, targets: self.decoding.ctc_decoder_predictions_tensor(
                 decoder_outputs=predictions,
                 decoder_lengths=predictions_lengths,
                 fold_consecutive=self.fold_consecutive,
+            )
+        elif isinstance(self.decoding, AbstractMultiTaskDecoding):
+            self.decode = lambda predictions, prediction_lengths, predictions_mask, input_ids, targets,: self.decoding.decode_predictions_tensor(
+                encoder_hidden_states=predictions,
+                encoder_input_mask=predictions_mask,
+                decoder_input_ids=input_ids,
+                return_hypotheses=False,
             )
         else:
             raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
@@ -285,6 +293,8 @@ class WER(Metric):
         predictions_lengths: torch.Tensor,
         targets: torch.Tensor,
         targets_lengths: torch.Tensor,
+        predictions_mask: Optional[torch.Tensor] = None,
+        input_ids: Optional[torch.Tensor] = None
     ):
         """
         Updates metric state.
@@ -312,7 +322,7 @@ class WER(Metric):
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
-            hypotheses, _ = self.decode(predictions, predictions_lengths)
+            hypotheses, _ = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
 
         if self.log_prediction:
             logging.info(f"\n")
