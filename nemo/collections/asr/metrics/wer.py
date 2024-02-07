@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple, Union, Optional
+from typing import List, Optional, Tuple, Union
 
 import editdistance
 import jiwer
@@ -20,8 +20,8 @@ import torch
 from torchmetrics import Metric
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
-from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
 from nemo.collections.asr.parts.submodules.multitask_decoding import AbstractMultiTaskDecoding
+from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'word_error_rate_detail', 'WER']
@@ -265,17 +265,17 @@ class WER(Metric):
 
         self.decode = None
         if isinstance(self.decoding, AbstractRNNTDecoding):
-            self.decode = lambda predictions, predictions_lengths,  predictions_mask, input_ids, targets: self.decoding.rnnt_decoder_predictions_tensor(
+            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.rnnt_decoder_predictions_tensor(
                 encoder_output=predictions, encoded_lengths=predictions_lengths
             )
         elif isinstance(self.decoding, AbstractCTCDecoding):
-            self.decode = lambda predictions, predictions_lengths,  predictions_mask, input_ids, targets: self.decoding.ctc_decoder_predictions_tensor(
+            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.ctc_decoder_predictions_tensor(
                 decoder_outputs=predictions,
                 decoder_lengths=predictions_lengths,
                 fold_consecutive=self.fold_consecutive,
             )
         elif isinstance(self.decoding, AbstractMultiTaskDecoding):
-            self.decode = lambda predictions, prediction_lengths, predictions_mask, input_ids, targets,: self.decoding.decode_predictions_tensor(
+            self.decode = lambda predictions, prediction_lengths, predictions_mask, input_ids, targets: self.decoding.decode_predictions_tensor(
                 encoder_hidden_states=predictions,
                 encoder_input_mask=predictions_mask,
                 decoder_input_ids=input_ids,
@@ -294,7 +294,7 @@ class WER(Metric):
         targets: torch.Tensor,
         targets_lengths: torch.Tensor,
         predictions_mask: Optional[torch.Tensor] = None,
-        input_ids: Optional[torch.Tensor] = None
+        input_ids: Optional[torch.Tensor] = None,
     ):
         """
         Updates metric state.

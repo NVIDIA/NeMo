@@ -31,7 +31,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
     get_prompt_format_fn,
 )
-from nemo.collections.asr.metrics import WER, BLEU
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
@@ -73,7 +73,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
-        EncDecMultiTaskModel._aed_config_check(cfg)
+        EncDecMultiTaskModel._config_check(cfg)
 
         self._setup_tokenizer(cfg.tokenizer)
         self.prompt_format = cfg.prompt_format
@@ -164,8 +164,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
+        # TODO: PytorchMetrics lets you join two metrics together to save compute. But need to make wer and bleu have same outputs first
         self.wer = WER(self.decoding, log_prediction=self.cfg.log_prediction)
-        self.bleu = BLEU(self.decoding, tokenize=self.cfg.get('bleu_tokenize', "13a"), log_prediction=self.cfg.log_prediction)
+        self.bleu = BLEU(
+            self.decoding, tokenize=self.cfg.get('bleu_tokenize', "13a"), log_prediction=False
+        )  # Wer is handling logging
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
@@ -566,32 +569,34 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             'train_loss': audio_loss,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
-        # if (batch_nb + 1) % log_every_n_steps == 0:
-        #     self.wer.update(
-        #         predictions=enc_states,
-        #         predictions_lengths=encoded_len,
-        #         targets=transcript,
-        #         targets_lengths=transcript_len,
-        #         predictions_mask=enc_mask,
-        #         input_ids=input_ids
-        #     )
-        #     wer, _, _ = self.wer.compute()
-        #     self.wer.reset()
+        if (batch_nb + 1) % log_every_n_steps == 0:
+            self.wer.update(
+                predictions=enc_states,
+                predictions_lengths=encoded_len,
+                targets=transcript,
+                targets_lengths=transcript_len,
+                predictions_mask=enc_mask,
+                input_ids=input_ids,
+            )
+            wer, _, _ = self.wer.compute()
+            self.wer.reset()
 
-        #     self.bleu.update(
-        #         predictions=enc_states,
-        #         predictions_lengths=encoded_len,
-        #         targets=transcript,
-        #         targets_lengths=transcript_len,
-        #     )
-        #     bleu = self.bleu.update["bleu"]
-        #     self.bleu.reset()
+            self.bleu.update(
+                predictions=enc_states,
+                predictions_lengths=encoded_len,
+                targets=transcript,
+                targets_lengths=transcript_len,
+                predictions_mask=enc_mask,
+                input_ids=input_ids,
+            )
+            bleu = self.bleu.compute(return_all_metrics=False)["bleu"]
+            self.bleu.reset()
 
-        #     tensorboard_logs.update({'training_batch_wer': wer, 'training_batch_bleu': bleu})
+            tensorboard_logs.update({'training_batch_wer': wer, 'training_batch_bleu': bleu})
 
         return {'loss': audio_loss, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
+    def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
         signal, signal_len, transcript, transcript_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
@@ -608,41 +613,50 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         }
 
         self.wer.update(
-            predictions=enc_states, 
+            predictions=enc_states,
             predictions_lengths=encoded_len,
-            targets=transcript, 
+            targets=transcript,
             targets_lengths=transcript_len,
             predictions_mask=enc_mask,
-            input_ids=input_ids[:, : self.context_len_for_AR_decoding] if self.context_len_for_AR_decoding > 0 else None,
+            input_ids=input_ids[:, : self.context_len_for_AR_decoding]
+            if self.context_len_for_AR_decoding > 0
+            else None,
         )
         wer, wer_num, wer_denom = self.wer.compute()
-        output_dict.update({
-            "val_wer": wer,
-            "val_wer_num": wer_num,
-            "val_wer_denom": wer_denom
-        })
+        output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
         self.wer.reset()
 
         self.bleu.update(
-            predictions=enc_states, 
+            predictions=enc_states,
             predictions_lengths=encoded_len,
-            targets=transcript, 
+            targets=transcript,
             targets_lengths=transcript_len,
             predictions_mask=enc_mask,
-            input_ids=input_ids[:, : self.context_len_for_AR_decoding] if self.context_len_for_AR_decoding > 0 else None,
+            input_ids=input_ids[:, : self.context_len_for_AR_decoding]
+            if self.context_len_for_AR_decoding > 0
+            else None,
         )
         bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
         output_dict.update(bleu_metrics)
         self.bleu.reset()
 
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            self.validation_step_outputs[dataloader_idx].append(output_dict)
-        else:
-            self.validation_step_outputs.append(output_dict)
         return output_dict
 
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        metrics = self.validation_pass(batch, batch_idx, dataloader_idx, eval_mode="val")
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
+
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.validation_step(batch, batch_idx, dataloader_idx, eval_mode="test")
+        metrics = self.validation_pass(batch, batch_idx, dataloader_idx, eval_mode="test")
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
 
     def test_dataloader(self):
         if self._test_dl is not None:
@@ -682,7 +696,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return temporary_datalayer
 
     @classmethod
-    def _aed_config_check(cls, cfg):
+    def _config_check(cls, cfg):
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
         # Assert config has "prompt_format"

@@ -384,7 +384,7 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
         if isinstance(self.decoding, AEDBeamInfer):
             self.decoding.set_decoding_type('subword')
 
-    def decode_tokens_to_str(self, tokens: List[int]) -> str:
+    def decode_tokens_to_str(self, tokens: List[int], strip_special_tokens=True) -> str:
         """
         Implemented by subclass in order to decoder a token list into a string.
 
@@ -395,6 +395,9 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
             A decoded string.
         """
         hypothesis = self.tokenizer.ids_to_text(tokens)
+        # Setting as default to minimize flags in metric module
+        if strip_special_tokens:
+            hypothesis = self.strip_special_tokens(hypothesis)
         return hypothesis
 
     def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
