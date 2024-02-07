@@ -1215,8 +1215,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             _pref = self.cfg.data.data_prefix
             kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
         else:
-            kwargs['blend'] = self.cfg.data.data_prefix,
-
+            kwargs['blend'] = (self.cfg.data.data_prefix,)
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
