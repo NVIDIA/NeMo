@@ -1,14 +1,16 @@
 ### Model eval
-import nemo
-import torch
 import os
 import tempfile
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, MegatronSpeechGPTModel
-from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+
+import pytorch_lightning as pl
+import torch
 from omegaconf import OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-import pytorch_lightning as pl
+from pytorch_lightning.trainer.trainer import Trainer
+
+import nemo
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, MegatronSpeechGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.utils import AppState
 
 config = OmegaConf.load(
@@ -47,14 +49,15 @@ print(OmegaConf.to_yaml(config.trainer))
 checkpoint_path = "/mnt/drive1/experiments/sgpt_pretrain_843m_linearv2/09_08_23/training/megatron_sgpt_843m/checkpoints/megatron_gpt--val_loss=6.34-step=24768-consumed_samples=19016448.0-last.ckpt"
 # checkpoint_path = "/home/jasoli/experiments/nemo_experiments/megatron_sgpt_220m_linearv2_delay_embeddingscale/checkpoints/megatron_gpt--val_loss=5.90-step=38000-consumed_samples=2431936.0-last.ckpt"
 gpt_cfg = MegatronSpeechGPTModel.restore_from(
-#     restore_path="/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo",
+    #     restore_path="/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/megatron_converted_2b_tp1_pp1.nemo",
     restore_path="/home/jasoli/models/gpt_843m_gtc_tp1_pp1_1_1T/megatron_converted_843m_tp1_pp1.nemo",
     # restore_path="/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo",
     trainer=trainer,
     return_config=True,
     save_restore_connector=NLPSaveRestoreConnector(),
-    map_location="cpu"
+    map_location="cpu",
 )
+
 
 def load_from_checkpoint_dir(cls, cfg, trainer, checkpoint):
     app_state = AppState()
@@ -62,7 +65,7 @@ def load_from_checkpoint_dir(cls, cfg, trainer, checkpoint):
     cfg.cfg = cfg
     cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
     cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_2b_gtc_tp1_pp1_1_1T/2053796188904e679f7e2754a2a1f280_mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model"
-    cfg.cfg.override_vocab_size = 256000+1024*8
+    cfg.cfg.override_vocab_size = 256000 + 1024 * 8
     cfg.cfg.output_size = None
     cfg.cfg.speech_residual_model = None
     cfg.cfg.embedding_scale = 0.33
@@ -71,10 +74,12 @@ def load_from_checkpoint_dir(cls, cfg, trainer, checkpoint):
         model = cls.load_from_checkpoint(checkpoint_path=checkpoint, trainer=trainer, hparams_file=f.name)
         return model
 
+
 input_type = "delay"
 model = load_from_checkpoint_dir(MegatronSpeechGPTModel, gpt_cfg, trainer, checkpoint_path)
 
 import numpy as np
+
 total = 0
 for parameter in model.parameters():
     total += np.prod([*parameter.shape])
@@ -140,13 +145,14 @@ if isinstance(out_wav[0], torch.Tensor):
     print(out_wav.shape)
 
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam
+
 context_length = 128
 min_length = 256
-max_length = codes.shape[-1]-1
+max_length = codes.shape[-1] - 1
 lengths = LengthParam(min_length=min_length, max_length=max_length)
 context_length = torch.tensor([context_length], device=model.device).contiguous()
 
-context_codes = codes[:,:,:context_length].detach().clone()
+context_codes = codes[:, :, :context_length].detach().clone()
 for i in range(context_codes.shape[1]):
     context_codes[:, i, :] += vocab_size + 1024 * i
 
@@ -154,7 +160,7 @@ input_codes = torch.cat((context_codes, torch.zeros([*codes.shape[:-1], max_leng
 lengths = LengthParam(min_length=min_length, max_length=max_length)
 context_length = torch.tensor([context_length], device=model.device).contiguous()
 
-if input_type=="delay":
+if input_type == "delay":
     for l in range(1, input_codes.shape[1]):
         input_codes[:, l] = torch.roll(input_codes[:, l], l)
         input_codes[:, l, :l] = 0
@@ -164,7 +170,9 @@ print(input_codes.shape)
 print(context_length)
 with torch.no_grad():
     model.float()
-    output = model.generate((input_codes.to(model.device), context_length), lengths, sampling_params=sampling_params, mode="multinomial")
+    output = model.generate(
+        (input_codes.to(model.device), context_length), lengths, sampling_params=sampling_params, mode="multinomial"
+    )
 
 predicted_tensors = torch.tensor(output['token_ids'], device=model.device)
 print(input_codes[:, :, 5:20].to(model.device) == predicted_tensors[:, :, 5:20])

@@ -789,7 +789,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         return_all_selfattention_probs=False,
         attention_prior=None,
         global_step=0,
-        context_question_mask=None
+        context_question_mask=None,
     ):
         if speech_mask is not None:
             speech_mask = speech_mask.T.unsqueeze(-1)
@@ -802,7 +802,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                         encoder_input = cur
                     else:
                         if speech_mask is None:
-                            speech_mask = (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float().unsqueeze(-1).unsqueeze(0)
+                            speech_mask = (
+                                (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float().unsqueeze(-1).unsqueeze(0)
+                            )
                         encoder_input = encoder_input + cur * speech_mask * self.embedding_scale
             else:
                 # Should be text tokens
@@ -857,8 +859,12 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
             if self.alibi_question_context_masked and context_question_mask is not None:
-                encoder_self_attention_relative_position_bias = encoder_self_attention_relative_position_bias.repeat(encoder_input.size(1), 1, 1, 1)
-                encoder_self_attention_relative_position_bias[:, 1::2, :, :] *= context_question_mask.unsqueeze(1).unsqueeze(1)
+                encoder_self_attention_relative_position_bias = encoder_self_attention_relative_position_bias.repeat(
+                    encoder_input.size(1), 1, 1, 1
+                )
+                encoder_self_attention_relative_position_bias[:, 1::2, :, :] *= context_question_mask.unsqueeze(
+                    1
+                ).unsqueeze(1)
             # causal attention bias: [1, head, 1, k]
             # non-causal attention bias: [1, head, q, k]
         if attention_prior is not None:
@@ -879,17 +885,19 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                     logging.debug("Scaling down prior")
                     total_annealing_steps = self.attn_prior_end_step - self.attn_prior_scaledown_start_step
                     curr_annealing_step = global_step - self.attn_prior_scaledown_start_step
-                    prior_strength = (1. - curr_annealing_step / total_annealing_steps) * prior_strength
-                modifier = (1-prior_strength)
+                    prior_strength = (1.0 - curr_annealing_step / total_annealing_steps) * prior_strength
+                modifier = 1 - prior_strength
                 # attn_len = attention_prior.shape[-1]
                 # modifier = (attn_len ** modifier - 1) / (attn_len - 1)
-                attention_prior = attention_prior + (1-attention_prior) * modifier
+                attention_prior = attention_prior + (1 - attention_prior) * modifier
                 logging.debug(f"Modifying setup with strength: {prior_strength} and modifier: {modifier}")
                 # attention_prior = torch.log_softmax(attention_prior+1e-8, -2)
                 encoder_self_attention_relative_position_bias = attention_prior.unsqueeze(1).repeat(
                     1, num_attention_heads, 1, 1
                 )
-                encoder_self_attention_relative_position_bias = torch.log(encoder_self_attention_relative_position_bias + 1e-8)
+                encoder_self_attention_relative_position_bias = torch.log(
+                    encoder_self_attention_relative_position_bias + 1e-8
+                )
                 # encoder_self_attention_relative_position_bias = torch.log_softmax(encoder_self_attention_relative_position_bias, dim=-1)
 
             if self.context_parallel and encoder_self_attention_relative_position_bias.shape[-2] > 1:
@@ -928,7 +936,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         # similarity between two sequences by average pooling
         if not self.add_decoder or output_enc_hidden_only:
             if self.add_pooler and self.post_process:
-                return (encoder_output, pooled_output), attention_probs_list, encoder_self_attention_relative_position_bias
+                return (
+                    (encoder_output, pooled_output),
+                    attention_probs_list,
+                    encoder_self_attention_relative_position_bias,
+                )
             else:
                 return (encoder_output), attention_probs_list, encoder_self_attention_relative_position_bias
 

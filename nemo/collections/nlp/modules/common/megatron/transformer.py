@@ -522,7 +522,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
                 checkpoint_core_attention=checkpoint_core_attention,
-                return_scores=return_selfattention_scores
+                return_scores=return_selfattention_scores,
             )
 
             if return_selfattention_scores:
@@ -1483,7 +1483,9 @@ class ParallelTransformer(MegatronModule):
         encoder_max_sequence_len=None,
     ):
         if return_all_crossattention_probs and return_all_selfattention_probs:
-            raise NotImplementedError("We can only return 1 of cross attention probs or self attention probs. Not both yet.")
+            raise NotImplementedError(
+                "We can only return 1 of cross attention probs or self attention probs. Not both yet."
+            )
         # Checks.
         if inference_max_sequence_len:
             assert self.activations_checkpoint_method is None, 'inference does not work with activation checkpointing'

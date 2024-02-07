@@ -20,12 +20,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from nemo.collections.asr.parts.utils.activations import Snake
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
+from nemo.collections.asr.parts.utils.activations import Snake
 from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, LengthsType, MelSpectrogramType, VoidType
+from nemo.core.neural_types.elements import (
+    AudioSignal,
+    EncodedRepresentation,
+    LengthsType,
+    MelSpectrogramType,
+    VoidType,
+)
 from nemo.core.neural_types.neural_type import NeuralType
 
 
@@ -77,7 +83,7 @@ class Conv1dNorm(NeuralModule):
         kernel_size: int,
         stride: int = 1,
         dilation: int = 1,
-        padding: Optional[int] = None
+        padding: Optional[int] = None,
     ):
         super().__init__()
         if not padding:
@@ -162,7 +168,7 @@ class Conv2dNorm(NeuralModule):
         out_channels: int,
         kernel_size: Tuple[int, int],
         stride: Tuple[int, int] = (1, 1),
-        dilation: Tuple[int, int] = (1, 1)
+        dilation: Tuple[int, int] = (1, 1),
     ):
         super().__init__()
         assert len(kernel_size) == len(dilation)
@@ -599,20 +605,21 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
 
 
 class HiFiGANResBlock(NeuralModule):
-
     def __init__(self, channels, kernel_size, dilations, activation):
         super().__init__()
 
-        self.res_blocks = nn.ModuleList([
-            ResidualBlock(
-                in_channels=channels,
-                filters=channels,
-                kernel_size=kernel_size,
-                dilation=dilation,
-                activation=activation
-            )
-            for dilation in dilations
-        ])
+        self.res_blocks = nn.ModuleList(
+            [
+                ResidualBlock(
+                    in_channels=channels,
+                    filters=channels,
+                    kernel_size=kernel_size,
+                    dilation=dilation,
+                    activation=activation,
+                )
+                for dilation in dilations
+            ]
+        )
 
     def remove_weight_norm(self):
         for res_block in self.res_blocks:
@@ -627,9 +634,7 @@ class HiFiGANResBlock(NeuralModule):
 
     @property
     def output_types(self):
-        return {
-            "out": NeuralType(('B', 'D', 'T'), VoidType())
-        }
+        return {"out": NeuralType(('B', 'D', 'T'), VoidType())}
 
     @typecheck()
     def forward(self, inputs, input_len):
@@ -640,19 +645,15 @@ class HiFiGANResBlock(NeuralModule):
 
 
 class HiFiGANResLayer(NeuralModule):
-
     def __init__(self, channels, kernel_sizes, dilations, activation):
         super().__init__()
 
-        self.res_blocks = nn.ModuleList([
-            HiFiGANResBlock(
-                channels=channels,
-                kernel_size=kernel_size,
-                dilations=dilations,
-                activation=activation
-            )
-            for kernel_size in kernel_sizes
-        ])
+        self.res_blocks = nn.ModuleList(
+            [
+                HiFiGANResBlock(channels=channels, kernel_size=kernel_size, dilations=dilations, activation=activation)
+                for kernel_size in kernel_sizes
+            ]
+        )
 
     def remove_weight_norm(self):
         for res_block in self.res_blocks:
@@ -667,9 +668,7 @@ class HiFiGANResLayer(NeuralModule):
 
     @property
     def output_types(self):
-        return {
-            "out": NeuralType(('B', 'D', 'T'), VoidType())
-        }
+        return {"out": NeuralType(('B', 'D', 'T'), VoidType())}
 
     @typecheck()
     def forward(self, inputs, input_len):
@@ -682,6 +681,7 @@ class HiFiGANEncoder(NeuralModule):
     """
     Inverted version of HiFi-GAN generator
     """
+
     def __init__(
         self,
         down_sample_rates: Iterable[int] = (2, 4, 5, 8),
@@ -691,7 +691,7 @@ class HiFiGANEncoder(NeuralModule):
         encoded_dim: int = 128,
         resblock_kernel_sizes: Iterable[int] = (3, 7, 11),
         resblock_dilation_sizes: Iterable[int] = (1,),
-        activation: str = "lrelu"
+        activation: str = "lrelu",
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0
@@ -713,10 +713,9 @@ class HiFiGANEncoder(NeuralModule):
                 channels=in_channels,
                 kernel_sizes=resblock_kernel_sizes,
                 dilations=resblock_dilation_sizes,
-                activation=activation
+                activation=activation,
             )
             self.res_layers.append(res_layer)
-
 
             out_channels = 2 * in_channels
             kernel_size = 2 * down_sample_rate
@@ -788,8 +787,7 @@ class HiFiGANDecoder(NeuralModule):
         out_kernel_size: int = 3,
         resblock_kernel_sizes: Iterable[int] = (3, 7, 11),
         resblock_dilation_sizes: Iterable[int] = (1, 3, 5),
-        activation: Optional[str] = "lrelu"
-
+        activation: Optional[str] = "lrelu",
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0
@@ -820,7 +818,7 @@ class HiFiGANDecoder(NeuralModule):
                 channels=in_channels,
                 kernel_sizes=resblock_kernel_sizes,
                 dilations=resblock_dilation_sizes,
-                activation=activation
+                activation=activation,
             )
             self.res_layers.append(res_layer)
 
@@ -927,15 +925,11 @@ class ResNetEncoder(NeuralModule):
         filters=768,
         kernel_size=3,
         dropout_rate=0.1,
-        activation="lrelu"
+        activation="lrelu",
     ):
         super(ResNetEncoder, self).__init__()
 
-        self.pre_conv = Conv1dNorm(
-            in_channels=in_channels,
-            out_channels=hidden_channels,
-            kernel_size=kernel_size
-        )
+        self.pre_conv = Conv1dNorm(in_channels=in_channels, out_channels=hidden_channels, kernel_size=kernel_size)
         self.res_layers = nn.ModuleList(
             [
                 ResidualBlock(
@@ -943,17 +937,13 @@ class ResNetEncoder(NeuralModule):
                     filters=filters,
                     kernel_size=kernel_size,
                     dropout_rate=dropout_rate,
-                    activation=activation
+                    activation=activation,
                 )
                 for _ in range(num_layers)
             ]
         )
         self.post_activation = CodecActivation(activation, channels=hidden_channels)
-        self.post_conv = Conv1dNorm(
-            in_channels=hidden_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size
-        )
+        self.post_conv = Conv1dNorm(in_channels=hidden_channels, out_channels=out_channels, kernel_size=kernel_size)
 
     def remove_weight_norm(self):
         self.pre_conv.remove_weight_norm()
@@ -970,9 +960,7 @@ class ResNetEncoder(NeuralModule):
 
     @property
     def output_types(self):
-        return {
-            "encoded": NeuralType(('B', 'C', 'T'), EncodedRepresentation())
-        }
+        return {"encoded": NeuralType(('B', 'C', 'T'), EncodedRepresentation())}
 
     @typecheck()
     def forward(self, inputs, input_len):
@@ -1020,16 +1008,18 @@ class MultiBandMelEncoder(NeuralModule):
         self.mel_bands = mel_bands
         self.mel_processor = mel_processor
         band_dims = [band[1] - band[0] for band in self.mel_bands]
-        self.encoders = nn.ModuleList([
-            ResNetEncoder(
-                in_channels=band_dim,
-                num_layers=num_layers,
-                out_channels=out_channels,
-                hidden_channels=hidden_channels,
-                filters=filters
-            )
-            for band_dim in band_dims
-        ])
+        self.encoders = nn.ModuleList(
+            [
+                ResNetEncoder(
+                    in_channels=band_dim,
+                    num_layers=num_layers,
+                    out_channels=out_channels,
+                    hidden_channels=hidden_channels,
+                    filters=filters,
+                )
+                for band_dim in band_dims
+            ]
+        )
 
     def remove_weight_norm(self):
         for encoder in self.encoders:

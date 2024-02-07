@@ -65,7 +65,7 @@ def post_language_model_processing(
     speech_mask=None,
     speech_residual_model=None,
     speech_loss_scale=1.0,
-    text_size=256000
+    text_size=256000,
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -326,8 +326,8 @@ class GPTModel(MegatronModule):
             output_size=output_size,
             embedding_scale=embedding_scale,
             seq_len_interpolation_factor=seq_len_interpolation_factor,
-            attn_prior_end_step = attn_prior_end_step,
-            attn_prior_scaledown_start_step = attn_prior_scaledown_start_step,
+            attn_prior_end_step=attn_prior_end_step,
+            attn_prior_scaledown_start_step=attn_prior_scaledown_start_step,
             attn_prior_starting_strength=attn_prior_starting_strength,
             alibi_question_context_masked=alibi_question_context_masked,
             rotary_base=rotary_base,
@@ -363,7 +363,7 @@ class GPTModel(MegatronModule):
         return_all_selfattention_probs=False,
         attention_prior=None,
         global_step=0,
-        context_question_mask=None
+        context_question_mask=None,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -385,7 +385,7 @@ class GPTModel(MegatronModule):
             return_all_selfattention_probs=return_all_selfattention_probs,
             attention_prior=attention_prior,
             global_step=global_step,
-            context_question_mask=context_question_mask
+            context_question_mask=context_question_mask,
         )
 
         if self.post_process:

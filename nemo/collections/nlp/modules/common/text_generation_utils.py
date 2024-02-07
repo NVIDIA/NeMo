@@ -91,7 +91,9 @@ def get_default_length_params():
     return length_params
 
 
-def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, mode="teacher-forced", **strategy_args):
+def megatron_gpt_generate(
+    model, inputs, tokenizer, length_params, sampling_params, mode="teacher-forced", **strategy_args
+):
     # reproduce the old compute_prob method
     # a very special case
     if sampling_params['compute_logprob']:
@@ -492,13 +494,13 @@ def synced_generate(
             temperature=temperature,
         )
     else:
-        extra={
+        extra = {
             "top_p": top_p,
             "top_k": top_k,
             "greedy": greedy,
             "repetition_penalty": repetition_penalty,
             "min_tokens_to_generate": min_tokens_to_generate,
-            "vocab_size": vocab_size
+            "vocab_size": vocab_size,
         }
         if mode == "teacher-forced":
             func = sample_sequence_batch_teacherforced
@@ -709,7 +711,7 @@ def generate(
         for decode_token in decode_tokens:
             is_speech = False
             for token in decode_token[0]:
-                if token > vocab_size-1:
+                if token > vocab_size - 1:
                     is_speech = True
                     break
             if is_speech:
@@ -826,7 +828,13 @@ def sample_sequence_batch(
                 )
             else:
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                    tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, extra["vocab_size"]
+                    tokens,
+                    maxlen,
+                    micro_batch_size,
+                    counter,
+                    context_length,
+                    compute_attention_mask,
+                    extra["vocab_size"],
                 )
             output = inference_strategy.forward_step(batch, tensor_shape)
             # import ipdb; ipdb.set_trace()
@@ -863,16 +871,18 @@ def sample_sequence_batch(
                     prev_speech = torch.argmax(speech_logits, dim=1)
                     for i in range(7):
                         prev_speech[:, i] = prev_speech[:, i] + extra["vocab_size"] + 1024 * (i + 1)
-                elif extra.get('temperature', 0.) > 0.:
+                elif extra.get('temperature', 0.0) > 0.0:
                     # print(logits.shape)
                     # print(speech_logits.shape)
-                    temperature = extra.get('temperature', 0.)
+                    temperature = extra.get('temperature', 0.0)
                     prev_dist = torch.nn.functional.softmax(logits / temperature, dim=-1)
                     prev = torch.multinomial(prev_dist[0], 1).view(-1)
                     prev_speech_dist = torch.nn.functional.softmax(speech_logits / temperature, dim=1)
-                    prev_speech = torch.zeros(1, 7,device=prev_speech_dist.device)
+                    prev_speech = torch.zeros(1, 7, device=prev_speech_dist.device)
                     for i in range(7):
-                        prev_speech[0, i] = torch.multinomial(prev_speech_dist[0,:,i], 1) + extra["vocab_size"] + 1024 * (i + 1)
+                        prev_speech[0, i] = (
+                            torch.multinomial(prev_speech_dist[0, :, i], 1) + extra["vocab_size"] + 1024 * (i + 1)
+                        )
                         # prev_speech[:, i] = prev_speech[:, i] + extra["vocab_size"] + 1024 * (i + 1)
                 else:
                     raise NotImplementedError("No support for 2D speech tokens :(")
@@ -1045,7 +1055,13 @@ def sample_sequence_batch_teacherforced(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                context_tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, extra["vocab_size"]
+                context_tokens,
+                maxlen,
+                micro_batch_size,
+                counter,
+                context_length,
+                compute_attention_mask,
+                extra["vocab_size"],
             )
             # print(batch[0].shape)
             # print(batch[0])

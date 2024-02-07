@@ -31,7 +31,7 @@ def main(cfg) -> None:
     # MegatronTrainerBuilder compat checks
     if "gradient_as_bucket_view" not in cfg.model:
         with open_dict(cfg):
-            cfg.model.gradient_as_bucket_view=False
+            cfg.model.gradient_as_bucket_view = False
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
@@ -49,6 +49,7 @@ def main(cfg) -> None:
     model.eval()
     model = model.cuda()
     trainer.test(model)
+
 
 if __name__ == '__main__':
     main()

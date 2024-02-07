@@ -1,10 +1,12 @@
 import json
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from omegaconf import OmegaConf, open_dict
-import torch
 import os
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+
 import pytorch_lightning as pl
+import torch
+from omegaconf import OmegaConf, open_dict
+from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 try:

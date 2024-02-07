@@ -17,12 +17,16 @@ import io
 import json
 import os
 import random
+from dataclasses import dataclass
 from itertools import filterfalse
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf, open_dict
+
 # from encodec import EncodecModel
 from tqdm.auto import tqdm
 
@@ -34,14 +38,15 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import T5Se
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
-from nemo.collections.tts.parts.utils.tts_dataset_utils import beta_binomial_prior_distribution, general_padding, get_base_dir
+from nemo.collections.tts.parts.utils.tts_dataset_utils import (
+    beta_binomial_prior_distribution,
+    general_padding,
+    get_base_dir,
+)
 from nemo.utils import logging
 
-from dataclasses import dataclass
-from omegaconf import DictConfig, OmegaConf, open_dict
-from hydra.utils import instantiate
-
 __all__ = ['T5SpeechLMTarredDataset', 'GPTSpeechLMTarredDataset']
+
 
 @dataclass
 class G2PConfig:
@@ -49,6 +54,7 @@ class G2PConfig:
     phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
     heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
     phoneme_probability: float = 0.5
+
 
 @dataclass
 class TextTokenizer:
@@ -61,21 +67,26 @@ class TextTokenizer:
     add_blank_at: bool = True
     g2p: G2PConfig = G2PConfig()
 
+
 @dataclass
 class TextTokenizerConfig:
     text_tokenizer: TextTokenizer = TextTokenizer()
 
+
 def _get_default_text_tokenizer_conf():
     text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
     return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
+
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
     token_len = text_tensor.shape[0]
     empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
+
 tokenizer_config = _get_default_text_tokenizer_conf()
 # phoneme_tokenizer = instantiate(tokenizer_config).text_tokenizer
+
 
 class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
     """
@@ -190,7 +201,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
-        self.context_length = kwargs.pop('context_length', None) #only used in gpt dataset atm
+        self.context_length = kwargs.pop('context_length', None)  # only used in gpt dataset atm
 
         logging.info("Loading and tokenizing dataset ... ")
 
@@ -772,8 +783,10 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
 
         return data_dict
 
+
 class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
     """ No support for cross attention here yet"""
+
     def _build_sample(self, tup):
         audio_filename, self.encodec, self.ref_encodec, offset_id = tup
 
@@ -789,7 +802,6 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         doc['answer_duration'] = manifest_entry.answer_duration
         doc['question'] = manifest_entry.question
         doc['question_type'] = manifest_entry.question_type
-
 
         taskname = "squad"
         prompt_template = self.task_templates[taskname]["prompt_template"]
@@ -818,15 +830,13 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         end_token_index = -1
 
         total_context_len = context_tokens[0].size()[1]
-        context_3s = 3*75
+        context_3s = 3 * 75
         if total_context_len > context_3s:
             start_token_index = random.randint(0, total_context_len - context_3s)
             # logging.debug(f"start_token_index: {start_token_index}")
         end_token_index = start_token_index + min(context_3s, total_context_len)
         # logging.debug(f"end_token_index: {end_token_index}")
-        context_tokens[0] = context_tokens[0][
-            :, start_token_index : end_token_index
-        ]
+        context_tokens[0] = context_tokens[0][:, start_token_index:end_token_index]
         # if self.context_length is not None:
         #     start_token_index = random.randint(0, total_context_len - math.ceil(self.context_length * 75))
         #     context_tokens[0] = context_tokens[0][
@@ -920,12 +930,12 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
             # else truncate answer as final option
             if context_tokens_len - overflow_len > 75:
                 # logging.info(f"Cutting context. context_tokens:{context_tokens.shape}. context_tokens_len:{context_tokens_len}.")
-                context_tokens = context_tokens[:, :context_tokens_len - overflow_len]
+                context_tokens = context_tokens[:, : context_tokens_len - overflow_len]
                 context_tokens_len = context_tokens_len - overflow_len
                 # logging.info(f"Cut context. context_tokens:{context_tokens.shape}. context_tokens_len:{context_tokens_len}.")
             else:
                 # logging.info(f"Cutting answer. input_ids:{input_ids.shape}. input_ids_len:{input_ids_len}.")
-                input_ids = input_ids[:,:input_ids_len - overflow_len]
+                input_ids = input_ids[:, : input_ids_len - overflow_len]
                 input_ids_len = input_ids_len - overflow_len
                 # logging.info(f"Cut answer. input_ids:{input_ids.shape}. input_ids_len:{input_ids_len}.")
 
@@ -950,9 +960,10 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
                 try:
                     input_ids = torch.stack(dec_input_new, dim=0)
                 except Exception as e:
-                    import ipdb; ipdb.set_trace()
-                input_ids_len = torch.tensor(input_ids.shape[1]).long()
+                    import ipdb
 
+                    ipdb.set_trace()
+                input_ids_len = torch.tensor(input_ids.shape[1]).long()
 
         # import ipdb
         # if debug:
@@ -972,34 +983,24 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
         )
 
     def collate_fn(self, batch):
-        (
-            _,
-            context_tokens_len,
-            _,
-            question_tokens_len,
-            _,
-            input_ids_len,
-        ) = zip(*batch)
+        (_, context_tokens_len, _, question_tokens_len, _, input_ids_len,) = zip(*batch)
 
         # max_virtual_tokens_len = max(virtual_tokens_len).item() if virtual_tokens_len is not None else 0
         # if isinstance(virtual_tokens_len, tuple):
         #     virtual_tokens_len = torch.stack(virtual_tokens_len)
         # virtual_mask = get_mask_from_lengths(virtual_tokens_len)
 
-        decoder_input_len = torch.stack(context_tokens_len) + torch.stack(question_tokens_len) + torch.stack(input_ids_len)
-        max_decoder_input_len = (
-            max(decoder_input_len).item() if decoder_input_len is not None else 0
+        decoder_input_len = (
+            torch.stack(context_tokens_len) + torch.stack(question_tokens_len) + torch.stack(input_ids_len)
         )
+        max_decoder_input_len = max(decoder_input_len).item() if decoder_input_len is not None else 0
         # if isinstance(decoder_input_len, tuple):
         #     decoder_input_len = torch.stack(decoder_input_len)
 
-        decoder_mask = get_mask_from_lengths(decoder_input_len-1)
-        speech_mask = get_mask_from_lengths(decoder_input_len-1)
+        decoder_mask = get_mask_from_lengths(decoder_input_len - 1)
+        speech_mask = get_mask_from_lengths(decoder_input_len - 1)
         context_question_mask = torch.ones(speech_mask.shape)
-        (
-            decoder_input_list,
-            decoder_labels_list,
-        ) = (
+        (decoder_input_list, decoder_labels_list,) = (
             [],
             [],
         )
@@ -1021,18 +1022,12 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
                 input_ids_shifted[l] += self.speech_offset + 1024 * l  # TODO: fix hardcode
 
             complete_input = torch.cat([context_tokens_input, question_tokens, input_ids_shifted], dim=1)
-            complete_input_padded  = general_padding(
-                complete_input,
-                decoder_input_len[i].item(),
-                max_decoder_input_len,
-                pad_value=self.tokenizer.pad_id,
+            complete_input_padded = general_padding(
+                complete_input, decoder_input_len[i].item(), max_decoder_input_len, pad_value=self.tokenizer.pad_id,
             )
             complete_output = torch.cat([context_tokens, question_tokens, input_ids], dim=1)
-            complete_output_padded  = general_padding(
-                complete_output,
-                decoder_input_len[i].item(),
-                max_decoder_input_len,
-                pad_value=self.tokenizer.pad_id,
+            complete_output_padded = general_padding(
+                complete_output, decoder_input_len[i].item(), max_decoder_input_len, pad_value=self.tokenizer.pad_id,
             )
             # if len(decoder_input_padded.shape) < 2:
             #     decoder_input_padded = pad_text_to_speech_dims(decoder_input_padded, self.tokenizer.pad_id)
@@ -1042,19 +1037,20 @@ class GPTSpeechLMTarredDataset(T5SpeechLMTarredDataset):
             decoder_input_list.append(decoder_input)
             decoder_labels_list.append(decoder_labels)
 
-            decoder_mask[i, :context_tokens_len+question_tokens_len-1] = 0  # Mask out context and question
-            speech_mask[i, context_tokens_len:context_tokens_len+question_tokens_len] = 0  # Mask out context and question
-            context_question_mask[i, :context_tokens_len+question_tokens_len] = 0
+            decoder_mask[i, : context_tokens_len + question_tokens_len - 1] = 0  # Mask out context and question
+            speech_mask[
+                i, context_tokens_len : context_tokens_len + question_tokens_len
+            ] = 0  # Mask out context and question
+            context_question_mask[i, : context_tokens_len + question_tokens_len] = 0
 
         # Using causal attention mask for whole input
         batch_size = len(decoder_input_list)
-        attention_mask = torch.tril(torch.ones((batch_size, max_decoder_input_len-1, max_decoder_input_len-1))).view(
-            batch_size, 1, max_decoder_input_len-1, max_decoder_input_len-1
-        )
+        attention_mask = torch.tril(
+            torch.ones((batch_size, max_decoder_input_len - 1, max_decoder_input_len - 1))
+        ).view(batch_size, 1, max_decoder_input_len - 1, max_decoder_input_len - 1)
 
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
-
 
         decoder_input = torch.stack(decoder_input_list)
         position_ids = build_position_ids(decoder_input)

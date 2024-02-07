@@ -19,13 +19,13 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_speechlm_model import MegatronT5SpeechLMModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -50,7 +50,7 @@ def main(cfg) -> None:
     # MegatronTrainerBuilder compat checks
     if "gradient_as_bucket_view" not in cfg.model:
         with open_dict(cfg):
-            cfg.model.gradient_as_bucket_view=False
+            cfg.model.gradient_as_bucket_view = False
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)

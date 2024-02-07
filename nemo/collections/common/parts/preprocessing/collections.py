@@ -306,6 +306,7 @@ class VideoText(_Collection):
 
         super().__init__(data)
 
+
 # class InstructionTuningText(_Collection):
 #     """List of audio-transcript text correspondence with preprocessing."""
 
@@ -431,16 +432,17 @@ class InstructionTuningAudioText(_Collection):
     )
 
     def __init__(
-            self, manifests_files: Union[str, List[str]],
-            min_duration: Optional[float] = None,
-            max_duration: Optional[float] = None,
-            max_seq_length: Optional[float] = None,
-            max_number: Optional[int] = None,
-            do_sort_by_duration: bool = False,
-            index_by_file_id: bool = False,
-            decoder_only_model: bool = False,
-            use_phoneme_tokenizer: bool = False,
-        ):
+        self,
+        manifests_files: Union[str, List[str]],
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_seq_length: Optional[float] = None,
+        max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
+        decoder_only_model: bool = False,
+        use_phoneme_tokenizer: bool = False,
+    ):
         """Parse lists of audio files, durations and transcripts texts.
         Args:
             manifests_files: Either single string file or list of such -
@@ -484,18 +486,30 @@ class InstructionTuningAudioText(_Collection):
             # Check segment length
             approx_context_len = min(self._get_len(context_type, context, context_duration) * 0.3, 400)
             approx_question_len = self._get_len(question_type, question, None)
-            approx_answer_len= self._get_len(answer_type, answer, answer_duration)
+            approx_answer_len = self._get_len(answer_type, answer, answer_duration)
 
-            if (decoder_only_model and approx_context_len + approx_question_len + approx_answer_len >= max_seq_length) or (
-                approx_context_len + approx_question_len >= max_seq_length
-                or approx_answer_len >= max_seq_length
-            ):
+            if (
+                decoder_only_model and approx_context_len + approx_question_len + approx_answer_len >= max_seq_length
+            ) or (approx_context_len + approx_question_len >= max_seq_length or approx_answer_len >= max_seq_length):
                 duration_filtered += duration
                 num_filtered += 1
                 continue
 
             total_duration += duration
-            data.append(output_type(id, context, context_type, context_duration, question, question_type, answer, answer_type, answer_duration, speaker))
+            data.append(
+                output_type(
+                    id,
+                    context,
+                    context_type,
+                    context_duration,
+                    question,
+                    question_type,
+                    answer,
+                    answer_type,
+                    answer_duration,
+                    speaker,
+                )
+            )
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(context))
@@ -531,6 +545,7 @@ class InstructionTuningAudioText(_Collection):
                 return len(data.split(' ')) + 3
         elif field_type == "TOKENS":
             return len(data) + 3
+
 
 class ASRAudioText(AudioText):
     """`AudioText` collector from asr structured json files."""

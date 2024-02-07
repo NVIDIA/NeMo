@@ -25,12 +25,7 @@ from nemo.utils import logging
 
 class AudioDataset(Dataset):
     def __init__(
-        self,
-        manifest_paths,
-        min_duration=1.0,
-        max_duration=22.0,
-        sample_rate=24000,
-        pad_multiple=320,
+        self, manifest_paths, min_duration=1.0, max_duration=22.0, sample_rate=24000, pad_multiple=320,
     ):
         self.data = []
         for manifest_path in manifest_paths:
@@ -96,9 +91,7 @@ class AudioDataset(Dataset):
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
 
-        audio, audio_length = self._get_wav_from_filepath(
-            sample["audio_filepath"], perturb=False
-        )
+        audio, audio_length = self._get_wav_from_filepath(sample["audio_filepath"], perturb=False)
 
         return {
             "audio": audio,
@@ -107,6 +100,7 @@ class AudioDataset(Dataset):
             "audio_filepath": sample["audio_filepath"],
             "duration": sample["answer_duration"],
         }
+
 
 def save_batch_audios(batch, bidx, temp_dir, codec_model, codec_model_type='encodec', codec_model_sample_rate=24000):
     for sidx in range(batch["audio"].shape[0]):
@@ -129,12 +123,11 @@ def save_batch_audios(batch, bidx, temp_dir, codec_model, codec_model_type='enco
                     codec_decoded_audio_path = os.path.join(temp_dir, f"{bidx}_{sidx}_{key}_decoded.wav")
                     torchaudio.save(codec_decoded_audio_path, codec_decoded_audio[None].cpu(), codec_model_sample_rate)
 
+
 def main():
     parser = argparse.ArgumentParser(description='Create multiple tasks')
     parser.add_argument(
-        '--manifest_paths',
-        type=str,
-        default=None,
+        '--manifest_paths', type=str, default=None,
     )
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--out_dir', type=str, default='/Data/CodecDatasets/speechllm_codecdatasets/')
@@ -197,6 +190,7 @@ def main():
 
         if bidx == 0:
             save_batch_audios(batch, bidx, temp_dir, codec_model, args.codec_model, codec_model_sample_rate)
+
 
 if __name__ == '__main__':
     main()

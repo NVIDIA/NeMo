@@ -17,9 +17,12 @@ import os
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronSpeechGPTModel, MegatronSpeechGPTSFTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
+    MegatronSpeechGPTModel,
+    MegatronSpeechGPTSFTModel,
+)
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -71,7 +74,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.attn_prior_starting_strength = cfg.model.attn_prior_starting_strength
         gpt_cfg.use_attention_prior = cfg.model.get("use_attention_prior", False)
         gpt_cfg.share_embeddings_and_output_weights = cfg.model.get("share_embeddings_and_output_weights", False)
-        
+
         # For Inference
         gpt_cfg.temperature = cfg.model.get("temperature", 0.7)
         gpt_cfg.top_k = cfg.model.get("top_k", 60)
@@ -106,6 +109,7 @@ def load_from_nemo(cls, cfg, trainer, gpt_cfg, modify_confg_fn, restore=True):
         gpt_cfg.position_embedding_type = cfg.get("override_position_embedding_type", "rope")
         model = cls(gpt_cfg, trainer)
     return model
+
 
 # def load_from_ckpt(cls, cfg, trainer, gpt_cfg, modify_confg_fn):
 #     gpt_cfg = modify_confg_fn(gpt_cfg, cfg, add_cfg_to_tree=False)
@@ -145,7 +149,9 @@ def main(cfg) -> None:
             save_restore_connector=save_restore_connector,
             map_location="cpu",
         )
-        model = load_from_nemo(MegatronSpeechGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config, restore=cfg.restore)
+        model = load_from_nemo(
+            MegatronSpeechGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config, restore=cfg.restore
+        )
     else:
         model = MegatronSpeechGPTSFTModel(cfg.model, trainer)
     mode = cfg.get("mode", "training")

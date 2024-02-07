@@ -56,7 +56,7 @@ class AudioDataset(Dataset):
                     record = json.loads(line)
                     if 'answer_duration' not in record:
                         record['answer_duration'] = record['duration']
-                    
+
                     if isinstance(record['speaker'], str) and 'mls_english_' in record['speaker']:
                         record['speaker'] = record['speaker'].replace('mls_english_', '')
                         record['speaker'] = int(record['speaker'])
@@ -82,9 +82,7 @@ class AudioDataset(Dataset):
         # TODO: Using White Noise Perturbation right now (dont have noise manifest)
 
         self.noise_perturber = NoisePerturbation(
-            manifest_path=noise_manifest_path,
-            min_snr_db=min_snr_db,
-            max_snr_db=max_snr_db,
+            manifest_path=noise_manifest_path, min_snr_db=min_snr_db, max_snr_db=max_snr_db,
         )
 
         # self.noise_perturber = WhiteNoisePerturbation()

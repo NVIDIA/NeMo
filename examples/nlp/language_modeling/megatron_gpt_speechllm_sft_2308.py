@@ -20,7 +20,10 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronSpeechGPTModel, MegatronSpeechGPTSFTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
+    MegatronSpeechGPTModel,
+    MegatronSpeechGPTSFTModel,
+)
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,

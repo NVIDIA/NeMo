@@ -105,6 +105,7 @@ def _speech_collate_fn(batch, pad_id):
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
         return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
 
+
 class InstructionTuningManifestProcessor:
     """
     Class that processes a manifest json file containing paths to audio files, transcripts, and durations (in seconds).
@@ -749,6 +750,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             channel_selector=channel_selector,
         )
 
+
 class _TarredInstructionTuningDataset(IterableDataset):
     """
     A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
@@ -917,6 +919,7 @@ class _TarredInstructionTuningDataset(IterableDataset):
 
     def __len__(self):
         return self.len
+
 
 class _TarredAudioToTextDataset(IterableDataset):
     """

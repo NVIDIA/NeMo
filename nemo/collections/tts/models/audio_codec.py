@@ -23,6 +23,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.tts.data.vocoder_dataset import create_vocoder_dataset
 from nemo.collections.tts.losses.audio_codec_loss import (
     FeatureMatchingLoss,
     MultiResolutionMelLoss,
@@ -32,7 +33,6 @@ from nemo.collections.tts.losses.audio_codec_loss import (
     TimeDomainLoss,
 )
 from nemo.collections.tts.modules.common import GaussianDropout
-from nemo.collections.tts.data.vocoder_dataset import create_vocoder_dataset
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
 from nemo.core import ModelPT

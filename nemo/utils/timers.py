@@ -24,8 +24,10 @@ from nemo.utils.exceptions import NeMoBaseException
 
 __all__ = ["NamedTimer"]
 
+
 class NeMoTimerException(NeMoBaseException, RuntimeError):
     pass
+
 
 class NamedTimer(object):
     """

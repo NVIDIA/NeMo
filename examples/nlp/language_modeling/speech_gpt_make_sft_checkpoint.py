@@ -9,7 +9,10 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
 import nemo
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, MegatronSpeechGPTSFTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
+    MegatronGPTModel,
+    MegatronSpeechGPTSFTModel,
+)
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.utils import AppState
 
@@ -67,24 +70,27 @@ def load_from_checkpoint_dir(cls, cfg, trainer, checkpoint):
     # cfg.cfg.tokenizer.model = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256/b11cee03bc8940fa86cb2da19e99fd4e_t5_tokenizer.model"
     # cfg.cfg.tokenizer.tokenizer_model = "/home/jasoli/models/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256/b11cee03bc8940fa86cb2da19e99fd4e_t5_tokenizer.model"
     # cfg.cfg.override_vocab_size = 40320
-    cfg.cfg.task_templates = [{
-        "taskname": "squad",
-        "prompt_template": "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}",
-        "total_virtual_tokens": 3,
-        "virtual_token_splits": [3],
-        "truncate_field": "context",
-        "answer_field": "answer",
-    }]
+    cfg.cfg.task_templates = [
+        {
+            "taskname": "squad",
+            "prompt_template": "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}",
+            "total_virtual_tokens": 3,
+            "virtual_token_splits": [3],
+            "truncate_field": "context",
+            "answer_field": "answer",
+        }
+    ]
     with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
         OmegaConf.save(config=cfg, f=f.name)
         model = cls.load_from_checkpoint(checkpoint_path=checkpoint, trainer=trainer, hparams_file=f.name,)
         return model
+
 
 model = load_from_checkpoint_dir(MegatronSpeechGPTSFTModel, gpt_cfg, trainer, checkpoint_path)
 print("embedding weight")
 print(model.model.module.language_model.embedding.word_embeddings.weight.shape)
 print("output weight")
 print(model.model.module.language_model.output_layer.weight.shape)
-model.save_to("/home/jasoli/models/speechllm_sgpt_sftlibritts_2b_tp1_pp1--val_loss=27.70-step=100000-consumed_samples=12800000.nemo")
-
-
+model.save_to(
+    "/home/jasoli/models/speechllm_sgpt_sftlibritts_2b_tp1_pp1--val_loss=27.70-step=100000-consumed_samples=12800000.nemo"
+)

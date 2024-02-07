@@ -42,8 +42,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 from nemo.collections.nlp.parts import utils_funcs
-from nemo.utils import logging
 from nemo.core.classes.mixins import adapter_mixins
+from nemo.utils import logging
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -639,7 +639,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 dec_input = self.get_decoder_embeddings(dec_input_ids, dec_position_ids, token_type_ids)
                 if decoder_max_sequence_len or encoder_max_sequence_len:
                     # In inference, only need last input
-                    dec_input = dec_input[-1,:,:].unsqueeze(0)
+                    dec_input = dec_input[-1, :, :].unsqueeze(0)
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
@@ -655,7 +655,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 else:
                     decoder_cross_attention_relative_position_bias = None
 
-            return_all_crossattention_probs=self.return_all_crossattention_probs
+            return_all_crossattention_probs = self.return_all_crossattention_probs
             if cross_attention_prior is not None:
                 # cross_attention_prior shape [B, dec_len, enc_len]
                 # Repeat it to make it [B, 12, dec_len, enc_len]
@@ -663,7 +663,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 attn_prior_scaledown_start_step = self.attn_prior_scaledown_start_step
                 num_attention_heads = self.num_cross_attention_heads
                 assert attn_prior_scaledown_start_step < attn_prior_end_step
-                logging.debug(f"attn_prior_scaledown_start_step: {attn_prior_scaledown_start_step}, attn_prior_scaledown_start_step: {attn_prior_end_step}")
+                logging.debug(
+                    f"attn_prior_scaledown_start_step: {attn_prior_scaledown_start_step}, attn_prior_scaledown_start_step: {attn_prior_end_step}"
+                )
                 if global_step >= attn_prior_end_step:
                     decoder_cross_attention_relative_position_bias = None
                     # self.return_all_crossattention_probs = False
@@ -684,7 +686,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         f"global_step: {global_step}, prior_scaling_factor: 1, "
                         f"decoder_cross_attention_relative_position_bias: {decoder_cross_attention_relative_position_bias.shape}",
                     )
-                return_all_crossattention_probs=return_all_crossattention_probs or self.logging_step
+                return_all_crossattention_probs = return_all_crossattention_probs or self.logging_step
 
             output = self.enc_dec_model(
                 enc_input=enc_input,
@@ -715,25 +717,35 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     attention_probs = [torch.softmax(attention_score, dim=-1) for attention_score in attention_scores]
 
                     if text_limits is not None and hasattr(self, "forward_sum_loss"):
-                        attention_scores_filtered = [attention_scores[lidx] for lidx in self.alignment_decoder_layerids]
+                        attention_scores_filtered = [
+                            attention_scores[lidx] for lidx in self.alignment_decoder_layerids
+                        ]
                         attention_scores_combined = torch.cat(attention_scores_filtered, dim=1)
-                        text_start_idx = text_limits[0,0].item()
-                        assert torch.all(text_limits[:,0] == text_start_idx) # all texts should start at the same index
+                        text_start_idx = text_limits[0, 0].item()
+                        assert torch.all(
+                            text_limits[:, 0] == text_start_idx
+                        )  # all texts should start at the same index
                         end_offset = self.alignment_text_end_offset
                         # align_every_n_head: eg if set to 2, will skip every other head
                         # if set to 12, will select 1 head from every layer
                         align_every_n_head = self.align_every_n_head
-                        attention_scores_sliced = attention_scores_combined[:,::align_every_n_head,:,text_start_idx:-(2 + end_offset)] # -2 to remove eos and pad
+                        attention_scores_sliced = attention_scores_combined[
+                            :, ::align_every_n_head, :, text_start_idx : -(2 + end_offset)
+                        ]  # -2 to remove eos and pad
                         # attention_logprobs = torch.log_softmax(attention_scores_sliced, dim=-1)
-                        attention_logprobs = attention_scores_sliced # not taking log_softmax, since we will do that in loss function
+                        attention_logprobs = (
+                            attention_scores_sliced  # not taking log_softmax, since we will do that in loss function
+                        )
                         attention_logprobs = torch.mean(attention_logprobs, dim=1, keepdim=True)
                         dec_len = torch.sum(dec_attn_mask, dim=1)
-                        enc_len = text_limits[:,1] - text_limits[:,0] - end_offset
+                        enc_len = text_limits[:, 1] - text_limits[:, 0] - end_offset
                         # print("enc len: ", enc_len)
                         # print("dec len: ", dec_len)
                         # print("text limits: ", text_limits)
                         # print("attention_logprobs: ", attention_logprobs.shape)
-                        alignment_loss = self.forward_sum_loss(attn_logprob=attention_logprobs, in_lens=enc_len, out_lens=dec_len)
+                        alignment_loss = self.forward_sum_loss(
+                            attn_logprob=attention_logprobs, in_lens=enc_len, out_lens=dec_len
+                        )
                         # print("alignment_loss: ", alignment_loss)
                 else:
                     attention_probs = None
@@ -754,7 +766,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     # datalayer or we infer it from model output as below
                     # text_token_size = 29184
                     # speech_mask = torch.nn.argmax(token_logits, dim=-1) > text_token_size
-                    speech_layers = self.num_speech_codebooks-1
+                    speech_layers = self.num_speech_codebooks - 1
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
 
@@ -865,7 +877,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         [first_layer_speech_logits, speech_logits], dim=-1
                     )  # (b, s, 1024, 8)
 
-                    if self.hiddens_cfg is not None:  #TODO: What is hiddens_cfg
+                    if self.hiddens_cfg is not None:  # TODO: What is hiddens_cfg
                         raise NotImplementedError("Not currently implemented for speechllm")
                         # return all hiddens and token logits
                         hiddens_dict = enc_output

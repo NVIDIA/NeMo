@@ -39,7 +39,6 @@ from pytorch_lightning.strategies.ddp import DDPStrategy
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
-from nemo.utils.timers import NeMoTimerException
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
 from nemo.utils.env_var_parsing import get_envbool
@@ -49,6 +48,7 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
+from nemo.utils.timers import NeMoTimerException
 
 
 class NotFoundError(NeMoBaseException):
