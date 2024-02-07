@@ -691,7 +691,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 # support hiddens module where returned output is a dict
                 output = {k: v.contiguous() for k, v in output.items()}
-                
+
             def id_func(output_tensor):
                 if isinstance(output_tensor, dict):
                     # handle loss of hidden transformations ("output" is the default output)
