@@ -783,10 +783,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         This function takes as input per-token loss and masks non-required values.
         """
-        losses = tokens_loss.float()
-        loss_mask = loss_mask.float()
+        losses = tokens_loss.float()  # (B x S)
+        loss_mask = loss_mask.float()  # (B x S)
         # Compute (per-sample) sequence-level NLL. Fully masked samples have zero loss.
-        loss = torch.sum(losses * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)
+        loss = torch.sum(losses * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)  # (B)
         loss = loss.mean()  # average across all samples in the micro-batch
         return loss
 

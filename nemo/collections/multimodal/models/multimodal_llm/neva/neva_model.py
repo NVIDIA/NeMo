@@ -781,10 +781,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         logging.info(f'test_loss: {averaged_loss[0]}')
 
     def loss_func(self, loss_mask, output_tensor):
-        losses = output_tensor.float()
-        loss_mask = loss_mask.float()
+        losses = output_tensor.float()  # (B x S)
+        loss_mask = loss_mask.float()  # (B x S)
         # Compute (per-sample) sequence-level NLL. Fully masked samples have zero loss.
-        loss = torch.sum(losses * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)
+        loss = torch.sum(losses * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)  # (B)
         loss = loss.mean()  # average across all samples in the micro-batch
         return loss
 

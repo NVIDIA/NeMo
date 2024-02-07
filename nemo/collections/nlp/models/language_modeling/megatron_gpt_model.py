@@ -1164,10 +1164,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.test_step_outputs.clear()  # free memory
 
     def loss_func(self, loss_mask, num_valid_tokens_per_sample, output_tensor):
-        losses = output_tensor.float()
-        loss_mask = loss_mask.float()
+        losses = output_tensor.float()  # (B x S)
+        loss_mask = loss_mask.float()  # (B x S)
         # Compute (per-sample) sequence-level NLL. Fully masked samples have zero loss.
-        loss = torch.sum(losses * loss_mask, dim=1) / num_valid_tokens_per_sample.clamp(min=1)
+        loss = torch.sum(losses * loss_mask, dim=1) / num_valid_tokens_per_sample.clamp(min=1)  # (B)
         loss = loss.mean()  # average across all samples in the micro-batch
         if parallel_state.get_context_parallel_world_size() > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())

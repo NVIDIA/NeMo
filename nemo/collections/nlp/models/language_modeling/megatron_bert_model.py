@@ -552,12 +552,12 @@ class MegatronBertModel(MegatronBaseModel):
     def loss_func(self, loss_mask, sentence_order, output_tensor):
         lm_loss_, sop_logits = output_tensor
 
-        lm_loss_ = lm_loss_.float()
-        loss_mask = loss_mask.float()
+        lm_loss_ = lm_loss_.float()  # (B x S)
+        loss_mask = loss_mask.float()  # (B x S)
 
         # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction.=
         # In that case loss mask is all zeros.
-        lm_loss = torch.sum(lm_loss_ * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)
+        lm_loss = torch.sum(lm_loss_ * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)  # (B)
         lm_loss = lm_loss.mean()  # average across all samples in the micro-batch
 
         if sop_logits is not None:
