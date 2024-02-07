@@ -340,7 +340,6 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             # (@adithyare) during validation, we contrast only with hard negatives.
             # this is to ensure that the validation loss is comparable accross different batch sizes.
             cs = self.constrast_with_hard_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
-            
 
         cs = cs.clamp(-1.0, 1.0)
         avg_pos_cs = cs[:, 0].mean().item()
