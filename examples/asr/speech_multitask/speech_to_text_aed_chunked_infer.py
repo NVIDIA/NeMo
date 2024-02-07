@@ -32,38 +32,32 @@ python speech_to_text_aed_chunked_infer.py \
     dataset_manifest="<remove or path to manifest>" \
     output_filename="<remove or specify output filename>" \
     chunk_len_in_secs=30.0 \
-    batch_size=16
+    batch_size=16 \
+    decoding.beam.beam_size=5
+    
 """
 
 import copy
 import glob
-import json
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Union
+from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import DictConfig, OmegaConf
-from tqdm import tqdm
+from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import EncDecMultiTaskModel
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecodingConfig
-from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
-from nemo.collections.asr.parts.utils.streaming_utils import MultiTaskAEDFrameBatchInfer
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchMultiTaskAED
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
-    get_buffered_pred_feat,
+    get_buffered_pred_feat_multitaskAED,
     setup_model,
-    wrap_transcription,
     write_transcription,
 )
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
-can_gpu = torch.cuda.is_available()
 
 
 @dataclass
@@ -110,61 +104,6 @@ class TranscriptionConfig:
     clean_groundtruth_text: bool = False
     langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
-
-
-def get_buffered_pred_feat(
-    asr: MultiTaskAEDFrameBatchInfer,
-    preprocessor_cfg: DictConfig,
-    model_stride_in_secs: int,
-    device: Union[List[int], int],
-    manifest: str = None,
-    filepaths: List[list] = None,
-    delay: float = 0.0,
-) -> List[rnnt_utils.Hypothesis]:
-    # Create a preprocessor to convert audio samples into raw features,
-    # Normalization will be done per buffer in frame_bufferer
-    # Do not normalize whatever the model's preprocessor setting is
-    preprocessor_cfg.normalize = "None"
-    preprocessor = EncDecMultiTaskModel.from_config_dict(preprocessor_cfg)
-    preprocessor.to(device)
-    hyps = []
-    refs = []
-
-    if filepaths and manifest:
-        raise ValueError("Please select either filepaths or manifest")
-    if filepaths is None and manifest is None:
-        raise ValueError("Either filepaths or manifest shoud not be None")
-
-    if filepaths:
-        for l in tqdm(filepaths, desc="Sample:"):
-            meta = {
-                'audio_filepath': l,
-                'duration': 100000,
-                'source_lang': 'en',
-                'taskname': 'asr',
-                'target_lang': 'en',
-                'pnc': 'yes',
-                'answer': 'nothing',
-            }
-            asr.reset()
-            asr.read_audio_file(l, delay, model_stride_in_secs, meta_data=meta)
-            hyp = asr.transcribe()
-            hyps.append(hyp)
-    else:
-        with open(manifest, "r", encoding='utf_8') as mfst_f:
-            for l in tqdm(mfst_f, desc="Sample:"):
-                asr.reset()
-                row = json.loads(l.strip())
-                if 'text' in row:
-                    refs.append(row['text'])
-                audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
-                # do not support partial audio
-                asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=row)
-                hyp = asr.transcribe()
-                hyps.append(hyp)
-
-    wrapped_hyps = wrap_transcription(hyps)
-    return wrapped_hyps
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -238,13 +177,15 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     feature_stride = model_cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * cfg.model_stride
-    chunk_len = float(cfg.chunk_len_in_secs)
 
-    frame_asr = MultiTaskAEDFrameBatchInfer(
-        asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.chunk_len_in_secs, batch_size=cfg.batch_size,
+    frame_asr = FrameBatchMultiTaskAED(
+        asr_model=asr_model,
+        frame_len=cfg.chunk_len_in_secs,
+        total_buffer=cfg.chunk_len_in_secs,
+        batch_size=cfg.batch_size,
     )
 
-    hyps = get_buffered_pred_feat(
+    hyps = get_buffered_pred_feat_multitaskAED(
         frame_asr, model_cfg.preprocessor, model_stride_in_secs, asr_model.device, manifest, filepaths,
     )
     output_filename, pred_text_attr_name = write_transcription(

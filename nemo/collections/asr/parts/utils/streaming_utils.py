@@ -1560,7 +1560,7 @@ class CacheAwareStreamingAudioBuffer:
         return processed_signal, self.streams_length
 
 
-class MultiTaskAEDFrameBatchInfer(FrameBatchASR):
+class FrameBatchMultiTaskAED(FrameBatchASR):
     def get_input_tokens(self, sample: dict):
         if self.asr_model.prompt_format == "canary":
             missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in sample]
