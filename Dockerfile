@@ -23,7 +23,7 @@ FROM ${BASE_IMAGE} as nemo-deps
 
 # dependency flags; should be declared after FROM
 # torchaudio: not required by default
-ARG REQUIRE_TORCHAUDIO=true
+ARG REQUIRE_TORCHAUDIO=false
 # k2: not required by default
 ARG REQUIRE_K2=false
 # ais cli: not required by default, install only if required
@@ -113,14 +113,14 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_graphviz.sh --d
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
-# RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL_CODE=$?; \
-#   echo ${INSTALL_MSG}; \
-#   if [ ${INSTALL_CODE} -ne 0 ]; then \
-#   echo "k2 installation failed";  \
-#   if [ "${REQUIRE_K2}" = true ]; then \
-#   exit ${INSTALL_CODE};  \
-#   else echo "Skipping failed k2 installation"; fi \
-#   else echo "k2 installed successfully"; fi
+RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL_CODE=$?; \
+  echo ${INSTALL_MSG}; \
+  if [ ${INSTALL_CODE} -ne 0 ]; then \
+  echo "k2 installation failed";  \
+  if [ "${REQUIRE_K2}" = true ]; then \
+  exit ${INSTALL_CODE};  \
+  else echo "Skipping failed k2 installation"; fi \
+  else echo "k2 installed successfully"; fi
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
