@@ -400,6 +400,8 @@ conv_templates = {
     "v1_mmtag": conv_llava_v1_mmtag,
     "llava_llama_2": conv_llava_llama_2,
     "nvgpt": conv_nvgpt,
+    "nv_dpo": conv_nvgpt,
+    "nv_steerlm": conv_nvgpt
 }
 
 
