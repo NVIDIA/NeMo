@@ -16,14 +16,15 @@
 This script chunks long audios into non-overlapping segments of `chunk_len_in_secs` seconds and performs inference on each 
 segment individually. The results are then concatenated to form the final output.
 
+Below is an example of how to run this script with the Canary-1b model.
 It's recommended to use manifest input, otherwise the model will perform English ASR with punctuations and capitalizations. 
 An example manifest line:
 {
     "audio_filepath": "/path/to/audio.wav",  # path to the audio file
     "duration": 10000.0,  # duration of the audio
     "taskname": "asr",  # use "s2t_translation" for AST
-    "source_lang": "en",  # ASR only needs `source_lang`
-    "target_lang": "de",  # AST needs `target_lang`
+    "source_lang": "en",  # Set `source_lang`==`target_lang` for ASR, choices=['en','de','es','fr']
+    "target_lang": "de",  # choices=['en','de','es','fr']
     "pnc": yes,  # whether to have PnC output, choices=['yes', 'no'] 
 }
 
@@ -34,7 +35,7 @@ python speech_to_text_aed_chunked_infer.py \
     audio_dir="<(optional) path to folder of audio files>" \
     dataset_manifest="<(optional) path to manifest>" \
     output_filename="<(optional) specify output filename>" \
-    chunk_len_in_secs=30.0 \
+    chunk_len_in_secs=40.0 \
     batch_size=16 \
     decoding.beam.beam_size=5
     
@@ -74,7 +75,7 @@ class TranscriptionConfig:
 
     # General configs
     output_filename: Optional[str] = None  # if None, output will be stored in the same directory as the input
-    batch_size: int = 32  # number of chunks to process in parallel
+    batch_size: int = 8  # number of chunks to process in parallel.
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
