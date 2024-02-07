@@ -31,7 +31,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
     get_prompt_format_fn,
 )
-from nemo.collections.asr.metrics import WER, BLEU
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
@@ -165,7 +165,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
         self.wer = WER(self.decoding, log_prediction=self.cfg.log_prediction)
-        self.bleu = BLEU(self.decoding, tokenize=self.cfg.get('bleu_tokenize', "13a"), log_prediction=self.cfg.log_prediction)
+        self.bleu = BLEU(
+            self.decoding, tokenize=self.cfg.get('bleu_tokenize', "13a"), log_prediction=self.cfg.log_prediction
+        )
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
@@ -608,28 +610,28 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         }
 
         self.wer.update(
-            predictions=enc_states, 
+            predictions=enc_states,
             predictions_lengths=encoded_len,
-            targets=transcript, 
+            targets=transcript,
             targets_lengths=transcript_len,
             predictions_mask=enc_mask,
-            input_ids=input_ids[:, : self.context_len_for_AR_decoding] if self.context_len_for_AR_decoding > 0 else None,
+            input_ids=input_ids[:, : self.context_len_for_AR_decoding]
+            if self.context_len_for_AR_decoding > 0
+            else None,
         )
         wer, wer_num, wer_denom = self.wer.compute()
-        output_dict.update({
-            "val_wer": wer,
-            "val_wer_num": wer_num,
-            "val_wer_denom": wer_denom
-        })
+        output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
         self.wer.reset()
 
         self.bleu.update(
-            predictions=enc_states, 
+            predictions=enc_states,
             predictions_lengths=encoded_len,
-            targets=transcript, 
+            targets=transcript,
             targets_lengths=transcript_len,
             predictions_mask=enc_mask,
-            input_ids=input_ids[:, : self.context_len_for_AR_decoding] if self.context_len_for_AR_decoding > 0 else None,
+            input_ids=input_ids[:, : self.context_len_for_AR_decoding]
+            if self.context_len_for_AR_decoding > 0
+            else None,
         )
         bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
         output_dict.update(bleu_metrics)

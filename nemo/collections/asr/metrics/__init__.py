@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.metrics.bleu import BLEU
+from nemo.collections.asr.metrics.wer import WER
