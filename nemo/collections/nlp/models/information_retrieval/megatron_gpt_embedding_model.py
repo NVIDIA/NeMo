@@ -45,9 +45,8 @@ except (ImportError, ModuleNotFoundError):
 class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        self.temperature = self.cfg.get('temperature', 1.0)
-        self.num_soft_negatives = self.cfg.get('num_soft_negatives', 0)
-        self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", False)
+        self.temperature = self.cfg.get('temperature', 0.02)
+        self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", True)
         assert (
             self.cfg.get("post_process", False) is False
         ), "post_process must be False to get hidden states in the loss_func"
@@ -277,46 +276,17 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
         return loss, non_loss_tensors
 
-    def contrast_all_possible_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
+    def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, use_all_possible_negatives=False):
         all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size
-        all_cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x (2bs)
-
-        select_cs = (
-            torch.cat([torch.eye(bs), torch.zeros(bs, bs)], dim=1).type_as(all_cs).long()
-        )  # FIXME: TODO: should not be recomputed every time (@adithyare)
-        diag_positions = torch.where(select_cs == 1)  # FIXME: TODO: should not be recomputed every time (@adithyare)
-        off_diag_positions = torch.where(
-            select_cs == 0
-        )  # FIXME: TODO: should not be recomputed every time (@adithyare)
-
-        pos_cs = all_cs[diag_positions[0], diag_positions[1]]  # collects the top diagonal elements
-        neg_cs = all_cs[off_diag_positions[0], off_diag_positions[1]]  # collects all the other elements
-        cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.repeat(bs, 1)], dim=1)
-        return cs
-
-    def contrast_with_sampled_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
-        assert (
-            self.num_soft_negatives < query_hs.shape[0]
-        ), f"Batch size {bs} is not large enough for {self.num_soft_negatives} soft negatives"
-
-        # (@adithyare) sample soft negatives using a multinomial distribution
-        soft_neg_samples = torch.ones((bs, bs)).type_as(query_hs)
-        # (@adithyare) ensure the diagonal is zero, i.e. don't sample the same document as a soft negative
-        soft_neg_samples.fill_diagonal_(0.0)
-        soft_neg_samples = torch.multinomial(soft_neg_samples, self.num_soft_negatives, replacement=False)
-
-        all_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1))
-        pos_cs_diag = torch.diag(all_cs)
-        soft_neg_cs = all_cs[soft_neg_samples][:, :, 0]  # (@adithyare) can be made more efficient?
-        neg_cs = torch.nn.functional.cosine_similarity(query_hs, neg_doc_hs, dim=-1)
-        cs = torch.cat([pos_cs_diag.unsqueeze(1), neg_cs.unsqueeze(1), soft_neg_cs], dim=1)
-        return cs
-
-    def constrast_with_hard_negatives(self, pos_doc_hs, neg_doc_hs, query_hs, bs):
-        pos_cs = torch.mm(query_hs, pos_doc_hs.transpose(0, 1)).diag()
-        neg_cs = torch.mm(query_hs, neg_doc_hs.transpose(0, 1)).diag()
+        cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x (2bs)
+        if use_all_possible_negatives:
+            labels = torch.arange(bs, device=cs.device).long()
+            return cs, labels
+        pos_cs = cs[:, :bs].diag()
+        neg_cs = cs[:, bs:].diag()
         cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
-        return cs
+        labels = torch.zeros(bs, device=cs.device).long()
+        return cs, labels
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
@@ -330,16 +300,11 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         neg_doc_hs = torch.nn.functional.normalize(neg_doc_hs, dim=1)
 
         if self.training:
-            if self.use_all_possible_negatives:
-                cs = self.contrast_all_possible_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
-            elif self.num_soft_negatives > 0:
-                cs = self.contrast_with_sampled_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
-            else:
-                cs = self.constrast_with_hard_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
+            cs, labels = self.constrastive_scores(pos_doc_hs, neg_doc_hs, query_hs, bs, self.use_all_possible_negatives)
         else:
             # (@adithyare) during validation, we contrast only with hard negatives.
             # this is to ensure that the validation loss is comparable accross different batch sizes.
-            cs = self.constrast_with_hard_negatives(pos_doc_hs, neg_doc_hs, query_hs, bs)
+            cs, labels = self.constrastive_scores(pos_doc_hs, neg_doc_hs, query_hs, bs, False)
             
 
         cs = cs.clamp(-1.0, 1.0)
@@ -347,7 +312,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         avg_neg_cs = cs[:, 1:].mean().item()
         diff_cs = avg_pos_cs - avg_neg_cs
         cs = cs / self.temperature
-        loss = torch.nn.functional.cross_entropy(cs, torch.zeros(bs).type_as(cs).long())
+        loss = torch.nn.functional.cross_entropy(cs, labels)
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())

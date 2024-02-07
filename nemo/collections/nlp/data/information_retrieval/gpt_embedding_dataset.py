@@ -151,9 +151,10 @@ class GPTEmbeddingDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        q = self.tokenizer.text_to_ids(example['query'])
-        d = self.tokenizer.text_to_ids(example['pos_doc'])
-        nd = self.tokenizer.text_to_ids(example['neg_doc'])
+        q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+        d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+        nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
+        metadata = {k: v for k, v in example.items() if k not in ['query', 'pos_doc', 'neg_doc']}
         q = q if q is not None else []
         d = d if d is not None else []
         nd = nd if nd is not None else []
@@ -184,6 +185,7 @@ class GPTEmbeddingDataset(Dataset):
             'query': q,
             'pos_doc': d,
             'neg_doc': nd,
+            'metadata': metadata,
         }
 
         return processed_example
@@ -217,6 +219,7 @@ class GPTEmbeddingDataset(Dataset):
 
     def collate_fn(self, batch):
         input_ids = []
+        metadata = []
         lengths = []
         max_length = -1
         for item in batch:
@@ -226,6 +229,7 @@ class GPTEmbeddingDataset(Dataset):
             lengths.append(len(item['query']))
             lengths.append(len(item['pos_doc']))
             lengths.append(len(item['neg_doc']))
+            metadata += [item['metadata'], item['metadata'], item['metadata']] # FIXME: using same metadata for all 3 items
             max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
@@ -245,6 +249,7 @@ class GPTEmbeddingDataset(Dataset):
             'attention_mask': attention_mask,
             'loss_mask': lengths,
             'position_ids': position_ids,
+            'metadata': metadata,
         }
 
         return processed_batch
