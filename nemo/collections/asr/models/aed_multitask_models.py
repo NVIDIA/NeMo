@@ -221,7 +221,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         prompt_format: Optional[str] = None,
     ):
         """
-        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
+        Changes vocabulary used during AED decoding process. Use this method when fine-tuning on from pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
         use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
         model to learn capitalization, punctuation and/or special characters.
