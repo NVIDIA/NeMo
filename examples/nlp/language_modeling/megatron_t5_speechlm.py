@@ -61,13 +61,13 @@ def main(cfg) -> None:
 
     # load existing or init new soft prompt T5 model
     if cfg.model.get("restore_path", None) is not None:
-        print(f"cfg.model.restore_path {cfg.model.restore_path}")
+        logging.info(f"cfg.model.restore_path {cfg.model.restore_path}")
         model = MegatronT5SpeechLMModel.restore_from(
             cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
         )
 
     else:
-        print(f"cfg.model.restore_path is None")
+        logging.info(f"cfg.model.restore_path is None")
         model = MegatronT5SpeechLMModel(cfg.model, trainer=trainer)
         model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
 

@@ -1496,7 +1496,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 nemo_sv_model = self.additional_models['nemo_sv_model']
 
             if 'asr_model' not in self.additional_models:
-                asr_model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(model_name="stt_multilingual_fastconformer_hybrid_large_pc_blend_eu")
+                asr_model = self.cfg.get("asr_model_name", "stt_multilingual_fastconformer_hybrid_large_pc_blend_eu")
+                logging.info(f"Loading ASR Model: {asr_model}")
+                if "hybrid" in asr_model:
+                    model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel
+                else:
+                    model = nemo_asr.models.EncDecRNNTBPEModel
+                asr_model = model.from_pretrained(model_name=asr_model)
                 asr_model = asr_model.to(device)
                 asr_model.eval()
                 self.additional_models['asr_model'] = asr_model
@@ -1560,6 +1566,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     audio_fp_gt = os.path.join(_exp_dir_path, f'dec_input_wav_{step}.wav')
                     sf.write(audio_fp_gt, dec_input_wav.cpu().numpy(), self.sample_rate)
 
+
                     # speaker verification evaluation
                     spk_embedding_pred = nemo_sv_model.get_embedding(audio_fp_pred)
                     spk_embedding_pred = spk_embedding_pred.cpu().detach().numpy().flatten()
@@ -1599,6 +1606,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                         _context_tokens = self.convert_tokens_to_range(_context_tokens, pattern=self.context_pattern)
                         _context_wav = self.decode_wav_from_codec_model(_context_tokens)
                         self.logger.experiment.add_audio("Context Wav", _context_wav, step, self.sample_rate)
+                        audio_fp_context = os.path.join(_exp_dir_path, f'context_wav_{step}.wav')
+                        sf.write(audio_fp_context, _context_wav.cpu().numpy(), self.sample_rate)
 
                     task_question = self.frozen_model.tokenizer.ids_to_text(
                         [v[1] for v in input_token_list if v[1] < self.lm_vocab_size]
