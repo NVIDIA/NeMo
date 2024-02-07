@@ -333,7 +333,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
         if isinstance(dataloader_iter, _DataFetcherWrapper):
             batch, _, _ = next(dataloader_iter)
-        elif isinstance(dataloader_iter, itertools.chain):
+        else:
             batch = next(dataloader_iter)
 
         log_token_counts = self.cfg.get('log_token_counts', False)
