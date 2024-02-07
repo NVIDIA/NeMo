@@ -3114,6 +3114,7 @@ pipeline {
       }
       failFast true
       steps {
+	sh "export NVTE_FLASH_ATTN=0"
         sh "python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
@@ -3174,6 +3175,7 @@ pipeline {
         model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
+	sh "export NVTE_FLASH_ATTN=1"
       }
     }
     stage('L2: Megatron Core Bert Pretraining and Resume Training') {
