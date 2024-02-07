@@ -3185,7 +3185,7 @@ pipeline {
       }
       failFast true
       steps {
-        sh "python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        sh "export NVTE_ALLOW_NONDETERMINISTIC_ALGO=0 && python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
@@ -3215,7 +3215,7 @@ pipeline {
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings"
-        sh "python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        sh "export NVTE_ALLOW_NONDETERMINISTIC_ALGO=0 && python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
