@@ -47,7 +47,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.asr.data.audio_to_text_lhotse_prompted import get_canary_prompt_tokens
+from nemo.collections.asr.data.audio_to_text_lhotse_prompted import canary_prompt
 from nemo.collections.asr.models import EncDecMultiTaskModel
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -116,7 +116,21 @@ class TranscriptionConfig:
 class MultiTaskAEDFrameBatchInfer(FrameBatchASR):
     def get_input_tokens(self, sample: dict):
         if self.asr_model.prompt_format == "canary":
-            tokens = get_canary_prompt_tokens(sample, self.asr_model.tokenizer)
+            missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in sample]
+            if missing_keys:
+                raise RuntimeError(
+                    f"We found sample that is missing the following keys: {missing_keys}"
+                    f"Please ensure that every utterance in the input manifests contains these keys. Sample: {sample}"
+                )
+            tokens = canary_prompt(
+                tokenizer=self.asr_model.tokenizer,
+                text="none",
+                language=sample['target_lang'],
+                source_language=sample['source_lang'],
+                target_language=sample['target_lang'],
+                taskname=sample['taskname'],
+                pnc=sample['pnc'],
+            )
         else:
             raise ValueError(f"Unknown prompt format: {self.asr_model.prompt_format}")
         return torch.tensor(tokens, dtype=torch.long, device=self.asr_model.device).unsqueeze(0)  # [1, T]
