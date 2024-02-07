@@ -332,20 +332,16 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def set_checkpoint_unfinished_marker(
-        checkpoint_path: Union[Path, str], barrier_before=False, barrier_after=False
+        checkpoint_path: Union[Path, str], barrier_after=False,
     ) -> None:
         """ Marks given checkpoint as unfinished.
 
         Args:
             checkpoint_filepath: Path to the checkpoint file or dir.
               Does not need to exist.
-            barrier_before: Synchronize ranks before writing the marker file.
-              Defaults to False.
             barrier_after: Synchronize ranks after writing the marker file.
               Defaults to False.
         """
-        if barrier_before and torch.distributed.is_initialized():
-            torch.distributed.barrier()
         if is_global_rank_zero():
             marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
             marker_path.parent.mkdir(parents=True, exist_ok=True)
@@ -355,7 +351,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def remove_checkpoint_unfinished_marker(
-        checkpoint_path: Union[Path, str], barrier_before=False, barrier_after=False
+        checkpoint_path: Union[Path, str], barrier_before=False,
     ) -> None:
         """Clear unfinished marker for given checkpoint.
 
@@ -364,8 +360,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
               Does not need to exist.
             barrier_before: Synchronize ranks before removing the marker file.
               Defaults to False.
-            barrier_after: Synchronize ranks after removing the marker file.
-              Defaults to False.
         """
         if barrier_before and torch.distributed.is_initialized():
             torch.distributed.barrier()
@@ -373,8 +367,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             marker_path = NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
             if marker_path.exists():
                 marker_path.unlink()
-        if barrier_after and torch.distributed.is_initialized():
-            torch.distributed.barrier()
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
