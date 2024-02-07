@@ -331,9 +331,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return NeMoModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path).exists()
 
     @staticmethod
-    def set_checkpoint_unfinished_marker(
-        checkpoint_path: Union[Path, str], barrier_after=False,
-    ) -> None:
+    def set_checkpoint_unfinished_marker(checkpoint_path: Union[Path, str], barrier_after=False,) -> None:
         """ Marks given checkpoint as unfinished.
 
         Args:
@@ -350,9 +348,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             torch.distributed.barrier()
 
     @staticmethod
-    def remove_checkpoint_unfinished_marker(
-        checkpoint_path: Union[Path, str], barrier_before=False,
-    ) -> None:
+    def remove_checkpoint_unfinished_marker(checkpoint_path: Union[Path, str], barrier_before=False,) -> None:
         """Clear unfinished marker for given checkpoint.
 
         Args:
