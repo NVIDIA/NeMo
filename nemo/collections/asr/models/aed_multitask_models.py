@@ -32,6 +32,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     get_prompt_format_fn,
 )
 from nemo.collections.asr.metrics import BLEU, WER
+from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
