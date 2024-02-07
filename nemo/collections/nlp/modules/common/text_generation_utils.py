@@ -24,8 +24,14 @@ from typing import Callable, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
+from lightning_fabric.utilities.seed import seed_everything
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
+from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_PATCH_TOKEN,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
@@ -152,12 +158,12 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
     final_response = []
     for idx, prompt_dict in enumerate(prompt_dict_list):
-        img = os.path.join(inference_config.inference.images_base_path, prompt_dict['image'])
         response = generate(
             model,
-            inputs=prompt_dict.get("prompt") or prompt_dict.get("text"),
+            inputs=prompt_dict.get('prompt'),
             tokens_to_generate=length_params['max_length'],
             all_probs=sampling_params['all_probs'],
+            compute_logprob=sampling_params['compute_logprob'],
             temperature=sampling_params['temperature'],
             add_BOS=sampling_params['add_BOS'],
             top_k=sampling_params['top_k'],
@@ -166,17 +172,19 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             repetition_penalty=sampling_params['repetition_penalty'],
             end_strings=sampling_params['end_strings'],
             min_tokens_to_generate=length_params['min_length'],
-            image_list=img,
+            compute_attention_mask=sampling_params.get("compute_attention_mask", True),
+            image_list=prompt_dict.get('image'),
             **strategy_args,
         )
 
         # Regular expression pattern to match the sequence
-        pattern = re.compile(r'<extra_id_4>( ⁇ )+<extra_id_5>')
-        clean_text = re.sub(pattern, '<image>', response['sentences'][0])
+        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
+        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN}({DEFAULT_IMAGE_PATCH_TOKEN})+{DEFAULT_IM_END_TOKEN}')
+        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
+        clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
 
         clean_response = clean_text
-        for string in sampling_params['end_strings']:
-            clean_response = clean_response.rstrip(string)
+
         if conv_template == "nvgpt":
             labels_str_regexp = re.compile(f"<extra_id_2>quality:.*\n")
             last_match_end_position = None
@@ -184,9 +192,13 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
                 last_match_end_position = match.end()
             if last_match_end_position is not None:
                 clean_response = clean_response[last_match_end_position:]
+            clean_response = clean_response.strip("<extra_id_1>")
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
-        clean_response.strip()
+        elif conv_template == "v1":
+            clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
+
+        clean_response = clean_response.strip()
         response["clean_text"] = clean_text
         response["clean_response"] = clean_response
         final_response.append(response)
@@ -352,12 +364,15 @@ def send_generate_info(
     repetition_penalty,
     min_tokens_to_generate,
     end_strings,
+    random_seed,
 ):
     """
     Needs to be synced up with receive_generate_info
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
     src = get_model_parallel_src_rank()
+    if random_seed is None:
+        random_seed = -1  # to be able to convert to float
     # Send the sizes of the tensors
     input_info = [
         context_tokens_tensor.size(0),  # batch_size
@@ -371,6 +386,7 @@ def send_generate_info(
         greedy,
         repetition_penalty,
         min_tokens_to_generate,
+        random_seed,
     ]
     input_info_tensor = torch.cuda.FloatTensor(input_info)
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
@@ -394,7 +410,7 @@ def receive_generate_info():
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
     src = get_model_parallel_src_rank()
-    input_info_tensor = torch.empty(11, dtype=torch.float32, device=torch.cuda.current_device())
+    input_info_tensor = torch.empty(12, dtype=torch.float32, device=torch.cuda.current_device())
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
@@ -407,6 +423,9 @@ def receive_generate_info():
     greedy = bool(input_info_tensor[8].item())
     repetition_penalty = float(input_info_tensor[9].item())
     min_tokens_to_generate = int(input_info_tensor[10].item())
+    random_seed = int(input_info_tensor[11].item())
+    if random_seed == -1:  # was converted to -1 before broadcast
+        random_seed = None
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
@@ -435,6 +454,7 @@ def receive_generate_info():
         repetition_penalty,
         min_tokens_to_generate,
         end_strings,
+        random_seed,
     )
 
 
@@ -567,6 +587,7 @@ def generate(
     vocab_size=256000,
     image_list=None,
     min_tokens_to_generate=0,
+    random_seed=None,
     **strategy_args,
 ) -> OutputType:
     """
@@ -582,6 +603,8 @@ def generate(
         greedy (bool):  Whether or not to use sampling ; use greedy decoding otherwise
         repetition_penalty (float): The parameter for repetition penalty. 1.0 means no penalty
         min_tokens_to_generate (int): The minimum length of the tokens to be generated
+        random_seed (int): can set to fix random seed for reproducibility. If None, we do not set random seed, so
+            the behavior of generation will depend on whether the seed was set earlier or not.
         strategy_args, the extra arguments are treated as inference strategy arguments
         end_strings, a list of strings to stop generation when they are encountered in the output.
     Returns:
@@ -619,6 +642,7 @@ def generate(
             repetition_penalty,
             min_tokens_to_generate,
             end_strings,
+            random_seed,
         )
     else:
         (
@@ -634,7 +658,11 @@ def generate(
             repetition_penalty,
             min_tokens_to_generate,
             end_strings,
+            random_seed,
         ) = receive_generate_info()
+
+    if random_seed is not None:
+        seed_everything(random_seed)
 
     output = synced_generate(
         model,
@@ -763,9 +791,6 @@ def sample_sequence_batch(
         data_parallel_size=1,
     )
     assert (
-        model.cfg.get('sequence_parallel', False) == False
-    ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
-    assert (
         model.cfg.get('activations_checkpoint_granularity', None) is None
     ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
     assert (
@@ -794,23 +819,10 @@ def sample_sequence_batch(
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
-        media_tensor = None
-        if image_list is not None:
-            media_tensor = inference_strategy.get_media_tensor(image_list)
-
         while context_length < maxlen:
-            batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, extra["vocab_size"]
-            )
-            # print(batch[0].shape)
-            # print(batch[0])
-            # print(tensor_shape)
-            # batch[0] = batch[0][:,0,:].reshape(batch_size, tensor_shape[0])
-            # print(batch[0])
-            # import ipdb; ipdb.set_trace()
-            if media_tensor is not None:
+            if image_list is not None:
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
-                    tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, media_tensor
+                    tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, image_list
                 )
             else:
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(

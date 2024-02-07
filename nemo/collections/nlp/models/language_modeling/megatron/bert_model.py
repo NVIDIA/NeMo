@@ -65,6 +65,9 @@ def bert_extended_attention_mask(attention_mask):
     # [b, 1, s, s]
     extended_attention_mask = attention_mask_bss.unsqueeze(1)
 
+    # HF Masking is equivalent to the one below
+    # extended_attention_mask = (attention_mask.unsqueeze(1) * torch.ones_like(attention_mask).unsqueeze(2)).unsqueeze(1)
+
     # Convert attention mask to binary:
     extended_attention_mask = extended_attention_mask < 0.5
 
@@ -174,7 +177,6 @@ class BertModel(MegatronModule):
         post_process=True,
         init_method_std=0.02,
         fp16_lm_cross_entropy=False,
-        megatron_amp_O2=False,
         hidden_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
@@ -183,12 +185,15 @@ class BertModel(MegatronModule):
         activations_checkpoint_num_layers=1,
         activations_checkpoint_layers_per_pipeline=None,
         layernorm_epsilon=1e-5,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
         masked_softmax_fusion=False,
         bias_gelu_fusion=True,
         bias_dropout_add_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
         add_binary_head=True,
+        skip_head=False,
         megatron_legacy=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
@@ -223,7 +228,6 @@ class BertModel(MegatronModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
-            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
@@ -231,6 +235,8 @@ class BertModel(MegatronModule):
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
             layernorm_epsilon=layernorm_epsilon,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
             masked_softmax_fusion=masked_softmax_fusion,
             bias_activation_fusion=bias_gelu_fusion,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -244,6 +250,8 @@ class BertModel(MegatronModule):
             init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
         )
 
+        if skip_head:
+            self.post_process = False
         if self.post_process:
             self.lm_head = BertLMHead(
                 config,

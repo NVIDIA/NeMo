@@ -516,6 +516,7 @@ class AudioCodecModel(ModelPT):
         }
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
+<<<<<<< HEAD
     def _setup_train_dataloader(self, dataset_config, dataloader_params):
         dataset = create_vocoder_dataset(
             dataset_type=dataset_config.dataset_type,
@@ -525,6 +526,25 @@ class AudioCodecModel(ModelPT):
             is_train=True
         )
         sampler = dataset.get_sampler(batch_size=dataloader_params.batch_size, world_size=self.trainer.world_size)
+=======
+    def get_dataset(self, cfg):
+        with open_dict(cfg):
+            is_sharded = cfg.dataset.pop('is_sharded', False)
+
+        if is_sharded:
+            with open_dict(cfg):
+                cfg.dataset.global_rank = self.global_rank
+                cfg.dataset.world_size = self.world_size
+                cfg.dataset._target_ = 'nemo.collections.tts.data.vocoder_dataset.TarredVocoderDataset'
+
+        dataset = instantiate(cfg.dataset)
+
+        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
+        return dataset, sampler
+
+    def _setup_train_dataloader(self, cfg):
+        dataset, sampler = self.get_dataset(cfg)
+>>>>>>> nvidia/main
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **dataloader_params
         )

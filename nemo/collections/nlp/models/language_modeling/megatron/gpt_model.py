@@ -190,7 +190,6 @@ class GPTModel(MegatronModule):
         init_method_std=0.02,
         use_scaled_init_method=True,
         fp16_lm_cross_entropy=False,
-        megatron_amp_O2=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
@@ -288,7 +287,6 @@ class GPTModel(MegatronModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
-            megatron_amp_O2=megatron_amp_O2,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
@@ -337,10 +335,7 @@ class GPTModel(MegatronModule):
 
         if self.share_embeddings_and_output_weights:
             self.initialize_word_embeddings(
-                init_method=init_method_normal(init_method_std),
-                vocab_size=vocab_size,
-                hidden_size=hidden_size,
-                param_dtype=self.dtype,
+                init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size,
             )
         self.hidden_size = self.language_model.hidden_size
 
