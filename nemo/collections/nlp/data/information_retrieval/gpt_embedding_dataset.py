@@ -229,7 +229,11 @@ class GPTEmbeddingDataset(Dataset):
             lengths.append(len(item['query']))
             lengths.append(len(item['pos_doc']))
             lengths.append(len(item['neg_doc']))
-            metadata += [item['metadata'], item['metadata'], item['metadata']] # FIXME: using same metadata for all 3 items
+            metadata += [
+                item['metadata'],
+                item['metadata'],
+                item['metadata'],
+            ]  # FIXME: using same metadata for all 3 items
             max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
