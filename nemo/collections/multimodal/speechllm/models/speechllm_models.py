@@ -777,6 +777,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         OmegaConf.set_struct(gpt_cfg, True)
         OmegaConf.resolve(cfg)
         with open_dict(gpt_cfg):
+            override_vocab_size = cfg.model.get('override_vocab_size', None)
+            if override_vocab_size is not None:
+                gpt_cfg.override_vocab_size = override_vocab_size
+            # This is needed when modifying a hparam file directly to load `.ckpt` files.
+            # This is not needed to modify the cfg in `.nemo` files.
+            if hasattr(cfg.model, 'override'):
+                gpt_cfg.hidden_size = cfg.model.override.get('hidden_size', gpt_cfg.hidden_size)
+                gpt_cfg.ffn_hidden_size = cfg.model.override.get('ffn_hidden_size', gpt_cfg.ffn_hidden_size)
+                gpt_cfg.num_layers = cfg.model.override.get('num_layers', gpt_cfg.num_layers)
+                
             gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
             gpt_cfg.text_loss_weight = cfg.model.get('text_loss_weight', 1.0)
@@ -810,11 +820,6 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.pretrained_audio_model = cfg.model.get('pretrained_audio_model', None)
             cls._modify_audio_encoder_config(gpt_cfg, audio_cfg, speaker_cfg)
 
-            override_vocab_size = cfg.model.get('override_vocab_size', None)
-            if override_vocab_size is not None:
-                gpt_cfg.override_vocab_size = override_vocab_size
-            # This is needed when modifying a hparam file directly to load `.ckpt` files.
-            # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
                 OmegaConf.resolve(gpt_cfg)
                 gpt_cfg.cfg = gpt_cfg
@@ -963,13 +968,23 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
 
         # load llm
-        model = cls.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=model_cfg,
-            save_restore_connector=save_restore_connector,
-            strict=False,
-        )
+        if not hasattr(cfg.model, 'override'):
+            model = cls.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                override_config_path=model_cfg,
+                save_restore_connector=save_restore_connector,
+                strict=False,
+            )
+        else:
+            import tempfile
+            # unpack nemo ckpt is necessary to load tokenizer
+            with tempfile.TemporaryDirectory() as tmpdir:
+                save_restore_connector._unpack_nemo_file(
+                        path2file=cfg.model.restore_from_path, out_folder=tmpdir, extract_config_only=False
+                    )
+                cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
+                model = cls(cfg=model_cfg, trainer=trainer)
         # load audio model weights
         model = cls._load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
 
@@ -1014,14 +1029,6 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         if self.setup_complete:
             super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=False)
         else:
-            if self.cfg.get('override_vocab_size', False):
-                exclude_list = [
-                    "model.language_model.embedding.word_embeddings.weight",
-                    "model.language_model.output_layer.weight",
-                ]
-            else:
-                exclude_list = []
-            state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
             super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=strict)
 
     def on_load_checkpoint(self, checkpoint) -> None:
@@ -1128,17 +1135,21 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-        labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+        inputs_text = [self.tokenizer.ids_to_text(c.tolist()).replace("<|endoftext|>","") for c in batch['contexts']]
+        labels_text = [self.tokenizer.ids_to_text(a.tolist()).replace("<|endoftext|>","") for a in batch['answers']]
         preds_text = [
-            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')]).replace("<|endoftext|>","")
             for t, l in zip(output['token_ids'], batch['context_lengths'])
         ]
 
         if data_cfg.get("end_string", None):
             # sometimes data_cfg.end_string != self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
             # for example when data_cfg.end_string = "<end>", the end_string_re will start with " ?? "
-            end_string_re = self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
+            from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+            if isinstance(self.tokenizer, AggregateTokenizer):
+                end_string_re = self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string, 'en'))
+            else:
+                end_string_re = self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
             preds_text_cleaned = []
             labels_text_cleaned = []
             for p, l in zip(preds_text, labels_text):

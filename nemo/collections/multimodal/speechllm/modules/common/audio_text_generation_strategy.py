@@ -224,6 +224,7 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         else:
             encoder_input, self.attention_mask, context_tokens, _, (speech_encoded, speech_encoded_len, llm_encoded_len, extra_outputs), _ = self.model.prepare_llm_input(batch)
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
+            self.extra_outputs = extra_outputs
             return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), llm_encoded_len
 
     def prepare_batch_at_step(

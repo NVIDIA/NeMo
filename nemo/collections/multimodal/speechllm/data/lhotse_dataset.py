@@ -78,11 +78,7 @@ class TextProcessing:
             self.eos_id = tokenizer.eos_id
         else:
             self.eos_id = None
-
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
-            self.pad_id = tokenizer.pad_id
-        else:
-            self.pad_id = self.eos_id if self.eos_id is not None else 0
+        self.pad_id = self.eos_id if self.eos_id is not None else 0
 
         self.sep_id = sep_id if add_sep else None
 
@@ -102,7 +98,7 @@ class TextProcessing:
             mask.append(mask_or_not)
         return output_tokens, mask
 
-    def _process_example(self, context: str, output: str):
+    def _process_example(self, context: str, output: str, lang: str):
         """
         Create an example by concatenating text and answer.
         Truncation is carried out when needed, but it is performed only on the prompt side.
@@ -110,6 +106,13 @@ class TextProcessing:
 
         function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
         """
+        def _text_to_ids(text, alpha=None, lang=None):
+            from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+            if isinstance(self.tokenizer, AggregateTokenizer):
+                return self.tokenizer.text_to_ids(text, lang)
+            else:
+                return self.tokenizer.text_to_ids(text, alpha)
+
         if self.prompt_template is not None:
             assert f'{{{self.input_key}}}' in self.prompt_template
             assert f'{{{self.output_key}}}' in self.prompt_template
@@ -142,12 +145,12 @@ class TextProcessing:
             pre_pad = []
         answer_text = text[len(context) :]
         # if input_text_mask_ratio, only do it on the input but not label
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(
-            answer_text, self.sample_alpha if self.input_text_mask_ratio is None else None
+        answer_ids = pre_pad + _text_to_ids(
+            answer_text, self.sample_alpha if self.input_text_mask_ratio is None else None, lang=lang
         )
         if self.end_string:
-            answer_ids += self.tokenizer.text_to_ids(self.end_string)
-        context_ids = pre_pad + self.tokenizer.text_to_ids(context)
+            answer_ids += _text_to_ids(self.end_string, lang=lang)
+        context_ids = pre_pad + _text_to_ids(context, lang=lang)
 
         # for the long context cases, collate_fn includes self.tokens_to_generate for padding
         total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
@@ -188,7 +191,7 @@ class TextProcessing:
                     answer_ids, self.input_text_mask_ratio, self.tokenizer.unk_id
                 )
             else:
-                sample_answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+                sample_answer_ids = pre_pad + _text_to_ids(answer_text, self.sample_alpha, lang=lang)
                 # does not consider different length for now
                 masked_answer_ids, _ = self._random_mask_tokens(
                     answer_ids, self.input_text_mask_ratio, self.tokenizer.unk_id, sample_tokens=sample_answer_ids,
@@ -385,7 +388,8 @@ def collate_text_data(
     examples = [
         adjust_input_ids(
             text_processor._process_example(
-                context=cut.question if hasattr(cut, "question") else default_question, output=cut.supervisions[0].text
+                context=cut.question if hasattr(cut, "question") else default_question, output=cut.supervisions[0].text,
+                lang='en' if cut.supervisions[0].language is None else cut.supervisions[0].language
             )
         )
         for cut in cuts
