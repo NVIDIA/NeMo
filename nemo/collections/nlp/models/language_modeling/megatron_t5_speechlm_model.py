@@ -370,13 +370,39 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             t5_cfg.use_flash_attention = cfg.get('use_flash_attention', False)
             if cfg.get('override_token_model', None):
                 t5_cfg.tokenizer.model = cfg['override_token_model']
+            if cfg.get('override_tokenizer_vocab_file', None):
+                t5_cfg.tokenizer.vocab_file = cfg['override_tokenizer_vocab_file']
 
-        self.frozen_model = MegatronT5Model.restore_from(
-            cfg.get('language_model_path'),
-            trainer=trainer,
-            override_config_path=t5_cfg,
-            save_restore_connector=NLPSaveRestoreConnector(),
-        )
+        if cfg.get('train_from_scratch', False):
+            print("Training from scratch!")
+            # Defaults for 220m model
+            # To override any of these, add +model.override_<key>=<value> to the config file.
+            # Eg. +model.override_hidden_size=1024
+            overide_keys = [
+                'hidden_size', # 768
+                'num_layers', # 12
+                'num_attention_heads', # 12
+                'hidden_dropout', # 0.1
+                'attention_dropout', # 0.1
+                'kv_channels' # 64
+                'ffn_hidden_size', # 2048
+            ]
+            # Defaults for 220m model
+            for k in overide_keys:
+                if cfg.get(f'override_{k}') is not None:
+                    t5_cfg[k] = cfg.get(f'override_{k}')
+
+            self.frozen_model = MegatronT5Model(t5_cfg, trainer=trainer)
+            num_params = sum(p.numel() for p in self.frozen_model.parameters() if p.requires_grad)
+            print(f"Number of parameters: {num_params}")
+        else:
+            print("Loading from pretrained checkpoint!")
+            self.frozen_model = MegatronT5Model.restore_from(
+                cfg.get('language_model_path'),
+                trainer=trainer,
+                override_config_path=t5_cfg,
+                save_restore_connector=NLPSaveRestoreConnector(),
+            )
 
         if not cfg.get('english_only_model', False):
             self.frozen_model.tokenizer.update_phone_tokens()
