@@ -137,7 +137,7 @@ class MegatronBaseModel(NLPModel):
             if 'log_every_n_steps' not in self.megatron_timers_cfg:
                 self.megatron_timers_cfg['log_every_n_steps'] = self.trainer.log_every_n_steps
             if 'log_option' not in self.megatron_timers_cfg:
-                self.megatron_timers_cfg['log_option'] = 'minmax' # minmax, max, all
+                self.megatron_timers_cfg['log_option'] = 'minmax'  # minmax, max, all
             if 'barrier' not in self.megatron_timers_cfg:
                 self.megatron_timers_cfg['barrier'] = False
             self.megatron_timers = Timers(log_level=2, log_option=self.megatron_timers_cfg['log_option'])
@@ -635,8 +635,10 @@ class MegatronBaseModel(NLPModel):
 
         # Megatron Timers
         if self.megatron_timers:
-            if self.global_step % self.megatron_timers_cfg["log_every_n_steps"] == 0 :
-                logging.info("\n " + self.megatron_timers.get_all_timers_string(barrier = self.megatron_timers_cfg["barrier"]))
+            if self.global_step % self.megatron_timers_cfg["log_every_n_steps"] == 0:
+                logging.info(
+                    "\n " + self.megatron_timers.get_all_timers_string(barrier=self.megatron_timers_cfg["barrier"])
+                )
 
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar

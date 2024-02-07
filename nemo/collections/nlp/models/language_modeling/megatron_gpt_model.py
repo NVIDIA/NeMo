@@ -663,7 +663,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
             self.allreduce_sequence_parallel_gradients()
             self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
-        
+
         self.megatron_timer_start('gradient_allreduce', log_level=1)
         if self.use_fsdp:
             # Reduce the gradients omitted from FSDP-sharding
