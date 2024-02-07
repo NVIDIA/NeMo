@@ -239,13 +239,12 @@ def _build_impl(tensorrt_llm_model, args):
     engine = build_rank_engine(
         tensorrt_llm_model, builder, builder_config, engine_name, args
     )
-    assert engine is not None, f"Failed to build engine for rank tp {tp_rank} pp {pp_rank}"
+    assert engine is not None, f"Failed to build engine for rank {rank}"
 
     if args.mapping.rank == 0:
         # Use in-memory timing cache for multiple builder passes.
         if not args.parallel_build:
             timing_cache = builder_config.trt_builder_config.get_timing_cache()
-    
     serialize_engine(engine, args.output_dir / engine_name)
 
     if args.mapping.rank == 0:

@@ -258,8 +258,8 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     llm_config = nemo_to_llm_config(
         nemo_model_config,
         vocab_size,
-        None,
-        None,
+        tokenizer.eos_token_id,
+        tokenizer.bos_token_id,
         args.decoder_type,
     )
 

@@ -28,7 +28,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 
-from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
+from tests.infer_data_path import get_infer_test_data
 from tests.export.test_nemo_export import get_accuracy_with_lambada, get_args
 
 class RefitTester:
@@ -116,18 +116,9 @@ class RefitTester:
             "max_output_token": self.sampling_params.get("max_length", None),
         }
     
-    def run(self, model_name, tp_size, pp_size, run_accuracy=True):
+    def run(self, model_name, tp_size, pp_size, run_accuracy=False):
         test_data = get_infer_test_data()
         model_info = test_data[model_name]
-       
-        if model_info["location"] == "HF":
-            download_nemo_checkpoint(model_info["checkpoint_link"], model_info["checkpoint_dir"],
-                                            model_info["checkpoint"])
-            print(
-                "Path: {0} and model: {1} is next and test will start if the nemo checkpoint exists ...".format(
-                    model_info["checkpoint"], model_name
-                )
-            )
             
         try: 
             Path(model_info["checkpoint"]).exists()
@@ -180,8 +171,9 @@ if __name__ == '__main__':
     args = get_args()
 
     refit_runner = RefitTester()
-    model_name = args.model_name
-    TP = args.tp_size
-    PP = args.pp_size
-    refit_runner.run(model_name, TP, PP) 
+    refit_runner.run(
+        args.model_name, 
+        args.tp_size, 
+        args.pp_size,
+        args.run_accuracy) 
 
