@@ -25,7 +25,7 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.core.classes import IterableDataset
-from nemo.core.neural_types import LengthsType, NeuralType
+from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 
 # Minimum number of tokens required to assign a LCS merge step, otherwise ignore and
 # select all i-1 and ith buffer tokens to merge.
@@ -700,7 +700,7 @@ class FrameBatchASR:
         )
 
         self.asr_model = asr_model
-        self.decoder = asr_model.decoder
+        self.decoder = getattr(asr_model, "decoder", None)
 
         self.batch_size = batch_size
         self.all_logits = []
@@ -708,7 +708,9 @@ class FrameBatchASR:
 
         self.unmerged = []
 
-        if hasattr(asr_model.decoder, "vocabulary"):
+        if self.decoder is None:
+            self.blank_id = len(asr_model.tokenizer.vocabulary)
+        elif hasattr(asr_model.decoder, "vocabulary"):
             self.blank_id = len(asr_model.decoder.vocabulary)
         else:
             self.blank_id = len(asr_model.joint.vocabulary)
@@ -790,7 +792,7 @@ class FrameBatchASR:
             del encoded_len
             del predictions
 
-    def transcribe(self, tokens_per_chunk: int, delay: int, keep_logits=False):
+    def transcribe(self, tokens_per_chunk: int, delay: int, keep_logits: bool = False):
         self.infer_logits(keep_logits)
         self.unmerged = []
         for pred in self.all_preds:

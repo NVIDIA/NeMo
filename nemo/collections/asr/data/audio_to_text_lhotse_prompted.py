@@ -179,3 +179,56 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]
         canary_tokens.append(prompted_tokens)
 
     return canary_tokens
+
+
+def get_canary_prompt_tokens(
+    sample: dict, tokenizer: TokenizerWrapper, has_speech: bool = True, sample_id: int = 0
+) -> Sequence[int]:
+    """
+    Prepend and append control tokens to the token sequence as per Canary format.
+
+    We use the following special tokens:
+    * <|startoftranscript|>
+    * <|transcribe|>
+    * <|translate|>
+    * <|nopnc|>
+    * <|pnc|>
+    *
+    """
+    prompted_tokens = [tokenizer.bos_id]
+    if not has_speech:
+        prompted_tokens.append(tokenizer.nospeech_id)
+    # first, validate the utterance
+    missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in sample]
+    if missing_keys:
+        raise RuntimeError(
+            f"We found sample with ID {sample_id} that is missing the following keys: {missing_keys}"
+            f"Please ensure that every utterance in the input manifests contains these keys. Sample: {sample}"
+        )
+
+    # src_lang_id/no_speech
+    src_lang_id = tokenizer.to_language_id(sample['source_lang'])
+    prompted_tokens.append(src_lang_id)
+
+    # task
+    task = sample['taskname']
+    if task == 'asr':
+        prompted_tokens.append(tokenizer.transcribe_id)
+    elif task == 's2t_translation' or task == "ast":
+        prompted_tokens.append(tokenizer.translate_id)
+    else:
+        raise ValueError(f"Unknown task: {task} for sample: {sample}")
+
+    # tgt_lang_id
+    tgt_lang_id = tokenizer.to_language_id(sample['target_lang'])
+    prompted_tokens.append(tgt_lang_id)
+
+    # PnC
+    pnc = f"{sample['pnc']}".lower().strip()  # to account for bool or str
+    if pnc in {'yes', 'true'}:
+        prompted_tokens.append(tokenizer.pnc_id)
+    elif pnc in {'no', 'false'}:
+        prompted_tokens.append(tokenizer.nopnc_id)
+    else:
+        raise ValueError(f"Unknown value for key 'pnc': {pnc} for sample with ID {sample_id}: {sample}")
+    return prompted_tokens
