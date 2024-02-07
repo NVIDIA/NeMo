@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import itertools
 import json
 import os
-import copy
 import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -288,9 +288,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             if og_key in decoder_state_dict and og_value.shape == decoder_state_dict[og_key].shape:
                 decoder_state_dict[og_key] = og_value
             else:
-                logging.warning(f"Skipping key `{og_key}` in the `transf_decoder` module from original state dict due "
-                                f"to shape mismatch after change in vocabulary.\n"
-                                f"Original shape: {og_value.shape}, New shape: {decoder_state_dict[og_key].shape}")
+                logging.warning(
+                    f"Skipping key `{og_key}` in the `transf_decoder` module from original state dict due "
+                    f"to shape mismatch after change in vocabulary.\n"
+                    f"Original shape: {og_value.shape}, New shape: {decoder_state_dict[og_key].shape}"
+                )
 
         self.transf_decoder.load_state_dict(decoder_state_dict)
 

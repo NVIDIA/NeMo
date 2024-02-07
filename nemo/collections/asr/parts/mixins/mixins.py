@@ -382,8 +382,10 @@ class ASRBPEMixin(ABC):
             directory: The directory to save the tokenizer(s) to.
         """
         if not hasattr(self, 'cfg'):
-            raise RuntimeError("The model has not been initialized with a tokenizer yet. Please call the model's "
-                               "__init__ and _setup_tokenizer methods first.")
+            raise RuntimeError(
+                "The model has not been initialized with a tokenizer yet. Please call the model's "
+                "__init__ and _setup_tokenizer methods first."
+            )
 
         if self.tokenizer_type == 'agg':
             for lang in self.tokenizer.langs:
@@ -424,14 +426,18 @@ class ASRBPEMixin(ABC):
             logging.debug(f"Copying the following nemo file objects to {dir}: {nemo_file_objects}")
 
             if not hasattr(self, 'model_guid'):
-                raise ValueError("The model does not have a model_guid attribute. "
-                                 "Please ensure that the model has been restored from a .nemo file.")
+                raise ValueError(
+                    "The model does not have a model_guid attribute. "
+                    "Please ensure that the model has been restored from a .nemo file."
+                )
 
             appstate = app_state.AppState()
             restore_path = appstate.get_model_metadata_from_guid(self.model_guid).restoration_path
             if restore_path is None:
-                raise ValueError("The model has not been restored from a .nemo file. Cannot extract the tokenizer "
-                                 "as the nemo file cannot be located.")
+                raise ValueError(
+                    "The model has not been restored from a .nemo file. Cannot extract the tokenizer "
+                    "as the nemo file cannot be located."
+                )
 
             # Read the nemo file without fully extracting all contents
             # we start with an assumption of uncompressed tar,
