@@ -210,9 +210,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
 @dataclass
 class AEDBeamInferConfig:
-    beam_size: int = 5
+    beam_size: int = 1
     search_type: str = 'default'
-    len_pen: float = 1.0
+    len_pen: float = 0.0
     max_generation_delta: int = 20
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False

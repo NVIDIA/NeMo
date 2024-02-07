@@ -47,12 +47,11 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.asr.data.audio_to_text_lhotse_prompted import canary_prompt
 from nemo.collections.asr.models import EncDecMultiTaskModel
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import MultiTaskAEDFrameBatchInfer
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     get_buffered_pred_feat,
@@ -111,59 +110,6 @@ class TranscriptionConfig:
     clean_groundtruth_text: bool = False
     langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
-
-
-class MultiTaskAEDFrameBatchInfer(FrameBatchASR):
-    def get_input_tokens(self, sample: dict):
-        if self.asr_model.prompt_format == "canary":
-            missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in sample]
-            if missing_keys:
-                raise RuntimeError(
-                    f"We found sample that is missing the following keys: {missing_keys}"
-                    f"Please ensure that every utterance in the input manifests contains these keys. Sample: {sample}"
-                )
-            tokens = canary_prompt(
-                tokenizer=self.asr_model.tokenizer,
-                text="none",
-                language=sample['target_lang'],
-                source_language=sample['source_lang'],
-                target_language=sample['target_lang'],
-                taskname=sample['taskname'],
-                pnc=sample['pnc'],
-            )
-        else:
-            raise ValueError(f"Unknown prompt format: {self.asr_model.prompt_format}")
-        return torch.tensor(tokens, dtype=torch.long, device=self.asr_model.device).unsqueeze(0)  # [1, T]
-
-    def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs, meta_data):
-        self.input_tokens = self.get_input_tokens(meta_data)
-        super().read_audio_file(audio_filepath, delay, model_stride_in_secs)
-
-    @torch.no_grad()
-    def _get_batch_preds(self, keep_logits=False):
-        device = self.asr_model.device
-        for batch in iter(self.data_loader):
-            feat_signal, feat_signal_len = batch
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-            tokens = self.input_tokens.to(device).repeat(feat_signal.size(0), 1)
-            tokens_len = torch.tensor([tokens.size(1)] * tokens.size(0), device=device).long()
-
-            batch_input = (feat_signal, feat_signal_len, tokens, tokens_len)
-            predictions = self.asr_model.predict_step(batch_input, has_processed_signal=True)
-            self.all_preds.extend(predictions)
-            del predictions
-
-    def transcribe(
-        self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False
-    ):
-        self.infer_logits(keep_logits)
-
-        hypothesis = " ".join(self.all_preds)
-        if not keep_logits:
-            return hypothesis
-
-        print("keep_logits=True is not supported for MultiTaskAEDFrameBatchInfer. Returning empty logits.")
-        return hypothesis, []
 
 
 def get_buffered_pred_feat(
