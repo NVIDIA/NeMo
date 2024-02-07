@@ -13,6 +13,9 @@
 # limitations under the License.
 
 """
+This script chunks long audios into non-overlapping segments of `chunk_len_in_secs` seconds and performs inference on each 
+segment individually. The results are then concatenated to form the final output.
+
 It's recommended to use manifest input, otherwise the model will perform English ASR with punctuations and capitalizations. 
 An example manifest line:
 {
@@ -24,19 +27,20 @@ An example manifest line:
     "pnc": yes,  # whether to have PnC output, choices=['yes', 'no'] 
 }
 
-Usage:
+Example Usage:
 python speech_to_text_aed_chunked_infer.py \
     model_path=null \
     pretrained_name="nvidia/canary-1b" \
-    audio_dir="<remove or path to folder of audio files>" \
-    dataset_manifest="<remove or path to manifest>" \
-    output_filename="<remove or specify output filename>" \
+    audio_dir="<(optional) path to folder of audio files>" \
+    dataset_manifest="<(optional) path to manifest>" \
+    output_filename="<(optional) specify output filename>" \
     chunk_len_in_secs=30.0 \
     batch_size=16 \
     decoding.beam.beam_size=5
     
 """
 
+import contextlib
 import copy
 import glob
 import os
@@ -69,9 +73,8 @@ class TranscriptionConfig:
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
 
     # General configs
-    output_filename: Optional[str] = None
+    output_filename: Optional[str] = None  # if None, output will be stored in the same directory as the input
     batch_size: int = 32  # number of chunks to process in parallel
-    num_workers: int = 0  # unused
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
@@ -83,7 +86,7 @@ class TranscriptionConfig:
     compute_langs: bool = False
 
     # Chunked configs
-    chunk_len_in_secs: float = 30.0  # Chunk length in seconds
+    chunk_len_in_secs: float = 40.0  # Chunk length in seconds
     model_stride: int = 8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models.
 
     # Decoding strategy for MultitaskAED models
@@ -94,6 +97,7 @@ class TranscriptionConfig:
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     amp: bool = False
+    amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -154,10 +158,22 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     model_cfg.preprocessor.pad_to = 0
 
     if model_cfg.preprocessor.normalize != "per_feature":
-        logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
+        logging.error(
+            "Only EncDecMultiTaskModel models trained with per_feature normalization are supported currently"
+        )
 
     # Disable config overwriting
     OmegaConf.set_struct(model_cfg.preprocessor, True)
+
+    # setup AMP (optional)
+    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
+        logging.info("AMP enabled!\n")
+        autocast = torch.cuda.amp.autocast
+    else:
+
+        @contextlib.contextmanager
+        def autocast():
+            yield
 
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
@@ -185,9 +201,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         batch_size=cfg.batch_size,
     )
 
-    hyps = get_buffered_pred_feat_multitaskAED(
-        frame_asr, model_cfg.preprocessor, model_stride_in_secs, asr_model.device, manifest, filepaths,
-    )
+    amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
+
+    with autocast(dtype=amp_dtype):
+        with torch.no_grad():
+            hyps = get_buffered_pred_feat_multitaskAED(
+                frame_asr, model_cfg.preprocessor, model_stride_in_secs, asr_model.device, manifest, filepaths,
+            )
+
     output_filename, pred_text_attr_name = write_transcription(
         hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, compute_timestamps=False
     )
