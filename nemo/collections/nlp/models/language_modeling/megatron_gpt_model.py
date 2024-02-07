@@ -893,7 +893,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Broadcast data.
         if data_iterator is not None:
             # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
-            # from the dataloader_iter are already extracted in the child class training/validation steps
+            # from the dataloader_iter are already extracted in the child class validation steps. In that case data_iterator is just
+            # a itertools.chain object
             if isinstance(data_iterator, _DataFetcherWrapper):
                 data, _, _ = next(data_iterator)
             elif isinstance(data_iterator, itertools.chain):
