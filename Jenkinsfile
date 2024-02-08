@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:23.12-py3'
+          image 'nvcr.io/nvidia/pytorch:24.01-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1'
         }
   }
@@ -62,7 +62,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
              cd TransformerEngine && \
-             git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
+             git fetch origin da30634a6c9ccdbb6c587b6c93b1860e4b038204 && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
              NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
@@ -74,7 +74,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/apex.git && \
              cd apex && \
-             git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
+             git checkout f058162b215791b15507bb542f22ccfde49c872d && \
              cp -R apex /usr/local/lib/python3.10/dist-packages'
       }
     }
