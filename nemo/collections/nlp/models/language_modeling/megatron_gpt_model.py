@@ -771,7 +771,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._append_sequence_parallel_module_grads(module, grads)
         else:
             self._append_sequence_parallel_module_grads(self.model, grads)
-
+        if not grads:
+            return
         coalesced = torch._utils._flatten_dense_tensors(grads)
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
