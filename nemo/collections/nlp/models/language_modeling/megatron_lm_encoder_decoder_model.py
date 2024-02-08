@@ -1235,6 +1235,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
+        batch_size, hidden_steps, hidden_size = enc_output.size()
+        src_length = enc_output_attn_mask.shape[1]
+
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
@@ -1280,9 +1283,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         log_probs, token_ids = log_probs.view(-1), token_ids.view(-1)
                         scores = log_probs.unsqueeze(1).clone()
 
-                        batch_size, src_length, hidden_size = enc_output.size()
                         enc_output_attn_mask = enc_output_attn_mask.repeat(1, beam_size).view(-1, src_length)
-                        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, src_length, hidden_size)
+                        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, hidden_steps, hidden_size)
 
                         # resize tensors that collect predicted tokens and logits per iteration to
                         # match shape of tensors augmented with the beam size
