@@ -1235,6 +1235,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
+        # we read here those variables to be used by beam search only
         batch_size, hidden_steps, hidden_size = enc_output.size()
         src_length = enc_output_attn_mask.shape[1]
 
