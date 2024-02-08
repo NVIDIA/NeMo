@@ -69,7 +69,7 @@ def convert_module_to_fp8(model):
     for n, v in model.named_modules():
         if isinstance(v, torch.nn.Linear):
             # if n in ['class_embed', 'bbox_embed.layers.0', 'bbox_embed.layers.1', 'bbox_embed.layers.2']: continue
-            logging.info(f'[INFO] Replace Linear: {n}, weight: {v.weight.shape}', flush=True)
+            logging.info(f'[INFO] Replace Linear: {n}, weight: {v.weight.shape}')
             if v.bias is None:
                 is_bias = False
             else:
