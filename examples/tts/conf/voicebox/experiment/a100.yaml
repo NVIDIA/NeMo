@@ -47,7 +47,7 @@ model:
     max_duration: 16
     manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
-      batch_duration: 300
+      batch_duration: 64
 
   ds_kwargs:
     num_workers: 8
