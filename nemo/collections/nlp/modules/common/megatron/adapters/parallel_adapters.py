@@ -150,6 +150,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             model_parallel_config = ModelParallelConfig()
         self._sequence_parallel = model_parallel_config.sequence_parallel
         model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
+
         self.linear_in = ColumnParallelLinear(
             in_features,
             dim,
@@ -204,9 +205,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
-        model_parallel_config.sequence_parallel = (
-            self._sequence_parallel
-        )  # revert config change in case it is read elsewhere
+
+        # revert config change in case it is read elsewhere
+        model_parallel_config.sequence_parallel = self._sequence_parallel
 
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
@@ -232,6 +233,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if self._sequence_parallel:
             # layernorm before lora is impacted by sequence parallel,
             # hence seq dim need to be gathered right before lora linear layers
+            # this function also handles the backward pass correctly
             x = gather_from_sequence_parallel_region(x)
 
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
