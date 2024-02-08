@@ -1199,7 +1199,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
-        mock_dataset = self.cfg.data.get("mock_dataset", False)
+        mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
