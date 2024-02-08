@@ -18,7 +18,7 @@ import queue
 import warnings
 from contextlib import nullcontext
 from dataclasses import fields
-from functools import partial
+from functools import cache, partial
 from importlib.metadata import version
 from typing import Any, Dict, Iterator, List, Optional, Union
 
@@ -113,11 +113,30 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-def get_specs(spec_name):
-    name_spec_dict = {"": get_gpt_layer_with_transformer_engine_spec(), "megatron_falcon_gpt": get_falcon_layer_spec()}
-    if spec_name not in name_spec_dict:
+@cache
+def mcore_supports_moe() -> bool:
+    global HAVE_MEGATRON_CORE
+    if not HAVE_MEGATRON_CORE:
+        return False
+    try:
+        from megatron.core.transformer.moe.router import TopKRouter
+
+        return True
+    except ImportError:
+        return False
+
+
+def get_specs(spec_name, num_experts=None):
+    if spec_name == '':
+        if num_experts is not None:
+            assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
+            return get_gpt_layer_with_transformer_engine_spec(num_experts)
+        else:
+            return get_gpt_layer_with_transformer_engine_spec()
+    elif spec_name == 'megatron_falcon_gpt':
+        return get_falcon_layer_spec()
+    else:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
-    return name_spec_dict[spec_name]
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -328,7 +347,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_specs(self.spec_name),
+                transformer_layer_spec=get_specs(self.spec_name, self.transformer_config.num_moe_experts),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
@@ -867,106 +886,35 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO @tmoon: Use once available in Megatron-LM
         # return DataIteratorList(iters)
 
-    def get_ltor_masks_and_position_ids(
-        self, data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss
-    ):
-        """Build masks and position id for left to right model."""
-
-        # Extract batch size and sequence length.
-        micro_batch_size, seq_length = data.size()
-
-        # Attention mask (lower triangular).
-        if reset_attention_mask:
-            att_mask_batch = micro_batch_size
-        else:
-            att_mask_batch = 1
-        attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
-            att_mask_batch, 1, seq_length, seq_length
-        )
-
-        # Loss mask.
-        loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
-        if eod_mask_loss:
-            loss_mask[data == eod_token] = 0.0
-
-        # Position ids.
-        position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
-        position_ids = position_ids.unsqueeze(0).expand_as(data)
-        # We need to clone as the ids will be modifed based on batch index.
-        if reset_position_ids:
-            position_ids = position_ids.clone()
-
-        if reset_position_ids or reset_attention_mask:
-            # Loop through the batches:
-            for b in range(micro_batch_size):
-
-                # Find indecies where EOD token is.
-                eod_index = position_ids[b, data[b] == eod_token]
-                # Detach indecies from positions if going to modify positions.
-                if reset_position_ids:
-                    eod_index = eod_index.clone()
-
-                # Loop through EOD indecies:
-                prev_index = 0
-                for j in range(eod_index.size()[0]):
-                    i = eod_index[j]
-                    # Mask attention loss.
-                    if reset_attention_mask:
-                        attention_mask[b, 0, (i + 1) :, : (i + 1)] = 0
-                    # Reset positions.
-                    if reset_position_ids:
-                        position_ids[b, (i + 1) :] -= i + 1 - prev_index
-                        prev_index = i + 1
-
-        # Convert attention mask to binary:
-        attention_mask = attention_mask < 0.5
-
-        return attention_mask, loss_mask, position_ids
-
     def get_batch(self, data_iterator, tuning):
         """Generate a batch."""
-
-        # return batch for GPT SFT
-        if tuning:
-            return next(data_iterator)
-
-        # Items and their type.
-        keys = ['text']
-        datatype = torch.int64
 
         # Broadcast data.
         if data_iterator is not None:
             data = next(data_iterator)
         else:
             data = None
-        data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
-        # Unpack.
-        tokens_ = data_b['text'].long()
-        labels = tokens_[:, 1:].contiguous()
-        tokens = tokens_[:, :-1].contiguous()
-
-        # Get the masks and postition ids.
-        attention_mask, loss_mask, position_ids = self.get_ltor_masks_and_position_ids(
-            tokens, self.tokenizer.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss
-        )
+        # return batch for GPT SFT
+        if tuning:
+            return data
 
         batch = {
-            'tokens': tokens,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'attention_mask': attention_mask,
-            'position_ids': position_ids,
+            'tokens': data["tokens"],
+            'labels': data["labels"],
+            'loss_mask': data["loss_mask"],
+            'attention_mask': data["attention_mask"],
+            'position_ids': data["position_ids"],
         }
 
         return batch
 
     def get_batch_on_this_context_parallel_rank(self, batch):
-        cp_size = self.cfg.get('context_parallel_size', 1)
         num_valid_tokens_in_ub = None
         if 'loss_mask' in batch and batch['loss_mask'] is not None:
             num_valid_tokens_in_ub = batch['loss_mask'].sum()
 
+        cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
             for key, val in batch.items():
@@ -1063,7 +1011,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                cp_size = self.cfg.get('context_parallel_size', 1)
+                cp_size = parallel_state.get_context_parallel_world_size()
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
@@ -1219,8 +1167,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
         loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
-        cp_size = self.cfg.get('context_parallel_size', 1)
-        if cp_size > 1:
+        if parallel_state.get_context_parallel_world_size() > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         return loss
 
@@ -1259,6 +1206,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "blend": self.cfg.data.data_prefix,
             "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
+            "reset_position_ids": self.reset_position_ids,
+            "reset_attention_mask": self.reset_attention_mask,
+            "eod_mask_loss": self.eod_mask_loss,
+            "eod_id": self.tokenizer.eos_id,
         }
 
         if self.cfg.data.get('add_fim', False):
@@ -1750,7 +1701,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'normalization': normalization,
             'fp8': fp8,
             'tp_comm_overlap': ub_tp_comm_overlap,
+            # MoE related
+            'num_experts': self.cfg.get('num_experts', None),
+            'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
+            'moe_router_topk': self.cfg.get('moe_router_topk', 2),
+            'moe_grouped_gemm': self.cfg.get('moe_grouped_gemm', False),
+            'moe_aux_loss_coeff': self.cfg.get(
+                'moe_aux_loss_coeff', 0
+            ),  # 1e-2 would be a good start value for load balance loss.
+            'moe_z_loss_coeff': self.cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
+            'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
+            'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
         }
+        if model_specific_configs['num_experts'] is not None:
+            assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
+        elif not mcore_supports_moe():
+            if 'num_experts' in model_specific_configs:
+                del model_specific_configs['num_experts']
+            moe_keys = list(filter(lambda x: x.startswith('moe_'), model_specific_configs.keys()))
+            for k in moe_keys:
+                del model_specific_configs[k]
 
         transformer_config = super().build_transformer_config()
 
