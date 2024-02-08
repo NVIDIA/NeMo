@@ -14,8 +14,6 @@
 import math
 import os
 from abc import abstractmethod
-from functools import partial
-from typing import Iterable
 
 import numpy as np
 import torch
@@ -63,7 +61,9 @@ def convert_module_to_fp8(model):
         for s in sub_tokens:
             cur_mod = getattr(cur_mod, s)
         setattr(cur_mod, tokens[-1], module)
+
     import copy
+
     from transformer_engine.pytorch.module import Linear as te_Linear
 
     for n, v in model.named_modules():
@@ -76,7 +76,8 @@ def convert_module_to_fp8(model):
                 is_bias = True
             newlinear = te_Linear(v.in_features, v.out_features, bias=is_bias)
             newlinear.weight = copy.deepcopy(v.weight)
-            if v.bias is not None: newlinear.bias = copy.deepcopy(v.bias)
+            if v.bias is not None:
+                newlinear.bias = copy.deepcopy(v.bias)
             _set_module(model, n, newlinear)
 
 
@@ -789,7 +790,7 @@ class UNetModel(nn.Module):
             self.convert_to_fp16()
 
         elif self.use_te_fp8:
-            assert (enable_amp_o2_fp16 is False), "fp8 training can't work with fp16 O2 amp recipe"
+            assert enable_amp_o2_fp16 is False, "fp8 training can't work with fp16 O2 amp recipe"
             convert_module_to_fp8(self)
 
             fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
@@ -797,7 +798,7 @@ class UNetModel(nn.Module):
             fp8_format = os.getenv("FP8_FORMAT", "hybrid")
             fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", '1024'))
             fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", 'max')
-            fp8_wgrad = (os.getenv("FP8_WGRAD", '1') == '1')
+            fp8_wgrad = os.getenv("FP8_WGRAD", '1') == '1'
 
             fp8_format_dict = {
                 'hybrid': transformer_engine.common.recipe.Format.HYBRID,
@@ -1069,11 +1070,11 @@ class UNetModel(nn.Module):
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         with transformer_engine.pytorch.fp8_autocast(
-                enabled=self.use_te_fp8,
-                fp8_recipe=self.fp8_recipe,
-            ) if self.use_te_fp8 else nullcontext():
+            enabled=self.use_te_fp8, fp8_recipe=self.fp8_recipe,
+        ) if self.use_te_fp8 else nullcontext():
             out = self._forward(x, timesteps, context, y, **kwargs)
         return out
+
 
 class EncoderUNetModel(nn.Module):
     """
