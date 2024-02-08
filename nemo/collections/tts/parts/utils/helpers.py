@@ -578,17 +578,6 @@ def save_figure_to_numpy(fig):
     return data
 
 
-def plot_encodec_to_numpy(encodec, title=''):
-    fig, ax = plt.subplots(figsize=(10, 3))
-    sns.heatmap(encodec, ax=ax)
-
-    plt.tight_layout()
-    fig.canvas.draw()
-    data = save_figure_to_numpy(fig)
-    plt.close()
-    return data
-
-
 @rank_zero_only
 def waveglow_log_to_tb_func(
     swriter, tensors, step, tag="train", n_fft=1024, hop_length=256, window="hann", mel_fb=None,
