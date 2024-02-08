@@ -66,7 +66,7 @@ WORKDIR /workspace/
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout 27cbe46714a50c43ed290f1b1472db8d2780c55c && \
+  git checkout 240a8ef7a21df201e47b5b2ae33cc5f4c5486849 && \
   pip install .
 
 # Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
