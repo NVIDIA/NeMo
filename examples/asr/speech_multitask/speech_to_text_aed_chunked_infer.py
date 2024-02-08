@@ -25,7 +25,7 @@ An example manifest line:
     "taskname": "asr",  # use "s2t_translation" for AST
     "source_lang": "en",  # Set `source_lang`==`target_lang` for ASR, choices=['en','de','es','fr']
     "target_lang": "de",  # choices=['en','de','es','fr']
-    "pnc": yes,  # whether to have PnC output, choices=['yes', 'no'] 
+    "pnc": "yes",  # whether to have PnC output, choices=['yes', 'no'] 
 }
 
 Example Usage:
