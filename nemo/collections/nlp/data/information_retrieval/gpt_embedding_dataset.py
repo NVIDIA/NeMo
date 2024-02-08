@@ -154,7 +154,7 @@ class GPTEmbeddingDataset(Dataset):
         q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
         d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
         nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
-        metadata = {k: v for k, v in example.items() if k not in ['query', 'pos_doc', 'neg_doc']}
+        metadata = {k: v for k, v in example.items()}
         q = q if q is not None else []
         d = d if d is not None else []
         nd = nd if nd is not None else []
@@ -224,12 +224,12 @@ class GPTEmbeddingDataset(Dataset):
         max_length = -1
         for item in batch:
             input_ids.append(item['query'])
+            metadata.append(item['metadata'])
             input_ids.append(item['pos_doc'])
             input_ids.append(item['neg_doc'])
             lengths.append(len(item['query']))
             lengths.append(len(item['pos_doc']))
             lengths.append(len(item['neg_doc']))
-            metadata += [item['metadata'], item['metadata'], item['metadata']] # FIXME: using same metadata for all 3 items
             max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))

@@ -1023,16 +1023,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if self.cfg.data.get(
                     "return_output_tensors", False
                 ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
-                    loss_for_ub, q_hs, d_hs, avg_pos_cs, avg_neg_cs, diff_cs = loss_for_ub
+                    loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    pos_cs = average_losses_across_data_parallel_group([pos_cs])
+                    neg_cs = average_losses_across_data_parallel_group([neg_cs])
+                    diff_cs = average_losses_across_data_parallel_group([diff_cs])
                     return (
                         loss_for_ub * cp_size,
                         {
                             'avg': reduced_loss,
                             'query_hs': q_hs,
                             'doc_hs': d_hs,
-                            'avg_pos_cs': avg_pos_cs,
-                            'avg_neg_cs': avg_neg_cs,
+                            'avg_pos_cs': pos_cs,
+                            'avg_neg_cs': neg_cs,
                             'diff_cs': diff_cs,
                         },
                     )
