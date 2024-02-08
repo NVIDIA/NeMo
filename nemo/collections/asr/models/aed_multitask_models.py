@@ -573,31 +573,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             'train_loss': audio_loss,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
-        if (batch_nb + 1) % log_every_n_steps == 0:
-            self.wer.update(
-                predictions=enc_states,
-                predictions_lengths=encoded_len,
-                targets=transcript,
-                targets_lengths=transcript_len,
-                predictions_mask=enc_mask,
-                input_ids=input_ids,
-            )
-            wer, _, _ = self.wer.compute()
-            self.wer.reset()
-
-            self.bleu.update(
-                predictions=enc_states,
-                predictions_lengths=encoded_len,
-                targets=transcript,
-                targets_lengths=transcript_len,
-                predictions_mask=enc_mask,
-                input_ids=input_ids,
-            )
-            bleu = self.bleu.compute(return_all_metrics=False)["bleu"]
-            self.bleu.reset()
-
-            tensorboard_logs.update({'training_batch_wer': wer, 'training_batch_bleu': bleu})
-
         return {'loss': audio_loss, 'log': tensorboard_logs}
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):

@@ -293,8 +293,6 @@ def _flatten_paired_text(cut) -> list:
     paired_text = cut.custom.pop("text")
     for lang, data in paired_text.items():
         text_instance = cut.map_supervisions(lambda s: fastcopy(s, text=data["text"], language=lang))
-        text_instance.custom.update(data)
-        for sup in text_instance.supervisions:
-            assert sup.text == text_instance.custom["text"]
+        text_instance.custom = data
         ans.append(text_instance)
     return ans
