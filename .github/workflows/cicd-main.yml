@@ -21,7 +21,7 @@ on:
     branches: [ "main", "pagaray/nemo_cicd" ]
 
 jobs:
-  cicd-tests0:
+  gpu-test:
     runs-on: self-hosted-azure
     steps:
     - name: Run nvidia-smi test
@@ -29,7 +29,7 @@ jobs:
         whoami
         nvidia-smi
 
-  cicd-tests:
+  cicd-test:
     runs-on: self-hosted-azure
     container:
       image: nvcr.io/nvidia/pytorch:23.10-py3
@@ -118,7 +118,12 @@ jobs:
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
 
+    - name: "L0: Unit Tests CPU"
+      run: |
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
+
+##     - name: L2: Multimodal Imagen Train
 
 
  
