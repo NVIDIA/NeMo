@@ -487,7 +487,7 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
     """<extra_id_0>System\n\n<extra_id_1>User\n{user input}\n<extra_id_1>Assistant\n"""
 
 
-    conv = conversation_lib.conv_nvgpt.copy()
+    conv = conversation_lib.conv_nv_dpo.copy()
 
     # Apply prompt templates
     conversations = []
@@ -543,7 +543,6 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
 
             instruction_len = len(tokenizer.text_to_ids(parts[0] + sep))
             round_len = len(tokenizer.text_to_ids(rou + conv.sep))
-            import pdb; pdb.set_trace()
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
