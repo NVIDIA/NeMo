@@ -305,17 +305,11 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         pos_doc_hs = torch.nn.functional.normalize(pos_doc_hs, dim=1)
         neg_doc_hs = torch.nn.functional.normalize(neg_doc_hs, dim=1)
 
-        if self.training:
-            cs, pos_cs, neg_cs, labels = self.constrastive_scores(pos_doc_hs, neg_doc_hs, query_hs, bs, self.use_all_possible_negatives)
-        else:
-            # (@adithyare) during validation, we contrast only with hard negatives.
-            # this is to ensure that the validation loss is comparable accross different batch sizes.
-            cs, pos_cs, neg_cs, labels = self.constrastive_scores(pos_doc_hs, neg_doc_hs, query_hs, bs, False)
-            
-
+        cs, pos_cs, neg_cs, labels = self.constrastive_scores(pos_doc_hs, neg_doc_hs, query_hs, bs, self.use_all_possible_negatives)
         cs = cs.clamp(-1.0, 1.0)
         cs = cs / self.temperature
         loss = torch.nn.functional.cross_entropy(cs, labels)
+        
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
