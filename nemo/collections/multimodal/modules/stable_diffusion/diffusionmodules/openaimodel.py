@@ -14,12 +14,16 @@
 import math
 import os
 from abc import abstractmethod
+from contextlib import nullcontext
 
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+
+# FP8 related import
+import transformer_engine
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -33,9 +37,6 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 )
 from nemo.utils import logging
 
-# FP8 related import
-import transformer_engine
-from contextlib import nullcontext
 
 def convert_module_to_dtype(module, dtype):
     # Convert module parameters to dtype

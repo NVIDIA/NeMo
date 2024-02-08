@@ -27,8 +27,9 @@ if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
 else:
     from apex.contrib.group_norm import GroupNorm
 
+from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
+
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
-from transformer_engine.pytorch.module import LayerNormMLP, LayerNormLinear
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     ParallelLinearAdapterConfig,
@@ -110,16 +111,11 @@ class FeedForward(nn.Module):
         if use_te:
             activation = 'gelu' if not glu else 'geglu'
             # TODO: more parameters to be confirmed, dropout, seq_length
-            self.net = LayerNormMLP(
-                hidden_size=dim,
-                ffn_hidden_size=inner_dim,
-                activation=activation,
-            )
+            self.net = LayerNormMLP(hidden_size=dim, ffn_hidden_size=inner_dim, activation=activation,)
         else:
             norm = nn.LayerNorm(dim)
             project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
             self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
-
 
     def forward(self, x):
         return self.net(x)
