@@ -684,12 +684,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-            output = model(*args).contiguous()
+            output = model(*args)
+            if torch.is_tensor(output):
+                output = output.contiguous()
+            else:
+                # support hiddens module where returned output is a dict
+                output = {k: v.contiguous() for k, v in output.items()}
 
             def id_func(output_tensor):
                 if isinstance(output_tensor, dict):
                     # handle loss of hidden transformations ("output" is the default output)
-                    output_tensor = output_tensor["output"]
+                    output_tensor = output_tensor[output_name]
 
                 return output_tensor, {output_name: output_tensor}
 
@@ -1229,6 +1234,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
+        # we read here those variables to be used by beam search only
+        batch_size, hidden_steps, hidden_size = enc_output.size()
+        src_length = enc_output_attn_mask.shape[1]
+
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
@@ -1238,7 +1247,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
 
-            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="token_logits")
             fwd_bwd_func = get_forward_backward_func()
 
             output_tensor = fwd_bwd_func(
@@ -1253,7 +1262,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
-                output_tensor = output_tensor[0]['logits']
+                output_tensor = output_tensor[0]['token_logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
                 output_tensor[:, :, tokenizer.vocab_size :] = -float('Inf')
@@ -1274,9 +1283,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         log_probs, token_ids = log_probs.view(-1), token_ids.view(-1)
                         scores = log_probs.unsqueeze(1).clone()
 
-                        batch_size, src_length, hidden_size = enc_output.size()
                         enc_output_attn_mask = enc_output_attn_mask.repeat(1, beam_size).view(-1, src_length)
-                        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, src_length, hidden_size)
+                        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, hidden_steps, hidden_size)
 
                         # resize tensors that collect predicted tokens and logits per iteration to
                         # match shape of tensors augmented with the beam size
