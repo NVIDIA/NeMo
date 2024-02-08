@@ -204,7 +204,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
-        model_parallel_config.sequence_parallel = self._sequence_parallel  # revert config change in case it is read elsewhere
+        model_parallel_config.sequence_parallel = (
+            self._sequence_parallel
+        )  # revert config change in case it is read elsewhere
 
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
