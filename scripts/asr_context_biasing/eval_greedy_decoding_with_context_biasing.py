@@ -379,9 +379,10 @@ def main(cfg: EvalContextBiasingConfig):
             ctc_logprobs = []
             if isinstance(asr_model, EncDecCTCModelBPE):
                 # in case of EncDecCTCModelBPE
-                ctc_logprobs = asr_model.transcribe(
-                    audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True
+                hyp_results = asr_model.transcribe(
+                    audio_file_paths, batch_size=cfg.acoustic_batch_size, return_hypotheses=True
                 )
+                ctc_logprobs = [hyp.alignments.cpu().numpy() for hyp in hyp_results]
                 blank_idx = asr_model.decoding.blank_id
             else:
                 # in case of EncDecHybridRNNTCTCModel

@@ -14,7 +14,7 @@
 #
 
 import os
-from typing import List, Optional, Union
+from typing import List, Union
 
 import numpy as np
 import texterrors

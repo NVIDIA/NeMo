@@ -58,15 +58,14 @@ class TestCTCWordSpotter:
         audio_file_path = os.path.join(test_data_dir, "asr/test/an4/wav/cen3-mjwl-b.wav")
         target_text = "nineteen"
         target_tokenization = asr_model.tokenizer.text_to_ids(target_text)
-        ctc_logprobs = asr_model.transcribe([audio_file_path], batch_size=1, logprobs=True)
-
+        ctc_logprobs = asr_model.transcribe([audio_file_path], batch_size=1, return_hypotheses=True)[0].alignments.cpu().numpy()
         context_biasing_list = [[target_text, [target_tokenization]]]
         context_graph = context_biasing.ContextGraphCTC(blank_id=asr_model.decoding.blank_id)
         context_graph.add_to_graph(context_biasing_list)
 
         # without context biasing
         ws_results = context_biasing.run_word_spotter(
-            ctc_logprobs[0],
+            ctc_logprobs,
             context_graph,
             asr_model,
             blank_idx=asr_model.decoding.blank_id,
@@ -78,7 +77,7 @@ class TestCTCWordSpotter:
 
         # with context biasing
         ws_results = context_biasing.run_word_spotter(
-            ctc_logprobs[0],
+            ctc_logprobs,
             context_graph,
             asr_model,
             blank_idx=asr_model.decoding.blank_id,
