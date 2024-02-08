@@ -54,6 +54,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         assert (
             self.cfg.get("post_process", False) is False
         ), "post_process must be False to get hidden states in the loss_func"
+        self.vcount = 0
 
     def model_provider_func(self, pre_process, post_process):
         # (@adithyare) We need post_process to be False to get hidden states in the loss_func
@@ -243,12 +244,14 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         d_hs = torch.cat(outputs['d_hs'], dim=0)
         q_hs_npy = q_hs.float().numpy()
         d_hs_npy = d_hs.float().numpy()
+        output_file_path = output_file_path + f"_num_val_epochs_{self.vcount}"
         np.save(output_file_path + "_query.npy", q_hs_npy)
         np.save(output_file_path + "_doc.npy", d_hs_npy)
         with open(output_file_path + "_query.ids", "w") as f, open(output_file_path + "_doc.ids", "w") as f2:
             for m in outputs['metadata']:
                 f.write(m["query_id"] + "\n")
                 f2.write(m["doc_id"] + "\n")
+        self.vcount += 1
         return True
 
     def local_validation_step(self, dataloader_iter, batch_idx):
@@ -309,7 +312,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         cs = cs.clamp(-1.0, 1.0)
         cs = cs / self.temperature
         loss = torch.nn.functional.cross_entropy(cs, labels)
-        
+
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
