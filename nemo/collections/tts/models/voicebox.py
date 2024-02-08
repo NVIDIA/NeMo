@@ -157,6 +157,8 @@ class VoiceboxModel(TextToWaveform):
 
         self.maybe_init_from_pretrained_checkpoint(cfg=cfg, map_location='cpu')
 
+        self.val_0_tts = cfg.get("val_0_tts", False)
+
     def _download_libriheavy(self, target_dir, dataset_parts):
         """ Download LibriHeavy manifests. """
         from lhotse.recipes.utils import manifests_exist
@@ -637,6 +639,125 @@ class VoiceboxModel(TextToWaveform):
 
         return losses, outputs
     
+    @torch.no_grad()
+    def parse_input(self, batch):
+        # voicebox's sampling rate
+        audio = batch["audio_24k"]
+        audio_lens = batch["audio_lens_24k"]
+        tokens = batch["tokens"]
+        token_lens = batch["token_lens"]
+        texts = batch["texts"]
+        # mfa tgt
+        durations = batch.get("durations", None)
+
+        self.voicebox.audio_enc_dec.eval()
+        mel = self.voicebox.audio_enc_dec.encode(audio)
+        mel_lens = audio_lens * mel.shape[1] // audio.shape[-1]
+        batch.update({
+            "mel": mel,
+            "mel_lens": mel_lens,
+        })
+
+        if durations is not None:
+            cum_dur = torch.cumsum(durations, -1)
+            dur_ratio = mel_lens / cum_dur[:, -1]
+            cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+            cum_dur = torch.round(cum_dur)
+
+            dp_cond = torch.zeros_like(cum_dur)
+            dp_cond[:, 0] = cum_dur[:, 0]
+            dp_cond[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+
+            batch.update({
+                "dp_cond": dp_cond,
+                "cum_dur": cum_dur,
+            })
+
+        return batch
+
+    @torch.no_grad()
+    def parse_0_tts(self, batch):
+        batch = self.parse_input(batch)
+        mel = batch['mel']
+        mel_lens = batch['mel_lens']
+        mel_mask = get_mask_from_lengths(mel_lens) # (b, t)
+
+        pad_mel = torch.ones_like(mel) * -4.5252
+        new_mel = torch.cat([mel, pad_mel], dim=1)
+        new_mask = get_mask_from_lengths(mel_lens * 2)
+
+        pad_mask = torch.zeros_like(mel_mask)
+        ori_mask = torch.cat([mel_mask, pad_mask], dim=1).bool()
+        cond_mask = new_mask & ~ori_mask
+        batch.update({
+            "cond": new_mel,
+            "cond_mask": cond_mask,
+            "self_attn_mask": new_mask,
+        })
+
+        tokens = batch['tokens']
+        durations = batch['dp_cond']
+        cum_dur = batch['cum_dur']
+
+        new_tokens = torch.cat([tokens, tokens], dim=1)
+        new_dur = torch.cat([durations, durations], dim=1)
+        new_aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(new_tokens, new_dur)
+        batch.update({
+            "aligned_tokens": new_aligned_tokens
+        })
+        return batch
+
+    @torch.no_grad()
+    def val_vb_0_tts(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
+        batch = self.parse_0_tts(batch)
+
+        self.voicebox.eval()
+
+        cond = batch['cond']
+        self_attn_mask = batch['self_attn_mask']
+        aligned_tokens = batch['aligned_tokens']
+        cond_mask = batch['cond_mask']
+
+        out_spec = self.cfm_wrapper.sample(
+            cond=cond,
+            self_attn_mask=self_attn_mask,
+            aligned_phoneme_ids=aligned_tokens,
+            cond_mask=cond_mask,
+            steps=10,
+            decode_to_audio=False
+        )
+
+        ori_mel = batch['mel']
+        ori_mel_lens = batch['mel_lens']
+        gen_idx = torch.arange(ori_mel.shape[1]).to(ori_mel.device).reshape(1, -1, 1).expand_as(ori_mel)
+        gen_idx = gen_idx + ori_mel_lens.reshape(-1, 1, 1)
+        gen_mel = torch.gather(out_spec, 1, gen_idx)
+        # gen_mel = torch.zeros_like(ori_mel)
+        # for i in range(ori_mel.shape[0]):
+        #     gen_mel[i, :] = out_spec[i, ori_mel_lens[i]:ori_mel_lens[i]+gen_mel.shape[1]]
+
+        ori_audio = batch["audio_24k"]
+        ori_audio_lens = batch["audio_lens_24k"]
+        gen_audio = self.voicebox.audio_enc_dec.decode(gen_mel)
+        gen_audio_lens = torch.clamp(ori_audio_lens, max=gen_audio.shape[-1])
+
+        # eval metrics
+        self.log("val_num_sample", ori_audio.shape[0], reduce_fx=torch.sum)
+
+        # logging
+        if batch_idx == 0:
+            tb_writer = self.logger.experiment
+            for i in range(ori_mel.shape[0]):
+                tb_writer.add_image(f"val_vb_0_tts/{i}/ori_mel", plot_spectrogram_to_numpy(ori_mel[i, :ori_mel_lens[i]].T.cpu().numpy()), self.global_step, dataformats="HWC")
+                tb_writer.add_image(f"val_vb_0_tts/{i}/gen_mel", plot_spectrogram_to_numpy(gen_mel[i, :ori_mel_lens[i]].T.cpu().numpy()), self.global_step, dataformats="HWC")
+
+                _gen_audio = gen_audio[i, :gen_audio_lens[i]].cpu().numpy()
+                _ori_audio = ori_audio[i, :ori_audio_lens[i]].cpu().numpy()
+                tb_writer.add_audio(f"val_vb/{i}/gen_audio", _gen_audio / max(np.abs(_gen_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                tb_writer.add_audio(f"val_vb/{i}/ori_audio", _ori_audio / max(np.abs(_ori_audio)), self.global_step, sample_rate=24000)
+
+        return
+
     def training_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT:
         # voicebox's sampling rate
         audio = batch["audio_24k"]
@@ -688,6 +809,9 @@ class VoiceboxModel(TextToWaveform):
         return loss
     
     def validation_step(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
+        if self.val_0_tts:
+            return self.val_vb_0_tts(batch, batch_idx)
+
         # voicebox's sampling rate
         audio = batch["audio_24k"]
         audio_lens = batch["audio_lens_24k"]

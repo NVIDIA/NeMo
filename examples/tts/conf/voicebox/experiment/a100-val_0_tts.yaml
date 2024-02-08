@@ -1,0 +1,19 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - a100
+
+model:
+  validation_ds:
+    min_duration: 4
+    max_duration: 8
+    lhotse:
+      batch_duration: 240
+
+  val_0_tts: True
+
+# task name, determines output directory path
+task_name: "a100-val_0_tts"
