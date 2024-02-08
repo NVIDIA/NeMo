@@ -50,6 +50,7 @@ OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 # sum interpolated values in the config
 OmegaConf.register_new_resolver("sum", lambda x, y: x + y, replace=True)
 
+
 def hydra_runner(
     config_path: Optional[str] = ".", config_name: Optional[str] = None, schema: Optional[Any] = None
 ) -> Callable[[TaskFunction], Any]:
