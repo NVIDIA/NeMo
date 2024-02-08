@@ -554,7 +554,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             log_every_n_steps = 1
 
         if batch is None:
-            audio_loss = torch.tensor([0.0])
+            tensorboard_logs = {
+                'train_loss': torch.Tensor[0.0],
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+            }
+            return {'loss': audio_loss, 'log': tensorboard_logs}
 
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
