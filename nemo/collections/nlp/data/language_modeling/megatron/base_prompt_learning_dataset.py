@@ -156,7 +156,7 @@ class BasePromptLearningDataset(Dataset):
         ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
         # Check if input example has fields not present in template
-        keys_not_in_template = list(set(prompt_template_fields) - set(doc.keys()) - set(['taskname']))
+        keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
         assert (
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
@@ -187,11 +187,11 @@ class BasePromptLearningDataset(Dataset):
 
 
 def find_subsequence_location(sequence, subsequence):
-    """ Finds the start and end index of the first occurance
-        of a given subsequence within a larger list. Returns
-        the two indices corresponding to the postition of
+    """ Finds the start and end index of the first occurance 
+        of a given subsequence within a larger list. Returns 
+        the two indices corresponding to the postition of 
         the first and last token of the subseqeunce.
-        Assumes subsequence is known to be in sequence.
+        Assumes subsequence is known to be in sequence. 
     """
     assert len(sequence) >= len(subsequence), "subsequence too long"
 

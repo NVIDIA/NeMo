@@ -16,7 +16,6 @@ import json
 import math
 import multiprocessing
 import os
-import random
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import braceexpand
@@ -48,7 +47,6 @@ __all__ = [
     'AudioToBPEDataset',
     'TarredAudioToCharDataset',
     'TarredAudioToBPEDataset',
-    '_TarredInstructionTuningDataset',
 ]
 
 
