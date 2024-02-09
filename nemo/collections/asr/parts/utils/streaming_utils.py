@@ -1644,7 +1644,7 @@ class FrameBatchChunkedRNNT(FrameBatchASR):
     def __init__(self, asr_model, frame_len=4, total_buffer=4, batch_size=4):
         super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
 
-    def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs, meta_data):
+    def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs):
         samples = get_samples(audio_filepath)
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
         frame_reader = AudioFeatureIterator(
@@ -1684,5 +1684,58 @@ class FrameBatchChunkedRNNT(FrameBatchASR):
         if not keep_logits:
             return hypothesis
 
-        print("keep_logits=True is not supported for MultiTaskAEDFrameBatchInfer. Returning empty logits.")
+        print("keep_logits=True is not supported for FrameBatchChunkedRNNT. Returning empty logits.")
+        return hypothesis, []
+
+
+class FrameBatchChunkedCTC(FrameBatchASR):
+    def __init__(self, asr_model, frame_len=4, total_buffer=4, batch_size=4):
+        super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
+
+    def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs):
+        samples = get_samples(audio_filepath)
+        samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        frame_reader = AudioFeatureIterator(
+            samples, self.frame_len, self.raw_preprocessor, self.asr_model.device, pad_to_frame_len=False
+        )
+        self.set_frame_reader(frame_reader)
+
+    @torch.no_grad()
+    def _get_batch_preds(self, keep_logits=False):
+        device = self.asr_model.device
+        for batch in iter(self.data_loader):
+            feat_signal, feat_signal_len = batch
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+
+            results = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+            if len(results) == 2:  # hybrid model
+                encoded, encoded_len = results
+                log_probs = self.asr_model.ctc_decoder(encoder_output=encoded)
+                transcribed_texts, _ = self.asr_model.ctc_decoding.ctc_decoder_predictions_tensor(
+                    decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+                )
+            else:
+                log_probs, encoded_len, predictions = results
+                transcribed_texts, _ = self.asr_model.decoding.ctc_decoder_predictions_tensor(
+                    decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+                )
+
+            self.all_preds.extend(transcribed_texts)
+            del log_probs
+            del encoded_len
+            del predictions
+
+    def transcribe(
+        self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False
+    ):
+        """
+        unsued params are for keeping the same signature as the parent class
+        """
+        self.infer_logits(keep_logits)
+
+        hypothesis = " ".join(self.all_preds)
+        if not keep_logits:
+            return hypothesis
+
+        print("keep_logits=True is not supported for FrameBatchChunkedCTC. Returning empty logits.")
         return hypothesis, []
