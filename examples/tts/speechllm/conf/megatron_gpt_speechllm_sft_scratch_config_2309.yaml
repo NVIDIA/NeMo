@@ -171,7 +171,6 @@ model:
   ## Flash Attention
   use_flash_attention: True # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
 
-  # speech_residual_model: 'conv' # one of conv or linear
   return_all_selfattention_probs: False
   train_check_interval: 1500
   attn_prior_scaledown_start_step: 20000
