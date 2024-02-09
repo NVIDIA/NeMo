@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import itertools
+import os
 
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
-import os
 
 from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -232,9 +232,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                 )
             # (@adithyare) We are not using the log key to write the embeddings to file
             # filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-            self.write_embeddings_to_file(
-                deduplicated_outputs, f"{data_cfg.output_file_path_prefix}"
-            )
+            self.write_embeddings_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}")
         return deduplicated_outputs, total_size
 
     def write_embeddings_to_file(self, outputs, output_file_path):
