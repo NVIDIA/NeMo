@@ -675,18 +675,43 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         return temporary_datalayer
 
     @classmethod
-    def _config_check(cls, cfg):
-        if 'tokenizer' not in cfg:
-            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
-        # Assert config has "prompt_format"
-        if "prompt_format" not in cfg:
-            raise ValueError("`cfg` must have `prompt_format` config to create a multi task model !")
-        # Assert config has `model_defaults`
-        if 'model_defaults' not in cfg:
-            raise ValueError("`cfg` must have `model_defaults` config to create a model !")
-        if "asr_enc_hidden" not in cfg.model_defaults:
-            raise ValueError("`cfg.model_defaults` must have `asr_enc_hidden` key !")
-        if "lm_enc_hidden" not in cfg.model_defaults:
-            raise ValueError("`cfg.model_defaults` must have `lm_enc_hidden` key !")
-        if "lm_dec_hidden" not in cfg.model_defaults:
-            raise ValueError("`cfg.model_defaults` must have `lm_dec_hidden` key !")
+    def get_transcribe_config(cls) -> MultiTaskTranscriptionConfig:
+        """
+        Utility method that returns the default config for transcribe() function.
+
+        Returns:
+            A dataclass
+        """
+        return MultiTaskTranscriptionConfig()
+
+    def predict_step(self, batch, batch_idx=0, dataloader_idx=0, has_processed_signal=False):
+        signal, signal_len, transcript, transcript_len = batch
+
+        processed_signal = None
+        processed_signal_length = None
+        if has_processed_signal:
+            processed_signal = signal
+            processed_signal_length = signal_len
+            signal = None
+            signal_len = None
+
+        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+            input_signal=signal,
+            input_signal_length=signal_len,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+            transcript=transcript,
+            transcript_length=transcript_len,
+        )
+
+        text = self.decoding.decode_predictions_tensor(
+            encoder_hidden_states=enc_states,
+            encoder_input_mask=enc_mask,
+            decoder_input_ids=transcript[:, : self.context_len_for_AR_decoding]
+            if self.context_len_for_AR_decoding > 0
+            else None,
+            return_hypotheses=False,
+        )[0]
+
+        text = [self.decoding.strip_special_tokens(t) for t in text]
+        return text
