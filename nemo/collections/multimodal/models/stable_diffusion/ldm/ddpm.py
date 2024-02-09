@@ -1632,15 +1632,15 @@ class LatentDiffusion(DDPM, Serialization):
                 return {key: log[key] for key in return_keys}
         return log
 
-    def parameters(self):
-        params = list(self.model.parameters())
-        if self.cond_stage_trainable:
-            logging.info(f"{self.__class__.__name__}: Also optimizing conditioner params!")
-            params = params + list(self.cond_stage_model.parameters())
-        if self.learn_logvar:
-            logging.info('Diffusion model optimizing logvar')
-            params.append(self.logvar)
-        return params
+    # def parameters(self):
+    #     params = list(self.model.parameters())
+    #     if self.cond_stage_trainable:
+    #         logging.info(f"{self.__class__.__name__}: Also optimizing conditioner params!")
+    #         params = params + list(self.cond_stage_model.parameters())
+    #     if self.learn_logvar:
+    #         logging.info('Diffusion model optimizing logvar')
+    #         params.append(self.logvar)
+    #     return params
 
     @torch.no_grad()
     def to_rgb(self, x):
@@ -1678,6 +1678,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
         # megatron_amp_O2 is not yet supported in diffusion models
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        self.use_fsdp = cfg.get('fsdp', False)
 
         self.model = self.model_provider_func()
 
@@ -2077,6 +2078,8 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     def parameters(self):
         if isinstance(self.model, list):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
+        elif self.use_fsdp:
+            return self.trainer.model.parameters()
         else:
             return self.model.parameters()
 
