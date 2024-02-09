@@ -17,21 +17,29 @@ import json
 import os
 import tempfile
 from math import ceil
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import editdistance
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torchmetrics.text import SacreBLEUScore
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.modules.transformer import (
+    BeamSearchSequenceGenerator,
+    TransformerEncoder,
+    get_nemo_transformer,
+)
+from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin, TranscribeConfig
+from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -49,18 +57,6 @@ from nemo.core.neural_types import (
 )
 from nemo.utils import logging
 
-try:
-    from sacrebleu import corpus_bleu
-
-    from nemo.collections.nlp.modules.common import TokenClassifier
-    from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-    from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEncoder
-
-    NLP_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    NLP_AVAILABLE = False
-    logging.warning("Could not import NeMo NLP collection which is required for speech translation model.")
-
 __all__ = ['EncDecTransfModelBPE']
 
 
@@ -70,7 +66,7 @@ def lens_to_mask(lens, max_length):
     return mask
 
 
-class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
+class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTranscriptionMixin):
     """Base class for encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -123,10 +119,11 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         vocab_size = 8 * ceil(self.tokenizer.vocab_size / 8)
         transf_decoder_cfg_dict['vocab_size'] = vocab_size
         library = transf_decoder_cfg_dict.pop('library', 'nemo')
+        if library != 'nemo':
+            raise ValueError(f"Currently only 'nemo' library is supported for Transformer decoder. Got {library}")
         model_name = transf_decoder_cfg_dict.pop('model_name', None)
         pretrained = transf_decoder_cfg_dict.pop('pretrained', False)
-        self.transf_decoder = get_transformer(
-            library=library,
+        self.transf_decoder = get_nemo_transformer(
             model_name=model_name,
             pretrained=pretrained,
             config_dict=transf_decoder_cfg_dict,
@@ -141,6 +138,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             log_softmax=self.cfg.head.log_softmax,
             dropout=self.cfg.head.dropout,
             use_transformer_init=self.cfg.head.use_transformer_init,
+            num_layers=self.cfg.head.num_layers,
         )
         self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
         std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
@@ -176,24 +174,22 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
     @torch.no_grad()
     def transcribe(
         self,
-        paths2audio_files: List[str],
+        audio: List[str],
         batch_size: int = 4,
-        logprobs: bool = False,
         return_hypotheses: bool = False,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
-    ) -> List[str]:
+    ) -> Union[List[str], List[Hypothesis]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
         Args:
-            paths2audio_files: (a list) of paths to audio files. \
+            audio: (a list) of paths to audio files. \
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference.
                 Bigger will result in better throughput performance but would use more memory.
-            logprobs: (bool) pass True to get log probabilities instead of transcripts.
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
@@ -203,96 +199,28 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
-            return {}
+        return super().transcribe(
+            audio=audio,
+            batch_size=batch_size,
+            return_hypotheses=return_hypotheses,
+            num_workers=num_workers,
+            channel_selector=channel_selector,
+            augmentor=augmentor,
+            verbose=verbose,
+        )
 
-        if return_hypotheses and logprobs:
-            raise ValueError(
-                "Either `return_hypotheses` or `logprobs` can be True at any given time."
-                "Returned hypotheses will contain the logprobs."
-            )
-
-        if num_workers is None:
-            num_workers = min(batch_size, os.cpu_count() - 1)
-
-        # We will store transcriptions here
-        hypotheses = []
-
-        # Model's mode and device
-        mode = self.training
-        device = next(self.parameters()).device
-        dither_value = self.preprocessor.featurizer.dither
-        pad_to_value = self.preprocessor.featurizer.pad_to
-
-        try:
-            self.preprocessor.featurizer.dither = 0.0
-            self.preprocessor.featurizer.pad_to = 0
-            # Switch model to evaluation mode
-            self.eval()
-            # Freeze the encoder and decoder modules
-            self.encoder.freeze()
-            self.transf_decoder.freeze()
-            logging_level = logging.get_verbosity()
-            logging.set_verbosity(logging.WARNING)
-            # Work in tmp directory - will store manifest file there
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
-                    for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
-                        fp.write(json.dumps(entry) + '\n')
-
-                config = {
-                    'paths2audio_files': paths2audio_files,
-                    'batch_size': batch_size,
-                    'temp_dir': tmpdir,
-                    'num_workers': num_workers,
-                    'channel_selector': channel_selector,
-                }
-
-                if augmentor:
-                    config['augmentor'] = augmentor
-
-                temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=not verbose):
-                    log_probs, encoded_len, enc_states, enc_mask = self.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
-                    )
-
-                    beam_hypotheses = (
-                        self.beam_search(
-                            encoder_hidden_states=enc_states, encoder_input_mask=enc_mask, return_beam_scores=False
-                        )
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-
-                    beam_hypotheses = [self.tokenizer.ids_to_text(hyp) for hyp in beam_hypotheses]
-
-                    # TODO: add support for return_hypotheses=True @AlexGrinch
-                    # if return_hypotheses:
-                    #     # dump log probs per file
-                    #     for idx in range(logits.shape[0]):
-                    #         current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
-
-                    hypotheses += beam_hypotheses
-
-                    del test_batch, log_probs, encoded_len, enc_states, enc_mask
-        finally:
-            # set mode back to its original value
-            self.train(mode=mode)
-            self.preprocessor.featurizer.dither = dither_value
-            self.preprocessor.featurizer.pad_to = pad_to_value
-            if mode is True:
-                self.encoder.unfreeze()
-                self.transf_decoder.unfreeze()
-            logging.set_verbosity(logging_level)
-
-        return hypotheses
+    def _update_default_values(self, config: DictConfig):
+        if self.training:  # don't do anything for training
+            return config
+        with open_dict(config):
+            for k, v in self.cfg.train_ds.items():
+                if k not in config:
+                    config[k] = v
+        return config
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-
         if config.get("use_lhotse"):
+            config = self._update_default_values(config)
             return get_lhotse_dataloader_from_config(
                 config,
                 global_rank=self.global_rank,
@@ -586,8 +514,8 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                     _translations += [t for (t, g) in tr_and_gt[rank]]
                     _ground_truths += [g for (t, g) in tr_and_gt[rank]]
 
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
-                sb_score = sacre_bleu.score * self.world_size
+                sacre_bleu = SacreBLEUScore()(_translations, [[x] for x in _ground_truths]).item()
+                sb_score = sacre_bleu * self.world_size
 
                 wer_scores, wer_words = 0, 0
                 for h, r in zip(_translations, _ground_truths):
@@ -638,3 +566,67 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    """ Transcription related methods """
+
+    def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
+        super()._transcribe_on_begin(audio, trcfg)
+
+        # Freeze the encoder and decoder modules
+        self.transf_decoder.freeze()
+
+    def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
+        log_probs, encoded_len, enc_states, enc_mask = self.forward(
+            input_signal=batch[0], input_signal_length=batch[1]
+        )
+        output = dict(log_probs=log_probs, encoded_len=encoded_len, enc_states=enc_states, enc_mask=enc_mask)
+        return output
+
+    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> List[str]:
+        log_probs = outputs.pop('log_probs')
+        encoded_len = outputs.pop('encoded_len')
+        enc_states = outputs.pop('enc_states')
+        enc_mask = outputs.pop('enc_mask')
+
+        # TODO(@AlexGrinch): add support for returning logprobs from return_hypotheses=True
+        del log_probs
+
+        beam_hypotheses = (
+            # TODO(@titu1994): maybe set return_beam_scores to True if theres no perf difference
+            self.beam_search(encoder_hidden_states=enc_states, encoder_input_mask=enc_mask, return_beam_scores=False)
+            .detach()
+            .cpu()
+            .numpy()
+        )
+
+        beam_hypotheses_out = [self.tokenizer.ids_to_text(hyp) for hyp in beam_hypotheses]
+        del enc_states, enc_mask, encoded_len
+
+        if trcfg.return_hypotheses:
+            # TODO: add support for returning logprobs from return_hypotheses=True @AlexGrinch
+            # dump log probs per file
+            # for idx in range(logits.shape[0]):
+            #     current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+            hypotheses = []
+            for idx, hyp in enumerate(beam_hypotheses):
+                hypotheses.append(
+                    Hypothesis(
+                        score=0.0,
+                        y_sequence=beam_hypotheses[idx],
+                        text=beam_hypotheses_out[idx],
+                        length=len(beam_hypotheses[idx]),
+                    )
+                )
+
+            # Replace output with Hypothesis list
+            beam_hypotheses_out = hypotheses
+
+        del beam_hypotheses
+
+        return beam_hypotheses_out
+
+    def _transcribe_on_end(self, trcfg: TranscribeConfig):
+        super()._transcribe_on_end(trcfg)
+
+        # Unfreeze the encoder and decoder modules
+        self.transf_decoder.unfreeze()
