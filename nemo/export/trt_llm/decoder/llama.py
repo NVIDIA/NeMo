@@ -15,6 +15,7 @@ from typing import Optional
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType, MoeConfig
 from tensorrt_llm.models.llama.model import LLaMADecoderLayer
+from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from typing_extensions import override
 
 from ..model_config import (
@@ -115,30 +116,65 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 "factor": float(layer.rotary_scaling)
             }
 
-        moe_config = MoeConfig()
-        if not layer.moe_num_experts is None:
-            if layer.moe_top_k is None:
-                layer.moe_top_k = 1
+            if layer.moe_num_experts is not None:
+                moe_config = MoeConfig()
+                if not layer.moe_num_experts is None:
+                    if layer.moe_top_k is None:
+                        layer.moe_top_k = 1
 
-            layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
-            layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
-            moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
-                                   layer.moe_tp_mode, layer.moe_renorm_mode).validate()
+                    layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
+                    layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
+                    moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
+                                        layer.moe_tp_mode, layer.moe_renorm_mode).validate()
 
-        return LLaMADecoderLayer(
-            layer_id=self.layer_id,
-            hidden_size=self.hidden_size,
-            num_attention_heads=self.num_attention_heads,
-            num_kv_heads=self.num_kv_heads,
-            max_position_embeddings=self.max_position_embeddings,
-            dtype=self.dtype,
-            attention_mask_type=AttentionMaskType.causal,
-            hidden_act=non_gated_version(self.hidden_act),
-            position_embedding_type=PositionEmbeddingType.rope_gpt_neox,
-            mlp_hidden_size=layer.ffn_hidden_size_local * self.tensor_parallel,
-            tp_group=self.tp_group,
-            tp_size=self.tensor_parallel,
-            rotary_base=layer.rotary_base,
-            rotary_scaling=rotary_scaling,
-            moe_config=moe_config,
-        )
+                    return LLaMADecoderLayer(
+                        layer_id=self.layer_id,
+                        hidden_size=self.hidden_size,
+                        num_attention_heads=self.num_attention_heads,
+                        num_kv_heads=self.num_kv_heads,
+                        max_position_embeddings=self.max_position_embeddings,
+                        dtype=self.dtype,
+                        attention_mask_type=AttentionMaskType.causal,
+                        hidden_act=non_gated_version(self.hidden_act),
+                        position_embedding_type=PositionEmbeddingType.rope_gpt_neox,
+                        mlp_hidden_size=layer.ffn_hidden_size_local * self.tensor_parallel,
+                        tp_group=self.tp_group,
+                        tp_size=self.tensor_parallel,
+                        rotary_base=layer.rotary_base,
+                        rotary_scaling=rotary_scaling,
+                        moe_config=moe_config,
+                    )
+            else:
+                config = PretrainedConfig(
+                    architecture="",
+                    dtype=self.dtype,
+                    logits_dtype=self.dtype,
+                    vocab_size=0, #TODO ????????????????
+                    max_position_embeddings=self.max_position_embeddings,
+                    hidden_size=self.hidden_size,
+                    num_hidden_layers=0, #TODO ????????????????,
+                    num_attention_heads=self.num_attention_heads,
+                    num_key_value_heads=self.num_kv_heads,
+                    hidden_act=non_gated_version(self.hidden_act),
+                    intermediate_size=0, #TODO ????????????????,
+                    norm_epsilon=0.0, #TODO ????????????????,
+                    position_embedding_type=PositionEmbeddingType.rope_gpt_neox,
+                    world_size=0, #TODO ????????????????,
+                    tp_size=self.tensor_parallel,
+                    pp_size=0, #TODO ????????????????,
+                    #quant_mode: QuantMode,
+                    #quant_kwargs: dict,
+                    #use_prompt_tuning: bool = False,
+                    #use_parallel_embedding: bool = False,
+                    #embedding_sharding_dim: int = 0,
+                    #share_embedding_table: bool = False,
+                    #max_lora_rank: int = 64,
+                    #head_size: int = None,
+                )
+
+                return LLaMADecoderLayer(
+                    config=config,
+                    layer_id=self.layer_id,
+                )
+
+
