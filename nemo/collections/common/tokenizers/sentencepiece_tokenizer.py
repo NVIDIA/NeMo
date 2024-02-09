@@ -214,10 +214,6 @@ class SentencePieceTokenizer(TokenizerSpec):
         return eos_id
 
     @property
-    def eod(self):
-        return self.eos_id
-
-    @property
     def sep_id(self):
         if self.legacy:
             return self.tokens_to_ids([self.sep_token])[0]
