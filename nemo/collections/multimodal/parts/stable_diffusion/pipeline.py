@@ -14,11 +14,10 @@
 import os
 import pickle
 import time
-from collections import defaultdict
-from itertools import chain
-
 import torch
 from PIL import Image
+from collections import defaultdict
+from itertools import chain
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import DDIMSampler
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.para_ddim import ParaDDIMSampler

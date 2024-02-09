@@ -12,14 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from inspect import isfunction
-
+import os
 import torch
 import torch.nn.functional as F
 from apex.contrib.group_norm import GroupNorm
 from einops import rearrange
+from inspect import isfunction
 from torch import einsum, nn
 from torch._dynamo import disable
+
+if os.environ.get("USE_NATIVE_GROUP_NORM", "0") == "1":
+    from nemo.gn_native import GroupNormNormlization as GroupNorm
+else:
+    from apex.contrib.group_norm import GroupNorm
+
+from transformer_engine.pytorch.module import LayerNormLinear, LayerNormMLP
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -95,13 +102,19 @@ class GEGLU(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0):
+    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0, use_te=False):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
-        project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
 
-        self.net = nn.Sequential(project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
+        if use_te:
+            activation = 'gelu' if not glu else 'geglu'
+            # TODO: more parameters to be confirmed, dropout, seq_length
+            self.net = LayerNormMLP(hidden_size=dim, ffn_hidden_size=inner_dim, activation=activation, )
+        else:
+            norm = nn.LayerNorm(dim)
+            project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
+            self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
 
     def forward(self, x):
         return self.net(x)
@@ -216,14 +229,15 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
 
 class CrossAttention(nn.Module):
     def __init__(
-        self,
-        query_dim,
-        context_dim=None,
-        heads=8,
-        dim_head=64,
-        dropout=0.0,
-        use_flash_attention=False,
-        lora_network_alpha=None,
+            self,
+            query_dim,
+            context_dim=None,
+            heads=8,
+            dim_head=64,
+            dropout=0.0,
+            use_flash_attention=False,
+            lora_network_alpha=None,
+            use_te=False,
     ):
         super().__init__()
 
@@ -237,9 +251,15 @@ class CrossAttention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
-        self.to_q = LinearWrapper(query_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
         self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
         self.to_v = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
+
+        if use_te:
+            self.norm_to_q = LayerNormLinear(query_dim, self.inner_dim, bias=False)
+        else:
+            norm = nn.LayerNorm(query_dim)
+            to_q = LinearWrapper(query_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
+            self.norm_to_q = nn.Sequential(norm, to_q)
 
         self.to_out = nn.Sequential(
             LinearWrapper(self.inner_dim, query_dim, lora_network_alpha=lora_network_alpha), nn.Dropout(dropout)
@@ -255,7 +275,7 @@ class CrossAttention(nn.Module):
     def forward(self, x, context=None, mask=None):
         h = self.heads
 
-        q = self.to_q(x)
+        q = self.norm_to_q(x)
         context = default(context, x)
         k = self.to_k(context)
         v = self.to_v(context)
@@ -325,16 +345,17 @@ class CrossAttention(nn.Module):
 class BasicTransformerBlock(nn.Module):
     def __init__(
         self,
-        dim,
-        n_heads,
-        d_head,
-        dropout=0.0,
-        context_dim=None,
-        gated_ff=True,
-        use_checkpoint=False,
-        use_flash_attention=False,
-        disable_self_attn=False,
-        lora_network_alpha=None,
+            dim,
+            n_heads,
+            d_head,
+            dropout=0.0,
+            context_dim=None,
+            gated_ff=True,
+            use_checkpoint=False,
+            use_flash_attention=False,
+            disable_self_attn=False,
+            lora_network_alpha=None,
+            use_te=False,
     ):
         super().__init__()
         self.disable_self_attn = disable_self_attn
@@ -346,8 +367,9 @@ class BasicTransformerBlock(nn.Module):
             use_flash_attention=use_flash_attention,
             context_dim=context_dim if self.disable_self_attn else None,
             lora_network_alpha=lora_network_alpha,
+            use_te=use_te,
         )  # is a self-attention
-        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
+        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff, use_te=use_te)
         self.attn2 = CrossAttention(
             query_dim=dim,
             context_dim=context_dim,
@@ -356,10 +378,8 @@ class BasicTransformerBlock(nn.Module):
             dropout=dropout,
             use_flash_attention=use_flash_attention,
             lora_network_alpha=lora_network_alpha,
+            use_te=use_te,
         )  # is self-attn if context is none
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
-        self.norm3 = nn.LayerNorm(dim)
         self.use_checkpoint = use_checkpoint
 
     def forward(self, x, context=None):
@@ -369,9 +389,9 @@ class BasicTransformerBlock(nn.Module):
             return self._forward(x, context)
 
     def _forward(self, x, context=None):
-        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x
-        x = self.attn2(self.norm2(x), context=context) + x
-        x = self.ff(self.norm3(x)) + x
+        x = self.attn1(x, context=context if self.disable_self_attn else None) + x
+        x = self.attn2(x, context=context) + x
+        x = self.ff(x) + x
         return x
 
 
@@ -387,16 +407,17 @@ class SpatialTransformer(nn.Module):
     def __init__(
         self,
         in_channels,
-        n_heads,
-        d_head,
-        depth=1,
-        dropout=0.0,
-        context_dim=None,
-        disable_self_attn=False,
-        use_linear=False,
-        use_checkpoint=False,
-        use_flash_attention=False,
-        lora_network_alpha=None,
+            n_heads,
+            d_head,
+            depth=1,
+            dropout=0.0,
+            context_dim=None,
+            disable_self_attn=False,
+            use_linear=False,
+            use_checkpoint=False,
+            use_flash_attention=False,
+            lora_network_alpha=None,
+            use_te=False,
     ):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
@@ -422,6 +443,7 @@ class SpatialTransformer(nn.Module):
                     use_flash_attention=use_flash_attention,
                     disable_self_attn=disable_self_attn,
                     lora_network_alpha=lora_network_alpha,
+                    use_te=use_te,
                 )
                 for d in range(depth)
             ]
