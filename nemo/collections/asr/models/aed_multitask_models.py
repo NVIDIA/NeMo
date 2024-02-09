@@ -12,28 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-import json
 import os
-import tempfile
+from dataclasses import dataclass
 from math import ceil
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
-
-import editdistance
 import numpy as np
 import torch
-import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from torchmetrics.text import SacreBLEUScore
-from tqdm.auto import tqdm
-
-import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
@@ -41,7 +28,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 )
 from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.mixins.transcription import (
     GenericTranscriptionType,
     InternalTranscribeConfig,
@@ -459,7 +446,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
-
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         signal, signal_len, transcript, transcript_len = batch
@@ -587,7 +573,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
 
         elif isinstance(audio, (np.ndarray, torch.Tensor)):
             raise NotImplementedError("Transcribing from numpy or torch tensors is not supported yet.")
-        
+
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: MultiTaskTranscriptionConfig
     ) -> Dict[str, Any]:
@@ -652,7 +638,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
             decoder_input_ids=decoder_input_ids,
         )
         return output
-
 
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
@@ -779,7 +764,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
                 raise ValueError(f"Expected str or dict, got {type(item)}")
             out_json_items.append(entry)
         return out_json_items
-
 
     @classmethod
     def get_transcribe_config(cls) -> MultiTaskTranscriptionConfig:
