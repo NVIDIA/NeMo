@@ -289,10 +289,10 @@ def _flatten_paired_text(cut) -> list:
     if not isinstance(cut.custom["text"], dict):
         return [cut]
     cut = cut.move_to_memory(audio_format="wav")  # performs I/O once and holds audio in memory from now on
-    # Popping to ease eyesight on debug
-    paired_text = cut.custom.pop("text")
+    # Popping to ease eyesight on debug. Use copy to avoid lazy dataloading issues
+    paired_text = cut.custom.pop("text").copy()
     for lang, data in paired_text.items():
         text_instance = cut.map_supervisions(lambda s: fastcopy(s, text=data["text"], language=lang))
-        text_instance.custom = data
+        text_instance.custom = {**data}
         ans.append(text_instance)
     return ans

@@ -807,6 +807,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin):
         text = [self.decoding.strip_special_tokens(t) for t in text]
         return text
 
+    @classmethod
     def _config_check(cls, cfg):
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
