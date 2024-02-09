@@ -148,6 +148,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]
 
     return canary_tokens
 
+
 def canary_prompt(tokenizer: CanaryTokenizer, text, language, source_language, target_language, taskname, pnc):
     if isinstance(text, str):
         text = [text]
