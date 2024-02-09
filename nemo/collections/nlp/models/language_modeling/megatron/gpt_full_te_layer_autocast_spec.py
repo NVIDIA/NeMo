@@ -15,16 +15,14 @@
 from typing import Any, Callable, Optional
 
 import torch
-
-from nemo.collections.nlp.parts import utils_funcs
-
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
 from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-
 from transformer_engine.pytorch import TransformerLayer
+
+from nemo.collections.nlp.parts import utils_funcs
 
 
 # Copied from nemo/collections/nlp/modules/common/megatron/transformer.py
