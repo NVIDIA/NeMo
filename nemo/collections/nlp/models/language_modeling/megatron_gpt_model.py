@@ -540,7 +540,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         dp_rank = parallel_state.get_data_parallel_rank()
         global_rank = torch.distributed.get_rank()
 
-        self._nvtx_range = nvtx.start_range(f'Training Step [GPU rank {global_rank} (D{dp_rank}P{pp_rank}T{tp_rank})]', color='green')
+        self._nvtx_range = nvtx.start_range(f'training_step', color='green')
 
         self.timestamp = None
         if global_rank == 0:
