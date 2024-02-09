@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-import numpy as np
 import os
+from abc import abstractmethod
+from contextlib import nullcontext
+
+import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+
 # FP8 related import
 import transformer_engine
-from abc import abstractmethod
-from contextlib import nullcontext
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -87,7 +89,7 @@ class AttentionPool2d(nn.Module):
     """
 
     def __init__(
-            self, spacial_dim: int, embed_dim: int, num_heads_channels: int, output_dim: int = None,
+        self, spacial_dim: int, embed_dim: int, num_heads_channels: int, output_dim: int = None,
     ):
         super().__init__()
         self.positional_embedding = nn.Parameter(th.randn(embed_dim, spacial_dim ** 2 + 1) / embed_dim ** 0.5)
@@ -497,17 +499,17 @@ class UNetModel(nn.Module):
         use_new_attention_order=False,
         use_spatial_transformer=False,  # custom transformer support
         transformer_depth=1,  # custom transformer support
-            context_dim=None,  # custom transformer support
-            n_embed=None,  # custom support for prediction of discrete ids into codebook of first stage vq model
-            legacy=True,
-            use_linear_in_transformer=False,
-            from_pretrained: str = None,
-            from_NeMo=False,
-            # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
-            use_flash_attention: bool = False,
-            enable_amp_o2_fp16: bool = False,
-            lora_network_alpha=None,
-            use_te_fp8: bool = False,
+        context_dim=None,  # custom transformer support
+        n_embed=None,  # custom support for prediction of discrete ids into codebook of first stage vq model
+        legacy=True,
+        use_linear_in_transformer=False,
+        from_pretrained: str = None,
+        from_NeMo=False,
+        # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
+        use_flash_attention: bool = False,
+        enable_amp_o2_fp16: bool = False,
+        lora_network_alpha=None,
+        use_te_fp8: bool = False,
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -1069,7 +1071,7 @@ class UNetModel(nn.Module):
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         with transformer_engine.pytorch.fp8_autocast(
-                enabled=self.use_te_fp8, fp8_recipe=self.fp8_recipe,
+            enabled=self.use_te_fp8, fp8_recipe=self.fp8_recipe,
         ) if self.use_te_fp8 else nullcontext():
             out = self._forward(x, timesteps, context, y, **kwargs)
         return out
@@ -1082,7 +1084,7 @@ class EncoderUNetModel(nn.Module):
     """
 
     def __init__(
-            self,
+        self,
         image_size,
         in_channels,
         model_channels,
