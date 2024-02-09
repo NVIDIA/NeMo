@@ -43,6 +43,9 @@ class SentencePieceTokenizer(TokenizerSpec):
             raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
+        
+        # value is required for megatron-core
+        self.unique_identifiers = OrderedDict()
 
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
@@ -207,6 +210,15 @@ class SentencePieceTokenizer(TokenizerSpec):
 
     @property
     def eos_id(self):
+        if self.legacy:
+            eos_id = self.tokens_to_ids([self.eos_token])[0]
+        else:
+            eos_id = self.tokenizer.eos_id()
+        return eos_id
+
+    @property
+    def eod(self):
+        """Returns EOS token id. Exact copy of the eos_id function. Required for megatron-core."""
         if self.legacy:
             eos_id = self.tokens_to_ids([self.eos_token])[0]
         else:
