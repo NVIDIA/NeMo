@@ -219,8 +219,8 @@ class MegatronRetroModel(MegatronGPTModel):
         inference_config = self.get_inference_config()
 
         if torch.distributed.get_rank() == 0:
-            print("inference_config: ")
-            print(inference_config)
+            logging.info("inference_config: ")
+            logging.info(inference_config)
 
         if inference_config is None:
             return None
@@ -405,8 +405,8 @@ class MegatronRetroModel(MegatronGPTModel):
         retro_config.retro_num_retrieved_chunks = self.cfg.retro.get('retro_num_retrieved_chunks', 2)
         retro_config.retro_verify_neighbor_count = self.cfg.retro.get('retro_verify_neighbor_count', True)
         retro_config.retro_retrieved_length = retro_config.retro_num_retrieved_chunks * retro_config.retro_chunk_length
-        print("retro_config: ")
-        print(retro_config)
+        logging.info("retro_config: ")
+        logging.info(retro_config)
 
         return retro_config
 

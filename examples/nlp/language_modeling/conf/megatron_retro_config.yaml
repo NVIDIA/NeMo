@@ -2,7 +2,7 @@ defaults:
   - _self_
   - optional tp_overlap@model.ub_tp_comm_overlap_cfg:
 
-name: megatron_gpt
+name: megatron_retro
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -27,7 +27,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_gpt
+  name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
@@ -42,12 +42,12 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_retro--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
-  # use GPTModel from megatron.core
-  mcore_gpt: False
+  # use RETROModel from megatron.core, since RETRO model inherited from gpt, mcore_gpt is used
+  mcore_gpt: True
 
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -94,7 +94,7 @@ model:
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
-  retro:
+  retro:  # specific arguments for RETRO model
     retro_project_dir: null
     retro_encoder_num_layers: 2
     retro_encoder_hidden_dropout: 0.1
@@ -193,7 +193,7 @@ model:
   # If the configuration file is not provided a default setting is used for all communicators.
 
   ## Flash Attention
-  use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True
+  use_flash_attention: False # Use flash attention in self-attention module, this config does nothing when transformer_engine=True or mcore_gpt=True
   
   data:
    # Path to data must be specified by the user.
@@ -238,22 +238,17 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
   
   optim:
-    name: fused_adam
-    lr: 2.5e-05
+    name: distributed_fused_adam
+    lr: 6.0e-4
     weight_decay: 0.1 
     betas: 
     - 0.9
     - 0.95
     sched:
-      name: null
-      min_lr: null
+      name: CosineAnnealing
+      min_lr: 6.0e-5
       warmup_steps: null
-      max_steps: null
-    # sched:
-    #   name: CosineAnnealing
-    #   warmup_steps: 500
-    #   constant_steps: 50000
-    #   min_lr: 2e-5
+      max_steps: 750000
 
   gc_interval: 0
   # Interval of the host memory garbage collection. When it is zero, collectiion relies on the automatic garbage collector.
