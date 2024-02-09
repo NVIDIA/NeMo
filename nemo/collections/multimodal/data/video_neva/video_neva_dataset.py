@@ -57,6 +57,7 @@ MAX_NUM_IMAGES = 1
 MAX_NUM_VIDEOS = 1
 IGNORE_INDEX = -1
 
+
 class TarOrFolderVideoLoader:
     """
     A class for loading images from a tar archive or a regular folder.
@@ -123,6 +124,7 @@ class TarOrFolderVideoLoader:
         frames_array = np.array(frames)
 
         return frames_array
+
 
 class TarOrFolderImageLoader:
     """

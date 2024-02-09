@@ -7,17 +7,22 @@ python3 single_video_inference.py \
     --video_path <video_path>
 """
 
-from nemo.collections.multimodal.data.neva.conversation import Conversation, SeparatorStyle, conv_templates
+import argparse
+import os
+
+import cv2
+import numpy as np
 import torch
 
 # add new packages as below
 from PIL import Image
+
+from nemo.collections.multimodal.data.neva.conversation import Conversation, SeparatorStyle, conv_templates
+from nemo.collections.multimodal.data.video_neva.video_neva_dataset import (
+    TarOrFolderImageLoader,
+    TarOrFolderVideoLoader,
+)
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
-from nemo.collections.multimodal.data.video_neva.video_neva_dataset import TarOrFolderImageLoader, TarOrFolderVideoLoader
-import argparse
-import numpy as np
-import cv2
-import os
 
 # Define constants
 DEFAULT_VIDEO_TOKEN = "<video>"
@@ -26,8 +31,9 @@ DEFAULT_VID_START_TOKEN = "<vid_start>"
 DEFAULT_VID_END_TOKEN = "<vid_end>"
 
 
-def video_neva_infer(video_frames, question, conv_mode, model, vision_tower, tokenizer, image_processor,
-                        video_token_len):
+def video_neva_infer(
+    video_frames, question, conv_mode, model, vision_tower, tokenizer, image_processor, video_token_len
+):
     """
     Run inference using the Video-ChatGPT model.
 
@@ -51,7 +57,13 @@ def video_neva_infer(video_frames, question, conv_mode, model, vision_tower, tok
 
     # Prepare question string for the model
     if model.get_model().vision_config.use_vid_start_end:
-        qs = question + '\n' + DEFAULT_VID_START_TOKEN + DEFAULT_VIDEO_PATCH_TOKEN * video_token_len + DEFAULT_VID_END_TOKEN
+        qs = (
+            question
+            + '\n'
+            + DEFAULT_VID_START_TOKEN
+            + DEFAULT_VIDEO_PATCH_TOKEN * video_token_len
+            + DEFAULT_VID_END_TOKEN
+        )
     else:
         qs = question + '\n' + DEFAULT_VIDEO_PATCH_TOKEN * video_token_len
 
@@ -72,17 +84,15 @@ def video_neva_infer(video_frames, question, conv_mode, model, vision_tower, tok
 
     # Run model inference
     with torch.inference_mode():
-        output_ids = model.generate(
-            input_ids,
-            **inference_config)
+        output_ids = model.generate(input_ids, **inference_config)
 
     # Check if output is the same as input
-    n_diff_input_output = (input_ids != output_ids[:, :input_ids.shape[1]]).sum().item()
+    n_diff_input_output = (input_ids != output_ids[:, : input_ids.shape[1]]).sum().item()
     if n_diff_input_output > 0:
         print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
 
     # Decode output tokens
-    outputs = tokenizer.batch_decode(output_ids[:, input_ids.shape[1]:], skip_special_tokens=True)[0]
+    outputs = tokenizer.batch_decode(output_ids[:, input_ids.shape[1] :], skip_special_tokens=True)[0]
 
     return outputs
 
@@ -105,13 +115,14 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    model, vision_tower, tokenizer, image_processor, video_token_len = \
-        create_neva_model_and_processor(args.model_name, args.projection_path)
+    model, vision_tower, tokenizer, image_processor, video_token_len = create_neva_model_and_processor(
+        args.model_name, args.projection_path
+    )
 
     video_path = args.video_path
 
     if os.path.exists(video_path):
-        video_data_loader = TarOrFolderVideoLoader(video_folder = video_path)
+        video_data_loader = TarOrFolderVideoLoader(video_folder=video_path)
         video_object = video_data_loader.open_video(video_path)
         width = video_object.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = video_object.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -127,8 +138,9 @@ if __name__ == "__main__":
 
     try:
         # Run inference on the video and add the output to the list
-        output = video_neva_infer(video_frames, question, conv_mode, model, vision_tower,
-                                     tokenizer, image_processor, video_token_len)
+        output = video_neva_infer(
+            video_frames, question, conv_mode, model, vision_tower, tokenizer, image_processor, video_token_len
+        )
         print("\n\n", output)
 
     except Exception as e:

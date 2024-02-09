@@ -29,6 +29,7 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import FrozenCLIPVisionTransformer
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
     CLIPVisionTransformer,
     MegatronCLIPModel,
@@ -58,8 +59,6 @@ from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import FrozenCLIPVisionTransformer
-
 try:
     import apex.transformer.pipeline_parallel.utils
 
@@ -78,6 +77,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
 
 class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     """
