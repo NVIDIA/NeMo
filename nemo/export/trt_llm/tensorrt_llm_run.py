@@ -96,6 +96,7 @@ def _read_config(config_path: Path):
         paged_kv_cache=paged_kv_cache,
         tokens_per_block=tokens_per_block,
         max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+        max_batch_size=config["builder_config"]["max_batch_size"],
         dtype="bfloat16" if paged_kv_cache else ""
     )
 
@@ -131,7 +132,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
         decoder = tensorrt_llm.runtime.GenerationSession(
-            model_config, engine_buffer, runtime_mapping, debug_mode=True
+            model_config, engine_buffer, runtime_mapping, debug_mode=False
         )
 
         sampling_config = SamplingConfig(

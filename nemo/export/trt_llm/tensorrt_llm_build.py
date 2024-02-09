@@ -147,6 +147,8 @@ def build_rank_engine(
             network.plugin_config.enable_remove_input_padding()
         if args.paged_kv_cache:
             network.plugin_config.enable_paged_kv_cache()
+        else:
+            network.plugin_config.paged_kv_cache = False
         if args.use_ib_gpt_attention_plugin:
             network.plugin_config.set_inflight_batching_gpt_attention_plugin(
                 dtype=args.use_ib_gpt_attention_plugin
@@ -163,7 +165,7 @@ def build_rank_engine(
     if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
-    use_cache = True #args.paged_kv_cache
+    use_cache = True
 
     with net_guard(network):
         # Prepare
@@ -173,7 +175,7 @@ def build_rank_engine(
         inputs = tensorrt_llm_gpt.prepare_inputs(
             args.max_batch_size,
             args.max_input_len,
-            args.max_output_len,
+            args.max_input_len + args.max_output_len,
             use_cache,
             args.max_beam_width,
             paged_kv_cache=args.paged_kv_cache,
