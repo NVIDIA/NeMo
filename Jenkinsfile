@@ -74,7 +74,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/apex.git && \
              cd apex && \
-             git checkout f058162b215791b15507bb542f22ccfde49c872d && \
+             git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
              cp -R apex /usr/local/lib/python3.10/dist-packages'
       }
     }
