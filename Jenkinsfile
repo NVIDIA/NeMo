@@ -1,10 +1,16 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:23.12-py3'
+          image 'nvcr.io/nvidia/pytorch:24.01-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1'
         }
   }
+
+  environment {
+        NVTE_FUSED_ATTN = 0
+        NVTE_FLASH_ATTN = 0
+  }
+
   options {
     timeout(time: 8, unit: 'HOURS')
     disableConcurrentBuilds(abortPrevious: true)
@@ -62,7 +68,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
              cd TransformerEngine && \
-             git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
+             git fetch origin da30634a6c9ccdbb6c587b6c93b1860e4b038204 && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
              NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
@@ -602,6 +608,48 @@ pipeline {
         +trainer.fast_dev_run=True \
         +exp_manager.ema.enable=True \
         exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        sh 'rm -rf examples/asr/speech_to_text_results'
+      }
+
+    }
+
+    stage('L2: Speech to Text AED') {
+      when {
+        anyOf {
+          branch 'r1.23.0'
+          changeRequest target: 'r1.23.0'
+        }
+      }
+      steps {
+        sh 'python examples/asr/speech_multitask/speech_to_text_aed.py \
+        model.prompt_format=canary \
+        model.model_defaults.asr_enc_hidden=256 \
+        model.model_defaults.lm_dec_hidden=256 \
+        model.encoder.n_layers=12 \
+        model.transf_encoder.num_layers=0 \
+        model.transf_decoder.config_dict.num_layers=12 \
+        model.train_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_train.json \
+        ++model.train_ds.is_tarred=false \
+        model.train_ds.batch_duration=60 \
+        +model.train_ds.text_field="answer" \
+        +model.train_ds.lang_field="target_lang" \
+        model.validation_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_val.json \
+        +model.validation_ds.text_field="answer" \
+        +model.validation_ds.lang_field="target_lang" \
+        model.test_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_val.json \
+        +model.test_ds.text_field="answer" \
+        +model.test_ds.lang_field="target_lang" \
+        model.tokenizer.langs.spl_tokens.dir=/home/TestData/asr_tokenizers/canary/canary_spl_tokenizer_v32 \
+        model.tokenizer.langs.spl_tokens.type="bpe" \
+        model.tokenizer.langs.en.dir=/home/TestData/asr_tokenizers/canary/en/tokenizer_spe_bpe_v1024_max_4 \
+        model.tokenizer.langs.en.type=bpe \
+        ++model.tokenizer.langs.es.dir=/home/TestData/asr_tokenizers/canary/es/tokenizer_spe_bpe_v1024_max_4 \
+        ++model.tokenizer.langs.es.type=bpe \
+        trainer.devices=[0] \
+        trainer.accelerator="gpu" \
+        +trainer.use_distributed_sampler=false \
+        +trainer.fast_dev_run=True \
+        exp_manager.exp_dir=examples/asr/speech_to_text_aed_results'
         sh 'rm -rf examples/asr/speech_to_text_results'
       }
 
@@ -3185,7 +3233,7 @@ pipeline {
       }
       failFast true
       steps {
-        sh "export NVTE_ALLOW_NONDETERMINISTIC_ALGO=0 && python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        sh "NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
@@ -3215,7 +3263,8 @@ pipeline {
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings"
-        sh "export NVTE_ALLOW_NONDETERMINISTIC_ALGO=0 && python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+
+        sh "NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
