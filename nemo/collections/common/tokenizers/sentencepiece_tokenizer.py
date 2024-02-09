@@ -44,7 +44,7 @@ class SentencePieceTokenizer(TokenizerSpec):
             raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
-        
+
         # value is required for megatron-core
         self.unique_identifiers = OrderedDict()
 
