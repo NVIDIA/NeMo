@@ -38,7 +38,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import
     GPTFIMDatasetConfig,
     is_dataset_built_on_rank,
 )
-
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -325,7 +324,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._nsys_profile_end_step *= grad_accum_steps
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
-
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.loss_broadcast_src_rank = None
@@ -440,7 +438,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])
 
         else:
-            self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)ß
+            self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
     def configure_optimizers(self):
 

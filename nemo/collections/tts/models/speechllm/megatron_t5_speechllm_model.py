@@ -82,7 +82,6 @@ except:
 __all__ = ['MegatronT5SpeechLMModel']
 
 
-# MegatronBasePromptLearningModel):
 class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model.
