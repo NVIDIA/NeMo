@@ -1781,4 +1781,3 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     #     if speech_module == "conv":
     #         hidden_size = base_module.hidden_size
     #         base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
-
