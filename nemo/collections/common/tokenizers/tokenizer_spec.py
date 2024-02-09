@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from typing import List
 
 __all__ = ['TokenizerSpec']
@@ -53,3 +54,8 @@ class TokenizerSpec(ABC):
     @property
     def name(self):
         return type(self).__name__
+
+    @property
+    def unique_identifiers(self):
+        """Property required for use with megatron-core datasets."""
+        return OrderedDict({"class": f"{type(self).__module__}.{type(self).__qualname__}"})
