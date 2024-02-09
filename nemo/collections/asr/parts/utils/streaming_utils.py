@@ -1577,7 +1577,7 @@ class CacheAwareStreamingAudioBuffer:
 
 
 class FrameBatchMultiTaskAED(FrameBatchASR):
-    def __init__(self, asr_model, frame_len=1.6, total_buffer=4, batch_size=4):
+    def __init__(self, asr_model, frame_len=4, total_buffer=4, batch_size=4):
         super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
 
     def get_input_tokens(self, sample: dict):
@@ -1623,6 +1623,54 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             predictions = self.asr_model.predict_step(batch_input, has_processed_signal=True)
             self.all_preds.extend(predictions)
             del predictions
+
+    def transcribe(
+        self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False
+    ):
+        """
+        unsued params are for keeping the same signature as the parent class
+        """
+        self.infer_logits(keep_logits)
+
+        hypothesis = " ".join(self.all_preds)
+        if not keep_logits:
+            return hypothesis
+
+        print("keep_logits=True is not supported for MultiTaskAEDFrameBatchInfer. Returning empty logits.")
+        return hypothesis, []
+
+
+class FrameBatchChunkedRNNT(FrameBatchASR):
+    def __init__(self, asr_model, frame_len=4, total_buffer=4, batch_size=4):
+        super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
+
+    def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs, meta_data):
+        samples = get_samples(audio_filepath)
+        samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        frame_reader = AudioFeatureIterator(
+            samples, self.frame_len, self.raw_preprocessor, self.asr_model.device, pad_to_frame_len=False
+        )
+        self.set_frame_reader(frame_reader)
+
+    @torch.no_grad()
+    def _get_batch_preds(self, keep_logits=False):
+        device = self.asr_model.device
+        for batch in iter(self.data_loader):
+            feat_signal, feat_signal_len = batch
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+
+            encoded, encoded_len = self.asr_model(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
+
+            best_hyp_text, all_hyp_text = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+            )
+            self.all_preds.extend(best_hyp_text)
+            del best_hyp_text
+            del all_hyp_text
+            del encoded
+            del encoded_len
 
     def transcribe(
         self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False
