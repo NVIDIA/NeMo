@@ -18,6 +18,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
+import os
 
 from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -55,7 +56,6 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         assert (
             self.cfg.get("post_process", False) is False
         ), "post_process must be False to get hidden states in the loss_func"
-        self.vcount = 0
 
     def model_provider_func(self, pre_process, post_process):
         # (@adithyare) We need post_process to be False to get hidden states in the loss_func
@@ -230,9 +230,10 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                 raise ValueError(
                     f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                 )
-            filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+            # (@adithyare) We are not using the log key to write the embeddings to file
+            # filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
             self.write_embeddings_to_file(
-                deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                deduplicated_outputs, f"{data_cfg.output_file_path_prefix}"
             )
         return deduplicated_outputs, total_size
 
@@ -241,14 +242,15 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         d_hs = torch.cat(outputs['d_hs'], dim=0)
         q_hs_npy = q_hs.float().numpy()
         d_hs_npy = d_hs.float().numpy()
-        output_file_path = output_file_path + f"_num_val_epochs_{self.vcount}"
-        np.save(output_file_path + "_query.npy", q_hs_npy)
-        np.save(output_file_path + "_doc.npy", d_hs_npy)
-        with open(output_file_path + "_query.ids", "w") as f, open(output_file_path + "_doc.ids", "w") as f2:
+        consumed_samples = self._compute_consumed_samples_after_training_step()
+        emb_fldr = f"{output_file_path}/consumed_samples_{consumed_samples}/"
+        os.makedirs(emb_fldr, exist_ok=True)
+        with open(f"{emb_fldr}/query.ids", "w") as f, open(f"{emb_fldr}/doc.ids", "w") as f2:
             for m in outputs['metadata']:
                 f.write(m["query_id"] + "\n")
                 f2.write(m["doc_id"] + "\n")
-        self.vcount += 1
+        np.save(f"{emb_fldr}/query.npy", q_hs_npy)
+        np.save(f"{emb_fldr}/doc.npy", d_hs_npy)
         return True
 
     def local_validation_step(self, dataloader_iter, batch_idx):
