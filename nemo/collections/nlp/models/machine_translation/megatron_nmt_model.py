@@ -46,6 +46,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import Mega
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.megatron_export import DecEmb, EncEmb, TokensHeadEmb
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
@@ -954,25 +955,40 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     @property
     def encoder(self):
+        if type(self.enc_dec_model) is Float16Module:
+            obj = self.enc_dec_model.module
+        else:
+            obj = self.enc_dec_model
+
         return EncEmb(
-            self.enc_dec_model.encoder_embedding,
-            self.enc_dec_model.enc_dec_model.encoder,
-            self.enc_dec_model.encoder_relative_position_embedding,
+            obj.encoder_embedding,
+            obj.enc_dec_model.encoder,
+            obj.encoder_relative_position_embedding,
             self.device,
         )
 
     @property
     def decoder(self):
+        if type(self.enc_dec_model) is Float16Module:
+            obj = self.enc_dec_model.module
+        else:
+            obj = self.enc_dec_model
+
         return DecEmb(
-            self.enc_dec_model.decoder_embedding,
-            self.enc_dec_model.enc_dec_model.decoder,
-            self.enc_dec_model.decoder_relative_position_embedding,
+            obj.decoder_embedding,
+            obj.enc_dec_model.decoder,
+            obj.decoder_relative_position_embedding,
             self.device,
         )
 
     @property
     def log_softmax(self):
-        return TokensHeadEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.tokens_head, self.device)
+        if type(self.enc_dec_model) is Float16Module:
+            obj = self.enc_dec_model.module
+        else:
+            obj = self.enc_dec_model
+
+        return TokensHeadEmb(obj.decoder_embedding, obj.tokens_head, self.device)
 
     @property
     def input_module(self):

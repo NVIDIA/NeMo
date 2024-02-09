@@ -49,6 +49,9 @@ class TokensHeadEmb(torch.nn.Module, Exportable):
         if isinstance(dec_output, list):
             dec_output = dec_output[0]
 
+        # update dtype of dec_output to match the weights
+        dec_output = dec_output.to(self.decoder_embedding.word_embeddings.weight.dtype)
+
         if self.tokens_head_bias is not None:
             return F.linear(dec_output, self.decoder_embedding.word_embeddings.weight, self.tokens_head_bias).float()
         return F.linear(dec_output, self.decoder_embedding.word_embeddings.weight).float()
