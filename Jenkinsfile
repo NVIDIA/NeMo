@@ -5,6 +5,12 @@ pipeline {
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1'
         }
   }
+
+  environment {
+        NVTE_FUSED_ATTN = 0
+        NVTE_FLASH_ATTN = 0
+  }
+
   options {
     timeout(time: 8, unit: 'HOURS')
     disableConcurrentBuilds(abortPrevious: true)
