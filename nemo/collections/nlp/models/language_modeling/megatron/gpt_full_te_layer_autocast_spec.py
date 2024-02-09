@@ -16,36 +16,16 @@ from typing import Any, Callable, Optional
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    init_method_normal,
-    scaled_init_method_normal,
-)
 from nemo.collections.nlp.parts import utils_funcs
 
-try:
-    from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
-    from megatron.core.transformer.spec_utils import ModuleSpec
-    from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
-    from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
+from megatron.core import parallel_state, tensor_parallel
+from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
+from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
-    HAVE_MEGATRON_CORE = True
+from transformer_engine.pytorch import TransformerLayer
 
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
-    ModuleSpec = ApexGuardDefaults
-
-try:
-    from transformer_engine.pytorch import TransformerLayer
-
-    HAVE_TE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_TE = False
 
 # Copied from nemo/collections/nlp/modules/common/megatron/transformer.py
 # as the source file is slated to be removed
