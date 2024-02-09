@@ -310,25 +310,23 @@ class TestEMAConfig:
         # we save 3 checkpoints for the model, 3 accompanied EMA weights, the last checkpoint and nemo model.
         assert len(os.listdir(tmp_path / "checkpoints/")) == (save_top_k + 1) * 2 + 1
 
-        # Temporarily disable since resume starts from a decremented epoch and assertion errors out with
-        # more checkpoints.
         # reduce the top_k number when resuming, we should see only 2 top_k checkpoints now (one is deleted).
-        # save_top_k = 2
+        save_top_k = 2
 
-        # trainer = Trainer(max_epochs=10, enable_checkpointing=False, logger=False, devices=1)
-        # exp_manager(
-        #     trainer,
-        #     {
-        #         "ema": {"enable": True},
-        #         "explicit_log_dir": str(tmp_path),
-        #         "resume_if_exists": True,
-        #         "checkpoint_callback_params": {"save_top_k": save_top_k},
-        #     },
-        # )
-        # trainer.fit(model)
+        trainer = Trainer(max_epochs=10, enable_checkpointing=False, logger=False, devices=1)
+        exp_manager(
+            trainer,
+            {
+                "ema": {"enable": True},
+                "explicit_log_dir": str(tmp_path),
+                "resume_if_exists": True,
+                "checkpoint_callback_params": {"save_top_k": save_top_k},
+            },
+        )
+        trainer.fit(model)
 
-        # # we save 2 checkpoints for the model, 2 accompanied EMA weights, the last checkpoint and nemo model.
-        # assert len(os.listdir(tmp_path / "checkpoints/")) == (save_top_k + 1) * 2 + 1
+        # we save 2 checkpoints for the model, 2 accompanied EMA weights, the last checkpoint and nemo model.
+        assert len(os.listdir(tmp_path / "checkpoints/")) == (save_top_k + 1) * 2 + 1
 
 
 class TestEMATrain:
