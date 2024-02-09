@@ -255,6 +255,7 @@ class SentencePieceTokenizer(TokenizerSpec):
         ]
         return main_vocab + special_tokens
 
+
 class SentencePieceSpeechLLMTTSTokenizer(SentencePieceTokenizer):
     def add_phone_tokens_to_special_tokens(self):
         for i, word in enumerate(self.vocab):

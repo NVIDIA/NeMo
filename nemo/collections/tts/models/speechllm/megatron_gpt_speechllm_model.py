@@ -1,19 +1,19 @@
 import re
+
 import numpy as np
 import soundfile as sf
-
 import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource
 from nemo.collections.tts.data.speechllm.t5_speechlm_dataset import GPTSpeechLMDataset
 from nemo.collections.tts.data.speechllm.t5_speechlm_tarred_dataset import GPTSpeechLMTarredDataset
-from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
 from nemo.utils.app_state import AppState
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
 
 class MegatronSpeechGPTModel(MegatronGPTModel):

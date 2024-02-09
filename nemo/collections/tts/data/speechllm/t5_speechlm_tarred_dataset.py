@@ -24,16 +24,22 @@ from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+import webdataset as wd
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
-import webdataset as wd
 
 # from encodec import EncodecModel
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, shard_manifests_if_needed, expand_sharded_filepaths, _speech_collate_fn
+from nemo.collections.asr.data.audio_to_text import (
+    _speech_collate_fn,
+    cache_datastore_manifests,
+    expand_sharded_filepaths,
+    shard_manifests_if_needed,
+)
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import T5Sentinel
 from nemo.collections.nlp.modules.common import VirtualPromptSource
@@ -44,9 +50,8 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     general_padding,
     get_base_dir,
 )
-from nemo.utils import logging
-from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import IterableDataset
+from nemo.utils import logging
 
 __all__ = ['T5SpeechLMTarredDataset', 'GPTSpeechLMTarredDataset']
 
@@ -133,7 +138,6 @@ class InstructionTuningManifestProcessor:
             decoder_only_model=decoder_only_model,
             use_phoneme_tokenizer=use_phoneme_tokenizer,
         )
-
 
 
 class _TarredInstructionTuningDataset(IterableDataset):
@@ -304,6 +308,7 @@ class _TarredInstructionTuningDataset(IterableDataset):
 
     def __len__(self):
         return self.len
+
 
 class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
     """
