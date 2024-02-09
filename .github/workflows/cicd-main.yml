@@ -127,7 +127,7 @@ jobs:
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
 
-  cicd-tests:
+  cicd-tests2:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
