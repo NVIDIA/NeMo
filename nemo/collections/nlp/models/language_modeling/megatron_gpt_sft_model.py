@@ -96,6 +96,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         self._reset_activation_checkpointing_args()
         self.virtual_tokens = 0
+        self.init_global_step = 0
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
