@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-LANGUAGES_BCP_37 = {
+LANGUAGES_BCP_47 = {
     "ar-ar": "arabic_standard",
+    "cz-cs": "czech_czech_republic",
     "de-de": "german_standard",
     "en-us": "english_united_states",
-    "en-gb": "english_britain",
+    "en-gb": "english_united_kingdom",
     "es-us": "spanish_united_states",
     "es-es": "spanish_spain",
     "fr-fr": "french_france",
@@ -24,6 +25,7 @@ LANGUAGES_BCP_37 = {
     "it-it": "italian_standard",
     "ja-jp": "japanese_standard",
     "ko-kr": "korean_standard",
+    "pt-pt": "portuguese_standard",
     "pt-br": "portuguese_brazil",
     "ru-ru": "russian_standard",
     "zh-cn": "mandarin_mainland",
@@ -31,6 +33,7 @@ LANGUAGES_BCP_37 = {
 
 LANGUAGES_ISO_2 = {
     "ar": "arabic",
+    "cz": "czech",
     "de": "german",
     "en": "english",
     "es": "spanish",
