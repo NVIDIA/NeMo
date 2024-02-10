@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import Dict
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-from nemo.collections.common.tokenizers.lang_codes import LANGUAGES_BCP_37, LANGUAGES_ISO_2
+from nemo.collections.common.tokenizers.lang_codes import LANGUAGES_BCP_47, LANGUAGES_ISO_2
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 __all__ = ['CanaryTokenizer']
 
 # Import list of NeMo+Riva languages
-SUPPORTED_LANGUAGES = {**LANGUAGES_ISO_2, **LANGUAGES_BCP_37}
+SUPPORTED_LANGUAGES = {**LANGUAGES_ISO_2, **LANGUAGES_BCP_47}
 TO_LANGUAGE_CODE = {language: code for code, language in SUPPORTED_LANGUAGES.items()}
 
 SPECIAL_TOKENS = [
@@ -104,7 +104,7 @@ class CanaryTokenizer(AggregateTokenizer):
         model_path = output_dir / "tokenizer.model"
         create_spt_model(
             str(text_path),
-            vocab_size=len(SPECIAL_TOKENS),
+            vocab_size=len(SPECIAL_TOKENS) + 2,
             sample_size=-1,
             do_lower_case=False,
             output_dir=str(output_dir),
