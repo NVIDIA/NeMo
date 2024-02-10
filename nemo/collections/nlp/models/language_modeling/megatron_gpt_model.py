@@ -683,7 +683,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.log_memory_usage:
             mem_reserved = torch.cuda.max_memory_reserved()
-            self.log('peak_memory_usage', mem_reserved, prog_bar = True, rank_zero_only=True, batch_size=1,
+            self.log(
+                'peak_memory_usage', mem_reserved, prog_bar=True, rank_zero_only=True, batch_size=1,
             )
 
         ## logging
