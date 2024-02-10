@@ -1205,13 +1205,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
-        mock_dataset = self.cfg.data.get("mock_dataset", False)
+        mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
             "sequence_length": self.cfg.data.seq_length,
-            "blend": self.cfg.data.data_prefix,
-            "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
             "tokenizer": self.tokenizer,
             "reset_position_ids": self.reset_position_ids,
@@ -1219,6 +1217,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "eod_mask_loss": self.eod_mask_loss,
             "mock": mock_dataset,
         }
+
+        # support for dict data input type
+        if isinstance(self.cfg.data.data_prefix, DictConfig):
+            _pref = self.cfg.data.data_prefix
+            kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+        else:
+            kwargs['blend'] = self.cfg.data.data_prefix
+            kwargs["split"] = self.cfg.data.splits_string
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
