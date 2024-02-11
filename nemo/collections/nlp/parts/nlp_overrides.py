@@ -52,7 +52,7 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
-from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from torch.distributed.fsdp.wrap import _or_policy, lambda_auto_wrap_policy, transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -528,6 +528,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         precision: Union[int, str] = 'bf16-mixed',
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
+        peft: str = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -551,9 +552,19 @@ class NLPFSDPStrategy(FSDPStrategy):
             AutocastTransformerLayer,
             ParallelTransformerLayer,
         }
-        kwargs['auto_wrap_policy'] = functools.partial(
-            transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
-        )
+
+        # PEFT integration
+        if peft:
+            lambda_policy = functools.partial(lambda_auto_wrap_policy, lambda_fn=self.lambda_policy_fn)
+            transformer_wrap_policy = functools.partial(
+                transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
+            )
+            auto_wrap_policy = functools.partial(_or_policy, policies=[lambda_policy, transformer_wrap_policy])
+            kwargs['auto_wrap_policy'] = auto_wrap_policy
+        else:
+            kwargs['auto_wrap_policy'] = functools.partial(
+                transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
+            )
 
         # Set FSDP sharding strategy.
         fsdp_sharding_strategy = {
@@ -777,6 +788,19 @@ class NLPFSDPStrategy(FSDPStrategy):
             model and optimizer.
         """
         return True
+    
+    def lambda_policy_fn(self, module) -> bool:
+        """
+        TODO: [write docstring]
+        """
+        if (
+            len(list(module.named_children())) == 0
+            and getattr(module, "weight", None) is not None
+            and module.weight.requires_grad
+        ):
+            return True
+        return False
+    
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
