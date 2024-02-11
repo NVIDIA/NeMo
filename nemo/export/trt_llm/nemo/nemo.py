@@ -44,6 +44,7 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
         "moe_top_k": "num_experts_per_token",
         "moe_tp_mode": "moe_tp_mode",
         "moe_renorm_mode": "moe_renorm_mode",
+        "norm_epsilon": "layernorm_epsilon",
     }
 
     kwargs = {

@@ -319,6 +319,9 @@ class DecoderLayerConfig:
     moe_top_k: int = None
     moe_tp_mode: int = None
     moe_renorm_mode: int = None
+    
+    vocab_size: int = 0
+    norm_epsilon: float = 0.0
 
     @property
     def hidden_size(self):
@@ -353,6 +356,8 @@ class DecoderLayerConfig:
             moe_top_k=(llm_config.moe_top_k if hasattr(llm_config, "moe_top_k") else None),
             moe_tp_mode=(llm_config.moe_tp_mode if hasattr(llm_config, "moe_tp_mode") else None),
             moe_renorm_mode=(llm_config.moe_renorm_mode if hasattr(llm_config, "moe_renorm_mode") else None),
+            vocab_size=llm_config.vocab_size,
+            norm_epsilon=llm_config.norm_epsilon,
         )
         layer_config.input_layernorm = LayernormConfig()
         layer_config.input_layernorm.layernorm_type = (

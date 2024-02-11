@@ -16,7 +16,9 @@ from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType, MoeConfig
 from tensorrt_llm.models.llama.model import LLaMADecoderLayer
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
+from tensorrt_llm.quantization import QuantMode
 from typing_extensions import override
+from tensorrt_llm.mapping import Mapping
 
 from ..model_config import (
     LINEAR_COLUMN,
@@ -146,24 +148,24 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                     )
             else:
                 config = PretrainedConfig(
-                    architecture="",
+                    architecture=None,
                     dtype=self.dtype,
                     logits_dtype=self.dtype,
-                    vocab_size=0, #TODO ????????????????
+                    vocab_size=layer.vocab_size,
                     max_position_embeddings=self.max_position_embeddings,
                     hidden_size=self.hidden_size,
-                    num_hidden_layers=0, #TODO ????????????????,
+                    num_hidden_layers=self.num_layers,
                     num_attention_heads=self.num_attention_heads,
                     num_key_value_heads=self.num_kv_heads,
                     hidden_act=non_gated_version(self.hidden_act),
-                    intermediate_size=0, #TODO ????????????????,
-                    norm_epsilon=0.0, #TODO ????????????????,
-                    position_embedding_type=PositionEmbeddingType.rope_gpt_neox,
-                    world_size=0, #TODO ????????????????,
+                    intermediate_size=layer.ffn_hidden_size_local * self.tensor_parallel,
+                    norm_epsilon=layer.norm_epsilon,
+                    position_embedding_type="rope_gpt_neox",
+                    world_size=self.tensor_parallel,
                     tp_size=self.tensor_parallel,
-                    pp_size=0, #TODO ????????????????,
-                    #quant_mode: QuantMode,
-                    #quant_kwargs: dict,
+                    pp_size=1,
+                    quant_mode=QuantMode(0),
+                    quant_kwargs=None,
                     #use_prompt_tuning: bool = False,
                     #use_parallel_embedding: bool = False,
                     #embedding_sharding_dim: int = 0,
@@ -172,9 +174,23 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                     #head_size: int = None,
                 )
 
+                config.set_if_not_exist('mlp_bias', False)
+                config.set_if_not_exist('attn_bias', False)
+                config.set_if_not_exist('rotary_base', layer.rotary_base)
+                config.set_if_not_exist('rotary_scaling', rotary_scaling)
+                config.set_if_not_exist('enable_pos_shift', False)
+                config.set_if_not_exist('dense_context_fmha', False)
+                config.set_if_not_exist('moe_num_experts', 0)
+                config.set_if_not_exist('moe_num_experts', 0)
+                config.set_if_not_exist('moe_num_experts', 0)
+                #config.set_if_not_exist('moe_top_k', 0)
+                #config.set_if_not_exist('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL)
+                #config.set_if_not_exist('moe_normalization_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE)
+
+
                 return LLaMADecoderLayer(
                     config=config,
-                    layer_id=self.layer_id,
+                    layer_idx=self.layer_id,
                 )
 
 
