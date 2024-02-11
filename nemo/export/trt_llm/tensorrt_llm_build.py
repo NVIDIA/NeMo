@@ -134,6 +134,8 @@ def build_rank_engine(
         network.plugin_config.set_gpt_attention_plugin(dtype=args.use_gpt_attention_plugin)
 
     if not ootb:
+        network.plugin_config.use_custom_all_reduce = False
+
         if args.use_gemm_plugin:
             network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)
         if args.use_layernorm_plugin:

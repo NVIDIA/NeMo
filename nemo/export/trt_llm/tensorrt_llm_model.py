@@ -331,7 +331,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             use_lora_plugin=False,
             lora_target_modules=None,
             max_draft_len=0,
-            # use_custom_all_reduce=use_custom_all_reduce,
+            use_custom_all_reduce=use_custom_all_reduce,
         )
 
         # todo: we should remove this, but hesitant since no explicit argument names below.
