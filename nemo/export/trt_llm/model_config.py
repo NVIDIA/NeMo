@@ -315,6 +315,9 @@ class DecoderLayerConfig:
     rotary_scaling: float = None
     position_embedding_type: str = None
 
+    vocab_size: int = 0
+    norm_epsilon: float = 0.0
+
     @property
     def hidden_size(self):
         """Returns the hidden size of the transformer model."""
@@ -344,6 +347,8 @@ class DecoderLayerConfig:
             rotary_scaling=(llm_config.rotary_scaling if hasattr(llm_config, "rotary_scaling") else None),
             position_embedding_type=(llm_config.position_embedding_type if hasattr(llm_config, "position_embedding_type") else None),
             num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
+            vocab_size=llm_config.vocab_size,
+            norm_epsilon=llm_config.norm_epsilon,
         )
         layer_config.input_layernorm = LayernormConfig()
         layer_config.input_layernorm.layernorm_type = (
