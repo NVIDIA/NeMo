@@ -25,8 +25,8 @@ from transformers import CLIPImageProcessor
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
-from nemo.utils.model_utils import inject_model_parallel_rank
 from nemo.utils import AppState, logging
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import dist_checkpointing
