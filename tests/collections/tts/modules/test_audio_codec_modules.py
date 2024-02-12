@@ -112,7 +112,7 @@ class TestAudioCodecModules:
         inputs = torch.rand([self.batch_size, self.in_channels, self.max_len])
         inputs = mask_sequence_tensor(tensor=inputs, lengths=lengths)
 
-        res_block = ResidualBlock(in_channels=self.in_channels, filters=self.filters)
+        res_block = ResidualBlock(channels=self.in_channels, filters=self.filters)
         out = res_block(inputs=inputs, input_len=lengths)
 
         assert out.shape == (self.batch_size, self.in_channels, self.max_len)

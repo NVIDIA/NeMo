@@ -119,6 +119,8 @@ model:
     _target_: nemo.collections.tts.modules.audio_codec_modules.MultiBandMelEncoder
     mel_bands: [[0, 10], [10, 20], [20, 30], [30, 40], [40, 50], [50, 60], [60, 70], [70, 80]]
     out_channels: 4 # The dimension of each codebook
+    hidden_channels: 128
+    filters: 256
     mel_processor:
       _target_: nemo.collections.tts.modules.audio_codec_modules.MelSpectrogramProcessor
       mel_dim: 80

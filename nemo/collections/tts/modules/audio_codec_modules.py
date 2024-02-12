@@ -59,18 +59,22 @@ def get_up_sample_padding(kernel_size: int, stride: int) -> Tuple[int, int]:
 
 class CodecActivation(nn.Module):
     """
-    Choose between snake or Elu activation based on the input parameter.
+    Choose between activation based on the input parameter.
+
+    Args:
+        activation: Name of activation to use. Valid options are "elu" (default), "lrelu", and "snake".
+        channels: Input dimension.
     """
 
     def __init__(self, activation: str = "elu", channels: int = 1):
         super().__init__()
         activation = activation.lower()
-        if activation == "snake":
-            self.activation = Snake(channels)
-        elif activation == "elu":
+        if activation == "elu":
             self.activation = nn.ELU()
         elif activation == "lrelu":
             self.activation = torch.nn.LeakyReLU()
+        elif activation == "snake":
+            self.activation = Snake(channels)
         else:
             raise ValueError(f"Unknown activation {activation}")
 
@@ -721,11 +725,19 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
 class ResidualBlock(NeuralModule):
     """
     The residual block structure defined by the HiFi-GAN V1 and V2 configurations.
+
+    Args:
+        channels: Input dimension.
+        filters: Number of channels in the residual convolutions.
+        kernel_size: Kernel size of the residual convolutions.
+        dilation: Dilation of the residual convolutions.
+        dropout_rate: Dropout to apply to residuals.
+        activation: Activation to apply in between residual convolutions.
     """
 
     def __init__(
         self,
-        in_channels: int,
+        channels: int,
         filters: int,
         kernel_size: int = 3,
         dilation: int = 1,
@@ -734,13 +746,13 @@ class ResidualBlock(NeuralModule):
     ):
         super(ResidualBlock, self).__init__()
 
-        self.input_activation = CodecActivation(activation=activation, channels=in_channels)
+        self.input_activation = CodecActivation(activation=activation, channels=channels)
         self.skip_activation = CodecActivation(activation=activation, channels=filters)
         self.dropout = torch.nn.Dropout(dropout_rate)
         self.input_conv = Conv1dNorm(
-            in_channels=in_channels, out_channels=filters, kernel_size=kernel_size, dilation=dilation
+            in_channels=channels, out_channels=filters, kernel_size=kernel_size, dilation=dilation
         )
-        self.skip_conv = Conv1dNorm(in_channels=filters, out_channels=in_channels, kernel_size=kernel_size)
+        self.skip_conv = Conv1dNorm(in_channels=filters, out_channels=channels, kernel_size=kernel_size)
 
     def remove_weight_norm(self):
         self.input_conv.remove_weight_norm()
@@ -768,6 +780,12 @@ class ResidualBlock(NeuralModule):
 class HiFiGANResBlock(NeuralModule):
     """
     Residual block wrapper for HiFi-GAN which creates a block for multiple dilations.
+
+    Args:
+        channels: Input dimension.
+        kernel_size: Kernel size of the residual blocks.
+        dilations: List of dilations. One residual block will be created for each dilation in the list.
+        activation: Activation for the residual blocks.
     """
 
     def __init__(self, channels: int, kernel_size: int, dilations: Iterable[int], activation: str):
@@ -776,7 +794,7 @@ class HiFiGANResBlock(NeuralModule):
         self.res_blocks = nn.ModuleList(
             [
                 ResidualBlock(
-                    in_channels=channels,
+                    channels=channels,
                     filters=channels,
                     kernel_size=kernel_size,
                     dilation=dilation,
@@ -812,6 +830,14 @@ class HiFiGANResBlock(NeuralModule):
 class HiFiGANResLayer(NeuralModule):
     """
     Residual block wrapper for HiFi-GAN which creates a block for multiple kernel sizes and dilations.
+    One residual block is created for each combination of kernel size and dilation.
+
+    Args:
+        channels: Input dimension.
+        kernel_sizes: List of kernel sizes.
+        dilations: List of dilations.
+        activation: Activation for the residual layers.
+
     """
 
     def __init__(self, channels: int, kernel_sizes: Iterable[int], dilations: Iterable[int], activation: str):
@@ -862,7 +888,7 @@ class HiFiGANDecoder(NeuralModule):
         out_kernel_size: Kernel size of the output convolution.
         resblock_kernel_sizes: List of kernel sizes to use in each residual block.
         resblock_dilation_sizes: List of dilations to use in each residual block.
-        activation: Activation to use, defaults to leaky relu.
+        activation: Activation to use in residual and upsample layers, defaults to leaky relu.
     """
 
     def __init__(
@@ -1027,8 +1053,8 @@ class ResNetEncoder(NeuralModule):
         in_channels: int,
         out_channels: int,
         num_layers: int = 6,
-        hidden_channels: int = 128,
-        filters: int = 256,
+        hidden_channels: int = 256,
+        filters: int = 768,
         kernel_size: int = 3,
         dropout_rate: float = 0.1,
         activation: str = "lrelu",
@@ -1039,7 +1065,7 @@ class ResNetEncoder(NeuralModule):
         self.res_layers = nn.ModuleList(
             [
                 ResidualBlock(
-                    in_channels=hidden_channels,
+                    channels=hidden_channels,
                     filters=filters,
                     kernel_size=kernel_size,
                     dropout_rate=dropout_rate,
@@ -1078,6 +1104,45 @@ class ResNetEncoder(NeuralModule):
         return encoded
 
 
+class FullBandMelEncoder(NeuralModule):
+    """
+    Encoder which encodes the entire mel spectrogram with a single encoder network.
+
+    Args:
+        mel_processor: MelSpectrogramProcessor or equivalent class instance for computing the mel spectrogram from
+            input audio.
+        encoder: ResNetEncoder or equivalent class for encoding the mel spectrogram.
+    """
+
+    def __init__(self, mel_processor: NeuralModule, encoder: NeuralModule):
+        super(FullBandMelEncoder, self).__init__()
+        self.mel_processor = mel_processor
+        self.encoder = encoder
+
+    def remove_weight_norm(self):
+        self.encoder.remove_weight_norm()
+
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "encoded": NeuralType(('B', 'C', 'T_encoded'), EncodedRepresentation()),
+            "encoded_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @typecheck()
+    def forward(self, audio, audio_len):
+        out, spec_len = self.mel_processor(audio=audio, audio_len=audio_len)
+        encoded = self.encoder(inputs=out, input_len=spec_len)
+        return encoded, spec_len
+
+
 class MultiBandMelEncoder(NeuralModule):
     """
     Encoder which splits mel spectrogram into bands and encodes each using separate residual networks.
@@ -1085,7 +1150,7 @@ class MultiBandMelEncoder(NeuralModule):
     Args:
         mel_bands: List of mel spectrogram bands to encode.
             Each list element is tuple of 2 elements with the start and end index of the mel features to use.
-        mel_processor: MelSpectrogramProcessor or equivalent class for computing the mel spectrogram from
+        mel_processor: MelSpectrogramProcessor or equivalent class instance for computing the mel spectrogram from
             input audio.
         encoder_kwargs: Arguments for constructing encoder for each mel band.
     """
@@ -1140,5 +1205,5 @@ class MultiBandMelEncoder(NeuralModule):
             band_out = encoder(inputs=spec_band, input_len=spec_len)
             outputs.append(band_out)
         # [B, C, T]
-        out = torch.cat(outputs, dim=1)
-        return out, spec_len
+        encoded = torch.cat(outputs, dim=1)
+        return encoded, spec_len
