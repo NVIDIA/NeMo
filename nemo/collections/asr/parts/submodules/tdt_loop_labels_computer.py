@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
@@ -32,7 +32,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         decoder,
         joint,
         blank_index: int,
-        durations: list[int],
+        durations: Union[list[int], ListConfig[int]],
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments=False,
         preserve_frame_confidence=False,
@@ -44,6 +44,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             decoder: Prediction network from RNN-T
             joint: Joint module from RNN-T
             blank_index: index of blank symbol
+            durations: list of TDT durations, e.g., [0, 1, 2, 4, 8]
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
@@ -52,7 +53,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         super().__init__()
         self.decoder = decoder
         self.joint = joint
-        self.durations = list(durations)
+        self.durations: list[int] = list(durations)
         self._blank_index = blank_index
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
