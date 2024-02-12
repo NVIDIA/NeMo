@@ -114,7 +114,7 @@ MLFlow
             prefix: ''
             artifact_location: None
             # provide run_id if resuming a previously started run
-            run_id: Optional[str] = None
+            run_id: None
 
 DLLogger
 ~~~~~~~~
