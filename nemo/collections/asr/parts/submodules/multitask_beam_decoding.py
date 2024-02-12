@@ -215,7 +215,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 class AEDBeamInferConfig:
     beam_size: int = 1
     search_type: str = 'default'
-    len_pen: float = 0.0
-    max_generation_delta: int = -1  # a negative value means up to the decoder max sequence length
+    len_pen: float = 1.0
+    max_generation_delta: int = -1  # -1 means up to the max length of the decoder
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False
