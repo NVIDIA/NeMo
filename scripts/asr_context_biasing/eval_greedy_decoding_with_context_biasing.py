@@ -157,13 +157,13 @@ def decoding_step(
 
     level = logging.getEffectiveLevel()
     logging.setLevel(logging.CRITICAL)
-    # Reset config
+    # reset config
     asr_model.change_decoding_strategy(None)
 
     # preserve alignment:
     asr_model.cfg.decoding.preserve_alignments = cfg.preserve_alignments
 
-    # Update model's decoding strategy config
+    # update model's decoding strategy config
     if isinstance(asr_model, EncDecCTCModelBPE):
         # in case of ctc
         asr_model.cfg.decoding.strategy = "greedy"
@@ -173,7 +173,7 @@ def decoding_step(
         # fast greedy batch decoding:
         asr_model.cfg.decoding.greedy.loop_labels = True
 
-    # Update model's decoding strategy
+    # update model's decoding strategy
     asr_model.change_decoding_strategy(asr_model.cfg.decoding)
     logging.setLevel(level)
 
@@ -356,18 +356,14 @@ def main(cfg: EvalContextBiasingConfig):
             durations.append(data['duration'])
             audio_file_paths.append(str(audio_file.absolute()))
 
-    @contextlib.contextmanager
-    def default_autocast():
-        yield
-
     if cfg.use_amp:
         if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
             logging.info("AMP is enabled!\n")
             autocast = torch.cuda.amp.autocast
         else:
-            autocast = default_autocast
+            autocast = contextlib.nullcontext
     else:
-        autocast = default_autocast
+        autocast = contextlib.nullcontext
 
     # manual calculation of encoder_embeddings
     with autocast():
