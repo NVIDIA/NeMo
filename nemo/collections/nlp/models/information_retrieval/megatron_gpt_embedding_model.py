@@ -171,7 +171,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
 
     def gather_and_maybe_write_predictions(self, output, data_cfg, mode, dataloader_idx=0):
         if not data_cfg.get("write_embeddings_to_file", False):
-            return True 
+            return True
         gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
         torch.distributed.all_gather_object(
             gathered_outputs,
