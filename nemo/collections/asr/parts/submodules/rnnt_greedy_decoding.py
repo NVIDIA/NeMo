@@ -2625,7 +2625,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        loop_labels: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2642,20 +2641,17 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         # switch between more efficient batch decoding technique
         self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            if loop_labels:
-                self._decoding_computer = GreedyBatchedTDTLoopLabelsComputer(
-                    decoder=self.decoder,
-                    joint=self.joint,
-                    blank_index=self._blank_index,
-                    durations=self.durations,
-                    max_symbols_per_step=self.max_symbols,
-                    preserve_alignments=preserve_alignments,
-                    preserve_frame_confidence=preserve_frame_confidence,
-                    confidence_method_cfg=confidence_method_cfg,
-                )
-                self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
-            else:
-                self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+            self._decoding_computer = GreedyBatchedTDTLoopLabelsComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                blank_index=self._blank_index,
+                durations=self.durations,
+                max_symbols_per_step=self.max_symbols,
+                preserve_alignments=preserve_alignments,
+                preserve_frame_confidence=preserve_frame_confidence,
+                confidence_method_cfg=confidence_method_cfg,
+            )
+            self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:
             self._greedy_decode = self._greedy_decode_masked
 
