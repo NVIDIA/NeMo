@@ -201,6 +201,12 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                 f"Initializing Lhotse CutSet from a single NeMo manifest (non-tarred): '{config.manifest_filepath}'"
             )
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **common_kwargs))
+            question_file = config.get("question_file_set", None)
+            if question_file is not None:
+                logging.info(f"Use random questions from {question_file} for {config.manifest_filepath}")
+                assert len(question_file) == 1, "Only one question file is supported for non-tarred data."
+                questions = get_random_questions(question_file[0])
+                cuts = cuts.map(partial(sample_and_attach_question, questions=questions))
         else:
             logging.info(
                 f"Initializing Lhotse CutSet from multiple NeMo manifests (non-tarred): '{config.manifest_filepath}'"
