@@ -766,6 +766,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                     all_hypotheses[i] = [self.decoding.strip_special_tokens(text) for text in all_hypotheses[i]]
 
         del enc_states, enc_mask, decoder_input_ids
+        if all_hypotheses is None:
+            return best_hypotheses
         return best_hypotheses, all_hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
