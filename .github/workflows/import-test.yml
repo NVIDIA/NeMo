@@ -76,7 +76,7 @@ jobs:
   test-nlp-imports:
     runs-on: ubuntu-latest
     container:
-      image: nvcr.io/nvidia/pytorch:24.01-py3
+      image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
     steps:
     - name: Checkout repo
       uses: actions/checkout@v2
