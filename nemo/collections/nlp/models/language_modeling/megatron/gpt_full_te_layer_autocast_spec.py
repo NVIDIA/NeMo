@@ -30,9 +30,11 @@ except:
                      Either it is not present or there is an API mismatch between this lib and it's dependencies.
                      You've been extremely lucky even seeing this warning in your logs, because this is no a part of the stack trace you've just seen.
                      Good luck!
-                  """ 
+                  """
     import sys
+
     print(warning_msg, file=sys.stderr)
+
     class TotallyNotTransformerLayer:
         def __init__(self, *args, **kwargs) -> None:
             pass
