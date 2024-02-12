@@ -367,6 +367,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 noise_positonal_embedding=self.cfg.get('noise_positonal_embedding', False),
                 adversarial_training=self.cfg.get('adversarial_training', False),
                 adversarial_training_epsilon=self.cfg.get('adversarial_training_epsilon', 0.01),
+                noise_scheduler_config=self.cfg.get('noise_scheduler_config', None),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -444,6 +445,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 noise_positonal_embedding=self.cfg.get('noise_positonal_embedding', False),
                 adversarial_training=self.cfg.get('adversarial_training', False),
                 adversarial_training_epsilon=self.cfg.get('adversarial_training_epsilon', 0.01),
+                noise_scheduler_config=self.cfg.get('noise_scheduler_config', None),
             )
         return model
 
