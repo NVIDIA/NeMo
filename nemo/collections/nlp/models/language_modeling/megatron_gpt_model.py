@@ -70,6 +70,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from nemo.utils.te_utils import is_float8tensor
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -483,8 +484,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     param._disable_overlap_grad_sync = True
 
             # Initialize parameter buckets for overlapped grad and param syncs
-            # Note: Params with disabled overlapping are put in the
-            # last param bucket
+            # Note: Params with disabled overlapping and params in the
+            # first layer are put together in a bucket. If FP8 tensors
+            # are detected, those are also put in the first layer's
+            # bucket.
+            def make_parameter_bucket(module: torch.nn.Module) -> List[torch.nn.Parameter]:
+                bucket = [
+                    param for param in module.parameters() if not getattr(param, '_disable_overlap_grad_sync', False)
+                ]
+                if any(is_float8tensor(param) for param in bucket):
+                    bucket = list(filter(is_float8tensor, bucket))
+                return bucket
+
             buckets = []
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
@@ -493,13 +504,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module = module.module
                     stage_bucket = []
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    for layer in layers:
-                        stage_bucket.extend(
-                            p
-                            for p in layer.parameters()
-                            if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
-                        )
-                    buckets.append(stage_bucket)
+                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
             else:
                 # Initialize a bucket for each Transformer layer
                 modules = self.model if isinstance(self.model, list) else [self.model]
@@ -507,21 +512,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    for layer in layers:
-                        buckets.append(
-                            [
-                                p
-                                for p in layer.parameters()
-                                if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
-                            ]
-                        )
+                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
             buckets.reverse()
-            used_params = set()
-            for bucket in buckets:
-                used_params.update(bucket)
-            remaining_params = [p for p in self.parameters() if p not in used_params and p.requires_grad]
-            if remaining_params:
-                buckets.append(remaining_params)
+            used_params = set(itertools.chain.from_iterable(buckets))
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -910,11 +904,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return batch
 
     def get_batch_on_this_context_parallel_rank(self, batch):
-        cp_size = self.cfg.get('context_parallel_size', 1)
         num_valid_tokens_in_ub = None
         if 'loss_mask' in batch and batch['loss_mask'] is not None:
             num_valid_tokens_in_ub = batch['loss_mask'].sum()
 
+        cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
             for key, val in batch.items():
@@ -1011,7 +1005,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                cp_size = self.cfg.get('context_parallel_size', 1)
+                cp_size = parallel_state.get_context_parallel_world_size()
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
@@ -1167,8 +1161,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
         loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
-        cp_size = self.cfg.get('context_parallel_size', 1)
-        if cp_size > 1:
+        if parallel_state.get_context_parallel_world_size() > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         return loss
 

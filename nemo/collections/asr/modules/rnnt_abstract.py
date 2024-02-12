@@ -278,8 +278,9 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
+    @classmethod
     def batch_replace_states_mask(
-        self, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
     ):
         """Replace states in dst_states with states from src_states using the mask"""
         raise NotImplementedError()
