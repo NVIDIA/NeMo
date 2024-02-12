@@ -162,6 +162,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
+            # for blank labels force duration >= 1
             durations.masked_fill_(torch.logical_and(durations == 0, blank_mask), 1)
             time_indices_current_labels.copy_(time_indices, non_blocking=True)
             if use_alignments:
@@ -215,6 +216,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                     )
 
                 blank_mask = labels == self._blank_index
+                # for blank labels force duration >= 1
                 durations.masked_fill_(torch.logical_and(durations == 0, blank_mask), 1)
                 # same as time_indices[advance_mask] += durations[advance_mask], but non-blocking
                 torch.where(advance_mask, time_indices + durations, time_indices, out=time_indices)
