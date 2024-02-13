@@ -242,7 +242,6 @@ def _forward(
                 )
 
             torch.cuda.synchronize()
-
             runtime_rank = tensorrt_llm.mpi_rank()
             if runtime_rank == 0:
                 return output_ids

@@ -110,6 +110,8 @@ def build_rank_engine(
             network.plugin_config.set_context_fmha(ContextFMHAType.enabled_with_fp32_acc)
         if args.remove_input_padding:
             network.plugin_config.enable_remove_input_padding()
+        else:
+            network.plugin_config.remove_input_padding = False
         if args.paged_kv_cache:
             network.plugin_config.enable_paged_kv_cache()
         else:
@@ -189,6 +191,9 @@ def _build_impl(tensorrt_llm_model, args):
         max_batch_size=args.max_batch_size,
         max_input_len=args.max_input_len,
         max_output_len=args.max_output_len,
+        max_beam_width=args.max_beam_width,
+        max_num_tokens=None,
+        max_draft_len=0,
         int8="int8" in args.quantization,
         opt_level=args.builder_opt,
         paged_kv_cache=args.paged_kv_cache,
@@ -196,6 +201,8 @@ def _build_impl(tensorrt_llm_model, args):
         max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
         use_parallel_embedding=args.use_parallel_embedding,
         fp8="fp8" in args.quantization,
+        gather_context_logits=False,
+        gather_generation_logits=False,
     )
     
     tp_size = args.mapping.tp_size
