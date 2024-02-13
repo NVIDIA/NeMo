@@ -582,7 +582,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
                 if self.encoder_relative_position_embedding is None:
-                    enc_position_ids = build_position_ids(enc_input_ids)
+                    enc_input_ids_p = enc_input_ids[:, 0, :] if enc_input_ids.dim() == 3 else enc_input_ids
+                    enc_position_ids = build_position_ids(enc_input_ids_p)
                 else:
                     enc_position_ids = None
                 enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
@@ -632,7 +633,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
             if self.pre_process and self.add_decoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
                 if self.decoder_relative_position_embedding is None:
-                    dec_position_ids = build_position_ids(dec_input_ids)
+                    dec_input_ids_p = dec_input_ids[:, 0, :] if dec_input_ids.dim() == 3 else dec_input_ids
+                    dec_position_ids = build_position_ids(dec_input_ids_p)
                 else:
                     dec_position_ids = None
                 dec_input = self.get_decoder_embeddings(dec_input_ids, dec_position_ids, token_type_ids)

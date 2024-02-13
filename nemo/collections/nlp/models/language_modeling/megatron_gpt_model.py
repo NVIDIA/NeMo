@@ -193,7 +193,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
             param.requires_grad = False
 
     def input_example(self, max_batch=1, max_dim=768, seq_len=6):
-        ids = [self.model.tokenizer.text_to_ids(text) for text in ["how is the weather on           Sunday"]]
+        ids = [self.model.tokenizer.text_to_ids(text) for text in ["how is the weather on Sunday"]]
         id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
         masks_and_position_ids = [
             get_ltor_masks_and_position_ids(id_tensor, self.model.tokenizer.eos_id, False, False, False)

@@ -894,6 +894,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         enc_input = torch.cat(enc_input, dim=1)
 
+        if enc_input.dim() == 3:
+            enc_input = enc_input[:, 0, :]
         return build_position_ids(enc_input).contiguous()
 
     def collate_fn(self, batch):
@@ -1428,7 +1430,8 @@ class GPTSpeechLMDataset(T5SpeechLMDataset):
         # print(torch.max(torch.sum(attention_mask[:,0,:,:] * cross_attention_prior, 2)))
 
         decoder_input = torch.stack(decoder_input_list)
-        position_ids = build_position_ids(decoder_input)
+        decoder_input_p = decoder_input[:, 0, :] if decoder_input.dim() == 3 else decoder_input
+        position_ids = build_position_ids(decoder_input_p)
         data_dict = {
             "tokens": decoder_input,
             "position_ids": position_ids,
