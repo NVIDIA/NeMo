@@ -115,6 +115,13 @@ pipeline {
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
       }
     }
+    stage('Import Checks'){
+      steps {
+        sh 'python tests/core_ptl/check_imports.py --domain "asr"'
+        sh 'python tests/core_ptl/check_imports.py --domain "nlp"'
+        sh 'python tests/core_ptl/check_imports.py --domain "tts"'
+      }
+    }
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads'
