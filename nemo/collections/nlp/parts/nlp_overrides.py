@@ -788,7 +788,7 @@ class NLPFSDPStrategy(FSDPStrategy):
             model and optimizer.
         """
         return True
-    
+
     def lambda_policy_fn(self, module) -> bool:
         """
         TODO: [write docstring]
@@ -800,7 +800,6 @@ class NLPFSDPStrategy(FSDPStrategy):
         ):
             return True
         return False
-    
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
