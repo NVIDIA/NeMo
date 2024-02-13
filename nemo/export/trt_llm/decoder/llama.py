@@ -166,7 +166,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                     pp_size=1,
                     quant_mode=QuantMode(0),
                     quant_kwargs=None,
-                    #use_prompt_tuning: bool = False,
+                    #use_prompt_tuning=layer.use_prompt_tuning,
                     #use_parallel_embedding: bool = False,
                     #embedding_sharding_dim: int = 0,
                     #share_embedding_table: bool = False,
@@ -181,12 +181,9 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 config.set_if_not_exist('enable_pos_shift', False)
                 config.set_if_not_exist('dense_context_fmha', False)
                 config.set_if_not_exist('moe_num_experts', 0)
-                config.set_if_not_exist('moe_num_experts', 0)
-                config.set_if_not_exist('moe_num_experts', 0)
                 #config.set_if_not_exist('moe_top_k', 0)
                 #config.set_if_not_exist('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL)
                 #config.set_if_not_exist('moe_normalization_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE)
-
 
                 return LLaMADecoderLayer(
                     config=config,

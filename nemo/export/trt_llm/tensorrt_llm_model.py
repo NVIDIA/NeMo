@@ -302,8 +302,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
         use_gemm_plugin = default_net().plugin_config.gemm_plugin
-        paged_kv_cache = default_net().plugin_config.paged_kv_cache
-        tokens_per_block = default_net().plugin_config.tokens_per_block
+        #paged_kv_cache = default_net().plugin_config.paged_kv_cache
+        #tokens_per_block = default_net().plugin_config.tokens_per_block
         use_custom_all_reduce = default_net().plugin_config.use_custom_all_reduce
 
         model_inputs = self.prepare_basic_inputs(
