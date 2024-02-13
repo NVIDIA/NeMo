@@ -185,13 +185,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
-        # Raise error if using multiple dataloaders
-        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
-        if type(self._test_dl) == list and len(self._test_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
         # when using pipeline model parallel the final stage need to initialize word embeddings
         self.initialize_last_rank_embeddings()
 
@@ -409,20 +402,17 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return self.inference_step(dataloader_iter, 'validation')
 
     def test_step(self, dataloader_iter):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
         return self.inference_step(dataloader_iter, 'test')
 
     def inference_step(self, dataloader_iter, mode):
-        # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super().validation_step(itertools.chain([batch]))
+        # Pass dataloader_idx to the dataloader_iter with batch and fetch it in val step of MegatronGPTModel,
+        # as it's needed to append the loss correctly to self.val/test_step_outputs in case of multi dataloaders
+        loss = super().validation_step(itertools.chain([dataloader_idx],[batch]))
 
         if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
             # We need _inference_config to get generation params
@@ -466,7 +456,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
-        if not outputs:
+        if not outputs or not outputs[0]:
             return
 
         if isinstance(outputs[0], dict):
