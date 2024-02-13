@@ -5,7 +5,7 @@ trainer:
   accelerator: gpu
   num_nodes: 1
   precision: 32
-  logger: False 
+  logger: False
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: -1
@@ -14,7 +14,7 @@ trainer:
   val_check_interval: null
   check_val_every_n_epoch: 1
   gradient_clip_val: 1.0
-  resume_from_checkpoint: null 
+  resume_from_checkpoint: null
   limit_val_batches: 25
 
 exp_manager:
@@ -49,8 +49,8 @@ model:
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1 
-  global_batch_size: 16 
+  pipeline_model_parallel_size: 1
+  global_batch_size: 16
   micro_batch_size: 16 # micro batch size should equal global batch size when pipeline parallel = 1
   validation_global_batch_size: ${model.global_batch_size}
   validation_micro_batch_size: ${model.micro_batch_size}
@@ -60,23 +60,22 @@ model:
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
   seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
   speech_head_type: "linear" # token_level, linear
-  cross_entropy_type: "vocab_parallel" # regular, vocab_parallel
   attn_prior_scaledown_start_step: 10000
   attn_prior_end_step: 11000
   return_all_crossattention_probs: True
   num_cross_attention_heads: 12 # 12 for 220m, 16 for 3b.
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
-  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training. 
+  save_nemo_on_validation_end: True # Saves an inference ready .nemo file every time a checkpoint is saved during training.
   existing_tasks: []
-  new_tasks: ["squad"] 
+  new_tasks: ["squad"]
 
 
-  task_templates: 
-  - taskname: "squad" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
+  task_templates:
+  - taskname: "squad"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}"
     total_virtual_tokens: 3
-    virtual_token_splits: [3] 
+    virtual_token_splits: [3]
     truncate_field: context
     answer_field: answer
 
@@ -116,8 +115,8 @@ model:
   optim:
     name: fused_adam
     lr: 5e-5
-    weight_decay: 0.01 
-    betas: 
+    weight_decay: 0.01
+    betas:
     - 0.9
     - 0.98
     # sched:

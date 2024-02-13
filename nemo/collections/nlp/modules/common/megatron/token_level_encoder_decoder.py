@@ -151,7 +151,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         self.tokens_head_bias = tokens_head_bias
 
         # Overridden in MegatronT5SpeechLMModel constructor
-        self.cross_entropy_type = "vocab_parallel"
         self.seq_pattern = "parallel"
         self.speech_head_type = "token_level"
         self.hiddens_cfg = hiddens_cfg
@@ -804,18 +803,18 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     label_smoothing = self.label_smoothing if self.training else 0.0
 
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
-                    _cross_entropy_function = vocab_parallel_cross_entropy
-                    if self.cross_entropy_type == "regular":
-                        _cross_entropy_function = regular_cross_entropy
-
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
-                        tokens_loss = _cross_entropy_function(token_logits, labels[0, :, :], label_smoothing)
+                        if labels.dim() == 3:
+                            raise NotImplementedError("fp16_cross_entropy is not support for labels of dimension 3")
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
                         if labels.dim() == 2:
-                            tokens_loss = _cross_entropy_function(token_logits.float(), labels, label_smoothing)
+                            tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
                         elif labels.dim() == 3:
-                            tokens_loss = _cross_entropy_function(
+                            if token_logits.size()[0] != labels[0, :, :].size()[0]:
+                                raise Exception("TODO: add a permute")
+                            tokens_loss = vocab_parallel_cross_entropy(
                                 token_logits.float(), labels[0, :, :], label_smoothing
                             )
                             logging.debug(f"token_loss: {tokens_loss}")
@@ -826,8 +825,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                             ):
                                 for i in range(speech_layers):
                                     # What is labels[:7, :, :] if this is text? (It is all zeros)
+                                    if speech_logits_list[i].size()[0] != labels[i + 1, :, :].size()[0]:
+                                        raise Exception("TODO: add a permute")
                                     curr_codebook_loss = (
-                                        _cross_entropy_function(
+                                        vocab_parallel_cross_entropy(
                                             speech_logits_list[i].float(), labels[i + 1, :, :], label_smoothing
                                         )
                                         * speech_mask.T

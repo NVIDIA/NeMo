@@ -151,9 +151,13 @@ def post_language_model_processing(
                 else:
                     first_layer_logits = output[:, :, : text_size + 1024]
                 # print(f"loss: {first_layer_logits.shape} | {labels[0, :, :].shape}")
+                if first_layer_logits.size()[0] != labels[0, :, :].size()[0]:
+                    raise Exception("TODO: add a permute")
                 loss += vocab_parallel_cross_entropy(first_layer_logits.float(), labels[0, :, :])
                 for i in range(speech_layers):
                     # print(f"loss {i}: {speech_logits[:, :, :, i].shape} | {labels[i + 1, :, :].shape}")
+                    if speech_logits[:, :, :, i].size()[0] != labels[i + 1, :, :].size()[0]:
+                        raise Exception("TODO: add a permute")
                     loss += (
                         vocab_parallel_cross_entropy(speech_logits[:, :, :, i].float(), labels[i + 1, :, :])
                         * speech_mask.T

@@ -589,6 +589,21 @@ class SpeechGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         super().__init__(model)
         self.forward_model = self.model.model
 
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        tokenizer = self.model.tokenizer
+        tokens = context_tokens.contiguous().cuda()
+        # Get the attention mask and postition ids.
+        self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
+            tokens,
+            tokenizer.eos_id,
+            self.model.cfg.get('reset_position_ids', False),
+            self.model.cfg.get('reset_attention_mask', False),
+            self.model.cfg.get('eod_mask_loss', False),
+            compute_attention_mask=compute_attention_mask,
+        )
+
     def tokenize_batch(self, sentences, max_len, add_BOS):
         context_tokens_tensor, context_length_tensor = super().tokenize_batch(sentences, max_len, add_BOS)
 
@@ -671,8 +686,7 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):
-        # return GPTModelTextGenerationStrategy(model)
-        return SpeechGPTModelTextGenerationStrategy(model)
+        return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']
         del args['strategy']
@@ -687,6 +701,12 @@ def model_inference_strategy_dispatcher(model, **args):
         else:
             raise ValueError(f'{strategy_name} is not supported for inference')
     else:
+        try:
+            from nemo.collections.tts.models.speechllm.megatron_gpt_speechllm_model import MegatronSpeechGPTModel
+            if isinstance(model, MegatronSpeechGPTModel):
+                return SpeechGPTModelTextGenerationStrategy(model)
+        except (ImportError, ModuleNotFoundError):
+            pass
         raise ValueError(f'{model} is not supported for inference')
 
     # Should call GPTModel or Megatron Retrieval Model's forward method
