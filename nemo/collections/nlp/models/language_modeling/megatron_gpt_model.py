@@ -1111,6 +1111,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         # if done:
         #     return
+        # Get the dataloader_idx when MegatronGPTSFTModel calls validation_step of MegatronGPTModel
+        next_item_dataloader = next(dataloader_iter)
+        if isinstance(next_item_dataloader, int):
+            dataloader_idx = next_item_dataloader
+        else:
+            dataloader_iter = itertools.chain([next_item_dataloader],dataloader_iter)
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -1131,7 +1137,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+
+        if mode == 'val':
+            # MegatronGPTSFTModel class supports multiple dataloaders and uses validation_step of MegatronGPTModel.
+            # Supporting that case with below lines
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx] = loss
+            else:
+                self.test_step_outputs.append(loss)
+
         return loss
 
     def on_validation_epoch_end(self):
