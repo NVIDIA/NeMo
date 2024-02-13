@@ -43,8 +43,8 @@ to correctly configure creating GPT-2 model in Megatron:
 Here is an example usage command:
 ```python
 python convert_starcoder_hf_to_nemo.py \
-    --input-name-or-path /path/to/starcoder \
-    --output-path /path/to/save.nemo
+    --input_name_or_path /path/to/starcoder \
+    --output_path /path/to/save.nemo
 ```
 """
 
@@ -98,14 +98,14 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path",
+        "--input_name_or_path",
         type=str,
         required=True,
         help="Path to Starcoder checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument("--output-path", type=str, required=True, help="Path to dir where to store output .nemo file")
+    parser.add_argument("--output_path", type=str, required=True, help="Path to dir where to store output .nemo file")
     parser.add_argument(
-        "--hparams-file",
+        "--hparams_file",
         type=str,
         default=os.path.join(
             os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gpt_config.yaml'

@@ -21,8 +21,8 @@ user to run additional script to set the TP/PP values manually.
 Example to run this conversion script:
 ```
     python convert_falcon_hf_to_nemo.py \
-     --input-name-or-path /path/to/hf/checkpoints/folder \
-     --output-path /path/to/output/nemo/file \
+     --input_name_or_path /path/to/hf/checkpoints/folder \
+     --output_path /path/to/output/nemo/file \
      --precision <precision of converted nemo model>
 ```
 """
@@ -117,14 +117,14 @@ def load_falcon_config(args) -> FalconConfig:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path",
+        "--input_name_or_path",
         type=str,
         required=True,
         help="Path to Falcon variants checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument("--output-path", type=str, required=True, help="Path to dir where to store output .nemo file")
+    parser.add_argument("--output_path", type=str, required=True, help="Path to dir where to store output .nemo file")
     parser.add_argument(
-        "--hparams-file",
+        "--hparams_file",
         type=str,
         default=os.path.join(
             os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_falcon_config.yaml'

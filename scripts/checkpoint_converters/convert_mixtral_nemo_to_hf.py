@@ -16,8 +16,8 @@ r"""
 Conversion script to convert NeMo Mixtral checkpoints into HuggingFace checkpoint.
   Example to run this conversion script:
     python3 convert_mixtral_nemo_to_hf.py \
-     --input-name-or-path <path_to_nemo_checkpoints_folder> \
-     --output-path <path_to_output_hf_file> 
+     --input_name_or_path <path_to_nemo_checkpoints_folder> \
+     --output_path <path_to_output_hf_file> 
 """
 
 from argparse import ArgumentParser
@@ -37,11 +37,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path", type=str, default=None, required=True, help="Path to NeMo Mixtral checkpoint"
+        "--input_name_or_path", type=str, default=None, required=True, help="Path to NeMo Mixtral checkpoint"
     )
-    parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument(
-        '--hf-model-name', type=str, default="mistralai/Mixtral-8x7B-v0.1", help="Name of HF checkpoint"
+        '--hf_model_name', type=str, default="mistralai/Mixtral-8x7B-v0.1", help="Name of HF checkpoint"
     )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()

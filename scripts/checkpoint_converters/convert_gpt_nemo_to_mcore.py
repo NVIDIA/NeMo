@@ -40,22 +40,22 @@ Please use a container later than 23.10 or the current github main branch
 
 Then, run this conversion script:
 python convert_gpt_nemo_to_mcore.py \
- --input-name-or-path <path to extracted, TP1 PP1 legacy checkpoint folder> \
- --output-path <path to output nemo file>
+ --input_name_or_path <path to extracted, TP1 PP1 legacy checkpoint folder> \
+ --output_path <path to output nemo file>
 """
 
 
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path",
+        "--input_name_or_path",
         type=str,
         default=None,
         required=True,
         help="Path to extracted, TP1 PP1 NeMo GPT checkpoint.",
     )
     parser.add_argument(
-        "--output-path",
+        "--output_path",
         type=str,
         default=None,
         required=True,

@@ -16,8 +16,8 @@ r"""
 Conversion script to convert HuggingFace Mistral-7B checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python convert_mistral_7b_hf_to_nemo.py \
-     --input-name-or-path <path_to_mistral_checkpoints_folder> \
-     --output-path <path_to_output_nemo_file> 
+     --input_name_or_path <path_to_mistral_checkpoints_folder> \
+     --output_path <path_to_output_nemo_file> 
 """
 
 
@@ -47,13 +47,13 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path",
+        "--input_name_or_path",
         type=str,
         default=None,
         required=True,
         help="Path to Huggingface Mistral-7b checkpoints",
     )
-    parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
     return args

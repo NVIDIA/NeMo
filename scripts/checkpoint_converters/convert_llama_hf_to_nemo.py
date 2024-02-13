@@ -16,8 +16,8 @@ r"""
 Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python convert_llama_hf_to_nemo.py \
-     --input-name-or-path <path_to_hf_checkpoints_folder> \
-     --output-path <path_to_output_nemo_file>
+     --input_name_or_path <path_to_hf_checkpoints_folder> \
+     --output_path <path_to_output_nemo_file>
 """
 
 import os
@@ -44,11 +44,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
-    parser.add_argument("--output-path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
-        "--hparams-file",
+        "--hparams_file",
         type=str,
         default=os.path.join(
             os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml'

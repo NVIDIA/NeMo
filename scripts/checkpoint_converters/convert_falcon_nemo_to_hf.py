@@ -32,16 +32,16 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 1) Generate only HF weights from a nemo file:
 
     python convert_falcon_nemo_to_hf.py \
-    --input-name-or-path /path/to/file.nemo or /path/to/extracted_folder \
-    --output-path /path/to/pytorch_model.bin
+    --input_name_or_path /path/to/file.nemo or /path/to/extracted_folder \
+    --output_path /path/to/pytorch_model.bin
     
 2) Generate the full HF model folder
 
     python convert_falcon_nemo_to_hf.py \
-    --input-name-or-path /path/to/file.nemo or /path/to/extracted_folder \
-    --output-path /path/to/pytorch_model.bin \
-    --hf-input-path /path/to/input_hf_folder \
-    --hf-output-path /path/to/output_hf_folder
+    --input_name_or_path /path/to/file.nemo or /path/to/extracted_folder \
+    --output_path /path/to/pytorch_model.bin \
+    --hf_input_path /path/to/input_hf_folder \
+    --hf_output_path /path/to/output_hf_folder
 
     Use the --cpu-only flag if the model cannot fit in the GPU (e.g. falcon 180b). 
     However this option makes the conversion script significantly slower.
@@ -51,18 +51,18 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input-name-or-path", type=str, required=True, help="Path to .nemo file",
+        "--input_name_or_path", type=str, required=True, help="Path to .nemo file",
     )
-    parser.add_argument("--output-path", type=str, required=True, help="Path to HF .bin file")
+    parser.add_argument("--output_path", type=str, required=True, help="Path to HF .bin file")
     parser.add_argument(
-        "--hf-input-path",
+        "--hf_input_path",
         type=str,
         default=None,
         help="A HF model path, "
         "e.g. a folder containing https://huggingface.co/meta-falcon/falcon-2-7b-hf/tree/main",
     )
     parser.add_argument(
-        "--hf-output-path",
+        "--hf_output_path",
         type=str,
         default=None,
         help="Output HF model path, " "with the same format as above but user's own weights",
