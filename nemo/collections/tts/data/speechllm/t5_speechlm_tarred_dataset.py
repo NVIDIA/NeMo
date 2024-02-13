@@ -836,7 +836,7 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         enc_input = torch.cat(enc_input, dim=1)
 
         enc_input_p = enc_input[:, 0, :] if enc_input.dim() == 3 else enc_input
-        return build_position_ids(enc_input).contiguous()
+        return build_position_ids(enc_input_p).contiguous()
 
     def collate_fn(self, batch):
         """ Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch """

@@ -894,9 +894,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
 
         enc_input = torch.cat(enc_input, dim=1)
 
-        if enc_input.dim() == 3:
-            enc_input = enc_input[:, 0, :]
-        return build_position_ids(enc_input).contiguous()
+        enc_input_p = enc_input[:, 0, :] if enc_input.dim() == 3 else enc_input
+        return build_position_ids(enc_input_p).contiguous()
 
     def collate_fn(self, batch):
         """ Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch """
