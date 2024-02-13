@@ -916,7 +916,7 @@ class TestExpManager:
         test_trainer.fit(model)
 
         ckpt_filenames = {f.name for f in checkpoints_dir.rglob("*.ckpt") if f.is_file()}
-        assert len(ckpt_filenames) == 4 # 3 top + 1 last
+        assert len(ckpt_filenames) == 4  # 3 top + 1 last
         assert 'epoch=7-last.ckpt' in ckpt_filenames
         assert 'epoch=6.ckpt' in ckpt_filenames
         assert 'epoch=5.ckpt' in ckpt_filenames

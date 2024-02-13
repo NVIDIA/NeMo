@@ -18,8 +18,8 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
-from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -412,7 +412,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         # Pass dataloader_idx to the dataloader_iter with batch and fetch it in val step of MegatronGPTModel,
         # as it's needed to append the loss correctly to self.val/test_step_outputs in case of multi dataloaders
-        loss = super().validation_step(itertools.chain([dataloader_idx],[batch]))
+        loss = super().validation_step(itertools.chain([dataloader_idx], [batch]))
 
         if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
             # We need _inference_config to get generation params
