@@ -15,10 +15,9 @@
 r"""
 Conversion script to convert NeMo Mixtral checkpoints into HuggingFace checkpoint.
   Example to run this conversion script:
-    python3 convert_nemo_mixtral_to_hf.py \
-     --in-file <path_to_nemo_checkpoints_folder> \
-     --out-file <path_to_output_hf_file> \
-     [--fast-swiglu\
+    python3 convert_mixtral_nemo_to_hf.py \
+     --input_name_or_path <path_to_nemo_checkpoints_folder> \
+     --output_path <path_to_output_hf_file> 
 """
 
 from argparse import ArgumentParser
@@ -37,10 +36,12 @@ from nemo.utils import logging
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--in-file", type=str, default=None, required=True, help="Path to NeMo Mixtral checkpoint")
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument(
-        '--hf-model-name', type=str, default="mistralai/Mixtral-8x7B-v0.1", help="Name of HF checkpoint"
+        "--input_name_or_path", type=str, default=None, required=True, help="Path to NeMo Mixtral checkpoint"
+    )
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
+    parser.add_argument(
+        '--hf_model_name', type=str, default="mistralai/Mixtral-8x7B-v0.1", help="Name of HF checkpoint"
     )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
@@ -233,12 +234,12 @@ def convert(in_file, precision=None) -> None:
 if __name__ == '__main__':
     args = get_args()
     parallel_state.set_cpu_expert_model_parallel_world_size(1)
-    hf_state_dict, nemo_config = convert(args.in_file, args.precision)
+    hf_state_dict, nemo_config = convert(args.input_name_or_path, args.precision)
 
     config = load_config(args.hf_model_name, nemo_config)
     model = AutoModelForCausalLM.from_config(config)
     model.load_state_dict(hf_state_dict)
-    model.save_pretrained(args.out_file)
+    model.save_pretrained(args.output_path)
     hf_tokenizer = AutoTokenizer.from_pretrained(args.hf_model_name)
-    hf_tokenizer.save_pretrained(args.out_file)
-    logging.info(f'HF checkpoint saved to: {args.out_file}')
+    hf_tokenizer.save_pretrained(args.output_path)
+    logging.info(f'HF checkpoint saved to: {args.output_path}')
