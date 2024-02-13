@@ -121,9 +121,6 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
     # Note: For 'key' and 'value' weight and biases, NeMo uses a consolidated tensor 'query_key_value'.
     for key_ in list(nemo_state_dict.keys()):
-        # if 'word_embeddings.weight' in key_:
-        #     weight = nemo_state_dict[key_]
-        #     nemo_state_dict[key_] = weight * math.sqrt(hidden_size)
         if 'mlp.linear_fc1_gate.weight' in key_:
             key_gate = key_
             key_proj = key_.replace('mlp.linear_fc1_gate.weight', 'mlp.linear_fc1_proj.weight')
@@ -173,11 +170,12 @@ def adjust_nemo_config(model_config, ref_config):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("--input-name-or-path", type=str)
+    parser.add_argument("--tokenizer-path", default=None, type=str)
     parser.add_argument(
         "--hparams-file",
         type=str,
         default=os.path.join(os.path.dirname(__file__),
-                             '../../examples/nlp/language_modeling/conf/megatron_taurus_config.yaml'),
+                             '../../examples/nlp/language_modeling/conf/megatron_gemma_config.yaml'),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
@@ -196,6 +194,8 @@ def convert(args):
         pyt_config = get_config_for_2b()
     else:
         pyt_config = get_config_for_7b()
+    if args.tokenizer_path is not None:
+        pyt_config.tokenizer = args.tokenizer_path
 
     device = torch.device("cuda")
     pyt_config.dtype = "bfloat16" if args.precision == "bf16" else "float32"
