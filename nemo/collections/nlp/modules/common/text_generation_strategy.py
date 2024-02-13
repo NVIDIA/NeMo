@@ -595,6 +595,8 @@ class SpeechGPTModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         tokenizer = self.model.tokenizer
         tokens = context_tokens.contiguous().cuda()
         # Get the attention mask and postition ids.
+        if tokens.dim() == 3:
+            tokens = tokens[:, 0, :]
         self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
             tokens,
             tokenizer.eos_id,

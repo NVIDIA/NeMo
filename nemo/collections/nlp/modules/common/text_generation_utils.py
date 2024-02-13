@@ -261,22 +261,6 @@ def get_computeprob_response(tokenizer, response, inputs):
         return None
 
 
-def get_batch(model, tokenizer, context_tokens):
-    """Generate batch from context tokens."""
-    # Move to GPU.
-    tokens = context_tokens.contiguous().cuda()
-    # Get the attention mask and postition ids.
-    attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-        tokens,
-        tokenizer.eos_id,
-        model.cfg.get('reset_position_ids', False),
-        model.cfg.get('reset_attention_mask', False),
-        model.cfg.get('eod_mask_loss', False),
-    )
-
-    return tokens, attention_mask, position_ids
-
-
 def tab_logits(logits, min_id, max_id, filter_value=-float('Inf')):
     logits[:, :min_id] = filter_value
     logits[:, max_id:] = filter_value
