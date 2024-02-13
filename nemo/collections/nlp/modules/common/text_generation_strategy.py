@@ -705,6 +705,7 @@ def model_inference_strategy_dispatcher(model, **args):
     else:
         try:
             from nemo.collections.tts.models.speechllm.megatron_gpt_speechllm_model import MegatronSpeechGPTModel
+
             if isinstance(model, MegatronSpeechGPTModel):
                 return SpeechGPTModelTextGenerationStrategy(model)
         except (ImportError, ModuleNotFoundError):
