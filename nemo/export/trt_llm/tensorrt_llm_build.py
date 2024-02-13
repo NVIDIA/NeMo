@@ -152,8 +152,6 @@ def build_rank_engine(
         )
         tensorrt_llm_gpt(*inputs)
 
-    engine = None
-
     # Network -> Engine
     engine = builder.build_engine(network, builder_config)
     if args.mapping.rank == 0:
@@ -203,6 +201,7 @@ def _build_impl(tensorrt_llm_model, args):
         fp8="fp8" in args.quantization,
         gather_context_logits=False,
         gather_generation_logits=False,
+        quant_mode=args.quant_mode,
     )
     
     tp_size = args.mapping.tp_size
