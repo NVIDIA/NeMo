@@ -791,6 +791,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
             gpt_cfg.text_loss_weight = cfg.model.get('text_loss_weight', 1.0)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
+            gpt_cfg.load_audio_encoder = cfg.model.get('load_audio_encoder', True)
             gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
             gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
             gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
@@ -804,6 +805,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
             gpt_cfg.data = cfg.model.data
             gpt_cfg.optim = cfg.model.optim
+            optim_param_groups = cfg.model.get("optim_param_groups", None)
+            if optim_param_groups is not None:
+                gpt_cfg.optim_param_groups = optim_param_groups
             gpt_cfg.precision = cfg.trainer.precision
             gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
             gpt_cfg.restore_from_path = cfg.model.restore_from_path
@@ -906,10 +910,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         use_multi_encoder = cfg.model.perception.get("encoders", None) is not None
         strict = 'overwrite_cfgs' not in cfg.model.perception and 'adapter' not in cfg.model.perception
         if not use_multi_encoder:
-            if cfg.model.perception.get("use_multi_layer_feat", False):
-                model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=strict)
-            else:
-                model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=strict)
+            if cfg.model.load_audio_encoder:
+                if cfg.model.perception.get("use_multi_layer_feat", False):
+                    model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=strict)
+                else:
+                    model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=strict)
             logging.info(f'Loaded pretrained audio model weights from {cfg.model.pretrained_audio_model}')
             if cfg.model.get('use_am_tokenizer', False):
                 model.tokenizer = audio_model.tokenizer
@@ -917,14 +922,15 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             return model
         else:
             for key, enc_cfg in cfg.model.perception.encoders.items():
-                if enc_cfg.get("use_multi_layer_feat", False):
-                    model.perception.encoders[key].encoder.load_state_dict(
-                        audio_model[key].encoder.state_dict(), strict=strict
-                    )
-                else:
-                    model.perception.encoders[key].load_state_dict(
-                        audio_model[key].encoder.state_dict(), strict=strict
-                    )
+                if cfg.model.load_audio_encoder:
+                    if enc_cfg.get("use_multi_layer_feat", False):
+                        model.perception.encoders[key].encoder.load_state_dict(
+                            audio_model[key].encoder.state_dict(), strict=strict
+                        )
+                    else:
+                        model.perception.encoders[key].load_state_dict(
+                            audio_model[key].encoder.state_dict(), strict=strict
+                        )
                 logging.info(f'Loaded pretrained audio model weights for {key}')
             if speaker_model is not None:
                 model.perception.speaker_model.load_state_dict(speaker_model.state_dict(), strict=strict)
