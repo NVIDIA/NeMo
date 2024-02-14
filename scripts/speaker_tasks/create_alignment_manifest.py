@@ -35,7 +35,6 @@ def get_seg_info_from_ctm_line(
 
     CTM Format: 
         <SOURCE>< <CHANNEL> <BEG-TIME> <DURATION> <TOKEN> <CONF> <TYPE> <SPEAKER>
-    
 
     Args:
         ctm_list (list): List containing CTM items. e.g.: ['sw02001-A', '1', '0.000', '0.200', 'hello', '0.98', 'lex', 'speaker3']
@@ -47,7 +46,6 @@ def get_seg_info_from_ctm_line(
         speaker_id (str): Speaker ID of the segment.
     """
     speaker_id = ctm_list[speaker_index]
-
     start = float(ctm_list[start_time_index])
     end = float(ctm_list[start_time_index]) + float(ctm_list[duration_index])
     start = round(start, output_precision)
