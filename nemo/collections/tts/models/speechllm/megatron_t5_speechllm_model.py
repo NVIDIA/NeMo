@@ -21,7 +21,6 @@ import editdistance
 import numpy as np
 import soundfile as sf
 import torch
-from encodec import EncodecModel
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -76,11 +75,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-
-try:
-    import dac
-except:
-    logging.warning("DAC not found, only use Encodec")
 
 __all__ = ['MegatronT5SpeechLMModel']
 
@@ -159,7 +153,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
         num_speech_codebooks = cfg.data.get('num_speech_codebooks', 8)
         speech_offset = cfg.data.get('speech_offset', 30000)
-        codecmodel_type = cfg.get('codecmodel_type', 'encodec')  # encodec, dac
+        codecmodel_type = cfg.get('codecmodel_type', 'nemo_codec')
 
         attn_prior_scaledown_start_step = cfg.get('attn_prior_scaledown_start_step', 10000)
         attn_prior_end_step = cfg.get('attn_prior_end_step', 11000)
@@ -234,17 +228,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         )
 
         self.sample_rate = 24000
-        if codecmodel_type == 'dac':
-            codec_model = dac.DAC.load(cfg.get('codecmodel_path'))
-            codec_model.to('cuda')
-            self.sample_rate = 44100
-        elif codecmodel_type == 'encodec':
-            codec_model = EncodecModel.encodec_model_24khz()
-            codec_model.set_target_bandwidth(6.0)
-            codec_model.cuda()
-            codec_model.eval()
-            self.sample_rate = 24000
-        elif codecmodel_type == 'nemo_codec':
+        if codecmodel_type == 'nemo_codec':
             codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'))
             codec_model.to('cuda')
             codec_model.eval()
@@ -262,12 +246,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
     def decode_wav_from_codec_model(self, codes):
         codec_model = self.additional_models['codec']
-        if self.codecmodel_type == 'dac':
-            _z = codec_model.quantizer.from_codes(codes.unsqueeze(0))[0]
-            wav = codec_model.decoder(_z)[0][0]
-        elif self.codecmodel_type == 'encodec':
-            wav = codec_model.decode([[codes.unsqueeze(0), None]])[0, 0]
-        elif self.codecmodel_type == 'nemo_codec':
+        if self.codecmodel_type == 'nemo_codec':
             codec_len = torch.Tensor([codes.shape[1]]).long().cuda()
             wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
             wav = wav[0]
@@ -544,7 +523,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 self.frozen_model.enc_dec_model.logging_step = False
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(enabled=False):
-                        # Encodec does not work with fp16, so we disable autocast for logging audio
                         if torch.count_nonzero(speech_mask) == 0:
                             text_labels = labels[:, 0, :]  # [B, 8, T] -> [B, T]
                             token_logits = out_logits[0] * 1  # [T, B, V]
@@ -917,7 +895,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         if batch_idx == 0 and self.is_rank_zero:
             self.frozen_model.enc_dec_model.logging_step = False
             with torch.cuda.amp.autocast(enabled=False):
-                # Encodec does not work with fp16, so we disable autocast for logging audio
                 if torch.count_nonzero(speech_mask) == 0:
                     text_labels = labels[:, 0, :]  # [B, 8, T] -> [B, T]
                     token_logits = output_logits[0] * 1  # [T, B, V]

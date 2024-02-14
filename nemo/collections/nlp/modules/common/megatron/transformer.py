@@ -1612,10 +1612,6 @@ class ParallelTransformer(MegatronModule):
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
-                            # if self.layer_type == LayerType.decoder and
-                            # check if it is the first layer of the decoder
-
-                            # save hidden_states and attention_probs for all indexes to a list and return the list
                             if self.layer_type == LayerType.decoder and return_all_crossattention_probs:
                                 hidden_states, attention_probs = layer(
                                     hidden_states,

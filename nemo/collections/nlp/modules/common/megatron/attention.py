@@ -939,7 +939,7 @@ class CoreAttention(MegatronModule):
                 logging.debug(
                     f"torch a: return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}"
                 )
-                context_layer = self.torch_attention(
+                context_layer = self.torch_attention_with_prior(
                     query_layer,
                     key_layer,
                     value_layer,
@@ -1006,6 +1006,7 @@ class CoreAttention(MegatronModule):
 
         if attention_bias is not None:
             attention_scores += attention_bias
+
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
