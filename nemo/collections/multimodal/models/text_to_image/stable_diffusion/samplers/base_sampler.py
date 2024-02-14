@@ -279,23 +279,24 @@ class AbstractBaseSampler(ABC):
                 intermediates["pred_x0"].append(pred_x0)
         return img, intermediates
 
-    def single_ddim_denoise_step(self, 
-                                 img,
-                                 total_steps,
-                                 i,
-                                 b,
-                                 device,
-                                 step,
-                                 cond,
-                                 ddim_use_original_steps=None,
-                                 quantize_denoised=None,
-                                 temperature=1.0,
-                                 noise_dropout=0.0,
-                                 score_corrector=None,
-                                 corrector_kwargs=None,
-                                 unconditional_guidance_scale=1.0,
-                                 unconditional_conditioning=None):
-        
+    def single_ddim_denoise_step(
+        self,
+        img,
+        total_steps,
+        i,
+        b,
+        device,
+        step,
+        cond,
+        ddim_use_original_steps=None,
+        quantize_denoised=None,
+        temperature=1.0,
+        noise_dropout=0.0,
+        score_corrector=None,
+        corrector_kwargs=None,
+        unconditional_guidance_scale=1.0,
+        unconditional_conditioning=None,
+    ):
 
         index = total_steps - i - 1
         ts = torch.full((b,), step, device=device, dtype=torch.long)

@@ -150,6 +150,7 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
             callbacks=[ModelSummary(max_depth=3), CustomProgressBar()]
         )
 
+
 class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
     """Builder for SD model Trainer with overrides."""
 
@@ -171,7 +172,8 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
                 gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
                 find_unused_parameters=False,
             )
-        
+
+
 class MegatronLMPPTrainerBuilder(MegatronTrainerBuilder):
     """Builder for scripts where grad scaler is turned off for pipeline parallel LM model. E.g. PEFT tuning scripts"""
 

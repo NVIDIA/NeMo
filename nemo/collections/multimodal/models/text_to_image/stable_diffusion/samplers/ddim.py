@@ -65,7 +65,6 @@ class DDIMSampler(AbstractBaseSampler):
             noise_dropout,
         )
         return x_prev, pred_x0
-    
 
     def grad_p_sampling_fn(
         self,
