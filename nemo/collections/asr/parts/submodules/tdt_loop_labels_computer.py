@@ -53,7 +53,8 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         super().__init__()
         self.decoder = decoder
         self.joint = joint
-        self.durations: list[int] = list(durations)
+        # keep durations on CPU to avoid side effects in multi-gpu environment
+        self.durations = torch.tensor(list(durations), device="cpu").to(torch.long)
         self._blank_index = blank_index
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
@@ -106,8 +107,8 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         )
 
         # durations
-        duration_lengths = len(self.durations)
-        all_durations = torch.tensor(self.durations, device=device).to(torch.long)
+        all_durations = self.durations.to(device, non_blocking=True)
+        num_durations = all_durations.shape[0]
 
         # initial state, needed for torch.jit to compile (cannot handle None)
         state = self.decoder.initialize_state(x)
@@ -155,8 +156,8 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                 .squeeze(1)
                 .squeeze(1)
             )
-            scores, labels = logits[:, :-duration_lengths].max(dim=-1)
-            jump_durations_indices = logits[:, -duration_lengths:].argmax(dim=-1)
+            scores, labels = logits[:, :-num_durations].max(dim=-1)
+            jump_durations_indices = logits[:, -num_durations:].argmax(dim=-1)
             durations = all_durations[jump_durations_indices]
 
             # search for non-blank labels using joint, advancing time indices for blank labels
@@ -166,14 +167,14 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             durations.masked_fill_(torch.logical_and(durations == 0, blank_mask), 1)
             time_indices_current_labels.copy_(time_indices, non_blocking=True)
             if use_alignments:
-                if self.preserve_frame_confidence:
-                    logits = F.log_softmax(logits, dim=-1)
                 alignments.add_results_masked_(
                     active_mask=active_mask,
                     time_indices=time_indices_current_labels,
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
-                    confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
+                    confidence=self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1))
+                    if self.preserve_frame_confidence
+                    else None,
                 )
 
             # advance_mask is a mask for current batch for searching non-blank labels;
@@ -196,23 +197,23 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                 )
                 # get labels (greedy) and scores from current logits, replace labels/scores with new
                 # labels[advance_mask] are blank, and we are looking for non-blank labels
-                more_scores, more_labels = logits[:, :-duration_lengths].max(dim=-1)
+                more_scores, more_labels = logits[:, :-num_durations].max(dim=-1)
                 # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
                 torch.where(advance_mask, more_scores, scores, out=scores)
-                jump_durations_indices = logits[:, -duration_lengths:].argmax(dim=-1)
+                jump_durations_indices = logits[:, -num_durations:].argmax(dim=-1)
                 durations = all_durations[jump_durations_indices]
 
                 if use_alignments:
-                    if self.preserve_frame_confidence:
-                        logits = F.log_softmax(logits, dim=-1)
                     alignments.add_results_masked_(
                         active_mask=advance_mask,
                         time_indices=time_indices_current_labels,
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
-                        confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
+                        confidence=self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1))
+                        if self.preserve_frame_confidence
+                        else None,
                     )
 
                 blank_mask = labels == self._blank_index
