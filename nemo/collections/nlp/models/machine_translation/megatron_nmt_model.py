@@ -133,10 +133,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def _setup_multilingual_special_tokens(self):
         if self.multilingual_type == MultilingualModelType.many_to_many:
             if self.objective == 'nmt-xlm':
-                unique_langs = set(self.src_language + self.tgt_language)
+                unique_langs = []
+                for l in self.src_language + self.tgt_language:
+                    if l not in unique_langs:
+                        unique_langs.append(l)
+                #unique_langs = set(self.src_language + self.tgt_language)
             else:
                 # We don't take a set() for tgt_language here because the same lang can appear multiple times.
-                unique_langs = set(self.tgt_language)
+                unique_langs = []
+                for l in self.tgt_language:
+                    if l not in unique_langs:
+                        unique_langs.append(l)
+                #unique_langs = set(self.tgt_language)
             for lng in unique_langs:
                 self.multilingual_lang_tokens["<" + lng + ">"] = "<" + lng + ">"
         elif self.multilingual_type == MultilingualModelType.many_to_one:
