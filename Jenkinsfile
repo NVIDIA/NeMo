@@ -3497,7 +3497,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.precision=bf16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        model.name=megatron_gpt_full_te_layer_autocast \
+        ++model.name=megatron_gpt_full_te_layer_autocast \
         model.tensor_model_parallel_size=2 \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
