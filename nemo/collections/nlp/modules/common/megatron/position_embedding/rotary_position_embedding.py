@@ -107,7 +107,7 @@ class RotaryEmbedding(nn.Module):
             shifts = torch.rand(num_shifts)
             shifts = shifts / shifts.sum() * total_shift
             if self.augment_seq.get('discrete', False):
-                shifts = shifts.to(torch.int)
+                shifts = torch.round(shifts).to(torch.int)
 
         if self.augment_seq.get('shift_indices', False):
             indices2shift = self.augment_seq['shift_indices']

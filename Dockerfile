@@ -51,10 +51,16 @@ RUN git clone https://github.com/NVIDIA/apex.git && \
   pip3 install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 WORKDIR /workspace/
-# install megatron core, this can be removed once 0.3 pip package is released
-RUN git clone -b core_r0.5.0 https://github.com/NVIDIA/Megatron-LM.git && \
+RUN git clone -b core_r0.4.0 https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
   pip install -e .
+
+RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
+  cd TransformerEngine && \
+  git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
+  git checkout FETCH_HEAD && \
+  git submodule init && git submodule update && \
+  NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
 
 # uninstall stuff from base container
 RUN pip3 uninstall -y sacrebleu torchtext
