@@ -95,13 +95,17 @@ class EvalBeamSearchNGramConfig:
     probs_cache_file: Optional[str] = None  # The cache file for storing the logprobs of the model
 
     # Parameters for inference
-    acoustic_batch_size: int = 128  # The batch size to calculate log probabilities
+    batch_size: int = 128  # The batch size to calculate log probabilities
     beam_batch_size: int = 128  # The batch size to be used for beam search decoding
     device: str = "cuda"  # The device to load the model onto to calculate log probabilities
-    use_amp: bool = False  # Whether to use AMP if available to calculate log probabilities
+    amp: bool = False  # Whether to use AMP if available to calculate log probabilities
     num_workers: int = 1  # Number of workers for DataLoader
 
     # The decoding scheme to be used for evaluation
+    # TODO add  decoding.strategy=beam
+    #           decoding.greedy =
+    #           decoding.beam =
+    #  and so on 
     decoding_strategy: str = "greedy_batch" # ["greedy_batch", "beam", "tsd", "alsd", "maes"]
 
     # Beam Search hyperparameters
@@ -300,7 +304,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
         def default_autocast():
             yield
 
-        if cfg.use_amp:
+        if cfg.amp:
             if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
@@ -325,7 +329,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
                             fp.write(json.dumps(entry) + '\n')
                     config = {
                         'paths2audio_files': audio_file_paths,
-                        'batch_size': cfg.acoustic_batch_size,
+                        'batch_size': cfg.batch_size,
                         'temp_dir': tmpdir,
                         'num_workers': cfg.num_workers,
                         'channel_selector': None,

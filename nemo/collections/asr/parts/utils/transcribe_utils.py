@@ -183,16 +183,16 @@ def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
 
 def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, str]:
     """ Setup model from cfg and return model and model name for next step """
-    if cfg.model_path is not None and cfg.model_path != "None":
+    if cfg.nemo_model_file is not None and cfg.nemo_model_file != "None":
         # restore model from .nemo file path
-        model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
+        model_cfg = ASRModel.restore_from(restore_path=cfg.nemo_model_file, return_config=True)
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location,
+            restore_path=cfg.nemo_model_file, map_location=map_location,
         )  # type: ASRModel
-        model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
+        model_name = os.path.splitext(os.path.basename(cfg.nemo_model_file))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
@@ -219,11 +219,11 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
     else:
         # get filenames from manifest
         filepaths = []
-        if os.stat(cfg.dataset_manifest).st_size == 0:
-            logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
+        if os.stat(cfg.input_manifest).st_size == 0:
+            logging.error(f"The input input_manifest {cfg.input_manifest} is empty. Exiting!")
             return None
 
-        with open(cfg.dataset_manifest, 'r', encoding='utf_8') as f:
+        with open(cfg.input_manifest, 'r', encoding='utf_8') as f:
             has_two_fields = []
             for line in f:
                 item = json.loads(line)
@@ -232,7 +232,7 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
                 else:
                     has_two_fields.append(False)
                 audio_key = cfg.get('audio_key', 'audio_filepath')
-                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.input_manifest)
                 filepaths.append(audio_file)
         partial_audio = all(has_two_fields)
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
@@ -242,14 +242,14 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
 
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
     """ Compute filename of output manifest and update cfg"""
-    if cfg.output_filename is None:
+    if cfg.output_manifest is None:
         # create default output filename
         if cfg.audio_dir is not None:
-            cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
+            cfg.output_manifest = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
         elif cfg.pred_name_postfix is not None:
-            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
+            cfg.output_manifest = cfg.input_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
         else:
-            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{model_name}.json')
+            cfg.output_manifest = cfg.input_manifest.replace('.json', f'_{model_name}.json')
     return cfg
 
 
@@ -284,7 +284,7 @@ def write_transcription(
 ) -> Tuple[str, str]:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
-        logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
+        logging.info(f'Transcripts will be written in "{cfg.output_manifest}" file')
         if cfg.pred_name_postfix is not None:
             pred_by_model_name = cfg.pred_name_postfix
         else:
@@ -315,8 +315,8 @@ def write_transcription(
         raise TypeError
 
     # create output dir if not exists
-    Path(cfg.output_filename).parent.mkdir(parents=True, exist_ok=True)
-    with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
+    Path(cfg.output_manifest).parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg.output_manifest, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
                 if not return_hypotheses:  # transcription is str
@@ -341,7 +341,7 @@ def write_transcription(
                         item['beams'] = beams[idx]
                 f.write(json.dumps(item) + "\n")
         else:
-            with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
+            with open(cfg.input_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     if not return_hypotheses:  # transcription is str
@@ -367,7 +367,7 @@ def write_transcription(
                             item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
-    return cfg.output_filename, pred_text_attr_name
+    return cfg.output_manifest, pred_text_attr_name
 
 
 def transcribe_partial_audio(

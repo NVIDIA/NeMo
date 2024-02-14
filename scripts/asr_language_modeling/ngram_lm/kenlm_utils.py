@@ -34,6 +34,7 @@ from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.modules.flashlight_decoder import create_lexicon
 from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
 
@@ -221,3 +222,17 @@ def write_dataset(chunks, path):
             for text in chunks[chunk_idx]:
                 line = ' '.join(text)
                 path.write((line + '\n').encode())
+
+def save_flashlight_lexicon(tokenizer, kenlm_file):
+    save_path = os.path.dirname(kenlm_file)
+    os.makedirs(save_path, exist_ok=True)
+
+    lex_file = os.path.join(save_path, os.path.splitext(os.path.basename(kenlm_file))[0] + '.flashlight_lexicon')
+
+    logging.info(f"Writing Lexicon file to: {lex_file}...")
+    with open(lex_file, "w", encoding='utf_8', newline='\n') as f:
+        lexicon = create_lexicon(tokenizer)
+        lexicon.pop("<unk>")
+        for word in lexicon:
+            f.write("{w}\t{s}\n".format(w=word, s=lexicon[word][0][0]))
+    return lex_file

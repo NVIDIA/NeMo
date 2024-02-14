@@ -42,10 +42,10 @@ from nemo.utils import logging
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
 
 # Arguments
-  model_path: path to .nemo ASR checkpoint
+  nemo_model_file: path to .nemo ASR checkpoint
   pretrained_name: name of pretrained ASR model (from NGC registry)
   audio_dir: path to directory with audio files
-  dataset_manifest: path to dataset JSON manifest file (in NeMo format)
+  input_manifest: path to dataset JSON manifest file (in NeMo format)
 
   compute_timestamps: Bool to request greedy time stamp information (if the model supports it)
   compute_langs: Bool to request language ID information (if the model supports it)
@@ -58,7 +58,7 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   ctc_decoding.ctc_timestamp_type="all"  # (default all, can be [all, char, word])
   rnnt_decoding.rnnt_timestamp_type="all"  # (default all, can be [all, char, word])
 
-  output_filename: Output filename where the transcriptions will be written
+  output_manifest: Output filename where the transcriptions will be written
   batch_size: batch size during inference
 
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
@@ -77,18 +77,18 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   use_cer: Bool to use Character Error Rate (CER)  or Word Error Rate (WER)
 
 # Usage
-ASR model can be specified by either "model_path" or "pretrained_name".
-Data for transcription can be defined with either "audio_dir" or "dataset_manifest".
+ASR model can be specified by either "nemo_model_file" or "pretrained_name".
+Data for transcription can be defined with either "audio_dir" or "input_manifest".
 append_pred - optional. Allows you to add more than one prediction to an existing .json
 pred_name_postfix - optional. The name you want to be written for the current model
 Results are returned in a JSON manifest file.
 
 python transcribe_speech.py \
-    model_path=null \
+    nemo_model_file=null \
     pretrained_name=null \
     audio_dir="<remove or path to folder of audio files>" \
-    dataset_manifest="<remove or path to manifest>" \
-    output_filename="<remove or specify output filename>" \
+    input_manifest="<remove or path to manifest>" \
+    output_manifest="<remove or specify output filename>" \
     clean_groundtruth_text=True \
     langid='en' \
     batch_size=32 \
@@ -111,18 +111,18 @@ class ModelChangeConfig:
 @dataclass
 class TranscriptionConfig:
     # Required configs
-    model_path: Optional[str] = None  # Path to a .nemo file
+    nemo_model_file: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
-    dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
+    input_manifest: Optional[str] = None  # Path to dataset's JSON manifest
     channel_selector: Optional[
         Union[int, str]
     ] = None  # Used to select a single channel from multichannel audio, or use average across channels
-    audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
+    audio_key: str = 'audio_filepath'  # Used to override the default audio key in input_manifest
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
 
     # General configs
-    output_filename: Optional[str] = None
+    output_manifest: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
@@ -201,10 +201,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if cfg.random_seed:
         pl.seed_everything(cfg.random_seed)
 
-    if cfg.model_path is None and cfg.pretrained_name is None:
-        raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
-    if cfg.audio_dir is None and cfg.dataset_manifest is None:
-        raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
+    if cfg.nemo_model_file is None and cfg.pretrained_name is None:
+        raise ValueError("Both cfg.nemo_model_file and cfg.pretrained_name cannot be None!")
+    if cfg.audio_dir is None and cfg.input_manifest is None:
+        raise ValueError("Both cfg.audio_dir and cfg.input_manifest cannot be None!")
 
     # Load augmentor from exteranl yaml file which contains eval info, could be extend to other feature such VAD, P&C
     augmentor = None
@@ -338,9 +338,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     cfg = compute_output_filename(cfg, model_name)
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
-    if not cfg.return_transcriptions and not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
+    if not cfg.return_transcriptions and not cfg.overwrite_transcripts and os.path.exists(cfg.output_manifest):
         logging.info(
-            f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
+            f"Previous transcripts found at {cfg.output_manifest}, and flag `overwrite_transcripts`"
             f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
         )
         return cfg
@@ -354,7 +354,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if partial_audio:
                 transcriptions = transcribe_partial_audio(
                     asr_model=asr_model,
-                    path2manifest=cfg.dataset_manifest,
+                    path2manifest=cfg.input_manifest,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
                     return_hypotheses=cfg.return_hypotheses,
@@ -373,7 +373,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
-    logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
+    logging.info(f"Writing transcriptions into file: {cfg.output_manifest}")
 
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:

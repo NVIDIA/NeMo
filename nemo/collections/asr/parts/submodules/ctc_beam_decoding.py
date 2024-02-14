@@ -208,16 +208,14 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
 
-        if search_type == "default" or search_type == "nemo":
-            self.search_algorithm = self.default_beam_search
-        elif search_type == "pyctcdecode":
+        if search_type == "beam" or search_type == "pyctcdecode":
             self.search_algorithm = self._pyctcdecode_beam_search
         elif search_type == "flashlight":
             self.search_algorithm = self.flashlight_beam_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
-                f"Please use one of : (default, nemo, pyctcdecode)"
+                f"Please use one of : (beam, pyctcdecode, flashlight)"
             )
 
         # Log the beam search algorithm
@@ -289,111 +287,15 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         return (packed_result,)
 
     @torch.no_grad()
-    def default_beam_search(
-        self, x: torch.Tensor, out_len: torch.Tensor
-    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
-        """
-        Open Seq2Seq Beam Search Algorithm (DeepSpeed)
-
-        Args:
-            x: Tensor of shape [B, T, V+1], where B is the batch size, T is the maximum sequence length,
-                and V is the vocabulary size. The tensor contains log-probabilities.
-            out_len: Tensor of shape [B], contains lengths of each sequence in the batch.
-
-        Returns:
-            A list of NBestHypotheses objects, one for each sequence in the batch.
-        """
-        if self.compute_timestamps:
-            raise ValueError(
-                f"Beam Search with strategy `{self.search_type}` does not support time stamp calculation!"
-            )
-
-        if self.default_beam_scorer is None:
-            # Check for filepath
-            if self.kenlm_path is None or not os.path.exists(self.kenlm_path):
-                raise FileNotFoundError(
-                    f"KenLM binary file not found at : {self.kenlm_path}. "
-                    f"Please set a valid path in the decoding config."
-                )
-
-            # perform token offset for subword models
-            if self.decoding_type == 'subword':
-                vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
-            else:
-                # char models
-                vocab = self.vocab
-
-            # Must import at runtime to avoid circular dependency due to module level import.
-            from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
-
-            self.default_beam_scorer = BeamSearchDecoderWithLM(
-                vocab=vocab,
-                lm_path=self.kenlm_path,
-                beam_width=self.beam_size,
-                alpha=self.beam_alpha,
-                beta=self.beam_beta,
-                num_cpus=max(1, os.cpu_count()),
-                input_tensor=False,
-            )
-
-        x = x.to('cpu')
-
-        with typecheck.disable_checks():
-            data = [x[sample_id, : out_len[sample_id], :].softmax(dim=-1) for sample_id in range(len(x))]
-            beams_batch = self.default_beam_scorer.forward(log_probs=data, log_probs_length=None)
-
-        # For each sample in the batch
-        nbest_hypotheses = []
-        for beams_idx, beams in enumerate(beams_batch):
-            # For each beam candidate / hypothesis in each sample
-            hypotheses = []
-            for candidate_idx, candidate in enumerate(beams):
-                hypothesis = rnnt_utils.Hypothesis(
-                    score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
-                )
-
-                # For subword encoding, NeMo will double encode the subword (multiple tokens) into a
-                # singular unicode id. In doing so, we preserve the semantic of the unicode token, and
-                # compress the size of the final KenLM ARPA / Binary file.
-                # In order to do double encoding, we shift the subword by some token offset.
-                # This step is ignored for character based models.
-                if self.decoding_type == 'subword':
-                    pred_token_ids = [ord(c) - self.token_offset for c in candidate[1]]
-                else:
-                    # Char models
-                    pred_token_ids = [self.vocab_index_map[c] for c in candidate[1]]
-
-                # We preserve the token ids and the score for this hypothesis
-                hypothesis.y_sequence = pred_token_ids
-                hypothesis.score = candidate[0]
-
-                # If alignment must be preserved, we preserve a view of the output logprobs.
-                # Note this view is shared amongst all beams within the sample, be sure to clone it if you
-                # require specific processing for each sample in the beam.
-                # This is done to preserve memory.
-                if self.preserve_alignments:
-                    hypothesis.alignments = x[beams_idx][: out_len[beams_idx]]
-
-                hypotheses.append(hypothesis)
-
-            # Wrap the result in NBestHypothesis.
-            hypotheses = rnnt_utils.NBestHypotheses(hypotheses)
-            nbest_hypotheses.append(hypotheses)
-
-        return nbest_hypotheses
-
-    @torch.no_grad()
     def _pyctcdecode_beam_search(
         self, x: torch.Tensor, out_len: torch.Tensor
     ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
         """
         PyCTCDecode Beam Search Algorithm. Should support Char and Subword models.
-
         Args:
             x: Tensor of shape [B, T, V+1], where B is the batch size, T is the maximum sequence length,
                 and V is the vocabulary size. The tensor contains log-probabilities.
             out_len: Tensor of shape [B], contains lengths of each sequence in the batch.
-
         Returns:
             A list of NBestHypotheses objects, one for each sequence in the batch.
         """
@@ -488,9 +390,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             A list of NBestHypotheses objects, one for each sequence in the batch.
         """
         if self.compute_timestamps:
-            raise ValueError(
-                f"Beam Search with strategy `{self.search_type}` does not support time stamp calculation!"
-            )
+            raise ValueError(f"Flashlight beam search does not support time stamp calculation!")
 
         if self.flashlight_beam_scorer is None:
             # Check for filepath
@@ -501,18 +401,18 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 )
 
             # perform token offset for subword models
-            # if self.decoding_type == 'subword':
-            #    vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
-            # else:
-            #    # char models
-            #    vocab = self.vocab
+            if self.decoding_type == 'subword':
+                vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
+            else:
+                # char models
+                vocab = self.vocab
 
             # Must import at runtime to avoid circular dependency due to module level import.
             from nemo.collections.asr.modules.flashlight_decoder import FlashLightKenLMBeamSearchDecoder
 
             self.flashlight_beam_scorer = FlashLightKenLMBeamSearchDecoder(
                 lm_path=self.kenlm_path,
-                vocabulary=self.vocab,
+                vocabulary=vocab,
                 tokenizer=self.tokenizer,
                 lexicon_path=self.flashlight_cfg.lexicon_path,
                 boost_path=self.flashlight_cfg.boost_path,
@@ -604,3 +504,10 @@ class BeamCTCInferConfig:
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
+
+
+@dataclass
+class BeamCTCInferConfigList(BeamCTCInferConfig):
+    beam_size: List[int]
+    beam_alpha: List[float]
+    beam_beta: List[float]
