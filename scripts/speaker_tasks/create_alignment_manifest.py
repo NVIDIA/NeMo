@@ -106,7 +106,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
                 start_time=align1,
                 duration=align2,
                 token=word,
-                conf=0,
+                conf=0.0,
                 type_of_token='lex',
                 speaker=speaker_id,
                 output_precision=output_precision,
@@ -245,7 +245,7 @@ def create_manifest_with_alignments(
         prev_end = 0
         for i in range(len(lines)):
             ctm = lines[i].split(' ')
-            speaker_id, start, end = get_seg_info_from_ctm_line(ctm_list=ctm, output_precision=output_precision)
+            start, end, speaker_id = get_seg_info_from_ctm_line(ctm_list=ctm, output_precision=output_precision)
             interval = start - prev_end
 
             if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
