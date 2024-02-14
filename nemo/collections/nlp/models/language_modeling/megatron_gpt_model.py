@@ -368,6 +368,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 adversarial_training=self.cfg.get('adversarial_training', False),
                 adversarial_training_epsilon=self.cfg.get('adversarial_training_epsilon', 0.01),
                 noise_scheduler_config=self.cfg.get('noise_scheduler_config', None),
+                cre_adversarial_training=self.cfg.get('cre_adversarial_training', False),
+                creat_init_var=self.cfg.get('creat_init_var', 1e-2),
+                creat_num_adv_steps=self.cfg.get('cre_num_adv_steps', 2),
+                creat_adv_temp=self.cfg.get('cre_adv_temp', 1.0),
+                creat_lambda=self.cfg.get('cre_lambda', 0.5),
+                creat_adv_lr=self.cfg.get('cre_adv_lr', 0.1),
+                creat_adv_max_norm=self.cfg.get('cre_adv_max_norm', 0.1),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -446,6 +453,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 adversarial_training=self.cfg.get('adversarial_training', False),
                 adversarial_training_epsilon=self.cfg.get('adversarial_training_epsilon', 0.01),
                 noise_scheduler_config=self.cfg.get('noise_scheduler_config', None),
+                cre_adversarial_training=self.cfg.get('cre_adversarial_training', False),
+                creat_init_var=self.cfg.get('creat_init_var', 1e-2),
+                creat_num_adv_steps=self.cfg.get('cre_num_adv_steps', 2),
+                creat_adv_temp=self.cfg.get('cre_adv_temp', 1.0),
+                creat_lambda=self.cfg.get('cre_lambda', 0.5),
+                creat_adv_lr=self.cfg.get('cre_adv_lr', 0.1),
+                creat_adv_max_norm=self.cfg.get('cre_adv_max_norm', 0.1),
             )
         return model
 
