@@ -1,5 +1,5 @@
-name: p_tuning_squad_t5
-checkpoint_path: "/Data/Experiments/ComparisonBreakUnbreak/DelayParallelLinearHead/Epoch10.ckpt"
+name: megatron_t5_speechllm_tts_inference
+checkpoint_path: ???
 
 trainer:
   devices: 1
@@ -17,13 +17,9 @@ trainer:
   gradient_clip_val: 1.0
 
 exp_manager:
-  explicit_log_dir: null
-  exp_dir: "/Data/Experiments/InferenceDelayParallel"
+  exp_dir: null
   name: ${name}
   create_wandb_logger: False
-  wandb_logger_kwargs:
-    project: PromptLearning-T5
-    name: ${name}
   resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
@@ -32,7 +28,7 @@ exp_manager:
     save_top_k: 2
     mode: min
     save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.nemo_path set below
-    filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
+    filename: "megatron_t5_speechllm_tts--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
   create_early_stopping_callback: False
@@ -68,7 +64,6 @@ model:
   existing_tasks: []
   new_tasks: ["squad"]
 
-
   task_templates:
   - taskname: "squad"
     prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}"
@@ -90,7 +85,7 @@ model:
     grapheme_prefix: null
     train_ds: null
     validation_ds: null
-    test_ds: ["/Data/LibriTTS/inference_unseen.json"]
+    test_ds: ???
     max_seq_length: 1536
     sample_rate: 24000
     add_eos: true
@@ -108,8 +103,8 @@ model:
     g2p:
       english:
         _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
-        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
-        heteronyms: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/heteronyms-052722"
+        phoneme_dict: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
+        heteronyms: "scripts/tts_dataset_files/heteronyms-052722"
         phoneme_probability: 0.8
         ignore_ambiguous_words: False
         use_chars: True
@@ -117,7 +112,7 @@ model:
         grapheme_prefix: ${model.data.grapheme_prefix}
       spanish:
         _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
-        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/es_ES/es_ES_nv230301.dict"
+        phoneme_dict: "scripts/tts_dataset_files/es_ES/es_ES_nv230301.dict"
         phoneme_probability: 0.8
         use_chars: True
         use_stresses: True
@@ -126,7 +121,7 @@ model:
         locale: "es-ES"
       mandarin:
         _target_: nemo.collections.tts.g2p.models.zh_cn_pinyin.ChineseG2p
-        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/zh/36finals/ipa_dict_nv23.05.txt"
+        phoneme_dict: "scripts/tts_dataset_files/zh/36finals/ipa_dict_nv23.05.txt"
         word_segmenter: "jieba"
         phoneme_prefix: ""
         phoneme_case: "lower"
@@ -135,8 +130,8 @@ model:
         ascii_letter_case: "upper"
       german:
         _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
-        phoneme_dict: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/de/de_nv240125.dict"
-        heteronyms: "/home/jasoli/gitrepos/NeMo/scripts/tts_dataset_files/de/de_nv230119.heteronym"
+        phoneme_dict: "scripts/tts_dataset_files/de/de_nv240125.dict"
+        heteronyms: "scripts/tts_dataset_files/de/de_nv230119.heteronym"
         phoneme_probability: 0.8
         ignore_ambiguous_words: False
         use_chars: True
@@ -152,10 +147,3 @@ model:
     betas:
     - 0.9
     - 0.98
-    # sched:
-    #   name: CosineAnnealing
-    #   warmup_steps: 50
-    #   constant_steps: 0
-    #   min_lr: 0.0
-    #   monitor: val_loss
-    #   reduce_on_plateau: false

@@ -711,7 +711,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
-        self.encoder_embedding.encoder_embeddingload_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
+        self.encoder_embedding.load_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
@@ -1087,19 +1087,10 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
         state_dict_[self._decoder_embedding_key] = self.decoder_embedding.state_dict()
         state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict()
         state_dict_[self._tokens_head_key] = self.tokens_head.state_dict()
-
         if hasattr(self, "speech_tokens_heads"):
             state_dict_["speech_tokens_heads"] = self.speech_tokens_heads.state_dict()
-
         if hasattr(self, "speech_tokens_embeddings"):
             state_dict_["speech_tokens_embeddings"] = self.speech_tokens_embeddings.state_dict()
-
-        if hasattr(self, "speech_residual_model_1"):
-            state_dict_["speech_residual_model_1"] = self.speech_residual_model_1.state_dict()
-
-        if hasattr(self, "speech_residual_model_2"):
-            state_dict_["speech_residual_model_2"] = self.speech_residual_model_2.state_dict()
-
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):

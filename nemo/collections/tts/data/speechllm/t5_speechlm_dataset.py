@@ -387,7 +387,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             total_virtual_tokens=total_virtual_tokens,
             virtual_token_splits=virtual_token_splits,
             prompt_template=prompt_template,
-            prompt_template_fields=prompt_template_fields,
+            prompt_template_fields=doc.keys(),  # Skip this check as we don't need it for TTS
             truncation_field=truncation_field,
             answer_field=answer_field,
             doc=doc,

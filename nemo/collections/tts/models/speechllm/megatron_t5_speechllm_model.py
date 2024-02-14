@@ -28,6 +28,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceSpeechLLMTTSTokenizer
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -80,6 +81,21 @@ __all__ = ['MegatronT5SpeechLMModel']
 
 
 class MegatronT5OverrideModel(MegatronT5Model):
+    def _build_tokenizer(self):
+        if self._cfg.tokenizer.library != "sentencepiece":
+            raise NotImplementedError("Megatron SpeechLLM T5 TTS requires a sentencepiece tokenizer")
+        if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
+            legacy = self._cfg.tokenizer.sentencepiece_legacy
+        else:
+            legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
+        self.tokenizer = SentencePieceSpeechLLMTTSTokenizer(
+            model_path=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)), legacy=legacy
+        )
+
+        if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
+            tokens_list = OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
+            self.tokenizer.add_special_tokens(tokens_list)
+
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         if not hasattr(self.cfg, 'encoder') or not hasattr(self.cfg, 'decoder'):
             logging.warning(
@@ -414,7 +430,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             )
 
         if not cfg.get('english_only_model', False):
-            self.frozen_model.tokenizer.update_phone_tokens()
+            self.frozen_model.tokenizer.add_phone_tokens_to_special_tokens()
 
         logging.info(f"self.frozen_model {self.frozen_model}")
 

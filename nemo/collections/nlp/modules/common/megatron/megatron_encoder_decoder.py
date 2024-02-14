@@ -262,7 +262,10 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
-        self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
-        if self.hiddens_module is not None:
-            self.hiddens_module.load_state_dict(state_dict[self._hiddens_module], strict=strict)
+        try:
+            self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
+            self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
+            if self.hiddens_module is not None:
+                self.hiddens_module.load_state_dict(state_dict[self._hiddens_module], strict=strict)
+        except KeyError as e:
+            super().load_state_dict(state_dict, strict=strict)
