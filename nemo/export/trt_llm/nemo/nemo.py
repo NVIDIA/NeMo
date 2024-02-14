@@ -40,6 +40,7 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
         "bias": "bias",
         "intermediate_size": "ffn_hidden_size",
         "num_kv_heads": "num_query_groups",
+        "norm_epsilon": "layernorm_epsilon",
     }
 
     kwargs = {

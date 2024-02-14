@@ -29,7 +29,7 @@ def model_config_to_tensorrt_llm(
     max_output_len: int = 200,
     max_batch_size: int = 1,
     max_beam_width: int = 1,
-    max_prompt_embedding_table_size: int = 100,
+    max_prompt_embedding_table_size: int = 0,
     use_inflight_batching: bool = False,
     paged_kv_cache: bool = False,
     enable_context_fmha: bool = True,
