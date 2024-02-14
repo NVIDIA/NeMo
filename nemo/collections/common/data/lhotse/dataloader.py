@@ -74,7 +74,9 @@ class LhotseDataLoadingConfig:
     sample_rate: int = 16000
     min_duration: Optional[float] = -1
     max_duration: Optional[float] = float("inf")
-    seed: Union[int, str] = "randomized"  # int | "randomized" | "trng"; the latter two are lazily resolved by Lhotse in dloading worker processes
+    seed: Union[
+        int, str
+    ] = "randomized"  # int | "randomized" | "trng"; the latter two are lazily resolved by Lhotse in dloading worker processes
     num_workers: int = 0
     pin_memory: bool = False
 
