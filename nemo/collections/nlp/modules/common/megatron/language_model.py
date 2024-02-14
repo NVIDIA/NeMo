@@ -38,7 +38,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
-from nemo.utils import logging
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -125,13 +124,7 @@ def get_language_model(
     use_emha=False,
     ub_tp_comm_overlap=False,
     use_flash_attention=False,
-    output_size=None,
-    embedding_scale=1.0,
     seq_len_interpolation_factor=None,
-    attn_prior_end_step=11000,
-    attn_prior_scaledown_start_step=10000,
-    attn_prior_starting_strength=0.5,
-    alibi_question_context_masked=False,
     rotary_base=10000,
 ):
     """Build language model and return along with the key to save."""
@@ -207,13 +200,7 @@ def get_language_model(
         use_emha=use_emha,
         ub_tp_comm_overlap=ub_tp_comm_overlap,
         use_flash_attention=use_flash_attention,
-        output_size=output_size,
-        embedding_scale=embedding_scale,
         seq_len_interpolation_factor=seq_len_interpolation_factor,
-        attn_prior_end_step=attn_prior_end_step,
-        attn_prior_scaledown_start_step=attn_prior_scaledown_start_step,
-        attn_prior_starting_strength=attn_prior_starting_strength,
-        alibi_question_context_masked=alibi_question_context_masked,
         rotary_base=rotary_base,
     )
     # key used for checkpoints.
@@ -524,22 +511,12 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         use_emha=False,
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
-        output_size=None,
-        embedding_scale=1.0,
         seq_len_interpolation_factor=None,
-        attn_prior_end_step=11000,
-        attn_prior_scaledown_start_step=10000,
-        attn_prior_starting_strength=0.5,
-        alibi_question_context_masked=False,
         rotary_base=10000,
     ):
         super(TransformerLanguageModel, self).__init__(
             config=config, share_token_embeddings=share_embeddings_and_output_weights
         )
-
-        self.attn_prior_end_step = attn_prior_end_step
-        self.attn_prior_scaledown_start_step = attn_prior_scaledown_start_step
-        self.attn_prior_starting_strength = attn_prior_starting_strength
 
         self.pre_process = pre_process
         self.post_process = post_process
@@ -557,12 +534,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         self.output_layer_init_method = output_layer_init_method
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
-        self.embedding_scale = embedding_scale
-        self.alibi_question_context_masked = alibi_question_context_masked
-        if output_size is None:
-            output_size = vocab_size
-        elif share_embeddings_and_output_weights and output_size != vocab_size:
-            raise ValueError("share_embeddings_and_output_weights was True but output size != vocab size")
         self.sequence_parallel = config.sequence_parallel
         self.context_parallel = parallel_state.get_context_parallel_world_size() > 1
         if kv_channels is None:
@@ -735,14 +706,13 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             if not self.share_embeddings_and_output_weights:
                 self.output_layer = tensor_parallel.ColumnParallelLinear(
                     self.hidden_size,
-                    output_size,
+                    self.vocab_size,
                     config=config,
                     bias=False,  # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
                     init_method=self.init_method,
                 )
                 self._output_layer_key = 'output_layer'
         self.set_accepted_adapter_types([PromptEncoderAdapterConfig._target_])
-        self.num_attention_heads = num_attention_heads
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
@@ -785,30 +755,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         checkpoint_activations_all_layers=None,
-        speech_mask=None,
-        return_all_selfattention_probs=False,
-        attention_prior=None,
-        global_step=0,
-        context_question_mask=None,
     ):
-        if speech_mask is not None:
-            speech_mask = speech_mask.T.unsqueeze(-1)
+        # Embeddings.
         if self.pre_process and encoder_input is None:
-            encoder_input = None
-            if enc_input_ids.dim() > 2:
-                for i in range(enc_input_ids.size()[1]):
-                    cur = self.embedding(enc_input_ids[:, i, :], enc_position_ids, token_type_ids=token_type_ids)
-                    if encoder_input is None:
-                        encoder_input = cur
-                    else:
-                        if speech_mask is None:
-                            speech_mask = (
-                                (torch.sum(enc_input_ids[:, i, :], dim=1) > 0).float().unsqueeze(-1).unsqueeze(0)
-                            )
-                        encoder_input = encoder_input + cur * speech_mask * self.embedding_scale
-            else:
-                # Should be text tokens
-                encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+
+            encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
             if self.is_adapter_available():
                 _sq, _bs, _hs = encoder_input.size()
                 ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
@@ -853,52 +804,11 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
             or self.position_embedding_type == 'sandwich'
             or self.position_embedding_type == 'kerple'
         ):
-            if attention_prior is not None:
-                raise NotImplementedError("You passed a prior and are using an attention pos embedding")
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                 query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
             )
-            if self.alibi_question_context_masked and context_question_mask is not None:
-                encoder_self_attention_relative_position_bias = encoder_self_attention_relative_position_bias.repeat(
-                    encoder_input.size(1), 1, 1, 1
-                )
-                encoder_self_attention_relative_position_bias[:, 1::2, :, :] *= context_question_mask.unsqueeze(
-                    1
-                ).unsqueeze(1)
             # causal attention bias: [1, head, 1, k]
             # non-causal attention bias: [1, head, q, k]
-        if attention_prior is not None:
-            # self.attn_prior_end_step = 11000
-            # self.attn_prior_scaledown_start_step = 10000
-            num_attention_heads = self.num_attention_heads
-            assert self.attn_prior_scaledown_start_step < self.attn_prior_end_step
-            logging.debug(f"self.attn_prior_scaledown_start_step {self.attn_prior_scaledown_start_step}")
-            logging.debug(f"self.attn_prior_end_step {self.attn_prior_end_step}")
-            logging.debug(f"global_step {global_step}")
-            if global_step >= self.attn_prior_end_step:
-                logging.debug("Post attn_prior_end_step")
-                encoder_self_attention_relative_position_bias = None
-            else:  # still using prior
-                logging.debug("Using prior")
-                prior_strength = self.attn_prior_starting_strength
-                if global_step > self.attn_prior_scaledown_start_step:  # In scaledown region
-                    logging.debug("Scaling down prior")
-                    total_annealing_steps = self.attn_prior_end_step - self.attn_prior_scaledown_start_step
-                    curr_annealing_step = global_step - self.attn_prior_scaledown_start_step
-                    prior_strength = (1.0 - curr_annealing_step / total_annealing_steps) * prior_strength
-                modifier = 1 - prior_strength
-                # attn_len = attention_prior.shape[-1]
-                # modifier = (attn_len ** modifier - 1) / (attn_len - 1)
-                attention_prior = attention_prior + (1 - attention_prior) * modifier
-                logging.debug(f"Modifying setup with strength: {prior_strength} and modifier: {modifier}")
-                # attention_prior = torch.log_softmax(attention_prior+1e-8, -2)
-                encoder_self_attention_relative_position_bias = attention_prior.unsqueeze(1).repeat(
-                    1, num_attention_heads, 1, 1
-                )
-                encoder_self_attention_relative_position_bias = torch.log(
-                    encoder_self_attention_relative_position_bias + 1e-8
-                )
-                # encoder_self_attention_relative_position_bias = torch.log_softmax(encoder_self_attention_relative_position_bias, dim=-1)
 
             if self.context_parallel and encoder_self_attention_relative_position_bias.shape[-2] > 1:
                 encoder_self_attention_relative_position_bias = self.get_position_embedding_on_this_context_parallel_rank(
@@ -919,11 +829,7 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 if rotary_pos_emb is not None
                 else None,  # This assumes that this being used as a GPT/BERT model only (no cross-attention)
                 self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
-                return_all_selfattention_probs=return_all_selfattention_probs,
             )
-            attention_probs_list = None
-            if return_all_selfattention_probs:
-                encoder_output, attention_probs_list = encoder_output
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
 
@@ -936,13 +842,9 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
         # similarity between two sequences by average pooling
         if not self.add_decoder or output_enc_hidden_only:
             if self.add_pooler and self.post_process:
-                return (
-                    (encoder_output, pooled_output),
-                    attention_probs_list,
-                    encoder_self_attention_relative_position_bias,
-                )
+                return encoder_output, pooled_output
             else:
-                return (encoder_output), attention_probs_list, encoder_self_attention_relative_position_bias
+                return encoder_output
 
         # Decoder Embedding
         dec_embedding_output = self.embedding(dec_input_ids, dec_position_ids)

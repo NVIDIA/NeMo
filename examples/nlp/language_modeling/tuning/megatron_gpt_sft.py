@@ -220,7 +220,6 @@ def main(cfg) -> None:
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
-            map_location="cpu",
         )
         model = load_from_nemo(MegatronGPTSFTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     else:

@@ -1006,7 +1006,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokens_enc - encoder input tokens
         enc_mask - corresponding mask
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
-        batch_data - passed directly to all hidden transformations and losses.
+        batch_data - passed directly to all hidden transformations and losses. 
                      Can be used to pass additional data like class label.
                      Format is not defined and should match the expected format of the used hiddens modules.
         """
@@ -1134,7 +1134,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokens_enc - a tensor of shape [batch_size, seq_len] that contains the input tokens.
         enc_mask - a tensor of shape [batch_size, seq_len] that contains the input tokens mask (1 for active, 0 for inactive).
         num_tokens_to_generate - the max number of tokens to generate.
-        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).
+        encoder_input - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc if given).   
         tokenizer - a tokenizer object.
         enc_output - a tensor of shape [batch_size, seq_len, hidden_size] that contains the encoder hidden states (replaces tokens_enc and encoder_input if given).
         enc_output_attn_mask - a tensor of shape [batch_size, seq_len] that contains the encoder attention mask (replaces enc_mask if given).

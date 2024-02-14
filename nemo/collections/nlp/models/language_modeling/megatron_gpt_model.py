@@ -194,7 +194,7 @@ class MegatronGPTExportableModel(torch.nn.Module, Exportable):
             param.requires_grad = False
 
     def input_example(self, max_batch=1, max_dim=768, seq_len=6):
-        ids = [self.model.tokenizer.text_to_ids(text) for text in ["how is the weather on Sunday"]]
+        ids = [self.model.tokenizer.text_to_ids(text) for text in ["how is the weather on           Sunday"]]
         id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
         masks_and_position_ids = [
             get_ltor_masks_and_position_ids(id_tensor, self.model.tokenizer.eos_id, False, False, False)
@@ -1732,51 +1732,3 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             setattr(transformer_config, key, value)
 
         return transformer_config
-
-    # TODO: Figure out if I still need this func
-    # def update_for_speech(self, speech_module="linear", num_phoneme_tokens=0):
-    #     assert speech_module in ["linear", "conv"]
-    #     from nemo.collections.nlp.modules.common.megatron.utils import scaled_init_method_normal
-
-    #     _init_method = scaled_init_method_normal(0.02, self.cfg.num_layers)
-    #     if self.cfg.get('megatron_amp_O2', False):
-    #         base_module = self.model.module
-    #     else:
-    #         base_module = self.model
-    #     # Update embedding tables
-    #     word_embedding = base_module.language_model.embedding.word_embeddings
-    #     old_token_size = word_embedding.num_embeddings
-    #     one_speech_layer = 1024
-    #     total_speech_tokens = 8 * one_speech_layer
-    #     new_embeddings = tensor_parallel.VocabParallelEmbedding(
-    #         num_embeddings=old_token_size + num_phoneme_tokens + total_speech_tokens,
-    #         embedding_dim=word_embedding.embedding_dim,
-    #         init_method=_init_method,
-    #         config=self.model_parallel_config,
-    #     )
-    #     new_weight = new_embeddings.weight.clone()
-    #     new_weight[:old_token_size, :] = word_embedding.weight.clone()
-    #     new_weight = torch.nn.Parameter(new_weight)
-    #     new_embeddings.weight = new_weight
-    #     base_module.language_model.embedding.word_embeddings = new_embeddings
-
-    #     # Update output layer weights
-    #     output_layer = base_module.language_model.output_layer
-    #     old_weight = output_layer.weight
-    #     old_token_size = output_layer.weight.shape[0]
-    #     additional_output_size = (
-    #         total_speech_tokens + num_phoneme_tokens if speech_module == "linear" else one_speech_layer
-    #     )
-    #     new_weight = torch.zeros(
-    #         [old_token_size + additional_output_size, old_weight.shape[1]],
-    #         dtype=old_weight.dtype,
-    #         device=old_weight.device,
-    #     )
-    #     _init_method(new_weight)
-    #     new_weight[:old_token_size, :] = output_layer.weight.clone()
-    #     new_weight = torch.nn.Parameter(new_weight)
-    #     output_layer.weight = new_weight
-
-    #     if speech_module == "conv":
-    #         hidden_size = base_module.hidden_size
-    #         base_module.speech_residual_model = SimplestModule(hidden_size, 1024)
