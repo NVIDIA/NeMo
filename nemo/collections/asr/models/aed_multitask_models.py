@@ -745,23 +745,30 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         del log_probs, encoded_len
 
-        beam_hypotheses = self.decoding.decode_predictions_tensor(
+        best_hypotheses, all_hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=decoder_input_ids if self.context_len_for_AR_decoding > 0 else None,
             return_hypotheses=trcfg.return_hypotheses,
-        )[
-            0
-        ]  # type: List[str] | List[Hypothesis]
+        )
 
         if trcfg.return_hypotheses:
-            for hyp in beam_hypotheses:
+            for hyp in best_hypotheses:
                 hyp.text = self.decoding.strip_special_tokens(hyp.text)
+            if all_hypotheses is not None:
+                for i in range(len(all_hypotheses)):
+                    for j in range(len(all_hypotheses[i])):
+                        all_hypotheses[i][j].text = self.decoding.strip_special_tokens(all_hypotheses[i][j].text)
         else:
-            beam_hypotheses = [self.decoding.strip_special_tokens(text) for text in beam_hypotheses]
+            best_hypotheses = [self.decoding.strip_special_tokens(text) for text in best_hypotheses]
+            if all_hypotheses is not None:
+                for i in range(len(all_hypotheses)):
+                    all_hypotheses[i] = [self.decoding.strip_special_tokens(text) for text in all_hypotheses[i]]
 
         del enc_states, enc_mask, decoder_input_ids
-        return beam_hypotheses
+        if all_hypotheses is None:
+            return best_hypotheses
+        return best_hypotheses, all_hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
@@ -858,3 +865,35 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             A dataclass
         """
         return MultiTaskTranscriptionConfig()
+
+    def predict_step(self, batch, batch_idx=0, dataloader_idx=0, has_processed_signal=False):
+        signal, signal_len, transcript, transcript_len = batch
+
+        processed_signal = None
+        processed_signal_length = None
+        if has_processed_signal:
+            processed_signal = signal
+            processed_signal_length = signal_len
+            signal = None
+            signal_len = None
+
+        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+            input_signal=signal,
+            input_signal_length=signal_len,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+            transcript=transcript,
+            transcript_length=transcript_len,
+        )
+
+        text = self.decoding.decode_predictions_tensor(
+            encoder_hidden_states=enc_states,
+            encoder_input_mask=enc_mask,
+            decoder_input_ids=transcript[:, : self.context_len_for_AR_decoding]
+            if self.context_len_for_AR_decoding > 0
+            else None,
+            return_hypotheses=False,
+        )[0]
+
+        text = [self.decoding.strip_special_tokens(t) for t in text]
+        return text
