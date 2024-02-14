@@ -688,7 +688,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                 encoder_output = output
                 return encoder_output
 
-
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,
         add an extra key."""
@@ -716,6 +715,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+
 
 class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderDecoderModule):
     def __init__(self, *args, **kwargs):

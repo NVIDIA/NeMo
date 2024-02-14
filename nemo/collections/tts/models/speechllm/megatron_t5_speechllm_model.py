@@ -29,15 +29,15 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.tts.data.speechllm.t5_speechlm_dataset import Lang, T5SpeechLMDataset
-from nemo.collections.tts.data.speechllm.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
-from nemo.collections.tts.models.speechllm.megatron_base_speechlm_prompt_model import MegatronBaseSpeechLM
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
+    MegatronTokenLevelEncoderDecoderSpeechLLMModule,
+    MegatronTokenLevelHead,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
@@ -45,11 +45,11 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
-    MegatronTokenLevelEncoderDecoderSpeechLLMModule,
-)
+from nemo.collections.tts.data.speechllm.t5_speechlm_dataset import Lang, T5SpeechLMDataset
+from nemo.collections.tts.data.speechllm.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
+from nemo.collections.tts.models.speechllm.megatron_base_speechlm_prompt_model import MegatronBaseSpeechLM
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
 from nemo.utils import AppState, logging
 
@@ -83,6 +83,7 @@ except:
     logging.warning("DAC not found, only use Encodec")
 
 __all__ = ['MegatronT5SpeechLMModel']
+
 
 class MegatronT5OverrideModel(MegatronT5Model):
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
@@ -379,7 +380,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5OverrideModel.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
+        t5_cfg = MegatronT5OverrideModel.restore_from(
+            cfg.get('language_model_path'), trainer=trainer, return_config=True
+        )
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             if hasattr(t5_cfg, 'encoder') and hasattr(t5_cfg, 'decoder'):
@@ -1906,4 +1909,3 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             acc = correct / len(gather_results_dedup) if all_labels[0] else None
             logging.info(f'Prediction results: {acc}')
             logging.info(f'Test finish')
-

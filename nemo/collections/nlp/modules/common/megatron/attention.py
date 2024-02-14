@@ -954,12 +954,7 @@ class CoreAttention(MegatronModule):
                     f"attn_fn: {self.attn_fn}, return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}"
                 )
                 context_layer = self.attn_fn(
-                    query_layer,
-                    key_layer,
-                    value_layer,
-                    attention_mask,
-                    relative_position_bias,
-                    inference_mode,
+                    query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode,
                 )
 
         if headscale_tensor is not None:
@@ -977,9 +972,7 @@ class CoreAttention(MegatronModule):
         else:
             return context_layer
 
-    def torch_attention(
-        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode
-    ):
+    def torch_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode):
         sq, b, np, hn = query_layer.shape
         sk = key_layer.shape[0]
 
@@ -1099,9 +1092,7 @@ class CoreAttention(MegatronModule):
         else:
             return context_layer
 
-    def flash_attention(
-        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode
-    ):
+    def flash_attention(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode):
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
         key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
         value_layer = rearrange(value_layer, 'sv b np hn -> b sv np hn')
@@ -1116,21 +1107,12 @@ class CoreAttention(MegatronModule):
 
         if attention_bias is not None:
             output = self.flash_attention_triton(
-                query_layer,
-                key_layer,
-                value_layer,
-                attention_mask,
-                attention_bias,
-                is_causal,
+                query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
             )
         else:
-            return self.flash_attention_cuda(
-                query_layer, key_layer, value_layer, attention_mask, is_causal
-            )
+            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal)
 
-    def flash_attention_cuda(
-        self, query_layer, key_layer, value_layer, attention_mask, is_causal
-    ):
+    def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, is_causal):
         batch_size, seqlen, nheads, _ = query_layer.shape
 
         # True: attend / False: not attend
@@ -1182,9 +1164,7 @@ class CoreAttention(MegatronModule):
         context_layer = context_layer.permute(0, 2, 1, 3)
         return context_layer
 
-    def flash_attention_triton(
-        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal
-    ):
+    def flash_attention_triton(self, query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')
 

@@ -83,6 +83,7 @@ def pad_text_to_speech_dims(text_tensor, pad_id, pad_size=7):
     empty_padding = torch.ones((pad_size, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
+
 class Lang(enum.Enum):
     en = 1
     es = 2
