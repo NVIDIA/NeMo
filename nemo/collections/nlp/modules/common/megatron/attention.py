@@ -91,7 +91,6 @@ except (ImportError, ModuleNotFoundError):
         # Flash Attention 2.X
         from flash_attn import flash_attn_func
         from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
-        from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
         HAVE_FLASH_ATTENTION = True
 
@@ -398,6 +397,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         # Some consistency check.
         if inference_max_sequence_len:
+            # Added equals to as inference key_memory size refers to cross-attention key size
+            # which is already equal to the current "sequence length"
             assert self.inference_current_sequence_len <= self.inference_key_memory.size(0)
             assert inference_max_sequence_len == self.inference_key_memory.size(0)
         # This is added for safety. In case inference_max_sequence_len
@@ -433,11 +434,14 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             (query_layer, key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(
                 mixed_x_layer, 3, contiguous_split_chunks=True
             )
-        else:
+        else:  # Else in cross_attention
             # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
             if (
                 inference_max_sequence_len is None
             ) or self.inference_current_sequence_len < inference_max_sequence_len:
+                # If we are in traning and inference_max_sequence_len is None
+                # Or we haven't cached the key and value part of cross attention in the decoder on step 0,
+                # Do the caching
                 mixed_kv_layer, _ = self.key_value(encoder_output)
                 if self.is_adapter_available():
                     lora_kv_adapter = self.get_adapter_module(AdapterName.LORA_KV_ADAPTER)
@@ -459,6 +463,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                     mixed_kv_layer, 2, contiguous_split_chunks=True
                 )
             else:
+                # else if we are in inference and have already cached key, value, can just read cache
                 key_layer = self.inference_key_memory[: self.inference_current_sequence_len, ...]
                 value_layer = self.inference_value_memory[: self.inference_current_sequence_len, ...]
                 if attention_mask is not None:
@@ -498,7 +503,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if rotary_pos_emb is not None:
             rotary_pos_emb = rotary_pos_emb if isinstance(rotary_pos_emb, tuple) else ((rotary_pos_emb,) * 2)
 
-        # If we are in cross attention, we only need to cache this once so add second check
+        # If we are in cross attention (inference_current_sequence_len == inference_max_sequence_len == inference_key_memory.size(0))
+        # We only need to cache this once
         if inference_max_sequence_len and self.inference_current_sequence_len < inference_max_sequence_len:
             # print(f"{self.inference_current_sequence_len}|{key_layer.shape}")
             # Adjust the range variables.
@@ -865,7 +871,7 @@ class CoreAttention(MegatronModule):
         relative_position_bias=None,
         headscale_tensor=None,
         inference_mode=None,
-        return_scores=False,
+        return_scores=None,
     ):
         b, np, sq, sk, hn = (
             query_layer.size(1),
@@ -923,36 +929,38 @@ class CoreAttention(MegatronModule):
         # relative_position_bias [b, np, sq, sk]
         # context_layer [b, np, sq, hn]
         # ==================================================
-        # context_layer = self.attn_fn(
-        #     query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode, return_scores=return_scores
-        # )
-        if return_scores or relative_position_bias is not None:
-            logging.debug(
-                f"torch a: return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}"
-            )
-            context_layer = self.torch_attention(
-                query_layer,
-                key_layer,
-                value_layer,
-                attention_mask,
-                relative_position_bias,
-                inference_mode,
-                return_scores=return_scores,
-            )
-            context_layer, attention_probs = context_layer
-        else:
-            logging.debug(
-                f"attn_fn: {self.attn_fn}, return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}"
-            )
+        if not return_scores:
             context_layer = self.attn_fn(
-                query_layer,
-                key_layer,
-                value_layer,
-                attention_mask,
-                relative_position_bias,
-                inference_mode,
-                return_scores=return_scores,
+                query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode,
             )
+        else:
+            # SpeechLLM TTS modifications
+            if return_scores or relative_position_bias is not None:
+                logging.debug(
+                    f"torch a: return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}"
+                )
+                context_layer = self.torch_attention(
+                    query_layer,
+                    key_layer,
+                    value_layer,
+                    attention_mask,
+                    relative_position_bias,
+                    inference_mode,
+                    return_scores=return_scores,
+                )
+                context_layer, attention_probs = context_layer
+            else:
+                logging.debug(
+                    f"attn_fn: {self.attn_fn}, return_scores: {return_scores}, relative_position_bias is not None: {relative_position_bias is not None}"
+                )
+                context_layer = self.attn_fn(
+                    query_layer,
+                    key_layer,
+                    value_layer,
+                    attention_mask,
+                    relative_position_bias,
+                    inference_mode,
+                )
 
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor
@@ -970,6 +978,63 @@ class CoreAttention(MegatronModule):
             return context_layer
 
     def torch_attention(
+        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode
+    ):
+        sq, b, np, hn = query_layer.shape
+        sk = key_layer.shape[0]
+
+        if self.multi_query_attention:
+            query_layer = rearrange(query_layer, 'sq b np hn -> b (np sq) hn')
+            key_layer = rearrange(key_layer, 'sk b 1 hn -> b hn sk')
+            value_layer = rearrange(value_layer, 'sv b np hn -> (b np) sv hn')
+        else:
+            query_layer = rearrange(query_layer, 'sq b np hn -> (b np) sq hn')
+            key_layer = rearrange(key_layer, 'sk b np hn -> (b np) hn sk')
+            value_layer = rearrange(value_layer, 'sv b np hn -> (b np) sv hn')
+
+        matmul_input_buffer = torch.empty(
+            query_layer.shape[0],
+            query_layer.shape[1],
+            key_layer.shape[2],
+            dtype=query_layer.dtype,
+            device=query_layer.device,
+        )
+
+        matmul_result = torch.baddbmm(
+            matmul_input_buffer,
+            query_layer,
+            key_layer,
+            beta=0.0,
+            alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
+        )
+
+        # change view to [b, np, sq, sk]
+        attention_scores = matmul_result.view(b, np, sq, sk)
+
+        if attention_bias is not None:
+            attention_scores += attention_bias
+        attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
+        # This is actually dropping out entire tokens to attend to, which might
+        # seem a bit unusual, but is taken from the original Transformer paper.
+
+        if not self.sequence_parallel:
+            with tensor_parallel.random.get_cuda_rng_tracker().fork():
+                attention_probs = self.attention_dropout(attention_probs)
+        else:
+            attention_probs = self.attention_dropout(attention_probs)
+
+        # change view [b * np, sq, sk]
+        attention_probs = rearrange(attention_probs, 'b np sq sk -> (b np) sq sk')
+
+        # matmul: [b * np, sq, hn]
+        context_layer = torch.bmm(attention_probs, value_layer)
+
+        # change view [b, np, sq, hn]
+        context_layer = rearrange(context_layer, '(b np) sq hn -> b np sq hn', np=np)
+
+        return context_layer
+
+    def torch_attention_with_prior(
         self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode, return_scores=False
     ):
         sq, b, np, hn = query_layer.shape
@@ -1004,37 +1069,12 @@ class CoreAttention(MegatronModule):
         attention_scores = matmul_result.view(b, np, sq, sk)
 
         if attention_bias is not None:
-            # attention_bias is not None only for cross attention layers right now
-            # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
+            # attention_bias is not None only for cross attention layers right now in T5
             eps = 1e-8
             attention_bias_log = torch.log(attention_bias + eps)
             attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
-            # attention_scores += attention_bias
 
-        # # Attention Prior Setup - GPT
-        # if attention_bias is not None:
-        #     # saved = torch.log_softmax(attention_scores, dim=-1)
-        #     attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias
-        #     # # attention_bias is not None only for cross attention layers right now
-        #     # # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
-        #     # eps = 1e-8
-        #     # attention_bias_log = torch.log(attention_bias + eps)
-        #     # attention_scores = torch.log_softmax(attention_scores, dim=2) + attention_bias_log
-        #     # # attention_scores += attention_bias
-
-        # # Alibi Setup - GPT
-        # if attention_bias is not None:
-        #     # attention_bias is not None only for cross attention layers right now
-        #     # TODO: make attention_bias type configurable: additive or multiplicative (log additive)
-        #     eps = 1e-8
-        #     attention_bias_log = torch.log(attention_bias + eps)
-        #     attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
-        #     # attention_scores += attention_bias
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
-        # print(f"a: {torch.max(torch.exp(torch.logsumexp(saved, -1)))}")
-        # print(f"b: {torch.max(torch.exp(torch.logsumexp(attention_bias, -1)))}")
-        # # print(f"c: {torch.max(torch.exp(torch.logsumexp(attention_scores, -1)))}")
-        # print(f"d: {torch.max(torch.sum(_attention_probs, -1))}")
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
 
@@ -1060,7 +1100,7 @@ class CoreAttention(MegatronModule):
             return context_layer
 
     def flash_attention(
-        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode, return_scores=False
+        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, inference_mode
     ):
         query_layer = rearrange(query_layer, 'sq b np hn -> b sq np hn')
         key_layer = rearrange(key_layer, 'sk b np hn -> b sk np hn')
@@ -1082,18 +1122,14 @@ class CoreAttention(MegatronModule):
                 attention_mask,
                 attention_bias,
                 is_causal,
-                return_scores=return_scores,
             )
-            if return_scores:
-                return output, None
-            return output
         else:
             return self.flash_attention_cuda(
-                query_layer, key_layer, value_layer, attention_mask, is_causal, return_scores=return_scores
+                query_layer, key_layer, value_layer, attention_mask, is_causal
             )
 
     def flash_attention_cuda(
-        self, query_layer, key_layer, value_layer, attention_mask, is_causal, return_scores=False
+        self, query_layer, key_layer, value_layer, attention_mask, is_causal
     ):
         batch_size, seqlen, nheads, _ = query_layer.shape
 
@@ -1115,24 +1151,19 @@ class CoreAttention(MegatronModule):
 
         if seqlens_q_in_batch == 1 and seqlens_kv_in_batch == 1 and flash_attn_func is not None:
             # [b, sq, np, hn]
-            output = flash_attn_func(
+            context_layer = flash_attn_func(
                 query_layer,
                 key_layer,
                 value_layer,
                 dropout_p=self.attention_dropout_p if self.training else 0.0,
                 causal=is_causal,
-                return_attn_probs=return_scores,
             )
-            if isinstance(output, tuple):
-                context_layer, _, attn_probs = output
-            else:
-                context_layer = output
         else:
             q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_layer, attention_mask_q)
             k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_layer, attention_mask_kv)
             v, _, _, _ = unpad_input(value_layer, attention_mask_kv)
 
-            output = flash_attn_unpadded_func(
+            context_layer = flash_attn_unpadded_func(
                 q,
                 k,
                 v,
@@ -1142,24 +1173,17 @@ class CoreAttention(MegatronModule):
                 max_seqlen_k,
                 dropout_p=self.attention_dropout_p if self.training else 0.0,
                 causal=is_causal,
-                return_attn_probs=return_scores,
             )
-            if isinstance(output, tuple):
-                context_layer, _, attn_probs = output
-            else:
-                context_layer = output
 
             # [b, sq, np, hn]
             context_layer = pad_input(context_layer, indices_q, batch_size, seqlen)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)
-        if return_scores:
-            return context_layer, attn_probs
         return context_layer
 
     def flash_attention_triton(
-        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal, return_scores=False
+        self, query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal
     ):
         if self.attention_dropout_p > 0.0:
             raise NotImplementedError(f'attention_dropout not implemented for flash_attention with attention bias')

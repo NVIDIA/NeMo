@@ -60,7 +60,6 @@ model:
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
   seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
-  speech_head_type: "linear" # token_level, linear
   temperature: 0.9 # Temperature to be used for inference
   top_k: 80 # Top k to be used for inference
   max_inference_timesteps: 1500 # Maximum number of timesteps to run inference for

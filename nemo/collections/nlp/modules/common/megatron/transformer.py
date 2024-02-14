@@ -505,13 +505,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if self.transformer_block_type in ['pre_ln', 'normformer']:
                 hidden_states = self.input_layernorm(hidden_states)
 
-            # if inference_max_sequence_len is not None:
-            #     hidden_states = hidden_states[-1, :, :].unsqueeze(0)
-
-            # print(
-            #     f"Calling self attention in paralleltransformer. set_inference_key_value_memory={set_inference_key_value_memory}. "
-            #     f"inference_max_sequence_len={inference_max_sequence_len}. decoder_max_sequence_len={decoder_max_sequence_len}"
-            # )
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
                 attention_mask,
@@ -593,7 +586,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 )
             else:
                 # Return Scores is being passed only for inter_attention and not self attention
-                # print(f"Calling cross attention in paralleltransformer. set_inference_key_value_memory={set_inference_key_value_memory}. inference_max_sequence_len={encoder_max_sequence_len}")
                 attention_output, attention_bias = self.inter_attention(
                     normalization_output,
                     enc_dec_attn_mask,

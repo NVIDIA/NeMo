@@ -149,16 +149,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
         self.tokens_head_bias = tokens_head_bias
-
-        # Overridden in MegatronT5SpeechLMModel constructor
-        self.seq_pattern = "parallel"
-        self.speech_head_type = "token_level"
         self.hiddens_cfg = hiddens_cfg
-        self.attn_prior_scaledown_start_step = 10000
-        self.attn_prior_end_step = 11000
-        self.return_all_crossattention_probs = False
-        self.logging_step = False
-        self.num_cross_attention_heads = 12  # 12 for 220m T5, 16 for 11b T5
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
@@ -508,6 +499,236 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
         else:
             raise Exception('Stage must have at least either encoder or decoder')
 
+    def forward(
+        self,
+        enc_input_ids=None,
+        enc_attn_mask=None,
+        dec_input_ids=None,
+        dec_attn_mask=None,
+        token_type_ids=None,
+        labels=None,
+        batch_data=None,  # additional data to be passed to hiddens module
+        enc_output=None,  # Result of running the entire encoder
+        enc_output_attn_mask=None,
+        enc_input=None,  # Result of running encoder embedding only
+        output_enc_hidden_only=False,
+    ):
+        """
+        Return value is per token / per dimension (i.e., non collapsed loss value)
+        """
+        (
+            encoder_self_attention_relative_position_bias,
+            decoder_self_attention_relative_position_bias,
+            decoder_cross_attention_relative_position_bias,
+        ) = (None, None, None)
+
+        if enc_input is not None and enc_output is not None:
+            raise ValueError(
+                """Both enc_input and enc_output are not None.
+                You should only be passing one of them.
+                enc_input is the result of the encoder embedding layer
+                enc_output is the result of running the entire transformer encoder."""
+            )
+
+        # In order of precedence, we use enc_output, enc_input, and then enc_input_ids to determine the encoder sequence length.
+        if enc_output is not None:
+            # If enc_output is provided in `batch_for_pipeline`, we need to transpose it from [B x S x H] -> [S x B x H].
+            enc_output = enc_output.transpose(0, 1)
+            enc_seq_length = enc_output.size(0)
+        elif enc_input is not None:
+            # If enc_input is provided, we need to transpose it from [B x S x H] -> [S x B x H].
+            enc_input = enc_input.transpose(0, 1)
+            enc_seq_length = enc_input.size(0)
+        # Only need to run encoder embedding and position ids if enc_input or enc_output is not provided.
+        elif enc_input_ids is not None:
+            enc_seq_length = enc_input_ids.size(1)
+            if self.pre_process and self.add_encoder:
+                # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
+                if self.encoder_relative_position_embedding is None:
+                    enc_position_ids = build_position_ids(enc_input_ids)
+                else:
+                    enc_position_ids = None
+                enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+                if self.is_adapter_available():
+                    _sq, _bs, _hs = enc_input.size()
+                    ptuning_adapter = self.get_adapter_module(AdapterName.PTUNING_ADAPTER)
+                    v = ptuning_adapter.virtual_tokens
+                    if (
+                        ptuning_adapter and _sq >= v
+                    ):  # The sequence should be longer the v to insert virtual embeddings.
+                        virtual_embeddings = ptuning_adapter(_bs)
+                        enc_input = enc_input[
+                            v:, :, :
+                        ]  # the first v tokens are pads so that they can be swapped out with virtual embeddings.
+                        enc_input = torch.concat([virtual_embeddings, enc_input], dim=0)
+            else:
+                enc_input = None
+        else:
+            # This should only happen with PP > 1 for enc-dec prompt learning models
+            enc_seq_length = enc_attn_mask.size(1)
+
+        if self.add_encoder and self.encoder_relative_position_embedding is not None:
+            encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+            )
+
+        if output_enc_hidden_only:
+            # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
+            if enc_output is None and self.enc_dec_model.encoder is not None:
+                enc_output = self.enc_dec_model.encode(
+                    enc_input=enc_input,
+                    enc_attn_mask=enc_attn_mask,
+                    enc_layer_past=None,
+                    enc_get_key_value=False,
+                    enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                    batch_data=batch_data,
+                )
+            else:
+                enc_output = self.enc_dec_model.encoder_hidden_state
+
+            return enc_output
+        else:
+            if enc_output_attn_mask is None:
+                enc_output_attn_mask = enc_attn_mask
+
+            if self.pre_process and self.add_decoder:
+                # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
+                if self.decoder_relative_position_embedding is None:
+                    dec_position_ids = build_position_ids(dec_input_ids)
+                else:
+                    dec_position_ids = None
+                dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
+            else:
+                # Note: This is when the decoder itself is split across PP ranks.
+                dec_input = None
+
+            if self.add_decoder and self.decoder_relative_position_embedding is not None:
+                decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
+                    query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
+                )
+                if not self.decoder_cfg.relative_position_bias_self_attention_only:
+                    decoder_cross_attention_relative_position_bias = self.decoder_cross_attention_relative_position_embedding(
+                        query_seq_length=dec_input_ids.size(1), key_seq_length=enc_seq_length,
+                    )
+                else:
+                    decoder_cross_attention_relative_position_bias = None
+
+            output = self.enc_dec_model(
+                enc_input=enc_input,
+                enc_attn_mask=enc_attn_mask,
+                dec_input=dec_input,
+                dec_attn_mask=dec_attn_mask,
+                enc_layer_past=None,
+                enc_get_key_value=False,
+                enc_output=enc_output,
+                enc_output_attn_mask=enc_output_attn_mask,
+                dec_layer_past=None,
+                dec_get_key_value=False,
+                enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
+                dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
+                batch_data=batch_data,
+            )
+
+            if self.post_process and self.add_decoder:
+                dec_output, enc_output = output  # [s, b, h], enc_output might be a dict if hiddens_module is used
+                # project decoder output to vocabulary-size dimensions
+                if self.share_decoder_tokens_head_embeddings:
+                    token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
+                else:
+                    token_logits = self.tokens_head(dec_output)[0]
+
+                if labels is not None:
+                    # compute loss here
+                    # [b, s] -> [s, b]
+                    labels = labels.transpose(0, 1).contiguous()
+
+                    # Set label smoothing to 0 if in eval mode.
+                    label_smoothing = self.label_smoothing if self.training else 0.0
+
+                    # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
+                    if self.fp16_cross_entropy:
+                        assert token_logits.dtype == torch.half
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
+                    else:
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
+
+                    # [s, b] -> [b, s]
+                    tokens_loss = tokens_loss.transpose(0, 1).contiguous()
+
+                    # check if hiddens is used
+                    if self.hiddens_cfg is not None:
+                        loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(
+                            outputs=enc_output, batch_data=batch_data,
+                        )
+                        loss_dict["tokens_loss"] = tokens_loss
+                        # We need to store default output in a known key, so that we can mimic default behaviour
+                        loss_dict["output"] = tokens_loss
+                        return loss_dict
+                    else:
+                        return tokens_loss
+                else:
+                    # else return token logits (and hiddens if needed)
+                    # [s, b, h] -> [b, s, h]
+                    token_logits = token_logits.transpose(0, 1).contiguous()
+                    if self.hiddens_cfg is not None:
+                        # return all hiddens and token logits
+                        hiddens_dict = enc_output
+                        hiddens_dict["token_logits"] = token_logits
+                        # We need to store default output in a known key, so that we can mimic default behaviour
+                        hiddens_dict["output"] = token_logits
+                        return hiddens_dict
+                    else:
+                        return token_logits
+
+            elif self.add_decoder and not self.add_encoder:
+                decoder_output, _ = output
+                return decoder_output
+            else:
+                encoder_output = output
+                return encoder_output
+
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        """For easy load when model is combined with other heads,
+        add an extra key."""
+
+        state_dict_ = {}
+
+        state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
+        state_dict_[self._decoder_embedding_key] = self.decoder_embedding.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
+        state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
+        state_dict_[self._tokens_head_key] = self.tokens_head.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
+
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Customized load."""
+        self.encoder_embedding.encoder_embeddingload_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
+        self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
+        self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
+        self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+
+class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderDecoderModule):
+    def __init__(self, *args, **kwargs):
+        super(MegatronTokenLevelEncoderDecoderSpeechLLMModule, self).__init__(*args, **kwargs)
+        # Overridden in MegatronT5SpeechLMModel constructor
+        self.seq_pattern = "parallel"
+        self.speech_head_type = "token_level"
+        self.attn_prior_scaledown_start_step = 10000
+        self.attn_prior_end_step = 11000
+        self.return_all_crossattention_probs = False
+        self.logging_step = False
+        self.num_cross_attention_heads = 12  # 12 for 220m T5, 16 for 11b T5
+
     def get_decoder_embeddings(self, dec_input_ids, dec_position_ids, token_type_ids):
         if dec_input_ids.dim() <= 2:
             dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
@@ -733,29 +954,19 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                         attention_scores_sliced = attention_scores_combined[
                             :, ::align_every_n_head, :, text_start_idx : -(2 + end_offset)
                         ]  # -2 to remove eos and pad
-                        # attention_logprobs = torch.log_softmax(attention_scores_sliced, dim=-1)
                         attention_logprobs = (
                             attention_scores_sliced  # not taking log_softmax, since we will do that in loss function
                         )
                         attention_logprobs = torch.mean(attention_logprobs, dim=1, keepdim=True)
                         dec_len = torch.sum(dec_attn_mask, dim=1)
                         enc_len = text_limits[:, 1] - text_limits[:, 0] - end_offset
-                        # print("enc len: ", enc_len)
-                        # print("dec len: ", dec_len)
-                        # print("text limits: ", text_limits)
-                        # print("attention_logprobs: ", attention_logprobs.shape)
                         alignment_loss = self.forward_sum_loss(
                             attn_logprob=attention_logprobs, in_lens=enc_len, out_lens=dec_len
                         )
-                        # print("alignment_loss: ", alignment_loss)
                 else:
                     attention_probs = None
-                # output_type = self.predict_output_type(enc_output)
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
-                    # @jasoli: Will have to check that this is indexed properly
-                    # TODO: Remove hardcode of 9000 = num_speech_tokens
-                    # token_logits = self.tokens_head(dec_output, self.word_embeddings_weight()[:-(9000-1024),:]) # s, b, vocab
                     first_layer_vocabsize = (
                         self.speech_offset + self.speech_codebook_size
                     )  # variables set in __init__ of speechlm model
@@ -763,10 +974,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     if self.seq_pattern in ["parallel", "delay_parallel"]:
                         # For flat seq_pattern we need all the logits
                         token_logits = token_logits[:, :, :first_layer_vocabsize]
-                    # @jasoli: We will have to define a speech_mask whether this is from the
-                    # datalayer or we infer it from model output as below
-                    # text_token_size = 29184
-                    # speech_mask = torch.nn.argmax(token_logits, dim=-1) > text_token_size
                     speech_layers = self.num_speech_codebooks - 1
                     last_layer_output = dec_output
                     last_layer_logits = token_logits
@@ -775,20 +982,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     speech_logits_list = []
                     if self.seq_pattern in ["parallel", "delay_parallel"] and torch.count_nonzero(speech_mask) > 0:
                         for i in range(speech_layers):
-                            if self.speech_head_type == "token_level":
-                                speech_residual_model = self.speech_residual_model_2
-                                if i == 0:
-                                    speech_residual_model = self.speech_residual_model_1
-                                last_layer_output = speech_residual_model(
-                                    dec_output, last_layer_logits, i, speech_mask
-                                )
-                                last_layer_logits = self.speech_tokens_heads[i](
-                                    last_layer_output, self.speech_tokens_embeddings[i].weight
-                                )
-                            elif self.speech_head_type == "linear":
-                                last_layer_logits = self.speech_tokens_heads[i](dec_output)[0]  # T, B, 1024
-                            else:
-                                raise ValueError(f"Speech head type {self.speech_head_type} not supported")
+                            last_layer_logits = self.speech_tokens_heads[i](dec_output)[0]  # T, B, 1024
                             speech_logits_list.append(last_layer_logits)  # T, B, 1024
                 else:
                     token_logits = self.tokens_head(dec_output)[0]  # T, B, WordEmbSize
@@ -826,7 +1020,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                                 and torch.count_nonzero(speech_mask) > 0
                             ):
                                 for i in range(speech_layers):
-                                    # What is labels[:7, :, :] if this is text? (It is all zeros)
                                     if speech_logits_list[i].size()[0] != labels[i + 1, :, :].size()[0]:
                                         raise Exception("TODO: add a permute")
                                     curr_codebook_loss = (
@@ -845,13 +1038,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     # check if hiddens is used
                     if self.hiddens_cfg is not None:
                         raise NotImplementedError("Not currently implemented for speechllm")
-                        loss_dict = self.enc_dec_model.hiddens_module.apply_loss_transforms(
-                            outputs=enc_output, batch_data=batch_data,
-                        )
-                        loss_dict["tokens_loss"] = tokens_loss
-                        # We need to store default output in a known key, so that we can mimic default behaviour
-                        loss_dict["output"] = tokens_loss
-                        return loss_dict
                     else:
                         return tokens_loss, [token_logits, speech_logits_list, attention_probs, alignment_loss]
                 else:
@@ -882,12 +1068,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
 
                     if self.hiddens_cfg is not None:  # TODO: What is hiddens_cfg
                         raise NotImplementedError("Not currently implemented for speechllm")
-                        # return all hiddens and token logits
-                        hiddens_dict = enc_output
-                        hiddens_dict["token_logits"] = token_logits
-                        # We need to store default output in a known key, so that we can mimic default behaviour
-                        hiddens_dict["output"] = token_logits
-                        return hiddens_dict
                     else:
                         return all_speech_logits, [token_logits, speech_logits, attention_probs, enc_output]
 
@@ -932,14 +1112,3 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
             self.speech_tokens_heads.load_state_dict(state_dict["speech_tokens_heads"], strict=strict)
         if hasattr(self, "speech_tokens_embeddings"):
             self.speech_tokens_embeddings.load_state_dict(state_dict["speech_tokens_embeddings"], strict=strict)
-        if hasattr(self, "speech_residual_model_1"):
-            self.speech_residual_model_1.load_state_dict(state_dict["speech_residual_model_1"], strict=strict)
-        if hasattr(self, "speech_residual_model_2"):
-            self.speech_residual_model_2.load_state_dict(state_dict["speech_residual_model_2"], strict=strict)
-
-
-def regular_cross_entropy(logits, target, label_smoothing=0.0):
-    """Helper function for the cross entropy."""
-    return torch.nn.functional.cross_entropy(
-        logits.permute(1, 2, 0), target.permute(1, 0), reduction="none", label_smoothing=label_smoothing
-    ).permute(1, 0)

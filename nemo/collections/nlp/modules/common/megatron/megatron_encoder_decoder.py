@@ -224,8 +224,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         if self.decoder is None or output_enc_hidden_only:
             return enc_output
 
-        # import ipdb; ipdb.set_trace()
-
         # decoder
         dec_output = self.decode(
             dec_input=dec_input,

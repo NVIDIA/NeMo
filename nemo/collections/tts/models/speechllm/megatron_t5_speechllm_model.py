@@ -29,12 +29,12 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_dataset import Lang, T5SpeechLMDataset
-from nemo.collections.nlp.data.language_modeling.megatron.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
+from nemo.collections.tts.data.speechllm.t5_speechlm_dataset import Lang, T5SpeechLMDataset
+from nemo.collections.tts.data.speechllm.t5_speechlm_tarred_dataset import T5SpeechLMTarredDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_base_speechlm_prompt_model import MegatronBaseSpeechLM
+from nemo.collections.tts.models.speechllm.megatron_base_speechlm_prompt_model import MegatronBaseSpeechLM
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
@@ -45,6 +45,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
+    MegatronTokenLevelEncoderDecoderSpeechLLMModule,
+)
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy, plot_encodec_to_numpy
@@ -81,6 +84,52 @@ except:
 
 __all__ = ['MegatronT5SpeechLMModel']
 
+class MegatronT5OverrideModel(MegatronT5Model):
+    def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
+        if not hasattr(self.cfg, 'encoder') or not hasattr(self.cfg, 'decoder'):
+            logging.warning(
+                'Could not find encoder or decoder in config. This is probably because of restoring an old checkpoint. Copying shared model configs to encoder and decoder configs.'
+            )
+            # After the call below, self.cfg.encoder and self.cfg.decoder will be populated with the cfg.model configs from old checkpoints.
+            self._populate_encoder_decoder_configs_for_backward_compatibility(self.cfg)
+
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
+            raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
+
+        if not hasattr(self.cfg, 'embedding_init_method_std'):
+            embedding_init_method_std = self.cfg.encoder.init_method_std
+        else:
+            embedding_init_method_std = self.cfg.embedding_init_method_std
+
+        if not hasattr(self.cfg, 'embedding_dropout'):
+            embedding_dropout = self.cfg.encoder.hidden_dropout
+        else:
+            embedding_dropout = self.cfg.embedding_dropout
+
+        model = MegatronTokenLevelEncoderDecoderSpeechLLMModule(
+            config=self.model_parallel_config,
+            encoder_cfg=self.cfg.encoder,
+            decoder_cfg=self.cfg.decoder,
+            vocab_size=self.padded_vocab_size,
+            max_position_embeddings=self.cfg.max_position_embeddings,
+            num_tokentypes=0,
+            parallel_output=True,
+            pre_process=pre_process,
+            post_process=post_process,
+            fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+            precision=self.cfg.get('precision', 16),
+            embedding_init_method_std=embedding_init_method_std,
+            embedding_dropout=embedding_dropout,
+            label_smoothing=self.cfg.get('label_smoothing', 0.0),
+            add_encoder=add_encoder,
+            add_decoder=add_decoder,
+            share_token_embeddings=self.cfg.get('share_token_embeddings', True),
+            share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+            tokens_head_bias=self.cfg.get('tokens_head_bias', True),
+            hiddens_cfg=self.cfg.get('hiddens', None),
+        )
+        return model
+
 
 class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     """
@@ -109,7 +158,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         speech_codebook_size = cfg.data.get('speech_codebook_size', 1024)
         num_speech_codebooks = cfg.data.get('num_speech_codebooks', 8)
         speech_offset = cfg.data.get('speech_offset', 30000)
-        speech_head_type = cfg.get('speech_head_type', 'token_level')  # token_level, linear
         codecmodel_type = cfg.get('codecmodel_type', 'encodec')  # encodec, dac
 
         attn_prior_scaledown_start_step = cfg.get('attn_prior_scaledown_start_step', 10000)
@@ -128,7 +176,6 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         self.frozen_model.enc_dec_model.speech_codebook_size = speech_codebook_size
         self.frozen_model.enc_dec_model.num_speech_codebooks = num_speech_codebooks
         self.frozen_model.enc_dec_model.seq_pattern = cfg.get('seq_pattern', 'parallel')
-        self.frozen_model.enc_dec_model.speech_head_type = speech_head_type
 
         self.frozen_model.enc_dec_model.attn_prior_scaledown_start_step = attn_prior_scaledown_start_step
         self.frozen_model.enc_dec_model.attn_prior_end_step = attn_prior_end_step
@@ -164,37 +211,26 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             _speech_head_embedding.weight.data.fill_(0)
             _speech_head_embedding.shared = True
             list_of_speech_tokens_embeddings.append(_speech_head_embedding)
-            if speech_head_type == 'token_level':
-                list_of_speech_heads.append(MegatronTokenLevelHead(_speech_head_embedding.weight.size(0), False))
-            elif speech_head_type == 'linear':
-                # Linear layer that maps from hidden size to speech codebook size
-                hidden_size = self.frozen_model.enc_dec_model.decoder_cfg.hidden_size
-                init_method_std = self.frozen_model.enc_dec_model.decoder_cfg.init_method_std
-                # Changing to ColumnParallelLinear instead of Linear to support 3b Tensor Parallelism
-                _speech_head = tensor_parallel.ColumnParallelLinear(
-                    input_size=hidden_size,
-                    output_size=speech_codebook_size,
-                    bias=True,
-                    gather_output=not self.frozen_model.enc_dec_model.parallel_output,
-                    init_method=init_method_normal(init_method_std),
-                    config=self.model_parallel_config,
-                    # use_cpu_initialization=False,
-                    # params_dtype=self.frozen_model.enc_dec_model.dtype,
-                )
-                list_of_speech_heads.append(_speech_head)
+            # Linear layer that maps from hidden size to speech codebook size
+            hidden_size = self.frozen_model.enc_dec_model.decoder_cfg.hidden_size
+            init_method_std = self.frozen_model.enc_dec_model.decoder_cfg.init_method_std
+            # Changing to ColumnParallelLinear instead of Linear to support 3b Tensor Parallelism
+            _speech_head = tensor_parallel.ColumnParallelLinear(
+                input_size=hidden_size,
+                output_size=speech_codebook_size,
+                bias=True,
+                gather_output=not self.frozen_model.enc_dec_model.parallel_output,
+                init_method=init_method_normal(init_method_std),
+                config=self.model_parallel_config,
+                # use_cpu_initialization=False,
+                # params_dtype=self.frozen_model.enc_dec_model.dtype,
+            )
+            list_of_speech_heads.append(_speech_head)
 
         self.frozen_model.enc_dec_model.speech_tokens_heads = torch.nn.ModuleList(list_of_speech_heads)
         self.frozen_model.enc_dec_model.speech_tokens_embeddings = torch.nn.ModuleList(
             list_of_speech_tokens_embeddings
         )
-
-        if speech_head_type == 'token_level':
-            self.frozen_model.enc_dec_model.speech_residual_model_1 = SimplestModule(
-                self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_offset + speech_codebook_size
-            )
-            self.frozen_model.enc_dec_model.speech_residual_model_2 = SimplestModule(
-                self.frozen_model.enc_dec_model.decoder_cfg.hidden_size, speech_codebook_size
-            )
 
         self.sample_rate = 24000
         if codecmodel_type == 'dac':
@@ -343,7 +379,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5Model.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
+        t5_cfg = MegatronT5OverrideModel.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             if hasattr(t5_cfg, 'encoder') and hasattr(t5_cfg, 'decoder'):
@@ -383,12 +419,12 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 if cfg.get(f'override_{k}') is not None:
                     t5_cfg[k] = cfg.get(f'override_{k}')
 
-            self.frozen_model = MegatronT5Model(t5_cfg, trainer=trainer)
+            self.frozen_model = MegatronT5OverrideModel(t5_cfg, trainer=trainer)
             num_params = sum(p.numel() for p in self.frozen_model.parameters() if p.requires_grad)
             print(f"Number of parameters: {num_params}")
         else:
             print("Loading from pretrained checkpoint!")
-            self.frozen_model = MegatronT5Model.restore_from(
+            self.frozen_model = MegatronT5OverrideModel.restore_from(
                 cfg.get('language_model_path'),
                 trainer=trainer,
                 override_config_path=t5_cfg,
@@ -1871,26 +1907,3 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             logging.info(f'Prediction results: {acc}')
             logging.info(f'Test finish')
 
-
-class SimplestModule(torch.nn.Module):
-    def __init__(self, dec_hid_size, token_input_size=1, kernel_size=15, dropout=0.5):
-        super().__init__()
-        self.conv = torch.nn.Conv1d(
-            dec_hid_size + token_input_size + 1, dec_hid_size, kernel_size=kernel_size, padding=(kernel_size // 2)
-        )
-        self.norm = torch.nn.LayerNorm(dec_hid_size)
-        self.dropout = torch.nn.Dropout(dropout)
-
-    def forward(self, dec_hidden, dec_logits, layer_i, mask):
-        layer_index_tensor = torch.tile(
-            torch.tensor([layer_i], requires_grad=True, dtype=dec_hidden.dtype, device=dec_hidden.device),
-            [*dec_hidden.shape[:-1], 1],
-        )
-        # dec_prediction = torch.argmax(dec_logits, dim=-1, keepdim=True)
-        out = torch.cat([dec_hidden, dec_logits, layer_index_tensor], dim=-1) * mask.T.unsqueeze(-1)
-        # import ipdb; ipdb.set_trace()
-        out = torch.nn.functional.relu(self.conv(out.transpose(1, 2)))
-        out = self.norm(out.transpose(1, 2))
-        out = self.dropout(out) * mask.T.unsqueeze(-1)
-
-        return out

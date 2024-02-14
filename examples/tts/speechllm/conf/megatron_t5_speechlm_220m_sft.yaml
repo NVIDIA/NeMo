@@ -57,7 +57,6 @@ model:
   validation_metric: accuracy
   num_speech_tokens: 10112 # Vocabulary size pertaining to speech
   seq_pattern: "delay_parallel" # parallel, delay_parallel, flatten
-  speech_head_type: "linear" # token_level, linear
   attn_prior_scaledown_start_step: 10000
   attn_prior_end_step: 11000
   return_all_crossattention_probs: True
