@@ -102,7 +102,7 @@ class CanaryTokenizer(AggregateTokenizer):
         raise KeyError(f"Language {language} not found in tokenizer.")
 
     @staticmethod
-    def build_special_tokenizer(output_dir: str | Path) -> SentencePieceTokenizer:
+    def build_special_tokenizer(output_dir: Union[str, Path]) -> SentencePieceTokenizer:
         output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
         text_path = output_dir / "train_text.txt"

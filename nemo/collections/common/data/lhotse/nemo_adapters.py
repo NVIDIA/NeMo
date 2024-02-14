@@ -58,7 +58,7 @@ class LazyNeMoIterator:
 
     def __init__(
         self,
-        path: str | Path,
+        path: Union[str, Path],
         text_field: str = "text",
         lang_field: str = "lang",
         missing_sampling_rate_ok: bool = False,
@@ -69,7 +69,7 @@ class LazyNeMoIterator:
         self.missing_sampling_rate_ok = missing_sampling_rate_ok
 
     @property
-    def path(self) -> str | Path:
+    def path(self) -> Union[str, Path]:
         return self.source.path
 
     def __iter__(self) -> Generator[Cut, None, None]:
@@ -103,7 +103,7 @@ class LazyNeMoIterator:
     def __add__(self, other):
         return LazyIteratorChain(self, other)
 
-    def _create_recording(self, audio_path: str, duration: float, sampling_rate: int | None = None,) -> Recording:
+    def _create_recording(self, audio_path: str, duration: float, sampling_rate: Optional[int] = None,) -> Recording:
         if sampling_rate is not None:
             # TODO(pzelasko): It will only work with single-channel audio in the current shape.
             return Recording(
@@ -157,8 +157,8 @@ class LazyNeMoTarredIterator:
 
     def __init__(
         self,
-        manifest_path: str | Path,
-        tar_paths: str | list,
+        manifest_path: Union[str, Path],
+        tar_paths: Union[str, list],
         shuffle_shards: bool = False,
         text_field: str = "text",
         lang_field: str = "lang",
@@ -271,7 +271,7 @@ class LazyNeMoTarredIterator:
         return LazyIteratorChain(self, other)
 
 
-def expand_sharded_filepaths(path: str | Path) -> list[str]:
+def expand_sharded_filepaths(path: Union[str, Path]) -> list[str]:
     # local import to avoid circular imports
     from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths as _expand_sharded_filepaths
 

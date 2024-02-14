@@ -471,7 +471,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
     def compute_loss(
-        self, batch: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor] | None
+        self, batch: Optional[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]
     ) -> torch.Tensor:
         """
         Run forward pass through the model and compute the loss.

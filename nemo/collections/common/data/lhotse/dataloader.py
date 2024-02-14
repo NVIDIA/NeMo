@@ -48,39 +48,39 @@ class LhotseDataLoadingConfig:
     manifest_filepath: Any = None  # str | list[list[str | float]] | None = None
     tarred_audio_filepaths: Any = None  # str | list[list[str]] | None = None
     #   b. Lhotse CutSet manifest / Lhotse Shar tar dir paths.
-    cuts_path: str | None = None
+    cuts_path: Optional[str] = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
 
     # 2. Batch size.
     #   a. Existing NeMo options.
-    batch_size: int | None = None
+    batch_size: Optional[int] = None
     #   b. Lhotse dynamic batch sizes.
-    batch_duration: float | None = None
-    quadratic_duration: float | None = None
+    batch_duration: Optional[float] = None
+    quadratic_duration: Optional[float] = None
     #   c. Lhotse bucketing.
     use_bucketing: bool = False
     num_buckets: int = 30
     num_cuts_for_bins_estimate: int = 10000
-    bucket_duration_bins: list[float] | None = None
+    bucket_duration_bins: Optional[list[float]] = None
     bucket_buffer_size: int = 10000
     #   d. Other Lhotse sampling options.
-    shuffle_buffer_size: int | None = 10000
+    shuffle_buffer_size: Optional[int] = 10000
     drop_last: bool = False
-    shard_seed: int | str = "trng"
-    max_open_streams: int | None = None
+    shard_seed: Union[int, str] = "trng"
+    max_open_streams: Optional[int] = None
 
     # 3. Supported existing NeMo options.
     shuffle: bool = False
     sample_rate: int = 16000
-    min_duration: float | None = -1
-    max_duration: float | None = float("inf")
-    seed: int | str = "randomized"  # int | "randomized" | "trng"; the latter two are lazily resolved by Lhotse in dloading worker processes
+    min_duration: Optional[float] = -1
+    max_duration: Optional[float] = float("inf")
+    seed: Union[int, str] = "randomized"  # int | "randomized" | "trng"; the latter two are lazily resolved by Lhotse in dloading worker processes
     num_workers: int = 0
     pin_memory: bool = False
 
     # 4. Optional Lhotse data augmentation.
     #   a. On-the-fly noise/audio mixing.
-    noise_path: str | None = None
+    noise_path: Optional[str] = None
     noise_snr: tuple[float, float] = (10.0, 20.0)
     noise_mix_prob: float = 0.5
     #   b. On-the-fly 3-way speed perturbation.
