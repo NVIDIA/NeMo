@@ -157,17 +157,17 @@ def adjust_nemo_config(model_config, ref_config):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--input-name-or-path", type=str)
-    parser.add_argument("--tokenizer-path", type=str)
+    parser.add_argument("--input_name_or_path", type=str)
+    parser.add_argument("--tokenizer_path", type=str)
     parser.add_argument(
-        "--hparams-file",
+        "--hparams_file",
         type=str,
         default=os.path.join(os.path.dirname(__file__),
                              '../../examples/nlp/language_modeling/conf/megatron_gemma_config.yaml'),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--output-path", type=str, default=None, help="Path to output .nemo file.")
+    parser.add_argument("--output_path", type=str, default=None, help="Path to output .nemo file.")
     parser.add_argument(
         "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weight saved"
     )
