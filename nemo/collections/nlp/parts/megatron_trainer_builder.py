@@ -150,7 +150,28 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
             callbacks=[ModelSummary(max_depth=3), CustomProgressBar()]
         )
 
+class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
+    """Builder for SD model Trainer with overrides."""
 
+    def _training_strategy(self) -> NLPDDPStrategy:
+        """
+        Returns a ddp strategy passed to Trainer.strategy.
+        """
+        ddp_overlap = self.cfg.model.get("ddp_overlap", True)
+        if ddp_overlap:
+            return NLPDDPStrategy(
+                no_ddp_communication_hook=False,
+                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=True,
+                bucket_cap_mb=256,
+            )
+        else:
+            return NLPDDPStrategy(
+                no_ddp_communication_hook=True,
+                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=False,
+            )
+        
 class MegatronLMPPTrainerBuilder(MegatronTrainerBuilder):
     """Builder for scripts where grad scaler is turned off for pipeline parallel LM model. E.g. PEFT tuning scripts"""
 
