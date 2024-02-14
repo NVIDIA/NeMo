@@ -223,6 +223,7 @@ def write_dataset(chunks, path):
                 line = ' '.join(text)
                 path.write((line + '\n').encode())
 
+
 def save_flashlight_lexicon(tokenizer, kenlm_file):
     save_path = os.path.dirname(kenlm_file)
     os.makedirs(save_path, exist_ok=True)
