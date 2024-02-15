@@ -329,8 +329,9 @@ class MegatronBaseModel(NLPModel):
         else:
             assert isinstance(self.trainer.limit_val_batches, float)
             if self._validation_ds is not None and len(self._validation_dl) != float("inf"):
-                num_val_batches = int(len(self._validation_dl) * self.trainer.limit_val_batches)
-                if num_val_batches == 0 and self.trainer.limit_val_batches > 0.0:
+                # len(self._validation_dl) returns len as num of microbatches
+                limit_val_micro_batches = int(len(self._validation_dl) * self.trainer.limit_val_batches)
+                if limit_val_micro_batches == 0 and self.trainer.limit_val_batches > 0.0:
                     min_percentage = 1.0 / len(self._validation_dl)
                     raise MisconfigurationException(
                         f"You requested to check {self.trainer.limit_val_batches} of the val_dataloader but"
@@ -338,8 +339,11 @@ class MegatronBaseModel(NLPModel):
                         f" `limit_val_batches` argument. Try at least"
                         f" `limit_val_batches={min_percentage}`"
         )
-
-                self.trainer.limit_val_batches = num_val_batches * get_num_microbatches()
+                # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+                if limit_val_micro_batches < get_num_microbatches():
+                    self.trainer.limit_val_batches = get_num_microbatches()
+                else:
+                    self.trainer.limit_val_batches = limit_val_micro_batches - limit_val_micro_batches % get_num_microbatches()
 
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
