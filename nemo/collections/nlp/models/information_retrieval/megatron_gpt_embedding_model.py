@@ -63,7 +63,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
 
     def _build_dataset(self, data_cfg, is_train=True):
         packed_sequence = data_cfg.get("packed_sequence", False)
-        
+
         # Determine if we are using a single dataset or a list of datasets.
         if is_train:
             # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
@@ -118,7 +118,6 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
         )
 
-        
         if is_train:
             datasets = []
             for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
@@ -146,56 +145,56 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                 datasets.append(dataset)
             if packed_sequence:
                 raise NotImplementedError("Packed sequence is not supported for MegatronGPTEmbeddingModel")
-                
+
             dataset = BlendableDataset(
                 datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
             )
             return dataset
         else:
             query_dataset = GPTEmbeddingDataset(
-                    file_path=data_cfg.query_file_names[0],
-                    tokenizer=self.tokenizer,
-                    max_seq_length=data_cfg.max_seq_length,
-                    min_seq_length=data_cfg.min_seq_length,
-                    add_bos=data_cfg.get('add_bos', False),
-                    add_eos=data_cfg.get('add_eos', True),
-                    max_num_samples=None,
-                    seed=data_cfg.get('seed', 1234),
-                    index_mapping_dir=data_cfg.get('index_mapping_dir', None),
-                    virtual_tokens=self.virtual_tokens,
-                    memmap_workers=data_cfg.get(
-                        'memmap_workers', None
-                    ),  # used to set num. of workers to create the memmap index files
-                    truncation_method=data_cfg.get(
-                        'truncation_method', 'right'
-                    ),  # used to choose truncation method. Options: ['random', 'left', 'right']
-                    special_tokens=self.cfg.data.get(
-                        'chat_prompt_tokens', None
-                    ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
-                )
+                file_path=data_cfg.query_file_names[0],
+                tokenizer=self.tokenizer,
+                max_seq_length=data_cfg.max_seq_length,
+                min_seq_length=data_cfg.min_seq_length,
+                add_bos=data_cfg.get('add_bos', False),
+                add_eos=data_cfg.get('add_eos', True),
+                max_num_samples=None,
+                seed=data_cfg.get('seed', 1234),
+                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
+                virtual_tokens=self.virtual_tokens,
+                memmap_workers=data_cfg.get(
+                    'memmap_workers', None
+                ),  # used to set num. of workers to create the memmap index files
+                truncation_method=data_cfg.get(
+                    'truncation_method', 'right'
+                ),  # used to choose truncation method. Options: ['random', 'left', 'right']
+                special_tokens=self.cfg.data.get(
+                    'chat_prompt_tokens', None
+                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+            )
             doc_dataset = GPTEmbeddingDataset(
-                    file_path=data_cfg.doc_file_names[0],
-                    tokenizer=self.tokenizer,
-                    max_seq_length=data_cfg.max_seq_length,
-                    min_seq_length=data_cfg.min_seq_length,
-                    add_bos=data_cfg.get('add_bos', False),
-                    add_eos=data_cfg.get('add_eos', True),
-                    max_num_samples=None,
-                    seed=data_cfg.get('seed', 1234),
-                    index_mapping_dir=data_cfg.get('index_mapping_dir', None),
-                    virtual_tokens=self.virtual_tokens,
-                    memmap_workers=data_cfg.get(
-                        'memmap_workers', None
-                    ),  # used to set num. of workers to create the memmap index files
-                    truncation_method=data_cfg.get(
-                        'truncation_method', 'right'
-                    ),  # used to choose truncation method. Options: ['random', 'left', 'right']
-                    special_tokens=self.cfg.data.get(
-                        'chat_prompt_tokens', None
-                    ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
-                )
+                file_path=data_cfg.doc_file_names[0],
+                tokenizer=self.tokenizer,
+                max_seq_length=data_cfg.max_seq_length,
+                min_seq_length=data_cfg.min_seq_length,
+                add_bos=data_cfg.get('add_bos', False),
+                add_eos=data_cfg.get('add_eos', True),
+                max_num_samples=None,
+                seed=data_cfg.get('seed', 1234),
+                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
+                virtual_tokens=self.virtual_tokens,
+                memmap_workers=data_cfg.get(
+                    'memmap_workers', None
+                ),  # used to set num. of workers to create the memmap index files
+                truncation_method=data_cfg.get(
+                    'truncation_method', 'right'
+                ),  # used to choose truncation method. Options: ['random', 'left', 'right']
+                special_tokens=self.cfg.data.get(
+                    'chat_prompt_tokens', None
+                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+            )
             return [query_dataset, doc_dataset]
-        
+
     def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
         loss_mean, non_loss_tensors = self.fwd_bwd_step(dataloader_iter, forward_only)
         avg_pos_cs = non_loss_tensors['avg_pos_cs'][0].item()
@@ -354,7 +353,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                 self.test_step_outputs.append(loss)
 
         return loss, non_loss_tensors
-    
+
     def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, use_all_possible_negatives=False):
         all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size
         cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x (2bs)
