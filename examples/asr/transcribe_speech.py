@@ -364,7 +364,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 )
             else:
                 transcriptions = asr_model.transcribe(
-                    paths2audio_files=filepaths,
+                    audio=filepaths,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
                     return_hypotheses=cfg.return_hypotheses,
@@ -375,7 +375,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_manifest}")
 
-    # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
+    # if transcriptions form a tuple of (best_hypotheses, all_hypotheses), extract just best hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
 
