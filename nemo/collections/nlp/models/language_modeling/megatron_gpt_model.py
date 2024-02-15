@@ -1211,7 +1211,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
         else:
             kwargs['blend'] = self.cfg.data.data_prefix
-
             kwargs["split"] = self.cfg.data.splits_string
 
         if self.cfg.data.get('add_fim', False):
