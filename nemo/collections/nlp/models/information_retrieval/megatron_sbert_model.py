@@ -12,19 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import itertools
 import json
 import os
 import random
 from typing import Any, Dict, List, Optional, Tuple, Union
-import copy
+
 import torch
 import torch.nn.functional as F
+from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor, nn
 from torch.utils.data import DataLoader, Dataset
-from omegaconf import DictConfig, OmegaConf, open_dict
+
+from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import MultiplePositivesNegativesDataset
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -36,7 +39,6 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert_model import (
     bert_extended_attention_mask,
     post_language_model_processing,
 )
-from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import MultiplePositivesNegativesDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -107,6 +109,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 import numpy as np
+
+
 def set_seed(seed: int = 42) -> None:
     np.random.seed(seed)
     random.seed(seed)
@@ -118,6 +122,7 @@ def set_seed(seed: int = 42) -> None:
     # Set a fixed value for the hash seed
     os.environ["PYTHONHASHSEED"] = str(seed)
     print(f"Random seed set as {seed}")
+
 
 ##########################
 # Below class is copied from SentenceTransformer library: https://github.com/UKPLab/sentence-transformers/blob/08a57b4a19ddaf7cccda51cd0c2c8af7bbc339a3/sentence_transformers/models/Normalize.py
@@ -446,7 +451,7 @@ class SBertModel(BertModel):
             lm_output, pooled_output = lm_output
         else:
             pooled_output = None
-                            
+
         add_on_inputs = {"token_embeddings": lm_output[0].permute(1, 0, 2), "attention_mask": attention_mask}
         lm_output = self.pooling_add_on(add_on_inputs)
         lm_output = self.normalize_add_on(lm_output)
@@ -471,7 +476,7 @@ class MegatronSBertModel(MegatronBertModel):
         with open(train_file_path) as f:
             train_data = json.load(f)
 
-        random_seed=42
+        random_seed = 42
         set_seed(random_seed)
         random.shuffle(train_data)
 
@@ -531,7 +536,6 @@ class MegatronSBertModel(MegatronBertModel):
 
         train_data = self.train_data
 
-        
         query_prefix = "query:"
         passage_prefix = "passage:"
         evaluation_sample_size = self.cfg.data.get("evaluation_sample_size", 100)
@@ -865,7 +869,7 @@ class MegatronSBertModel(MegatronBertModel):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
-        
+
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             self.log('reduced_train_loss', loss_mean[0], prog_bar=True, batch_size=1)
@@ -879,7 +883,7 @@ class MegatronSBertModel(MegatronBertModel):
                 'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
             )
         return loss_mean[0]
-    
+
     def validation_step(self, dataloader_iter, batch_idx):
         # Check if iterator is exhausted
         dataloader_iter, done = self._val_iterator_done(dataloader_iter)
@@ -914,12 +918,12 @@ class MegatronSBertModel(MegatronBertModel):
         loss = loss_mean[0]
         self.validation_step_outputs.append(loss) if prefix == 'val' else self.test_step_outputs.append(loss)
         return loss
-    
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-  
+
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batches = next(dataloader_iter) 
+                batches = next(dataloader_iter)
 
                 (
                     tokens_batch,
@@ -933,9 +937,9 @@ class MegatronSBertModel(MegatronBertModel):
                     tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
                         batch['input_ids'].cuda(non_blocking=True),
                         batch['token_type_ids'].cuda(non_blocking=True),
-                        None,  
                         None,
-                        None, 
+                        None,
+                        None,
                         batch['attention_mask'].cuda(non_blocking=True),
                     )
                     tokens_batch.append(tokens)
@@ -965,21 +969,18 @@ class MegatronSBertModel(MegatronBertModel):
 
             if not self.cfg.bert_binary_head:
                 types = None
-            
+
             forward_args = [
                 {"input_ids": tokens, "token_type_ids": types, "attention_mask": padding_mask}
-                for tokens, padding_mask, types in zip(
-                    tokens_batch, padding_mask_batch, types_batch
-                )
+                for tokens, padding_mask, types in zip(tokens_batch, padding_mask_batch, types_batch)
             ]
 
             if self.mcore_bert:
                 raise Exception("mcore not supported at the moment. It will be added in the near future")
-                output_tensor = model(**forward_args)             
+                output_tensor = model(**forward_args)
             else:
-                output_tensor = [self.forward(**forward_arg).permute(1,0) for forward_arg in forward_args]
+                output_tensor = [self.forward(**forward_arg).permute(1, 0) for forward_arg in forward_args]
 
- 
             def loss_func(output_tensor):
 
                 loss_dict = self.loss_func(output_tensor)

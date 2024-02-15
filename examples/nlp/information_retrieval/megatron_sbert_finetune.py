@@ -22,6 +22,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+
 @hydra_runner(config_path="conf", config_name="megatron_bert_config")
 def main(cfg) -> None:
     if cfg.model.data.dataloader_type != "LDDL":

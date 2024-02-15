@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import random
 from typing import Any, Dict, List, Optional, Tuple, Union
-import copy
+
 from torch.utils.data import Dataset
 
 
@@ -93,4 +94,3 @@ class MultiplePositivesNegativesDataset(Dataset):
             selected_negs = [f"{self.passage_prefix} {neg}".strip() for neg in selected_negs]
             texts.extend(selected_negs)
         return texts
-
