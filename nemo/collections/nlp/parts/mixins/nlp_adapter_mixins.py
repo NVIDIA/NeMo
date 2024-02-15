@@ -351,10 +351,11 @@ class NLPAdapterModelMixin:
         """
         state_dict = self.model.state_dict(prefix=self.model_prefix)
         peft_patterns = ['lora_kqv_adapter.linear_in.weight', 'lora_kqv_adapter.linear_out.weight']
-        peft_state_dict={}
+        peft_state_dict = {}
         for key, value in state_dict.items():
-            if any(pattern in key for pattern in peft_patterns) or \
-                key in self.adapter_keys.union(self.tunable_base_param_keys):
+            if any(pattern in key for pattern in peft_patterns) or key in self.adapter_keys.union(
+                self.tunable_base_param_keys
+            ):
                 # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
                 new_key = key.replace("model.module.", "model.", 1)
                 peft_state_dict[new_key] = value
