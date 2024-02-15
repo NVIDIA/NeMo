@@ -239,4 +239,4 @@ class TETransformerLayerAutocast(AutocastTransformerLayer):
 
 # Use this spec to use the full Transformer layer from Transformer Engine
 def get_gpt_full_te_layer_autocast_spec() -> TransformerBlockSubmodules:
-    return TransformerBlockSubmodules(layer_specs=ModuleSpec(module=TETransformerLayerAutocast))
+    return ModuleSpec(module=TETransformerLayerAutocast)
