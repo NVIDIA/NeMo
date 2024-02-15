@@ -208,7 +208,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
 
     def inference_step_validation_call(self, batch, batch_idx, data_cfg, dataloader_idx=0):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss, non_loss_tensors = self.local_validation_step(itertools.chain([batch]), batch_idx)
+        loss, non_loss_tensors = self.local_validation_step(itertools.chain([dataloader_idx], [batch]))
         outputs = {
             'loss': loss,
             'metadata': metadata,  # [dict]
@@ -284,27 +284,25 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
                     f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                 )
             # (@adithyare) We are not using the log key to write the embeddings to file
-            # filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-            self.write_embeddings_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}")
+            filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+            consumed_samples = self._compute_consumed_samples_after_training_step()
+            fldr_path = f"{data_cfg.output_file_path_prefix}/consumed_samples{consumed_samples}/{filename_log_key}"
+            self.write_embeddings_to_file(deduplicated_outputs, fldr_path, dataloader_idx)
         return deduplicated_outputs, total_size
 
-    def write_embeddings_to_file(self, outputs, output_file_path):
-        q_hs = torch.cat(outputs['q_hs'], dim=0)
-        d_hs = torch.cat(outputs['d_hs'], dim=0)
-        q_hs_npy = q_hs.float().numpy()
-        d_hs_npy = d_hs.float().numpy()
-        consumed_samples = self._compute_consumed_samples_after_training_step()
-        emb_fldr = f"{output_file_path}/consumed_samples_{consumed_samples}/"
+    def write_embeddings_to_file(self, outputs, output_file_path, d_idx):
+        emb_type = 'query' if d_idx == 0 else 'doc'
+        hs = torch.cat(outputs['q_hs' if d_idx == 0 else 'd_hs'], dim=0)
+        hs_npy = hs.float().numpy()
+        emb_fldr = f"{output_file_path}"
         os.makedirs(emb_fldr, exist_ok=True)
-        with open(f"{emb_fldr}/query.ids", "w") as f, open(f"{emb_fldr}/doc.ids", "w") as f2:
+        with open(f"{output_file_path}/{emb_type}.ids", "w") as f:
             for m in outputs['metadata']:
-                f.write(m["query_id"] + "\n")
-                f2.write(m["doc_id"] + "\n")
-        np.save(f"{emb_fldr}/query.npy", q_hs_npy)
-        np.save(f"{emb_fldr}/doc.npy", d_hs_npy)
+                f.write(m[f"{emb_type}_id"] + "\n")
+        np.save(f"{emb_fldr}/{emb_type}.npy", hs_npy)
         return True
 
-    def local_validation_step(self, dataloader_iter, batch_idx):
+    def local_validation_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -312,9 +310,15 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
+        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        # if done:
+        #     return
+        # Get the dataloader_idx when MegatronGPTSFTModel calls validation_step of MegatronGPTModel
+        next_item_dataloader = next(dataloader_iter)
+        if isinstance(next_item_dataloader, int):
+            dataloader_idx = next_item_dataloader
+        else:
+            dataloader_iter = itertools.chain([next_item_dataloader], dataloader_iter)
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -324,14 +328,33 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             for model_module in self.model:
                 model_module.eval()
 
-        loss, non_loss_tensors = self.fwd_bwd_step(dataloader_iter, forward_only=True)
+        if self.cfg.get('fp8', False):
+            first_val_step = self.prev_step_training and not self.training
+            self.prev_step_training = self.training
+        else:
+            first_val_step = None
+
+        loss, non_loss_tensors = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
-        return loss, non_loss_tensors
 
+        if mode == 'val':
+            # MegatronGPTSFTModel class supports multiple dataloaders and uses validation_step of MegatronGPTModel.
+            # Supporting that case with below lines
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx] = loss
+            else:
+                self.test_step_outputs.append(loss)
+
+        return loss, non_loss_tensors
+    
     def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, use_all_possible_negatives=False):
         all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size
         cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x (2bs)
