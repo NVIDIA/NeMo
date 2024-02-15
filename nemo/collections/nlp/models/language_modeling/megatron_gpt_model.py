@@ -27,6 +27,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -70,6 +71,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from nemo.utils.te_utils import is_float8tensor
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -483,8 +485,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     param._disable_overlap_grad_sync = True
 
             # Initialize parameter buckets for overlapped grad and param syncs
-            # Note: Params with disabled overlapping are put in the
-            # last param bucket
+            # Note: Params with disabled overlapping and params in the
+            # first layer are put together in a bucket. If FP8 tensors
+            # are detected, those are also put in the first layer's
+            # bucket.
+            def make_parameter_bucket(module: torch.nn.Module) -> List[torch.nn.Parameter]:
+                bucket = [
+                    param for param in module.parameters() if not getattr(param, '_disable_overlap_grad_sync', False)
+                ]
+                if any(is_float8tensor(param) for param in bucket):
+                    bucket = list(filter(is_float8tensor, bucket))
+                return bucket
+
             buckets = []
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
@@ -493,13 +505,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module = module.module
                     stage_bucket = []
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    for layer in layers:
-                        stage_bucket.extend(
-                            p
-                            for p in layer.parameters()
-                            if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
-                        )
-                    buckets.append(stage_bucket)
+                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
             else:
                 # Initialize a bucket for each Transformer layer
                 modules = self.model if isinstance(self.model, list) else [self.model]
@@ -507,21 +513,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    for layer in layers:
-                        buckets.append(
-                            [
-                                p
-                                for p in layer.parameters()
-                                if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
-                            ]
-                        )
+                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
             buckets.reverse()
-            used_params = set()
-            for bucket in buckets:
-                used_params.update(bucket)
-            remaining_params = [p for p in self.parameters() if p not in used_params and p.requires_grad]
-            if remaining_params:
-                buckets.append(remaining_params)
+            used_params = set(itertools.chain.from_iterable(buckets))
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -530,7 +525,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -614,15 +609,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
-    def training_step_fwd_bwd_step_call(self, dataloader_iter, batch_idx, forward_only):
+    def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
         """
         This method is called from the training_step method.
         It is separated out to allow for overriding in the MegatronGPTEmbeddingModel
         """
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, forward_only)
+        loss_mean = self.fwd_bwd_step(dataloader_iter, forward_only)
         return loss_mean
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
@@ -661,7 +656,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.training_step_fwd_bwd_step_call(dataloader_iter, batch_idx, False)
+        loss_mean = self.training_step_fwd_bwd_step_call(dataloader_iter, forward_only=False)
 
         if self.cfg.get('fp8', False):
             self.prev_step_training = self.training
@@ -899,7 +894,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Broadcast data.
         if data_iterator is not None:
-            data = next(data_iterator)
+            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
+            # from the data_iterator
+            if isinstance(data_iterator, _DataFetcherWrapper):
+                data, _, _ = next(data_iterator)
+            else:
+                data = next(data_iterator)
         else:
             data = None
 
@@ -1068,7 +1069,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
+            # from the data_iterator
+            if isinstance(dataloader_iter, _DataFetcherWrapper):
+                batch, _, _ = next(dataloader_iter)
+            else:
+                batch = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -1114,7 +1121,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -1122,9 +1129,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
+        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        # if done:
+        #     return
+        # Get the dataloader_idx when MegatronGPTSFTModel calls validation_step of MegatronGPTModel
+        next_item_dataloader = next(dataloader_iter)
+        if isinstance(next_item_dataloader, int):
+            dataloader_idx = next_item_dataloader
+        else:
+            dataloader_iter = itertools.chain([next_item_dataloader], dataloader_iter)
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -1140,12 +1153,25 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             first_val_step = None
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
+        loss = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+
+        if mode == 'val':
+            # MegatronGPTSFTModel class supports multiple dataloaders and uses validation_step of MegatronGPTModel.
+            # Supporting that case with below lines
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx] = loss
+            else:
+                self.test_step_outputs.append(loss)
+
         return loss
 
     def on_validation_epoch_end(self):
@@ -1181,8 +1207,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return averaged_loss
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter):
+        return self.validation_step(dataloader_iter)
 
     def on_test_epoch_end(self):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
@@ -1230,7 +1256,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
             "sequence_length": self.cfg.data.seq_length,
-            "blend": self.cfg.data.data_prefix,
             "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
             "reset_position_ids": self.reset_position_ids,
@@ -1238,6 +1263,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "eod_mask_loss": self.eod_mask_loss,
             "eod_id": self.tokenizer.eos_id,
         }
+
+        if isinstance(self.cfg.data.data_prefix, DictConfig):
+            _pref = self.cfg.data.data_prefix
+            kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+        else:
+            kwargs['blend'] = self.cfg.data.data_prefix
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
@@ -1729,7 +1760,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'fp8': fp8,
             'tp_comm_overlap': ub_tp_comm_overlap,
             # MoE related
-            'num_experts': self.cfg.get('num_experts', None),
+            'num_moe_experts': self.cfg.get('num_moe_experts', None),
             'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
             'moe_router_topk': self.cfg.get('moe_router_topk', 2),
             'moe_grouped_gemm': self.cfg.get('moe_grouped_gemm', False),
@@ -1740,11 +1771,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
         }
-        if model_specific_configs['num_experts'] is not None:
+        if model_specific_configs['num_moe_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
         elif not mcore_supports_moe():
-            if 'num_experts' in model_specific_configs:
-                del model_specific_configs['num_experts']
+            if 'num_moe_experts' in model_specific_configs:
+                del model_specific_configs['num_moe_experts']
             moe_keys = list(filter(lambda x: x.startswith('moe_'), model_specific_configs.keys()))
             for k in moe_keys:
                 del model_specific_configs[k]

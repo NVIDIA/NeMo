@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
@@ -185,13 +186,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
-        # Raise error if using multiple dataloaders
-        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
-        if type(self._test_dl) == list and len(self._test_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
         # when using pipeline model parallel the final stage need to initialize word embeddings
         self.initialize_last_rank_embeddings()
 
@@ -328,8 +322,13 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
-        batch = next(dataloader_iter)
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+        # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
+        # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        else:
+            batch = next(dataloader_iter)
 
         log_token_counts = self.cfg.get('log_token_counts', False)
         if log_token_counts:
@@ -412,19 +411,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             return loss_mean
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter):
+        return self.inference_step(dataloader_iter, 'validation')
 
-    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
+    def test_step(self, dataloader_iter):
+        return self.inference_step(dataloader_iter, 'test')
 
-    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
-        batch = next(dataloader_iter)
+    def inference_step(self, dataloader_iter, mode):
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
@@ -446,7 +440,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def inference_step_validation_call(self, batch, batch_idx, data_cfg, dataloader_idx=0):
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super().validation_step(itertools.chain([batch]), batch_idx)
+        # Pass dataloader_idx to the dataloader_iter with batch and fetch it in val step of MegatronGPTModel,
+        # as it's needed to append the loss correctly to self.val/test_step_outputs in case of multi dataloaders
+        loss = super().validation_step(itertools.chain([dataloader_idx], [batch]))
 
         if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
             # We need _inference_config to get generation params
@@ -559,7 +555,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # TODO: this method should be modularized. It is too long and does too many things. (@adithyare)
         # Parent class will handle logging of the loss.
-        if not outputs:
+        if not outputs or not outputs[0]:
             return
 
         if isinstance(outputs[0], dict):
