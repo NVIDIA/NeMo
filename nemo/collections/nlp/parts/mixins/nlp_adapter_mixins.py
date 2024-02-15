@@ -350,11 +350,14 @@ class NLPAdapterModelMixin:
         Gets the keys associated with the adapters only.
         """
         state_dict = self.model.state_dict(prefix=self.model_prefix)
-        peft_state_dict = {}
-        for k in self.adapter_keys.union(self.tunable_base_param_keys):
-            # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
-            new_k = k.replace("model.module.", "model.", 1)
-            peft_state_dict[new_k] = state_dict[k]
+        peft_patterns = ['lora_kqv_adapter.linear_in.weight', 'lora_kqv_adapter.linear_out.weight']
+        peft_state_dict={}
+        for key, value in state_dict.items():
+            if any(pattern in key for pattern in peft_patterns) or \
+                key in self.adapter_keys.union(self.tunable_base_param_keys):
+                # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
+                new_key = key.replace("model.module.", "model.", 1)
+                peft_state_dict[new_key] = value
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
