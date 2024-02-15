@@ -679,24 +679,12 @@ class ASRTarredDatasetBuilder:
                 to_write = base + "-sub" + str(count[squashed_filename]) + ext
                 count[squashed_filename] += 1
 
+            # Carry over every key in the entry, override audio_filepath and shard_id
             new_entry = {
+                **entry,
                 'audio_filepath': to_write,
-                'duration': entry['duration'],
                 'shard_id': shard_id,  # Keep shard ID for recordkeeping
             }
-
-            if 'label' in entry:
-                new_entry['label'] = entry['label']
-
-            if 'text' in entry:
-                new_entry['text'] = entry['text']
-
-            if 'offset' in entry:
-                new_entry['offset'] = entry['offset']
-
-            if 'lang' in entry:
-                new_entry['lang'] = entry['lang']
-
             new_entries.append(new_entry)
 
         tar.close()
