@@ -49,10 +49,7 @@ from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy_for
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
     HAVE_APEX = True
 

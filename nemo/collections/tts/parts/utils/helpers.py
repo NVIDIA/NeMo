@@ -439,7 +439,6 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
     return data
 
 
-
 def plot_alignment_to_numpy_for_speechllm(
     alignment,
     title='',
@@ -495,6 +494,7 @@ def plot_alignment_to_numpy_for_speechllm(
     data = save_figure_to_numpy(fig)
     plt.close()
     return data
+
 
 def plot_codec_to_numpy(codes, title=''):
     fig, ax = plt.subplots(figsize=(10, 3))
