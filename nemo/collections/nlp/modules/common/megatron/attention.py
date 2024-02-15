@@ -1107,11 +1107,11 @@ class CoreAttention(MegatronModule):
         is_causal = self.attn_mask_type == AttnMaskType.causal and not inference_mode
 
         if attention_bias is not None:
-            output = self.flash_attention_triton(
+            return self.flash_attention_triton(
                 query_layer, key_layer, value_layer, attention_mask, attention_bias, is_causal,
             )
         else:
-            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal)
+            return self.flash_attention_cuda(query_layer, key_layer, value_layer, attention_mask, is_causal,)
 
     def flash_attention_cuda(self, query_layer, key_layer, value_layer, attention_mask, is_causal):
         batch_size, seqlen, nheads, _ = query_layer.shape
@@ -1185,7 +1185,7 @@ class CoreAttention(MegatronModule):
             if attention_bias.shape[3] == attention_mask_kv.shape[3]:
                 attention_bias = attention_bias.masked_fill(~attention_mask_kv, torch.finfo(query_layer.dtype).min)
 
-        context_layer = flash_attn_func_triton(query_layer, key_layer, value_layer, attention_bias, is_causal)
+        context_layer = flash_attn_func_triton(query_layer, key_layer, value_layer, attention_bias, is_causal,)
 
         # [b, sq, np, hn] -> [b, np, sq, hn]
         context_layer = context_layer.permute(0, 2, 1, 3)

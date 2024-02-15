@@ -41,7 +41,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 
@@ -1066,7 +1065,7 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                         [first_layer_speech_logits, speech_logits], dim=-1
                     )  # (b, s, 1024, 8)
 
-                    if self.hiddens_cfg is not None:  # TODO: What is hiddens_cfg
+                    if self.hiddens_cfg is not None:
                         raise NotImplementedError("Not currently implemented for speechllm")
                     else:
                         return all_speech_logits, [token_logits, speech_logits, attention_probs, enc_output]
@@ -1095,10 +1094,7 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
-        self.encoder_embedding.load_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
-        self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
-        self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
-        self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+        super().load_state_dict(state_dict, strict=strict)
         if hasattr(self, "speech_tokens_heads"):
             self.speech_tokens_heads.load_state_dict(state_dict["speech_tokens_heads"], strict=strict)
         if hasattr(self, "speech_tokens_embeddings"):
