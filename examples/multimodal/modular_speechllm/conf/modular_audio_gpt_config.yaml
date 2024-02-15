@@ -102,7 +102,7 @@ model:
   # override_vocab_size: 1024
 
   peft:
-    peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
+    peft_scheme: "lora"  # can be either lora, adapter, ia3 or ptuning
     restore_from_path: null
     
     # Used for adapter peft training
