@@ -108,7 +108,6 @@ class MegatronTrainerBuilder:
                 plugin_precision = '16-mixed'
             else:
                 plugin_precision = 'bf16-mixed'
-
             if megatron_amp_O2 and not with_distributed_adam:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:

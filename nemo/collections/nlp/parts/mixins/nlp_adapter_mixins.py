@@ -297,7 +297,10 @@ class NLPAdapterModelMixin:
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
-        assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+        if set(state_dict.keys()) != self.adapter_keys.union(self.tunable_base_param_keys):
+            logging.warning(
+                f"state_dict keys do not match adapter keys,\n extra state_dict keys: {set(state_dict.keys()) - self.adapter_keys.union(self.tunable_base_param_keys)},\n missing adapter keys: {self.adapter_keys - set(state_dict.keys())}"
+            )
         super().load_state_dict(state_dict, strict=False)
 
     def set_tunable_base_params(self, peft_cfg):
@@ -385,7 +388,7 @@ class NLPAdapterModelMixin:
             # safety in strict=True anymore.
             if set(state_dict.keys()) != self.adapter_keys.union(self.tunable_base_param_keys):
                 logging.warning(
-                    f"state_dict keys do not match adapter keys,\n extra state_dict keys: {set(state_dict.keys()) - self.adapter_keys.union(self.tunable_base_param_keys)},\n missing adapter keys: {self.adapter_keys - set(state_dict.keys())}"
+                    f"state_dict keys do not match adapter keys,\n extra state_dict keys: {set(state_dict.keys()) - self.adapter_keys.union(self.tunable_base_param_keys)},\n missing adapter keys: {self.adapter_keys.union(self.tunable_base_param_keys) - set(state_dict.keys())}"
                 )
             super().load_state_dict(state_dict, strict=False)
         else:

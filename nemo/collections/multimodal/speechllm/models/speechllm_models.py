@@ -42,7 +42,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTLoRAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -81,17 +80,18 @@ __all__ = ["ModularAudioGPTLoRAModel"]
 default_inference_config = {'tokens_to_generate': 30}
 
 
-class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
+class ModularAudioGPTModel(MegatronGPTSFTModel):
     """Modularized speech GPT model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
-        # Used other keys from metadata to calulate metrics
-        if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
-            self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
-        if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
-            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
+        # # Used other keys from metadata to calulate metrics
+        # if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
+        #     self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+        # if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
+        #     self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
         self.perception = (
             AudioPerceptionModel(cfg=cfg.perception)
@@ -443,7 +443,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
         return fwd_output_only_func
 
-    def get_forward_output_and_loss_func(self, validation_step=False):
+    def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
 
@@ -988,14 +988,14 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         }
 
         if mode == 'validation':
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            if len(self._validation_dl) > 1:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[dataloader_idx][-1] = outputs
             else:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[-1] = outputs
         else:
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            if len(self._test_dl) > 1:
                 self.test_step_outputs[dataloader_idx][-1] = outputs
             else:
                 self.test_step_outputs[-1] = outputs

@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
+from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTModel

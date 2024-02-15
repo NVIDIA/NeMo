@@ -169,7 +169,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
-
         if stage == 'predict':
             return
 
@@ -181,7 +180,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
-        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+        if hasattr(self.cfg.data, 'test_ds'):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
@@ -320,7 +319,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def fwd_bwd_step(self, dataloader_iter, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
         batch = next(dataloader_iter)
 
         log_token_counts = self.cfg.get('log_token_counts', False)
@@ -360,7 +359,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             forward_only=forward_only,
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
-            first_val_step=first_val_step,
+            # first_val_step=first_val_step,  # TODO: uncomment when megatron-core and mcore-mixin are updated
         )
 
         # only the last stages of the pipeline return losses
@@ -434,14 +433,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         }
 
         if mode == 'validation':
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            if len(self._validation_dl) > 1:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[dataloader_idx][-1] = outputs
             else:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[-1] = outputs
         else:
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            if len(self._test_dl) > 1:
                 self.test_step_outputs[dataloader_idx][-1] = outputs
             else:
                 self.test_step_outputs[-1] = outputs
@@ -760,7 +759,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
 
         if stage != 'validate':
-            if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+            if hasattr(self.cfg.data, 'test_ds'):
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)

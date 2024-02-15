@@ -524,7 +524,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -553,7 +553,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             forward_only=forward_only,
             seq_length=self.cfg.encoder_seq_length,
             micro_batch_size=self.cfg.micro_batch_size,
-            first_val_step=first_val_step,
+            # first_val_step=first_val_step,  # TODO: uncomment when megatron-core and mcore-mixin are updated
         )
 
         # only the last stages of the pipeline return losses

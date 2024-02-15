@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -61,7 +60,7 @@ def main(cfg) -> None:
     # update resume from checkpoint found by exp_manager
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
-    model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(cfg, trainer=trainer)
+    model = ModularAudioGPTModel.restore_from_pretrained_models(cfg, trainer=trainer)
 
     trainer.fit(model)
 

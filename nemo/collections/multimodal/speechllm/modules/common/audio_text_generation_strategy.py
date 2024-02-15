@@ -187,9 +187,9 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
+    from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTModel
 
-    if isinstance(model, ModularAudioGPTLoRAModel):
+    if isinstance(model, ModularAudioGPTModel):
         return AudioToTextGenerationStrategy(model, **args)
     else:
         return text_generation_strategy.model_inference_strategy_dispatcher(model, **args)
