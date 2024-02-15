@@ -437,9 +437,6 @@ class ModelConfig:
     quantization: str = QUANTIZATION_NONE
     dtype: str = "float16"
 
-    # Parallel metadata
-    rank: int = 0
-    tensor_parallel: int = 1
 
     # Model structure and weights
     vocab_embedding: EmbeddingConfig = None
@@ -450,7 +447,9 @@ class ModelConfig:
 
     # Ptuning metadata
     use_prompt_tuning: bool = False
+    use_parallel_embedding:bool = False
 
+    # Parallel metadata
     mapping = None 
 
     def to_dict(self) -> dict:
@@ -466,7 +465,7 @@ class ModelConfig:
     def vocab_size(self):
         """Returns the vocab_size of the model."""
         return (
-            self.vocab_embedding.local_vocab_size * self.tensor_parallel
+            self.vocab_embedding.local_vocab_size * self.mapping.tp_size
             if self.vocab_embedding.is_local
             else self.vocab_embedding.local_vocab_size
         )
@@ -474,7 +473,7 @@ class ModelConfig:
     @property
     def vocab_size_padded(self):
         """Returns the padded vocab_size of the model rounds to the tensor_parallel."""
-        return pad_vocab_size(self.vocab_size, self.tensor_parallel)
+        return pad_vocab_size(self.vocab_size, self.mapping.tp_size)
 
     @property
     def hidden_size(self):

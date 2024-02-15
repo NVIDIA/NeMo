@@ -32,9 +32,12 @@ except:
 import logging
 
 from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
-from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
-from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load
+from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config, nemo_model_to_model_config
+from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from .utils import is_nemo_file, unpack_nemo_ckpt
+from .trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
+
+from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
 
 use_pytriton = True
 try:
@@ -200,6 +203,79 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
+        
+    def build(
+        self,
+        nemo_model,
+        nemo_model_config,
+        tokenizer = None,
+        max_input_token: int = 256,
+        max_output_token: int = 256,
+        max_batch_size: int = 8,
+        use_refit: bool = False,
+        model_type: str = "gptnext",
+    ):  
+        from megatron.core import parallel_state
+
+        self.use_refit = use_refit
+        self.stream = torch.cuda.Stream()
+        self.model_type = model_type
+        self.tokenizer = build_tokenizer(tokenizer)
+
+        #Each model shard has its own directory
+        if parallel_state.get_data_parallel_world_size() > 1:
+            self.model_dir = os.path.join(
+                self.model_dir, f"dp{parallel_state.get_data_parallel_rank()}")
+        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+            self.model_dir = os.path.join(
+                self.model_dir, f"tp{parallel_state.get_tensor_model_parallel_rank()}")
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            self.model_dir = os.path.join(
+                self.model_dir, f"pp{parallel_state.get_pipeline_model_parallel_rank()}")
+
+        # Build or refit TRT-LLM engine from a nemo model. 
+        model_configs = nemo_model_to_model_config(
+            nemo_model=nemo_model,
+            decoder_type=model_type,
+            nemo_model_config=nemo_model_config,
+        )
+        
+        model_config_to_tensorrt_llm(
+            model_configs,
+            self.model_dir,
+            max_input_len=max_input_token,
+            max_output_len=max_output_token,
+            max_batch_size=max_batch_size,
+            max_beam_width=1,
+            max_prompt_embedding_table_size=0,
+            use_refit=self.use_refit,
+        )
+        #Use load_refit to handle multiprocessed environment
+        self.model = load_refit(
+            tokenizer=self.tokenizer, 
+            engine_dir=self.model_dir,
+            model_configs=model_configs,
+            stream=self.stream)
+
+    def refit(
+        self,
+        nemo_model,
+        nemo_model_config,
+    ):
+        assert self.use_refit, "TRT-LLM model must be built() with refit=True"
+
+        # Build or refit TRT-LLM engine from a nemo model. 
+        model_configs = nemo_model_to_model_config(
+            nemo_model=nemo_model,
+            decoder_type=self.model_type,
+            nemo_model_config=nemo_model_config
+        )
+        
+        self.model = load_refit(
+            tokenizer=self.tokenizer, 
+            engine_dir=self.model_dir,
+            model_configs=model_configs,
+            stream=self.stream)
 
     def forward(
         self,
@@ -215,6 +291,7 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_table = None,
         prompt_embeddings_checkpoint_path: str = None,
         streaming: bool = False,
+        output_log_probs: bool = False,
         **sampling_kwargs,
     ):
 
@@ -273,8 +350,12 @@ class TensorRTLLM(ITritonDeployable):
                         for i in range(len(input_texts)):
                             assert task_ids[i] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
-
             if not streaming:
+                if torch.distributed.is_initialized():
+                    multiprocessed_env = True
+                else:
+                    multiprocessed_env = False
+
                 return generate(
                     input_texts=input_texts,
                     max_output_len=max_output_token,
@@ -288,6 +369,8 @@ class TensorRTLLM(ITritonDeployable):
                     stop_words_list=stop_words_list,
                     bad_words_list=bad_words_list,
                     no_repeat_ngram_size=no_repeat_ngram_size,
+                    output_log_probs=output_log_probs,
+                    multiprocessed_env=multiprocessed_env,
                     **sampling_kwargs,
                 )
             else:

@@ -55,7 +55,6 @@ def get_transformer_layers(mapping, num_layers):
     return layers_range
 
 
-
 class ModelBuilder(Module):
     """A generic tensorrt_llm transformer model builder.
 
@@ -81,10 +80,13 @@ class ModelBuilder(Module):
         self._mapping = model_config.mapping
         self.rank = model_config.mapping.rank
 
-        # TODO: support use_parallel_embedding.
         if self._mapping.is_first_pp_rank():
             self.vocab_embedding = build_embedding_from_config(
-                model_config.vocab_embedding, self._dtype, use_prompt_tuning=self._use_prompt_tuning
+                model_config.vocab_embedding, 
+                self._dtype, 
+                use_prompt_tuning=self._use_prompt_tuning,
+                tensor_parallel=model_config.mapping.tp_size,
+                tensor_parallel_rank=model_config.mapping.tp_rank,
             )
             self.positional_embedding = build_embedding_from_config(
                 model_config.positional_embedding, self._dtype, use_prompt_tuning=False
@@ -127,7 +129,7 @@ class ModelBuilder(Module):
         ptuning_args = []
         if self._use_prompt_tuning:
             ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
-
+            
         if self._mapping.is_first_pp_rank():
             x = self.vocab_embedding(input_ids, *ptuning_args)
             if hasattr(self, "positional_embedding") and self.positional_embedding:
@@ -448,6 +450,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         paged_kv_cache: bool = False,
         enable_context_fmha: bool = True,
         enable_multi_block_mode: bool = False,
+        use_refit: bool = False,
     ):
         """Builds the model and generate the tensorrt_llm engine.
 
@@ -487,6 +490,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
             enable_multi_block_mode=enable_multi_block_mode,
+            use_refit=use_refit,
         )
 
     def print(self):

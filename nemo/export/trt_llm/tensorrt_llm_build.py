@@ -20,12 +20,14 @@ from pathlib import Path
 
 import tensorrt_llm
 import torch
+import tensorrt as trt
 from tensorrt_llm import str_dtype_to_trt
 from tensorrt_llm.builder import Builder
 from tensorrt_llm.logger import logger
 from tensorrt_llm.network import net_guard
 from tensorrt_llm.plugin.plugin import ContextFMHAType
 from tensorrt_llm.quantization import QuantMode
+from tensorrt_llm._utils import np_dtype_to_trt
 
 MODEL_NAME = "NeMo"
 
@@ -37,6 +39,9 @@ def get_engine_name(model, dtype, tp_size, pp_size, rank):
     return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size,
                                                   pp_size, rank)
 
+def is_engine_loaded():
+    from .tensorrt_llm_run import tensorrt_llm_worker_context
+    return tensorrt_llm_worker_context.sampling_config is not None
 
 def serialize_engine(engine, path):
     """Serializes the engine to path."""
@@ -47,7 +52,40 @@ def serialize_engine(engine, path):
     tok = time.time()
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
     logger.info(f"Engine serialized. Total time: {t}")
+    
+def refit_runtime_engine(params, cuda_engine):
+    '''
+        @brief: Inplace refit one TensorRT cuda engine using weights from the network,
+            user should guarantee that the engine is built with REFIT flag, and the network has the same structure with the engine.
+        @param engine_buffer: A serialized TensorRT engine.
+        @param network: Network object.
+        @return: A serialized TRT engine if refit successfully, None otherwise
+    '''
+    logger.info(f'Refit runtime engine')
+    tik = time.time()
 
+    # Refit engine
+    assert params is not None
+    refitter = trt.Refitter(cuda_engine, logger.trt_logger)
+    for name, param in params:
+        trt_param = trt.Weights(
+            np_dtype_to_trt(param._value.dtype), 
+            param._value.ctypes.data, 
+            param._value.size)
+
+        if trt_param is None or not refitter.set_named_weights(name, trt_param):
+            logger.error(f'Failed to refit weight: {name}')
+            return None
+
+    if not refitter.refit_cuda_engine():
+        logger.error(f'Failed to refit engine.')
+        return None
+
+    tok = time.time()
+    t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
+    logger.info(f'Total time of refitting {cuda_engine.name}: {t}')
+    
+    return cuda_engine
 
 def build_rank_engine(
     tensorrt_llm_gpt,
@@ -148,7 +186,7 @@ def build_rank_engine(
 
     # Network -> Engine
     engine = builder.build_engine(network, builder_config)
-    if args.mapping.rank == 0:
+    if args.mapping.rank == 0 or args.use_refit:
         config_path = args.output_dir / "config.json"
         builder.save_config(builder_config, config_path)
     return engine
@@ -189,7 +227,9 @@ def _build_impl(tensorrt_llm_model, args):
         tokens_per_block=args.tokens_per_block,
         max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
         use_parallel_embedding=args.use_parallel_embedding,
+        embedding_sharding_dim=args.embedding_sharding_dim,
         fp8="fp8" in args.quantization,
+        use_refit=args.use_refit,
     )
 
     tp_size = args.mapping.tp_size
@@ -199,13 +239,12 @@ def _build_impl(tensorrt_llm_model, args):
     engine = build_rank_engine(
         tensorrt_llm_model, builder, builder_config, engine_name, args
     )
-    assert engine is not None, f"Failed to build engine for rank tp {tp_rank} pp {pp_rank}"
+    assert engine is not None, f"Failed to build engine for rank {rank}"
 
     if args.mapping.rank == 0:
         # Use in-memory timing cache for multiple builder passes.
         if not args.parallel_build:
             timing_cache = builder_config.trt_builder_config.get_timing_cache()
-
     serialize_engine(engine, args.output_dir / engine_name)
 
     if args.mapping.rank == 0:
@@ -232,6 +271,7 @@ def build(
     paged_kv_cache=False,
     enable_context_fmha: bool = True,
     enable_multi_block_mode=False,
+    use_refit=False,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
@@ -265,10 +305,12 @@ def build(
     args.use_inflight_batching = use_inflight_batching
     args.use_ib_gpt_attention_plugin = False
     args.use_parallel_embedding = False
+    args.embedding_sharding_dim = 0
     args.use_lookup_plugin = False
     args.tokens_per_block = 64
     args.quantization = quantization
     args.enable_multi_block_mode = enable_multi_block_mode
+    args.use_refit = use_refit
 
     logger.set_level(args.log_level)
 
@@ -311,6 +353,11 @@ def build(
 
     if args.random_seed is not None:
         torch.manual_seed(args.random_seed)
+    
+    if args.mapping.is_first_pp_rank():
+        if tensorrt_llm_model._modules['vocab_embedding'].tp_size > 1:
+            args.use_parallel_embedding = True
+            args.embedding_sharding_dim = tensorrt_llm_model._modules['vocab_embedding'].sharding_dim
 
     tik = time.time()
     _build_impl(tensorrt_llm_model, args)

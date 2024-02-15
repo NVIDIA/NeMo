@@ -25,18 +25,24 @@ from .tensor_utils import get_tensor_parallel_group
 
 
 def build_embedding_from_config(
-    config: EmbeddingConfig, dtype: trt.DataType, tensor_parallel: int = 1, use_prompt_tuning: bool = False
+    config: EmbeddingConfig,
+    dtype: trt.DataType,
+    tensor_parallel: int = 1,
+    tensor_parallel_rank: int = 0,
+    use_prompt_tuning: bool = False,
 ):
     """Returns the tensorrt_llm embedding layer from the embedding config."""
     # If the config is empty, return an empty impl.
     if config is None:
         return None
     EmbeddingCls = PromptTuningEmbedding if use_prompt_tuning else Embedding
+
     trt_embedding = EmbeddingCls(
-        config.weight.shape[0],
+        config.weight.shape[0] * tensor_parallel,
         config.weight.shape[1],
         dtype=dtype,
         tp_size=tensor_parallel,
+        tp_rank=tensor_parallel_rank,
         tp_group=get_tensor_parallel_group(tensor_parallel),
     )
     trt_embedding.weight.value = config.weight
