@@ -101,11 +101,14 @@ class RotaryEmbedding(nn.Module):
             shifts = torch.zeros(num_shifts, dtype = torch.int)
             for idx, allowed_values in enumerate(allowed_shift_values):
                 shifts[idx] = random.choice(allowed_values)
-
-            # shifts = self.augment_seq['shifts']
+                
         else:
             shifts = torch.rand(num_shifts)
-            shifts = shifts / shifts.sum() * total_shift
+            if augmented_length_range is not None:
+                shifts = (augmented_length_range[0] + shifts * (augmented_length_range[1] - augmented_length_range[0]))/ num_shifts
+            else:
+                shifts = shifts / shifts.sum() * total_shift
+            
             if self.augment_seq.get('discrete', False):
                 shifts = torch.round(shifts).to(torch.int)
 
