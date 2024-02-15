@@ -588,7 +588,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = False,
-        use_cuda_graph_decoder=False,
+        use_cuda_graph_decoder: bool=False,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -625,7 +625,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     RNNTGreedyDecodeCudaGraph,
                 )
 
-                self._greedy_decode = RNNTGreedyDecodeCudaGraph(max_symbols_per_step, torch.device("cuda"), self)
+                self._greedy_decode = RNNTGreedyDecodeCudaGraph(max_symbols_per_step, self)
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames

@@ -26,14 +26,11 @@ except ImportError:
 from typing import List, Optional
 
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.core.utils.cuda_python_utils import (
     assert_drv,
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
     cu_call,
 )
-from nemo.utils import logging
 
 
 def run_nvrtc(kernel_string, kernel_name):
@@ -45,7 +42,9 @@ def run_nvrtc(kernel_string, kernel_name):
     # https://stackoverflow.com/questions/48283009/nvcc-get-device-compute-capability-in-runtime
     opts = []
     (err,) = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
+    assert_drv(err)
     err, size = nvrtc.nvrtcGetProgramLogSize(prog)
+    assert_drv(err)
     buf = b" " * size
     (err,) = nvrtc.nvrtcGetProgramLog(prog, buf)
     assert_drv(err)
@@ -178,7 +177,7 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
 
 
 class RNNTGreedyDecodeCudaGraph:
-    def __init__(self, max_symbols: int, cuda_device, caller):
+    def __init__(self, max_symbols: int, caller):
         if HAVE_CUDA_PYTHON:
             check_cuda_python_cuda_graphs_conditional_nodes_supported()
         else:
@@ -186,15 +185,15 @@ class RNNTGreedyDecodeCudaGraph:
 
         assert max_symbols is not None
 
-        self.symbols_added_t = torch.tensor(0, dtype=torch.int64, device=cuda_device)
-        self.max_symbols_t = torch.tensor(max_symbols, dtype=torch.int64, device=cuda_device)
         self.max_symbols = max_symbols
-        self.not_all_blank_t = torch.tensor(True, dtype=torch.bool, device=cuda_device)
 
-        self.cuda_device = cuda_device
-
-        self.time_idx_t = torch.tensor(0, dtype=torch.int64, device=self.cuda_device)
-        self.max_out_len_t = torch.tensor(0, dtype=torch.int64, device=self.cuda_device)
+        # These are cuda torch.Tensors which will be lazily allocated the first time _reinitialize() is called.
+        # We don't do it here because we don't know which cuda device we are using yet.
+        self.symbols_added_t = None
+        self.max_symbols_t = None
+        self.not_all_blank_t = None
+        self.time_idx_t = None
+        self.max_out_len_t = None
 
         self.encoder_output = None
         self.encoder_output_length = None
@@ -209,7 +208,6 @@ class RNNTGreedyDecodeCudaGraph:
         self.scores_cpu = None
         self.labels_cpu = None
         self.graph = None
-        self.graph_exec = None
 
         self.first_call = True
 
@@ -228,6 +226,14 @@ class RNNTGreedyDecodeCudaGraph:
             self.caller._greedy_decode_blank_as_pad_loop_frames(
                 encoder_output, encoder_output_length, encoder_output.device
             )
+
+            self.symbols_added_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
+            self.max_symbols_t = torch.tensor(self.max_symbols, dtype=torch.int64, device=encoder_output.device)
+            self.not_all_blank_t = torch.tensor(True, dtype=torch.bool, device=encoder_output.device)
+
+            self.time_idx_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
+            self.max_out_len_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
+
             self.first_call = False
 
         self.max_time = max(self.max_time, max_time)
