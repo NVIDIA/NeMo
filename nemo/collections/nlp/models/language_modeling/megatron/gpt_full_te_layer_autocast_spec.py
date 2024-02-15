@@ -127,6 +127,8 @@ class AutocastTransformerLayer(TransformerLayer):
 
 
 from megatron.core.transformer.transformer_layer import BaseTransformerLayer
+
+
 class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
         self.config = config
