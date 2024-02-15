@@ -116,7 +116,12 @@ class VoiceboxModel(TextToWaveform):
             })
 
         elif cfg.get("mfa_tokenizer"):
-            self.normalizer = None
+            self.normalizer = Normalizer(
+                lang="en", input_case="cased", overwrite_cache=True, cache_dir="data/cache_dir",
+            )
+            text_normalizer_call_kwargs = {"punct_pre_process": True, "punct_post_process": True}
+            self.normalizer_call = lambda x: self.normalizer.normalize(x, **text_normalizer_call_kwargs)
+
             self.tokenizer = instantiate(cfg.mfa_tokenizer)
             num_tokens = self.tokenizer.vocab_size
             self.tokenizer_pad = self.tokenizer.pad_id
@@ -362,12 +367,20 @@ class VoiceboxModel(TextToWaveform):
             if not self.test_dataloader() and test_deferred_setup:
                 self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
-    def parse(self, str_input: str, **kwargs: Any) -> torch.tensor:
-        if self.cfg.get("nemo_tokenizer"):
-            assert all([k in ['normalize',] for k in kwargs.keys()])
-            return VitsModel.parse(self, text=str_input **kwargs)
-        
-        tokens = self.tokenizer.text_to_ids(text=str_input)
+    def parse(self, text: str, normalize=True) -> torch.tensor:
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
+
+        # normalize
+        if normalize and self.text_normalizer_call is not None:
+            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
+
+        # phonemize
+        text = os.popen("conda run -n aligner bash -c \"echo '...' | mfa g2p -n 1 - english_us_arpa -\"").read().split('\t')[1].strip()
+
+        # tokenize
+        tokens = self.tokenizer.text_to_ids(text)[0]
+
         return torch.tensor(tokens).long().unsqueeze(0).to(self.device)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]) -> DataLoader[Any]:
@@ -672,6 +685,42 @@ class VoiceboxModel(TextToWaveform):
                 "dp_cond": dp_cond,
                 "cum_dur": cum_dur,
             })
+
+        return batch
+
+    @torch.no_grad()
+    def parse_val_vb_input(self, batch):
+        batch = self.parse_input(batch)
+        mel = batch['mel']
+        mel_lens = batch['mel_lens']
+        mel_mask = get_mask_from_lengths(mel_lens) # (b, t)
+        batch.update({
+            "mel_mask": mel_mask,
+        })
+
+        tokens = batch['tokens']
+        durations = batch['dp_cond']
+        cum_dur = batch['cum_dur']
+
+        aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(tokens, durations)
+        batch.update({
+            "aligned_tokens": aligned_tokens
+        })
+
+        self.voicebox.eval()
+        cond_mask = self.voicebox.create_cond_mask(
+            batch=mel.shape[0],
+            seq_len=mel.shape[1],
+            cond_token_ids=aligned_tokens,
+            self_attn_mask=mel_mask,
+            training=True,
+            frac_lengths_mask=(0.1, 0.5),
+        )
+        batch.update({
+            "cond": mel,
+            "cond_mask": cond_mask,
+            "self_attn_mask": mel_mask,
+        })
 
         return batch
 
