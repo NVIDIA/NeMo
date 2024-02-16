@@ -89,8 +89,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     def setup_perception_modules(self, cfg):
         if 'target' in cfg.perception:
             imported_cls = model_utils.import_class_by_path(cfg.perception.target)
+            pretrained_audio_model = cfg.pretrained_canary_model if hasattr(cfg, "pretrained_canary_model") else cfg.pretrained_audio_model
             self.perception = imported_cls(
-                cfg=cfg.perception, pretrained_audio_model=cfg.pretrained_audio_model, llm_tokenizer=self.tokenizer
+                cfg=cfg.perception, pretrained_audio_model=pretrained_audio_model, llm_tokenizer=self.tokenizer
             )
         else:
             imported_cls = AudioPerceptionModel
@@ -822,6 +823,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
             gpt_cfg.perception = cfg.model.perception
             gpt_cfg.pretrained_audio_model = cfg.model.get('pretrained_audio_model', None)
+            pretrained_canary_model = cfg.model.get("pretrained_canary_model", None)
+            if pretrained_canary_model is not None:
+                gpt_cfg.pretrained_canary_model = pretrained_canary_model
             cls._modify_audio_encoder_config(gpt_cfg, audio_cfg, speaker_cfg)
 
             if add_cfg_to_tree:

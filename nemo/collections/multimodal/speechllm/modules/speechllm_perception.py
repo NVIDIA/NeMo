@@ -163,7 +163,11 @@ class AudioPerceptionModel(NeuralModule, Exportable):
         else:
             self.proj = nn.Identity()
         self.setup_adapter(cfg, self.encoder)
-        asr_model = ASRModel.restore_from(kwargs["pretrained_audio_model"], map_location='cpu')
+        pretrained_audio_model = kwargs["pretrained_audio_model"]
+        if pretrained_audio_model.endswith('.nemo'):
+            asr_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
+        else:
+            asr_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
         self.tokenizer = asr_model.tokenizer
 
     def maybe_preprocess_audio(
