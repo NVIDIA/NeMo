@@ -1193,11 +1193,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             test_iters * global_batch_size,
         ]
 
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[
-                1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration
-
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
