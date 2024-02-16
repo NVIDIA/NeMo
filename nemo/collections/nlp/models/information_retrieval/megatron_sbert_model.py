@@ -27,7 +27,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor, nn
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import MultiplePositivesNegativesDataset
+from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -217,26 +217,6 @@ class Pooling(nn.Module):
 
     def __repr__(self):
         return "Pooling({})".format(self.get_config_dict())
-
-    def get_pooling_mode_str(self) -> str:
-        """
-        Returns the pooling mode as string
-        """
-        modes = []
-        if self.pooling_mode_cls_token:
-            modes.append("cls")
-        if self.pooling_mode_mean_tokens:
-            modes.append("mean")
-        if self.pooling_mode_max_tokens:
-            modes.append("max")
-        if self.pooling_mode_mean_sqrt_len_tokens:
-            modes.append("mean_sqrt_len_tokens")
-        if self.pooling_mode_weightedmean_tokens:
-            modes.append("weightedmean")
-        if self.pooling_mode_lasttoken:
-            modes.append("lasttoken")
-
-        return "+".join(modes)
 
     def forward(self, features: Dict[str, Tensor]):
         token_embeddings = features["token_embeddings"]
@@ -563,14 +543,14 @@ class MegatronSBertModel(MegatronBertModel):
                 train_data = train_data[:-evaluation_sample_size]
 
             if evaluation_sample_size:
-                self._validation_ds = MultiplePositivesNegativesDataset(
+                self._validation_ds = BertEmbeddingDataset(
                     valid_data,
                     num_hard_negs=hard_negatives_to_train,
                     query_prefix=query_prefix,
                     passage_prefix=passage_prefix,
                 )
 
-        self._train_ds = MultiplePositivesNegativesDataset(
+        self._train_ds = BertEmbeddingDataset(
             train_data, num_hard_negs=hard_negatives_to_train, query_prefix=query_prefix, passage_prefix=passage_prefix
         )
 
@@ -784,140 +764,10 @@ class MegatronSBertModel(MegatronBertModel):
             :return:
                 a batch of tensors for the model
             """
-        texts = [example for example in batch]
-        sentence_features = [self.tokenize(sentence) for sentence in zip(*texts)]
+
+        sentence_features = [self.tokenize(sentence) for sentence in zip(*batch)]
+
         return sentence_features
-
-    def training_step(self, dataloader_iter, batch_idx):
-
-        self._optimizer.zero_grad()
-
-        if self.with_distributed_adam:
-            # hack to enable overlapping param sync and forward compute
-            # note: the distributed optimizer monkey-patches each
-            # parameter's __getattribute__ function so that it can
-            # launch parameter all-gathers the first time the
-            # parameter is accessed after the optimizer step. However,
-            # PyTorch directly passes embedding parameters into a C++,
-            # bypassing this process. A quick-and-dirty hack is to
-            # manually interact with the parameter.
-            modules = self.model if isinstance(self.model, list) else [self.model]
-            for module in modules:
-                if isinstance(module, (Float16Module, MCoreFloat16Module)):
-                    module = module.module
-                if not self.mcore_bert:
-                    module = module.language_model
-                if hasattr(module, 'embedding'):
-                    for param in module.embedding.parameters():
-                        param.data_ptr()
-
-        if self.cfg.data.dataloader_type == "LDDL":
-            # this is of type bert dataset
-            seq_length = dataloader_iter.iterator.loaders.get_seqlen()
-        else:
-            seq_length = self.cfg.encoder_seq_length
-
-        # run forward and backwards passes for an entire global batch
-        # we do this inside training_step to support pipeline parallelism
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=False,
-            seq_length=seq_length,
-            micro_batch_size=self.cfg.micro_batch_size,
-        )
-
-        if losses_reduced_per_micro_batch:
-            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.vstack(loss_tensors_list)
-            loss_mean = loss_tensor.mean(axis=0)
-        else:
-            if self.cfg.bert_binary_head == True:
-                loss_mean = torch.tensor([0.0, 0.0, 0.0]).cuda()
-            else:
-                loss_mean = torch.tensor([0.0, 0.0]).cuda()
-
-        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
-        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
-            self.allreduce_sequence_parallel_gradients()
-
-        if self.with_distributed_adam:
-            # synchronize asynchronous grad reductions
-            # note: not necessary, but reduces performance degradation
-            # from multiple simultaneous NCCL calls
-            self._optimizer._finish_bucket_grad_sync()
-        elif self.megatron_amp_O2:
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
-                # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
-                self._optimizer.allreduce_main_grads()
-        else:
-            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
-            # so we all-reduce gradients after the pipeline
-            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
-
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            # when using pipeline parallelism the first and last stage must keep embeddings in sync
-            self.allreduce_first_last_embeddings()
-
-        torch.distributed.broadcast(loss_mean, get_last_rank())
-
-        if self.torch_dtype == torch.float16:
-            loss_scale = self.trainer.precision_plugin.scaler._scale
-            if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
-
-        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
-            # Reduced loss for logging.
-            self.log('reduced_train_loss', loss_mean[0], prog_bar=True, batch_size=1)
-            if len(loss_mean) > 2:
-                self.log('reduced_lm_train_loss', loss_mean[1], prog_bar=True, batch_size=1)
-                self.log('reduced_sop_train_loss', loss_mean[2], prog_bar=True, batch_size=1)
-            lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr, batch_size=1)
-            self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
-            self.log(
-                'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
-            )
-        return loss_mean[0]
-
-    def validation_step(self, dataloader_iter, batch_idx):
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-
-        if done:
-            return
-        prefix = "test" if self.trainer.testing else "val"
-        if self.cfg.data.dataloader_type == "LDDL":
-            seq_length = dataloader_iter.iterator.get_seqlen()
-        else:
-            seq_length = self.cfg.encoder_seq_length
-
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            seq_length=seq_length,
-            micro_batch_size=self.cfg.micro_batch_size,
-        )
-
-        if losses_reduced_per_micro_batch:
-            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.vstack(loss_tensors_list)
-            loss_mean = loss_tensor.mean(axis=0)
-        else:
-            loss_mean = torch.tensor([0.0]).cuda()
-
-        loss = loss_mean[0]
-        self.validation_step_outputs.append(loss) if prefix == 'val' else self.test_step_outputs.append(loss)
-        return loss
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
@@ -1002,16 +852,16 @@ class MegatronSBertModel(MegatronBertModel):
         return fwd_output_and_loss_func
 
     def loss_func(self, output_tensor):
-        queries = output_tensor[0]
-        positives = output_tensor[1]
+        queries = output_tensor[0] # shape (bs, embedding_dim)
+        positives = output_tensor[1] # shape (bs, embedding_dim)
 
-        pos_inbatch_negs_scores = torch.mm(queries, positives.transpose(0, 1))
+        pos_inbatch_negs_scores = torch.mm(queries, positives.transpose(0, 1)) # shape (bs, bs); each positive is negative for other queries. 
 
-        hard_negs = output_tensor[2:]
+        hard_negs = output_tensor[2:] # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         hard_negs_scores = (
             torch.multiply(queries.unsqueeze(0).repeat(len(hard_negs), 1, 1), torch.stack(hard_negs),).sum(axis=-1).T
-        )
+        )  # shape = (bs, num_negatives); Hard negatives are not shared between queries.
 
         scores = torch.cat([pos_inbatch_negs_scores, hard_negs_scores], axis=1)
 

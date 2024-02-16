@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from torch.utils.data import Dataset
 
 
-class MultiplePositivesNegativesDataset(Dataset):
+class BertEmbeddingDataset(Dataset):
     """SentenceTransformer tokenizer and MultipleNegativesRankingLoss expects
         a single positive and a single hard-negative (optional) per example.
         This Dataset manages the case where there is more than one positive or negative
@@ -59,15 +59,14 @@ class MultiplePositivesNegativesDataset(Dataset):
 
     def __getitem__(self, item):
 
-        example = copy.deepcopy(self.data[item])
+        example = self.data[item]
         question = f'{self.query_prefix} {example["question"]}'.strip()
         texts = [question]
 
         positive = example["pos_doc"]
         if isinstance(positive, list):
-            # Dequeues one positive and adds it at end of the queue
-            positive = example["pos_doc"].pop(0)
-            example["pos_doc"].append(positive)
+
+            positive = example["pos_doc"][0]
 
         positive = f"{self.passage_prefix} {positive}".strip()
         texts.append(positive)
@@ -77,12 +76,11 @@ class MultiplePositivesNegativesDataset(Dataset):
             negative = example["neg_doc"]
             selected_negs = []
             if isinstance(negative, list):
-                for _ in range(self.num_hard_negs):
+                for counter in range(self.num_hard_negs):
                     if len(example["neg_doc"]) > 0:
-                        # Dequeues a negative and adds it at end of the queue
-                        negative = example["neg_doc"].pop(0)
+
+                        negative = example["neg_doc"][counter]
                         selected_negs.append(negative)
-                        example["neg_doc"].append(negative)
                     else:
                         # Providing empty hard-negative, for this example,
                         # so that it matches the number of hard negatives
