@@ -33,6 +33,7 @@ from transformers import CLIPImageProcessor
 
 import nemo.collections.multimodal.data.videoneva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
+from nemo.collections.multimodal.data.neva.neva_dataset import TarOrFolderImageLoader
 from nemo.collections.multimodal.data.videoneva.conversation import (
     DEFAULT_BOS_TOKEN,
     DEFAULT_EOS_TOKEN,
@@ -54,8 +55,6 @@ from nemo.collections.multimodal.models.multimodal_llm.videoneva.multimodal_enco
     LanguageBindVideoProcessor,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.multimodal.data.neva.neva_dataset import TarOrFolderImageLoader
-
 
 MAX_NUM_IMAGES = 1
 MAX_NUM_VIDEOS = 1
@@ -107,20 +106,20 @@ class TarOrFolderVideoLoader:
         else:
             return cv2.VideoCapture(os.path.join(self.video_folder, file_name))
         return None
-    
+
     def flatten_frames(self, cap):
         num_frames = self.data_config['num_frames']
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        if self.data_config['splice_single_frame'] == 'first': # represent vid as first frame only
+        if self.data_config['splice_single_frame'] == 'first':  # represent vid as first frame only
             frame_indices = [0]
-        elif self.data_config['splice_single_frame'] == 'last': # represent vid as last frame only
+        elif self.data_config['splice_single_frame'] == 'last':  # represent vid as last frame only
             frame_indices = [-1]
-        elif self.data_config['splice_single_frame'] == 'middle': # represent vid as middle frame only
+        elif self.data_config['splice_single_frame'] == 'middle':  # represent vid as middle frame only
             frame_indices = total_frames // 2
-        else: # represent vid as num_frames
+        else:  # represent vid as num_frames
             frame_indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
-        
+
         frames = []
 
         for index in frame_indices:
@@ -134,11 +133,13 @@ class TarOrFolderVideoLoader:
             frames.append(frame)
 
         cap.release()
-        frames_array = np.array(frames) # (F, H, W, C), F = num_frames, H,W,C are img dims
+        frames_array = np.array(frames)  # (F, H, W, C), F = num_frames, H,W,C are img dims
 
-        frames_array = np.expand_dims(np.transpose(frames_array, (0, 1, 4, 2, 3)), axis=0) # (T_img, F, C, H, W), T_img = 1
+        frames_array = np.expand_dims(
+            np.transpose(frames_array, (0, 1, 4, 2, 3)), axis=0
+        )  # (T_img, F, C, H, W), T_img = 1
 
-        return frames_array # will be bundled with batch size to produce (B, T_img, F, C, H, W)
+        return frames_array  # will be bundled with batch size to produce (B, T_img, F, C, H, W)
 
 
 def tokenize(
@@ -687,7 +688,7 @@ class LazySupervisedDataset(Dataset):
             # image does not exist in the data, but the model is multimodal
             zero_padding = torch.zeros(
                 (data_cfg.num_frames - len(images_tensors), 3, crop_size[0], crop_size[1]), dtype=torch.float
-            ) # data_cfg.num_frames instead of MAX_NUM_IMAGES
+            )  # data_cfg.num_frames instead of MAX_NUM_IMAGES
             images_tensors = torch.cat((images_tensors, zero_padding), dim=0)
             data_dict['image'] = images_tensors
         return data_dict
