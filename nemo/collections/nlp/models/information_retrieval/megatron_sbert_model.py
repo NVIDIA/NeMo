@@ -371,7 +371,6 @@ class SBertModel(BertModel):
 
             lm_output, _ = lm_output
 
-
         add_on_inputs = {"token_embeddings": lm_output[0].permute(1, 0, 2), "attention_mask": attention_mask}
         lm_output = self.pooling_add_on(add_on_inputs)
         lm_output = self.normalize_add_on(lm_output)
