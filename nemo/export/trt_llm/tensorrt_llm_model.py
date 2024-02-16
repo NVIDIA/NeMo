@@ -159,7 +159,7 @@ class ModelBuilder(Module):
 
             lora_layer_params = None
             if lora_params.lora_ranks is not None:
-                lora_layer_params = lora_params.get_layer_params(layer_idx)
+                lora_layer_params = lora_params.get_layer_params(idx)
 
             hidden_states = layer(
                 hidden_states,

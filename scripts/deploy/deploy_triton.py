@@ -169,6 +169,38 @@ def get_args(argv):
                         It is beneifical when batchxnum_heads cannot fully utilize GPU.'
     )
     parser.add_argument(
+        '--use_lora_plugin',
+        nargs='?',
+        const=None,
+        default=False,
+        choices=['float16', 'float32', 'bfloat16'],
+        help="Activates the lora plugin which enables embedding sharing."
+    )
+    parser.add_argument(
+        '--lora_target_modules',
+        nargs='+',
+        default=None,
+        choices=[
+            "attn_qkv",
+            "attn_q",
+            "attn_k",
+            "attn_v",
+            "attn_dense",
+            "mlp_h_to_4h",
+            "mlp_gate",
+            "mlp_4h_to_h",
+        ],
+        help=
+        "Add lora in which modules. Only be activated when use_lora_plugin is enabled."
+    )
+    parser.add_argument(
+        '--max_lora_rank',
+        type=int,
+        default=64,
+        help='maximum lora rank for different lora modules. '
+             'It is used to compute the workspace size of lora plugin.'
+    )
+    parser.add_argument(
         "-dm",
         "--debug_mode",
         default="False",
@@ -262,6 +294,24 @@ def nemo_deploy(argv):
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
     if args.nemo_checkpoint is not None:
+        trt_llm_exporter.export(
+            nemo_checkpoint_path=args.nemo_checkpoint,
+            model_type=args.model_type,
+            n_gpus=args.num_gpus,
+            tensor_parallel_size=args.tensor_parallelism_size,
+            pipeline_parallel_size=args.pipeline_parallelism_size,
+            max_input_token=args.max_input_len,
+            max_output_token=args.max_output_len,
+            max_batch_size=args.max_batch_size,
+            max_prompt_embedding_table_size=args.max_prompt_embedding_table_size,
+            paged_kv_cache=args.use_paged_kv_cache,
+            enable_context_fmha=not args.disable_context_fmha,
+            dtype=args.dtype,
+            enable_multi_block_mode=args.multi_block_mode,
+            use_lora_plugin=args.use_lora_plugin,
+            lora_target_modules=args.lora_target_modules,
+            max_lora_rank=args.max_lora_rank,
+        )
         try:
             LOGGER.info("Export operation will be started to export the nemo checkpoint to TensorRT-LLM.")
             trt_llm_exporter.export(
@@ -278,6 +328,9 @@ def nemo_deploy(argv):
                 enable_context_fmha=not args.disable_context_fmha,
                 dtype=args.dtype,
                 enable_multi_block_mode=args.multi_block_mode,
+                use_lora_plugin=args.use_lora_plugin,
+                lora_target_modules=args.lora_target_modules,
+                max_lora_rank=args.max_lora_rank,
             )
         except Exception as error:
             LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
