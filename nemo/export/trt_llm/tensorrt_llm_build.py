@@ -17,6 +17,7 @@ import argparse
 import os
 import time
 from pathlib import Path
+from typing import List
 
 import tensorrt_llm
 import torch
@@ -160,6 +161,9 @@ def build_rank_engine(
         if args.enable_multi_block_mode:
             network.plugin_config.enable_mmha_multi_block_mode()
 
+        if args.use_lora_plugin:
+            network.plugin_config.set_lora_plugin(dtype=args.use_lora_plugin)
+
         if args.use_lookup_plugin:
             # Use the plugin for the embedding parallelism and sharing
             network.plugin_config.set_lookup_plugin(dtype=args.dtype)
@@ -169,22 +173,21 @@ def build_rank_engine(
     if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
-    use_cache = True
-
     with net_guard(network):
         # Prepare
         network.set_named_parameters(tensorrt_llm_gpt.named_parameters())
 
         # Forward       
         inputs = tensorrt_llm_gpt.prepare_inputs(
-            args.max_batch_size,
-            args.max_input_len,
-            args.max_input_len + args.max_output_len,
-            use_cache,
-            args.max_beam_width,
+            max_batch_size=args.max_batch_size,
+            max_input_len=args.max_input_len,
+            max_new_tokens=args.max_input_len + args.max_output_len,
+            use_cache=True,
+            max_beam_width=args.max_beam_width,
             paged_kv_cache=args.paged_kv_cache,
             tokens_per_block=args.tokens_per_block,
             prompt_embedding_table_size=args.max_prompt_embedding_table_size,
+            lora_target_modules=args.lora_target_modules,
         )
         tensorrt_llm_gpt(*inputs)
 
@@ -240,6 +243,8 @@ def _build_impl(tensorrt_llm_model, args):
         gather_context_logits=False,
         gather_generation_logits=False,
         quant_mode=args.quant_mode,
+        lora_target_modules=args.lora_target_modules,
+        max_lora_rank=args.max_lora_rank,
     )
 
     tp_size = args.mapping.tp_size
@@ -282,6 +287,9 @@ def build(
     enable_context_fmha: bool = True,
     enable_multi_block_mode=False,
     use_refit=False,
+    use_lora_plugin: str = None,
+    lora_target_modules: List[str] = None,
+    max_lora_rank: int = 64,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
@@ -321,6 +329,9 @@ def build(
     args.quantization = quantization
     args.enable_multi_block_mode = enable_multi_block_mode
     args.use_refit = use_refit
+    args.use_lora_plugin = use_lora_plugin
+    args.lora_target_modules = lora_target_modules
+    args.max_lora_rank = max_lora_rank
 
     logger.set_level(args.log_level)
 
