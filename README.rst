@@ -82,7 +82,7 @@ and mixed precision training recipes with bfloat16 and FP8 training.
 NeMo's Transformer based LLM and Multimodal models leverage `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_ for FP8 training on NVIDIA Hopper GPUs
 and leverages `NVIDIA Megatron Core <https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core>`_ for scaling transformer model training.
 
-NeMo LLM and Multimodal models can be deployed and optimized with `NVIDIA Inference Microservices (Early Access)`_.
+NeMo LLM and Multimodal models can be deployed and optimized with `NVIDIA Inference Microservices (Early Access) <https://developer.nvidia.com/nemo-microservices-early-access>`_.
 
 NeMo ASR and TTS models can be optimized for inference and deployed for production use-cases with `NVIDIA Riva <https://developer.nvidia.com/riva>`_.
 
