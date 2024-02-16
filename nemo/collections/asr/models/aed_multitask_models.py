@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import itertools
 import os
 from dataclasses import dataclass
 from math import ceil
@@ -21,8 +19,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-import torch.distributed as dist
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
