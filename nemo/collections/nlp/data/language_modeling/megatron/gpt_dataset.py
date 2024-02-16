@@ -377,7 +377,7 @@ class GPTDataset(Dataset):
 
             # Check that the number of samples in the data cache is divisible by the number of
             # samples in a shuffle block to avoid a lot of cache refreshes.
-            sample_ntokens = self.seq_length + (1 if self.no_seqlen_plus_one_input_tokens else 0)
+            sample_ntokens = self.seq_length + (0 if self.no_seqlen_plus_one_input_tokens else 1)
             sample_nbytes = self.indexed_dataset.dtype().itemsize * sample_ntokens
             assert self.indexed_dataset.data_cache_nbytes % sample_nbytes == 0
             data_cache_block_size = self.indexed_dataset.data_cache_nbytes // sample_nbytes
