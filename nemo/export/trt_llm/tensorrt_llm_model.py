@@ -80,6 +80,7 @@ class ModelBuilder(Module):
         self._use_prompt_tuning = model_config.use_prompt_tuning
         self._mapping = model_config.mapping
         self.rank = model_config.mapping.rank
+        self.max_lora_rank = model_config.max_lora_rank
 
         if self._mapping.is_first_pp_rank():
             self.vocab_embedding = build_embedding_from_config(
@@ -93,8 +94,10 @@ class ModelBuilder(Module):
                 model_config.positional_embedding, self._dtype, use_prompt_tuning=False
             )
 
-        self.layers = ModuleList(
-            [
+        self.layers = []
+        for layer_id in get_transformer_layers(self._mapping, self._num_layers):
+            model_config.layers[layer_id].max_lora_rank = self.max_lora_rank
+            self.layers.append(
                 build_decoder_layer(
                     model_config.layers[layer_id],
                     layer_id,
@@ -105,9 +108,9 @@ class ModelBuilder(Module):
                     tensor_parallel=self._tensor_parallel,
                     tp_group=model_config.mapping.tp_group
                 )
-                for layer_id in get_transformer_layers(self._mapping, self._num_layers)
-            ]
-        )
+            )
+
+        self.layers = ModuleList(self.layers)
 
         if self._mapping.is_last_pp_rank():
             self.ln_f = build_layernorm_from_config(model_config.final_layernorm, self._dtype)
