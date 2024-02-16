@@ -13,26 +13,25 @@
 # limitations under the License.
 
 import json
+import logging
 import os
 import random
 from typing import Dict, List, Tuple, Union
-import logging
+
+import numpy as np
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor, nn
-import numpy as np
+
 from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.bert_model import (
-    BertModel,
-    bert_extended_attention_mask,
-)
+from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel, bert_extended_attention_mask
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -51,6 +50,7 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
 
 def set_seed(seed: int = 42) -> None:
     np.random.seed(seed)
