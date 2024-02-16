@@ -232,9 +232,7 @@ model:
     data_path: /lustre/fsw/coreai_dlalgo_llm/dataset/videoneva/image_pretrain/image_pretrain_annotations.json
     lazy_preprocess: True
     is_multimodal: True
-    use_first_frame_only: True # if True, videos will be parsed with the first frame only, all other frames discarded
-    use_middle_frame_only: False # if True, videos will be parsed with the middle frame only, all other frames discarded
-    use_last_frame_only: False # if True, videos will be parsed with the last frame only, all other frames discarded
+    splice_single_frame: 'first' # 'first', 'middle', 'last' will represent video as first / middle / last frame only, all other frames discarded.
     num_frames: 8 # max frames is 8, if more partition video into 8 evenly spaced frames by partition
     sep_token_between_frames: False # TODO: allow usage of separator tokens between frames
     sep_image_conv_front: False
