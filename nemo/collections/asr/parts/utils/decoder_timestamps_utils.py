@@ -332,7 +332,7 @@ class ASRDecoderTimeStamps:
 
         To assign a proper decoding function for generating timestamp output,
         the name of .nemo file should include the architecture name such as:
-        'quartznet', 'conformer', and 'citrinet'.
+        'quartznet', 'conformer', 'fastconformer' and 'citrinet'.
 
         decoder_delay_in_sec is the amount of delay that is compensated during the word timestamp extraction.
         word_ts_anchor_offset is the reference point for a word and used for matching the word with diarization labels.
@@ -348,6 +348,17 @@ class ASRDecoderTimeStamps:
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 4)
             self.model_stride_in_secs = 0.02
 
+        elif 'fastconformer' in self.ASR_model_name.lower():
+            self.run_ASR = self.run_ASR_BPE_CTC
+            self.encdec_class = EncDecCTCModelBPE
+            self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.08)
+            self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
+            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
+            self.model_stride_in_secs = 0.08
+            # fastConformer requires buffered inference and the parameters for buffered processing.
+            self.chunk_len_in_sec = 5
+            self.total_buffer_in_secs = 25
+
         elif 'conformer' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_BPE_CTC
             self.encdec_class = EncDecCTCModelBPE
@@ -358,7 +369,7 @@ class ASRDecoderTimeStamps:
             # Conformer requires buffered inference and the parameters for buffered processing.
             self.chunk_len_in_sec = 5
             self.total_buffer_in_secs = 25
-
+        
         elif 'citrinet' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_CitriNet_CTC
             self.encdec_class = EncDecCTCModelBPE
