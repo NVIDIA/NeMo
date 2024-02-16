@@ -57,31 +57,54 @@ such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups
 Introduction
 ------------
 
-NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR),
-text-to-speech synthesis (TTS), large language models (LLMs), and
-natural language processing (NLP).
-The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models)
-and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
+NVIDIA NeMo Framework is a generative AI framework built for researchers and pytorch developers 
+working on large language models (LLMs), multimodal models, automatic speech recognition (ASR),
+and text-to-speech synthesis (TTS).
+The primary objective of NeMo is to provide a scalable framework for researchers and developers from industry and academia 
+to more easily implement and design new generative AI models by being able to leverage existing code and pretrained models.
+
+For technical documentation, please see the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_.
 
 All NeMo models are trained with `Lightning <https://github.com/Lightning-AI/lightning>`_ and
 training is automatically scalable to 1000s of GPUs.
-Additionally, NeMo Megatron LLM models can be trained up to 1 trillion parameters using tensor and pipeline model parallelism.
-NeMo models can be optimized for inference and deployed for production use-cases with `NVIDIA Riva <https://developer.nvidia.com/riva>`_.
+
+When applicable, NeMo models take advantage of the latest possible distributed training techniques, 
+including parallelism strategies such as 
+* data parallelism
+* tensor paralellsim
+* pipeline model parallelism
+* fully sharded data parallelism (FSDP)
+* sequence parallelism
+* context parallelism
+* mixture-of-experts (MoE)
+and mixed precision training recipes with bfloat16 and FP8 training.
+
+NeMo's Transformer based LLM and Multimodal models leverage `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_ for FP8 training on NVIDIA Hopper GPUs
+and leverages `NVIDIA Megatron Core <https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core>`_ for scaling transformer model training.
+
+NeMo LLM and Multimodal models can be deployed and optimized with `NVIDIA Inference Microservices (Early Access)`_.
+
+NeMo ASR and TTS models can be optimized for inference and deployed for production use-cases with `NVIDIA Riva <https://developer.nvidia.com/riva>`_.
+
+For scaling NeMo LLM and Multimodal training on Slurm clusters or public clouds, please see the `NVIDIA Framework Launcher <https://github.com/NVIDIA/NeMo-Megatron-Launcher>`_.
+The NeMo Framework launcher has extensive recipes, scripts, utilities, and documentation for training NeMo LLMs and Multimodal models and also has an `Autoconfigurator <https://github.com/NVIDIA/NeMo-Megatron-Launcher#53-using-autoconfigurator-to-find-the-optimal-configuration>`_
+which can be used to find the optimal model parallel configuration for training on a specific cluster. 
+To get started quickly with the NeMo Framework Launcher, please see the `NeMo Framework Playbooks <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_
+The NeMo Framework Launcher does not currently support ASR and TTS training but will soon.
 
 Getting started with NeMo is simple.
 State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
 `NVIDIA NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
-These models can be used to transcribe audio, synthesize speech, or translate text in just a few lines of code.
+These models can be used to generate text or images, transcribe audio, and synthesize speech in just a few lines of code.
 
 We have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that
-can be run on `Google Colab <https://colab.research.google.com>`_.
+can be run on `Google Colab <https://colab.research.google.com>`_ or with our `NGC NeMo Framework Container. <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`_
+
+
 
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models
 we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
 
-For scaling NeMo LLM training on Slurm clusters or public clouds, please see the `NVIDIA NeMo Megatron Launcher <https://github.com/NVIDIA/NeMo-Megatron-Launcher>`_.
-The NM launcher has extensive recipes, scripts, utilities, and documentation for training NeMo LLMs and also has an `Autoconfigurator <https://github.com/NVIDIA/NeMo-Megatron-Launcher#53-using-autoconfigurator-to-find-the-optimal-configuration>`_
-which can be used to find the optimal model parallel configuration for training on a specific cluster.
 
 Key Features
 ------------
