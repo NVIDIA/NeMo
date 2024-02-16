@@ -793,12 +793,14 @@ class MegatronSBertModel(MegatronBertModel):
         return fwd_output_and_loss_func
 
     def loss_func(self, output_tensor):
-        queries = output_tensor[0] # shape (bs, embedding_dim)
-        positives = output_tensor[1] # shape (bs, embedding_dim)
+        queries = output_tensor[0]  # shape (bs, embedding_dim)
+        positives = output_tensor[1]  # shape (bs, embedding_dim)
 
-        pos_inbatch_negs_scores = torch.mm(queries, positives.transpose(0, 1)) # shape (bs, bs); each positive is negative for other queries. 
+        pos_inbatch_negs_scores = torch.mm(
+            queries, positives.transpose(0, 1)
+        )  # shape (bs, bs); each positive is negative for other queries.
 
-        hard_negs = output_tensor[2:] # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
+        hard_negs = output_tensor[2:]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         hard_negs_scores = (
             torch.multiply(queries.unsqueeze(0).repeat(len(hard_negs), 1, 1), torch.stack(hard_negs),).sum(axis=-1).T
