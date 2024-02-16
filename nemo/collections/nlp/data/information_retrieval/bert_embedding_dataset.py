@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import random
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List
 
 from torch.utils.data import Dataset
 

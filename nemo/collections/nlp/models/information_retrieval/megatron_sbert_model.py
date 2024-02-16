@@ -12,69 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import itertools
 import json
 import os
 import random
-from typing import Any, Dict, List, Optional, Tuple, Union
-
+from typing import Dict, List, Tuple, Union
+import logging
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor, nn
-from torch.utils.data import DataLoader, Dataset
-
+import numpy as np
 from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
-from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import (
-    BertLMHead,
     BertModel,
     bert_extended_attention_mask,
-    post_language_model_processing,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     build_position_ids,
-    erf_gelu,
-    get_linear_layer,
-    get_params_for_weight_decay_optimization,
-    init_method_normal,
-    openai_gelu,
-    parallel_lm_logits,
-    scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import ChannelType, MaskType, NeuralType
-from nemo.utils import AppState, logging
-
-try:
-    from apex.transformer.enums import AttnMaskType
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-    from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-    # fake missing classes with None attributes
-    AttnMaskType = ApexGuardDefaults()
+from nemo.utils import logging
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
@@ -86,30 +51,6 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
-
-try:
-    import logging
-
-    from lddl.torch_mp import get_bert_pretrain_data_loader
-
-    HAVE_LDDL = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_LDDL = False
-
-try:
-    from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.transformer.transformer_config import TransformerConfig
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-    TransformerConfig = ApexGuardDefaults
-    HAVE_MEGATRON_CORE = False
-
-import numpy as np
-
 
 def set_seed(seed: int = 42) -> None:
     np.random.seed(seed)
