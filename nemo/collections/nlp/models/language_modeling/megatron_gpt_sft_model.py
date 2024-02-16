@@ -161,6 +161,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     def _metrics_require_string2category_map(self):
         return set(["f1", "accuracy", "average_precision"])
 
+    def maybe_setup_test(self):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+        return 
+
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
@@ -183,8 +188,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
-        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
-            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+        self.maybe_setup_test()
+        
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         self.initialize_last_rank_embeddings()
@@ -776,6 +781,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
 
+    def maybe_build_test(self):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+            logging.info('Building GPT SFT test datasets.')
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
+            logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
+        return 
+
     def build_train_valid_test_datasets(self, stage):
         if stage != 'test':
             logging.info('Building GPT SFT validation datasets.')
@@ -784,11 +797,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
-            if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
-                logging.info('Building GPT SFT test datasets.')
-                # Wrap this in a list since the general finetuning parent class supports multi-validation.
-                self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-                logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
+            self.maybe_build_test()
 
         if stage == 'validate' or stage == 'test':
             return

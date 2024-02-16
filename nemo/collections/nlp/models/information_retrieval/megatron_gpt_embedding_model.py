@@ -64,7 +64,18 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def model_provider_func(self, pre_process, post_process):
         # (@adithyare) We need post_process to be False to get hidden states in the loss_func
         return super().model_provider_func(pre_process, post_process=False)
-
+    
+    def maybe_setup_test(self):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('doc_file_names', None) is not None and self.cfg.data.test_ds.get('query_file_names', None) is not None:
+            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+        return
+    
+    def maybe_build_test(self):
+       if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('doc_file_names', None) is not None and self.cfg.data.test_ds.get('query_file_names', None) is not None:
+                logging.info('Building GPT Embedder test datasets.')
+                # Wrap this in a list since the general finetuning parent class supports multi-validation.
+                self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False) 
+            
     def _build_dataset(self, data_cfg, is_train=True):
         packed_sequence = data_cfg.get("packed_sequence", False)
 
