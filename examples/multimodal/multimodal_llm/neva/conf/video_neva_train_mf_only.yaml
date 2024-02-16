@@ -238,7 +238,7 @@ model:
     sep_image_conv_front: False
     image_token_len: 256
     conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
-    image_folder: /lustre/fsw/coreai_dlalgo_llm/dataset/videoneva/image_pretrain/LLaVA-CC3M-Pretrain-595K
+    video_folder: /lustre/fsw/coreai_dlalgo_llm/dataset/videoneva/image_pretrain/LLaVA-CC3M-Pretrain-595K
     image_aspect_ratio: 'square'
 
   # Nsys profiling options
