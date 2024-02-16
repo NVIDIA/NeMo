@@ -45,6 +45,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
 )
 from nemo.collections.nlp.models.language_modeling.megatron.model_specs import get_gpt_layer_ammo_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+from nemo.collections.nlp.models.language_modeling.megatron.model_specs import get_gpt_layer_ammo_spec
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module

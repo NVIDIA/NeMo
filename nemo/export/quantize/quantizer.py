@@ -77,10 +77,7 @@ class Quantizer:
         model_cfg = self._restore_and_modify_config(model_file, trainer, connector, tensor_model_parallel_size)
 
         model = MegatronGPTModel.restore_from(
-            restore_path=model_file,
-            trainer=trainer,
-            override_config_path=model_cfg,
-            save_restore_connector=connector,
+            restore_path=model_file, trainer=trainer, override_config_path=model_cfg, save_restore_connector=connector,
         )
         model.freeze()
 
@@ -110,10 +107,7 @@ class Quantizer:
         tensor_model_parallel_size: Optional[int] = None,
     ):
         model_cfg = MegatronGPTModel.restore_from(
-            restore_path=model_file,
-            trainer=trainer,
-            save_restore_connector=connector,
-            return_config=True,
+            restore_path=model_file, trainer=trainer, save_restore_connector=connector, return_config=True,
         )
         with open_dict(model_cfg):
             model_cfg.activations_checkpoint_method = None

@@ -19,18 +19,13 @@ def get_gpt_layer_ammo_spec() -> ModuleSpec:
                 module=SelfAttention,
                 params={"attn_mask_type": AttnMaskType.causal},
                 submodules=SelfAttentionSubmodules(
-                    linear_qkv=ColumnParallelLinear,
-                    core_attention=DotProductAttention,
-                    linear_proj=RowParallelLinear,
+                    linear_qkv=ColumnParallelLinear, core_attention=DotProductAttention, linear_proj=RowParallelLinear,
                 ),
             ),
             self_attn_bda=get_bias_dropout_add,
             pre_mlp_layernorm=TENorm,
             mlp=ModuleSpec(
-                module=MLP,
-                submodules=MLPSubmodules(
-                    linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,
-                ),
+                module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
             ),
             mlp_bda=get_bias_dropout_add,
             sharded_state_dict_keys_map={
