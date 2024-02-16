@@ -369,7 +369,7 @@ class ASRDecoderTimeStamps:
             # Conformer requires buffered inference and the parameters for buffered processing.
             self.chunk_len_in_sec = 5
             self.total_buffer_in_secs = 25
-        
+
         elif 'citrinet' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_CitriNet_CTC
             self.encdec_class = EncDecCTCModelBPE
