@@ -132,6 +132,8 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
+# install AMMO  # TODO: add to requirements
+RUN pip install nvidia-ammo==0.7.2 --extra-index-url https://pypi.nvidia.com --no-cache-dir
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
