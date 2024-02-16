@@ -381,6 +381,8 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
     - The function asserts that each message in a conversation alternates between the defined roles and skips messages not starting with the 'human' role.
     """
 
+    """<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n<extra_id_1>User\n{user input}\n<extra_id_1>Assistant\n<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4\n"""
+
     conv = conversation_lib.conv_nvgpt.copy()
 
     # Apply prompt templates
