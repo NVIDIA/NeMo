@@ -96,6 +96,13 @@ pipeline {
       }
     }
 
+    // TODO: AMMO installation - move to requirements
+    stage('AMMO installation') {
+      steps {
+         sh 'pip install nvidia-ammo==0.7.2 --extra-index-url https://pypi.nvidia.com --no-cache-dir'
+      }
+    }
+
     stage('PyTorch Lightning version') {
       steps {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
@@ -390,6 +397,12 @@ pipeline {
       }
     }
 
+    stage('Setup test data and models') {
+      steps {
+        sh 'python -m tests.setup --save_dir /home/TestData/nlp'
+      }
+    }
+
     // TODO: this requires TE >= v0.11 which is not available in 23.06.
     //        please uncomment this test once mcore CI is ready.
     stage('L2: Community LLM Checkpoints tests') {
@@ -407,7 +420,6 @@ pipeline {
             --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
             --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
             --precision=16'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
           }
         }
         stage('StarCoder') {
@@ -439,6 +451,29 @@ pipeline {
       }
     }
 
+    stage('L2: Nemo PTQ') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Llama') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES=0 python examples/nlp/language_modeling/megatron_llama_quantization.py \
+            model_file=/home/TestData/nlp/megatron_llama/ci.nemo \
+            quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+            quantization.algorithm=int8_sq \
+            quantization.num_calib_size=8 \
+            inference.batch_size=2 \
+            model_save_path=/home/TestData/nlp/megatron_llama/ci.qnemo'
+            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+          }
+        }
+      }
+    }
     stage('L2: ASR dev run') {
       when {
         anyOf {
