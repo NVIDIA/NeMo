@@ -42,8 +42,6 @@ class AbstractMultiTaskDecoding(ABC):
                 -   greedy, greedy_batch (for greedy decoding).
                 -   beam, tsd, alsd (for beam search decoding).
 
-            return_scores: bool flag which determines whether to return the scores of the hypotheses.
-
             compute_langs: a bool flag, which allows to compute language id (LID) information per token,
                 word, and the entire sample (most likely language id). The LIDS will be available
                 in the returned Hypothesis object as a dictionary
@@ -75,7 +73,8 @@ class AbstractMultiTaskDecoding(ABC):
 
                 length_penalty: float, length penalty for beam search decoding. Must be >= 0.0.
 
-                max_generation_delta: int, maximum number of additional target tokens to generate
+                max_generation_delta: int,in case of encoder-decoder generation (e.g. NMT),
+                    forbids generated sequences to be longer than the length of source sequences plus max_generation_delta
 
                 return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
                     hypotheses after beam search has concluded. This flag is set by default.
@@ -103,7 +102,6 @@ class AbstractMultiTaskDecoding(ABC):
 
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.compute_langs = self.cfg.get('compute_langs', False)
-        self.return_scores = self.cfg.get('return_scores', False)
         self.compute_hypothesis_token_set = self.cfg.get('compute_hypothesis_token_set', False)
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam']
@@ -180,7 +178,6 @@ class AbstractMultiTaskDecoding(ABC):
                 encoder_hidden_states=encoder_hidden_states,
                 encoder_input_mask=encoder_input_mask,
                 decoder_input_ids=decoder_input_ids,
-                return_scores=self.return_scores,
                 partial_hypotheses=partial_hypotheses,
             )  # type: [List[Hypothesis]]
 
@@ -320,8 +317,6 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
                 Possible values are :
                 -   greedy, greedy_batch (for greedy decoding).
                 -   beam, tsd, alsd (for beam search decoding).
-
-            return_scores: bool flag which determines whether to return the scores of the hypotheses.
 
             compute_langs: a bool flag, which allows to compute language id (LID) information per token,
                 word, and the entire sample (most likely language id). The LIDS will be available
@@ -486,7 +481,7 @@ class MultiTaskDecodingConfig:
     # )
 
     # beam decoding config
-    beam: AEDBeamInferConfig = field(default_factory=lambda: AEDBeamInferConfig(beam_size=4))
+    beam: AEDBeamInferConfig = field(default_factory=lambda: AEDBeamInferConfig(beam_size=1))
 
     # can be used to change temperature for decoding
     temperature: float = 1.0
