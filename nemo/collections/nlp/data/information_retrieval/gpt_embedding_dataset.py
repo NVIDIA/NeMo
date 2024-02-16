@@ -46,6 +46,7 @@ class GPTEmbeddingDataset(Dataset):
         memmap_workers: Optional[int] = None,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
+        data_type: str = 'train', # train, query or doc
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
@@ -82,6 +83,7 @@ class GPTEmbeddingDataset(Dataset):
             }
         else:
             self.special_tokens = special_tokens
+        self.data_type = data_type
 
         self.indexed_dataset = JSONLMemMapDataset(
             dataset_paths=[file_path],
@@ -151,10 +153,24 @@ class GPTEmbeddingDataset(Dataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
-        d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
-        nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
         metadata = {k: v for k, v in example.items()}
+        if self.data_type == 'train':
+            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            nd = self.tokenizer.text_to_ids("passage: " + example['neg_doc'].strip())
+        elif self.data_type == 'query':
+            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            d, nd = None, None
+            assert "query_id" in example, "query_id is required for query dataset"
+            assert "doc_id" in example, "doc_id is required for query dataset"
+        elif self.data_type == 'doc':
+            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            assert "doc_id" in example, "doc_id is required for doc dataset"
+            q, nd = None, None
+        else:
+            raise ValueError(f"Invalid data type: {self.data_type}")
+
+            
         q = q if q is not None else []
         d = d if d is not None else []
         nd = nd if nd is not None else []
@@ -223,14 +239,26 @@ class GPTEmbeddingDataset(Dataset):
         lengths = []
         max_length = -1
         for item in batch:
-            input_ids.append(item['query'])
             metadata.append(item['metadata'])
-            input_ids.append(item['pos_doc'])
-            input_ids.append(item['neg_doc'])
-            lengths.append(len(item['query']))
-            lengths.append(len(item['pos_doc']))
-            lengths.append(len(item['neg_doc']))
-            max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
+            if self.data_type == 'train':
+                input_ids.append(item['query'])
+                lengths.append(len(item['query']))
+                input_ids.append(item['pos_doc'])
+                lengths.append(len(item['pos_doc']))
+                input_ids.append(item['neg_doc'])
+                lengths.append(len(item['neg_doc']))
+                max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
+            elif self.data_type == 'query':
+                input_ids.append(item['query'])
+                lengths.append(len(item['query']))
+                max_length = max(max_length, len(item['query']))
+            elif self.data_type == 'doc':
+                input_ids.append(item['pos_doc'])
+                lengths.append(len(item['pos_doc']))
+                max_length = max(max_length, len(item['pos_doc']))
+            else:
+                raise ValueError(f"Invalid data type: {self.data_type}")
+                
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
         assert max_length <= self.max_seq_length
