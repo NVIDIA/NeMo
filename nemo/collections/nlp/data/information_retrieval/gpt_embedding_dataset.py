@@ -46,7 +46,7 @@ class GPTEmbeddingDataset(Dataset):
         memmap_workers: Optional[int] = None,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
-        data_type: str = 'train', # train, query or doc
+        data_type: str = 'train',  # train, query or doc
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
@@ -170,7 +170,6 @@ class GPTEmbeddingDataset(Dataset):
         else:
             raise ValueError(f"Invalid data type: {self.data_type}")
 
-            
         q = q if q is not None else []
         d = d if d is not None else []
         nd = nd if nd is not None else []
@@ -258,7 +257,6 @@ class GPTEmbeddingDataset(Dataset):
                 max_length = max(max_length, len(item['pos_doc']))
             else:
                 raise ValueError(f"Invalid data type: {self.data_type}")
-                
 
         max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 16))
         assert max_length <= self.max_seq_length
