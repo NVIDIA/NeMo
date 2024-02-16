@@ -56,7 +56,7 @@ class BLEU(SacreBLEUScore):
             smooth=smooth,
             dist_sync_on_step=dist_sync_on_step,
         )
-
+        self.has_spl_tokens = False
         self.decoding = decoding
         self.decode = None
         if isinstance(self.decoding, AbstractRNNTDecoding):
@@ -70,6 +70,7 @@ class BLEU(SacreBLEUScore):
                 fold_consecutive=self.fold_consecutive,
             )
         elif isinstance(self.decoding, AbstractMultiTaskDecoding):
+            self.has_spl_tokens = True
             self.decode = lambda predictions, prediction_lengths, predictions_mask, input_ids, targets: self.decoding.decode_predictions_tensor(
                 encoder_hidden_states=predictions,
                 encoder_input_mask=predictions_mask,
@@ -116,6 +117,10 @@ class BLEU(SacreBLEUScore):
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
             hypotheses, _ = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
+
+            if self.has_spl_tokens:
+                hypotheses = [self.decoding.strip_special_tokens(hyp) for hyp in hypotheses]
+                references = [self.decoding.strip_special_tokens(ref) for ref in references]
 
         if self.log_prediction:
             logging.info(f"\n")

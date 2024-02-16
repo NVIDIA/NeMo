@@ -216,9 +216,18 @@ class ASRBPEMixin(ABC):
 
         if "custom_tokenizer" in tokenizer_cfg:
             # Class which implements this is usually a ModelPT, has access to Serializable mixin by extension
-            self.tokenizer = self.from_config_dict(
-                {"_target_": tokenizer_cfg["custom_tokenizer"]["_target_"], "tokenizers": tokenizers_dict}
-            )
+            if tokenizer_cfg["custom_tokenizer"].get("kwargs"):
+                self.tokenizer = self.from_config_dict(
+                    {
+                        "_target_": tokenizer_cfg["custom_tokenizer"]["_target_"],
+                        "tokenizers": tokenizers_dict,
+                        **tokenizer_cfg["custom_tokenizer"]["kwargs"],
+                    }
+                )
+            else:
+                self.tokenizer = self.from_config_dict(
+                    {"_target_": tokenizer_cfg["custom_tokenizer"]["_target_"], "tokenizers": tokenizers_dict}
+                )
         else:
             self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
 

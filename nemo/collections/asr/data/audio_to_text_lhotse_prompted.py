@@ -102,7 +102,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper) -> Sequence[Sequence[int]]
     * <|nopnc|>
     * <|pnc|>
     * <|endoftext|>
-    * <|LANG|> - for each supported language, where LANG is a 2-char language code.
+    * <|LANG|> - for each supported language, where LANG is a 2-char language code.  #TODO: Check compatibility with four letter bcp
     * <|nospeech|>
 
     The prompt format syntax is as follows:
@@ -181,12 +181,7 @@ def canary_prompt(tokenizer: CanaryTokenizer, text, language, source_language, t
 
         # task
         task = taskname
-        if task == 'asr':
-            prompted_tokens.append(tokenizer.transcribe_id)
-        elif task == 's2t_translation' or task == 'ast':
-            prompted_tokens.append(tokenizer.translate_id)
-        else:
-            raise ValueError(f"Unknown task: {task}")
+        prompted_tokens.append(tokenizer.to_task_id(task))
 
         # tgt_lang_id
         tgt_lang_id = tokenizer.to_language_id(target_language)
@@ -195,9 +190,9 @@ def canary_prompt(tokenizer: CanaryTokenizer, text, language, source_language, t
         # PnC
         pnc = f"{pnc}".lower().strip()  # to account for bool or str
         if pnc in {'yes', 'true'}:
-            prompted_tokens.append(tokenizer.pnc_id)
+            prompted_tokens.append(tokenizer.to_task_id("pnc"))
         elif pnc in {'no', 'false'}:
-            prompted_tokens.append(tokenizer.nopnc_id)
+            prompted_tokens.append(tokenizer.to_task_id("nopnc"))
         else:
             raise ValueError(f"Unknown value for key 'pnc': {pnc}")
 

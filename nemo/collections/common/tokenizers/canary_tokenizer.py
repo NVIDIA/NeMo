@@ -12,31 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from functools import cached_property
 from pathlib import Path
 from typing import Dict
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-from nemo.collections.common.tokenizers.lang_codes import LANGUAGES_BCP_47, LANGUAGES_ISO_2
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 __all__ = ['CanaryTokenizer']
 
-# Import list of NeMo+Riva languages
-SUPPORTED_LANGUAGES = {**LANGUAGES_ISO_2, **LANGUAGES_BCP_47}
-TO_LANGUAGE_CODE = {language: code for code, language in SUPPORTED_LANGUAGES.items()}
-
-SPECIAL_TOKENS = [
-    "<pad>",
-    "<|endoftext|>",
-    "<|startoftranscript|>",
-    *[f"<|{lang}|>" for lang in list(SUPPORTED_LANGUAGES.keys())],
-    "<|transcribe|>",
-    "<|translate|>",
-    "<|nopnc|>",
-    "<|pnc|>",
-    "<|nospeech|>",
+# Default tokens for compatibility with Canary.
+DEFAULT_TOKENS = ["<|nospeech|>", "<pad>", "<|endoftext|>", "<|startoftranscript|>", "<|pnc|>", "<|nopnc|>"]
+DEFAULT_TASKS = [
+    "transcribe",
+    "translate",
 ]
+DEFAULT_LANGUAGES = {
+    "en": "english",
+    "de": "german",
+    "es": "spanish",
+    "fr": "french",
+}
 
 
 class CanaryTokenizer(AggregateTokenizer):
@@ -44,17 +41,21 @@ class CanaryTokenizer(AggregateTokenizer):
     Thin wrapper around AggregateTokenizer to provide quick access to special tokens
     """
 
-    def __init__(self, tokenizers: Dict):
+    def __init__(self, tokenizers: Dict, tasks=DEFAULT_TASKS, langs=DEFAULT_LANGUAGES):
+        # Formats tokens
+        langs, tasks = [f"<|{l}|>" for l in langs], [f"<|{t}|>" for t in tasks]
+        langs.sort(), tasks.sort()
+        all_tokens = DEFAULT_TOKENS + tasks + langs
+
         # Creates spl_tokens if not passed
         if 'spl_tokens' not in tokenizers:
-            tokenizers['spl_tokens'] = CanaryTokenizer.build_special_tokenizer()
+            tokenizers['spl_tokens'] = CanaryTokenizer.build_special_tokenizer(all_tokens)
         super().__init__(tokenizers)
 
         # for easy access of special tokens
-        special_tokens = {}
-        for special in SPECIAL_TOKENS:
-            special_tokens[special] = self.token_to_id(special, lang_id='spl_tokens')
-        self.special_tokens = special_tokens
+        self.special_tokens = {}
+        for special in all_tokens:
+            self.special_tokens[special] = self.token_to_id(special, lang_id='spl_tokens')
 
     @cached_property
     def eos_id(self) -> int:
@@ -63,22 +64,6 @@ class CanaryTokenizer(AggregateTokenizer):
     @cached_property
     def bos_id(self) -> int:
         return self.special_tokens["<|startoftranscript|>"]
-
-    @cached_property
-    def transcribe_id(self) -> int:
-        return self.special_tokens["<|transcribe|>"]
-
-    @cached_property
-    def translate_id(self) -> int:
-        return self.special_tokens["<|translate|>"]
-
-    @cached_property
-    def nopnc_id(self) -> int:
-        return self.special_tokens["<|nopnc|>"]
-
-    @cached_property
-    def pnc_id(self) -> int:
-        return self.special_tokens["<|pnc|>"]
 
     @cached_property
     def nospeech_id(self) -> int:
@@ -93,21 +78,36 @@ class CanaryTokenizer(AggregateTokenizer):
             return token_id
         raise KeyError(f"Language {language} not found in tokenizer.")
 
+    def to_task_id(self, task):
+        if token_id := self.special_tokens.get(f"<|{task}|>", None):
+            return token_id
+        raise KeyError(f"Task {task} not found in tokenizer.")
+
     @staticmethod
-    def build_special_tokenizer(output_dir: str | Path = ".") -> SentencePieceTokenizer:
+    def build_special_tokenizer(tokens, output_dir: str | Path = None) -> SentencePieceTokenizer:
+        is_temp = False
+        if output_dir is None:
+            is_temp = True
+            output_dir = "__tmp_canary_spl_tokenizer__"
         output_dir = Path(output_dir)
-        output_dir.mkdir(exist_ok=True, parents=True)
+        output_dir.mkdir(exist_ok=False if is_temp else True, parents=True)
         text_path = output_dir / "train_text.txt"
-        all_tokens = SPECIAL_TOKENS
-        train_text = "\n".join(all_tokens)
+        train_text = "\n".join(tokens)
         text_path.write_text(train_text)
         model_path = output_dir / "tokenizer.model"
         create_spt_model(
             str(text_path),
-            vocab_size=len(SPECIAL_TOKENS) + 2,
+            vocab_size=len(tokens) + 2,
             sample_size=-1,
             do_lower_case=False,
             output_dir=str(output_dir),
-            user_defined_symbols=all_tokens,
+            user_defined_symbols=tokens,
         )
-        return SentencePieceTokenizer(str(model_path))
+        spl_tokenizer = SentencePieceTokenizer(str(model_path))
+        if is_temp:
+            os.remove(os.path.join(output_dir, "tokenizer.vocab"))
+            os.remove(os.path.join(output_dir, "vocab.txt"))
+            os.remove(os.path.join(output_dir, "tokenizer.model"))
+            os.remove(os.path.join(output_dir, "train_text.txt"))
+            Path.rmdir(output_dir)
+        return spl_tokenizer

@@ -83,8 +83,10 @@ model:
 
     custom_tokenizer:
       _target_: nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer  # Can be replaced with other tokenizer for different prompt formats
-      tokenizers: null  # Filled at runtime by all the tokenizers inside the aggregate tokenizer
-
+      kwargs: 
+        langs: null
+        tasks: null
+        
   # Audio Preprocessor
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
