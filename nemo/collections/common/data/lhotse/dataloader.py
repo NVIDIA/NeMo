@@ -291,10 +291,12 @@ def _flatten_alt_text(cut) -> list:
     if cut.custom.get("alt_text") is None:
         return ans
     cut = cut.move_to_memory(audio_format="wav")  # performs I/O once and holds audio in memory from now on
-    # Popping to ease eyesight on debug. Use copy to avoid lazy dataloading issues
-    paired_text = cut.custom.pop("alt_text").copy()
+    # Popping to ease eyesight on debug.
+    paired_text = cut.custom.pop("alt_text")
     for data in paired_text.values():
+        # Copy to avoid lazy dataloading issues
+        data = data.copy()
         text_instance = cut.map_supervisions(lambda s: fastcopy(s, text=data["text"], language=data["lang"]))
-        text_instance.custom.update({"text": data.pop("text"), "lang": data.pop("lang"), **data})
+        text_instance.custom = {"text": data.pop("text"), "lang": data.pop("lang"), **data}
         ans.append(text_instance)
     return ans

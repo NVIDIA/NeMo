@@ -176,23 +176,23 @@ def canary_prompt(tokenizer: CanaryTokenizer, text, language, source_language, t
             )
 
         # src_lang_id/no_speech
-        src_lang_id = tokenizer.to_language_id(source_language)
+        src_lang_id = tokenizer.spl_token_to_id(source_language)
         prompted_tokens.append(src_lang_id)
 
         # task
         task = taskname
-        prompted_tokens.append(tokenizer.to_task_id(task))
+        prompted_tokens.append(tokenizer.spl_token_to_id(task))
 
         # tgt_lang_id
-        tgt_lang_id = tokenizer.to_language_id(target_language)
+        tgt_lang_id = tokenizer.spl_token_to_id(target_language)
         prompted_tokens.append(tgt_lang_id)
 
         # PnC
         pnc = f"{pnc}".lower().strip()  # to account for bool or str
         if pnc in {'yes', 'true'}:
-            prompted_tokens.append(tokenizer.to_task_id("pnc"))
+            prompted_tokens.append(tokenizer.spl_token_to_id("pnc"))
         elif pnc in {'no', 'false'}:
-            prompted_tokens.append(tokenizer.to_task_id("nopnc"))
+            prompted_tokens.append(tokenizer.spl_token_to_id("nopnc"))
         else:
             raise ValueError(f"Unknown value for key 'pnc': {pnc}")
 
