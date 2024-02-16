@@ -775,6 +775,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
         return super().on_validation_epoch_start()
 
     def training_step(self, dataloader_iter, batch_idx):
+        import ipdb; ipdb.set_trace()
         self._optimizer.zero_grad()
         batch = next(dataloader_iter)
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
