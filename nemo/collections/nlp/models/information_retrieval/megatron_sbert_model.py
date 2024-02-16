@@ -41,7 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.utils import logging
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import ModelParallelConfig, parallel_state
 
     HAVE_MEGATRON_CORE = True
 
@@ -369,9 +369,8 @@ class SBertModel(BertModel):
 
         if self.post_process and self.add_binary_head:
 
-            lm_output, pooled_output = lm_output
-        else:
-            pooled_output = None
+            lm_output, _ = lm_output
+
 
         add_on_inputs = {"token_embeddings": lm_output[0].permute(1, 0, 2), "attention_mask": attention_mask}
         lm_output = self.pooling_add_on(add_on_inputs)
@@ -713,50 +712,31 @@ class MegatronSBertModel(MegatronBertModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
-            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batches = next(dataloader_iter)
+            batches = next(dataloader_iter)
 
-                (
-                    tokens_batch,
-                    types_batch,
-                    sentence_order_batch,
-                    loss_mask_batch,
-                    lm_labels_batch,
-                    padding_mask_batch,
-                ) = ([], [], [], [], [], [])
-                for batch in batches:
-                    tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
-                        batch['input_ids'].cuda(non_blocking=True),
-                        batch['token_type_ids'].cuda(non_blocking=True),
-                        None,
-                        None,
-                        None,
-                        batch['attention_mask'].cuda(non_blocking=True),
-                    )
-                    tokens_batch.append(tokens)
-                    types_batch.append(types)
-                    sentence_order_batch.append(sentence_order)
-                    loss_mask_batch.append(loss_mask)
-                    lm_labels_batch.append(lm_labels)
-                    padding_mask_batch.append(padding_mask)
-            else:
-                batch = next(dataloader_iter)
-                if parallel_state.is_pipeline_first_stage():
-                    tokens = batch['text'].cuda(non_blocking=True)
-                    types = batch['types'].cuda(non_blocking=True)
-                    sentence_order = batch['is_random'].cuda(non_blocking=True)
-                    padding_mask = batch['padding_mask'].cuda(non_blocking=True)
-                    loss_mask, lm_labels = None, None
-                elif parallel_state.is_pipeline_last_stage():
-                    loss_mask = batch['loss_mask'].cuda(non_blocking=True)
-                    lm_labels = batch['labels'].cuda(non_blocking=True)
-                    sentence_order = batch['is_random'].cuda(non_blocking=True)
-                    padding_mask = batch['padding_mask'].cuda(non_blocking=True)
-                    tokens, types = None, None
-                else:
-                    padding_mask = batch['padding_mask'].cuda(non_blocking=True)
-                    sentence_order = batch['is_random'].cuda(non_blocking=True)
-                    tokens, types, loss_mask, lm_labels = None, None, None, None
+            (
+                tokens_batch,
+                types_batch,
+                sentence_order_batch,
+                loss_mask_batch,
+                lm_labels_batch,
+                padding_mask_batch,
+            ) = ([], [], [], [], [], [])
+            for batch in batches:
+                tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
+                    batch['input_ids'].cuda(non_blocking=True),
+                    batch['token_type_ids'].cuda(non_blocking=True),
+                    None,
+                    None,
+                    None,
+                    batch['attention_mask'].cuda(non_blocking=True),
+                )
+                tokens_batch.append(tokens)
+                types_batch.append(types)
+                sentence_order_batch.append(sentence_order)
+                loss_mask_batch.append(loss_mask)
+                lm_labels_batch.append(lm_labels)
+                padding_mask_batch.append(padding_mask)
 
             if not self.cfg.bert_binary_head:
                 types = None
@@ -768,7 +748,6 @@ class MegatronSBertModel(MegatronBertModel):
 
             if self.mcore_bert:
                 raise Exception("mcore not supported at the moment. It will be added in the near future")
-                output_tensor = model(**forward_args)
             else:
                 output_tensor = [self.forward(**forward_arg).permute(1, 0) for forward_arg in forward_args]
 
