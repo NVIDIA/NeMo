@@ -163,12 +163,6 @@ class ModelBuilder(Module):
             #if lora_params.lora_ranks is not None:
             #    lora_layer_params = lora_params.get_layer_params(layer_idx)
 
-        for idx, (layer, past, pointers,
-                  max_kv_cache_length) in enumerate(
-                    zip(self.layers, kv_cache_params.past_key_value,
-                        kv_cache_params.kv_cache_block_pointers,
-                        kv_cache_params.host_max_attention_window_sizes)):
-
             lora_layer_params = None
             if lora_params.lora_ranks is not None:
                 lora_layer_params = lora_params.get_layer_params(layer_idx)
