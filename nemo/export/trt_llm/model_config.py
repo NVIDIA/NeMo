@@ -317,6 +317,7 @@ class DecoderLayerConfig:
 
     vocab_size: int = 0
     norm_epsilon: float = 0.0
+    max_lora_rank: int = 64
 
     @property
     def hidden_size(self):
@@ -446,6 +447,7 @@ class ModelConfig:
 
     # Ptuning metadata
     use_prompt_tuning: bool = False
+    max_lora_rank: int = 64
 
     mapping = None 
 

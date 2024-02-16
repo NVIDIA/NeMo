@@ -138,10 +138,10 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
             quant_mode=QuantMode(0),
             quant_kwargs=None,
             #use_prompt_tuning=layer.use_prompt_tuning,
+            max_lora_rank=layer.max_lora_rank,
             #use_parallel_embedding: bool = False,
             #embedding_sharding_dim: int = 0,
             #share_embedding_table: bool = False,
-            #max_lora_rank: int = 64,
             #head_size: int = None,
         )
 

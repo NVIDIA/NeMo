@@ -65,6 +65,7 @@ def model_config_to_tensorrt_llm(
 
     for rank in range(world_size):
         model_configs[rank].use_prompt_tuning = max_prompt_embedding_table_size > 0
+        model_configs[rank].max_lora_rank = max_lora_rank
         builder = LMHeadModelBuilder(model_configs[rank])
         builder.build(
             output_dir=engine_dir,
