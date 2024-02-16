@@ -10,3 +10,6 @@ sphinxcontrib-bibtex
 wandb
 wget
 wrapt
+s3fs
+moto[s3]
+jsonlines

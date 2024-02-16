@@ -26,7 +26,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import (
+    S3IndexedDataset,
+    deallocate_indexed_dataset_memory,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.core import Dataset
 from nemo.utils import logging
@@ -44,7 +47,16 @@ except (ImportError, ModuleNotFoundError):
 def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length, seed, skip_warmup, tokenizer, name):
     def _build_dataset(current_data_prefix, current_num_samples):
         delay_data_mmap = cfg.data.get('delay_data_mmap', False)
-        indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup, delay_data_mmap)
+        index_cache_dir = cfg.data.get('index_mapping_dir', None)
+        data_cache_nbytes = cfg.data.get('data_cache_nbytes', None)
+        indexed_dataset = get_indexed_dataset_(
+            current_data_prefix,
+            data_impl,
+            skip_warmup=skip_warmup,
+            delay_data_mmap=delay_data_mmap,
+            index_cache_dir=index_cache_dir,
+            data_cache_nbytes=data_cache_nbytes,
+        )
         total_num_of_documents = indexed_dataset.sizes.shape[0]
         # Print stats about the splits.
         logging.info(' > dataset split:')
@@ -228,7 +240,16 @@ def _build_train_valid_test_datasets(
 
     # Indexed dataset.
     delay_data_mmap = cfg.data.get('delay_data_mmap', False)
-    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap)
+    index_cache_dir = cfg.data.get('index_mapping_dir', None)
+    data_cache_nbytes = cfg.data.get('data_cache_nbytes', None)
+    indexed_dataset = get_indexed_dataset_(
+        data_prefix,
+        data_impl,
+        skip_warmup=skip_warmup,
+        delay_data_mmap=delay_data_mmap,
+        index_cache_dir=index_cache_dir,
+        data_cache_nbytes=data_cache_nbytes,
+    )
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
@@ -276,12 +297,21 @@ def _build_train_valid_test_datasets(
     return (train_dataset, valid_dataset, test_dataset)
 
 
-def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, delay_data_mmap=False):
+def get_indexed_dataset_(
+    data_prefix, data_impl, skip_warmup, delay_data_mmap=False, index_cache_dir=None, data_cache_nbytes=None
+):
     """Build indexed dataset."""
     logging.info(' > building dataset index ...')
 
     start_time = time.time()
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, delay_data_mmap=delay_data_mmap)
+    indexed_dataset = make_indexed_dataset(
+        data_prefix,
+        data_impl,
+        skip_warmup=skip_warmup,
+        delay_data_mmap=delay_data_mmap,
+        index_cache_dir=index_cache_dir,
+        data_cache_nbytes=data_cache_nbytes,
+    )
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
     logging.info('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
 
@@ -330,10 +360,28 @@ class GPTDataset(Dataset):
         if self.no_seqlen_plus_one_input_tokens:
             self.add_extra_token = 0
         self.shuffle_documents = cfg.data.get('shuffle_documents', True)
+        self.shuffle_block_size = cfg.data.get('shuffle_block_size', 1)
         self.exchange_indices_distributed = cfg.data.get('exchange_indices_distributed', False)
 
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
+
+        if isinstance(self.indexed_dataset, S3IndexedDataset):
+            # The config settings matter a lot for the performance of the S3IndexedDataset,
+            # because it streams data into memory block-by-block. We perform some checks
+            # that the config settings will not cause poor performance.
+
+            # Check that `shuffle_documents` is disabled so that the sample with index `i`
+            # and the sample with index `i`+1 are next to each other on disk.
+            assert not self.shuffle_documents
+
+            # Check that the number of samples in the data cache is divisible by the number of
+            # samples in a shuffle block to avoid a lot of cache refreshes.
+            sample_ntokens = self.seq_length + (1 if self.no_seqlen_plus_one_input_tokens else 0)
+            sample_nbytes = self.indexed_dataset.dtype().itemsize * sample_ntokens
+            assert self.indexed_dataset.data_cache_nbytes % sample_nbytes == 0
+            data_cache_block_size = self.indexed_dataset.data_cache_nbytes // sample_nbytes
+            assert data_cache_block_size % self.shuffle_block_size == 0
 
         # create index_mapping_dir on rank 0
         if torch.distributed.is_available() and torch.distributed.is_initialized():
@@ -355,6 +403,7 @@ class GPTDataset(Dataset):
             drop_last=drop_last,
             add_extra_token=self.add_extra_token,
             shuffle_documents=self.shuffle_documents,
+            shuffle_block_size=self.shuffle_block_size,
             exchange_indices_distributed=self.exchange_indices_distributed,
         )
         deallocate_indexed_dataset_memory(self.indexed_dataset)
@@ -564,6 +613,7 @@ def _build_index_mappings(
     drop_last: bool = True,
     add_extra_token: int = 1,
     shuffle_documents: bool = True,
+    shuffle_block_size: int = 1,
     exchange_indices_distributed: bool = False,
 ):
     """Build doc-idx, sample-idx, and shuffle-idx.
@@ -683,7 +733,7 @@ def _build_index_mappings(
                 num_samples_ = num_samples_from_epochs_minus_one
             else:
                 num_samples_ = sample_idx.shape[0] - 1
-            shuffle_idx = _build_shuffle_idx(num_samples_, sample_idx.shape[0] - 1, np_rng)
+            shuffle_idx = _build_shuffle_idx(num_samples_, sample_idx.shape[0] - 1, shuffle_block_size, np_rng)
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
             logging.info(
                 ' > elasped time to build and save shuffle-idx mapping'
@@ -819,7 +869,62 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, 
     return sample_idx
 
 
-def _build_shuffle_idx(num_samples, total_size, np_rng):
+def _block_shuffle(arr, shuffle_block_size, np_rng):
+    """Shuffle blocks of the array and then shuffle within each block.
+
+    The function divides the given array `arr` into blocks of size
+    `shuffle_block_size`. It first shuffles those blocks and then shuffles
+    within those blocks. The function returns the shuffled array.
+    The purpose of this shuffling strategy is to simulate shuffling
+    with a buffer.
+
+    Note that if `shuffle_block_size` == 1, then this
+    function is equivalent to:
+
+    ```python
+    def _block_shuffle(arr, shuffle_block_size, np_rng):
+        np_rng.shuffle(arr)
+        return arr
+    ```
+
+    For example, suppose we call:
+
+    ```python
+    _shuffle(
+        arr=np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+        shuffle_block_size=4,
+        np_rng=np.random.RandomState(seed=0))
+    ```
+
+    Then the function returns:
+
+    [10, 11, 8, 9, 4, 6, 5, 7, 3, 0, 2, 1]
+
+    The blocks are:
+
+    * [10, 11, 8, 9]
+    * [4, 6, 5, 7]
+    * [3, 0, 2, 1]
+    """
+    assert shuffle_block_size >= 1
+    if shuffle_block_size == 1:
+        # If each block only has 1 element, then we do not need to shuffle
+        # within blocks. We can just shuffle across blocks, which amounts
+        # to shuffling the array.
+        np_rng.shuffle(arr)
+        return arr
+    dtype = arr.dtype
+    starts = range(0, len(arr), shuffle_block_size)
+    blocks = [arr[start : start + shuffle_block_size] for start in starts]
+    np_rng.shuffle(blocks)
+    for i in range(len(blocks)):
+        np_rng.shuffle(blocks[i])
+    if not blocks:
+        return np.array([], dtype=dtype)
+    return np.concatenate(blocks)
+
+
+def _build_shuffle_idx(num_samples, total_size, shuffle_block_size, np_rng):
     """Build the range [0, size) and shuffle."""
     print(
         ' > building shuffle index with split [0, {}) and [{}, {}) '
@@ -832,11 +937,11 @@ def _build_shuffle_idx(num_samples, total_size, np_rng):
         dtype_ = np.int64
 
     shuffle_idx_first = np.arange(start=0, stop=num_samples, step=1, dtype=dtype_)
-    np_rng.shuffle(shuffle_idx_first)
+    shuffle_idx_first = _block_shuffle(shuffle_idx_first, shuffle_block_size, np_rng)
     if num_samples == total_size:
         return shuffle_idx_first
 
     shuffle_idx_last = np.arange(start=num_samples, stop=total_size, step=1, dtype=dtype_)
-    np_rng.shuffle(shuffle_idx_last)
+    shuffle_idx_last = _block_shuffle(shuffle_idx_last, shuffle_block_size, np_rng)
 
     return np.concatenate((shuffle_idx_first, shuffle_idx_last))
