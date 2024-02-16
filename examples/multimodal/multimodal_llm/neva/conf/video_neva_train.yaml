@@ -1,8 +1,54 @@
-name: nemo_neva
+# torchrun --nproc_per_node=4 NeMo/examples/multimodal/multimodal_llm/neva/neva_pretrain.py 
+# / ++cluster_type=BCP 
+# / trainer.precision=bf16 
+# / model.megatron_amp_O2=True 
+# / trainer.num_nodes=1 
+# / trainer.devices=4 
+# / trainer.val_check_interval=1000 
+# / trainer.limit_val_batches=5 
+# / trainer.log_every_n_steps=1 
+# / trainer.max_steps=1000 
+# / model.micro_batch_size=1 
+# / model.global_batch_size=2 
+# / model.tensor_model_parallel_size=4 
+# / model.pipeline_model_parallel_size=1 
+# / model.mcore_gpt=False 
+# / model.transformer_engine=False 
+# / model.mm_cfg.llm.from_pretrained=null 
+# / exp_manager.create_checkpoint_callback=True 
+# / model.data.data_path=/lustre/fsw/coreai_dlalgo_llm/datasets/LLaVA-Pretrain-LCS-558K/blip_laion_cc_sbu_558k.json 
+# / model.data.image_folder=/lustre/fsw/coreai_dlalgo_llm/dataset/videoneva/image_pretrain 
+# / model.tokenizer.library=sentencepiece 
+# / model.tokenizer.model=/lustre/fsw/coreai_dlalgo_genai/datasets/checkpoints/nemotron-3/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model 
+# / model.encoder_seq_length=4096 
+# / model.num_layers=32 
+# / model.hidden_size=4096 
+# / model.ffn_hidden_size=16384 
+# / model.num_attention_heads=32 
+# / model.normalization=layernorm1p 
+# / model.do_layer_norm_weight_decay=False 
+# / model.apply_query_key_layer_scaling=True 
+# / model.activation=squared-relu 
+# / model.headscale=False 
+# / model.position_embedding_type=rope 
+# / model.rotary_percentage=0.5 
+# / model.num_query_groups=null 
+# / model.data.num_workers=0 
+# / model.mm_cfg.llm.from_pretrained=/lustre/fsw/coreai_dlalgo_genai/datasets/checkpoints/nemotron-3/8B_strict-skua_4200 
+# / model.mm_cfg.llm.model_type=nvgpt 
+# / model.data.conv_template=nvgpt 
+# / model.mm_cfg.vision_encoder.from_pretrained='openai/clip-vit-large-patch14' 
+# / model.mm_cfg.vision_encoder.from_hf=True 
+# / model.data.image_token_len=256 
+# / model.optim.name="fused_adam" 
+# / exp_manager.create_wandb_logger=False 
+# / exp_manager.wandb_logger_kwargs.project=neva_demo
+
+name: nemo_video_neva
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  devices: 1
+  devices: 8
   num_nodes: 1
   accelerator: gpu
   precision: bf16
@@ -10,11 +56,11 @@ trainer:
   enable_checkpointing: False
   use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
-  max_steps: 4650 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10
-  val_check_interval: 100
+  max_steps: 25000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 1
+  val_check_interval: 1000
   check_val_every_n_epoch: null
-  limit_val_batches: 50
+  limit_val_batches: 5
   limit_test_batches: 500
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
   gradient_clip_val: 1.0
@@ -24,11 +70,11 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: nemo_neva
-  create_wandb_logger: False
+  name: nemo_video_neva
+  create_wandb_logger: True
   wandb_logger_kwargs:
-    project: null
-    name: null
+    project: video_neva
+    name: video-pretrain-exp
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   resume_from_checkpoint: ${model.resume_from_checkpoint}
@@ -55,10 +101,10 @@ model:
   # gradient accumulation will be done automatically based on data_parallel_size
 
   # Batch size guideline for different types of dataset
-  micro_batch_size: 16 # limited by GPU memory
-  global_batch_size: 128 # will use more micro batches to reach global batch size
+  micro_batch_size: 1 # limited by GPU memory
+  global_batch_size: 2 # will use more micro batches to reach global batch size
 
-  tensor_model_parallel_size: 1 # intra-layer model parallelism
+  tensor_model_parallel_size: 4 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
@@ -67,11 +113,11 @@ model:
   # Multimodal configs
   mm_cfg:
     llm:
-      from_pretrained: null # path to nemo checkpoint
+      from_pretrained: null # TODO: add path to nemo checkpoint
       freeze: True
       model_type: llama_2 # `nvgpt` or `llama_2` supported
     vision_encoder:
-      from_pretrained: "" # path or name
+      from_pretrained: "openai/clip-vit-large-patch14" # path or name
       from_hf: True
       patch_dim: 14
       hidden_size: 1024 # could be found from model but tricky in code
@@ -85,7 +131,7 @@ model:
 
   # LLM configs
   # use GPTModel from megatron.core
-  mcore_gpt: False
+  mcore_gpt: True
 
   # model architecture
   encoder_seq_length: 4096
@@ -148,7 +194,7 @@ model:
   bias_activation_fusion: False
   megatron_legacy: False
 
-  transformer_engine: False
+  transformer_engine: True
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
@@ -173,7 +219,7 @@ model:
   tokenizer:
     library: 'sentencepiece'
     type: null
-    model: null
+    model: /lustre/share/llmservice_nlp_fm/adlr-nlp-sharing/nvllm-3.5t/utils/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model
     vocab_file: null
     merge_file: null
     delimiter: null # only used for tabular tokenizer
@@ -183,14 +229,18 @@ model:
   data:
     num_workers: 8
     dataloader_type: cyclic
-    data_path:
+    data_path: /lustre/fsw/coreai_dlalgo_llm/dataset/videoneva/image_pretrain/image_pretrain_annotations.json
     lazy_preprocess: True
     is_multimodal: True
-    num_frames: 8
+    use_first_frame_only: False # if True, videos will be parsed with the first frame only, all other frames discarded
+    use_middle_frame_only: False # if True, videos will be parsed with the middle frame only, all other frames discarded
+    use_last_frame_only: False # if True, videos will be parsed with the last frame only, all other frames discarded
+    num_frames: 8 # max frames is 8, if more partition video into 8 evenly spaced frames by partition
+    sep_token_between_frames: False # TODO: allow usage of separator tokens between frames
     sep_image_conv_front: False
     image_token_len: 256
     conv_template: ${model.mm_cfg.llm.model_type} # check `nemo/collections/multimodal/data/neva/conversation.py`
-    image_folder: null
+    image_folder: /lustre/fsw/coreai_dlalgo_llm/dataset/videoneva/image_pretrain/LLaVA-CC3M-Pretrain-595K
     image_aspect_ratio: 'square'
 
   # Nsys profiling options
