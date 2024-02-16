@@ -250,12 +250,15 @@ def convert_canary_prompt_to_text(prompt, is_canary_tokens_augment):
             assert False, 'Unknown language {}'.format(prompt)
         return lang
 
-    def get_task_template(text, is_canary_tokens_augment):
+    def get_task_template(text, is_canary_tokens_augment, simple_augment=True):
         if text == "<|transcribe|":
             template = 'Transcribe the spoken content to written <|SLANG|> text, <|PNC|>.'
         elif text == "<|translate|":
             if is_canary_tokens_augment:
-                template = 'Transcribe the spoken content to written <|SLANG|> text, then translate this to English text, then translate this to <|TLANG|> text, <|PNC|>'
+                if simple_augment:
+                    template = 'Transcribe the spoken content to written <|SLANG|> text, then translate this to <|TLANG|> text, <|PNC|>'
+                else:
+                    template = 'Transcribe the spoken content to written <|SLANG|> text, then translate this to English text, then translate this to <|TLANG|> text, <|PNC|>'
             else:
                 template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
         else:
