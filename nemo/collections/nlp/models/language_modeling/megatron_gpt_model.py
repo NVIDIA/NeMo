@@ -1177,7 +1177,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches if isinstance(self.trainer.limit_val_batches, int) \
+        # if limit_val_batches is 0, don't use it for computing eval samples, as it can cause error in building the dataset with 0 samples
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches if isinstance(self.trainer.limit_val_batches, int) and self.trainer.limit_val_batches > 0 \
                         else (max_train_steps // self.trainer.val_check_interval + 1)
         test_iters = self.trainer.limit_test_batches
 
