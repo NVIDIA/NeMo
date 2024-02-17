@@ -25,7 +25,7 @@ NVIDIA NeMo Framework Developer Docs
 
 .. toctree::
    :maxdepth: 3
-   :caption: Large Language Models
+   :caption: Large Language Models (LLMs)
    :name: Large Language Models
 
    nlp/nemo_megatron/intro
