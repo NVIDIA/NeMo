@@ -58,7 +58,7 @@ Introduction
 ------------
 
 NVIDIA NeMo Framework is a generative AI framework built for researchers and pytorch developers 
-working on large language models (LLMs), multimodal models, automatic speech recognition (ASR),
+working on large language models (LLMs), multimodal models (MM), automatic speech recognition (ASR),
 and text-to-speech synthesis (TTS).
 The primary objective of NeMo is to provide a scalable framework for researchers and developers from industry and academia 
 to more easily implement and design new generative AI models by being able to leverage existing code and pretrained models.
