@@ -104,6 +104,7 @@ These models can be used to generate text or images, transcribe audio, and synth
 
 We have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that
 can be run on `Google Colab <https://colab.research.google.com>`_ or with our `NGC NeMo Framework Container. <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`_
+and we have `playbooks <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_ for users that want to train NeMo models with the NeMo Framework Launcher.
 
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models
 we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
