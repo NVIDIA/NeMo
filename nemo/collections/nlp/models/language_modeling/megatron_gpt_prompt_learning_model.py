@@ -374,10 +374,6 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter):
-        # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
         mode = 'test' if self.trainer.testing else 'val'
         batch, batch_idx, _ = next(dataloader_iter)
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)

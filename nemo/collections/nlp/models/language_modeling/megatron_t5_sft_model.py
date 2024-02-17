@@ -313,10 +313,6 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         )
 
     def inference_step(self, dataloader_iter, mode: str):
-        # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
         # Regular finetuning datasets will return a list of dicts for each microbatch.
         # But T0 datasets will return a single dict for the global batch.
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
