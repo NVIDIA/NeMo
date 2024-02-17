@@ -694,7 +694,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
-        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
