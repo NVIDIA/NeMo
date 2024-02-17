@@ -10,4 +10,4 @@ The NeMo NLP/LLM Collection is designed to provide comprehensive support for on-
 - **Mistral**
 - **Mixtral**
 
-Our `documentation <https://docs.nvidia.com/nemo-framework/user-guide/latest/index.html>`_ offers comprehensive insights into each supported model, facilitating seamless integration and utilization within your projects.
+Our [documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/index.html) offers comprehensive insights into each supported model, facilitating seamless integration and utilization within your projects.

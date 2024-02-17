@@ -24,4 +24,4 @@ The NeMo Multimodal Collection supports a diverse range of multimodal models tai
   
 - **NSFW Detection Support**
 
-Our documentation provides detailed information on each supported model, facilitating seamless integration and utilization within your projects.
+Our [documentation](https://docs.nvidia.com/nemo-framework/user-guide/latest/index.html) offers comprehensive insights into each supported model, facilitating seamless integration and utilization within your projects.
