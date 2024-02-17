@@ -13,25 +13,31 @@
 # limitations under the License.
 
 import logging
+
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.information_retrieval.sbert_model import MCoreSBertModelWrapper, SBertModel
+from nemo.collections.nlp.models.information_retrieval.bert_embedding_model import (
+    BertEmbeddingModel,
+    MCoreBertEmbeddingModel,
+)
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
+    bert_layer_local_spec,
+    bert_layer_local_spec_postln,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
 )
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (bert_layer_local_spec,
-    bert_layer_local_spec_postln, 
-)
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
@@ -45,8 +51,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-
-class MegatronSBertModel(MegatronBertModel):
+class MegatronBertEmbeddingModel(MegatronBertModel):
     """
     Megatron Bert pretraining.
     Model returns [batch, seq, hidden] shape
@@ -62,15 +67,15 @@ class MegatronSBertModel(MegatronBertModel):
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
-        transformer_block_type=cfg.get('transformer_block_type', 'post_ln')
+        transformer_block_type = cfg.get('transformer_block_type', 'post_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
                 layer_spec = bert_layer_local_spec
             else:
                 layer_spec = bert_layer_local_spec_postln
-            model = MCoreSBertModelWrapper(
+            model = MCoreBertEmbeddingModel(
                 config=self.transformer_config,
-                transformer_layer_spec=layer_spec, 
+                transformer_layer_spec=layer_spec,
                 vocab_size=self.padded_vocab_size,
                 max_sequence_length=cfg.max_position_embeddings,
                 num_tokentypes=num_tokentypes,
@@ -79,12 +84,12 @@ class MegatronSBertModel(MegatronBertModel):
                 parallel_output=True,
                 pre_process=pre_process,
                 post_process=post_process,
-                transformer_block_type=transformer_block_type, 
-                add_pooler=self.cfg.get('add_pooler', True), 
+                transformer_block_type=transformer_block_type,
+                add_pooler=self.cfg.get('add_pooler', True),
             )
 
         else:
-            model = SBertModel(
+            model = BertEmbeddingModel(
                 config=self.model_parallel_config,
                 vocab_size=self.padded_vocab_size,
                 hidden_size=cfg.hidden_size,
@@ -132,13 +137,19 @@ class MegatronSBertModel(MegatronBertModel):
         self._test_ds = None
 
         self._train_ds = BertEmbeddingDataset(
-            self.cfg.data.data_train, tokenizer=self.tokenizer, add_bos=True, num_hard_negatives=self.cfg.data.get("hard_negatives_to_train", 4), 
-            max_seq_length=self.cfg.encoder_seq_length
+            self.cfg.data.data_train,
+            tokenizer=self.tokenizer,
+            add_bos=True,
+            num_hard_negatives=self.cfg.data.get("hard_negatives_to_train", 4),
+            max_seq_length=self.cfg.encoder_seq_length,
         )
         if self.cfg.data.data_validation:
             self._validation_ds = BertEmbeddingDataset(
-                self.cfg.data.data_validation, tokenizer=self.tokenizer, add_bos=True, num_hard_negatives=self.cfg.data.get("hard_negatives_to_train", 4),
-                max_seq_length=self.cfg.encoder_seq_length
+                self.cfg.data.data_validation,
+                tokenizer=self.tokenizer,
+                add_bos=True,
+                num_hard_negatives=self.cfg.data.get("hard_negatives_to_train", 4),
+                max_seq_length=self.cfg.encoder_seq_length,
             )
 
         if self._train_ds is not None:
@@ -295,7 +306,7 @@ class MegatronSBertModel(MegatronBertModel):
             num_workers=self.cfg.data.num_workers,
             pin_memory=True,
             persistent_workers=True if self.cfg.data.num_workers > 0 else False,
-            collate_fn=dataset.collate_fn
+            collate_fn=dataset.collate_fn,
         )
         return dataloader
 
@@ -319,15 +330,15 @@ class MegatronSBertModel(MegatronBertModel):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             batches = next(dataloader_iter)
-            batches = {k:v.cuda(non_blocking=True) for k,v in batches.items()}
+            batches = {k: v.cuda(non_blocking=True) for k, v in batches.items()}
             self.model.eval()
-            
+
             if self.mcore_bert:
 
                 batches["tokentype_ids"] = batches.pop("token_type_ids")
                 output_tensor = model(**batches)
             else:
-                output_tensor = self.forward(**batches).permute(1, 0) 
+                output_tensor = self.forward(**batches).permute(1, 0)
 
             def loss_func(output_tensor):
 
@@ -359,7 +370,10 @@ class MegatronSBertModel(MegatronBertModel):
             queries, positives.transpose(0, 1)
         )  # shape (bs, bs); each positive is negative for other queries.
 
-        hard_negs = [torch.stack([item[i+2] for item in chunks]) for i in range(self.cfg.data.get("hard_negatives_to_train", 4))]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
+        hard_negs = [
+            torch.stack([item[i + 2] for item in chunks])
+            for i in range(self.cfg.data.get("hard_negatives_to_train", 4))
+        ]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         hard_negs_scores = (
             torch.multiply(queries.unsqueeze(0).repeat(len(hard_negs), 1, 1), torch.stack(hard_negs),).sum(axis=-1).T
