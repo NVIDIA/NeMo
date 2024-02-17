@@ -72,7 +72,7 @@ When applicable, NeMo models take advantage of the latest possible distributed t
 including parallelism strategies such as 
 
 * data parallelism
-* tensor paralellsim
+* tensor parallelism
 * pipeline model parallelism
 * fully sharded data parallelism (FSDP)
 * sequence parallelism
