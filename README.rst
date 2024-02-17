@@ -106,6 +106,16 @@ can be run on `Google Colab <https://colab.research.google.com>`_ or with our `N
 For advanced users that want to train NeMo models from scratch or finetune existing NeMo models
 we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
 
+Key Features
+------------
+
+NeMo models are organized into collections:
+
+* NeMo LLM
+* NeMo Multimodal
+* NeMo ASR
+* NeMo TTS
+
 Requirements
 ------------
 
