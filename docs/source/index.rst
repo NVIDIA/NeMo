@@ -30,7 +30,6 @@ NVIDIA NeMo Framework Developer Docs
 
    nlp/nemo_megatron/intro
    nlp/machine_translation/machine_translation
-   nlp/text_normalization/intro
    nlp/api
    nlp/megatron_onnx_export
    nlp/models
