@@ -708,11 +708,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         Shared code for validation and test step
         """
-        # Check if iterator is exhausted
-        # Not required in PTL 2.1
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
 
         loss_dict = self.fwd_bwd_step(dataloader_iter, True)
 

@@ -1138,23 +1138,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter):
+    def validation_step(self, dataloader_iter, dataloader_idx=0):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
-        # Get the dataloader_idx when MegatronGPTSFTModel calls validation_step of MegatronGPTModel
-        next_item_dataloader = next(dataloader_iter)
-        if isinstance(next_item_dataloader, int):
-            dataloader_idx = next_item_dataloader
-        else:
-            dataloader_iter = itertools.chain([next_item_dataloader],dataloader_iter)
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:

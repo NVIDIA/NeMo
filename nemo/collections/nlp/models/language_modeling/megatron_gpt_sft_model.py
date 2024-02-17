@@ -410,9 +410,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        # Pass dataloader_idx to the dataloader_iter with batch and fetch it in val step of MegatronGPTModel,
-        # as it's needed to append the loss correctly to self.val/test_step_outputs in case of multi dataloaders
-        loss = super().validation_step(itertools.chain([dataloader_idx],[batch]))
+        # Pass dataloader_idx, as it's needed in val_step of GPTModel to append the loss correctly to self.val/test_step_outputs
+        # in case of multi dataloaders
+        loss = super().validation_step(itertools.chain([batch]), dataloader_idx)
 
         if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
             # We need _inference_config to get generation params
