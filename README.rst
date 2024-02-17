@@ -113,9 +113,10 @@ Key Features
 ------------
 
 * `Large Language Models <nemo/collections/nlp/README.md>`_
-* `Multimodal <nemo/collection/multimodal/README.md>`_
+* `Multimodal <nemo/collections/multimodal/README.md>`_
 * `Automatic Speech Recognition <nemo/collections/asr/README.md>`_
 * `Text to Speech <nemo/collections/tts/README.md>`_
+* `Computer Vision <nemo/collections/vision/README.md>`_
 
 Requirements
 ------------
