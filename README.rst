@@ -70,6 +70,7 @@ training is automatically scalable to 1000s of GPUs.
 
 When applicable, NeMo models take advantage of the latest possible distributed training techniques, 
 including parallelism strategies such as 
+
 * data parallelism
 * tensor paralellsim
 * pipeline model parallelism
@@ -77,6 +78,7 @@ including parallelism strategies such as
 * sequence parallelism
 * context parallelism
 * mixture-of-experts (MoE)
+
 and mixed precision training recipes with bfloat16 and FP8 training.
 
 NeMo's Transformer based LLM and Multimodal models leverage `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_ for FP8 training on NVIDIA Hopper GPUs
