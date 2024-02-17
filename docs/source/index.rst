@@ -29,10 +29,10 @@ NVIDIA NeMo Framework Developer Docs
    :name: Large Language Models
 
    nlp/nemo_megatron/intro
-   nlp/machine_translation/machine_translation
-   nlp/api
-   nlp/megatron_onnx_export
    nlp/models
+   nlp/machine_translation/machine_translation
+   nlp/megatron_onnx_export
+   nlp/api
 
 .. toctree::
    :maxdepth: 2
