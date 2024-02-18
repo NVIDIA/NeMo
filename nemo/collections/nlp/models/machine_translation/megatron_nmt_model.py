@@ -21,8 +21,8 @@ import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
-from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
