@@ -189,7 +189,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         context_mask=None,
         rotary_pos_emb=None,
         inference_params=None,
-        packed_seq_params=None, # TODO: handle this
+        packed_seq_params=None,  # TODO: handle this
     ):
         hidden_states = super().forward(
             hidden_states,
