@@ -34,7 +34,7 @@ else
     ${PIP} install build pytest-runner
     python -m build --no-isolation --wheel
     DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
-    ${PIP} install "${DIST_FILE}[all]"
+    ${PIP} install --extra-index-url https://pypi.nvidia.com "${DIST_FILE}[all]"
 fi
 
 echo 'All done!'

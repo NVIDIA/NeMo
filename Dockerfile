@@ -126,14 +126,12 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
 WORKDIR /tmp/nemo
 ENV LHOTSE_REQUIRE_TORCHAUDIO=0
 COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --extra-index-url https://pypi.nvidia.com --no-cache-dir -r $f; done
 
 # install flash attention
 RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
-# install AMMO  # TODO: add to requirements
-RUN pip install nvidia-ammo==0.7.2 --extra-index-url https://pypi.nvidia.com --no-cache-dir
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
