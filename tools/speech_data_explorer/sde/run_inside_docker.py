@@ -14,12 +14,14 @@ class DockerSDE:
         self.manifest_filename = os.path.basename(self.sde_args.manifest)
         self.manifest_volume_name = f"{Path(self.manifest_filename).stem}_volume"
         self.container_name = Path(self.manifest_filename).stem
+        self.volume = None
         self.container = None
         
         self.gpus = self.sde_args.gpu
         if self.gpus:
             self._set_gpus_param()
         else:
+
             self.gpus = None
 
         self.data_dir_path = data_dir_path
@@ -70,7 +72,7 @@ class DockerSDE:
 
     
     def create_docker_volume(self):
-        self.client.volumes.create(self.manifest_volume_name)
+        self.volume = self.client.volumes.create(self.manifest_volume_name)
         logging.info(f"Volume {self.manifest_volume_name} successfully built.")
     
     
@@ -125,12 +127,9 @@ class DockerSDE:
                                 )
         
         self.container.exec_run("python /workspace/speech_data_explorer/sde/paths.py")
-        _, stream = self.container.exec_run(f"python /workspace/speech_data_explorer/data_explorer.py {self.sde_args_line}", stream=True)
-        for data in stream:
-            print(data.decode())
+        _, d = self.container.exec_run(f"python /workspace/speech_data_explorer/data_explorer.py {self.sde_args_line}", stream=True, detach=True )
 
         logging.info(f"Docker container {self.container_name} successfully started.")
-
     
     def run_docker_sde(self):
         self.build_docker_image()
@@ -138,6 +137,14 @@ class DockerSDE:
         self.copy_manifest_to_volume()
         self.run_docker_container()
 
+        print(f"http://0.0.0.0:{self.sde_args.port}")
+
+        responce = ""
+        while responce != "no":
+            responce = input("To stop it enter 'no': ")
+        else:
+            self.container.stop()
+            
 
 def run_sde_inside_docker(sde_args):
     docker_sde_obj = DockerSDE(sde_args=sde_args)
