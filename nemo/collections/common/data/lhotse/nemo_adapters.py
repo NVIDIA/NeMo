@@ -91,7 +91,7 @@ class LazyNeMoIterator:
                     recording_id=cut.recording_id,
                     start=0,
                     duration=cut.duration,
-                    text=data[self.text_field],
+                    text=data.get(self.text_field),
                     language=data.get(self.lang_field),
                 )
             )
@@ -258,7 +258,7 @@ class LazyNeMoTarredIterator:
                             recording_id=cut.recording_id,
                             start=0,
                             duration=cut.duration,
-                            text=data[self.text_field],
+                            text=data.get(self.text_field),
                             language=data.get(self.lang_field),
                         )
                     )
