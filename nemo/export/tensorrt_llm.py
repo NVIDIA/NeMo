@@ -107,6 +107,7 @@ class TensorRTLLM(ITritonDeployable):
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
+        save_nemo_model_config = False
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -177,6 +178,7 @@ class TensorRTLLM(ITritonDeployable):
             tensor_parallel_size=tensor_parallel_size,
             pipeline_parallel_size=pipeline_parallel_size,
             nemo_export_dir=nemo_export_dir,
+            save_nemo_model_config=save_nemo_model_config,
         )
 
         model_config_to_tensorrt_llm(
@@ -201,6 +203,10 @@ class TensorRTLLM(ITritonDeployable):
             shutil.copy(tokenizer_path, self.model_dir)
         else:
             self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+        
+        nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
+        if os.path.exists(nemo_model_config):
+            shutil.copy(nemo_model_config, self.model_dir)
         tmp_dir.cleanup()
 
         if load_model:
