@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import itertools
 import os
 import tempfile
@@ -23,7 +24,7 @@ import editdistance
 import numpy as np
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torchmetrics.text import SacreBLEUScore
 from tqdm.auto import tqdm
@@ -201,8 +202,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             tokenizer=self.tokenizer,
         )
 
-        self.context_len_for_AR_decoding = self.cfg.get("context_len_for_AR_decoding", 5)
-
         # Define autoregressive CE loss
         with open_dict(self.cfg.loss):
             self.cfg.loss.pad_id = self.tokenizer.pad_id
@@ -246,6 +245,138 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.cfg.decoding = decoding_cfg
 
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+
+    def change_vocabulary(
+        self,
+        new_tokenizer_dir: Union[str, DictConfig],
+        new_tokenizer_type: str,
+        decoding_cfg: Optional[DictConfig] = None,
+        prompt_format: Optional[str] = None,
+    ):
+        """
+        Changes vocabulary used during AED decoding process. Use this method when fine-tuning on from pre-trained model.
+        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
+        use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
+        model to learn capitalization, punctuation and/or special characters.
+
+        Args:
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer (if the tokenizer type is `agg`)
+            new_tokenizer_type: Type of tokenizer. Can be either `agg`, `bpe` or `wpe`.
+            decoding_cfg: A config for the decoding, which is optional. If the decoding type
+                needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            prompt_format: A string alias of the object that represents the prompt structure.
+                If not None, it will be used to update the prompt format.
+        """
+        if isinstance(new_tokenizer_dir, (dict, DictConfig)):
+            if new_tokenizer_type == 'agg':
+                if not isinstance(new_tokenizer_dir, DictConfig):
+                    new_tokenizer_dir = OmegaConf.create(new_tokenizer_dir)
+
+                new_tokenizer_cfg = new_tokenizer_dir
+            else:
+                raise ValueError(
+                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                )
+        else:
+            new_tokenizer_cfg = None
+
+        if new_tokenizer_cfg is not None:
+            tokenizer_cfg = new_tokenizer_cfg
+        else:
+            if not os.path.isdir(new_tokenizer_dir):
+                raise NotADirectoryError(
+                    f'New tokenizer dir must be non-empty path to a directory. But instead got: {new_tokenizer_dir}'
+                )
+
+            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
+                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+
+            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+
+        if prompt_format is None:
+            prompt_format = self.cfg.prompt_format
+
+        # Setup the tokenizer
+        self._setup_tokenizer(tokenizer_cfg)
+
+        # Initialize a dummy vocabulary
+        vocabulary = self.tokenizer.tokenizer.get_vocab()
+
+        # Setup Decoder
+        transf_decoder_cfg_dict = self.transf_decoder.to_config_dict()
+
+        vocab_size = 8 * ceil(self.tokenizer.vocab_size / 8)
+
+        # Auto inject vocab size for `get_transformer`
+        with open_dict(transf_decoder_cfg_dict):
+            if 'config_dict' in transf_decoder_cfg_dict:
+                transf_decoder_cfg_dict['config_dict']['vocab_size'] = vocab_size
+
+        original_decoder_state_dict = self.transf_decoder.state_dict()
+        self.transf_decoder = EncDecMultiTaskModel.from_config_dict(transf_decoder_cfg_dict)
+
+        # Partially load the original state dict into the new decoder
+        decoder_state_dict = self.transf_decoder.state_dict()
+        for og_key, og_value in original_decoder_state_dict.items():
+            if og_key in decoder_state_dict and og_value.shape == decoder_state_dict[og_key].shape:
+                decoder_state_dict[og_key] = og_value
+            else:
+                logging.warning(
+                    f"Skipping key `{og_key}` in the `transf_decoder` module from original state dict due "
+                    f"to shape mismatch after change in vocabulary.\n"
+                    f"Original shape: {og_value.shape}, New shape: {decoder_state_dict[og_key].shape}"
+                )
+
+        self.transf_decoder.load_state_dict(decoder_state_dict)
+
+        # Setup token classifier
+        with open_dict(self.cfg.head):
+            self.cfg.head.num_classes = vocab_size
+
+        del self.log_softmax
+        self.log_softmax = EncDecMultiTaskModel.from_config_dict(self.cfg.head)
+
+        # Weight tying - if using TokenClassifier only
+        if isinstance(self.log_softmax, TokenClassifier):
+            self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
+
+        # Initialize weights of token classifier
+        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden ** 0.5
+        self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        # Setup Decoding class
+        if decoding_cfg is None:
+            # Assume same decoding config as before
+            decoding_cfg = self.cfg.decoding
+
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(MultiTaskDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
+        del self.decoding
+        self.decoding = MultiTaskDecoding(
+            decoding_cfg=decoding_cfg,
+            transformer_decoder=self.transf_decoder,
+            log_softmax_module=self.log_softmax,
+            tokenizer=self.tokenizer,
+        )
+
+        with open_dict(self.cfg.decoding):
+            self.cfg.decoding = decoding_cfg
+
+        # Setup loss
+        with open_dict(self.cfg.loss):
+            self.cfg.loss.pad_id = self.tokenizer.pad_id
+
+        del self.loss
+        self.loss = EncDecMultiTaskModel.from_config_dict(self.cfg.loss)
+
+        # Update config
+        with open_dict(self.cfg):
+            self.cfg.prompt_format = prompt_format
+
+        logging.info(f"Changed decoder to output to {vocabulary} vocabulary.")
 
     @torch.no_grad()
     def transcribe(
@@ -309,7 +440,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         return super().transcribe(audio=audio, override_config=trcfg)
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+    def _setup_dataloader_from_config(self, config: Optional[Dict], inference: bool = False):
         assert config.get("use_lhotse", False), (
             "Multi-task model only supports dataloading with Lhotse. "
             "Please set config.{train,validation,test}_ds.use_lhotse=True"
@@ -319,7 +450,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=PromptedAudioToTextLhotseDataset(
-                tokenizer=self.tokenizer, prompt_format_fn=get_prompt_format_fn(self.prompt_format),
+                tokenizer=self.tokenizer,
+                prompt_format_fn=get_prompt_format_fn(self.prompt_format),
+                inference=inference,
             ),
         )
 
@@ -363,7 +496,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         # preserve config
         self._update_dataset_config(dataset_name='validation', config=val_data_config)
-        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config, inference=True)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         """
@@ -379,7 +512,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         # preserve config
         self._update_dataset_config(dataset_name='test', config=test_data_config)
-        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(config=test_data_config, inference=True)
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -527,9 +660,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         beam_hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            decoder_input_ids=input_ids[:, : self.context_len_for_AR_decoding]
-            if self.context_len_for_AR_decoding > 0
-            else None,
+            decoder_input_ids=input_ids,
             return_hypotheses=False,
         )[0]
 
@@ -706,14 +837,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch[0], input_signal_length=batch[1]
         )
-
-        decoder_input_ids = (
-            batch[2][:, : self.context_len_for_AR_decoding].to(trcfg._internal.device)
-            if self.context_len_for_AR_decoding > 0
-            else None
-        )
-        # decoder_input_ids = None
-
+        decoder_input_ids = batch[2].to(trcfg._internal.device)
         output = dict(
             log_probs=log_probs,
             encoded_lengths=encoded_len,
@@ -745,23 +869,30 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         del log_probs, encoded_len
 
-        beam_hypotheses = self.decoding.decode_predictions_tensor(
+        best_hypotheses, all_hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            decoder_input_ids=decoder_input_ids if self.context_len_for_AR_decoding > 0 else None,
+            decoder_input_ids=decoder_input_ids,
             return_hypotheses=trcfg.return_hypotheses,
-        )[
-            0
-        ]  # type: List[str] | List[Hypothesis]
+        )
 
         if trcfg.return_hypotheses:
-            for hyp in beam_hypotheses:
+            for hyp in best_hypotheses:
                 hyp.text = self.decoding.strip_special_tokens(hyp.text)
+            if all_hypotheses is not None:
+                for i in range(len(all_hypotheses)):
+                    for j in range(len(all_hypotheses[i])):
+                        all_hypotheses[i][j].text = self.decoding.strip_special_tokens(all_hypotheses[i][j].text)
         else:
-            beam_hypotheses = [self.decoding.strip_special_tokens(text) for text in beam_hypotheses]
+            best_hypotheses = [self.decoding.strip_special_tokens(text) for text in best_hypotheses]
+            if all_hypotheses is not None:
+                for i in range(len(all_hypotheses)):
+                    all_hypotheses[i] = [self.decoding.strip_special_tokens(text) for text in all_hypotheses[i]]
 
         del enc_states, enc_mask, decoder_input_ids
-        return beam_hypotheses
+        if all_hypotheses is None:
+            return best_hypotheses
+        return best_hypotheses, all_hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
@@ -793,7 +924,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             'lang_field': 'target_lang',
         }
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config), inference=True)
         return temporary_datalayer
 
     def _transcribe_on_end(self, trcfg: MultiTaskTranscriptionConfig):
@@ -882,9 +1013,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         text = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            decoder_input_ids=transcript[:, : self.context_len_for_AR_decoding]
-            if self.context_len_for_AR_decoding > 0
-            else None,
+            decoder_input_ids=transcript,
             return_hypotheses=False,
         )[0]
 
