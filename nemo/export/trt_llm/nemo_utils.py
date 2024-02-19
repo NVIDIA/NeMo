@@ -220,10 +220,14 @@ def to_word_list_format(word_dict: List[List[str]],
         For example, if word_dict[2] = " I am happy, I am sad", then this function will return
         the ids for two short sentences " I am happy" and " I am sad".
     '''
-    assert tokenizer != None, "need to set tokenizer"
+    assert tokenizer is not None, "need to set tokenizer"
 
     flat_ids = []
     offsets = []
+    # We use a similar trick as in NeMo to deal with the fact that the encoding of a single word
+    # can't always be trusted. See
+    #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229
+    ids_ref = tokenizer.encode("<extra_id_1>")
     for word_dict_item in word_dict:
         item_flat_ids = []
         item_offsets = []
@@ -233,7 +237,15 @@ def to_word_list_format(word_dict: List[List[str]],
 
         words = list(csv.reader(word_dict_item))[0]
         for word in words:
-            ids = tokenizer.encode(word)
+            ids = tokenizer.encode(f"<extra_id_1>{word}")
+            if ids[0:len(ids_ref)] == ids_ref:
+                # It worked! We can obtain the token(s) associated to `word` by stripping the prefix tokens.
+                ids = ids[len(ids_ref):]
+            else:
+                # Unfortunately the prefix was merged with `word`. We could try with a different prefix, but
+                # for now we just use the basic encoding since this should be a very rare edge case.
+                ids = tokenizer.encode(word)
+                logging.warning(f"The encoding of word '{word}' into tokens {ids} might be incorrect")
 
             if len(ids) == 0:
                 continue
