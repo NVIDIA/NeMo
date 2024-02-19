@@ -169,6 +169,12 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             autocast_dtype=precision,
             # use_emha=False, # Use default 'False'
             ub_tp_comm_overlap=config.tp_comm_overlap,
+            ub_bulk_wgrad=config.tp_comm_bulk_wgrad,
+            ub_bulk_dgrad=config.tp_comm_bulk_dgrad,
+            ub_split_ag=config.tp_comm_split_ag,
+            ub_split_rs=config.tp_comm_split_rs,
+            ub_atomic_gemm_ag=config.tp_comm_atomic_ag,
+            ub_atomic_gemm_rs=config.tp_comm_atomic_rs,
             zero_centered_gamma=config.layernorm_zero_centered_gamma,
             device='cpu' if config.use_cpu_initialization else 'cuda',
         )
