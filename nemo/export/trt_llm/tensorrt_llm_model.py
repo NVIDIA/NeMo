@@ -15,6 +15,7 @@ Referrence impl in tensorrt_llm: tensorrt_llm/models/gpt/model.py.
 import inspect
 from collections import OrderedDict
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import tensorrt as trt
@@ -28,7 +29,7 @@ from tensorrt_llm.functional import (
     send,
     recv
 )
-from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams
+from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams, LoraParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
 from tensorrt_llm.module import Module, ModuleList
 
@@ -80,6 +81,7 @@ class ModelBuilder(Module):
         self._use_prompt_tuning = model_config.use_prompt_tuning
         self._mapping = model_config.mapping
         self.rank = model_config.mapping.rank
+        self.max_lora_rank = model_config.max_lora_rank
 
         # TODO: support use_parallel_embedding.
         if self._mapping.is_first_pp_rank():
@@ -90,8 +92,10 @@ class ModelBuilder(Module):
                 model_config.positional_embedding, self._dtype, use_prompt_tuning=False
             )
 
-        self.layers = ModuleList(
-            [
+        self.layers = []
+        for layer_id in get_transformer_layers(self._mapping, self._num_layers):
+            model_config.layers[layer_id].max_lora_rank = self.max_lora_rank
+            self.layers.append(
                 build_decoder_layer(
                     model_config.layers[layer_id],
                     layer_id,
@@ -102,9 +106,9 @@ class ModelBuilder(Module):
                     tensor_parallel=self._tensor_parallel,
                     tp_group=model_config.mapping.tp_group
                 )
-                for layer_id in get_transformer_layers(self._mapping, self._num_layers)
-            ]
-        )
+            )
+
+        self.layers = ModuleList(self.layers)
 
         if self._mapping.is_last_pp_rank():
             self.ln_f = build_layernorm_from_config(model_config.final_layernorm, self._dtype)
@@ -122,6 +126,7 @@ class ModelBuilder(Module):
         prompt_vocab_size=None,
         inflight_batching_args=None,
         hidden_states=None,
+        lora_params=None,
     ):
         """Forward function for the full model."""
         ptuning_args = []
@@ -151,6 +156,11 @@ class ModelBuilder(Module):
                     zip(self.layers, kv_cache_params.past_key_value,
                         kv_cache_params.kv_cache_block_pointers,
                         kv_cache_params.host_max_attention_window_sizes)):
+
+            lora_layer_params = None
+            if lora_params.lora_ranks is not None:
+                lora_layer_params = lora_params.get_layer_params(idx)
+
             hidden_states = layer(
                 hidden_states,
                 attention_mask=attention_mask,
@@ -165,6 +175,7 @@ class ModelBuilder(Module):
                     host_kv_cache_block_pointers=kv_cache_params.host_kv_cache_block_pointers,
                 ),
                 attention_params=attention_params,
+                lora_layer_params=lora_layer_params,
             )
 
             if use_cache:
@@ -225,6 +236,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         prompt_vocab_size=None,
         inflight_batching_args=None,
         hidden_states=None,
+        lora_params=None,
     ):
 
         """Forward function for the full LMHead model."""
@@ -239,7 +251,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             prompt_tasks,
             prompt_vocab_size,
             inflight_batching_args,
-            hidden_states
+            hidden_states,
+            lora_params,
         )
 
         if use_cache:
@@ -280,6 +293,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         paged_kv_cache: bool = False,
         tokens_per_block: int = 64,
         prompt_embedding_table_size: int = 0,
+        lora_target_modules: List[str] = None,
     ):
         """@brief: Prepare inputs Tensors for the model.
 
@@ -298,6 +312,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         #paged_kv_cache = default_net().plugin_config.paged_kv_cache
         #tokens_per_block = default_net().plugin_config.tokens_per_block
         use_custom_all_reduce = default_net().plugin_config.use_custom_all_reduce
+        use_lora_plugin = default_net().plugin_config.lora_plugin
 
         model_inputs = self.prepare_basic_inputs(
             max_batch_size=max_batch_size,
@@ -321,8 +336,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             max_num_tokens=None,
             prompt_embedding_table_size=prompt_embedding_table_size,
             position_encoding_2d=False,
-            use_lora_plugin=False,
-            lora_target_modules=None,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
             max_draft_len=0,
             use_custom_all_reduce=use_custom_all_reduce,
         )
@@ -353,14 +368,21 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 context_lengths=model_inputs['context_lengths'],
                 host_context_lengths=model_inputs['host_context_lengths'],
                 max_context_length=max_input_len,
-                host_request_types=model_inputs['host_request_types']),
+                host_request_types=model_inputs['host_request_types']
+            ),
             model_inputs['prompt_embedding_table'],
             model_inputs['tasks'],
             model_inputs['prompt_vocab_size'],
             inflight_batching_args,
             model_inputs["hidden_states_input"],
+            LoraParams(
+                model_inputs['lora_ranks'],
+                model_inputs['lora_weights_pointers'],
+                host_context_lengths=model_inputs['host_context_lengths'],
+                max_context_length=max_input_len,
+                host_request_types=model_inputs['host_request_types']
+            ),
         )
-
 
     def build(
         self,
@@ -377,6 +399,9 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         paged_kv_cache: bool = False,
         enable_context_fmha: bool = True,
         enable_multi_block_mode: bool = False,
+        use_lora_plugin: str = None,
+        lora_target_modules: List[str] = None,
+        max_lora_rank: int = 64,
     ):
         """Builds the model and generate the tensorrt_llm engine.
 
@@ -394,8 +419,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
 
         if self.rank > torch.cuda.device_count():
             print(f"warning: Rank {self.rank} larger than GPUs available ({torch.cuda.device_count()})")
-        # if self._tensor_parallel > torch.cuda.device_count():
-        #     print(f"warning: Not enough GPUs locally, requesting {self._tensor_parallel}, having ({torch.cuda.device_count()}")
 
         build(
             tensorrt_llm_model=self,
@@ -416,6 +439,9 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
             enable_multi_block_mode=enable_multi_block_mode,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_lora_rank=max_lora_rank,
         )
 
     def print(self):

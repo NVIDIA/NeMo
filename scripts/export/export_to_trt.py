@@ -138,6 +138,38 @@ def get_args(argv):
                         It is beneifical when batchxnum_heads cannot fully utilize GPU.'
     )
     parser.add_argument(
+        '--use_lora_plugin',
+        nargs='?',
+        const=None,
+        default=False,
+        choices=['float16', 'float32', 'bfloat16'],
+        help="Activates the lora plugin which enables embedding sharing."
+    )
+    parser.add_argument(
+        '--lora_target_modules',
+        nargs='+',
+        default=None,
+        choices=[
+            "attn_qkv",
+            "attn_q",
+            "attn_k",
+            "attn_v",
+            "attn_dense",
+            "mlp_h_to_4h",
+            "mlp_gate",
+            "mlp_4h_to_h",
+        ],
+        help=
+        "Add lora in which modules. Only be activated when use_lora_plugin is enabled."
+    )
+    parser.add_argument(
+        '--max_lora_rank',
+        type=int,
+        default=64,
+        help='maximum lora rank for different lora modules. '
+             'It is used to compute the workspace size of lora plugin.'
+    )
+    parser.add_argument(
         "-dm",
         "--debug_mode",
         default="False",
@@ -193,6 +225,9 @@ def nemo_export(argv):
             use_inflight_batching=args.use_inflight_batching,
             paged_kv_cache=args.use_paged_kv_cache,
             enable_multi_block_mode=args.multi_block_mode,
+            use_lora_plugin=args.use_lora_plugin,
+            lora_target_modules=args.lora_target_modules,
+            max_lora_rank=args.max_lora_rank,
         )
 
         LOGGER.info("Export is successful.")

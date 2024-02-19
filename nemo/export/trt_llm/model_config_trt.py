@@ -34,6 +34,9 @@ def model_config_to_tensorrt_llm(
     paged_kv_cache: bool = False,
     enable_context_fmha: bool = True,
     enable_multi_block_mode: bool = False,
+    use_lora_plugin: str = None,
+    lora_target_modules: List[str] = None,
+    max_lora_rank: int = 64,
 ):
     """The API to convert a torch or huggingface model represented as ModelConfig to tensorrt_llm.
 
@@ -62,6 +65,7 @@ def model_config_to_tensorrt_llm(
 
     for rank in range(world_size):
         model_configs[rank].use_prompt_tuning = max_prompt_embedding_table_size > 0
+        model_configs[rank].max_lora_rank = max_lora_rank
         builder = LMHeadModelBuilder(model_configs[rank])
         builder.build(
             output_dir=engine_dir,
@@ -75,6 +79,9 @@ def model_config_to_tensorrt_llm(
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
             enable_multi_block_mode=enable_multi_block_mode,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_lora_rank=max_lora_rank,
         )
         print(
             f"After Engine building rank {rank}, CPU RAM Used (GB):"
