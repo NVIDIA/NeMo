@@ -485,39 +485,7 @@ class TensorRTLLM(ITritonDeployable):
                     self.config["builder_config"]["hidden_size"])
             )
 
-        return prompt_embeddings_table
-
-    def _get_lora_ckpt(self, lora_checkpoint_path):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            unpack_nemo_ckpt(lora_checkpoint_path, temp_dir)
-            mw_path = os.path.join(temp_dir, "model_weights.ckpt")
-            if not Path(mw_path).exists():
-                mw_path = os.path.join(temp_dir, "mp_rank_00", "model_weights.ckpt")
-                if not Path(mw_path).exists():
-                    raise FileNotFoundError("File: {0} could not be found in the nemo checkpoint. "
-                                            "Please check the nemo checkpoint format for the prompt "
-                                            "embedding table.".format(mw_path))
-
-            nemo_weights = torch.load(mw_path)
-
-            layer_weights = [{} for _ in range(2 * num_layers)]
-            adapter_key = "self_attention.adapter_layer.lora_kqv_adapter"
-            layer_pattern = re.compile(r'.*\.layers\.([0-9]+)\..*')
-            for key, weights in nemo_weights.items():
-                if adapter_key in key:
-                    if key.endswith('linear_in.weight'):
-                        inout = 'in'
-                    elif key.endswith('linear_out.weight'):
-                        inout = 'out'
-                    else:
-                        continue
-                    m = layer_pattern.match(key)
-                    layer_idx = int(m.group(1))
-                    layer_weights[layer_idx][inout] = weights
-
-            return layer_weights.cpu().detach()
-
-        return None
+        return prompt_embeddings_table    
 
     def _load_config_file(self):
         engine_dir = Path(self.model_dir)
