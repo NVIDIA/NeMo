@@ -204,6 +204,7 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
         context_mask=None,
         rotary_pos_emb=None,
         inference_params=None,
+        packed_seq_params=None,
     ):
         # hidden_states: [s, b, h]
 
