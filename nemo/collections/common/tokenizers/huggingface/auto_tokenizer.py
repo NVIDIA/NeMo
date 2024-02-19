@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
 from typing import Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
@@ -225,6 +226,11 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def eos_id(self):
+        return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
+
+    @property
+    def eod(self):
+        """Returns EOS token id. Exact copy of the eos_id function. Required for megatron-core."""
         return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
 
     @property
