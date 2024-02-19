@@ -152,7 +152,7 @@ model:
     validation_ds:
       query_file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       doc_file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-      names: null # Names of the corresponding datasets used to log metrics.
+      names: ["queries", "doc"] # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
