@@ -378,9 +378,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return True
         previous = Path(previous).absolute()
         resume_path = Path(trainer.ckpt_path).absolute() if trainer.ckpt_path is not None else None
-        if resume_path is not None and previous == resume_path and not resume_path.name.endswith("-last.ckpt"):
-            return False
-        assert self.dirpath is not None
+
+        if resume_path is not None and previous == resume_path:
+            if str(current).endswith("-last.ckpt") and resume_path.name.endswith("-last.ckpt"):
+                pass  # delete the previous `-last.ckpt` checkpoint when current saved checkpoint is also `-last.ckpt`, if they're in the same directory
+            else:
+                return False
+        if self.dirpath is None:
+            raise ValueError(f"{self.__class__}.dirpath is None.")
         dirpath = Path(self.dirpath).absolute()
         return dirpath in previous.parents
 
