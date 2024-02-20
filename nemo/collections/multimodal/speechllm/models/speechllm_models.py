@@ -714,7 +714,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             return audio_model, audio_model.cfg
 
     @classmethod
-    def _load_pretrained_audio_weights(
+    def load_pretrained_audio_weights(
         cls, cfg, model, audio_model, speaker_model: Optional[EncDecSpeakerLabelModel] = None
     ):
         use_multi_encoder = cfg.model.perception.get("encoders", None) is not None
@@ -767,21 +767,23 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False,
         )
 
-        peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-
-        if cfg.model.peft.restore_from_path is not None:
-            # initialize peft weights from a checkpoint instead of randomly
-            # This is not the same as resume training because optimizer states are not restored.
-            logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
-            model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
-        elif peft_cfg_cls is not None:
-            logging.info("Adding adapter weights to the model for PEFT")
-            model.add_adapter(peft_cfg_cls(model_cfg))
+        if "peft" in cfg.model:
+            peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+            if cfg.model.peft.restore_from_path is not None:
+                # initialize peft weights from a checkpoint instead of randomly
+                # This is not the same as resume training because optimizer states are not restored.
+                logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+            elif peft_cfg_cls is not None:
+                logging.info("Adding adapter weights to the model for PEFT")
+                model.add_adapter(peft_cfg_cls(model_cfg))
+            else:
+                raise ValueError(f"PEFT scheme not not found in PEFT_CONFIG_MAP: {cfg.model.peft.peft_scheme}")
         else:
             logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
         # load audio model weights
-        model = cls._load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
+        model = cls.load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
 
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
@@ -804,10 +806,18 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.setup_complete:
             # Once setup is complete we only need adapter and perception model.
-            if self.cfg.get('freeze_llm', True):
+            if self.cfg.freeze_llm and self.cfg.get("peft", None) is not None:
                 return_state_dict = self.get_peft_state_dict()
-            else:
+            elif not self.cfg.freeze_llm:
                 return_state_dict = self.model.state_dict(prefix="model.")
+            else:
+                return_state_dict = {}
+
+            state_dict = self.perception.state_dict(prefix="perception.")
+            if self.cfg.freeze_audio_encoder:
+                state_dict = {k: v for k, v in state_dict.items() if not k.startswith("perception.encoder.")}
+
+            return_state_dict.update(state_dict)
             state_dict = self.perception.state_dict(prefix="perception.")
             return_state_dict.update(state_dict)
             return return_state_dict
@@ -815,7 +825,15 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix="model.")
+            if not self.cfg.freeze_llm:
+                return_state_dict = self.model.state_dict(prefix="model.")
+            else:
+                return_state_dict = {}
+            state_dict = self.perception.state_dict(prefix="perception.")
+            if self.cfg.freeze_audio_encoder:
+                state_dict = {k: v for k, v in state_dict.items() if not k.startswith("perception.encoder.")}
+            return_state_dict.update(state_dict)
+            return return_state_dict
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
@@ -1278,10 +1296,11 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             dataloaders.append(eval_dl)
         return dataloaders
 
-    # https://github.com/NVIDIA/NeMo/commit/43e69df8e9561532a85219faf1c61a41214e7923
-    # def on_load_checkpoint(self, checkpoint) -> None:
-    #     """LightningModule hook:
-    #      https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
-    #      """
-    #     checkpoint_state_dict = checkpoint['state_dict']
-    #     self.load_state_dict(checkpoint_state_dict, strict=False)
+    def sharded_state_dict(self, prefix: str = ''):
+        """
+        Force None for the parent class's sharded_state_dict() method if setup is complete.
+        """
+        if self.setup_complete:
+            return None
+        else:
+            return super().sharded_state_dict(prefix=prefix)

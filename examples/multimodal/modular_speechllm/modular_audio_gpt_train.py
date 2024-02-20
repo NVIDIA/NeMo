@@ -24,30 +24,31 @@ from nemo.utils.exp_manager import exp_manager
 mp.set_start_method("spawn", force=True)
 
 """
-This is the script to train an Adapter infused GPT Model for audio question answering.
-A base GPT Model is required as a starting point. This script will then insert
-Adapters into each Transformer layer and will train/update only these adapters
-during training. The base GPT Model weights will remain frozen.
+MEGATRON_MODEL=[path to megatron gpt model in nemo format]
+ASR_MODEL=[path to asr model in nemo format]
 
-During training this script will only save the newly trained Adapter weights
-in checkpoints. At the end of training a .nemo file of Adapter weights will 
-be saved.
+TRAIN_MANIFESTS="[/data/train_1.json,/data/train_2.json]"
+VAL_MANIFESTS="[/data/dev_1.json,/data/dev_2.json]"
+VAL_NAMES="[dev-1,dev-2]"
 
-Usage:
-    Assuming the base model is a 125m GPT Model, with TP=1, PP=1:
-    a. run a training run for a base gpt nemo file:
-        python megatron_gpt_adapter_tuning.py \
-            model.data.train_ds=[PATH TO TRAINING JSONL FILE], \
-            model.data.validation_ds=[PATH TO VALIDATION JSONL FILE]",\
-            model.pretrained_audio_model="PATH TO ASR MODEL (.nemo FILE or NGC MODEL NAME)" \
-            model.restore_from_path="PATH TO BASE GPT MODEL .nemo FILE" \
-            name="NAME OF TRAINING RUN" \
-            exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE" \
-            trainer.max_epochs=2
+NVTE_FLASH_ATTN=0 \
+NVTE_FUSED_ATTN=0 \
+NVTE_MASKED_SOFTMAX_FUSION=0 \
+CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./conf" --config-name "modular_audio_gpt_config_peft" \
+    trainer.devices=-1 \
+    model.freeze_audio_encoder=True \
+    model.freeze_llm=True \
+    model.global_batch_size=4 \
+    model.micro_batch_size=2 \
+    model.pretrained_audio_model=$ASR_MODEL \
+    model.restore_from_path=$MEGATRON_MODEL \
+    model.data.train_ds.manifest_filepath=$TRAIN_MANIFESTS \
+    model.data.validation_ds.manifest_filepath=$VAL_MANIFESTS \
+    ++model.data.validation_ds.names=$VAL_NAMES \
 """
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_peft_tuning_config")
+@hydra_runner(config_path="conf", config_name="modular_audio_gpt_config_peft")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')

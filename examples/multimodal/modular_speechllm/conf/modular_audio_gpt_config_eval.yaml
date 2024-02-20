@@ -1,4 +1,4 @@
-name: megatron_gpt_peft_${model.peft.peft_scheme}_eval
+name: megatron_audio_gpt_eval
 
 trainer:
   devices: 1
@@ -68,31 +68,10 @@ model:
   attention_dropout: 0.0
   ffn_dropout: 0.0
 
-  peft:
-    peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
+  peft: # keep these basic params for reusing in both sft and peft SpeechLMs
     restore_from_path: null
     restore_from_ckpt_name: null
     restore_from_hparams_path: null
-    
-    # Used for adapter peft training
-    adapter_tuning:
-      type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
-      adapter_dim: 32
-      adapter_dropout: 0.0
-      norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
-      column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
-      row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
-      norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
-      layer_selection: null  # selects in which layers to add adapters, e.g. [1,12] will add adapters to layer 1 (lowest) and 12. null will apply adapters to all layers
-      weight_tying: False
-      position_embedding_strategy: null # used only when weight_tying is True
-
-    # Used for p-tuning peft training
-    p_tuning:
-      virtual_tokens: 10  # The number of virtual tokens the prompt encoder should add at the start of the sequence
-      bottleneck_dim: 1024  # the size of the prompt encoder mlp bottleneck
-      embedding_dim: 1024  # the size of the prompt encoder embeddings
-      init_std: 0.023
 
   data:
     test_ds:
