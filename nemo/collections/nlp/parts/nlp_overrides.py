@@ -777,7 +777,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
-        if not self.sharded_checkpoint:
+        if self.sharded_checkpoint:
             logging.info(f'Removing checkpoint: {filepath}')
             self.checkpoint_io.remove_checkpoint(filepath)
         else:
