@@ -103,19 +103,19 @@ NeMo Tools and Resources
 ########################
 
 #. `NeMo Github repo <https://github.com/NVIDIA/NeMo/tree/main/examples/nlp/language_modeling/tuning>`__
-#. NeMo Gemma Training container: ``nvcr.io/nvidian/swdl/gemma_nemo_v0:latest``
+#. NeMo Gemma Training container: ``nvcr.io/nvidia/nemo:24.01.gemma``
 
 Software Requirements
 #####################
 
 #. Use the latest `NeMo Framework Training container <https://registry.ngc.nvidia.com/orgs/ea-bignlp/teams/ga-participants/containers/nemofw-training/tags>`__
-#. This playbook has been tested using the container: ``nvcr.io/nvidian/swdl/gemma_nemo_v0:latest`` on DGX Cloud. It is expected to work similarly on other environments.
+#. This readme has been tested using the container: ``nvcr.io/nvidia/nemo:24.01.gemma`` on DGX Cloud. It is expected to work similarly on other environments.
 
 
 Hardware Requirements
 #####################
 #. Minimum 8xH100 80G (1 node) for SFT on 7B.
-#. However, SFT on all (7B/13B/70B) model sizes can be run on multiple nodes.
+#. However, SFT on all (2B/7B) model sizes can be run on multiple nodes.
 
 Data
 ####
@@ -123,7 +123,7 @@ Databricks-dolly-15k is an open-source dataset of instruction-following records 
 closed QA, generation, information extraction, open QA, and summarization
 For more details about the data refer to `databricks-dolly-15k | Hugging Face <https://huggingface.co/datasets/databricks/databricks-dolly-15k>`__
 
-The following steps have been tested with this container: ``nvcr.io/nvidian/swdl/gemma_nemo_v0:latest``
+The following steps have been tested with this container: ``nvcr.io/nvidia/nemo:24.01.gemma``
 
 [Optional] Convert Gemma from jax or pytorch format to NeMo format
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -135,7 +135,7 @@ Optional Step: Convert to .nemo
 
 Run the container using the following command ::
 
-   docker run --gpus device=1 --shm-size=2g --net=host --ulimit memlock=-1 --rm -it -v ${PWD}:/workspace -w /workspace -v ${PWD}/results:/results nvcr.io/nvidian/swdl/gemma_nemo_v0:latest bash
+   docker run --gpus device=1 --shm-size=2g --net=host --ulimit memlock=-1 --rm -it -v ${PWD}:/workspace -w /workspace -v ${PWD}/results:/results nvcr.io/nvidia/nemo:24.01.gemma bash
 
 #. Option 1: Convert the jax model to .nemo model ::
 
@@ -191,7 +191,7 @@ Step 2: Data Preprocessing
 
 If the container is not already running use the following command ::
 
-   docker run --gpus device=1 --shm-size=2g --net=host --ulimit memlock=-1 --rm -it -v ${PWD}:/workspace -w /workspace -v ${PWD}/results:/results nvcr.io/nvidian/swdl/gemma_nemo_v0:latest bash
+   docker run --gpus device=1 --shm-size=2g --net=host --ulimit memlock=-1 --rm -it -v ${PWD}:/workspace -w /workspace -v ${PWD}/results:/results nvcr.io/nvidia/nemo:24.01.gemma bash
 
 And then run the following data preprocess script
 
@@ -369,7 +369,7 @@ Run the SFT command by appropriately setting the values for the parameters such 
 	  ++model.fp8_amax_history_len=128 \
 	  ++model.fp8_amax_compute_algo=max
 
-Note: For running SFT on multiple nodes (for example, 70B model) on a Slurm cluster, replace the ``torchrun --nproc_per_node=8`` with ``python``.
+Note: For running SFT on multiple nodes (for example on a Slurm cluster, replace the ``torchrun --nproc_per_node=8`` with ``python``.
 
 Step 6: Run evaluation
 ######################
@@ -422,7 +422,7 @@ Considering that foundation models can be significantly large, a variant of fine
 
 For those interested in a deeper understanding of these methods, we have included a list of additional resources at the end of this document.
 
-This project involves applying various fine-tuning methods to gemma model. In this playbook you will implement and evaluate several parameter-efficient fine-tuning methods using a domain and task specific dataset. This playbook has been tested for P-Tuning and LoRA.
+This project involves applying various fine-tuning methods to gemma model. In this readme you will implement and evaluate several parameter-efficient fine-tuning methods using a domain and task specific dataset. This readme has been tested for P-Tuning and LoRA.
 
 
 NeMo Tools and Resources
@@ -442,12 +442,12 @@ Software Requirements
 #####################
 
 #. Use the latest `NeMo Framework Training container <https://registry.ngc.nvidia.com/orgs/ea-bignlp/teams/ga-participants/containers/nemofw-training/tags>`__
-#. This playbook has been tested on: ``nvcr.io/nvidian/swdl/gemma_nemo_v0:latest``
+#. This readme has been tested on: ``nvcr.io/nvidia/nemo:24.01.gemma``
 
 
 Hardware Requirements
 #####################
-#. Minimum 1xH100 80G for PEFT on 7B. This playbook has been tested on 8xH100 80G.
+#. Minimum 1xH100 80G for PEFT on 7B. This readme has been tested on 8xH100 80G.
 
 [Optional] Convert Gemma from jax or pytorch format to NeMo format
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -459,7 +459,7 @@ Optional Step: Convert to .nemo
 
 Run the container using the following command ::
 
-   docker run --gpus device=1 --shm-size=2g --net=host --ulimit memlock=-1 --rm -it -v ${PWD}:/workspace -w /workspace -v ${PWD}/results:/results nvcr.io/nvidian/swdl/gemma_nemo_v0:latest bash
+   docker run --gpus device=1 --shm-size=2g --net=host --ulimit memlock=-1 --rm -it -v ${PWD}:/workspace -w /workspace -v ${PWD}/results:/results nvcr.io/nvidia/nemo:24.01.gemma bash
 
 #. Option 1: Convert the jax model to .nemo model ::
 
