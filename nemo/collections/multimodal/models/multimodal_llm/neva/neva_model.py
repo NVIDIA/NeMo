@@ -862,7 +862,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             self.setup_transformer_engine_tp_groups()
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building Neva datasets /pmuthukumar/NeMo.')
+        logging.info('Building Neva datasets.')
         ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
         self._train_ds = ds_dict["train_dataset"]
         self._validation_ds = ds_dict["eval_dataset"]
