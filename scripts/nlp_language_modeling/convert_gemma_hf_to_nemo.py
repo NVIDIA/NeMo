@@ -13,16 +13,14 @@
 # limitations under the License.
 
 """
-Requires to install: `pip install fairscale==0.4.13 immutabledict==4.1.0 tensorstore==0.1.45`
-Required to set: `export PYTHONPATH=/path/to/deepmind/models/taurus_pytorch/code:$PYTHONPATH`
+Requires HF transformers updated to support Gemma Models
 """
 
-import contextlib
 import os
 from argparse import ArgumentParser
-from omegaconf import OmegaConf
 
 import torch
+from omegaconf import OmegaConf
 from transformers import AutoModelForCausalLM
 from transformers import AutoTokenizer
 
@@ -237,7 +235,7 @@ def convert(args):
     logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(hf_next_token)}'.")
     logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(next_token)}'.")
     assert (
-        hf_next_token == next_token
+            hf_next_token == next_token
     ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
     logging.info(f'=' * 100)
 
