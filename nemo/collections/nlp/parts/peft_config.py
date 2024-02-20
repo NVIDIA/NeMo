@@ -44,10 +44,19 @@ class PEFTConfig:
         self.name_key_to_cfg = name_key_to_cfg
 
         self.layer_selection = peft_cfg.get("layer_selection", None)
-        self.weight_tying = peft_cfg.get("weight_tying", False)
+        self.weight_tying = peft_cfg.get(
+            "weight_tying", False
+        )  # TODO: move this attr to LoraPEFTConfig and AdapterPEFTConfig classes
 
     def get_config_dict(self):
         return self.name_key_to_cfg
+
+
+class SelectivePEFTConfig(PEFTConfig):
+    def __init__(self, cfg):
+        selective_cfg = cfg.peft.selective_tuning
+        super().__init__(selective_cfg, name_key_to_cfg={})
+        self.tunable_base_param_names = selective_cfg.get("tunable_base_param_names", [])
 
 
 class LoraPEFTConfig(PEFTConfig):
@@ -190,11 +199,37 @@ class CanonicalAdaptersPEFTConfig(PEFTConfig):
         super().__init__(adapter_tuning_cfg, name_key_to_cfg)
 
 
+class SDLoraPEFTConfig(PEFTConfig):
+    def __init__(self, cfg):
+        lora_cfg = cfg.peft.lora_tuning
+
+        # Stable diffusion has different attn dimensions, we pass a dummy config and infer from each module when adding adapter
+        config_args = {
+            "in_features": None,
+            "out_features": None,
+            "dim": lora_cfg.adapter_dim,
+            "norm_position": None,
+            "norm_type": None,
+            "activation": "identity",
+            "column_init_method": lora_cfg.get("column_init_method", "normal"),
+            "row_init_method": lora_cfg.get("row_init_method", "zero"),
+            "gather_output": False,
+            "dropout": lora_cfg.adapter_dropout,
+            "network_alpha": lora_cfg.network_alpha,
+        }
+
+        name_key_to_cfg = {AdapterName.PARALLEL_LINEAR_ADAPTER: ParallelLinearAdapterConfig(**config_args)}
+        self.name_key_to_mcore_mixins = None
+        super().__init__(lora_cfg, name_key_to_cfg)
+
+
 PEFT_CONFIG_MAP = {
     "adapter": CanonicalAdaptersPEFTConfig,
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,
+    "selective": SelectivePEFTConfig,
     'none': None,
     None: None,
+    "sdlora": SDLoraPEFTConfig,
 }

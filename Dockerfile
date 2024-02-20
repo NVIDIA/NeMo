@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.11-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.01-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -66,19 +66,19 @@ WORKDIR /workspace/
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout e122536b7645edcb7ebf099b5c92a443f7dbf8e7 && \
+  git checkout 240a8ef7a21df201e47b5b2ae33cc5f4c5486849 && \
   pip install .
 
-# Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
+# Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
-  git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
+  git checkout f058162b215791b15507bb542f22ccfde49c872d && \
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
-  git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
+  git fetch origin da30634a6c9ccdbb6c587b6c93b1860e4b038204 && \
   git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
@@ -99,17 +99,6 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/torchaudio_build/scripts/installers/install_tor
   exit ${INSTALL_CODE};  \
   else echo "Skipping failed torchaudio installation"; fi \
   else echo "torchaudio installed successfully"; fi
-
-# install nemo dependencies
-WORKDIR /tmp/nemo
-ENV LHOTSE_REQUIRE_TORCHAUDIO=0
-COPY requirements .
-RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
-
-# install flash attention
-RUN pip install flash-attn
-# install numba for latest containers
-RUN pip install numba>=0.57.1
 
 COPY scripts /tmp/nemo/scripts/
 # install correct graphviz version (k2 and pynini visualization tool), skip if installation fails
@@ -133,13 +122,24 @@ RUN INSTALL_MSG=$(/bin/bash /tmp/nemo/scripts/installers/install_k2.sh); INSTALL
   else echo "Skipping failed k2 installation"; fi \
   else echo "k2 installed successfully"; fi
 
+# install nemo dependencies
+WORKDIR /tmp/nemo
+ENV LHOTSE_REQUIRE_TORCHAUDIO=0
+COPY requirements .
+RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+
+# install flash attention
+RUN pip install flash-attn
+# install numba for latest containers
+RUN pip install numba>=0.57.1
+
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
 COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.21.0
+ARG NEMO_VERSION=1.23.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
