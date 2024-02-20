@@ -14,12 +14,19 @@
 
 import itertools
 import os
+import tempfile
+import shutil
+import librosa
+import soundfile as sf
 from pathlib import Path
 from typing import Dict, List, Tuple, Union, Optional, Any
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from tqdm import tqdm
 import matplotlib.pylab as plt
 import numpy as np
+from textgrid import TextGrid
+from lhotse.supervision import AlignmentItem
+
 
 import torch
 from torch import nn, Tensor
@@ -188,26 +195,8 @@ class VoiceboxModel(TextToWaveform):
             return f_id
 
         def parse_cut_mfa_textgrid(seg, subset=None):
-            from textgrid import TextGrid
-            from lhotse.supervision import AlignmentItem
             f_id = textgrid_filename(seg, subset=subset)
-
-            tg = TextGrid()
-            tg.read(f_id)
-            new_sup_seg = seg
-            for tier in tg.tiers:
-                _dur = []
-                for interval in tier.intervals:
-                    minTime = interval.minTime
-                    maxTime = interval.maxTime
-                    mark = interval.mark
-                    if mark == "":
-                        mark = "sil"
-                    _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
-                assert len(_dur)
-                new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
-                if seg.duration != maxTime:
-                    logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.5f}, ali_end: {maxTime:.5f}")
+            new_sup_seg = parse_mfa_textgrid(f_id=f_id, seg=seg)
             return new_sup_seg
 
         logging.info(f"mkdir -p {output_dir}")
@@ -260,26 +249,8 @@ class VoiceboxModel(TextToWaveform):
             return f_id
 
         def parse_cut_mfa_textgrid(seg, subset=None):
-            from textgrid import TextGrid
-            from lhotse.supervision import AlignmentItem
             f_id = textgrid_filename(seg, subset=subset)
-
-            tg = TextGrid()
-            tg.read(f_id)
-            new_sup_seg = seg
-            for tier in tg.tiers:
-                _dur = []
-                for interval in tier.intervals:
-                    minTime = interval.minTime
-                    maxTime = interval.maxTime
-                    mark = interval.mark
-                    if mark == "" or (tier.name == "phones" and mark == "sp"):
-                        mark = "sil"
-                    _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
-                assert len(_dur)
-                new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
-                if f"{seg.duration:.2f}" != f"{maxTime:.2f}":
-                    logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.2f}, ali_end: {maxTime:.2f}")
+            new_sup_seg = parse_mfa_textgrid(f_id=f_id, seg=seg)
             return new_sup_seg
 
         logging.info(f"mkdir -p {output_dir}")
@@ -425,50 +396,83 @@ class VoiceboxModel(TextToWaveform):
     def setup_test_data(self, test_data_config: DictConfig | Dict):
         return EncDecRNNTModel.setup_test_data(self, test_data_config)
 
+    def mfa_align(self, audio, texts: str, sampling_rate: int):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            print('Temporary directory created at:', temp_dir)
+            # You can create files and directories inside the temporary directory
+            temp_audio_path = os.path.join(temp_dir, 'speech.wav')
+            temp_text_path = os.path.join(temp_dir, 'speech.lab')
+            temp_tg_path = os.path.join(temp_dir, 'speech.TextGrid')
+
+            sf.write(temp_audio_path, audio, samplerate=sampling_rate, format='WAV')
+            with open(temp_text_path, 'w') as temp_file:
+                temp_file.write(texts)
+
+            os.system(f"conda run -n aligner bash -c \"mfa align_one {temp_audio_path} {temp_text_path} english_us_arpa english_us_arpa {temp_tg_path} \"")
+
+            alignment = parse_mfa_textgrid(temp_tg_path, seg=None)
+        return alignment
+
     # for inference
-    @typecheck(
-        input_types={
-            "tokens": NeuralType(('B', 'T_text'), TokenIndex()),
-            "speakers": NeuralType(('B',), Index(), optional=True),
-            "noise_scale": NeuralType(('B',), FloatType(), optional=True),
-            "length_scale": NeuralType(('B',), FloatType(), optional=True),
-            "noise_scale_w": NeuralType(('B',), FloatType(), optional=True),
-            "max_len": NeuralType(('B',), IntType(), optional=True),
-        }
-    )
     def forward(
         self,
-        cond = None,
+        audio: Tensor = None,
         texts: Optional[List[str]] = None,
         phoneme_ids: Optional[Tensor] = None,
+        alignment = None,
         cond_mask = None,
+        edit_from: List[str] | None = None,
+        edit_to: List[str] | None = None,
         steps = 3,
         cond_scale = 1.,
         decode_to_audio = True,
     ):
         """
-        Args
+        Args:
 
-            - cond,
+        Input speech-text pair:
 
-                    reference input audio
+            - `cond`, reference input audio
+            - `texts` or `phoneme_ids`, input texts
 
-            - `texts`: Optional[List[str]] || `phoneme_ids`: Optional[Tensor]
+        Edit:
+            - `alignment` = None, dictionary of MFA textgrid, including phoneme/word durations
+            - `cond_mask` = None, masking context audio
+            - `edit_from` and `edit_to`, words to edit
 
-                    input texts
-
-            - cond_mask = None,
-
-                    masking context audio
-
-            - steps
-
-                    ODE solver denoising steps
-
-            - cond_scale
-            
-                    interpolate scaling for classifier-free inference guidance
+        Generation:
+            - `steps`, ODE solver denoising steps
+            - `cond_scale`, interpolate scaling for classifier-free inference guidance
         """
+        assert audio.ndim == 2
+        assert audio.shape[0] == 1
+        audio_lens = torch.tensor([audio.shape[1]], device=self.device)
+
+        self.voicebox.audio_enc_dec.eval()
+        mel = self.voicebox.audio_enc_dec.encode(audio)
+        mel_lens = audio_lens * mel.shape[1] // audio.shape[-1]
+
+        if alignment is None:
+            alignment = self.mfa_align(audio=audio, texts=texts, sampling_rate=24000)
+        alignment = fix_alignment(alignment=alignment)
+        ori_w2p_durs, ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
+
+        ori_w2p_durs, dur_ratio = resample_dur(ori_w2p_durs, mel_lens)
+        dur_ratio = dur_ratio[0]
+
+        new_w2p_durs = edit_w2p_alignment(w2p_durs=ori_w2p_durs, edit_from=edit_from, edit_to=edit_to)
+
+        ori_phn_dur = process_alignment(
+            w2p_durs=ori_w2p_durs,
+            use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
+            use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
+        )
+        new_phn_dur = process_alignment(
+            w2p_durs=new_w2p_durs,
+            use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
+            use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
+        )
+
         audio = self.cfm_wrapper.sample(
             cond=cond,
             texts=texts,
@@ -917,6 +921,176 @@ class VoiceboxModel(TextToWaveform):
         audio = self(tokens=tokens, speakers=speakers)[0].squeeze(1)
         return audio
     
+
+
+def parse_mfa_textgrid(f_id, seg: None):
+    """
+    Args
+        - f_id: textgrid_filename
+        - seg: `cut.supervisions.segment`, this function can be used for updating `cut.supervisions.segment`.
+    """
+    tg = TextGrid()
+    tg.read(f_id)
+    alignment = {}
+    if seg is not None:
+        new_sup_seg = seg
+
+    for tier in tg.tiers:
+        _dur = []
+        for interval in tier.intervals:
+            minTime = interval.minTime
+            maxTime = interval.maxTime
+            mark = interval.mark
+            if tier.name == "phones":
+                if mark == "" or  mark == "sp":
+                    mark = "sil"
+            # elif tier.name == "words":
+            #     if mark in ["", "sil", "<eps>"]:
+            #         mark = "<eps>"
+            #     elif mark in ["spn", "<unk>"]:
+            #         mark = "<unk>"
+            _dur.append(AlignmentItem(symbol=mark, start=minTime, duration=maxTime - minTime))
+        assert len(_dur)
+
+        # update cut segment
+        alignment[tier.name] = _dur
+        if seg is not None:
+            new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
+        
+        # warning
+        if f"{seg.duration:.2f}" != f"{maxTime:.2f}":
+            logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.2f}, ali_end: {maxTime:.2f}")
+
+    if seg is not None:
+        return new_sup_seg
+    return alignment
+
+def fix_alignment(alignment: Dict[str, List[AlignmentItem]]) -> Dict[str, List[AlignmentItem]]:
+    def phn_transform(symbol):
+        if symbol == "" or  symbol == "sp":
+            symbol = "sil"
+        return symbol
+
+    def wrd_transform(symbol):
+        if symbol in ["", "sil", "<eps>"]:
+            symbol = "<eps>"
+        elif symbol in ["spn", "<unk>"]:
+            symbol = "<unk>"
+        return symbol
+
+    new_alignment = {}
+    for name in alignment:
+        if name == "phones":
+            new_alignment["phones"] = [ali.transform(phn_transform) for ali in alignment[name]]
+        elif name == "words":
+            new_alignment["words"] = [ali.transform(wrd_transform) for ali in alignment[name]]
+    return new_alignment
+
+def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
+    phn_alis: List[AlignmentItem] = alignment["phones"]
+    phn_dur: List[Tuple[str, float]] = []
+    for ali in phn_alis:
+        phn_dur.append((ali.symbol, ali.duration))
+
+    word_alis: List[AlignmentItem] = alignment["words"]
+    w2p_durs: List[Tuple[str, List[Tuple[str, float]]]] = []
+    w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
+    phn_id = 0
+    for ali in word_alis:
+        wrd = ali.symbol
+        w2p_durs.append((wrd, []))
+
+        wrd_st = ali.start
+        wrd_ed = wrd_st + ali.duration
+
+        phn_st = phn_alis[phn_id].start
+        phn_ed = phn_st + phn_alis[phn_id].duration
+        while phn_st >= wrd_st and phn_ed <= wrd_ed:
+            w2p_durs[-1][-1].append(phn_dur[phn_id])
+            w2p_alis[-1][-1].append(phn_alis[phn_id])
+
+            phn_id += 1
+            if phn_id >= len(phn_alis):
+                break
+            phn_st = phn_alis[phn_id].start
+            phn_ed = phn_st + phn_alis[phn_id].duration
+
+    return w2p_durs, w2p_alis
+
+def edit_w2p_alignment(alignment=None, mel_lens=None, w2p_durs=None, edit_from="", edit_to=""):
+    if w2p_durs is None and alignment is not None:
+        w2p_durs, w2p_alis = map_word_phn_alignment(alignment=alignment)
+    if mel_lens is not None:
+        w2p_durs = resample_dur(w2p_durs, mel_lens)
+
+    ori_durs = torch.tensor([[dur for wrd, phn_dur in w2p_durs for _, dur in phn_dur]], device=self.device)
+    cum_dur = torch.cumsum(ori_durs, -1)
+
+    new_w2p_durs: List[Tuple[str, List[Tuple[str, float]]]] = []
+    mask = []
+    for wrd, phn_dur in w2p_durs:
+        if wrd == edit_from:
+            # MFA G2P
+            phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa -\"").read().split('\t')[1].strip().split(' ')
+            phn_dur = [(phn, 0) for phn in phns]
+            wrd = edit_to
+        new_w2p_durs.append((wrd, phn_dur))
+    return new_w2p_durs
+
+def resample_dur(w2p_durs, mel_lens):
+    ori_durs = torch.tensor([[dur for wrd, phn_dur in w2p_durs for _, dur in phn_dur]], device=self.device)
+    cum_dur = torch.cumsum(ori_durs, -1)
+    dur_ratio = mel_lens / cum_dur[:, -1]
+    cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+    cum_dur = torch.round(cum_dur)
+
+    rsmp_durs = torch.zeros_like(cum_dur)
+    rsmp_durs[:, 0] = cum_dur[:, 0]
+    rsmp_durs[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+    pos = 0
+    rsmp_w2p_durs = []
+    for wrd, phn_dur in w2p_durs:
+        rsmp_w2p_durs.append((wrd, []))
+        for phn, _ in phn_dur:
+            rsmp_w2p_durs[-1][-1].append((phn, rsmp_durs[0, pos]))
+            pos += 1
+    return rsmp_w2p_durs, dur_ratio
+
+def process_alignment(alignment=None, w2p_durs=None, use_word_postfix=True, use_word_ghost_silence=True, edit_from="", edit_to="") -> List[Tuple[str, float]]:
+    if w2p_durs is None and alignment is not None:
+        w2p_durs = map_word_phn_alignment(alignment=alignment)
+
+    new_phn_dur: List[Tuple[str, float]] = []
+    _wrd = "<eps>"
+    for wrd, phn_dur in w2p_durs:
+        if use_word_ghost_silence and len(new_phn_dur) > 0:
+            if wrd != "<eps>" and _wrd != "<eps>":
+                if use_word_postfix:
+                    new_phn_dur.append(("sil_S", 0))
+                else:
+                    new_phn_dur.append(("sil", 0))
+            _wrd = wrd
+
+        # if wrd == edit_from:
+        #     phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa -\"").read().split('\t')[1].strip().split(' ')
+        #     edit_phn_dur = [(phn, 0) for phn in phns]
+        #     edit_wrd = edit_to
+        #     pass
+
+        postfixs = [""] * len(phn_dur)
+        if use_word_postfix:
+            if len(phn_dur) == 1:
+                postfixs = ["_S"]
+            else:
+                postfixs = ["_B"] + ["_I"] * (len(phn_dur)-2) + ["_E"]
+
+        _durs = []
+        for p_dur, postfix in zip(phn_dur, postfixs):
+            _durs.append((p_dur[0] + postfix, p_dur[1]))
+        new_phn_dur += _durs
+
+    return new_phn_dur
+
 
 @torch.no_grad()
 def plot_alignment_to_numpy(phoneme_ids, durations, predictions, spectrogram):
