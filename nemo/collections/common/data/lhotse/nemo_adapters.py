@@ -16,6 +16,7 @@ import random
 import re
 import secrets
 import tarfile
+from functools import cached_property
 from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List
@@ -70,11 +71,21 @@ class LazyNeMoIterator:
 
     @property
     def path(self) -> str | Path:
+        """Path to the input manifest."""
         return self.source.path
+
+    @cached_property
+    def root(self) -> Path:
+        """
+        Path to the directory containing the input manifest.
+        It is attached as a prefix to audio paths within the manifest
+        if they are not absolute paths.
+        """
+        return Path(self.path).parent
 
     def __iter__(self) -> Generator[Cut, None, None]:
         for data in self.source:
-            audio_path = data.pop("audio_filepath")
+            audio_path = _relative_to_absolute(data.pop("audio_filepath"), self.root)
             duration = data.pop("duration")
             offset = data.pop("offset", None)
             recording = self._create_recording(audio_path, duration, data.pop("sampling_rate", None))
@@ -280,3 +291,9 @@ def expand_sharded_filepaths(path: str | Path) -> list[str]:
 
 def _to_custom_attr_dict(d: dict, _excluded_fields: set[str] = {"duration", "audio_filepath"}) -> dict:
     return {k: v for k, v in d.items() if k not in _excluded_fields}
+
+
+def _relative_to_absolute(audio_path: str | Path, root: str | Path) -> str:
+    if Path(audio_path).is_absolute():
+        return audio_path
+    return str(Path(root) / audio_path)
