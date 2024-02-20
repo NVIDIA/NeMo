@@ -118,76 +118,76 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 "factor": float(layer.rotary_scaling)
             }
 
-            if layer.moe_num_experts:
-                moe_config = MoeConfig()
-                if not layer.moe_num_experts is None:
-                    if layer.moe_top_k is None:
-                        layer.moe_top_k = 1
+        if layer.moe_num_experts:
+            moe_config = MoeConfig()
+            if not layer.moe_num_experts is None:
+                if layer.moe_top_k is None:
+                    layer.moe_top_k = 1
 
-                    layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
-                    layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
-                    moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
-                                        layer.moe_tp_mode, layer.moe_renorm_mode).validate()
-
-                    return LLaMADecoderLayer(
-                        layer_id=self.layer_id,
-                        hidden_size=self.hidden_size,
-                        num_attention_heads=self.num_attention_heads,
-                        num_kv_heads=self.num_kv_heads,
-                        max_position_embeddings=self.max_position_embeddings,
-                        dtype=self.dtype,
-                        attention_mask_type=AttentionMaskType.causal,
-                        hidden_act=non_gated_version(self.hidden_act),
-                        position_embedding_type=PositionEmbeddingType.rope_gpt_neox,
-                        mlp_hidden_size=layer.ffn_hidden_size_local * self.tensor_parallel,
-                        tp_group=self.tp_group,
-                        tp_size=self.tensor_parallel,
-                        rotary_base=layer.rotary_base,
-                        rotary_scaling=rotary_scaling,
-                        moe_config=moe_config,
-                    )
-            else:
-                config = PretrainedConfig(
-                    architecture=None,
-                    dtype=self.dtype,
-                    logits_dtype=self.dtype,
-                    vocab_size=layer.vocab_size,
-                    max_position_embeddings=self.max_position_embeddings,
-                    hidden_size=self.hidden_size,
-                    num_hidden_layers=self.num_layers,
-                    num_attention_heads=self.num_attention_heads,
-                    num_key_value_heads=self.num_kv_heads,
-                    hidden_act=non_gated_version(self.hidden_act),
-                    intermediate_size=layer.ffn_hidden_size_local * self.tensor_parallel,
-                    norm_epsilon=layer.norm_epsilon,
-                    position_embedding_type="rope_gpt_neox",
-                    world_size=self.tensor_parallel,
-                    tp_size=self.tensor_parallel,
-                    pp_size=1,
-                    quant_mode=QuantMode(0),
-                    quant_kwargs=None,
-                    #use_prompt_tuning=layer.use_prompt_tuning,
-                    max_lora_rank=layer.max_lora_rank,
-                    #use_parallel_embedding: bool = False,
-                    #embedding_sharding_dim: int = 0,
-                    #share_embedding_table: bool = False,
-                    #head_size: int = None,
-                )
-
-                config.set_if_not_exist('mlp_bias', False)
-                config.set_if_not_exist('attn_bias', False)
-                config.set_if_not_exist('rotary_base', layer.rotary_base)
-                config.set_if_not_exist('rotary_scaling', rotary_scaling)
-                config.set_if_not_exist('enable_pos_shift', False)
-                config.set_if_not_exist('dense_context_fmha', False)
-                config.set_if_not_exist('moe_num_experts', 0)
-                #config.set_if_not_exist('moe_top_k', 0)
-                #config.set_if_not_exist('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL)
-                #config.set_if_not_exist('moe_normalization_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE)
+                layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
+                layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
+                moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
+                                    layer.moe_tp_mode, layer.moe_renorm_mode).validate()
 
                 return LLaMADecoderLayer(
-                    config=config,
-                    layer_idx=self.layer_id,
+                    layer_id=self.layer_id,
+                    hidden_size=self.hidden_size,
+                    num_attention_heads=self.num_attention_heads,
+                    num_kv_heads=self.num_kv_heads,
+                    max_position_embeddings=self.max_position_embeddings,
+                    dtype=self.dtype,
+                    attention_mask_type=AttentionMaskType.causal,
+                    hidden_act=non_gated_version(self.hidden_act),
+                    position_embedding_type=PositionEmbeddingType.rope_gpt_neox,
+                    mlp_hidden_size=layer.ffn_hidden_size_local * self.tensor_parallel,
+                    tp_group=self.tp_group,
+                    tp_size=self.tensor_parallel,
+                    rotary_base=layer.rotary_base,
+                    rotary_scaling=rotary_scaling,
+                    moe_config=moe_config,
                 )
+        else:
+            config = PretrainedConfig(
+                architecture=None,
+                dtype=self.dtype,
+                logits_dtype=self.dtype,
+                vocab_size=layer.vocab_size,
+                max_position_embeddings=self.max_position_embeddings,
+                hidden_size=self.hidden_size,
+                num_hidden_layers=self.num_layers,
+                num_attention_heads=self.num_attention_heads,
+                num_key_value_heads=self.num_kv_heads,
+                hidden_act=non_gated_version(self.hidden_act),
+                intermediate_size=layer.ffn_hidden_size_local * self.tensor_parallel,
+                norm_epsilon=layer.norm_epsilon,
+                position_embedding_type="rope_gpt_neox",
+                world_size=self.tensor_parallel,
+                tp_size=self.tensor_parallel,
+                pp_size=1,
+                quant_mode=QuantMode(0),
+                quant_kwargs=None,
+                #use_prompt_tuning=layer.use_prompt_tuning,
+                max_lora_rank=layer.max_lora_rank,
+                #use_parallel_embedding: bool = False,
+                #embedding_sharding_dim: int = 0,
+                #share_embedding_table: bool = False,
+                #head_size: int = None,
+            )
+
+            config.set_if_not_exist('mlp_bias', False)
+            config.set_if_not_exist('attn_bias', False)
+            config.set_if_not_exist('rotary_base', layer.rotary_base)
+            config.set_if_not_exist('rotary_scaling', rotary_scaling)
+            config.set_if_not_exist('enable_pos_shift', False)
+            config.set_if_not_exist('dense_context_fmha', False)
+            config.set_if_not_exist('moe_num_experts', 0)
+            #config.set_if_not_exist('moe_top_k', 0)
+            #config.set_if_not_exist('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL)
+            #config.set_if_not_exist('moe_normalization_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE)
+
+            return LLaMADecoderLayer(
+                config=config,
+                layer_idx=self.layer_id,
+            )
 
 

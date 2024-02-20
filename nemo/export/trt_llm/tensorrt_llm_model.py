@@ -369,7 +369,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     'host_kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
                 host_sink_token_length=model_inputs['host_sink_token_length'],
-                host_kv_cache_block_pointers=model_inputs['host_kv_cache_block_pointers_list'],
             ),
             AttentionParams(
                 sequence_length=model_inputs['sequence_length'],

@@ -8,9 +8,9 @@ set +x
 
 python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 1 --max_gpus 2
 python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 1 --streaming
-python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 1 --max_gpus 2 --tp_size 1 --pp_size=2
-python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 1 --max_gpus 2 --tp_size 2 --pp_size=2
-python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 1 --max_gpus 2 --tp_size 1 --pp_size=8
+python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 2 --tp_size 1 --pp_size 2
+python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 4 --tp_size 2 --pp_size 2
+python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --min_gpus 8 --tp_size 1 --pp_size 8
 python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base --existing_test_models --ptuning --min_gpus 1 --max_gpus 2
 python tests/export/test_nemo_export.py --model_name LLAMA2-7B-code --existing_test_models --min_gpus 1 --max_gpus 2
 python tests/export/test_nemo_export.py --model_name LLAMA2-13B-base --existing_test_models --min_gpus 1 --max_gpus 2
