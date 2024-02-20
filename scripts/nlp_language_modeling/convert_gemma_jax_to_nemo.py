@@ -14,6 +14,7 @@
 
 """
 Requires to install: `pip install orbax jax flax jaxlib`
+Required to set: `export PYTHONPATH=/path/to/deepmind/models/gemma_jax/code:$PYTHONPATH`
 """
 
 import os
