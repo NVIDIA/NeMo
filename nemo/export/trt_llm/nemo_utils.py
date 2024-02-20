@@ -54,7 +54,7 @@ def _nemo_decode(
     storage_type: str = "bfloat16",
     load_checkpoints_on_gpu: bool = False,
     decoder_type: str = "gptnext",
-    save_nemo_model_config: bool = True,
+    save_nemo_model_config: bool = False,
 ) -> Tuple[Dict[str, np.ndarray], PretrainedConfig, PreTrainedTokenizer]:
     """Decodes the NEMO file and returns the weights dict, llm config and tokenizer."""
     args = argparse.Namespace()
