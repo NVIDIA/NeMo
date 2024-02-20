@@ -24,8 +24,8 @@ from argparse import ArgumentParser
 import jax
 import torch
 from omegaconf import OmegaConf
-from taurus.params import load_params, nest_params, param_remapper
-from taurus.transformer import TransformerConfig
+from gemma.params import load_params, nest_params, param_remapper
+from gemma.transformer import TransformerConfig
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
