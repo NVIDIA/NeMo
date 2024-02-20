@@ -72,7 +72,8 @@ class MFAEnglishPhonemeTokenizer(Tokenizer):
         self.pad_id = pad_id
         self.use_word_postfix = use_word_postfix
 
-        vocab.pop(vocab.index("PAD"))
+        # vocab.pop(vocab.index("PAD"))
+        vocab = [phn for phn in vocab if phn != "PAD"]
         if self.use_word_postfix:
             vocab = [phn+_p for phn in vocab for _p in self.word_postfix]
         vocab.insert(0, "PAD")
@@ -161,6 +162,12 @@ class EncodecVoco(_EncodecVoco, LightningModule):
 
 
 class Aligner(_Aligner):
+
+    # def align_phoneme_ids_with_durations(self, phoneme_ids, durations):
+    #     repeat_mask = generate_mask_from_repeats(durations.clamp(min = 0))
+    #     aligned_phoneme_ids = einsum('b i, b i j -> b j', phoneme_ids.float(), repeat_mask.float()).long()
+    #     return aligned_phoneme_ids
+
     def forward(self, x, x_mask, y, y_mask):
         alignment_soft, alignment_logprob = self.aligner(rearrange(y, 'b ty d -> b d ty'), rearrange(x, 'b tx d -> b d tx'), x_mask)
 
