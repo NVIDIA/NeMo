@@ -225,6 +225,7 @@ def nemo_export(argv):
             use_inflight_batching=args.use_inflight_batching,
             paged_kv_cache=args.use_paged_kv_cache,
             enable_multi_block_mode=args.multi_block_mode,
+            #dtype=args.dtype,
             use_lora_plugin=args.use_lora_plugin,
             lora_target_modules=args.lora_target_modules,
             max_lora_rank=args.max_lora_rank,
