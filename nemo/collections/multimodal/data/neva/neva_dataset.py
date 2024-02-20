@@ -15,12 +15,12 @@ import copy
 import json
 import logging
 import os
-import decord
 import re
 import tarfile
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence, Union
 
+import decord
 import torch
 import torch.nn.functional as F
 import transformers
@@ -39,12 +39,12 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
-    DEFAULT_VIDEO_TOKEN,
     DEFAULT_LABELS_TOKEN,
     DEFAULT_PAD_TOKEN,
     DEFAULT_SEPARATOR_TOKEN,
     DEFAULT_SYSTEM_TOKEN,
     DEFAULT_UNK_TOKEN,
+    DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -144,32 +144,33 @@ class TarOrFolderVideoLoader:
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
-    
+
     def flatten_frames(self, cap):
         if self.data_cfg['splice_single_frame'] == 'first':
-            frame = cap[0].asnumpy()[:,:,::-1]
+            frame = cap[0].asnumpy()[:, :, ::-1]
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'middle':
-            frame = cap[len(cap) // 2].asnumpy()[:,:,::-1]
+            frame = cap[len(cap) // 2].asnumpy()[:, :, ::-1]
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'last':
-            frame = cap[-1].asnumpy()[:,:,::-1]
+            frame = cap[-1].asnumpy()[:, :, ::-1]
             return Image.fromarray(frame).convert('RGB')
         else:
             if self.data_cfg['num_frames'] == -1:
                 frames = []
                 for frame in cap:
-                    rgb_frame = frame.asnumpy()[:,:,::-1]
+                    rgb_frame = frame.asnumpy()[:, :, ::-1]
                     img = Image.fromarray(rgb_frame).convert('RGB')
                     frames.append(img)
                 return frames
             else:
                 partition_size = max(1, len(cap) // self.data_cfg['num_frames'])
                 for i in range(0, len(cap), partition_size):
-                    frame = cap[i].asnumpy()[:,:,::-1]
+                    frame = cap[i].asnumpy()[:, :, ::-1]
                     img = Image.fromarray(rgb_frame).convert('RGB')
                     frames.append(img)
                 return frames
+
 
 def tokenize(
     texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
