@@ -112,7 +112,7 @@ class LoraPEFTConfig(PEFTConfig):
 
         qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
 
-        fast_glu_activation = cfg.activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
+        fast_glu_activation = cfg.get('activation', 'gelu') in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
 
         target_modules = get_target_modules(lora_cfg)
         name_key_to_cfg = {}
