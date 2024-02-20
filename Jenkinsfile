@@ -85,13 +85,13 @@ pipeline {
       }
     }
 
-    stage('Pytorch lightning installation') {
-      steps {
-         sh 'git clone -b bug_fix https://github.com/athitten/pytorch-lightning.git && \
-             cd pytorch-lightning && \
-             PACKAGE_NAME=pytorch pip install -e .'
-      }
-    }
+    // stage('Pytorch lightning installation') {
+    //   steps {
+    //      sh 'git clone -b bug_fix https://github.com/athitten/pytorch-lightning.git && \
+    //          cd pytorch-lightning && \
+    //          PACKAGE_NAME=pytorch pip install -e .'
+    //   }
+    // }
 
     // pip package should be working with main, if not we can update the commit here
     // until the pip package is updated
