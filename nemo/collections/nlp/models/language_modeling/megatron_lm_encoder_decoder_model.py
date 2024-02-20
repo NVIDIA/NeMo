@@ -134,6 +134,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
 
+        # Get the token aggregation method from the hiddens module for the loss.
+        self.token_aggregation_method = self.cfg.get('hiddens', {}).get("token_aggregation_method", None)
+
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])
@@ -598,10 +601,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     loss_dict = output_tensor
                     output_tensor = loss_dict.pop("output")
                     # compute reconstruction (tokens) only loss from per-token reconstruction loss
-                    tokens_loss = self.loss_func(loss_mask, output_tensor)
+                    tokens_loss = self.loss_func(
+                        loss_mask, output_tensor, token_aggregation_method=self.token_aggregation_method
+                    )
                     loss_dict["tokens_loss"] = tokens_loss
                     tokens_loss_weight = loss_dict.get("tokens_loss_weight", 1.0)
-                    # compute total loss
+                    # compute total loss. Note that we want the `loss` variable to point to the pre-reduced form so that reduction can happen
+                    #  by the parallel optimizer.
                     loss = loss_dict["loss"] = loss_dict["hiddens_loss"] + tokens_loss_weight * tokens_loss
                     # average losses across data parallel group
                     loss_dict = {
@@ -609,7 +615,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     }
                 else:
                     # compute reconstruction (tokens) only loss from per-token reconstruction loss
-                    loss = self.loss_func(loss_mask, output_tensor)
+                    loss = self.loss_func(
+                        loss_mask, output_tensor, token_aggregation_method=self.token_aggregation_method
+                    )
                     # average losses across data parallel group
                     reduced_loss = average_losses_across_data_parallel_group([loss])
                     loss_dict = {'loss': reduced_loss}
@@ -684,12 +692,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-            output = model(*args).contiguous()
+            output = model(*args)
+            if torch.is_tensor(output):
+                output = output.contiguous()
+            else:
+                # support hiddens module where returned output is a dict
+                output = {k: v.contiguous() for k, v in output.items()}
 
             def id_func(output_tensor):
                 if isinstance(output_tensor, dict):
                     # handle loss of hidden transformations ("output" is the default output)
-                    output_tensor = output_tensor["output"]
+                    output_tensor = output_tensor[output_name]
 
                 return output_tensor, {output_name: output_tensor}
 
@@ -779,14 +792,27 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def on_test_epoch_end(self):
         return self._test_validation_epoch_end(step_outputs=self.test_step_outputs, prefix="test",)
 
-    def loss_func(self, loss_mask, tokens_loss):
+    def loss_func(self, loss_mask, tokens_loss, token_aggregation_method: Optional[str] = None):
         """
         This function takes as input per-token loss and masks non-required values.
         """
-        losses = tokens_loss.view(-1).float()
-        loss_mask = loss_mask.view(-1).float()
+        losses = tokens_loss.float()  # Batch x Sequence
+        loss_mask = loss_mask.float()  # Batch x Sequence
         # TODO: add nemo version here
-        loss = torch.sum(losses * loss_mask) / loss_mask.sum()  # sequence level nll
+        if token_aggregation_method is None:
+            loss = torch.sum(losses * loss_mask) / loss_mask.sum()  # sequence level nll
+        elif token_aggregation_method == "mean":
+            # This variant will put equal weight on every element of the batch rather than increased weight on
+            #  sequences that have longer token lengths.
+            sample_loss = torch.sum(losses * loss_mask, dim=1) / loss_mask.sum(dim=1).clamp(min=1)
+            loss = sample_loss.mean()
+        elif token_aggregation_method == "sum":
+            sample_loss = torch.sum(losses * loss_mask, dim=1)
+            loss = sample_loss.mean()
+        else:
+            raise ValueError(
+                f"token_aggregation_method={token_aggregation_method}, expect one of None, 'sum', 'mean'. "
+            )
         return loss
 
     def process_micro_batch(self, micro_batch):
@@ -1068,7 +1094,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             arg_names.append('enc_input')
 
         forward_step_func = self._get_forward_output_only_func(
-            arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
+            arg_names=arg_names, output_name="enc_output", output_enc_hidden_only=True
         )
 
         fwd_bwd_func = get_forward_backward_func()
@@ -1089,7 +1115,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
         if output_tensor:
-            output_tensor = output_tensor[0]['hiddens']
+            output_tensor = output_tensor[0]['enc_output']
         else:
             output_tensor = torch.zeros(tensor_shape, dtype=self.autocast_dtype).cuda()
 
@@ -1229,6 +1255,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
+        # we read here those variables to be used by beam search only
+        batch_size, hidden_steps, hidden_size = enc_output.size()
+        src_length = enc_output_attn_mask.shape[1]
+
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
@@ -1238,7 +1268,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
 
-            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="token_logits")
             fwd_bwd_func = get_forward_backward_func()
 
             output_tensor = fwd_bwd_func(
@@ -1253,7 +1283,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
-                output_tensor = output_tensor[0]['logits']
+                output_tensor = output_tensor[0]['token_logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
                 output_tensor[:, :, tokenizer.vocab_size :] = -float('Inf')
@@ -1274,9 +1304,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         log_probs, token_ids = log_probs.view(-1), token_ids.view(-1)
                         scores = log_probs.unsqueeze(1).clone()
 
-                        batch_size, src_length, hidden_size = enc_output.size()
                         enc_output_attn_mask = enc_output_attn_mask.repeat(1, beam_size).view(-1, src_length)
-                        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, src_length, hidden_size)
+                        enc_output = enc_output.repeat(1, beam_size, 1).view(-1, hidden_steps, hidden_size)
 
                         # resize tensors that collect predicted tokens and logits per iteration to
                         # match shape of tensors augmented with the beam size

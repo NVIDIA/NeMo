@@ -669,6 +669,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()
                     if self.hiddens_cfg is not None:
+                        # we support enc_output being a tensor even if hiddens_module is used
+                        if torch.is_tensor(enc_output):
+                            enc_output = {"enc_output": enc_output}
                         # return all hiddens and token logits
                         hiddens_dict = enc_output
                         hiddens_dict["token_logits"] = token_logits

@@ -21,7 +21,7 @@ See example config in: examples/nlp/language_modeling/conf/megatron_hiddens_base
 
 import functools
 import itertools
-from typing import List
+from typing import List, Optional
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -116,6 +116,8 @@ def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig = None)
     if cfg is None:
         return None
 
+    hidden_aggregation_method = cfg.get("hidden_aggregation_method", "mean")
+
     logging.info(f"NOTE: Adding hiddens transforms and losses")
 
     # build all hidden transforms. We support a list or a dictionary of transforms (list enforces order)
@@ -155,6 +157,8 @@ def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig = None)
     for cur_list_cfg in loss_cfg:
         for name, cur_cfg in cur_list_cfg.items():
             cls_kwargs = OmegaConf.to_container(cur_cfg)
+            this_hidden_aggregation_method = cls_kwargs.get("hidden_aggregation_method", hidden_aggregation_method)
+            cls_kwargs["hidden_aggregation_method"] = this_hidden_aggregation_method
             if not "cls_name" in cls_kwargs:
                 raise KeyError(f"Missing 'cls_name' in hidden loss {name}")
 
@@ -173,11 +177,15 @@ def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig = None)
             logging.info(f"Added loss {name} with cfg={cur_cfg}")
 
     enc_output_name = cfg.get("enc_output_name", "hiddens")
+    enc_inference_output_name = cfg.get("enc_inference_output_name", None)
+    tokens_loss_weight = cfg.get("tokens_loss_weight", 1.0)
 
     return MegatronHiddensModule(
         hidden_transforms=hidden_transforms,
         hidden_loss_transforms=hidden_loss_transforms,
         enc_output_name=enc_output_name,
+        enc_inference_output_name=enc_inference_output_name,
+        tokens_loss_weight=tokens_loss_weight,
     )
 
 
@@ -192,6 +200,7 @@ class MegatronHiddensModule(torch.nn.Module):
         hidden_transforms: List[MegatronBaseHiddenLoss] = [],
         hidden_loss_transforms: List[MegatronBaseHiddenTransform] = [],
         enc_output_name: str = "hiddens",  # name (key) of the encoder output
+        enc_inference_output_name: Optional[str] = None,  # if provided, use different key when self.training is False
         tokens_loss_weight: float = 1.0,  # weight of the tokens loss
         loss_prefix: str = "hiddens_",  # if not None or "", add this prefix to all loss names
     ):
@@ -199,6 +208,9 @@ class MegatronHiddensModule(torch.nn.Module):
         self.hidden_transforms = hidden_transforms
         self.hidden_loss_transforms = hidden_loss_transforms
         self.enc_output_name = enc_output_name
+        self.enc_inference_output_name = (
+            enc_output_name if enc_inference_output_name is None else enc_inference_output_name
+        )
         self.tokens_loss_weight = tokens_loss_weight
         self.loss_prefix = loss_prefix
 
@@ -276,9 +288,11 @@ class MegatronHiddensModule(torch.nn.Module):
             # make sure to collect all outputs from hidden transforms
             outputs.update(hidden_transform.transform(outputs, batch_data=batch_data))
 
-        # update final encoder output
-        outputs["enc_output"] = outputs[self.enc_output_name]
-
+        # update final encoder output. Split into output_name/inference output name to support z vs z_mean for example with VAE style hiddens
+        if self.training:
+            outputs["enc_output"] = outputs[self.enc_output_name]
+        else:
+            outputs["enc_output"] = outputs[self.enc_inference_output_name]
         return outputs
 
     def apply_loss_transforms(self, outputs, batch_data=None):
