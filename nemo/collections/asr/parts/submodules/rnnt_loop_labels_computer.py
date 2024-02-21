@@ -216,12 +216,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
-        self.use_cuda_graphs = allow_cuda_graphs and HAVE_CUDA_PYTHON and self.max_symbols is not None
+        self.use_cuda_graphs = allow_cuda_graphs
+
+        if self.use_cuda_graphs and self.max_symbols is None:
+            logging.warning("Max symbols is None, which is not allowed with Cuda graphs.")
+            self.use_cuda_graphs = False
+
         if self.use_cuda_graphs:
             try:
                 check_cuda_python_cuda_graphs_conditional_nodes_supported()
             except ImportError as e:
-                logging.warning(f"`pip install cuda-python`, {e.msg}")
+                logging.warning(f"No conditional node support. Cuda graphs will be disabled,\n{e.msg}")
                 self.use_cuda_graphs = False
 
         if self.use_cuda_graphs:
