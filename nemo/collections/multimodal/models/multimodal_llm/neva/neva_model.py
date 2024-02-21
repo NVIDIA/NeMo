@@ -169,6 +169,8 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
             if self.from_hf:
                 vision_x = self.vision_encoder(vision_x, output_hidden_states=True)
                 vision_x = vision_x.hidden_states[self.vision_select_layer]
+            elif self.from_open_clip:
+                vision_x = self.vision_encoder(vision_x)
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)
@@ -268,11 +270,12 @@ class NevaBaseModel:
         elif mm_cfg.vision_encoder.get("from_open_clip", False):
             assert mm_cfg.vision_encoder.get("open_clip_model_config") is not None, \
                 f"`open_clip_model_config` needs to be set."
-            vision_encoder, _, _ = open_clip.create_model_and_transforms(
+            model, _, _ = open_clip.create_model_and_transforms(
                 mm_cfg.vision_encoder.open_clip_model_config,
                 pretrained=mm_cfg.vision_encoder.from_pretrained, precision=torch.bfloat16,
             )
-            vision_encoder = vision_encoder.cuda()
+            vision_encoder = model.visual.cuda()
+            del model
             vision_encoder = vision_encoder.to(torch.bfloat16)
             if mm_cfg.vision_encoder.freeze:
                 for param in vision_encoder.parameters():

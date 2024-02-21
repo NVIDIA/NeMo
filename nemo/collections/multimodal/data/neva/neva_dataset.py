@@ -837,10 +837,12 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
     crop_size = data_cfg.get("crop_size", (224, 224))
-    if mm_cfg.vision_encoder.from_hf:
+    if mm_cfg.vision_encoder.get("from_hf", False):
         image_processor = CLIPImageProcessor.from_pretrained(
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
+    elif mm_cfg.vision_encoder.get("from_open_clip", False):
+        pass
     else:
         # TODO(yuya): Fix this hard-code for our own CLIP
         image_processor = image_transform(crop_size, is_train=False, mean=None, std=None,)
