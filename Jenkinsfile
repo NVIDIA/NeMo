@@ -425,11 +425,10 @@ pipeline {
         }
         stage('Baichuan2') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_baichuan2_to_nemo.py \
-            --in-file=/lustre/fsw/coreai_dlalgo_llm/dataset/baichuan/Baichuan2-7B-Base \
-            --out-file=/lustre/fsw/coreai_dlalgo_llm/dataset/baichuan/Baichuan2-7B-Base/ci.nemo \
-            --precision=16'
-            sh 'rm -f /lustre/fsw/coreai_dlalgo_llm/dataset/baichuan/Baichuan2-7B-Base/ci.nemo'
+            sh 'python scripts/nlp_language_modeling/convert_hf_baichuan2_to_nemo.py \
+            --in-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
+            --out-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
+            sh 'rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
           }
         }
       }
