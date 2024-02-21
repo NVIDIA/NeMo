@@ -1,4 +1,4 @@
-black~=24
+black~=24.2
 click==8.0.2
 isort>5.1.0,<6.0.0
 parameterized
