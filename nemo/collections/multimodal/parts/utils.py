@@ -311,4 +311,3 @@ def setup_trainer_and_model_for_inference(
 
     # Return the trainer and model objects.
     return trainer, model
-
