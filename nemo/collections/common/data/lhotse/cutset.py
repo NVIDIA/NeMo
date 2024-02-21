@@ -106,6 +106,8 @@ def get_random_questions(question_file):
 
 
 def sample_and_attach_question(cut, questions: List[str]):
+    if hasattr(cut, 'question'):
+        return cut
     q = random.sample(questions, 1)[0]
     cut.question = q
     return cut
