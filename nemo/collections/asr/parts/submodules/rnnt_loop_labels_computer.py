@@ -108,7 +108,7 @@ def create_inner_while_loop_kernel():
 
 
 @contextlib.contextmanager
-def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle):
+def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle, device):
     """
     Even though we add a conditional node only once, we need to
     capture the kernel that calls cudaGraphSetConditional() both
@@ -153,8 +153,8 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
             cudart.cudaStreamUpdateCaptureDependenciesFlags.cudaStreamSetCaptureDependencies,
         )
     )
-    body_stream = torch.cuda.Stream()
-    previous_stream = torch.cuda.current_stream()
+    body_stream = torch.cuda.Stream(device=device)
+    previous_stream = torch.cuda.current_stream(device=device)
     cu_call(
         cudart.cudaStreamBeginCaptureToGraph(
             body_stream.cuda_stream,
@@ -497,7 +497,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self.decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
         self.graph = torch.cuda.CUDAGraph()
-        with torch.cuda.stream(torch.cuda.Stream()), torch.inference_mode(), torch.cuda.graph(self.graph):
+        with torch.cuda.stream(torch.cuda.Stream(device=self.cuda_device)), torch.inference_mode(), torch.cuda.graph(
+            self.graph
+        ):
             self.batched_hyps.clear_()
 
             # initial state, needed for torch.jit to compile (cannot handle None)
@@ -525,7 +527,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             torch.any(self.active_mask, out=self.active_mask_any)
 
             capture_status, _, graph, _, _ = cu_call(
-                cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream().cuda_stream)
+                cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.cuda_device).cuda_stream)
             )
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
@@ -538,7 +540,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
 
             # loop while there are active utterances
             # while self.active_mask_any:
-            with with_conditional_node(outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle):
+            with with_conditional_node(
+                outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.cuda_device
+            ):
                 self._before_inner_loop()
                 inner_while_loop_kernel = create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
@@ -548,7 +552,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 )
                 # while self.advance_mask_any.item():
 
-                with with_conditional_node(inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle):
+                with with_conditional_node(
+                    inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.cuda_device
+                ):
                     self._inner_loop()
                 self._after_inner_loop()
 
