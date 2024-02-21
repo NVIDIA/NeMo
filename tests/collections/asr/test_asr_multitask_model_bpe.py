@@ -20,7 +20,6 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules import multitask_beam_decoding as beam_decode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers import CanaryTokenizer
