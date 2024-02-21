@@ -15,6 +15,10 @@
 """
 Requires to install: `pip install orbax jax flax jaxlib`
 Required to set: `export PYTHONPATH=/path/to/google/gemma_jax:$PYTHONPATH`
+   python3 /opt/NeMo/scripts/nlp_language_modeling/convert_gemma_jax_to_nemo.py \
+   --input_name_or_path /path/to/gemma/checkpoints/jax/7b \
+   --output_path /path/to/gemma-7b.nemo \
+   --tokenizer_path /path/to/tokenizer.model
 """
 
 import os

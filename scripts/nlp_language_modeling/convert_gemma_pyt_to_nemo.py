@@ -15,6 +15,10 @@
 """
 Requires to install: `pip install fairscale==0.4.13 immutabledict==4.1.0 tensorstore==0.1.45`
 Required to set: `export PYTHONPATH=/path/to/google/gemma_pytorchh:$PYTHONPATH`
+   python3 /opt/NeMo/scripts/nlp_language_modeling/convert_gemma_pyt_to_nemo.py \
+   --input_name_or_path /path/to/gemma/checkpoints/pyt/7b.ckpt \
+   --output_path /path/to/gemma-7b.nemo \
+   --tokenizer_path /path/to/tokenizer.model
 """
 
 import contextlib

@@ -14,6 +14,10 @@
 
 """
 Requires HF transformers updated to support Gemma Models
+   python3 /opt/NeMo/scripts/nlp_language_modeling/convert_gemma_hf_to_nemo.py \
+   --input_name_or_path /path/to/gemma/checkpoints/hf/7b \
+   --output_path /path/to/gemma-7b.nemo \
+   --tokenizer_path /path/to/tokenizer.model
 """
 
 import os
