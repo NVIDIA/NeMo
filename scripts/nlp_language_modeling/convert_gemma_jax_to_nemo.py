@@ -14,7 +14,7 @@
 
 """
 Requires to install: `pip install orbax jax flax jaxlib`
-Required to set: `export PYTHONPATH=/path/to/google/gemma/jax:$PYTHONPATH`
+Required to set: `export PYTHONPATH=/path/to/google/gemma_jax:$PYTHONPATH`
 """
 
 import os
