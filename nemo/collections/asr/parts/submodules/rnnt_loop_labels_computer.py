@@ -178,6 +178,109 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
     torch.cuda.set_stream(previous_stream)
 
 
+class LoopLabelsState:
+    max_time: int
+    batch_size: int
+    device: torch.device
+
+    graph: None
+
+    encoder_output_projected: torch.Tensor
+    encoder_output_length: torch.Tensor
+
+    labels: torch.Tensor
+    scores: torch.Tensor
+
+    batch_indices: torch.Tensor
+
+    time_indices: torch.Tensor
+    safe_time_indices: torch.Tensor
+    time_indices_current_labels: torch.Tensor
+    last_timesteps: torch.Tensor
+
+    active_mask: torch.Tensor
+    advance_mask: torch.Tensor
+    blank_mask: torch.Tensor
+    active_mask_prev: torch.Tensor
+    became_inactive_mask: torch.Tensor
+
+    active_mask_any: torch.Tensor
+    advance_mask_any: torch.Tensor
+
+    last_decoder_state: torch.Tensor
+    decoder_state: torch.Tensor
+    decoder_output: torch.Tensor
+
+    batched_hyps: rnnt_utils.BatchedHyps
+    alignments: Optional[rnnt_utils.BatchedAlignments] = None
+
+    def __init__(
+        self,
+        batch_size: int,
+        max_time: int,
+        encoder_dim: int,
+        max_symbols: int,
+        device: torch.device,
+        float_dtype: torch.dtype,
+        logits_dim: int,
+        preserve_alignments=False,
+        preserve_frame_confidence=False,
+    ):
+        self.device = device
+        self.float_dtype = float_dtype
+        self.batch_size = batch_size
+        self.max_time = max_time
+
+        self.encoder_output_projected = torch.zeros(
+            (self.batch_size, self.max_time, encoder_dim), dtype=float_dtype, device=self.device,
+        )
+        self.encoder_output_length = torch.zeros((self.batch_size,), dtype=torch.long, device=self.device)
+
+        self.labels = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
+        self.scores = torch.zeros([self.batch_size], dtype=float_dtype, device=self.device)
+
+        # indices of elements in batch (constant)
+        self.batch_indices = torch.arange(self.batch_size, dtype=torch.long, device=self.device)
+
+        self.time_indices = torch.zeros_like(self.batch_indices)
+        self.safe_time_indices = torch.zeros_like(self.batch_indices)
+        self.time_indices_current_labels = torch.zeros_like(self.time_indices)
+        self.last_timesteps = torch.zeros_like(self.time_indices)
+
+        self.active_mask = torch.zeros([self.batch_size], dtype=torch.bool, device=self.device)
+        self.advance_mask = torch.zeros_like(self.active_mask)
+        self.blank_mask = torch.zeros_like(self.active_mask)
+        self.active_mask_prev = torch.zeros_like(self.active_mask)
+        self.became_inactive_mask = torch.zeros_like(self.active_mask)
+
+        self.active_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
+        self.advance_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
+
+        self.batched_hyps = rnnt_utils.BatchedHyps(
+            batch_size=self.batch_size,
+            init_length=self.max_time * max_symbols,
+            device=self.device,
+            float_dtype=float_dtype,
+        )
+        if preserve_alignments or preserve_frame_confidence:
+            self.alignments = rnnt_utils.BatchedAlignments(
+                batch_size=batch_size,
+                logits_dim=logits_dim,
+                init_length=max_time * (max_symbols + 1),
+                device=self.device,
+                float_dtype=self.float_dtype,
+                store_alignments=preserve_alignments,
+                store_frame_confidence=preserve_frame_confidence,
+            )
+
+    def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
+        return (
+            self.batch_size < encoder_output_projected.shape[0]
+            or self.max_time < encoder_output_projected.shape[1]
+            or self.device.index != encoder_output_projected.device.index
+        )
+
+
 class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
     """
     Loop Labels algorithm implementation. Callable.
@@ -229,21 +332,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 logging.warning(f"No conditional node support. Cuda graphs will be disabled,\n{e.msg}")
                 self.use_cuda_graphs = False
 
-        if self.use_cuda_graphs:
-            self._init_for_cuda_graphs()
-
-    def _init_for_cuda_graphs(self):
-        # Reasonable default maximum time. 375 frames * (80ms / frame) = 30 seconds
-        # 80ms is the frame size of recent fastconformer models
-        # This does not affect correctness.
-        self.max_time = 375
-        self.batch_size = 0
-        self.graph = None
-        self.first_call = True
-        self.cuda_device = torch.device("cuda")
-        self.encoder_output_projected = None
-        self.encoder_output_length = None
-        self.batched_hyps = None
+        self.state: Optional[LoopLabelsState] = None
 
     def loop_labels_torch(
         self, x: torch.Tensor, out_len: torch.Tensor,
@@ -437,103 +526,97 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             return batched_hyps, alignments, last_decoder_state
         return batched_hyps, None, last_decoder_state
 
+    def loop_labels_cuda_graphs(
+        self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
+    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        # do not recalculate joint projection, project only once
+        encoder_output = self.joint.project_encoder(encoder_output)
+        current_batch_size = encoder_output.shape[0]
+        current_max_time = encoder_output.shape[1]
+
+        if torch.is_autocast_enabled():
+            encoder_output = encoder_output.to(torch.get_autocast_gpu_dtype())
+
+        if self.state is None or self.state.need_reinit(encoder_output):
+            self._graph_reinitialize(encoder_output, encoder_output_length)
+
+        self.state.encoder_output_projected[:current_batch_size, :current_max_time, ...].copy_(encoder_output)
+        self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(encoder_output_length)
+        self.state.encoder_output_length[current_batch_size:].fill_(0)
+        self.graph.replay()
+
+        return (
+            self.state.batched_hyps,
+            self.state.alignments,
+            self.state.last_decoder_state,
+        )
+
     def _graph_reinitialize(
-        self,
-        max_time: int,
-        batch_size: int,
-        encoder_output_projected: torch.Tensor,
-        encoder_output_length: torch.Tensor,
+        self, encoder_output_projected: torch.Tensor, encoder_output_length: torch.Tensor,
     ):
-        logging.warning(f"Reinit {self.max_time} -> {max_time}, {self.batch_size} -> {batch_size}")
-        self.max_time = max(self.max_time, max_time)
-        self.batch_size = max(self.batch_size, batch_size)
-        self.cuda_device = encoder_output_projected.device
-        float_dtype = encoder_output_projected.dtype
+        batch_size, max_time, encoder_dim = encoder_output_projected.shape
+        logging.warning(f"Reinit, max time: {max_time}, batch size: {batch_size}")
 
-        logging.warning(f"Reinit Graph")
-        self.encoder_output_projected = torch.zeros(
-            (self.batch_size, self.max_time, encoder_output_projected.shape[-1]),
-            dtype=float_dtype,
-            device=self.cuda_device,
-        )
-        self.encoder_output_length = torch.zeros(
-            (self.batch_size,), dtype=encoder_output_length.dtype, device=encoder_output_length.device
-        )
-
-        self.batched_hyps = rnnt_utils.BatchedHyps(
-            batch_size=self.batch_size,
-            init_length=self.max_time * self.max_symbols,
-            device=self.cuda_device,
-            float_dtype=float_dtype,
+        self.state = LoopLabelsState(
+            batch_size=batch_size,
+            max_time=max(max_time, 375),
+            encoder_dim=encoder_dim,
+            max_symbols=self.max_symbols,
+            device=encoder_output_projected.device,
+            float_dtype=encoder_output_projected.dtype,
+            logits_dim=self.joint.num_classes_with_blank,
+            preserve_alignments=self.preserve_alignments,
+            preserve_frame_confidence=self.preserve_frame_confidence,
         )
 
-        self.labels = torch.zeros([self.batch_size], dtype=torch.long, device=self.cuda_device)
-        self.scores = torch.zeros([self.batch_size], dtype=float_dtype, device=self.cuda_device)
-
-        # indices of elements in batch (constant)
-        self.batch_indices = torch.arange(self.batch_size, dtype=torch.long, device=self.cuda_device)
-
-        self.time_indices = torch.zeros_like(self.batch_indices)
-        self.safe_time_indices = torch.zeros_like(self.batch_indices)
-        self.time_indices_current_labels = torch.zeros_like(self.time_indices)
-        self.last_timesteps = torch.zeros_like(self.time_indices)
-
-        self.active_mask = torch.zeros([self.batch_size], dtype=torch.bool, device=self.cuda_device)
-        self.advance_mask = torch.zeros_like(self.active_mask)
-        self.blank_mask = torch.zeros_like(self.active_mask)
-
-        self.active_mask_any = torch.tensor(True, device=self.cuda_device, dtype=torch.bool)
-        self.advance_mask_any = torch.tensor(True, device=self.cuda_device, dtype=torch.bool)
-
-        self.active_mask_prev = torch.zeros_like(self.active_mask)
-        self.became_inactive_mask = torch.zeros_like(self.active_mask)
-
-        self.last_decoder_state = self.decoder.initialize_state(self.encoder_output_projected)
-        self.state = self.decoder.initialize_state(self.encoder_output_projected)
-
-        decoder_output, self.state, *_ = self.decoder.predict(
-            self.labels.unsqueeze(1), self.state, add_sos=False, batch_size=self.batch_size
+        self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
+        self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
+        decoder_output, *_ = self.decoder.predict(
+            self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
-        self.decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        # to avoid recalculationt of joint projection, store decoder output in state
+        self.state.decoder_output = self.joint.project_prednet(decoder_output)
 
         self.graph = torch.cuda.CUDAGraph()
-        with torch.cuda.stream(torch.cuda.Stream(device=self.cuda_device)), torch.inference_mode(), torch.cuda.graph(
+        with torch.cuda.stream(torch.cuda.Stream(device=self.state.device)), torch.inference_mode(), torch.cuda.graph(
             self.graph
         ):
-            self.batched_hyps.clear_()
+            self.state.batched_hyps.clear_()
+            if self.state.alignments is not None:
+                self.state.alignments.clear_()
 
             # initial state, needed for torch.jit to compile (cannot handle None)
-            self.state[0].fill_(0.0)
-            self.state[1].fill_(0.0)
+            self.state.decoder_state[0].fill_(0.0)
+            self.state.decoder_state[1].fill_(0.0)
             # last found labels - initially <SOS> (<blank>) symbol
-            self.labels.fill_(self._SOS)
-            self.scores.fill_(0.0)
+            self.state.labels.fill_(self._SOS)
+            self.state.scores.fill_(0.0)
 
             # time indices
             # time_indices = torch.zeros_like(batch_indices)
             # safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
-            self.time_indices.fill_(0)
-            self.safe_time_indices.fill_(0)
-            self.time_indices_current_labels.fill_(0)
-            torch.sub(self.encoder_output_length, 1, out=self.last_timesteps)
+            self.state.time_indices.fill_(0)
+            self.state.safe_time_indices.fill_(0)
+            self.state.time_indices_current_labels.fill_(0)
+            torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
 
             # masks for utterances in batch
             # active_mask: torch.Tensor = self.encoder_output_length > 0
             # advance_mask = torch.empty_like(active_mask)
-            torch.greater(self.encoder_output_length, 0, out=self.active_mask)
+            torch.greater(self.state.encoder_output_length, 0, out=self.state.active_mask)
 
             # for storing the last state we need to know what elements became "inactive" on this step
             # self.active_mask_any = active_mask.any()
-            torch.any(self.active_mask, out=self.active_mask_any)
+            torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
             capture_status, _, graph, _, _ = cu_call(
-                cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.cuda_device).cuda_stream)
+                cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.state.device).cuda_stream)
             )
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
             (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
             outer_loop_kernel = create_outer_while_loop_kernel()
-            active_mask_any_ptr = np.array([self.active_mask_any.data_ptr()], dtype=np.uint64)
+            active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
             outer_loop_args = np.array(
                 [outer_loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data], dtype=np.uint64,
             )
@@ -541,90 +624,94 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             # loop while there are active utterances
             # while self.active_mask_any:
             with with_conditional_node(
-                outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.cuda_device
+                outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
                 self._before_inner_loop()
                 inner_while_loop_kernel = create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-                advance_mask_any_ptr = np.array([self.advance_mask_any.data_ptr()], dtype=np.uint64)
+                advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
                 inner_loop_args = np.array(
                     [inner_loop_conditional_handle.getPtr(), advance_mask_any_ptr.ctypes.data,], dtype=np.uint64,
                 )
                 # while self.advance_mask_any.item():
 
                 with with_conditional_node(
-                    inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.cuda_device
+                    inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
                 ):
-                    self._inner_loop()
+                    self._inner_loop_code()
                 self._after_inner_loop()
 
     def _before_inner_loop(self):
-        self.active_mask_prev.copy_(self.active_mask, non_blocking=True)
+        self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
         # stage 1: get decoder (prediction network) output
-        decoder_output, state, *_ = self.decoder.predict(
-            self.labels.unsqueeze(1), self.state, add_sos=False, batch_size=self.batch_size
+        decoder_output, new_state, *_ = self.decoder.predict(
+            self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
-        self.state[0].copy_(state[0])
-        self.state[1].copy_(state[1])
+        self.state.decoder_state[0].copy_(new_state[0])
+        self.state.decoder_state[1].copy_(new_state[1])
         decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-        self.decoder_output.copy_(decoder_output_projected)
+        self.state.decoder_output.copy_(decoder_output_projected)
 
         # stage 2: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
         logits = (
             self.joint.joint_after_projection(
-                self.encoder_output_projected[self.batch_indices, self.safe_time_indices].unsqueeze(1),
-                self.decoder_output,
+                self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
+                    1
+                ),
+                self.state.decoder_output,
             )
             .squeeze(1)
             .squeeze(1)
         )
         # scores, labels = logits.max(-1)
-        torch.max(logits, dim=-1, out=(self.scores, self.labels))
+        torch.max(logits, dim=-1, out=(self.state.scores, self.state.labels))
 
         # search for non-blank labels using joint, advancing time indices for blank labels
         # checking max_symbols is not needed, since we already forced advancing time indices for such cases
-        torch.eq(self.labels, self._blank_index, out=self.blank_mask)
+        torch.eq(self.state.labels, self._blank_index, out=self.state.blank_mask)
         # blank_mask = self.labels == self._blank_index
-        self.time_indices_current_labels.copy_(self.time_indices, non_blocking=True)
-        # if use_alignments:
-        #     if self.preserve_frame_confidence:
-        #         logits = F.log_softmax(logits, dim=-1)
-        #     alignments.add_results_masked_(
-        #         active_mask=active_mask,
-        #         time_indices=time_indices_current_labels,
-        #         logits=logits if self.preserve_alignments else None,
-        #         labels=labels if self.preserve_alignments else None,
-        #         confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
-        #     )
+        self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
+        if self.state.alignments is not None:
+            self.state.alignments.add_results_masked_(
+                active_mask=self.state.active_mask,
+                time_indices=self.state.time_indices_current_labels,
+                logits=logits if self.preserve_alignments else None,
+                labels=self.state.labels if self.preserve_alignments else None,
+                confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                if self.preserve_frame_confidence
+                else None,
+            )
 
         # advance_mask is a mask for current batch for searching non-blank labels;
         # each element is True if non-blank symbol is not yet found AND we can increase the time index
         # self.time_indices += self.blank_mask
         # self.time_indices = self.time_indices + self.blank_mask
-        self.time_indices.add_(self.blank_mask)
-        torch.minimum(self.time_indices, self.last_timesteps, out=self.safe_time_indices)
-        torch.less(self.time_indices, self.encoder_output_length, out=self.active_mask)
-        torch.logical_and(self.active_mask, self.blank_mask, out=self.advance_mask)
+        self.state.time_indices.add_(self.state.blank_mask)
+        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
+        torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
+        torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
 
         # inner loop: find next non-blank labels (if exist)
 
         # self.advance_mask_any = advance_mask.any()
-        torch.any(self.advance_mask, out=self.advance_mask_any)
+        torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
-    def _inner_loop(self):
+    def _inner_loop_code(self):
         # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
         # store current time indices to use further for storing the results
         torch.where(
-            self.advance_mask,
-            self.time_indices,
-            self.time_indices_current_labels,
-            out=self.time_indices_current_labels,
+            self.state.advance_mask,
+            self.state.time_indices,
+            self.state.time_indices_current_labels,
+            out=self.state.time_indices_current_labels,
         )
         logits = (
             self.joint.joint_after_projection(
-                self.encoder_output_projected[self.batch_indices, self.safe_time_indices].unsqueeze(1),
-                self.decoder_output,
+                self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
+                    1
+                ),
+                self.state.decoder_output,
             )
             .squeeze(1)
             .squeeze(1)
@@ -633,98 +720,70 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         # labels[advance_mask] are blank, and we are looking for non-blank labels
         more_scores, more_labels = logits.max(-1)
         # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
-        torch.where(self.advance_mask, more_labels, self.labels, out=self.labels)
+        torch.where(self.state.advance_mask, more_labels, self.state.labels, out=self.state.labels)
         # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
-        torch.where(self.advance_mask, more_scores, self.scores, out=self.scores)
+        torch.where(self.state.advance_mask, more_scores, self.state.scores, out=self.state.scores)
 
-        # if use_alignments:
-        #     if self.preserve_frame_confidence:
-        #         logits = F.log_softmax(logits, dim=-1)
-        #     alignments.add_results_masked_(
-        #         active_mask=advance_mask,
-        #         time_indices=time_indices_current_labels,
-        #         logits=logits if self.preserve_alignments else None,
-        #         labels=more_labels if self.preserve_alignments else None,
-        #         confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
-        #     )
+        if self.state.alignments is not None:
+            self.state.alignments.add_results_masked_(
+                active_mask=self.state.advance_mask,
+                time_indices=self.state.time_indices_current_labels,
+                logits=logits if self.preserve_alignments else None,
+                labels=more_labels if self.preserve_alignments else None,
+                confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                if self.preserve_frame_confidence
+                else None,
+            )
 
         # blank_mask = self.labels == self._blank_index
-        torch.eq(self.labels, self._blank_index, out=self.blank_mask)
+        torch.eq(self.state.labels, self._blank_index, out=self.state.blank_mask)
         # self.time_indices += self.blank_mask
-        self.time_indices.add_(self.blank_mask)
+        self.state.time_indices.add_(self.state.blank_mask)
 
-        torch.minimum(self.time_indices, self.last_timesteps, out=self.safe_time_indices)
-        torch.less(self.time_indices, self.encoder_output_length, out=self.active_mask)
-        torch.logical_and(self.active_mask, self.blank_mask, out=self.advance_mask)
-        torch.any(self.advance_mask, out=self.advance_mask_any)
+        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
+        torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
+        torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
+        torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
     def _after_inner_loop(self):
         # stage 3: filter labels and state, store hypotheses
         # select states for hyps that became inactive (is it necessary?)
         # this seems to be redundant, but used in the `loop_frames` output
-        torch.ne(self.active_mask, self.active_mask_prev, out=self.became_inactive_mask)
+        torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
         self.decoder.batch_replace_states_mask(
-            src_states=self.state, dst_states=self.last_decoder_state, mask=self.became_inactive_mask,
+            src_states=self.state.decoder_state,
+            dst_states=self.state.last_decoder_state,
+            mask=self.state.became_inactive_mask,
         )
 
-        # store hypotheses
-        # if self.max_symbols is not None:
-        #     # pre-allocated memory, no need for checks
-        #     self.batched_hyps.add_results_masked_no_checks_(
-        #         active_mask, labels, time_indices_current_labels, scores,
-        #     )
-        # else:
-        # auto-adjusted storage
-        self.batched_hyps.add_results_masked_no_checks_(
-            self.active_mask, self.labels, self.time_indices_current_labels, self.scores,
+        self.state.batched_hyps.add_results_masked_no_checks_(
+            self.state.active_mask, self.state.labels, self.state.time_indices_current_labels, self.state.scores,
         )
 
         # stage 4: to avoid looping, go to next frame after max_symbols emission
-        if self.max_symbols is not None:
-            # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
-            # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
-            force_blank_mask = torch.logical_and(
-                self.active_mask,
+        # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
+        # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
+        force_blank_mask = torch.logical_and(
+            self.state.active_mask,
+            torch.logical_and(
                 torch.logical_and(
-                    torch.logical_and(
-                        self.labels != self._blank_index, self.batched_hyps.last_timestep_lasts >= self.max_symbols,
-                    ),
-                    self.batched_hyps.last_timestep == self.time_indices,
+                    self.state.labels != self._blank_index,
+                    self.state.batched_hyps.last_timestep_lasts >= self.max_symbols,
                 ),
-            )
-            self.time_indices.add_(force_blank_mask)  # emit blank => advance time indices
-            # update safe_time_indices, non-blocking
-            torch.minimum(self.time_indices, self.last_timesteps, out=self.safe_time_indices)
-            # same as: active_mask = time_indices < out_len
-            torch.less(self.time_indices, self.encoder_output_length, out=self.active_mask)
-        torch.any(self.active_mask, out=self.active_mask_any)
+                self.state.batched_hyps.last_timestep == self.state.time_indices,
+            ),
+        )
+        self.state.time_indices.add_(force_blank_mask)  # emit blank => advance time indices
+        # update safe_time_indices, non-blocking
+        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
+        # same as: active_mask = time_indices < out_len
+        torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
+        torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
     def __call__(
         self, x: torch.Tensor, out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        if not self.use_cuda_graphs or self.preserve_alignments or self.preserve_frame_confidence:
+        if not self.use_cuda_graphs or x.device.type != "cuda":
             return self.loop_labels_torch(x=x, out_len=out_len)
 
-        # if self.preserve_alignments:
-        #     raise NotImplementedError("`preserve_alignments` support is not available with cuda graphs (but could be)")
-        #
-        # if self.preserve_frame_confidence:
-        #     raise NotImplementedError(
-        #         "`preserve_frame_confidence` support is not available with cuda graphs (but could be)"
-        #     )
-
-        x = self.joint.project_encoder(x)  # do not recalculate joint projection, project only once
-        batch_size = x.shape[0]
-        max_time = x.shape[1]
-
-        if torch.is_autocast_enabled():
-            x = x.to(torch.get_autocast_gpu_dtype())
-
-        if max_time > self.max_time or batch_size > self.batch_size:
-            self._graph_reinitialize(max_time, batch_size, x, out_len)
-        self.encoder_output_length.fill_(0)
-        self.encoder_output_projected[: x.shape[0], : x.shape[1], ...].copy_(x)
-        self.encoder_output_length[: out_len.shape[0]].copy_(out_len)
-        self.graph.replay()
-
-        return self.batched_hyps, None, self.last_decoder_state
+        return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
