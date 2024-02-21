@@ -174,8 +174,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             tokenizer=self.tokenizer,
         )
 
-        self.context_len_for_AR_decoding = self.cfg.get("context_len_for_AR_decoding", 5)
-
         # Define autoregressive CE loss
         with open_dict(self.cfg.loss):
             self.cfg.loss.pad_id = self.tokenizer.pad_id
@@ -420,7 +418,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         return super().transcribe(audio=audio, override_config=trcfg)
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+    def _setup_dataloader_from_config(self, config: Optional[Dict], inference: bool = False):
         assert config.get("use_lhotse", False), (
             "Multi-task model only supports dataloading with Lhotse. "
             "Please set config.{train,validation,test}_ds.use_lhotse=True"
@@ -430,7 +428,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=PromptedAudioToTextLhotseDataset(
-                tokenizer=self.tokenizer, prompt_format_fn=get_prompt_format_fn(self.prompt_format),
+                tokenizer=self.tokenizer,
+                prompt_format_fn=get_prompt_format_fn(self.prompt_format),
+                inference=inference,
             ),
         )
 
@@ -473,7 +473,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         # preserve config
         self._update_dataset_config(dataset_name='validation', config=val_data_config)
-        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config, inference=True)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         """
@@ -489,7 +489,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         # preserve config
         self._update_dataset_config(dataset_name='test', config=test_data_config)
-        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(config=test_data_config, inference=True)
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -614,6 +614,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             transcript=input_ids,
             transcript_length=transcript_len,
         )
+
+        beam_hypotheses = self.decoding.decode_predictions_tensor(
+            encoder_hidden_states=enc_states,
+            encoder_input_mask=enc_mask,
+            decoder_input_ids=input_ids,
+            return_hypotheses=False,
+        )[0]
+
         transf_loss = self.loss(log_probs=transf_log_probs, labels=labels)
         self.val_loss(loss=transf_loss, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
         output_dict = {
@@ -754,14 +762,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch[0], input_signal_length=batch[1]
         )
-
-        decoder_input_ids = (
-            batch[2][:, : self.context_len_for_AR_decoding].to(trcfg._internal.device)
-            if self.context_len_for_AR_decoding > 0
-            else None
-        )
-        # decoder_input_ids = None
-
+        decoder_input_ids = batch[2].to(trcfg._internal.device)
         output = dict(
             log_probs=log_probs,
             encoded_lengths=encoded_len,
@@ -796,7 +797,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         best_hypotheses, all_hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            decoder_input_ids=decoder_input_ids if self.context_len_for_AR_decoding > 0 else None,
+            decoder_input_ids=decoder_input_ids,
             return_hypotheses=trcfg.return_hypotheses,
         )
 
@@ -848,7 +849,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             'lang_field': 'target_lang',
         }
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config), inference=True)
         return temporary_datalayer
 
     def _transcribe_on_end(self, trcfg: MultiTaskTranscriptionConfig):
@@ -937,9 +938,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         text = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            decoder_input_ids=transcript[:, : self.context_len_for_AR_decoding]
-            if self.context_len_for_AR_decoding > 0
-            else None,
+            decoder_input_ids=transcript,
             return_hypotheses=False,
         )[0]
 
