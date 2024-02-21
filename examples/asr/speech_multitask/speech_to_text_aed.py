@@ -71,7 +71,7 @@ def main(cfg):
     if cfg.get("canary_spl_tokens"):
         spl_cfg = cfg["canary_spl_tokens"]
         spl_path, task_tokens, lang_tokens = spl_cfg.get('dir'), spl_cfg.get("task_tokens"), spl_cfg.get("lang_tokens")
-        CanaryTokenizer.build_special_tokenizer(tokens = task_tokens + lang_tokens, output_dir=spl_path)
+        CanaryTokenizer.build_special_tokenizer(tokens=task_tokens + lang_tokens, output_dir=spl_path)
         cfg.model.tokenizer.langs.spl_tokens.dir = spl_path
 
     aed_model = EncDecMultiTaskModel(cfg=cfg.model, trainer=trainer)
