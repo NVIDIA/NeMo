@@ -30,7 +30,6 @@ from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
-from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_BOS_TOKEN,
     DEFAULT_EOS_TOKEN,
@@ -829,23 +828,13 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
+def make_supervised_data_module(tokenizer, image_processor, model_cfg) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     data_cfg = model_cfg.data
-    mm_cfg = model_cfg.mm_cfg
     add_extra_token = 1
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
     crop_size = data_cfg.get("crop_size", (224, 224))
-    if mm_cfg.vision_encoder.get("from_hf", False):
-        image_processor = CLIPImageProcessor.from_pretrained(
-            mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-        )
-    elif mm_cfg.vision_encoder.get("from_open_clip", False):
-        pass
-    else:
-        # TODO(yuya): Fix this hard-code for our own CLIP
-        image_processor = image_transform(crop_size, is_train=False, mean=None, std=None,)
 
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
