@@ -454,3 +454,29 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # delete markers
         for marker_path in existing_marker_filepaths:
             os.remove(marker_path)
+
+    def _should_remove_checkpoint(self, trainer: "pl.Trainer", previous: str, current: str) -> bool:
+        """Checks if the previous checkpoint should be deleted.
+        A checkpoint won't be deleted if any of the cases apply:
+        - The previous checkpoint is the same as the current checkpoint (means the old was already overwritten by new)
+        - The previous checkpoint is not in the current checkpoint directory and the filesystem is local
+        - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local 
+            and the resumed from checkpoint is not the last checkpoint
+        """
+        if previous == current:
+            return False
+        if not _is_local_file_protocol(previous):
+            return True
+        previous = Path(previous).absolute()
+        resume_path = Path(trainer.ckpt_path).absolute() if trainer.ckpt_path is not None else None
+
+        if resume_path is not None and previous == resume_path:
+            if str(current).endswith("-last.ckpt") and resume_path.name.endswith("-last.ckpt"):
+                # delete the previous `-last.ckpt` checkpoint when current saved checkpoint is also `-last.ckpt`, if they're in the same directory
+                pass
+            else:
+                return False
+        if self.dirpath is None:
+            raise ValueError(f"{self.__class__}.dirpath is None.")
+        dirpath = Path(self.dirpath).absolute()
+        return dirpath in previous.parents
