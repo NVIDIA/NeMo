@@ -1074,8 +1074,8 @@ class NMESC:
         est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(
             affinity_mat, self.max_num_speakers, self.cuda
         )
-        max_key = torch.argmax(lambda_gap_list[: self.max_num_speakers]).item()
-        max_eig_gap = lambda_gap_list[max_key] / (torch.max(lambdas).item() + self.eps)
+        max_val = torch.max(lambda_gap_list[: self.max_num_speakers])
+        max_eig_gap = max_val / (torch.max(lambdas).item() + self.eps)
         g_p = (p_neighbors / self.mat.shape[0]) / (max_eig_gap + self.eps)
         return torch.stack([g_p, est_num_of_spk])
 
