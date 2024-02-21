@@ -494,8 +494,10 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         try:
             self.indexed_dataset = np.load(file_path, allow_pickle=True)
         except Exception as e:
-            logging.error(f"Failed to load packed dataset. The dataset should be a `.npy` file. "
-                          f"Please check if the packed dataset was prepared correctly. The original error was:\n {e}",)
+            logging.error(
+                f"Failed to load packed dataset. The dataset should be a `.npy` file. "
+                f"Please check if the packed dataset was prepared correctly. The original error was:\n {e}",
+            )
             exit(1)
 
     def _build_loss_mask(self, processed_example):
