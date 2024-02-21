@@ -17,7 +17,7 @@ import os
 import torch
 from torch.utils.data import Dataset
 
-from nemo.collections.multimodal.parts.neva.utils import create_neva_model_and_processor
+from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.core.config import hydra_runner
 

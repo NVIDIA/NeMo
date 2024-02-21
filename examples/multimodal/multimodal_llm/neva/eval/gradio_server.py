@@ -19,7 +19,7 @@ import gradio as gr
 import PIL.Image
 from omegaconf import OmegaConf
 
-from nemo.collections.multimodal.parts.neva.utils import create_neva_model_and_processor
+from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 
 CFG_STRING = """
 trainer:
