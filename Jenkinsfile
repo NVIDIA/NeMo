@@ -3509,7 +3509,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.encoder_seq_length=128 \
         model.data.seq_length=128 \
         model.normalization=layernorm1p \
-        model.bias=False \
         model.bias_activation_fusion=True \
         model.bias_dropout_add_fusion=True \
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
