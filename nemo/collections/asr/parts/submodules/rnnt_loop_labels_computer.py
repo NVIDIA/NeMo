@@ -574,7 +574,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         decoder_output, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
-        # to avoid recalculationt of joint projection, store decoder output in state
+        # to avoid recalculation of joint projection, store decoder output in state
         self.state.decoder_output = self.joint.project_prednet(decoder_output)
 
         self.graph = torch.cuda.CUDAGraph()
