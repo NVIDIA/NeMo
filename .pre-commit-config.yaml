@@ -16,7 +16,7 @@ default_language_version:
   python: python3
 
 ci:
-  autofix_prs: false  # pre-commit.ci for PRs is replaced with a custom GitHub action to avoid full reformatting
+  autofix_prs: true
   autoupdate_commit_msg: '[pre-commit.ci] pre-commit suggestions'
   autoupdate_schedule: quarterly
   skip: [black,isort]
