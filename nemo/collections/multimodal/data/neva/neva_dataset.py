@@ -488,7 +488,6 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
 
     """<extra_id_0>System\n\n<extra_id_1>User\n{user input}\n<extra_id_1>Assistant\n"""
 
-
     conv = conversation_lib.conv_nv_dpo.copy()
 
     # Apply prompt templates
@@ -513,7 +512,7 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
         context = conv.get_prompt()
         if strip_end_for_inference:
             if context.endswith("\n<extra_id_1>"):
-                context = context[:-len("\n<extra_id_1>")] + "\n"
+                context = context[: -len("\n<extra_id_1>")] + "\n"
         conversations.append(context)
 
     add_extra_token = cfg.get("add_extra_token")
@@ -551,10 +550,8 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
 
-
     # Check if masking working correctly
-    #print(tokenizer.ids_to_text([a[0] for a in filter(lambda x:x[1]!=-1 ,[x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])]))
-    #print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
+    # print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
 
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()
@@ -562,8 +559,6 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
     else:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
-
-
 
     return dict(tokens=tokens, labels=labels,)
 

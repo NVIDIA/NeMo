@@ -329,15 +329,17 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
         DEFAULT_IMAGE_TOKEN,
         preprocess_llama_2,
         preprocess_multimodal,
-        preprocess_nvgpt,
         preprocess_nv_dpo,
+        preprocess_nvgpt,
         preprocess_v1,
     )
 
     list_data_dict = []
     if multimodal_cfg["conv_template"] in ["nvgpt", "nv_steerlm", "nv_dpo"]:
         record = {
-            'system': '\n' if multimodal_cfg["conv_template"]=='nv_dpo' else 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
+            'system': '\n'
+            if multimodal_cfg["conv_template"] == 'nv_dpo'
+            else 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
             'conversations': [{'from': 'User', 'value': prompt}, {'from': 'Assistant', 'value': '',},],
         }
 
