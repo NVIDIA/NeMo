@@ -326,7 +326,7 @@ class WER(Metric):
                 references.append(reference)
             hypotheses, _ = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
 
-            if False:  # self.has_spl_tokens:
+            if self.has_spl_tokens:
                 hypotheses = [self.decoding.strip_special_tokens(hyp) for hyp in hypotheses]
                 references = [self.decoding.strip_special_tokens(ref) for ref in references]
 
