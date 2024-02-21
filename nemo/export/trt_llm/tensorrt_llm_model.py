@@ -20,40 +20,25 @@ import numpy as np
 import tensorrt as trt
 import torch
 from tensorrt_llm import default_net, str_dtype_to_trt
-from tensorrt_llm.functional import (
-    Tensor,
-    expand_mask,
-    gather_last_token_logits,
-    shape,
-    send,
-    recv
-)
-from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams
+from tensorrt_llm.functional import Tensor, expand_mask, gather_last_token_logits, recv, send, shape
+from tensorrt_llm.layers import AttentionParams, ColumnLinear, KeyValueCacheParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
 from tensorrt_llm.module import Module, ModuleList
 
 from .decoder import build_decoder_layer
 from .model_config import ModelConfig
 from .quantization_utils import quantize_linear
-from .tensor_utils import (
-    get_tensor_parallel_group,
-    trt_dtype_to_str,
-)
+from .tensor_utils import get_tensor_parallel_group, trt_dtype_to_str
 from .tensorrt_llm_build import build
-from .tensorrt_llm_utils import (
-    build_embedding_from_config,
-    build_layernorm_from_config,
-    print_tensorrt_llm,
-)
+from .tensorrt_llm_utils import build_embedding_from_config, build_layernorm_from_config, print_tensorrt_llm
 
 
 def get_transformer_layers(mapping, num_layers):
     layers_per_pipeline_stage = num_layers // mapping.pp_size
     layers_range = list(
-        range(mapping.pp_rank * layers_per_pipeline_stage,
-                (mapping.pp_rank + 1) * layers_per_pipeline_stage, 1))
+        range(mapping.pp_rank * layers_per_pipeline_stage, (mapping.pp_rank + 1) * layers_per_pipeline_stage, 1)
+    )
     return layers_range
-
 
 
 class ModelBuilder(Module):
@@ -101,7 +86,7 @@ class ModelBuilder(Module):
                     quantization=model_config.quantization,
                     rank=self.rank,
                     tensor_parallel=self._tensor_parallel,
-                    tp_group=model_config.mapping.tp_group
+                    tp_group=model_config.mapping.tp_group,
                 )
                 for layer_id in get_transformer_layers(self._mapping, self._num_layers)
             ]
@@ -146,15 +131,17 @@ class ModelBuilder(Module):
         if attention_mask is not None:
             attention_mask = expand_mask(attention_mask, shape(input_ids, -1))
 
-        for layer_idx, (
-                layer, past, pointer, host_pointer,
-                max_attention_window_size) in enumerate(
-            zip(self.layers, kv_cache_params.past_key_value,
+        for layer_idx, (layer, past, pointer, host_pointer, max_attention_window_size) in enumerate(
+            zip(
+                self.layers,
+                kv_cache_params.past_key_value,
                 kv_cache_params.kv_cache_block_pointers,
                 kv_cache_params.host_kv_cache_block_pointers,
-                kv_cache_params.host_max_attention_window_sizes)):
-            #lora_layer_params = None
-            #if lora_params.lora_ranks is not None:
+                kv_cache_params.host_max_attention_window_sizes,
+            )
+        ):
+            # lora_layer_params = None
+            # if lora_params.lora_ranks is not None:
             #    lora_layer_params = lora_params.get_layer_params(layer_idx)
 
             hidden_states = layer(
@@ -167,8 +154,9 @@ class ModelBuilder(Module):
                     host_max_attention_window_sizes=max_attention_window_size,
                     kv_cache_block_pointers=[pointer],
                     host_kv_cache_block_pointers=[host_pointer],
-                    cache_indirection=kv_cache_params.cache_indirection),
-                attention_params=attention_params
+                    cache_indirection=kv_cache_params.cache_indirection,
+                ),
+                attention_params=attention_params,
             )
 
             if use_cache:
@@ -211,9 +199,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             )
             self.lm_head.weight.value = model_config.lm_head.weight
             if model_config.quantization:
-                self.lm_head = quantize_linear(
-                    self.lm_head, model_config.quantization, model_config.lm_head
-                )
+                self.lm_head = quantize_linear(self.lm_head, model_config.quantization, model_config.lm_head)
 
     def forward(
         self,
@@ -243,7 +229,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             prompt_tasks,
             prompt_vocab_size,
             inflight_batching_args,
-            hidden_states
+            hidden_states,
         )
 
         if use_cache:
@@ -252,8 +238,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         if self._mapping.is_last_pp_rank():
             assert last_token_ids is not None, "Expecting last token ids to be not None"
             hidden_states = gather_last_token_logits(
-                hidden_states, last_token_ids,
-                default_net().plugin_config.remove_input_padding)
+                hidden_states, last_token_ids, default_net().plugin_config.remove_input_padding
+            )
 
             # [batch_size, hidden_size] -> [batch_size, vocab_size]
             lm_logits = self.lm_head(hidden_states)
@@ -263,8 +249,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
 
         if use_cache:
             if default_net().plugin_config.paged_kv_cache == False:
-                for i, present in zip(
-                        self._mapping.pp_layers(self._num_layers), presents):
+                for i, present in zip(self._mapping.pp_layers(self._num_layers), presents):
                     present.mark_output(f'present_key_value_{i}', self._kv_dtype)
             if self._mapping.is_last_pp_rank():
                 return (lm_logits, presents)
@@ -321,10 +306,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         )
 
         bb_range_cxt = [1, (max_batch_size + 1) // 2, max_batch_size]
-        bb_range_gen = [
-            1, (max_batch_size * max_beam_width + 1) // 2,
-            max_batch_size * max_beam_width
-        ]
+        bb_range_gen = [1, (max_batch_size * max_beam_width + 1) // 2, max_batch_size * max_beam_width]
         if enable_two_optimization_profiles:
             bb_range = [bb_range_cxt, bb_range_gen]
         else:
@@ -342,10 +324,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         tasks = None
         prompt_vocab_size = None
         if self._use_prompt_tuning:
-            assert prompt_embedding_table_size is not None, "prompt_embedding_table_size cannot be None when self._use_prompt_tuning is True"
-            _p_embedding_range = [
-                1, prompt_embedding_table_size // 2, prompt_embedding_table_size
-            ]
+            assert (
+                prompt_embedding_table_size is not None
+            ), "prompt_embedding_table_size cannot be None when self._use_prompt_tuning is True"
+            _p_embedding_range = [1, prompt_embedding_table_size // 2, prompt_embedding_table_size]
             if enable_two_optimization_profiles:
                 p_embedding_range = [_p_embedding_range, _p_embedding_range]
             else:
@@ -355,11 +337,18 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 name='prompt_embedding_table',
                 dtype=self._dtype,
                 shape=[-1, self._hidden_size],
-                dim_range=OrderedDict([
-                    ('prompt_embedding_table_size', p_embedding_range),
-                    ('hidden_size', [self._hidden_size, self._hidden_size]
-                     if enable_two_optimization_profiles else [self._hidden_size]),
-                ]))
+                dim_range=OrderedDict(
+                    [
+                        ('prompt_embedding_table_size', p_embedding_range),
+                        (
+                            'hidden_size',
+                            [self._hidden_size, self._hidden_size]
+                            if enable_two_optimization_profiles
+                            else [self._hidden_size],
+                        ),
+                    ]
+                ),
+            )
 
             if remove_input_padding:
                 tasks = Tensor(
@@ -368,10 +357,13 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     shape=[1, -1],
                     dim_range=OrderedDict(
                         [
-                            ('batch_size_fake',
-                             [1, 1] if enable_two_optimization_profiles else [1]),
-                            ("input_len_task", [num_tokens_range, num_tokens_range]
-                             if enable_two_optimization_profiles else [num_tokens_range]),
+                            ('batch_size_fake', [1, 1] if enable_two_optimization_profiles else [1]),
+                            (
+                                "input_len_task",
+                                [num_tokens_range, num_tokens_range]
+                                if enable_two_optimization_profiles
+                                else [num_tokens_range],
+                            ),
                         ]
                     ),
                 )
@@ -383,8 +375,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     dim_range=OrderedDict(
                         [
                             ("batch_size_beam_width", bb_range),
-                            ('broadcast_dim',
-                             [1, 1] if enable_two_optimization_profiles else [1]),
+                            ('broadcast_dim', [1, 1] if enable_two_optimization_profiles else [1]),
                         ]
                     ),
                 )
@@ -393,11 +384,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 name='prompt_vocab_size',
                 dtype=trt.int32,
                 shape=[1],
-                dim_range=OrderedDict([
-                    ('size',
-                     [1, 1] if enable_two_optimization_profiles else [1])
-                ]))
-
+                dim_range=OrderedDict([('size', [1, 1] if enable_two_optimization_profiles else [1])]),
+            )
 
         # todo: we should remove this, but hesitant since no explicit argument names below.
         inflight_batching_args = None
@@ -410,14 +398,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             model_inputs["attention_mask"],
             KeyValueCacheParams(
                 past_key_value=model_inputs['past_key_value'],
-                host_past_key_value_lengths=model_inputs[
-                    'host_past_key_value_lengths'],
-                host_max_attention_window_sizes=model_inputs[
-                    'host_max_attention_window_sizes'],
-                kv_cache_block_pointers=model_inputs[
-                    'kv_cache_block_pointers_list'],
-                host_kv_cache_block_pointers=model_inputs[
-                    'host_kv_cache_block_pointers_list'],
+                host_past_key_value_lengths=model_inputs['host_past_key_value_lengths'],
+                host_max_attention_window_sizes=model_inputs['host_max_attention_window_sizes'],
+                kv_cache_block_pointers=model_inputs['kv_cache_block_pointers_list'],
+                host_kv_cache_block_pointers=model_inputs['host_kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
             ),
             AttentionParams(
@@ -425,14 +409,14 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 context_lengths=model_inputs['context_lengths'],
                 host_context_lengths=model_inputs['host_context_lengths'],
                 max_context_length=max_input_len,
-                host_request_types=model_inputs['host_request_types']),
+                host_request_types=model_inputs['host_request_types'],
+            ),
             prompt_embedding_table,
             tasks,
             prompt_vocab_size,
             inflight_batching_args,
             model_inputs["hidden_states_input"],
         )
-
 
     def build(
         self,

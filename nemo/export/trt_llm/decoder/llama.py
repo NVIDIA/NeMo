@@ -13,18 +13,11 @@
 from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
-from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType, MoeConfig
+from tensorrt_llm.layers import AttentionMaskType, MoeConfig, PositionEmbeddingType
 from tensorrt_llm.models.llama.model import LLaMADecoderLayer
 from typing_extensions import override
 
-from ..model_config import (
-    LINEAR_COLUMN,
-    LINEAR_ROW,
-    AttentionConfig,
-    LayernormConfig,
-    LinearConfig,
-    MLPConfig,
-)
+from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
 
@@ -62,11 +55,7 @@ class LLAMADecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
         )
 
         config.dense = LinearConfig.from_nn_module(
-            layer.self_attn.o_proj,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.self_attn.o_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         return config
@@ -75,25 +64,13 @@ class LLAMADecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_mlp(self, layer) -> MLPConfig:
         config = MLPConfig()
         config.fc = LinearConfig.from_nn_module(
-            layer.mlp.gate_proj,
-            LINEAR_COLUMN,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.gate_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
         config.proj = LinearConfig.from_nn_module(
-            layer.mlp.down_proj,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.down_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
         config.gate = LinearConfig.from_nn_module(
-            layer.mlp.up_proj,
-            LINEAR_COLUMN,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.up_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         return config
@@ -110,10 +87,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
     def build_decoder(self, layer):
         rotary_scaling = None
         if layer.rotary_scaling is not None:
-            rotary_scaling = {
-                "type": "linear",
-                "factor": float(layer.rotary_scaling)
-            }
+            rotary_scaling = {"type": "linear", "factor": float(layer.rotary_scaling)}
 
         moe_config = MoeConfig()
         if not layer.moe_num_experts is None:
@@ -121,9 +95,12 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 layer.moe_top_k = 1
 
             layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
-            layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
-            moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
-                                   layer.moe_tp_mode, layer.moe_renorm_mode).validate()
+            layer.moe_renorm_mode = (
+                MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
+            )
+            moe_config = MoeConfig(
+                layer.moe_num_experts, layer.moe_top_k, layer.moe_tp_mode, layer.moe_renorm_mode
+            ).validate()
 
         return LLaMADecoderLayer(
             layer_id=self.layer_id,

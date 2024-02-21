@@ -14,17 +14,10 @@ from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType
-from tensorrt_llm.models.falcon.model import FalconDecoderLayer 
+from tensorrt_llm.models.falcon.model import FalconDecoderLayer
 from typing_extensions import override
 
-from ..model_config import (
-    LINEAR_COLUMN,
-    LINEAR_ROW,
-    AttentionConfig,
-    LayernormConfig,
-    LinearConfig,
-    MLPConfig,
-)
+from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
 
@@ -50,7 +43,7 @@ class FALCONDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     @override
     def build_input_layernorm(self, layer) -> LayernormConfig:
         return LayernormConfig.from_nn_module(layer.input_layernorm, dtype=self.dtype)
-    
+
     @override
     def build_mlp_layernorm(self, layer) -> LayernormConfig:
         return LayernormConfig.from_nn_module(layer.mlp_layernorm, dtype=self.dtype)
@@ -66,11 +59,7 @@ class FALCONDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
         )
 
         config.dense = LinearConfig.from_nn_module(
-            layer.self_attn.o_proj,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.self_attn.o_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         return config
@@ -79,25 +68,13 @@ class FALCONDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_mlp(self, layer) -> MLPConfig:
         config = MLPConfig()
         config.fc = LinearConfig.from_nn_module(
-            layer.mlp.gate_proj,
-            LINEAR_COLUMN,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.gate_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
         config.proj = LinearConfig.from_nn_module(
-            layer.mlp.down_proj,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.down_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
         config.gate = LinearConfig.from_nn_module(
-            layer.mlp.up_proj,
-            LINEAR_COLUMN,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.up_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         return config
@@ -112,8 +89,8 @@ class FALCONDecoderLayerBuilder(DecoderLayerBuilder):
 
     @override
     def build_decoder(self, layer):
-        #Falcon 7B: parallel_attention=True, new_decoder_architecture=False
-        #Falcon 40B/180B: parallel_attention=True, new_decoder_architecture=True
+        # Falcon 7B: parallel_attention=True, new_decoder_architecture=False
+        # Falcon 40B/180B: parallel_attention=True, new_decoder_architecture=True
         flayer = FalconDecoderLayer(
             hidden_size=self.hidden_size,
             num_attention_heads=self.num_attention_heads,
@@ -122,9 +99,11 @@ class FALCONDecoderLayerBuilder(DecoderLayerBuilder):
             dtype=self.dtype,
             hidden_act=non_gated_version(self.hidden_act),
             mlp_hidden_size=layer.ffn_hidden_size_local * self.tensor_parallel,
-            bias=False, # False from HF repo config
+            bias=False,  # False from HF repo config
             use_alibi=False,
-            new_decoder_architecture=False if self.num_layers==32 else True, # No other way to pass in model variant config, determine model variant by num_layers (7B: 32 layers)
+            new_decoder_architecture=False
+            if self.num_layers == 32
+            else True,  # No other way to pass in model variant config, determine model variant by num_layers (7B: 32 layers)
             parallel_attention=True,
             tp_group=self.tp_group,
             tp_size=self.tensor_parallel,

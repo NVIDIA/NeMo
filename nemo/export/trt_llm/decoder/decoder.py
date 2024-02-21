@@ -16,17 +16,9 @@ from typing import Optional
 import tensorrt as trt
 from transformers.activations import ACT2FN
 
-from ..model_config import (
-    QUANTIZATION_NONE,
-    AttentionConfig,
-    DecoderLayerConfig,
-    LayernormConfig,
-    MLPConfig,
-)
+from ..model_config import QUANTIZATION_NONE, AttentionConfig, DecoderLayerConfig, LayernormConfig, MLPConfig
 from ..quantization_utils import quantize_linear
-from ..tensor_utils import (
-    get_tensor_parallel_group,
-)
+from ..tensor_utils import get_tensor_parallel_group
 
 
 def _get_hidden_act(act_func):
@@ -66,8 +58,10 @@ class DecoderLayerConfigBuilder(ABC):
         """Returns the built input layernorm layer."""
         pass
 
-    @abstractmethod 
-    def build_mlp_layernorm(self, layer) -> LayernormConfig: #Force all other models to implement. But seems this builder is not used.
+    @abstractmethod
+    def build_mlp_layernorm(
+        self, layer
+    ) -> LayernormConfig:  # Force all other models to implement. But seems this builder is not used.
         """Returns the built mlp layernorm layer."""
         pass
 
@@ -87,11 +81,7 @@ class DecoderLayerConfigBuilder(ABC):
         pass
 
     def __init__(
-        self,
-        decoder_type: str,
-        dtype: trt.DataType = trt.float16,
-        rank: int = 0,
-        tensor_parallel: int = 1,
+        self, decoder_type: str, dtype: trt.DataType = trt.float16, rank: int = 0, tensor_parallel: int = 1,
     ):
         """Initializes the DecoderLayerConfigBuilder."""
         self.decoder_type = decoder_type
@@ -143,7 +133,7 @@ class DecoderLayerBuilder(ABC):
         quantization: str = QUANTIZATION_NONE,
         rank: int = 0,
         tensor_parallel: int = 1,
-        tp_group = None,
+        tp_group=None,
     ):
         """Initializes the DecoderLayer."""
         super().__init__()
@@ -162,16 +152,12 @@ class DecoderLayerBuilder(ABC):
 
         self.hidden_size = layer.hidden_size
         self.num_attention_heads = layer.num_attention_heads
-        self.num_kv_heads = (
-            layer.num_kv_heads if layer.num_kv_heads > 0 else layer.num_attention_heads
-        )
+        self.num_kv_heads = layer.num_kv_heads if layer.num_kv_heads > 0 else layer.num_attention_heads
 
         assert (
             self.num_attention_heads % self.num_kv_heads
         ) == 0, "MQA/GQA requires the number of heads to be divisible by the number of K/V heads."
-        assert (self.num_kv_heads % self.tensor_parallel) == 0 or (
-            self.tensor_parallel % self.num_kv_heads
-        ) == 0, (
+        assert (self.num_kv_heads % self.tensor_parallel) == 0 or (self.tensor_parallel % self.num_kv_heads) == 0, (
             "MQA/GQA requires either the number of K/V heads to be divisible by the number of GPUs"
             " OR the number of GPUs to be divisible by the number of K/V heads."
         )
@@ -189,7 +175,7 @@ class DecoderLayerBuilder(ABC):
         if layer.input_layernorm.bias is not None:
             self.decoder.input_layernorm.bias.value = layer.input_layernorm.bias
 
-        if layer.mlp_layernorm is not None: #Falcon has mlp layer norm
+        if layer.mlp_layernorm is not None:  # Falcon has mlp layer norm
             self.decoder.mlp_layernorm.weight.value = layer.mlp_layernorm.weight
             if layer.mlp_layernorm.bias is not None:
                 self.decoder.mlp_layernorm.bias.value = layer.mlp_layernorm.bias
@@ -228,11 +214,7 @@ class DecoderLayerBuilder(ABC):
             self.decoder.attention.dense, self.quantization, layer.attention.dense
         )
         self.decoder.mlp.fc = quantize_linear(self.decoder.mlp.fc, self.quantization, layer.mlp.fc)
-        self.decoder.mlp.proj = quantize_linear(
-            self.decoder.mlp.proj, self.quantization, layer.mlp.proj
-        )
+        self.decoder.mlp.proj = quantize_linear(self.decoder.mlp.proj, self.quantization, layer.mlp.proj)
 
         if hasattr(self.decoder.mlp, "gate"):
-            self.decoder.mlp.gate = quantize_linear(
-                self.decoder.mlp.gate, self.quantization, layer.mlp.gate
-            )
+            self.decoder.mlp.gate = quantize_linear(self.decoder.mlp.gate, self.quantization, layer.mlp.gate)

@@ -14,22 +14,22 @@ Referrence impl in tensorrt_llm: examples/llama/summarize.py.
 """
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
-import logging
 
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
+from tensorrt_llm.logger import logger
 from tensorrt_llm.runtime import ModelConfig, SamplingConfig
 from transformers import PreTrainedTokenizer
-from tensorrt_llm.logger import logger
 
 from .tensorrt_llm_build import get_engine_name, MODEL_NAME  # isort:skip
 
-from .nemo_utils import to_word_list_format # isort:skip
+from .nemo_utils import to_word_list_format  # isort:skip
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -95,7 +95,7 @@ def _read_config(config_path: Path):
         paged_kv_cache=paged_kv_cache,
         tokens_per_block=tokens_per_block,
         max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-        dtype="bfloat16" if paged_kv_cache else ""
+        dtype="bfloat16" if paged_kv_cache else "",
     )
 
     dtype = config["builder_config"]["precision"]
@@ -112,26 +112,21 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
 
         engine_dir = Path(engine_dir)
         config_path = engine_dir / "config.json"
-        model_config, world_size, tp_size, pp_size, \
-            dtype, max_input_len, max_batch_size = _read_config(config_path)
+        model_config, world_size, tp_size, pp_size, dtype, max_input_len, max_batch_size = _read_config(config_path)
 
         runtime_rank = tensorrt_llm.mpi_rank()
 
         assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
-        runtime_mapping = tensorrt_llm.Mapping(
-            world_size, runtime_rank, tp_size=tp_size, pp_size=pp_size)
+        runtime_mapping = tensorrt_llm.Mapping(world_size, runtime_rank, tp_size=tp_size, pp_size=pp_size)
 
         torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
-        engine_name = get_engine_name(
-            MODEL_NAME, dtype, tp_size, pp_size, runtime_rank)
+        engine_name = get_engine_name(MODEL_NAME, dtype, tp_size, pp_size, runtime_rank)
         serialize_path = os.path.join(engine_dir, engine_name)
         logger.info(f"Reading from serialize path {serialize_path}")
 
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
-        decoder = tensorrt_llm.runtime.GenerationSession(
-            model_config, engine_buffer, runtime_mapping, debug_mode=True
-        )
+        decoder = tensorrt_llm.runtime.GenerationSession(model_config, engine_buffer, runtime_mapping, debug_mode=True)
 
         sampling_config = SamplingConfig(
             end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams
@@ -150,19 +145,19 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
 
 
 def _forward(
-        input_tensors: List[torch.IntTensor],
-        max_output_len: int,
-        top_k: int = 1,
-        top_p: float = 0.0,
-        temperature: float = 1.0,
-        prompt_table=None,
-        task_vocab_size=None,
-        task_ids: List[int]=None,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        streaming: bool = False,
-        **sampling_kwargs,
+    input_tensors: List[torch.IntTensor],
+    max_output_len: int,
+    top_k: int = 1,
+    top_p: float = 0.0,
+    temperature: float = 1.0,
+    prompt_table=None,
+    task_vocab_size=None,
+    task_ids: List[int] = None,
+    stop_words_list=None,
+    bad_words_list=None,
+    no_repeat_ngram_size=None,
+    streaming: bool = False,
+    **sampling_kwargs,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
 
@@ -179,14 +174,10 @@ def _forward(
         max_input_len = tensorrt_llm_worker_context.max_input_len
 
         batch_size = len(input_tensors)
-        assert (
-            batch_size <= max_batch_size
-        ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+        assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
         input_lengths = [t.shape[0] for t in input_tensors]
         max_length = max(input_lengths)
-        assert (
-            max_length <= max_input_len
-        ), f"input length {max_length} exceedng max input length {max_input_len}"
+        assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
         pad_id = sampling_config.pad_id
 
         if decoder.remove_input_padding:
@@ -220,16 +211,22 @@ def _forward(
 
             if decoder.remove_input_padding:
                 if stop_words_list is not None:
-                    LOGGER.warning("stop_words_list should be set to None with remove_input_padding=True "
-                                  "and it will be ignored.")
+                    LOGGER.warning(
+                        "stop_words_list should be set to None with remove_input_padding=True "
+                        "and it will be ignored."
+                    )
 
                 if bad_words_list is not None:
-                    LOGGER.warning("bad_words_list should be set to None with remove_input_padding=True "
-                                  "and it will be ignored.")
+                    LOGGER.warning(
+                        "bad_words_list should be set to None with remove_input_padding=True "
+                        "and it will be ignored."
+                    )
 
                 if no_repeat_ngram_size is not None:
-                    LOGGER.warning("no_repeat_ngram_size should be set to None with remove_input_padding=True "
-                                  "and it will be ignored.")
+                    LOGGER.warning(
+                        "no_repeat_ngram_size should be set to None with remove_input_padding=True "
+                        "and it will be ignored."
+                    )
 
                 output_ids = decoder.decode_batch(line_encoded, sampling_config)
             else:
@@ -257,9 +254,7 @@ def _forward(
         raise e
 
 
-def load(
-    tokenizer: PreTrainedTokenizer, engine_dir: str, num_beams: int = 1
-) -> TensorrtLLMHostContext:
+def load(tokenizer: PreTrainedTokenizer, engine_dir: str, num_beams: int = 1) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 
     It also supports running the TRT LLM model on multi-GPU.
@@ -293,32 +288,28 @@ def load(
 
 
 def forward(
-        input_tensors: List[torch.IntTensor],
-        max_output_len: int,
-        host_context: TensorrtLLMHostContext,
-        top_k: int = 1,
-        top_p: float = 0.0,
-        temperature: float = 1.0,
-        prompt_table=None,
-        task_vocab_size=None,
-        task_ids: List[int]=None,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        streaming: bool = False,
-        **sampling_kwargs,
+    input_tensors: List[torch.IntTensor],
+    max_output_len: int,
+    host_context: TensorrtLLMHostContext,
+    top_k: int = 1,
+    top_p: float = 0.0,
+    temperature: float = 1.0,
+    prompt_table=None,
+    task_vocab_size=None,
+    task_ids: List[int] = None,
+    stop_words_list=None,
+    bad_words_list=None,
+    no_repeat_ngram_size=None,
+    streaming: bool = False,
+    **sampling_kwargs,
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
     batch_size = len(input_tensors)
     max_batch_size = host_context.max_batch_size
-    assert (
-        batch_size <= max_batch_size
-    ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+    assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
     max_length = max([t.shape[0] for t in input_tensors])
     max_input_len = host_context.max_input_len
-    assert (
-        max_length <= max_input_len
-    ), f"input length {max_length} exceedng max input length {max_input_len}"
+    assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
 
     world_size = host_context.world_size
     if world_size == 1:
@@ -335,7 +326,7 @@ def forward(
             bad_words_list=bad_words_list,
             no_repeat_ngram_size=no_repeat_ngram_size,
             streaming=streaming,
-            **sampling_kwargs
+            **sampling_kwargs,
         )
     else:
         executor = host_context.executor
@@ -355,7 +346,7 @@ def forward(
                 bad_words_list=bad_words_list,
                 no_repeat_ngram_size=no_repeat_ngram_size,
                 streaming=streaming,
-                **sampling_kwargs
+                **sampling_kwargs,
             )
             futures.append(future)
         for future in futures:
@@ -367,46 +358,45 @@ def forward(
 
 
 def generate(
-        input_texts: List[str],
-        max_output_len: int,
-        host_context: TensorrtLLMHostContext,
-        top_k: int = 1,
-        top_p: float = 0.0,
-        temperature: float = 1.0,
-        prompt_table=None,
-        task_vocab_size=None,
-        task_ids: List[int]=None,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        **sampling_kwargs,
+    input_texts: List[str],
+    max_output_len: int,
+    host_context: TensorrtLLMHostContext,
+    top_k: int = 1,
+    top_p: float = 0.0,
+    temperature: float = 1.0,
+    prompt_table=None,
+    task_vocab_size=None,
+    task_ids: List[int] = None,
+    stop_words_list=None,
+    bad_words_list=None,
+    no_repeat_ngram_size=None,
+    **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-    input_tensors = [
-        torch.IntTensor(
-            [tokenizer.bos_token_id] + tokenizer.encode(t)
-        ) for t in input_texts
-    ]
+    input_tensors = [torch.IntTensor([tokenizer.bos_token_id] + tokenizer.encode(t)) for t in input_texts]
 
     batch_size = len(input_texts)
 
     stop_words_list_tensors = None
     if stop_words_list is not None:
         stop_words_arrays = to_word_list_format(stop_words_list, tokenizer)
-        stop_words_list_tensors = torch.Tensor(stop_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+        stop_words_list_tensors = (
+            torch.Tensor(stop_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+        )
 
     bad_words_list_tensors = None
     if bad_words_list is not None:
         bad_words_arrays = to_word_list_format(bad_words_list, tokenizer)
-        bad_words_list_tensors = torch.Tensor(bad_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+        bad_words_list_tensors = (
+            torch.Tensor(bad_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+        )
 
     if no_repeat_ngram_size is not None:
-        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
-            torch.cuda.current_device())
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(torch.cuda.current_device())
 
     outputs = forward(
         input_tensors=input_tensors,
@@ -422,66 +412,58 @@ def generate(
         bad_words_list=bad_words_list_tensors,
         no_repeat_ngram_size=no_repeat_ngram_size,
         streaming=False,
-        **sampling_kwargs
+        **sampling_kwargs,
     )
     assert outputs is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
 
-    output_lines_list = [
-        tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
-        for b in range(outputs.shape[0])
-    ]
+    output_lines_list = [tokenizer.batch_decode(outputs[b, :, input_lengths[b] :]) for b in range(outputs.shape[0])]
     return output_lines_list
 
 
 def generate_streaming(
-        input_texts: List[str],
-        max_output_len: int,
-        host_context: TensorrtLLMHostContext,
-        top_k: int = 1,
-        top_p: float = 0.0,
-        temperature: float = 1.0,
-        prompt_table=None,
-        task_vocab_size=None,
-        task_ids: List[int]=None,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        **sampling_kwargs,
+    input_texts: List[str],
+    max_output_len: int,
+    host_context: TensorrtLLMHostContext,
+    top_k: int = 1,
+    top_p: float = 0.0,
+    temperature: float = 1.0,
+    prompt_table=None,
+    task_vocab_size=None,
+    task_ids: List[int] = None,
+    stop_words_list=None,
+    bad_words_list=None,
+    no_repeat_ngram_size=None,
+    **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
 
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-    input_tensors = [
-        torch.IntTensor(tokenizer.encode(t)) for t in input_texts
-    ]
+    input_tensors = [torch.IntTensor(tokenizer.encode(t)) for t in input_texts]
 
     batch_size = len(input_texts)
 
     stop_words_list_tensors = None
     if stop_words_list is not None:
-        stop_words_list_tensors = [
-            tokenizer.encode(t) for t in stop_words_list
-        ]
+        stop_words_list_tensors = [tokenizer.encode(t) for t in stop_words_list]
         stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
-        stop_words_list_tensors = stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
-            torch.cuda.current_device())
+        stop_words_list_tensors = (
+            stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(torch.cuda.current_device())
+        )
 
     bad_words_list_tensors = None
     if bad_words_list is not None:
-        bad_words_list_tensors = [
-            tokenizer.encode(t) for t in bad_words_list
-        ]
+        bad_words_list_tensors = [tokenizer.encode(t) for t in bad_words_list]
         bad_words_list_tensors = torch.IntTensor(bad_words_list_tensors)
-        bad_words_list_tensors = bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(
-            torch.cuda.current_device())
+        bad_words_list_tensors = (
+            bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(torch.cuda.current_device())
+        )
 
     if no_repeat_ngram_size is not None:
-        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
-            torch.cuda.current_device())
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(torch.cuda.current_device())
 
     outputs = forward(
         input_tensors=input_tensors,
@@ -497,7 +479,7 @@ def generate_streaming(
         bad_words_list=bad_words_list_tensors,
         no_repeat_ngram_size=no_repeat_ngram_size,
         streaming=True,
-        **sampling_kwargs
+        **sampling_kwargs,
     )
     assert outputs is not None
 
@@ -505,10 +487,10 @@ def generate_streaming(
 
     for cur_outputs in outputs:
         output_lines_list = [
-            tokenizer.batch_decode(cur_outputs[b, :, input_lengths[b] :])
-            for b in range(len(cur_outputs))
+            tokenizer.batch_decode(cur_outputs[b, :, input_lengths[b] :]) for b in range(len(cur_outputs))
         ]
         yield output_lines_list
+
 
 def unload(host_context: TensorrtLLMHostContext):
     """Frees the GPU resource from the TensorrtLLMHostContext and reset the host_context."""

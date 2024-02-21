@@ -12,30 +12,25 @@
 
 import configparser
 import logging
+import math
 import multiprocessing
 import os
 import shutil
 import typing
-import math
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import tensorstore  # this is important even though not used
 import torch
+import zarr
 from tensorrt_llm._utils import str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
-from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer, AutoTokenizer
-from .sentencepiece_tokenizer import SentencePieceTokenizer
+from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig, T5Tokenizer
 
-import tensorstore  # this is important even though not used
-import zarr
-
-from .convert import (
-    cpu_map_location,
-    gpu_map_location,
-    split_and_save_weight,
-)
+from .convert import cpu_map_location, gpu_map_location, split_and_save_weight
 from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
+from .sentencepiece_tokenizer import SentencePieceTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -140,9 +135,8 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
-        "split_gated_activation": nemo_model_config.get("activation", "gelu") in ["swiglu", "geglu"] and (
-            args.decoder_type == "gptnext" or is_mcore or is_fast_glu
-        ),
+        "split_gated_activation": nemo_model_config.get("activation", "gelu") in ["swiglu", "geglu"]
+        and (args.decoder_type == "gptnext" or is_mcore or is_fast_glu),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
         "use_attention_nemo_shape": True,
@@ -226,19 +220,13 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
         weights_dict[key] = model_level_weights[key]
     vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
-    tokenizer_config = update_tokenizer_paths(
-        nemo_model_config["tokenizer"], unpacked_checkpoints_dir
-    )
+    tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
     copy_tokenizer_files(tokenizer_config, out_dir)
     # AMMO modification.
     tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
     tokenizer = build_tokenizer(tokenizer_config)
     llm_config = nemo_to_llm_config(
-        nemo_model_config,
-        vocab_size,
-        tokenizer.eos_token_id,
-        tokenizer.bos_token_id,
-        args.decoder_type,
+        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id, args.decoder_type,
     )
 
     llm_config.is_mcore = is_mcore
@@ -314,9 +302,8 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
-        "split_gated_activation": nemo_model_config.get("activation", "gelu") in ["swiglu", "geglu"] and (
-                args.decoder_type == "gptnext" or is_mcore
-        ),
+        "split_gated_activation": nemo_model_config.get("activation", "gelu") in ["swiglu", "geglu"]
+        and (args.decoder_type == "gptnext" or is_mcore),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
         "kv_channels": kv_channels,
@@ -420,29 +407,25 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         weights_dict[key] = model_level_weights[key]
     vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
-    if nemo_model_config["tokenizer"].get("library", None)=="huggingface":
-        tokenizer = AutoTokenizer.from_pretrained(nemo_model_config["tokenizer"]["type"], use_fast=nemo_model_config["tokenizer"].get("use_fast", False))
-    else:
-        tokenizer_config = update_tokenizer_paths(
-            nemo_model_config["tokenizer"], unpacked_checkpoints_dir
+    if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
+        tokenizer = AutoTokenizer.from_pretrained(
+            nemo_model_config["tokenizer"]["type"], use_fast=nemo_model_config["tokenizer"].get("use_fast", False)
         )
+    else:
+        tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
         copy_tokenizer_files(tokenizer_config, out_dir)
         # AMMO modification.
         tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
         tokenizer = build_tokenizer(tokenizer_config)
 
     llm_config = nemo_to_llm_config(
-        nemo_model_config,
-        vocab_size,
-        tokenizer.eos_token_id,
-        tokenizer.bos_token_id,
-        args.decoder_type,
+        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id, args.decoder_type,
     )
 
     llm_config.is_mcore = is_mcore
 
     config = configparser.ConfigParser()
-    decoder_name_dict = {"llama": "llama", "falcon":"falcon"}
+    decoder_name_dict = {"llama": "llama", "falcon": "falcon"}
     model_name = decoder_name_dict[args.decoder_type] if args.decoder_type in decoder_name_dict else "gpt"
 
     config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}

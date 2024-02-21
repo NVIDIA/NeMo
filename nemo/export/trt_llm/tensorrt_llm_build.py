@@ -34,8 +34,7 @@ def get_engine_name(model, dtype, tp_size, pp_size, rank):
     """Returns the engine file name based on the provided info."""
     if pp_size == 1:
         return '{}_{}_tp{}_rank{}.engine'.format(model, dtype, tp_size, rank)
-    return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size,
-                                                  pp_size, rank)
+    return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size, pp_size, rank)
 
 
 def serialize_engine(engine, path):
@@ -50,11 +49,7 @@ def serialize_engine(engine, path):
 
 
 def build_rank_engine(
-    tensorrt_llm_gpt,
-    builder: Builder,
-    builder_config: tensorrt_llm.builder.BuilderConfig,
-    engine_name,
-    args,
+    tensorrt_llm_gpt, builder: Builder, builder_config: tensorrt_llm.builder.BuilderConfig, engine_name, args,
 ):
     """@brief: Build the engine on the given rank.
 
@@ -110,9 +105,7 @@ def build_rank_engine(
         if args.paged_kv_cache:
             network.plugin_config.enable_paged_kv_cache()
         if args.use_ib_gpt_attention_plugin:
-            network.plugin_config.set_inflight_batching_gpt_attention_plugin(
-                dtype=args.use_ib_gpt_attention_plugin
-            )
+            network.plugin_config.set_inflight_batching_gpt_attention_plugin(dtype=args.use_ib_gpt_attention_plugin)
         if args.enable_multi_block_mode:
             network.plugin_config.enable_mmha_multi_block_mode()
 
@@ -125,7 +118,7 @@ def build_rank_engine(
     if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
-    use_cache = True #args.paged_kv_cache
+    use_cache = True  # args.paged_kv_cache
 
     with net_guard(network):
         # Prepare
@@ -197,9 +190,7 @@ def _build_impl(tensorrt_llm_model, args):
     pp_size = args.mapping.pp_size
     rank = args.mapping.rank
     engine_name = get_engine_name(MODEL_NAME, args.dtype, tp_size, pp_size, rank)
-    engine = build_rank_engine(
-        tensorrt_llm_model, builder, builder_config, engine_name, args
-    )
+    engine = build_rank_engine(tensorrt_llm_model, builder, builder_config, engine_name, args)
     assert engine is not None, f"Failed to build engine for rank tp {tp_rank} pp {pp_rank}"
 
     if args.mapping.rank == 0:
@@ -274,11 +265,11 @@ def build(
     logger.set_level(args.log_level)
 
     assert not (
-            args.use_smooth_quant and args.use_weight_only
+        args.use_smooth_quant and args.use_weight_only
     ), "You cannot enable both SmoothQuant and INT8 weight-only together."
 
     assert not (
-            args.use_smooth_quant and args.use_weight_only
+        args.use_smooth_quant and args.use_weight_only
     ), "You cannot enable both SmoothQuant and INT8 weight-only together."
 
     if args.use_ib_gpt_attention_plugin:
@@ -288,9 +279,7 @@ def build(
         )
 
     if args.use_inflight_batching:
-        assert (
-            args.use_gpt_attention_plugin
-        ), "You have to use GPT attention plugin for in-flight batching mode"
+        assert args.use_gpt_attention_plugin, "You have to use GPT attention plugin for in-flight batching mode"
 
         if not args.paged_kv_cache:
             logger.warning("Paged kv cache feature will enabled for in-flight batching mode.")

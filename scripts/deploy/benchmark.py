@@ -16,19 +16,20 @@
 
 import argparse
 import json
-import sys, os
+import logging
+import os
+import sys
+import traceback
+from builtins import range
+from datetime import datetime
 from pathlib import Path
+
+import numpy as np
+import torch
+from cloud_telemetry_service import postToNVDataFlow
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
-from cloud_telemetry_service import postToNVDataFlow
-
-from builtins import range
-from datetime import datetime
-import numpy as np
-import torch
-import traceback
-import logging
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -76,18 +77,13 @@ def nemo_deploy(args):
         return None
 
     if args.nemo_checkpoint is not None and args.model_type is None:
-        LOGGER.error(
-            "Model type is required to be defined if a nemo checkpoint is provided."
-        )
+        LOGGER.error("Model type is required to be defined if a nemo checkpoint is provided.")
         return None
-
 
     ptuning_tables_files = []
     if not args.ptuning_nemo_checkpoint is None:
         if args.max_prompt_embedding_table_size is None:
-            LOGGER.error(
-                "max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s)."
-            )
+            LOGGER.error("max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s).")
             return None
 
         ptuning_nemo_checkpoint_path = Path(args.ptuning_nemo_checkpoint)
@@ -97,14 +93,10 @@ def nemo_deploy(args):
             elif ptuning_nemo_checkpoint_path.is_dir():
                 ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
             else:
-                LOGGER.error(
-                    "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
-                )
+                LOGGER.error("Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint))
                 return None
         else:
-            LOGGER.error(
-                "File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint)
-            )
+            LOGGER.error("File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint))
             return None
 
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
@@ -131,10 +123,11 @@ def nemo_deploy(args):
 
     try:
         for task, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
-            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task))
+            LOGGER.info(
+                "Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task)
+            )
             trt_llm_exporter.add_prompt_table(
-                task_name=str(task),
-                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                task_name=str(task), prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
         LOGGER.error("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
@@ -175,7 +168,7 @@ def get_inputs():
         128: [data["test_input_128"]],
         256: [data["test_input_256"]],
         512: [data["test_input_512"]],
-        2048: [data["test_input_2048"]]
+        2048: [data["test_input_2048"]],
     }
 
 
@@ -189,9 +182,11 @@ def perform_benchmark(args):
             for out_len in args.output_lens:
                 for batch_size in args.batch_size:
 
-                    LOGGER.info("Starting to get measurements for "
-                                "prompt len: {0}, output len {1}, and batch size "
-                                "{2}".format(prompt_len, out_len, batch_size))
+                    LOGGER.info(
+                        "Starting to get measurements for "
+                        "prompt len: {0}, output len {1}, and batch size "
+                        "{2}".format(prompt_len, out_len, batch_size)
+                    )
 
                     batch_size = int(batch_size)
                     inputs = prompt * batch_size
@@ -226,9 +221,11 @@ def perform_benchmark(args):
                         latency = round(latency, 3)
                         throughput = round(1000 / latency * batch_size, 3)
 
-                        LOGGER.info("Latency: {0} ms, and throughput: {1} prompts/sec, for "
-                                    "prompt len: {2}, output len: {3}, and batch size: "
-                                    "{4}.".format(latency, throughput, prompt_len, out_len, batch_size))
+                        LOGGER.info(
+                            "Latency: {0} ms, and throughput: {1} prompts/sec, for "
+                            "prompt len: {2}, output len: {3}, and batch size: "
+                            "{4}.".format(latency, throughput, prompt_len, out_len, batch_size)
+                        )
 
                         if args.ci_upload_test_results_to_cloud:
                             postToNVDataFlow({"latency": latency})
@@ -237,7 +234,7 @@ def perform_benchmark(args):
 
                     if args.out_jsonl:
                         measurement = {
-                            "failed":failed,
+                            "failed": failed,
                             "batch_size": batch_size,
                             "input_len": prompt_len,
                             "output_len": out_len,
@@ -248,8 +245,9 @@ def perform_benchmark(args):
                             "n_gpus": args.num_gpus,
                             "device": torch.cuda.get_device_name(),
                             "device_properties": str(torch.cuda.get_device_properties(0)),
-                            "full_args":vars(args),
+                            "full_args": vars(args),
                         }
+
                         def custom_serializer(obj):
                             try:
                                 return json.JSONEncoder().default(obj)
@@ -266,17 +264,9 @@ def get_args(argv):
         description=f"Deploy nemo models to Triton and benchmark the models",
     )
 
+    parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
     parser.add_argument(
-        "-nc",
-        "--nemo_checkpoint",
-        type=str,
-        help="Source .nemo file"
-    )
-    parser.add_argument(
-        "-pnc",
-        "--ptuning_nemo_checkpoint",
-        type=str,
-        help="Source .nemo file for prompt embeddings table"
+        "-pnc", "--ptuning_nemo_checkpoint", type=str, help="Source .nemo file for prompt embeddings table"
     )
     parser.add_argument(
         "-mt",
@@ -285,62 +275,22 @@ def get_args(argv):
         required=False,
         choices=["gptnext", "gpt", "llama", "falcon", "starcoder", "gemma"],
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
-             " gptnext and gpt are the same and keeping it for backward compatibility"
+        " gptnext and gpt are the same and keeping it for backward compatibility",
+    )
+    parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
+    parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
+    parser.add_argument(
+        "-tp", "--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
     )
     parser.add_argument(
-        "-tmn",
-        "--triton_model_name",
-        required=True,
-        type=str,
-        help="Name for the service"
+        "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
     )
     parser.add_argument(
-        "-tmv",
-        "--triton_model_version",
-        default=1,
-        type=int,
-        help="Version for the service"
+        "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
-    parser.add_argument(
-        "-tp",
-        "--triton_port",
-        default=8000,
-        type=int,
-        help="Port for the Triton server to listen for requests"
-    )
-    parser.add_argument(
-        "-tha",
-        "--triton_http_address",
-        default="0.0.0.0",
-        type=str,
-        help="HTTP address for the Triton server"
-    )
-    parser.add_argument(
-        "-tmr",
-        "--triton_model_repository",
-        default=None,
-        type=str,
-        help="Folder for the trt-llm conversion"
-    )
-    parser.add_argument(
-        "-ng",
-        "--num_gpus",
-        default=1,
-        type=int,
-        help="Number of GPUs for the deployment"
-    )
-    parser.add_argument(
-        "-tps",
-        "--tensor_parallelism_size",
-        type=int,
-        help="Tensor parallelism size"
-    )
-    parser.add_argument(
-        "-pps",
-        "--pipeline_parallelism_size",
-        type=int,
-        help="Pipeline parallelism size"
-    )
+    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -349,58 +299,25 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
+    parser.add_argument("-mil", "--max_input_len", default=512, type=int, help="Max input length of the model")
+    parser.add_argument("-mol", "--max_output_len", default=512, type=int, help="Max output length of the model")
+    parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument(
-        "-mil",
-        "--max_input_len",
-        default=512,
-        type=int,
-        help="Max input length of the model"
+        "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
     parser.add_argument(
-        "-mol",
-        "--max_output_len",
-        default=512,
-        type=int,
-        help="Max output length of the model"
+        '-w', '--warm_up', action="store_true", required=False, default=False, help='Enable warm_up before benchmark'
     )
     parser.add_argument(
-        "-mbs",
-        "--max_batch_size",
-        default=8,
-        type=int,
-        help="Max batch size of the model"
-    )
-    parser.add_argument(
-        "-mpet",
-        "--max_prompt_embedding_table_size",
-        default=None,
-        type=int,
-        help="Max prompt embedding table size"
-    )
-    parser.add_argument(
-        '-w',
-        '--warm_up',
-        action="store_true",
-        required=False,
-        default=False,
-        help='Enable warm_up before benchmark'
-    )
-    parser.add_argument(
-        '-bs',
-        '--batch_size',
-        nargs='+',
-        default=["1", "2", "4", "8"],
-        required=False,
-        help='Specify batch size'
+        '-bs', '--batch_size', nargs='+', default=["1", "2", "4", "8"], required=False, help='Specify batch size'
     )
     parser.add_argument(
         "-mbm",
         '--multi_block_mode',
         default=False,
         action='store_true',
-        help=
-        'Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
-                        It is beneifical when batchxnum_heads cannot fully utilize GPU.'
+        help='Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU.',
     )
     parser.add_argument(
         '-ol',
@@ -409,16 +326,9 @@ def get_args(argv):
         default=[20, 100, 200, 300],
         type=int,
         required=False,
-        help='Lengths of outputs'
+        help='Lengths of outputs',
     )
-    parser.add_argument(
-        '-nr',
-        '--num_runs',
-        type=int,
-        default=8,
-        required=False,
-        help='Specify input length'
-    )
+    parser.add_argument('-nr', '--num_runs', type=int, default=8, required=False, help='Specify input length')
     parser.add_argument(
         '-rt',
         '--run_trt_llm',
@@ -426,20 +336,16 @@ def get_args(argv):
         type=int,
         default=0,
         required=False,
-        help='Run TRT-LLM without PyTriton'
+        help='Run TRT-LLM without PyTriton',
     )
-    parser.add_argument(
-        '--out_jsonl',
-        type=argparse.FileType('w'),
-        required=False
-    )
+    parser.add_argument('--out_jsonl', type=argparse.FileType('w'), required=False)
     parser.add_argument(
         '-ci',
         '--ci_upload_test_results_to_cloud',
         action="store_true",
         required=False,
         default=False,
-        help='Post telemetry service data for ci runs'
+        help='Post telemetry service data for ci runs',
     )
 
     args = parser.parse_args(argv)
@@ -450,9 +356,11 @@ if __name__ == '__main__':
     args = get_args(sys.argv[1:])
 
     if args.max_output_len < args.output_lens[-1]:
-        raise Exception("max_output_len is set to {0} and cannot be lower "
-                        "than the max value in output_lens which is "
-                        "{1}".format(args.max_output_len, args.output_lens[-1]))
+        raise Exception(
+            "max_output_len is set to {0} and cannot be lower "
+            "than the max value in output_lens which is "
+            "{1}".format(args.max_output_len, args.output_lens[-1])
+        )
 
     nm = nemo_deploy(args)
 
@@ -472,4 +380,3 @@ if __name__ == '__main__':
             LOGGER.error("Model could not be stopped properly.")
             LOGGER.error(repr(e))
             LOGGER.error(traceback.format_exc())
-

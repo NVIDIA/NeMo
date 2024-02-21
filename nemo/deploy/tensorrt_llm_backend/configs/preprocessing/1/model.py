@@ -83,9 +83,7 @@ class TritonPythonModel:
                 self,
                 input_name.lower() + "_dtype",
                 pb_utils.triton_string_to_numpy(
-                    pb_utils.get_output_config_by_name(model_config, input_name)[
-                        "data_type"
-                    ]
+                    pb_utils.get_output_config_by_name(model_config, input_name)["data_type"]
                 ),
             )
 
@@ -118,24 +116,17 @@ class TritonPythonModel:
         for request in requests:
             # Get input tensors
             query = pb_utils.get_input_tensor_by_name(request, "QUERY").as_numpy()
-            request_output_len = pb_utils.get_input_tensor_by_name(
-                request, "REQUEST_OUTPUT_LEN"
-            ).as_numpy()
+            request_output_len = pb_utils.get_input_tensor_by_name(request, "REQUEST_OUTPUT_LEN").as_numpy()
 
             input_id, request_input_len = self._create_request(query)
 
             # Create output tensors. You need pb_utils.Tensor
             # objects to create pb_utils.InferenceResponse.
-            input_id_tensor = pb_utils.Tensor(
-                "INPUT_ID", np.array(input_id).astype(self.input_id_dtype)
-            )
+            input_id_tensor = pb_utils.Tensor("INPUT_ID", np.array(input_id).astype(self.input_id_dtype))
             request_input_len_tensor = pb_utils.Tensor(
-                "REQUEST_INPUT_LEN",
-                np.array(request_input_len).astype(self.request_input_len_dtype),
+                "REQUEST_INPUT_LEN", np.array(request_input_len).astype(self.request_input_len_dtype),
             )
-            request_output_len_tensor = pb_utils.Tensor(
-                "REQUEST_OUTPUT_LEN", request_output_len
-            )
+            request_output_len_tensor = pb_utils.Tensor("REQUEST_OUTPUT_LEN", request_output_len)
 
             # Create InferenceResponse. You can set an error here in case
             # there was a problem with handling this inference request.
@@ -145,11 +136,7 @@ class TritonPythonModel:
             # pb_utils.InferenceResponse(
             #    output_tensors=..., TritonError("An error occurred"))
             inference_response = pb_utils.InferenceResponse(
-                output_tensors=[
-                    input_id_tensor,
-                    request_input_len_tensor,
-                    request_output_len_tensor,
-                ]
+                output_tensors=[input_id_tensor, request_input_len_tensor, request_output_len_tensor,]
             )
             responses.append(inference_response)
 
@@ -169,10 +156,7 @@ class TritonPythonModel:
         prompts : batch string (2D numpy array)
         """
 
-        start_ids = [
-            torch.IntTensor(self.encoder.encode(prompt[0].decode()))
-            for prompt in prompts
-        ]
+        start_ids = [torch.IntTensor(self.encoder.encode(prompt[0].decode())) for prompt in prompts]
 
         start_lengths = torch.IntTensor([[len(ids)] for ids in start_ids])
 

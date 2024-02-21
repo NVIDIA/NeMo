@@ -16,8 +16,8 @@ import argparse
 import sys
 import typing
 
-from pytriton.client import ModelClient, DecoupledModelClient
 import numpy as np
+from pytriton.client import DecoupledModelClient, ModelClient
 
 
 def get_args(argv):
@@ -25,93 +25,21 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Exports nemo models stored in nemo checkpoints to TensorRT-LLM",
     )
+    parser.add_argument("-u", "--url", default="0.0.0.0", type=str, help="url for the triton server")
+    parser.add_argument("-mn", "--model_name", required=True, type=str, help="Name of the triton model")
+    parser.add_argument("-p", "--prompt", required=True, type=str, help="Prompt")
+    parser.add_argument("-swl", "--stop_words_list", type=str, help="Stop words list")
+    parser.add_argument("-bwl", "--bad_words_list", type=str, help="Bad words list")
+    parser.add_argument("-nrns", "--no_repeat_ngram_size", type=int, help="No repeat ngram size")
+    parser.add_argument("-mot", "--max_output_token", default=128, type=int, help="Max output token length")
+    parser.add_argument("-tk", "--top_k", default=1, type=int, help="top_k")
+    parser.add_argument("-tp", "--top_p", default=0.0, type=float, help="top_p")
+    parser.add_argument("-t", "--temperature", default=1.0, type=float, help="temperature")
+    parser.add_argument("-ti", "--task_id", type=str, help="Task id for the prompt embedding tables")
     parser.add_argument(
-        "-u",
-        "--url",
-        default="0.0.0.0",
-        type=str,
-        help="url for the triton server"
+        "-es", '--enable_streaming', default=False, action='store_true', help="Enables streaming sentences."
     )
-    parser.add_argument(
-        "-mn",
-        "--model_name",
-        required=True,
-        type=str,
-        help="Name of the triton model"
-    )
-    parser.add_argument(
-        "-p",
-        "--prompt",
-        required=True,
-        type=str,
-        help="Prompt"
-    )
-    parser.add_argument(
-        "-swl",
-        "--stop_words_list",
-        type=str,
-        help="Stop words list"
-    )
-    parser.add_argument(
-        "-bwl",
-        "--bad_words_list",
-        type=str,
-        help="Bad words list"
-    )
-    parser.add_argument(
-        "-nrns",
-        "--no_repeat_ngram_size",
-        type=int,
-        help="No repeat ngram size"
-    )
-    parser.add_argument(
-        "-mot",
-        "--max_output_token",
-        default=128,
-        type=int,
-        help="Max output token length"
-    )
-    parser.add_argument(
-        "-tk",
-        "--top_k",
-        default=1,
-        type=int,
-        help="top_k"
-    )
-    parser.add_argument(
-        "-tp",
-        "--top_p",
-        default=0.0,
-        type=float,
-        help="top_p"
-    )
-    parser.add_argument(
-        "-t",
-        "--temperature",
-        default=1.0,
-        type=float,
-        help="temperature"
-    )
-    parser.add_argument(
-        "-ti",
-        "--task_id",
-        type=str,
-        help="Task id for the prompt embedding tables"
-    )
-    parser.add_argument(
-        "-es",
-        '--enable_streaming',
-        default=False,
-        action='store_true',
-        help="Enables streaming sentences."
-    )
-    parser.add_argument(
-        "-it",
-        "--init_timeout",
-        default=60.0,
-        type=float,
-        help="init timeout for the triton server"
-    )
+    parser.add_argument("-it", "--init_timeout", default=60.0, type=float, help="init timeout for the triton server")
 
     args = parser.parse_args(argv)
     return args
@@ -123,19 +51,19 @@ def str_list2numpy(str_list: typing.List[str]) -> np.ndarray:
 
 
 def query_llm(
-        url,
-        model_name,
-        prompts,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        max_output_token=128,
-        top_k=1,
-        top_p=0.0,
-        temperature=1.0,
-        random_seed=None,
-        task_id=None,
-        init_timeout=60.0
+    url,
+    model_name,
+    prompts,
+    stop_words_list=None,
+    bad_words_list=None,
+    no_repeat_ngram_size=None,
+    max_output_token=128,
+    top_k=1,
+    top_p=0.0,
+    temperature=1.0,
+    random_seed=None,
+    task_id=None,
+    init_timeout=60.0,
 ):
     prompts = str_list2numpy(prompts)
     inputs = {"prompts": prompts}
@@ -182,19 +110,19 @@ def query_llm(
 
 
 def query_llm_streaming(
-        url,
-        model_name,
-        prompts,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        max_output_token=512,
-        top_k=1,
-        top_p=0.0,
-        temperature=1.0,
-        random_seed=None,
-        task_id=None,
-        init_timeout=60.0,
+    url,
+    model_name,
+    prompts,
+    stop_words_list=None,
+    bad_words_list=None,
+    no_repeat_ngram_size=None,
+    max_output_token=512,
+    top_k=1,
+    top_p=0.0,
+    temperature=1.0,
+    random_seed=None,
+    task_id=None,
+    init_timeout=60.0,
 ):
     prompts = str_list2numpy(prompts)
     inputs = {"prompts": prompts}

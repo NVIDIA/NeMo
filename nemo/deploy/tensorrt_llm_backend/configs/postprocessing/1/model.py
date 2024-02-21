@@ -43,9 +43,7 @@ class TritonPythonModel:
         self.output_dtype = pb_utils.triton_string_to_numpy(output_config["data_type"])
 
         self.tokenizer = LlamaTokenizer.from_pretrained(TOKENIZER_DIR, legacy=False)
-        vocab = self.tokenizer.convert_ids_to_tokens(
-            list(range(self.tokenizer.vocab_size))
-        )
+        vocab = self.tokenizer.convert_ids_to_tokens(list(range(self.tokenizer.vocab_size)))
 
     def execute(self, requests):
         """`execute` must be implemented in every Python model. `execute`
@@ -73,9 +71,7 @@ class TritonPythonModel:
         # and create a pb_utils.InferenceResponse for each of them.
         for request in requests:
             # Get input tensors
-            tokens_batch = pb_utils.get_input_tensor_by_name(
-                request, "TOKENS_BATCH"
-            ).as_numpy()
+            tokens_batch = pb_utils.get_input_tensor_by_name(request, "TOKENS_BATCH").as_numpy()
 
             # Reshape Input
             # tokens_batch = tokens_batch.reshape([-1, tokens_batch.shape[0]])
@@ -86,9 +82,7 @@ class TritonPythonModel:
 
             # Create output tensors. You need pb_utils.Tensor
             # objects to create pb_utils.InferenceResponse.
-            output_tensor = pb_utils.Tensor(
-                "OUTPUT", np.array(outputs).astype(self.output_dtype)
-            )
+            output_tensor = pb_utils.Tensor("OUTPUT", np.array(outputs).astype(self.output_dtype))
 
             # Create InferenceResponse. You can set an error here in case
             # there was a problem with handling this inference request.
@@ -97,9 +91,7 @@ class TritonPythonModel:
             #
             # pb_utils.InferenceResponse(
             #    output_tensors=..., TritonError("An error occurred"))
-            inference_response = pb_utils.InferenceResponse(
-                output_tensors=[output_tensor]
-            )
+            inference_response = pb_utils.InferenceResponse(output_tensors=[output_tensor])
             responses.append(inference_response)
 
         # You should return a list of pb_utils.InferenceResponse. Length

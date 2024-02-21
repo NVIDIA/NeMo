@@ -77,9 +77,7 @@ def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):
     """
     # compute weight scaling factors for fp->int8 and int8->fp
     if is_qkv and not multi_query_mode:
-        scale_w_orig_quant_t = (
-            127.0 / act_range["w"].reshape(3, -1).max(dim=-1, keepdims=True)[0].cpu().numpy()
-        )
+        scale_w_orig_quant_t = 127.0 / act_range["w"].reshape(3, -1).max(dim=-1, keepdims=True)[0].cpu().numpy()
         scale_w_orig_quant_c = 127.0 / act_range["w"].reshape(3, -1).cpu().numpy()
     elif is_qkv and multi_query_mode:
         raise ValueError("Multi-query w/ int8 quant has not been supported yet")
@@ -162,9 +160,7 @@ def write_int8(vals, dir, base_key, split_dim, tp_rank, split_factor, kv_cache_o
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
 # are not split as there is only one head per key/value.
 @torch.no_grad()
-def split_and_save_weight(
-    tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config
-):
+def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_type, act_range, config):
     use_attention_nemo_shape = config.get("use_attention_nemo_shape", False)
     split_gated_activation = config.get("split_gated_activation", False)
     num_attention_heads = config.get("num_attention_heads", 0)
@@ -207,7 +203,7 @@ def split_and_save_weight(
         if "post_self_attn_layernorm.weight" in key:
             key = key.replace("post_self_attn_layernorm.weight", "post_attention_layernorm.weight")
         elif "mlp.linear_fc2.bias" in key:
-            key =  key.replace("mlp.linear_fc2.bias", "mlp.dense_4h_to_h.bias")
+            key = key.replace("mlp.linear_fc2.bias", "mlp.dense_4h_to_h.bias")
         elif "attention.linear_proj.bias" in key:
             key = key.replace("attention.linear_proj.bias", "attention.dense.bias")
         if tp_rank == 0:
@@ -324,7 +320,17 @@ def split_and_save_weight(
         v_split = np.split(qkv[2], split_factor, axis=1)
 
         # Concatenate Q, K, and V together
-        split_vals = [np.concatenate([q_split[i].reshape(hidden_dim, -1), k_split[i].reshape(hidden_dim, -1), v_split[i].reshape(hidden_dim, -1)], axis=1) for i in range(split_factor)]
+        split_vals = [
+            np.concatenate(
+                [
+                    q_split[i].reshape(hidden_dim, -1),
+                    k_split[i].reshape(hidden_dim, -1),
+                    v_split[i].reshape(hidden_dim, -1),
+                ],
+                axis=1,
+            )
+            for i in range(split_factor)
+        ]
 
         if "attention.linear_qkv.weight" in key:
             key = key.replace("attention.linear_qkv.weight", "attention.query_key_value.weight")

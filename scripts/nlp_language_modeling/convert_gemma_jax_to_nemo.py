@@ -36,25 +36,42 @@ def create_rename_keys(num_hidden_layers):
     rename_keys = []
     for i in range(num_hidden_layers):
         # Attention layers
-        rename_keys.extend([
-            (f"transformer.layer_{i}.attn.attn_vec_einsum.w",
-             f"model.decoder.layers.{i}.self_attention.linear_proj.weight"),
-            (f"transformer.layer_{i}.attn.qkv_einsum.w", f"model.decoder.layers.{i}.self_attention.linear_qkv.weight"),
-            (f"transformer.layer_{i}.attn.kv_einsum.w", f"model.decoder.layers.{i}.self_attention.linear_kv.weight"),
-            (f"transformer.layer_{i}.attn.q_einsum.w", f"model.decoder.layers.{i}.self_attention.linear_q.weight"),
-            # MLP and LayerNorm
-            (f"transformer.layer_{i}.mlp.gating_einsum", f"model.decoder.layers.{i}.mlp.linear_fc1.weight"),
-            (f"transformer.layer_{i}.mlp.linear", f"model.decoder.layers.{i}.mlp.linear_fc2.weight"),
-            (f"transformer.layer_{i}.pre_attention_norm.scale",
-             f"model.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight"),
-            (f"transformer.layer_{i}.pre_ffw_norm.scale", f"model.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight"),
-        ])
+        rename_keys.extend(
+            [
+                (
+                    f"transformer.layer_{i}.attn.attn_vec_einsum.w",
+                    f"model.decoder.layers.{i}.self_attention.linear_proj.weight",
+                ),
+                (
+                    f"transformer.layer_{i}.attn.qkv_einsum.w",
+                    f"model.decoder.layers.{i}.self_attention.linear_qkv.weight",
+                ),
+                (
+                    f"transformer.layer_{i}.attn.kv_einsum.w",
+                    f"model.decoder.layers.{i}.self_attention.linear_kv.weight",
+                ),
+                (f"transformer.layer_{i}.attn.q_einsum.w", f"model.decoder.layers.{i}.self_attention.linear_q.weight"),
+                # MLP and LayerNorm
+                (f"transformer.layer_{i}.mlp.gating_einsum", f"model.decoder.layers.{i}.mlp.linear_fc1.weight"),
+                (f"transformer.layer_{i}.mlp.linear", f"model.decoder.layers.{i}.mlp.linear_fc2.weight"),
+                (
+                    f"transformer.layer_{i}.pre_attention_norm.scale",
+                    f"model.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight",
+                ),
+                (
+                    f"transformer.layer_{i}.pre_ffw_norm.scale",
+                    f"model.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight",
+                ),
+            ]
+        )
 
     # Non layer dependent keys
-    rename_keys.extend([
-        ("transformer.embedder.input_embedding", "model.embedding.word_embeddings.weight"),
-        ("transformer.final_norm.scale", "model.decoder.final_layernorm.weight"),
-    ])
+    rename_keys.extend(
+        [
+            ("transformer.embedder.input_embedding", "model.embedding.word_embeddings.weight"),
+            ("transformer.final_norm.scale", "model.decoder.final_layernorm.weight"),
+        ]
+    )
 
     return rename_keys
 
@@ -113,7 +130,7 @@ def adjust_tensor_shapes(model, nemo_state_dict):
         if 'mlp.linear_fc2.weight' in key_:
             nemo_state_dict[key_] = nemo_state_dict[key_].transpose(0, 1)
         if 'layernorm.weight' in key_ or 'layer_norm_weight' in key_:
-            nemo_state_dict[key_] = nemo_state_dict[key_] + 1.
+            nemo_state_dict[key_] = nemo_state_dict[key_] + 1.0
         if 'self_attention.linear_qkv.weight' in key_:
             weight_qkv = nemo_state_dict[key_]
             # [3, head_num, hidden_dim, head_size] -> [head_num, 3, head_dim, hidden_dim] -> [-1, hidden_dim]
@@ -135,9 +152,9 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
             qkv_weight = torch.empty((0, head_size, hidden_size), device=q_weight.device)
             for i in range(num_query_groups):
-                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group: (i + 1) * heads_per_group, :, :]))
-                qkv_weight = torch.cat((qkv_weight, k_weight[i: i + 1, :, :]))
-                qkv_weight = torch.cat((qkv_weight, v_weight[i: i + 1, :, :]))
+                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+                qkv_weight = torch.cat((qkv_weight, k_weight[i : i + 1, :, :]))
+                qkv_weight = torch.cat((qkv_weight, v_weight[i : i + 1, :, :]))
             qkv_weight = qkv_weight.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
             nemo_state_dict[key_qkv] = qkv_weight
             del nemo_state_dict[key_q], nemo_state_dict[key_kv]
@@ -163,8 +180,9 @@ def get_args():
     parser.add_argument(
         "--hparams_file",
         type=str,
-        default=os.path.join(os.path.dirname(__file__),
-                             '../../examples/nlp/language_modeling/conf/megatron_gemma_config.yaml'),
+        default=os.path.join(
+            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gemma_config.yaml'
+        ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )

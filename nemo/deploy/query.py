@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent.futures
 import logging
 import typing
 from abc import ABC, abstractmethod
 
 import numpy as np
-from pytriton.client import ModelClient
-from pytriton.client import DecoupledModelClient
+from pytriton.client import DecoupledModelClient, ModelClient
+
 from .tensorrt_llm_backend.client import HttpTritonClient
 from .utils import str_list2numpy
-import concurrent.futures
-
 
 use_pytriton = True
 try:
@@ -44,20 +43,21 @@ class NemoQueryBase(ABC):
 
     @abstractmethod
     def query_llm(
-            self,
-            prompts,
-            stop_words_list=None,
-            bad_words_list=None,
-            no_repeat_ngram_size=None,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            random_seed=None,
-            task_id=None,
-            init_timeout=60.0
+        self,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        init_timeout=60.0,
     ):
         pass
+
 
 class NemoQuery(NemoQueryBase):
     """
@@ -81,23 +81,22 @@ class NemoQuery(NemoQueryBase):
 
     def __init__(self, url, model_name):
         super().__init__(
-            url=url,
-            model_name=model_name,
+            url=url, model_name=model_name,
         )
 
     def query_llm(
-            self,
-            prompts,
-            stop_words_list=None,
-            bad_words_list=None,
-            no_repeat_ngram_size=None,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            random_seed=None,
-            task_id=None,
-            init_timeout=60.0,
+        self,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        init_timeout=60.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -149,7 +148,7 @@ class NemoQuery(NemoQueryBase):
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
-            
+
             if output_type == np.bytes_:
                 sentences = np.char.decode(result_dict["outputs"].astype("bytes"), "utf-8")
                 return sentences
@@ -157,18 +156,18 @@ class NemoQuery(NemoQueryBase):
                 return result_dict["outputs"]
 
     def query_llm_streaming(
-            self,
-            prompts,
-            stop_words_list=None,
-            bad_words_list=None,
-            no_repeat_ngram_size=None,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            random_seed=None,
-            task_id=None,
-            init_timeout=60.0,
+        self,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        init_timeout=60.0,
     ):
         """
         Query triton server using streaming
@@ -231,81 +230,62 @@ class NemoQuery(NemoQueryBase):
 
 
 class NemoQueryTensorRTLLM(NemoQueryBase):
-
     def __init__(self, url, model_name):
         super().__init__(
-            url=url,
-            model_name=model_name,
+            url=url, model_name=model_name,
         )
-        
-    def _single_query(self,
-                      prompt, max_output_token=512,
-                      top_k=1,
-                      top_p=0.0,
-                      temperature=1.0):
+
+    def _single_query(self, prompt, max_output_token=512, top_k=1, top_p=0.0, temperature=1.0):
         client = HttpTritonClient(self.url)
         pload = {
-            'prompt': [[prompt]], 
+            'prompt': [[prompt]],
             'tokens': max_output_token,
-            'temperature':temperature,
+            'temperature': temperature,
             'top_k': top_k,
             'top_p': top_p,
-            'beam_width':1,
-            'repetition_penalty':1.0,
-            'length_penalty':1.0
+            'beam_width': 1,
+            'repetition_penalty': 1.0,
+            'length_penalty': 1.0,
         }
         result = client.request(self.model_name, **pload)
         return result
 
     def query_llm(
-            self,
-            prompts,
-            stop_words_list=None,
-            bad_words_list=None,
-            no_repeat_ngram_size=None,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            random_seed=None,
-            task_id=None,
-            init_timeout=60.0
+        self,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        init_timeout=60.0,
     ):
 
         results = []
         for prompt in prompts:
-            result = self._single_query(prompt, max_output_token,
-                                        top_k=1,
-                                        top_p=0.0,
-                                        temperature=1.0,)
+            result = self._single_query(prompt, max_output_token, top_k=1, top_p=0.0, temperature=1.0,)
             results.append(result)
         return results
 
-    def query_llm_async(
-            self,
-            prompts,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            num_threads = 12
-    ):
+    def query_llm_async(self, prompts, max_output_token=512, top_k=1, top_p=0.0, temperature=1.0, num_threads=12):
         results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-            future_to_prompt = {executor.submit(self._single_query, prompt, max_output_token,
-                                             top_k,
-                                             top_p,
-                                             temperature): prompt for prompt in prompts}
+            future_to_prompt = {
+                executor.submit(self._single_query, prompt, max_output_token, top_k, top_p, temperature): prompt
+                for prompt in prompts
+            }
             for future in concurrent.futures.as_completed(future_to_prompt):
                 prompt = future_to_prompt[future]
                 try:
                     result = future.result()
                     results.append(result)
                 except Exception as e:
-                    logging.error(
-                        f"Could not run inference for prompt: - {prompt}")
+                    logging.error(f"Could not run inference for prompt: - {prompt}")
                     results.append(None)
 
                 print(len(results))
         return results
-            

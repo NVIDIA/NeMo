@@ -14,20 +14,20 @@ import argparse
 import ast
 import configparser
 import copy
+import csv
 import datetime
 import logging
 import os
 import sys
 import tempfile
-from pathlib import Path
 import typing
+from pathlib import Path
 from typing import Dict, List, Tuple
 
-import csv
 import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
-from transformers import GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer, AutoTokenizer
+from transformers import AutoTokenizer, GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
 from .model_config import (
     LAYERNORM_DEFAULT,
@@ -81,9 +81,7 @@ def _nemo_decode(
             start_time = datetime.datetime.now()
             checkpoint_dir_path = temp_dir / "unpacked"
             nemo_dir = unpack_nemo_ckpt(args.in_file, checkpoint_dir_path)
-            LOGGER.info(
-                "Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time
-            )
+            LOGGER.info("Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time)
 
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(
             nemo_dir, load_checkpoints_to_cpu=not args.load_checkpoints_on_gpu
@@ -122,19 +120,15 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
         return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
 
-    model_path = (
-        tokenizer_dir_or_path / "tokenizer.model"
-        if tokenizer_dir_or_path.is_dir()
-        else tokenizer_dir_or_path
-    )
+    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
     tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
     return build_tokenizer(tokenizer_config)
 
 
 def nemo_to_model_config(
-    in_file: str, 
-    decoder_type: str, 
-    nemo_export_dir: typing.Union[str, Path], 
+    in_file: str,
+    decoder_type: str,
+    nemo_export_dir: typing.Union[str, Path],
     dtype: str = "bfloat16",
     tensor_parallel_size: int = 1,
     pipeline_parallel_size: int = 1,
@@ -152,7 +146,7 @@ def nemo_to_model_config(
         decoder_type=decoder_type,
     )
 
-    world_size = tensor_parallel_size*pipeline_parallel_size
+    world_size = tensor_parallel_size * pipeline_parallel_size
     model_config_template = ModelConfig()
     model_config_template.dtype = dtype_str
 
@@ -160,12 +154,10 @@ def nemo_to_model_config(
 
     model_configs = []
     for i in range(world_size):
-        
+
         model_configs.append(copy.deepcopy(model_config_template))
 
-        model_configs[i].vocab_embedding = EmbeddingConfig(
-            weight=get_tensor_from_dict(weights_dict, "wte")
-        )
+        model_configs[i].vocab_embedding = EmbeddingConfig(weight=get_tensor_from_dict(weights_dict, "wte"))
 
         model_configs[i].final_layernorm = LayernormConfig(
             weight=get_tensor_from_dict(weights_dict, "final_layernorm.weight"),
@@ -175,10 +167,8 @@ def nemo_to_model_config(
             LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
         model_configs[i].mapping = tensorrt_llm.Mapping(
-            world_size=world_size, 
-            rank=i, 
-            tp_size=tensor_parallel_size, 
-            pp_size=pipeline_parallel_size)
+            world_size=world_size, rank=i, tp_size=tensor_parallel_size, pp_size=pipeline_parallel_size
+        )
 
     for i in range(llm_model_config.n_layer):
         for j in range(world_size):
@@ -197,9 +187,7 @@ def nemo_to_model_config(
 
     if model_configs[0].vocab_size_padded != model_configs[0].vocab_size:
         pad_width = model_configs[0].vocab_size_padded - model_configs[0].vocab_size
-        lm_head_weight = np.pad(
-            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
-        )
+        lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
     for i in range(world_size):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
@@ -209,8 +197,8 @@ def nemo_to_model_config(
 
     return model_configs, tokenizer
 
-def to_word_list_format(word_dict: List[List[str]],
-                        tokenizer=None):
+
+def to_word_list_format(word_dict: List[List[str]], tokenizer=None):
     '''
     format of word_dict
         len(word_dict) should be same to batch_size
