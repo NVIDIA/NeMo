@@ -196,7 +196,7 @@ def _multi_audio_text_collate_fn(
     batch = _audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
 
     # add multi audio specific fields
-    batch['context_start_idx'] = context_start_idx
+    batch['context_start_idx'] = list(context_start_idx)
     batch['num_audios'] = torch.LongTensor(num_audios)
     batch['audio_signal'] = audio_signals_merged
     batch['audio_signal_length'] = audio_lengths_merged

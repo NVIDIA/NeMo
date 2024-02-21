@@ -238,7 +238,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 encoder_input_i.append(input_emb_list[j])
             encoder_input_i = torch.cat(encoder_input_i)  # T, C
             encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
-            max_length = max(max_length, encoder_length_i)
+            max_length = max(max_length, encoder_input_i.size(0))
             encoder_input_list.append(encoder_input_i)
             encoder_length_list.append(encoder_length_i)
 
