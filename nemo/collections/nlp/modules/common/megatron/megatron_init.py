@@ -188,7 +188,7 @@ def fake_initialize_model_parallel(
     pipeline_model_parallel_size_,
     pipeline_model_parallel_split_rank_=None,
     virtual_pipeline_model_parallel_size_=None,
-    expert_model_parallel_size_=None,
+    expert_model_parallel_size_=1,
     context_parallel_size_=1,
 ):
     """
