@@ -42,9 +42,9 @@ There are several configs for training a SpeechLLM:
 - `conf/modular_audio_gpt_multi_enc_config_peft.yaml`: a config for training a SpeechLLM model with multiple audio encoders and PEFT, where you can add speaker embeddings to the audio embeddings. Currently only TitaNet is supported as the speaker encoder.
 
 With any config, you can set the following flags to control which components to train or freeze:
-- `model.freeze_llm` # Generally set to `True` unless you want to fine-tune the whole LLM.
-- `model.freeze_audio_encoder` # Generally set to `False` unless you want to freeze the audio encoder.
-- `model.freeze_modality_adapter` # Generally set to `False` since we want to train the modality adapter.
+- `model.freeze_llm`: Generally set to `True` unless you want to fine-tune the whole LLM.
+- `model.freeze_audio_encoder`: Generally set to `False` unless you want to freeze the audio encoder.
+- `model.freeze_modality_adapter`: Generally set to `False` since we want to train the modality adapter.
 
 In addition to the config file, you will also need two prepare the audio encoder and the LLM as `*.nemo` files.
 
