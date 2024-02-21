@@ -20,6 +20,7 @@ from torch.nn.parameter import Parameter
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 from nemo.utils import logging
+from nemo.utils.model_utils import param_is_not_shared
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
@@ -36,10 +37,6 @@ except (ImportError, ModuleNotFoundError):
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
 _BF16_TYPES = (torch.BFloat16Tensor, torch.cuda.BFloat16Tensor)
-
-
-def param_is_not_shared(param):
-    return not hasattr(param, 'shared') or not param.shared
 
 
 class MegatronModule(torch.nn.Module):
