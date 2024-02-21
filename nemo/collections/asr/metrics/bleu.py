@@ -33,6 +33,49 @@ def move_dimension_to_the_front(tensor, dim_index):
 
 # TODO: Add documentation
 class BLEU(SacreBLEUScore):
+    """
+    This metric computes numerator, denominator, hypotheses lengths, and target lengths for Overall Bilingual Evaluation Understudy (BLEU) 
+    between prediction and reference texts. When doing distributed training/evaluation the result of 
+    ``res=BLEU.(predictions, predictions_lengths, targets, target_lengths)``
+    calls will be all-reduced between all workers using SUM operations.
+
+    If used with PytorchLightning LightningModule, include bleu_num bleur_den, bleu_pred_len, and bleu_target_len values inside 
+    validation_step results. Then aggregate (sum) then at the end of validation epoch to correctly compute validation BLEUR.
+
+    Example:
+        def validation_step(self, batch, batch_idx):
+            ...
+            bleu_values = self.bleu(predictions, predictions_len, transcript, transcript_len)
+            self.val_outputs = {'val_loss': loss_value, **bleu_values}
+            return self.val_outputs
+
+        def on_validation_epoch_end(self):
+            ...
+            bleu_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            bleu_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
+            bleu_num = torch.stack([x[f"val_bleu_num"] for x in outputs]).sum(dim=0)
+            bleu_denom = torch.stack([x[f"val_bleu_denom"] for x in outputs]).sum(dim=0)
+
+            val_bleu = {"val_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+            tensorboard_logs.update(val_bleu)
+
+            self.val_outputs.clear()  # free memory
+            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+
+    Args:
+        decoding: An instance of CTCDecoding, RNNTDecoding, or MultiTaskDecoding.
+        tokenize: Desired tokenizer for BLEU evaluation. (Depending on language, this will drastically affect BLEU score.)
+        n_gram: Maximum number of n_grams to compute BLEU values over. Max: 4.
+        lowercase: Whether to lowercase all inputs.
+        weights: List of float values to weight each n_gram score.
+        log_prediction: Whether to log a single decoded sample per call.
+        batch_dim_index: Index corresponding to batch dimension. (For RNNT.)
+        dist_dync_on_step: Whether to perform reduction on forward pass of metric.
+
+    Returns:
+        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
+            distances for all prediction - reference pairs, total number of words in all references.
+    """
 
     full_state_update: bool = True
 
@@ -98,10 +141,14 @@ class BLEU(SacreBLEUScore):
         Args:
             predictions: an integer torch.Tensor of shape ``[Batch, Time, {Vocabulary}]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)
+            predictions_lengths: an integer torch.Tensor of shape ``[Batch]``
             targets: an integer torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)
             target_lengths: an integer torch.Tensor of shape ``[Batch]``
-            predictions_lengths: an integer torch.Tensor of shape ``[Batch]``
+            predictions_mask: a bool torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
+                ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
+            input_ids: an int torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
+                ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
         """
         references = []
         with torch.no_grad():
@@ -129,9 +176,20 @@ class BLEU(SacreBLEUScore):
 
         super().update(hypotheses, [references])  # Note: [references] since BLEU allows multiple references.
 
-    # Overloadng metrics for NeMo compatibility
-    # TODO: Docstring
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
+        """
+        Returns BLEU values and component metrics.
+
+        Args:
+            return_all_metrics: bool flag. On True, BLEU and composite metrics returned. If False, returns
+                only BLEU. Default: True.
+            prefix: str to prepend to metric value keys.
+            suffix: str to append to metric value keys.
+        
+        Returns:
+            Dict: key-value pairs of BLEU metrics and values. Keys are prepended and appended with prefix
+                and suffix flags, respectively.
+        """
         bleu = super().compute()
         if return_all_metrics:
             return {

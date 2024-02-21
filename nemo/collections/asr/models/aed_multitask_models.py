@@ -66,6 +66,23 @@ def lens_to_mask(lens, max_length):
     return mask
 
 
+def _config_check(cfg):
+    if 'tokenizer' not in cfg:
+        raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
+    # Assert config has "prompt_format"
+    if "prompt_format" not in cfg:
+        raise ValueError("`cfg` must have `prompt_format` config to create a multi task model !")
+    # Assert config has `model_defaults`
+    if 'model_defaults' not in cfg:
+        raise ValueError("`cfg` must have `model_defaults` config to create a model !")
+    if "asr_enc_hidden" not in cfg.model_defaults:
+        raise ValueError("`cfg.model_defaults` must have `asr_enc_hidden` key !")
+    if "lm_enc_hidden" not in cfg.model_defaults:
+        raise ValueError("`cfg.model_defaults` must have `lm_enc_hidden` key !")
+    if "lm_dec_hidden" not in cfg.model_defaults:
+        raise ValueError("`cfg.model_defaults` must have `lm_dec_hidden` key !")
+
+
 @dataclass
 class MultiTaskTranscriptionInternalConfig(InternalTranscribeConfig):
     """
@@ -98,10 +115,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
-        EncDecMultiTaskModel._config_check(cfg)
+        _config_check(cfg)
 
-        self._setup_tokenizer(cfg.tokenizer)
         self.prompt_format = cfg.prompt_format
+        self.sample_rate = cfg.sample_rate
+        self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -190,7 +208,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         # TODO: PytorchMetrics lets you join two metrics together to save compute. But need to make wer and bleu have same outputs first
         self.wer = WER(self.decoding, log_prediction=self.cfg.log_prediction)
         self.bleu = BLEU(
-            self.decoding, tokenize=self.cfg.get('bleu_tokenize', "13a"), log_prediction=False
+            self.decoding, tokenize=self.cfg.get('bleu_tokenizer', "13a"), log_prediction=False
         )  # Wer is handling logging
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
@@ -435,6 +453,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
+
         # create audio-only data loader
         self._update_dataset_config(dataset_name='train', config=train_data_config)
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
@@ -538,6 +557,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 of shape (B, D, T).
             processed_signal_length: Vector of length B, that contains the individual lengths of the
                 processed audio sequences.
+            # TODO: Add support for `transcript` and `transcript_length` in the docstring
+
         Returns:
             A tuple of 3 elements -
             1) The log probabilities tensor of shape [B, T, D].
@@ -580,32 +601,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        signal, signal_len, transcript, transcript_len = batch
 
         if batch is None:
-            tensorboard_logs = {
-                'train_loss': torch.Tensor[0.0],
-                'learning_rate': self._optimizer.param_groups[0]['lr'],
-            }
-            return {'loss': audio_loss, 'log': tensorboard_logs}
+            return torch.tensor([0.0])
 
-        input_ids, labels = transcript[:, :-1], transcript[:, 1:]
-        transf_log_probs, _, _, _ = self.forward(
-            input_signal=signal,
-            input_signal_length=signal_len,
-            transcript=input_ids,
-            transcript_length=transcript_len,
-        )
-        audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
-
-        tensorboard_logs = {
-            'train_loss': audio_loss,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
-        return {'loss': audio_loss, 'log': tensorboard_logs}
-
-    def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
-        signal, signal_len, transcript, transcript_len = batch
+        signal, signal_len, transcript, transcript_len, *_ = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
@@ -615,12 +615,25 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             transcript_length=transcript_len,
         )
 
-        beam_hypotheses = self.decoding.decode_predictions_tensor(
-            encoder_hidden_states=enc_states,
-            encoder_input_mask=enc_mask,
-            decoder_input_ids=input_ids,
-            return_hypotheses=False,
-        )[0]
+        audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
+
+        tensorboard_logs = {
+            'train_loss': audio_loss,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+        }
+
+        return {'loss': audio_loss, 'log': tensorboard_logs}
+
+    def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
+        signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
+        input_ids, labels = transcript[:, :-1], transcript[:, 1:]
+
+        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
+            input_signal=signal,
+            input_signal_length=signal_len,
+            transcript=input_ids,
+            transcript_length=transcript_len,
+        )
 
         transf_loss = self.loss(log_probs=transf_log_probs, labels=labels)
         self.val_loss(loss=transf_loss, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
@@ -634,9 +647,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             targets=transcript,
             targets_lengths=transcript_len,
             predictions_mask=enc_mask,
-            input_ids=input_ids[:, : self.context_len_for_AR_decoding]
-            if self.context_len_for_AR_decoding > 0
-            else None,
+            input_ids=prompt,
         )
         wer, wer_num, wer_denom = self.wer.compute()
         output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
@@ -648,9 +659,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             targets=transcript,
             targets_lengths=transcript_len,
             predictions_mask=enc_mask,
-            input_ids=input_ids[:, : self.context_len_for_AR_decoding]
-            if self.context_len_for_AR_decoding > 0
-            else None,
+            input_ids=prompt,
         )
         bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
         output_dict.update(bleu_metrics)
@@ -677,6 +686,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
+
+    """ Transcription methods """
 
     def _transcribe_on_begin(self, audio, trcfg: MultiTaskTranscriptionConfig):
         """
@@ -762,7 +773,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch[0], input_signal_length=batch[1]
         )
-        decoder_input_ids = batch[2].to(trcfg._internal.device)
+        decoder_input_ids = batch[-2].to(trcfg._internal.device)
         output = dict(
             log_probs=log_probs,
             encoded_lengths=encoded_len,
@@ -916,7 +927,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         return MultiTaskTranscriptionConfig()
 
     def predict_step(self, batch, batch_idx=0, dataloader_idx=0, has_processed_signal=False):
-        signal, signal_len, transcript, transcript_len = batch
+        signal, signal_len, _, _, prompt, prompt_len = batch
 
         processed_signal = None
         processed_signal_length = None
@@ -926,38 +937,21 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             signal = None
             signal_len = None
 
-        _, _, enc_states, enc_mask = self.forward(
+        transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=signal,
             input_signal_length=signal_len,
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
-            transcript=transcript,
-            transcript_length=transcript_len,
+            transcript=prompt,
+            transcript_length=prompt_len,
         )
 
         text = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            decoder_input_ids=transcript,
+            decoder_input_ids=prompt,
             return_hypotheses=False,
         )[0]
 
         text = [self.decoding.strip_special_tokens(t) for t in text]
         return text
-
-    @classmethod
-    def _config_check(cls, cfg):
-        if 'tokenizer' not in cfg:
-            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
-        # Assert config has "prompt_format"
-        if "prompt_format" not in cfg:
-            raise ValueError("`cfg` must have `prompt_format` config to create a multi task model !")
-        # Assert config has `model_defaults`
-        if 'model_defaults' not in cfg:
-            raise ValueError("`cfg` must have `model_defaults` config to create a model !")
-        if "asr_enc_hidden" not in cfg.model_defaults:
-            raise ValueError("`cfg.model_defaults` must have `asr_enc_hidden` key !")
-        if "lm_enc_hidden" not in cfg.model_defaults:
-            raise ValueError("`cfg.model_defaults` must have `lm_enc_hidden` key !")
-        if "lm_dec_hidden" not in cfg.model_defaults:
-            raise ValueError("`cfg.model_defaults` must have `lm_dec_hidden` key !")

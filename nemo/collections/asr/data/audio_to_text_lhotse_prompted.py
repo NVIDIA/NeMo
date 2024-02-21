@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Callable, Sequence
-
 import torch.utils.data
 from lhotse import CutSet
 from lhotse.cut import MixedCut, MonoCut
@@ -56,12 +55,21 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        tokens = self.prompt_format_fn(cuts, self.tokenizer, self.inference)
+        tokens, prompt_tokens = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
+
         tokens = [torch.as_tensor(t) for t in tokens]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
 
-        return audio, audio_lens, tokens, token_lens
+        if self.inference:
+            prompt_tokens = [torch.as_tensor(t) for t in prompt_tokens]
+            prompt_token_lens = torch.tensor([t.size(0) for t in prompt_tokens], dtype=torch.long)
+            prompt_tokens = collate_vectors(prompt_tokens, padding_value=self.padding_value)
+        else:
+            prompt_tokens = None
+            prompt_token_lens = None
+
+        return audio, audio_lens, tokens, token_lens, prompt_tokens, prompt_token_lens
 
 
 # Mapping from a string name to a known prompt formatter function.
@@ -106,7 +114,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
     * <|nopnc|>
     * <|pnc|>
     * <|endoftext|>
-    * <|LANG|> - for each supported language, where LANG is a 2-char language code.  #TODO: Check compatibility with four letter bcp
+    * <|LANG|> - for each supported language.
     * <|nospeech|>
 
     The prompt format syntax is as follows:
@@ -124,7 +132,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
     ), "To use 'canary' prompt format, you must use the CanaryTokenizer."
     tokenizer = tokenizer._tokenizer
 
-    canary_tokens = []
+    tokens, prompts = [], []
     for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
@@ -139,21 +147,17 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
             )
 
         # Actual tokenization. If a cut has multiple supervisions, we'll stitch their tokenized texts together.
-        if not inference:
-            texts = [sup.text for sup in cut.supervisions]
-            langs = [sup.language for sup in cut.supervisions]
-        else:
-            texts, langs = None, None
+        texts = [sup.text for sup in cut.supervisions]
+        langs = [sup.language for sup in cut.supervisions]
         taskname = cut.custom['taskname']
         pnc = cut.custom['pnc']
         source_lang = cut.custom['source_lang']
         target_lang = cut.custom['target_lang']
 
-        prompted_tokens = canary_prompt(tokenizer, texts, langs, source_lang, target_lang, taskname, pnc)
-
-        canary_tokens.append(prompted_tokens)
-
-    return canary_tokens
+        tokens.append(canary_prompt(tokenizer, texts, langs, source_lang, target_lang, taskname, pnc))
+        if inference:
+            prompts.append(canary_prompt(tokenizer, None, None, source_lang, target_lang, taskname, pnc))
+    return tokens, prompts
 
 
 def canary_prompt(
