@@ -29,11 +29,11 @@ from nemo.utils import logging
 mp.set_start_method("spawn", force=True)
 
 """
-This is the script to run inference with a speechllm model.
+This is the script to run inference with a ModularAudioGPTModel.
 
-If you want to evaluate an speechllm model:
+If you want to evaluate an ModularAudioGPTModel:
 
-MEGATRON_CKPT=/media/data3/pretrained_models/llama/tiny_llama.nemo
+MEGATRON_CKPT=/path/to/megatron-llm.nemo
 ALM_DIR=/path/to/nemo_experiments/job_name
 ALM_YAML=$ALM_DIR/version_0/hparams.yaml
 ALM_CKPT="$ALM_DIR/checkpoints/AudioGPT--validation_wer\=0.5-step\=103-epoch\=0-last.ckpt"
@@ -111,6 +111,9 @@ def load_audio_models(cfg, peft_model_cfg, model):
             peft_model_cfg.get("pretrained_audio_model", None) is not None
             and cfg.model.get("pretrained_audio_model", None) is None
         ):
+            logging.info(
+                f"model.pretrained_audio_model not found in config, setting it to {peft_model_cfg.pretrained_audio_model} from loaded checkpoint."
+            )
             cfg.model.pretrained_audio_model = peft_model_cfg.pretrained_audio_model
         cfg.model.perception = peft_model_cfg.perception
 

@@ -24,8 +24,8 @@ from nemo.utils.exp_manager import exp_manager
 mp.set_start_method("spawn", force=True)
 
 """
-MEGATRON_MODEL=[path to megatron gpt model in nemo format]
-ASR_MODEL=[path to asr model in nemo format]
+MEGATRON_CKPT=/path/to/megatron-llm.nemo
+ASR_MODEL=/path/to/asr-model.nemo
 
 TRAIN_MANIFESTS="[/data/train_1.json,/data/train_2.json]"
 VAL_MANIFESTS="[/data/dev_1.json,/data/dev_2.json]"

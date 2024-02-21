@@ -135,13 +135,13 @@ model:
       init_std: 0.023
 
   perception:
-    use_multi_layer_feat: false
+    use_multi_layer_feat: false  # whether to extract multi-layer features, only supports conformer encoder
     multi_layer_feat:
-      layer_idx_list: [0,16]
+      layer_idx_list: [0,16]  # layer indices to extract features from
       aggregator:
-        mode: "cat"
-        pooling: "avg"
-        rounding: "floor"
+        mode: "cat"  # ways to combine features from different layers, choices=['cat','sum','mean', 'max', 'min'], default to concat ('cat')
+        pooling: "avg"  # ways to pool features if they have different temporal lengths and align_mode=min, choices=['mean', 'max', 'min']
+        align_mode: "min"  # if features have different temporal lengths, set `min` to pool to the shortest length or `max` to repeat to the longest.
 
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -283,7 +283,7 @@ model:
 
       log_every_n_steps: 10
       metric:
-        name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss', 'wer', 'bleu', 'rouge']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
