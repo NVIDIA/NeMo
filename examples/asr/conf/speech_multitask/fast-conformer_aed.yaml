@@ -18,8 +18,8 @@ init_from_nemo_model: null
 # If a tokenizer exists in dir, will skip building and use tokenizer present in `tokenizer.langs.spl_tokenizer` instead.
 spl_tokens:
   dir: ???
-  task_tokens: ["translate", "transcribe"]
-  lang_tokens: ["en", "es", "de", "fr", "ar"]
+  task_tokens: ["ast", "asr"]
+  lang_tokens: ["en", "es", "de", "fr"]
 
 model:
   sample_rate: 16000

@@ -59,6 +59,7 @@ class CanaryTokenizer(AggregateTokenizer):
     def spl_token_to_id(self, token):
         if token_id := self.special_tokens.get(f"<|{token}|>", None):
             return token_id
+        print(self.special_tokens)
         raise KeyError(f"Token {token} not found in tokenizer.")
 
     @staticmethod

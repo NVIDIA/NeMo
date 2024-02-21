@@ -203,7 +203,12 @@ def canary_prompt(
 
         # task
         task = taskname
-        prompted_tokens.append(tokenizer.spl_token_to_id(task))
+        if task == 'asr' or task == "transcribe":
+            prompted_tokens.append(tokenizer.spl_token_to_id("transcribe"))
+        elif task == 's2t_translation' or task == 'ast':
+            prompted_tokens.append(tokenizer.spl_token_to_id("translate"))
+        else:
+            raise ValueError(f"Unknown task: {task}")
 
         # tgt_lang_id
         tgt_lang_id = tokenizer.spl_token_to_id(target_language)
