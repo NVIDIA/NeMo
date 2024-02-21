@@ -445,6 +445,13 @@ class BatchedAlignments:
             self.frame_confidence = torch.zeros((batch_size, self._max_length), device=device, dtype=float_dtype)
         self._batch_indices = torch.arange(batch_size, device=device)
 
+    def clear_(self):
+        self.current_lengths.fill_(0)
+        self.timesteps.fill_(0)
+        self.logits.fill_(0.0)
+        self.labels.fill_(0)
+        self.frame_confidence.fill_(0)
+
     def _allocate_more(self):
         """
         Allocate 2x space for tensors, similar to common C++ std::vector implementations
