@@ -129,6 +129,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     ):
         self.vision_encoder = vision_encoder
         self.from_hf = isinstance(vision_encoder, CLIPVisionModel)
+        self.from_open_clip = "open_clip" in type(vision_encoder)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.class_token_length = class_token_length
@@ -255,10 +256,23 @@ class NevaBaseModel:
             self.freeze_llm(mm_cfg)
 
         # Initialize vision encoder and freeze it
-        if mm_cfg.vision_encoder.from_hf:
+        if mm_cfg.vision_encoder.get("from_hf", False):
             vision_encoder = CLIPVisionModel.from_pretrained(
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
             ).cuda()
+            vision_encoder = vision_encoder.to(torch.bfloat16)
+            if mm_cfg.vision_encoder.freeze:
+                for param in vision_encoder.parameters():
+                    param.requires_grad = False
+                vision_encoder = vision_encoder.eval()
+        elif mm_cfg.vision_encoder.get("from_open_clip", False):
+            assert mm_cfg.vision_encoder.get("open_clip_model_config") is not None, \
+                f"`open_clip_model_config` needs to be set."
+            vision_encoder, _, _ = open_clip.create_model_and_transforms(
+                mm_cfg.vision_encoder.open_clip_model_config,
+                pretrained=mm_cfg.vision_encoder.from_pretrained, precision=torch.bfloat16,
+            )
+            vision_encoder = vision_encoder.cuda()
             vision_encoder = vision_encoder.to(torch.bfloat16)
             if mm_cfg.vision_encoder.freeze:
                 for param in vision_encoder.parameters():
