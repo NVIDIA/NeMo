@@ -14,7 +14,8 @@
 
 import amp_C
 import torch
-from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
+
+from nemo.utils.model_utils import param_is_not_shared
 
 try:
     from megatron.core import parallel_state
