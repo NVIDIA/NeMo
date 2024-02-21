@@ -398,19 +398,3 @@ class HyenaOperator(nn.Module):
     @property
     def d_output(self):
         return self.d_model
-
-    # Match megatron.core.transformer.attention.SelfAttention API
-    def sharded_state_dict(self, prefix='', sharded_key_prefix=None, sharded_offsets=()):
-        from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-        sharded_key_prefix = prefix if sharded_key_prefix is None else sharded_key_prefix
-
-        # We're not sharding anything for now
-        tensor_parallel_layers_axis_map = {}
-
-        state_dict = self.state_dict(prefix='', keep_vars=True)
-
-        sharded_state_dict = make_sharded_tensors_for_checkpoint(
-            state_dict, prefix, sharded_key_prefix, tensor_parallel_layers_axis_map, sharded_offsets
-        )
-
-        return sharded_state_dict
