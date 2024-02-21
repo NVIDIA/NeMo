@@ -272,7 +272,6 @@ def convert(args):
         token_ids_tensor[i, : len(p)] = torch.tensor(p)
         input_token_ids_tensor[i, :min_prompt_len] = torch.tensor(p[:min_prompt_len])
     token_ids_tensor = token_ids_tensor.to(device)
-    prompt_mask_tensor = token_ids_tensor != PAD_TOKEN_ID
     input_token_ids_tensor = input_token_ids_tensor.to(device)
     input_positions_tensor = torch.arange(0, min_prompt_len, dtype=torch.int64).to(device)
     mask_tensor = torch.full((1, 1, max_seq_len, max_seq_len), -2.3819763e38).to(torch.float)
