@@ -73,9 +73,6 @@ class AdapterName(str, enum.Enum):
     LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
     MULTIMODAL_PROJECTOR_ADAPTER = "mm_projector_adapter"
     PARALLEL_LINEAR_ADAPTER = "parallel_linear_adapter"
-    LORA_DENSE_ATTENTION_ADAPTER = "lora_dense_attention_adapter"
-    LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
-    LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
 
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
