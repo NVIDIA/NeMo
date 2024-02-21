@@ -107,7 +107,7 @@ Prepare the msdd training dataset for both train and validation. After the train
 .. code-block:: bash
 
     python ./multiscale_diar_decoder.py --config-path='../conf/neural_diarizer' --config-name='msdd_5scl_15_05_50Povl_256x3x32x2.yaml' \
-        trainer.gpus=1 \
+        trainer.devices=1 \
         trainer.max_epochs=20  \
         model.base.diarizer.speaker_embeddings.model_path="titanet_large" \
         model.train_ds.manifest_filepath="<train_manifest_path>" \
@@ -205,14 +205,14 @@ The following are descriptions about each field in an input manifest JSON file.
 
 ``ctm_filepath`` (Optional):
     
-  CTM file is used for the evaluation of word-level diarization results and word-timestamp alignment. CTM file follows the following convention: ``<uniq-id> <speaker ID> <word start time> <word end time> <word> <confidence>`` Since confidence is not required for evaluating diarization results, it can have any value. Note that the ``<speaker_id>`` should be exactly matched with speaker IDs in RTTM. 
+  The CTM file is used for the evaluation of word-level diarization results and word-timestamp alignment. The CTM file follows this convention: ``<session name> <channel ID> <start time> <duration> <word> <confidence> <type of token> <speaker>``. Note that the ``<speaker>`` should exactly match speaker IDs in RTTM. Since confidence is not required for evaluating diarization results, we assign ``<confidence>`` the value ``NA``. If the type of token is words, we assign ``<type of token>`` as ``lex``.  
 
   Example lines of CTM file:
 
 .. code-block:: bash
   
-   TS3012d.Mix-Headset MTD046ID 12.879 0.32 okay 0
-   TS3012d.Mix-Headset MTD046ID 13.203 0.24 yeah 0
+   TS3012d.Mix-Headset 1 12.879 0.32 okay NA lex MTD046ID
+   TS3012d.Mix-Headset 1 13.203 0.24 yeah NA lex MTD046ID
 
 
 Evaluation on Benchmark Datasets

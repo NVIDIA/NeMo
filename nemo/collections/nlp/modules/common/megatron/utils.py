@@ -18,7 +18,9 @@ import math
 from typing import Dict, Iterator, List, Tuple, Union
 
 import torch
-from nemo.utils import logging, logging_mode
+import torch.nn as nn
+
+from torch import Tensor
 
 try:
     from apex.normalization import MixedFusedRMSNorm
@@ -42,6 +44,13 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+
+def ApproxGELUActivation(input: Tensor):
+    """
+    Applies GELU approximation that is fast but somewhat inaccurate. See: https://github.com/hendrycks/GELUs
+    """
+    return input * torch.sigmoid(1.702 * input)
 
 
 class ApexGuardDefaults(object):
@@ -72,7 +81,7 @@ def parallel_lm_logits(
         word_embeddings_weight (torch.Tensor): [(padded) vocab size, h]
         parallel_output (bool): False will gather logits from tensor model parallel region
         bias (torch.Tensor, optional): bias tensor. Defaults to None.
-        async_tensor_model_parallel_allreduce (bool, optional): TODO: understand this flag. Defaults to False.
+        async_tensor_model_parallel_allreduce (bool, optional): Defaults to False.
         sequence_parallel (bool, optional): If True will use sequence parallelism. Defaults to False.
         gradient_accumulation_fusioa (bool, optional): If True fuse gradient accumulation to WGRAD GEMM
 
@@ -99,7 +108,7 @@ def parallel_lm_logits(
         bias=bias,
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_grad_allreduce=async_grad_allreduce,
-        sequence_parallel_enabled=sequence_parallel,
+        sequence_parallel=sequence_parallel,
     )
 
     # Gather if needed.
@@ -423,8 +432,12 @@ def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatche
     else:
         # Split a list of torch tensors
         assert batch[0].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
-        split_batch = [torch.tensor_split(item, num_microbatches, dim=0) for item in batch]
-        microbatches = [[elem[i] for elem in split_batch] for i in range(num_microbatches)]
+        split_batch = [
+            torch.tensor_split(item, num_microbatches, dim=0) if torch.is_tensor(item) else item for item in batch
+        ]
+        microbatches = [
+            [elem[i] if elem is not None else elem for elem in split_batch] for i in range(num_microbatches)
+        ]
 
     return itertools.chain(microbatches)
 

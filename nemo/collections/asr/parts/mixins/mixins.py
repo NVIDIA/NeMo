@@ -214,7 +214,13 @@ class ASRBPEMixin(ABC):
                         self.AGGREGATE_TOKENIZERS_DICT_PREFIX
                     ][lang]['type']
 
-        self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
+        if "custom_tokenizer" in tokenizer_cfg:
+            # Class which implements this is usually a ModelPT, has access to Serializable mixin by extension
+            self.tokenizer = self.from_config_dict(
+                {"_target_": tokenizer_cfg["custom_tokenizer"]["_target_"], "tokenizers": tokenizers_dict}
+            )
+        else:
+            self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
 
     def _make_tokenizer(self, tokenizer_cfg: DictConfig, lang=None):
 
@@ -307,7 +313,7 @@ class ASRBPEMixin(ABC):
 
             hf_tokenizer_kwargs = tokenizer_cfg.get('hf_kwargs', {})
             tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name='bert-base-cased',
+                pretrained_model_name=hf_tokenizer_kwargs.get('pretrained_model_name', 'bert-base-cased'),
                 vocab_file=vocab_path,
                 mask_token=hf_tokenizer_kwargs.get('mask_token', None),
                 bos_token=hf_tokenizer_kwargs.get('bos_token', None),

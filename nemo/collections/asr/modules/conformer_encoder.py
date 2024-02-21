@@ -65,7 +65,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         d_model (int): the hidden size of the model
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
-        subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
+        subsampling (str): the method of subsampling, choices=['vggnet', 'striding', 'dw-striding', 'stacking', 'stacking_norm']
             Defaults to striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
@@ -786,6 +786,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
         if att_context_size is not None:
             self.att_context_size = att_context_size
+
+        self.setup_streaming_params()
 
     def setup_streaming_params(
         self,

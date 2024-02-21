@@ -13,7 +13,11 @@
 # limitations under the License.
 
 import abc
-from typing import List, Tuple
+import copy
+import os
+import re
+import warnings
+from typing import List, Set, Tuple
 
 import torch
 
@@ -49,7 +53,14 @@ class TextGenerationStrategy:
 
     def __init__(self, model):
         self.model = model
-        self.model.eval()
+        if self.model.training:
+            # TODO in the future this should raise an exception
+            warnings.warn(
+                "Generation started while the model is in training mode, switching to eval mode "
+                "(this situation may raise an exception in future versions, please call `eval()` before generation)"
+            )
+            self.model.eval()
+        self._end_of_generation_cache = None
 
     def forward_step(self, batch, tensor_shape):
         fwd_bwd_function = get_forward_backward_func()
@@ -59,9 +70,8 @@ class TextGenerationStrategy:
             model=[self.forward_model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
-            tensor_shape=tensor_shape,
-            dtype=self.model.autocast_dtype,
-            enable_autocast=self.model.enable_autocast,
+            seq_length=tensor_shape[0],
+            micro_batch_size=tensor_shape[1],
         )
 
         return output_tensor
@@ -148,26 +158,28 @@ class TextGenerationStrategy:
         returns:
             a boolean tensor indicating whether the generation should stop
         """
-        if len(end_strings) == 1 and end_strings[0] == END_OF_SEQ:
+        if (len(end_strings) == 1 and end_strings[0] == END_OF_SEQ) or not end_strings:
+            # Simple scenario: only finish on end of document token.
             return prev == eod_id
-        else:
-            tokenizer = self.model.tokenizer
-            conditions = []
-            end_tokens = set()
-            end_tokens.add(eod_id)
-            for end_string in end_strings:
-                ids_1 = tokenizer.text_to_ids(f'<extra_id_1>{end_string}')
-                ids_2 = tokenizer.text_to_ids('<extra_id_1>')
-                if len(ids_1) <= len(ids_2):
-                    continue
-                token_id = ids_1[len(ids_2) :][0]
-                end_tokens.add(token_id)
-            for p, token_item in zip(prev, tokens):
-                text = tokenizer.ids_to_text(token_item.tolist())
-                conditions.append(
-                    any([text.endswith(end_string) for end_string in end_strings] + [p.item() in end_tokens])
-                )
-            return torch.tensor(conditions, dtype=torch.bool, device=tokens.device)
+
+        end_tokens, end_strings_to_check = self._get_end_of_generation_tokens_and_strings(eod_id, end_strings)
+        assert end_tokens
+
+        is_end = torch.isin(prev, torch.tensor(list(end_tokens), dtype=prev.dtype, device=prev.device))
+
+        if end_strings_to_check:
+            # The loop below is inefficient (see warning in `_get_end_of_generation_tokens_and_strings()`)
+            # TODO In addition, we will not stop if the model generates an end string followed by extra characters,
+            # e.g., if `end_string` is "Done" and there exists a "Done!" token it could generate tokens
+            #       [..., ".", "Done!"]
+            # which would fail the `endswith("Done")` check. However, stopping when "Done!" is generated would not
+            # work either, since we would need to post-process the generated string to truncate the extra "!".
+            # ==> this is left for future work if there is a compelling use case requiring this feature.
+            for idx, token_seq in enumerate(tokens):
+                text = self.model.tokenizer.ids_to_text(token_seq.tolist())
+                is_end[idx] |= any(text.endswith(end_string) for end_string in end_strings_to_check)
+
+        return is_end
 
     def post_generation_process(self, output):
         """
@@ -176,6 +188,66 @@ class TextGenerationStrategy:
             output  (dict): the text generation output dictionary
         """
         return output
+
+    def _get_end_of_generation_tokens_and_strings(
+        self, eod_id: int, end_strings: List[str]
+    ) -> Tuple[Set[int], List[str]]:
+        """
+        return the tokens and strings indicating the end of generation
+        Args:
+            eod_id (int): the end of document token id
+            end_strings (List[str]): the list of end of generation strings
+        Returns:
+            a pair `(tokens, strings)` where `tokens` is a set of tokens (int) and `strings` is a list of strings,
+            which must all be used to identify the end of generation (`tokens` always contains `eod_id`, while
+            `strings` may be empty if all end strings are associated to unique tokens)
+        """
+        tokenizer = self.model.tokenizer
+        # A cache is used to remember which end strings are associated to unique tokens vs. which ones
+        # require an actual string comparison.
+        if self._end_of_generation_cache is None or self._end_of_generation_cache["tokenizer"] is not tokenizer:
+            # Invalidate the cache.
+            self._end_of_generation_cache = {
+                "tokenizer": tokenizer,
+                "end_string_to_token": {END_OF_SEQ: eod_id},
+                "end_strings_to_check": set(),
+            }
+        end_string_to_token = self._end_of_generation_cache["end_string_to_token"]
+
+        end_tokens = {eod_id}  # always include `eod_id`, even if `END_OF_SEQ` is not within `end_strings`
+        end_strings_to_check = []  # will contain end strings that have no associated special token
+
+        for end_string in end_strings:
+            try:
+                end_tokens.add(end_string_to_token[end_string])
+                continue
+            except KeyError:
+                if end_string in self._end_of_generation_cache["end_strings_to_check"]:
+                    end_strings_to_check.append(end_string)
+                    continue
+
+            # `end_string` does not exist in the cache yet: check if `end_string` is a special token for
+            # the tokenizer. Ideally, we would simply use `tokenizer.text_to_ids(end_string)`, but some
+            # tokenizers (e.g., SentencePiece) may prefix the special token with another token associated
+            # to an empty string. The code below is thus meant to extract the special token associated to
+            # `end_string` (if it exists). Note that we use "<extra_id_1>" as prefix string to have a low
+            # risk of the tokenizer merging it with `end_string`, but this is somewhat arbitrary.
+            ids_ref = tokenizer.text_to_ids("<extra_id_1>")
+            ids_with_end_string = tokenizer.text_to_ids(f"<extra_id_1>{end_string}")
+            if len(ids_with_end_string) == len(ids_ref) + 1 and ids_with_end_string[:-1] == ids_ref:
+                # We can assume that the extra token is the one corresponding to `end_string`.
+                end_string_to_token[end_string] = ids_with_end_string[-1]
+                end_tokens.add(ids_with_end_string[-1])
+            else:
+                # No special token.
+                warnings.warn(
+                    f"The end string '{end_string}' has no associated special token: this may slow down "
+                    "generation (consider using a different tokenizer or modifying `end_strings`)"
+                )
+                self._end_of_generation_cache["end_strings_to_check"].add(end_string)
+                end_strings_to_check.append(end_string)
+
+        return end_tokens, end_strings_to_check
 
 
 class GPTModelTextGenerationStrategy(TextGenerationStrategy):
@@ -248,6 +320,185 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
 
         batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
+
+
+def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, conv_template):
+    from nemo.collections.multimodal.data.neva.neva_dataset import (
+        DEFAULT_IMAGE_TOKEN,
+        preprocess_llama_2,
+        preprocess_multimodal,
+        preprocess_nvgpt,
+        preprocess_v1,
+    )
+
+    list_data_dict = []
+    if multimodal_cfg["conv_template"] == "nvgpt":
+        record = {
+            'system': 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
+            'conversations': [{'from': 'User', 'value': prompt}, {'from': 'Assistant', 'value': '',},],
+        }
+
+        for turn in record['conversations']:  #
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_nvgpt(sources, tokenizer, multimodal_cfg)
+
+    elif multimodal_cfg["conv_template"] == "llama_2":
+        record = {
+            'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+        }
+
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg)
+    elif multimodal_cfg["conv_template"] == "v1":
+        record = {
+            'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+        }
+
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_v1(sources, tokenizer, multimodal_cfg)
+    else:
+        raise ValueError(f"Conversation template `{conv_template}` is not supported in Neva now.")
+    return data_dict['tokens'].tolist()
+
+
+class NevaModelTextGenerationStrategy(TextGenerationStrategy):
+    def __init__(self, model):
+        super().__init__(model)
+        self.forward_model = self.model.model
+        self.num_media_latents = model.cfg.data.get("image_token_len", 576)
+        self.tokenizer = self.model.tokenizer
+        self.image_paths = []
+        self.cfg = self.model.cfg
+        self.data_cfg = self.model.cfg.data
+
+        add_extra_token = 0
+        self.multimodal_cfg = dict(
+            is_multimodal=self.data_cfg.is_multimodal,
+            sep_image_conv_front=self.data_cfg.sep_image_conv_front,
+            conv_template=self.data_cfg.get("conv_template", "nvgpt"),
+            image_token_len=self.data_cfg.image_token_len,
+            image_folder=self.data_cfg.image_folder,
+            image_aspect_ratio=self.data_cfg.image_aspect_ratio,
+            use_im_start_end=getattr(self.cfg.mm_cfg, 'use_im_start_end', False),
+            image_processor=None,
+            add_extra_token=add_extra_token,
+            context_length=self.cfg.encoder_seq_length,
+        )
+
+    def clip_max_len(self, maxlen: int) -> int:
+        """ clip the max len based on the LM model max sequence length"""
+        if maxlen > self.model.cfg.encoder_seq_length + 1:
+            maxlen = self.model.cfg.encoder_seq_length + 1
+        return maxlen
+
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        tokenizer = self.model.tokenizer
+        tokens = context_tokens.contiguous().cuda()
+        # Get the attention mask and postition ids.
+        self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
+            tokens,
+            eod_token=tokenizer.eos_id,
+            eod_mask_loss=False,
+            reset_attention_mask=False,
+            reset_position_ids=False,
+            compute_attention_mask=compute_attention_mask,
+        )
+
+    def tokenize_batch(self, prompt, max_len, add_BOS):
+
+        if type(prompt) == str:
+            context_tokens = neva_process_prompts(
+                prompt,
+                self.tokenizer,
+                self.multimodal_cfg,
+                self.num_media_latents,
+                self.multimodal_cfg['conv_template'],
+            )
+        elif type(prompt) == list:
+            context_tokens = []
+            for p in prompt:
+                context_tokens.append(
+                    neva_process_prompts(
+                        p,
+                        self.tokenizer,
+                        self.multimodal_cfg,
+                        self.num_media_latents,
+                        self.multimodal_cfg['conv_template'],
+                    )[0]
+                )
+        else:
+            raise ValueError(f'{type(prompt)} is not supported for tokenization')
+
+        context_tokens, context_lengths = pad_batch(context_tokens, self.tokenizer.eos_id, max_len)
+        context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+        context_length_tensor = torch.cuda.LongTensor(context_lengths)
+        return context_tokens_tensor, context_length_tensor
+
+    def prepare_batch_at_step(
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool = True,
+        media=None,
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        """
+        generate the batch used in inference for each of the steps
+        """
+        # types2use = None
+        if step == 0:
+            # Allocate memory for the entire context.
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :context_length]
+            positions2use = self.position_ids[:, :context_length]
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, :context_length]
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+
+        """Prepare batch for each of the inference steps"""
+        attention_mask_repeat = None
+        if compute_attention_mask:
+            attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+        batch = [tokens2use, attention_mask_repeat, positions2use, media, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
@@ -334,6 +585,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
@@ -345,6 +597,8 @@ def model_inference_strategy_dispatcher(model, **args):
         RetroQAModelTextGenerationStrategy,
     )
 
+    if isinstance(model, MegatronNevaModel):
+        return NevaModelTextGenerationStrategy(model)
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):

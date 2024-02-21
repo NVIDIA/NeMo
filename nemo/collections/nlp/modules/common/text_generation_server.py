@@ -45,6 +45,8 @@ API_ALLOWED_KEYS = set(
         "repetition_penalty",
         "min_tokens_to_generate",
         "end_strings",
+        "compute_logprob",
+        "random_seed",
     ]
 )
 
@@ -141,6 +143,14 @@ class MegatronGenerate(Resource):
             if not (1.0 <= repetition_penalty):
                 return "repetition_penalty must be a positive number no less than 1.0"
 
+        end_strings = ['<|endoftext|>']
+        if 'end_strings' in request.get_json():
+            end_strings = request.get_json()['end_strings']
+            if not isinstance(end_strings, list):
+                return "expect end_strings to be a list of strings"
+            if not all([isinstance(s, str) for s in end_strings]):
+                return "expect end_strings to be a list of strings"
+
         min_tokens_to_generate = 0
         if "min_tokens_to_generate" in request.get_json():
             min_tokens_to_generate = request.get_json()["min_tokens_to_generate"]
@@ -157,13 +167,19 @@ class MegatronGenerate(Resource):
             if neighbors < 0:
                 return "num of neighbors must be an integer no less than 0"
 
-        end_strings = ['<|endoftext|>']
-        if 'end_strings' in request.get_json():
-            end_strings = request.get_json()['end_strings']
-            if not isinstance(end_strings, list):
-                return "expect end_strings to be a list of strings"
-            if not all([isinstance(s, str) for s in end_strings]):
-                return "expect end_strings to be a list of strings"
+        compute_logprob = False
+        if "compute_logprob" in request.get_json():
+            compute_logprob = request.get_json()["compute_logprob"]
+            if not isinstance(compute_logprob, bool):
+                return "compute_logprob must be a boolean value"
+
+        random_seed = None
+        if "random_seed" in request.get_json():
+            random_seed = request.get_json()["random_seed"]
+            if random_seed is not None and not isinstance(random_seed, int):
+                return "random_seed must be a positive integer number or None"
+            if random_seed is not None and random_seed < 0:
+                return "random_seed must be a positive integer number or None"
 
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
@@ -190,8 +206,10 @@ class MegatronGenerate(Resource):
                 top_p,
                 greedy,
                 repetition_penalty,
-                min_tokens_to_generate,
                 end_strings=end_strings,
+                min_tokens_to_generate=min_tokens_to_generate,
+                compute_logprob=compute_logprob,
+                random_seed=random_seed,
                 **extra,
             )
             for k in output:

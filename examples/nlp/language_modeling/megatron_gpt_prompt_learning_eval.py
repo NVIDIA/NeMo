@@ -26,8 +26,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 
 mp.set_start_method("spawn", force=True)
 
@@ -82,7 +83,7 @@ def main(cfg) -> None:
         raise EnvironmentError("GPU is needed for the inference")
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer, callbacks=[CustomProgressBar()])
 
     if (
         cfg.tensor_model_parallel_size < 0
@@ -194,4 +195,10 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
+    dep_msg = "* Please switch to using examples/nlp/language_modeling/tuning/megatron_gpt_peft_eval.py *"
+    dep = "Deprecation Notice!!".center(len(dep_msg) - 2, " ")
+    banner = "*" * len(dep_msg)
+    spacer = " " * (len(dep_msg) - 2)
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")
     main()
+    logging.warning(f"\n\n{banner}\n*{spacer}*\n*{dep}*\n{dep_msg}\n*{spacer}*\n{banner}\n\n")

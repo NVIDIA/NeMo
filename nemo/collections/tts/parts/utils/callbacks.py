@@ -27,8 +27,10 @@ from pytorch_lightning import Callback, LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.loggers.logger import Logger
 from pytorch_lightning.loggers.wandb import WandbLogger
+from torch import Tensor
 
 from nemo.collections.tts.parts.utils.helpers import create_plot
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 HAVE_WANDB = True
@@ -80,14 +82,14 @@ class AudioArtifact:
     id: str
     data: np.ndarray
     sample_rate: int
-    filename: str
+    filepath: Path
 
 
 @dataclass
 class ImageArtifact:
     id: str
     data: np.ndarray
-    filename: str
+    filepath: Path
     x_axis: str
     y_axis: str
 
@@ -109,7 +111,7 @@ def create_id(filepath: Path) -> str:
 class ArtifactGenerator(ABC):
     @abstractmethod
     def generate_artifacts(
-        self, model: LightningModule, batch_dict: Dict
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
     ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
         """
         Create artifacts for the input model and test batch.
@@ -117,6 +119,8 @@ class ArtifactGenerator(ABC):
         Args:
             model: Model instance being trained to use for inference.
             batch_dict: Test batch to generate artifacts for.
+            initial_log: Flag to denote if this is the initial log, can
+                         be used to save ground-truth data only once.
 
         Returns:
             List of audio and image artifacts to log.
@@ -160,20 +164,32 @@ class LoggingCallback(Callback):
         self.log_wandb = log_wandb
 
         if log_tensorboard:
+            logging.info('Creating tensorboard logger')
             self.tensorboard_logger = _get_logger(self.loggers, TensorBoardLogger)
         else:
+            logging.debug('Not using tensorbord logger')
             self.tensorboard_logger = None
 
         if log_wandb:
             if not HAVE_WANDB:
                 raise ValueError("Wandb not installed.")
+            logging.info('Creating wandb logger')
             self.wandb_logger = _get_logger(self.loggers, WandbLogger)
         else:
+            logging.debug('Not using wandb logger')
             self.wandb_logger = None
+
+        logging.debug('Initialized %s with', self.__class__.__name__)
+        logging.debug('\tlog_epochs:      %s', self.log_epochs)
+        logging.debug('\tepoch_frequency: %s', self.epoch_frequency)
+        logging.debug('\toutput_dir:      %s', self.output_dir)
+        logging.debug('\tlog_tensorboard: %s', self.log_tensorboard)
+        logging.debug('\tlog_wandb:       %s', self.log_wandb)
 
     def _log_audio(self, audio: AudioArtifact, log_dir: Path, step: int):
         if log_dir:
-            filepath = log_dir / audio.filename
+            filepath = log_dir / audio.filepath
+            filepath.parent.mkdir(parents=True, exist_ok=True)
             sf.write(file=filepath, data=audio.data, samplerate=audio.sample_rate)
 
         if self.tensorboard_logger:
@@ -187,7 +203,8 @@ class LoggingCallback(Callback):
 
     def _log_image(self, image: ImageArtifact, log_dir: Path, step: int):
         if log_dir:
-            filepath = log_dir / image.filename
+            filepath = log_dir / image.filepath
+            filepath.parent.mkdir(parents=True, exist_ok=True)
         else:
             filepath = None
 
@@ -202,16 +219,47 @@ class LoggingCallback(Callback):
             wandb_image = (wandb.Image(image_plot, caption=image.id),)
             self.wandb_logger.log({image.id: wandb_image})
 
+    def _log_artifacts(self, audio_list: list, image_list: list, log_dir: Optional[Path] = None, global_step: int = 0):
+        """Log audio and image artifacts.
+        """
+        if log_dir is not None:
+            log_dir.mkdir(parents=True, exist_ok=True)
+
+        for audio in audio_list:
+            self._log_audio(audio=audio, log_dir=log_dir, step=global_step)
+
+        for image in image_list:
+            self._log_image(image=image, log_dir=log_dir, step=global_step)
+
+    def on_fit_start(self, trainer: Trainer, model: LightningModule):
+        """Log initial data artifacts.
+        """
+        audio_list = []
+        image_list = []
+        for batch_dict in self.data_loader:
+            for key, value in batch_dict.items():
+                if isinstance(value, torch.Tensor):
+                    batch_dict[key] = value.to(model.device)
+
+            for generator in self.generators:
+                audio, images = generator.generate_artifacts(model=model, batch_dict=batch_dict, initial_log=True)
+                audio_list += audio
+                image_list += images
+
+        if len(audio_list) == len(image_list) == 0:
+            logging.debug('List are empty, no initial artifacts to log.')
+            return
+
+        log_dir = self.output_dir / "initial" if self.output_dir else None
+
+        self._log_artifacts(audio_list=audio_list, image_list=image_list, log_dir=log_dir)
+
     def on_train_epoch_end(self, trainer: Trainer, model: LightningModule):
+        """Log artifacts at the end of an epoch.
+        """
         epoch = 1 + model.current_epoch
         if (epoch not in self.log_epochs) and (epoch % self.epoch_frequency != 0):
             return
-
-        if self.output_dir:
-            log_dir = self.output_dir / f"epoch_{epoch}"
-            log_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            log_dir = None
 
         audio_list = []
         image_list = []
@@ -225,11 +273,13 @@ class LoggingCallback(Callback):
                 audio_list += audio
                 image_list += images
 
-        for audio in audio_list:
-            self._log_audio(audio=audio, log_dir=log_dir, step=model.global_step)
+        if len(audio_list) == len(image_list) == 0:
+            logging.debug('List are empty, no artifacts to log at epoch %d.', epoch)
+            return
 
-        for image in image_list:
-            self._log_image(image=image, log_dir=log_dir, step=model.global_step)
+        log_dir = self.output_dir / f"epoch_{epoch}" if self.output_dir else None
+
+        self._log_artifacts(audio_list=audio_list, image_list=image_list, log_dir=log_dir)
 
 
 class VocoderArtifactGenerator(ArtifactGenerator):
@@ -238,16 +288,28 @@ class VocoderArtifactGenerator(ArtifactGenerator):
     """
 
     def generate_artifacts(
-        self, model: LightningModule, batch_dict: Dict
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
     ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
 
-        audio_artifacts = []
-
+        dataset_names = batch_dict.get("dataset_names")
         audio_filepaths = batch_dict.get("audio_filepaths")
         audio_ids = [create_id(p) for p in audio_filepaths]
 
         audio = batch_dict.get("audio")
         audio_len = batch_dict.get("audio_lens")
+
+        audio_artifacts = []
+
+        if initial_log:
+            # Log ground truth audio
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                audio_gt_path = Path(f"{dataset_name}/{audio_id}_gt.wav")
+                audio_gt_i = audio[i, : audio_len[i]].cpu().numpy()
+                audio_artifact = AudioArtifact(
+                    id=f"audio_gt_{audio_id}", data=audio_gt_i, filepath=audio_gt_path, sample_rate=model.sample_rate,
+                )
+                audio_artifacts.append(audio_artifact)
+            return audio_artifacts, []
 
         spec, spec_len = model.audio_to_melspec_precessor(audio, audio_len)
 
@@ -255,14 +317,169 @@ class VocoderArtifactGenerator(ArtifactGenerator):
             audio_pred = model.forward(spec=spec)
             audio_pred = rearrange(audio_pred, "B 1 T -> B T")
 
-        for i, audio_id in enumerate(audio_ids):
-            audio_pred_i = audio_pred[i][: audio_len[i]].cpu().numpy()
+        for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+            audio_pred_path = Path(f"{dataset_name}/{audio_id}.wav")
+            audio_pred_i = audio_pred[i, : audio_len[i]].cpu().numpy()
             audio_artifact = AudioArtifact(
-                id=f"audio_{audio_id}", data=audio_pred_i, filename=f"{audio_id}.wav", sample_rate=model.sample_rate,
+                id=f"audio_{audio_id}", data=audio_pred_i, filepath=audio_pred_path, sample_rate=model.sample_rate,
             )
             audio_artifacts.append(audio_artifact)
 
         return audio_artifacts, []
+
+
+class AudioCodecArtifactGenerator(ArtifactGenerator):
+    """
+    Generator for logging Audio Codec model outputs.
+    """
+
+    def __init__(self, log_audio: bool = True, log_encoding: bool = False, log_dequantized: bool = False):
+        # Log reconstructed audio (decoder output)
+        self.log_audio = log_audio
+        # Log encoded representation of the input audio (encoder output)
+        self.log_encoding = log_encoding
+        # Log dequantized encoded representation of the input audio (decoder input)
+        self.log_dequantized = log_dequantized
+
+        logging.debug('Initialized %s with', self.__class__.__name__)
+        logging.debug('\tlog_audio:       %s', self.log_audio)
+        logging.debug('\tlog_encoding:    %s', self.log_encoding)
+        logging.debug('\tlog_dequantized: %s', self.log_dequantized)
+
+    def _generate_audio(
+        self,
+        model: LightningModule,
+        dataset_names: List[str],
+        audio_ids: List[str],
+        audio: Tensor,
+        audio_len: Tensor,
+        save_input: bool = False,
+    ):
+        """Generate audio artifacts.
+
+        Args:
+            model: callable model, outputs (audio_pred, audio_pred_len)
+            dataset_names: list of dataset names for the examples in audio batch
+            audio_ids: list of IDs for the examples in audio batch
+            audio: tensor of input audio signals, shape (B, T)
+            audio_len: tensor of lengths for each example in the batch, shape (B,)
+            save_input: if True, save input audio signals
+        """
+        if not self.log_audio:
+            return []
+
+        with torch.no_grad():
+            # [B, T]
+            audio_pred, audio_pred_len = model(audio=audio, audio_len=audio_len)
+
+        audio_artifacts = []
+        # Log output audio
+        for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+            audio_pred_path = Path(f"{dataset_name}/{audio_id}_audio_out.wav")
+            audio_pred_i = audio_pred[i, : audio_pred_len[i]].cpu().numpy()
+            audio_artifact = AudioArtifact(
+                id=f"audio_out_{audio_id}", data=audio_pred_i, filepath=audio_pred_path, sample_rate=model.sample_rate,
+            )
+            audio_artifacts.append(audio_artifact)
+
+        if save_input:
+            # save input audio
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                audio_in_path = Path(f"{dataset_name}/{audio_id}_audio_in.wav")
+                audio_in_i = audio[i, : audio_len[i]].cpu().numpy()
+                audio_artifact = AudioArtifact(
+                    id=f"audio_in_{audio_id}", data=audio_in_i, filepath=audio_in_path, sample_rate=model.sample_rate,
+                )
+                audio_artifacts.append(audio_artifact)
+
+        return audio_artifacts
+
+    def _generate_images(
+        self, model: LightningModule, dataset_names: List[str], audio_ids: List[str], audio: Tensor, audio_len: Tensor
+    ):
+        """Generate image artifacts.
+
+        Args:
+            model: model, needs to support `model.encode_audio`, `model.quantize` and `model.dequantize`
+            dataset_names: list of dataset names for the examples in audio batch
+            audio_ids: list of IDs for the examples in audio batch
+            audio: tensor of input audio signals, shape (B, T)
+            audio_len: tensor of lengths for each example in the batch, shape (B,)
+        """
+        image_artifacts = []
+
+        if not self.log_encoding and not self.log_dequantized:
+            return image_artifacts
+
+        with torch.no_grad():
+            # [B, D, T]
+            encoded, encoded_len = model.encode_audio(audio=audio, audio_len=audio_len)
+
+        if self.log_encoding:
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                encoded_path = Path(f"{dataset_name}/{audio_id}_encoded.png")
+                encoded_i = encoded[i, :, : encoded_len[i]].cpu().numpy()
+                encoded_artifact = ImageArtifact(
+                    id=f"encoded_{audio_id}",
+                    data=encoded_i,
+                    filepath=encoded_path,
+                    x_axis="Audio Frames",
+                    y_axis="Channels",
+                )
+                image_artifacts.append(encoded_artifact)
+
+        if not self.log_dequantized:
+            return image_artifacts
+
+        with torch.no_grad():
+            # [B, D, T]
+            tokens = model.quantize(encoded=encoded, encoded_len=encoded_len)
+            dequantized = model.dequantize(tokens=tokens, tokens_len=encoded_len)
+
+        for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+            dequantized_path = Path(f"{dataset_name}/{audio_id}_dequantized.png")
+            dequantized_i = dequantized[i, :, : encoded_len[i]].cpu().numpy()
+            dequantized_artifact = ImageArtifact(
+                id=f"dequantized_{audio_id}",
+                data=dequantized_i,
+                filepath=dequantized_path,
+                x_axis="Audio Frames",
+                y_axis="Channels",
+            )
+            image_artifacts.append(dequantized_artifact)
+
+        return image_artifacts
+
+    def generate_artifacts(
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
+    ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
+        """
+        Args:
+            model: model used to process input to generate artifacts
+            batch_dict: dictionary obtained form the dataloader
+            initial_log: save input audio for the initial log
+        """
+
+        dataset_names = batch_dict.get("dataset_names")
+        audio_filepaths = batch_dict.get("audio_filepaths")
+        audio_ids = [create_id(p) for p in audio_filepaths]
+
+        audio = batch_dict.get("audio")
+        audio_len = batch_dict.get("audio_lens")
+
+        audio_artifacts = self._generate_audio(
+            model=model,
+            dataset_names=dataset_names,
+            audio_ids=audio_ids,
+            audio=audio,
+            audio_len=audio_len,
+            save_input=initial_log,
+        )
+        image_artifacts = self._generate_images(
+            model=model, dataset_names=dataset_names, audio_ids=audio_ids, audio=audio, audio_len=audio_len
+        )
+
+        return audio_artifacts, image_artifacts
 
 
 class FastPitchArtifactGenerator(ArtifactGenerator):
@@ -298,7 +515,36 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
                 type=audio_params.vocoder_type,
             )
 
-    def _generate_audio(self, mels, mels_len, hop_length):
+    def _create_ground_truth_artifacts(
+        self, model: LightningModule, dataset_names: List[str], audio_ids: List[str], batch_dict: Dict
+    ):
+        audio = batch_dict.get("audio")
+        audio_lens = batch_dict.get("audio_lens")
+        spec, spec_len = model.preprocessor(input_signal=audio, length=audio_lens)
+
+        audio_artifacts = []
+        image_artifacts = []
+        for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+            audio_gt_path = Path(f"{dataset_name}/{audio_id}_gt.wav")
+            audio_gt_i = audio[i, : audio_lens[i]].cpu().numpy()
+            audio_artifact = AudioArtifact(
+                id=f"audio_gt_{audio_id}",
+                data=audio_gt_i,
+                filepath=audio_gt_path,
+                sample_rate=model.preprocessor._sample_rate,
+            )
+            audio_artifacts.append(audio_artifact)
+
+            spec_gt_path = Path(f"{dataset_name}/{audio_id}_spec_gt.png")
+            spec_gt_i = spec[i, :, : spec_len[i]].cpu().numpy()
+            spec_artifact = ImageArtifact(
+                id=f"spec_{audio_id}", data=spec_gt_i, filepath=spec_gt_path, x_axis="Audio Frames", y_axis="Channels",
+            )
+            image_artifacts.append(spec_artifact)
+
+        return audio_artifacts, image_artifacts
+
+    def _generate_audio(self, mels: Tensor, mels_len: Tensor, hop_length: int):
         voc_input = mels.to(self.vocoder.device)
         with torch.no_grad():
             audio_pred = self.vocoder.convert_spectrogram_to_audio(spec=voc_input)
@@ -307,7 +553,9 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
         audio_pred_lens = librosa.core.frames_to_samples(mels_len_array, hop_length=hop_length)
         return audio_pred, audio_pred_lens
 
-    def _generate_predictions(self, model: LightningModule, audio_ids: List[str], batch_dict: Dict):
+    def _generate_predictions(
+        self, model: LightningModule, dataset_names: List[str], audio_ids: List[str], batch_dict: Dict
+    ):
         audio_artifacts = []
         image_artifacts = []
 
@@ -320,14 +568,11 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
             mels_pred, mels_pred_len, *_ = model.forward(text=text, input_lens=text_lens, speaker=speaker,)
 
         if self.log_spectrogram:
-            for i, audio_id in enumerate(audio_ids):
-                spec_i = mels_pred[i][:, : mels_pred_len[i]].cpu().numpy()
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                spec_path = Path(f"{dataset_name}/{audio_id}_spec.png")
+                spec_i = mels_pred[i, :, : mels_pred_len[i]].cpu().numpy()
                 spec_artifact = ImageArtifact(
-                    id=f"spec_{audio_id}",
-                    data=spec_i,
-                    filename=f"{audio_id}_spec.png",
-                    x_axis="Audio Frames",
-                    y_axis="Channels",
+                    id=f"spec_{audio_id}", data=spec_i, filepath=spec_path, x_axis="Audio Frames", y_axis="Channels",
                 )
                 image_artifacts.append(spec_artifact)
 
@@ -336,19 +581,22 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
             audio_pred, audio_pred_lens = self._generate_audio(
                 mels=mels_pred, mels_len=mels_pred_len, hop_length=model.preprocessor.hop_length
             )
-            for i, audio_id in enumerate(audio_ids):
-                audio_pred_i = audio_pred[i][: audio_pred_lens[i]].cpu().numpy()
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                audio_pred_path = Path(f"{dataset_name}/{audio_id}.wav")
+                audio_pred_i = audio_pred[i, : audio_pred_lens[i]].cpu().numpy()
                 audio_artifact = AudioArtifact(
                     id=f"audio_{audio_id}",
                     data=audio_pred_i,
-                    filename=f"{audio_id}.wav",
+                    filepath=audio_pred_path,
                     sample_rate=self.vocoder.sample_rate,
                 )
                 audio_artifacts.append(audio_artifact)
 
         return audio_artifacts, image_artifacts
 
-    def _generate_gta_predictions(self, model: LightningModule, audio_ids: List[str], batch_dict: Dict):
+    def _generate_gta_predictions(
+        self, model: LightningModule, dataset_names: List[str], audio_ids: List[str], batch_dict: Dict
+    ):
         audio_artifacts = []
         image_artifacts = []
 
@@ -376,12 +624,13 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
 
         if self.log_alignment:
             attn = rearrange(attn, "B 1 T_spec T_text -> B T_text T_spec")
-            for i, audio_id in enumerate(audio_ids):
-                attn_i = attn[i][: text_lens[i], : mels_pred_len[i]].cpu().numpy()
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                attn_path = Path(f"{dataset_name}/{audio_id}_align.png")
+                attn_i = attn[i, : text_lens[i], : mels_pred_len[i]].cpu().numpy()
                 alignment_artifact = ImageArtifact(
                     id=f"align_{audio_id}",
                     data=attn_i,
-                    filename=f"{audio_id}_align.png",
+                    filepath=attn_path,
                     x_axis="Audio Frames",
                     y_axis="Text Tokens",
                 )
@@ -392,12 +641,13 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
             audio_pred, audio_pred_lens = self._generate_audio(
                 mels=mels_pred, mels_len=mels_pred_len, hop_length=model.preprocessor.hop_length
             )
-            for i, audio_id in enumerate(audio_ids):
-                audio_pred_i = audio_pred[i][: audio_pred_lens[i]].cpu().numpy()
+            for i, (dataset_name, audio_id) in enumerate(zip(dataset_names, audio_ids)):
+                audio_pred_path = Path(f"{dataset_name}/{audio_id}_gta.wav")
+                audio_pred_i = audio_pred[i, : audio_pred_lens[i]].cpu().numpy()
                 audio_artifact = AudioArtifact(
                     id=f"audio_gta_{audio_id}",
                     data=audio_pred_i,
-                    filename=f"{audio_id}_gta.wav",
+                    filepath=audio_pred_path,
                     sample_rate=self.vocoder.sample_rate,
                 )
                 audio_artifacts.append(audio_artifact)
@@ -405,22 +655,33 @@ class FastPitchArtifactGenerator(ArtifactGenerator):
         return audio_artifacts, image_artifacts
 
     def generate_artifacts(
-        self, model: LightningModule, batch_dict: Dict
+        self, model: LightningModule, batch_dict: Dict, initial_log: bool = False
     ) -> Tuple[List[AudioArtifact], List[ImageArtifact]]:
 
-        audio_artifacts = []
-        image_artifacts = []
+        dataset_names = batch_dict.get("dataset_names")
         audio_filepaths = batch_dict.get("audio_filepaths")
         audio_ids = [create_id(p) for p in audio_filepaths]
 
+        if initial_log:
+            # Log ground truth audio and spectrograms
+            audio_gt, spec_gt = self._create_ground_truth_artifacts(
+                model=model, dataset_names=dataset_names, audio_ids=audio_ids, batch_dict=batch_dict
+            )
+            return audio_gt, spec_gt
+
+        audio_artifacts = []
+        image_artifacts = []
+
         if self.log_audio or self.log_spectrogram:
-            audio_pred, spec_pred = self._generate_predictions(model=model, batch_dict=batch_dict, audio_ids=audio_ids)
+            audio_pred, spec_pred = self._generate_predictions(
+                model=model, dataset_names=dataset_names, audio_ids=audio_ids, batch_dict=batch_dict
+            )
             audio_artifacts += audio_pred
             image_artifacts += spec_pred
 
         if self.log_audio_gta or self.log_alignment:
             audio_gta_pred, alignments = self._generate_gta_predictions(
-                model=model, batch_dict=batch_dict, audio_ids=audio_ids
+                model=model, dataset_names=dataset_names, audio_ids=audio_ids, batch_dict=batch_dict
             )
             audio_artifacts += audio_gta_pred
             image_artifacts += alignments

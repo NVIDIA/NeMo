@@ -103,9 +103,9 @@ For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipy
 @hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
     try:
-        strategy = NLPDDPStrategy()
+        strategy = NLPDDPStrategy(find_unused_parameters=True)
     except (ImportError, ModuleNotFoundError):
-        strategy = None
+        strategy = 'auto'
 
     trainer = pl.Trainer(strategy=strategy, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

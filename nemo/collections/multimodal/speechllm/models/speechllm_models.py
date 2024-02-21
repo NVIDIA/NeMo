@@ -19,12 +19,13 @@ from typing import Dict, List, Optional, Union
 
 import sacrebleu
 import torch
+from hydra.utils import get_class
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
@@ -32,15 +33,14 @@ from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
     get_tarred_aqa_dataset_from_config,
 )
 from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speechllm.modules.speechllm_perception import AudioPerceptionModel
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import to_cuda
+from nemo.collections.multimodal.speechllm.modules.speechllm_perception import (
+    AudioPerceptionModel,
+    MultiAudioPerceptionModel,
+)
+from nemo.collections.multimodal.speechllm.parts.utils.data_utils import remove_text_pc, to_cuda
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import (
-    MegatronGPTLoRAModel,
-    MegatronGPTPEFTModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -48,16 +48,16 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.core.classes.mixins import AccessMixin, adapter_mixins
-from nemo.utils import AppState, logging, model_utils
+from nemo.core.classes import ModelPT
+from nemo.core.classes.mixins import adapter_mixins
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator,
         get_current_global_batch_size,
-        get_micro_batch_size,
         get_num_microbatches,
     )
 
@@ -66,9 +66,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.enums import ModelType
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core import InferenceParams, parallel_state, tensor_parallel
 
     HAVE_MEGATRON_CORE = True
 
@@ -82,19 +80,24 @@ __all__ = ["ModularAudioGPTLoRAModel"]
 default_inference_config = {'tokens_to_generate': 30}
 
 
-class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
+class ModularAudioGPTModel(MegatronGPTSFTModel):
     """Modularized speech GPT model."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
-        # Used other keys from metadata to calulate metrics
-        if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
-            self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
-        if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
-            self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
-        self.perception = AudioPerceptionModel(cfg=cfg.perception)
+        # # Used other keys from metadata to calulate metrics
+        # if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
+        #     self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+        # if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
+        #     self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
+        self.perception = (
+            AudioPerceptionModel(cfg=cfg.perception)
+            if "encoders" not in cfg.perception
+            else MultiAudioPerceptionModel(cfg=cfg.perception)
+        )
         self.setup_optimizer_param_groups()
         self.configure_optimizers()
         self.summarize(max_depth=2)
@@ -131,13 +134,24 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             for param in self.model.parameters():
                 param.requires_grad = False
             known_groups.append('model.')
-        # TODO(heh): double check this part works properly
+
+        if self.cfg.get('freeze_audio_encoder', False):
+            if self.cfg.perception.get("speaker_model", None) is not None:
+                if self.cfg.perception.speaker_model.get("freeze", False):
+                    self.perception.speaker_model.freeze()
+                    known_groups.append('perception.speaker_model.')
+            if self.cfg.perception.get("encoders", None) is not None:
+                for key, enc_cfg in self.cfg.perception.encoders.items():
+                    if enc_cfg.get("freeze", False):
+                        self.perception.encoders[key].freeze()
+                        known_groups.append(f'perception.encoders.{key}.')
+            else:
+                self.perception.encoder.freeze()
+                known_groups.append('perception.encoder.')
+
         if self.cfg.get('freeze_modality_adapter', False):
             self.perception.modality_adapter.freeze()
-            known_groups.append('modality_adapter.')
-        if self.cfg.get('freeze_audio_encoder', False):
-            self.perception.encoder.freeze()
-            known_groups.append('audio_encoder.')
+            known_groups.append('perception.modality_adapter.')
 
         opt_params = []
         for _, module in self.named_modules():
@@ -243,7 +257,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         context_start_idx: Optional[List[List[int]]] = None,
     ):
         # [b, t, c]
-        lm_embedding = self.model.language_model.embedding
+        lm_embedding = (
+            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
+        )
         input_embeds = lm_embedding.word_embeddings(input_ids)
         if isinstance(encoded, torch.Tensor):
             # single audio
@@ -258,13 +274,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         position_ids = build_position_ids(encoder_input[:, :, 0])
 
         # Add position embeddings
-        if hasattr(lm_embedding, "position_embeddings"):
+        if (
+            getattr(lm_embedding, "position_embeddings", None) is not None
+            and lm_embedding.position_embedding_type == 'learned_absolute'
+        ):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
             encoder_input = encoder_input + position_embeddings
         else:
             encoder_input = encoder_input
         encoder_max_length = encoder_input.shape[1]
-        if lm_embedding.transpose_batch_sequence:
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
         if self.cfg.get("sequence_parallel", False):
             encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
@@ -280,7 +299,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return shifted_labels
 
     def _get_text_embeddings(self, text_tokens, position_ids):
-        lm_embedding = self.model.language_model.embedding
+        lm_embedding = (
+            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
+        )
         text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
         if hasattr(lm_embedding, 'position_embeddings'):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
@@ -339,14 +360,23 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         as the LLM input.
         """
         encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
-        output = self.model(
-            input_ids=None,
-            position_ids=None,
-            encoder_input=encoder_input,
-            attention_mask=attention_mask,
-            labels=labels,
-            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-        )
+        if self.mcore_gpt:
+            output = self.model(
+                input_ids=None,
+                position_ids=None,
+                decoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
+        else:
+            output = self.model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            )
 
         return output, loss_mask
 
@@ -368,18 +398,43 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            output_tensor = model(
-                input_ids=None,
-                position_ids=None,
-                encoder_input=input_embeddings,
-                attention_mask=attention_mask,
-                **extra_arg,
-            )
+            if self.mcore_gpt:
+                # if first step, then clear KV cache, otherwise reuse inference_paarms
+                if set_inference_key_value_memory[0].item():
+                    self.inference_params = InferenceParams(
+                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                    )
+                extra_arg['inference_params'] = self.inference_params
+            else:
+                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            if self.mcore_gpt:
+                output_tensor = model(
+                    input_ids=None,
+                    position_ids=None,
+                    decoder_input=input_embeddings,
+                    attention_mask=attention_mask,
+                    **extra_arg,
+                )
+            else:
+                output_tensor = model(
+                    input_ids=None,
+                    position_ids=None,
+                    encoder_input=input_embeddings,
+                    attention_mask=attention_mask,
+                    **extra_arg,
+                )
 
             if isinstance(output_tensor, tuple):
                 output_tensor = output_tensor[1]  # get logits only
+
+            # Advance inference sequence offset.
+            if self.inference_params:
+                # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
+                if parallel_state.is_pipeline_last_stage():
+                    self.inference_params.sequence_len_offset += output_tensor.size(1)
+                else:
+                    self.inference_params.sequence_len_offset += output_tensor.size(0)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -388,18 +443,39 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
         return fwd_output_only_func
 
-    def get_forward_output_and_loss_func(self, validation_step=False):
+    def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
+
+            # Transfer needed data to GPU
+            required_keys = set()
+            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+                required_keys.update(batch.keys())
+            else:
+                required_keys.add('attention_mask')
+                if 'cu_seqlens' in batch:
+                    required_keys.add('cu_seqlens')
+                if parallel_state.is_pipeline_first_stage():
+                    required_keys.update(('tokens', 'position_ids'))
+                if parallel_state.is_pipeline_last_stage():
+                    required_keys.update(('labels', 'loss_mask'))
+            if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
+                required_keys.remove('attention_mask')
+
             batch = to_cuda(batch, non_blocking=True)
+            batch = self.get_batch_on_this_context_parallel_rank(batch)
+
             output_tensor, loss_mask = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
-            output_tensor = output_tensor[0]  # get loss only, ingore logits
+            batch['loss_mask'] = loss_mask
+
+            if not self.mcore_gpt:
+                output_tensor = output_tensor[0]  # get loss only, ingore logits
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(loss_mask, output_tensor)
+                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
                     if loss_for_ub.isnan():
@@ -521,7 +597,33 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return dataloader
 
     @classmethod
-    def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False):
+    def _modify_audio_encoder_config(cls, gpt_cfg, audio_cfg, speaker_cfg=None):
+        with open_dict(gpt_cfg):
+            use_multi_encoder = gpt_cfg.perception.get("encoders", None) is not None
+            if not use_multi_encoder:
+                gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
+                gpt_cfg.perception.encoder = audio_cfg.encoder
+            else:
+                for key in gpt_cfg.perception.encoders:
+                    model_key = gpt_cfg.perception.encoders[key].get("model_key", "encoder")
+                    gpt_cfg.perception.encoders[key]["model"] = audio_cfg[key][model_key]
+                    if "preprocessor" in audio_cfg[key]:
+                        gpt_cfg.perception.encoders[key]['preprocessor'] = audio_cfg[key].preprocessor
+                if speaker_cfg is not None:
+                    gpt_cfg.perception.speaker_model.model = speaker_cfg
+
+            gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
+            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
+            if 'output_dim' in modality_adapter_cfg:
+                modality_adapter_cfg.output_dim = gpt_cfg.hidden_size
+            if not use_multi_encoder:
+                if 'feat_in' in modality_adapter_cfg:  # conformer encoder
+                    modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
+                if 'input_dim' in modality_adapter_cfg:
+                    modality_adapter_cfg.input_dim = audio_cfg.encoder.d_model
+
+    @classmethod
+    def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False, speaker_cfg=None):
         """
         This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
         The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
@@ -529,49 +631,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         OmegaConf.set_struct(gpt_cfg, True)
         OmegaConf.resolve(cfg)
         with open_dict(gpt_cfg):
-            gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
-            gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
-            gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
-            gpt_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
-            gpt_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
-            gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
-            gpt_cfg.sequence_parallel = cfg.model.get("sequence_parallel", False)
-            gpt_cfg.tensor_model_parallel_size = cfg.model.get(
-                "tensor_model_parallel_size", gpt_cfg.tensor_model_parallel_size
-            )
-            gpt_cfg.activations_checkpoint_granularity = cfg.model.get("activations_checkpoint_granularity", None)
-            gpt_cfg.activations_checkpoint_num_layers = cfg.model.get("activations_checkpoint_num_layers", None)
-            gpt_cfg.activations_checkpoint_method = cfg.model.get("activations_checkpoint_method", None)
-            gpt_cfg.data = cfg.model.data
-            gpt_cfg.optim = cfg.model.optim
-            gpt_cfg.precision = cfg.trainer.precision
-            gpt_cfg.answer_only_loss = cfg.model.answer_only_loss
-            gpt_cfg.restore_from_path = cfg.model.restore_from_path
-            gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
-            gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
-            gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
-            gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
-            gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
-            gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
-            gpt_cfg.peft = cfg.model.peft
             # for AudioGPTLoRAModel
             gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
             gpt_cfg.perception = cfg.model.perception
-            gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
-            gpt_cfg.perception.encoder = audio_cfg.encoder
-            gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
-
-            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
-            if 'feat_in' in modality_adapter_cfg:  # conformer encoder
-                modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
-            if 'input_dim' in modality_adapter_cfg:
-                modality_adapter_cfg.input_dim = audio_cfg.encoder.d_model
-            if 'output_dim' in modality_adapter_cfg:
-                modality_adapter_cfg.output_dim = gpt_cfg.hidden_size
-
-            override_vocab_size = cfg.model.get('override_vocab_size', None)
-            if override_vocab_size is not None:
-                gpt_cfg.override_vocab_size = override_vocab_size
+            cls._modify_audio_encoder_config(gpt_cfg, audio_cfg, speaker_cfg)
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -581,68 +644,147 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         return gpt_cfg
 
     @classmethod
+    def get_pretraind_audio_model(cls, encoder_cfg: DictConfig) -> ModelPT:
+        encoder_cls = get_class(encoder_cfg.get("_target_")) if encoder_cfg.get("_target_", None) is not None else None
+        pretrained_model = encoder_cfg.get('pretrained_model', None)
+        if pretrained_model is None:
+            return None
+        if encoder_cls is None:
+            raise ValueError(
+                f"Must specify a valid encoder class in the via the `_target_` field in the config: {encoder_cfg}"
+            )
+
+        if pretrained_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained audio model from local file: {pretrained_model}')
+            audio_model = encoder_cls.restore_from(pretrained_model, map_location='cpu')
+        else:
+            logging.info(f'Loading pretrained audio model from NGC: {pretrained_model}')
+            audio_model = encoder_cls.from_pretrained(pretrained_model, map_location='cpu')
+        return audio_model
+
+    @classmethod
+    def get_speaker_model_and_config(cls, cfg):
+        if 'speaker_model' in cfg.model.perception:
+            speaker_cfg = cfg.model.perception.speaker_model
+            if speaker_cfg.get('pretrained_model', None) is not None:
+                if speaker_cfg.pretrained_model.endswith('.nemo'):
+                    logging.info(f'Loading pretrained speaker model from local file: {speaker_cfg.pretrained_model}')
+                    speaker_model = EncDecSpeakerLabelModel.restore_from(
+                        speaker_cfg.pretrained_model, map_location='cpu'
+                    )
+                else:
+                    logging.info(f'Loading pretrained speaker model from NGC: {speaker_cfg.pretrained_model}')
+                    speaker_model = EncDecSpeakerLabelModel.from_pretrained(
+                        speaker_cfg.pretrained_model, map_location='cpu'
+                    )
+            return speaker_model, speaker_model.cfg
+        else:
+            return None, None
+
+    @classmethod
+    def get_audio_encoder_models_and_configs(cls, cfg):
+        if 'encoders' in cfg.model.perception:
+            audio_encoders = {}
+            audio_enc_cfgs = {}
+            for key, encoder_cfg in cfg.model.perception.encoders.items():
+                audio_encoders[key] = cls.get_pretraind_audio_model(encoder_cfg)
+                audio_enc_cfgs[key] = audio_encoders[key].cfg
+            return audio_encoders, audio_enc_cfgs
+        else:
+            pretrained_audio_model = cfg.model.get("pretrained_audio_model", None)
+            try:
+                if pretrained_audio_model.endswith('.nemo'):
+                    logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                    audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
+                else:
+                    logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                    audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
+            except:
+                logging.info(f'Fail in loading it with ASRModel. Try again with SpeechEncDecSelfSupervisedModel.')
+                if pretrained_audio_model.endswith('.nemo'):
+                    logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                    audio_model = SpeechEncDecSelfSupervisedModel.restore_from(
+                        pretrained_audio_model, map_location='cpu'
+                    )
+                else:
+                    logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                    audio_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
+                        pretrained_audio_model, map_location='cpu'
+                    )
+            return audio_model, audio_model.cfg
+
+    @classmethod
+    def load_pretrained_audio_weights(
+        cls, cfg, model, audio_model, speaker_model: Optional[EncDecSpeakerLabelModel] = None
+    ):
+        use_multi_encoder = cfg.model.perception.get("encoders", None) is not None
+        if not use_multi_encoder:
+            if cfg.model.perception.get("use_multi_layer_feat", False):
+                model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+            else:
+                model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+            logging.info(f'Loaded pretrained audio model weights from {cfg.model.pretrained_audio_model}')
+            if cfg.model.get('use_am_tokenizer', False):
+                model.tokenizer = audio_model.tokenizer
+                logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
+            return model
+        else:
+            for key, enc_cfg in cfg.model.perception.encoders.items():
+                if enc_cfg.get("use_multi_layer_feat", False):
+                    model.perception.encoders[key].encoder.load_state_dict(
+                        audio_model[key].encoder.state_dict(), strict=True
+                    )
+                else:
+                    model.perception.encoders[key].load_state_dict(audio_model[key].encoder.state_dict(), strict=True)
+                logging.info(f'Loaded pretrained audio model weights for {key}')
+            if speaker_model is not None:
+                model.perception.speaker_model.load_state_dict(speaker_model.state_dict(), strict=True)
+                logging.info(f'Loaded pretrained speaker model weights')
+            return model
+
+    @classmethod
     def restore_from_pretrained_models(
         cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
     ):
-        if not cfg.model.pretrained_audio_model:
-            raise RuntimeError("PEFT training needs a pretrained audio model present.")
+        if (
+            cfg.model.get("pretrained_audio_model", None) is None
+            and cfg.model.perception.get("encoders", None) is None
+        ):
+            raise RuntimeError("PEFT training needs at least one pretrained audio model present.")
 
         if not cfg.model.restore_from_path:
             raise RuntimeError("PEFT training needs a trained base model present.")
 
-        base_model_save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.model.restore_from_path):
-            base_model_save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
-        base_model_cfg = cls.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            return_config=True,
-            save_restore_connector=base_model_save_restore_connector,
+        base_model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+        audio_model, audio_model_cfg = cls.get_audio_encoder_models_and_configs(cfg)
+        speaker_model, speaker_cfg = cls.get_speaker_model_and_config(cfg)
+        model_cfg = cls._modify_config(
+            base_model_cfg, cfg, audio_model_cfg, add_cfg_to_tree=False, speaker_cfg=speaker_cfg
         )
-        pretrained_audio_model = cfg.model.pretrained_audio_model
-        try:
-            if pretrained_audio_model.endswith('.nemo'):
-                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-                audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
-            else:
-                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-                audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
-        except:
-            logging.info(f'Fail in loading it with ASRModel. Try again with SpeechEncDecSelfSupervisedModel.')
-            if pretrained_audio_model.endswith('.nemo'):
-                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-                audio_model = SpeechEncDecSelfSupervisedModel.restore_from(pretrained_audio_model, map_location='cpu')
-            else:
-                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-                audio_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
-                    pretrained_audio_model, map_location='cpu'
-                )
-
-        model_cfg = cls._modify_config(base_model_cfg, cfg, audio_model.cfg, add_cfg_to_tree=False)
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-        save_restore_connector = PEFTSaveRestoreConnector(
-            peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=resume_from_checkpoint
-        )
-        if os.path.isdir(cfg.model.restore_from_path):
-            save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
 
         # load llm
         model = cls.restore_from(
-            restore_path=cfg.model.restore_from_path,
-            trainer=trainer,
-            override_config_path=model_cfg,
-            save_restore_connector=save_restore_connector,
-            strict=False,
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False,
         )
-        # load am
-        if cfg.model.get('load_audio_encoder', True):
-            model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
-            logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
+
+        if "peft" in cfg.model:
+            peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+            if cfg.model.peft.restore_from_path is not None:
+                # initialize peft weights from a checkpoint instead of randomly
+                # This is not the same as resume training because optimizer states are not restored.
+                logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+            elif peft_cfg_cls is not None:
+                logging.info("Adding adapter weights to the model for PEFT")
+                model.add_adapter(peft_cfg_cls(model_cfg))
+            else:
+                raise ValueError(f"PEFT scheme not not found in PEFT_CONFIG_MAP: {cfg.model.peft.peft_scheme}")
         else:
-            logging.info(f'Not load pretrained audio model from {pretrained_audio_model}')
-        if cfg.model.get('use_am_tokenizer', False):
-            model.tokenizer = audio_model.tokenizer
-            logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
+            logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
+
+        # load audio model weights
+        model = cls.load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
+
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
@@ -664,10 +806,18 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.setup_complete:
             # Once setup is complete we only need adapter and perception model.
-            if self.cfg.get('freeze_llm', True):
+            if self.cfg.freeze_llm and self.cfg.get("peft", None) is not None:
                 return_state_dict = self.get_peft_state_dict()
-            else:
+            elif not self.cfg.freeze_llm:
                 return_state_dict = self.model.state_dict(prefix="model.")
+            else:
+                return_state_dict = {}
+
+            state_dict = self.perception.state_dict(prefix="perception.")
+            if self.cfg.freeze_audio_encoder:
+                state_dict = {k: v for k, v in state_dict.items() if not k.startswith("perception.encoder.")}
+
+            return_state_dict.update(state_dict)
             state_dict = self.perception.state_dict(prefix="perception.")
             return_state_dict.update(state_dict)
             return return_state_dict
@@ -675,11 +825,19 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix="model.")
+            if not self.cfg.freeze_llm:
+                return_state_dict = self.model.state_dict(prefix="model.")
+            else:
+                return_state_dict = {}
+            state_dict = self.perception.state_dict(prefix="perception.")
+            if self.cfg.freeze_audio_encoder:
+                state_dict = {k: v for k, v in state_dict.items() if not k.startswith("perception.encoder.")}
+            return_state_dict.update(state_dict)
+            return return_state_dict
 
     def load_state_dict(self, state_dict, strict: bool = True):
         if self.setup_complete:
-            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=False)
+            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=False)
         else:
             if self.cfg.get('override_vocab_size', False):
                 exclude_list = [
@@ -689,7 +847,14 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             else:
                 exclude_list = []
             state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
-            super(MegatronGPTPEFTModel, self).load_state_dict(state_dict, strict=strict)
+            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=strict)
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+         """
+        checkpoint_state_dict = checkpoint['state_dict']
+        self.load_state_dict(checkpoint_state_dict, strict=False)
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -770,14 +935,13 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
 
-    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
-        batch = next(dataloader_iter)
+    def inference_step(self, dataloader_iter, mode):
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-
-        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), batch_idx)
+        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([(batch, batch_idx, dataloader_idx)]))
 
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
@@ -797,13 +961,41 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         ]
 
         if data_cfg.get("end_string", None):
-            preds_text = [p.replace(data_cfg.end_string, '') for p in preds_text]
-            labels_text = [p.replace(data_cfg.end_string, '') for p in labels_text]
+            # sometimes data_cfg.end_string != self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
+            # for example when data_cfg.end_string = "<end>", the end_string_re will start with " ?? "
+            end_string_re = self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
+            preds_text_cleaned = []
+            labels_text_cleaned = []
+            for p, l in zip(preds_text, labels_text):
+                # remove end_string from the end of the string
+                for es in [end_string_re, data_cfg.end_string]:
+                    if p.endswith(es):
+                        p = p[: -len(es)].strip()
+                    if l.endswith(es):
+                        l = l[: -len(es)].strip()
+                preds_text_cleaned.append(p)
+                labels_text_cleaned.append(l)
+            preds_text = preds_text_cleaned
+            labels_text = labels_text_cleaned
+
+        if data_cfg.get("remove_text_pc", False):
+            preds_text = [remove_text_pc(p, data_cfg.get("punctuations", None)) for p in preds_text]
+            labels_text = [remove_text_pc(l, data_cfg.get("punctuations", None)) for l in labels_text]
+
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
                 logging.info(f"Input: `{inputs_text[0]}`")
                 logging.info(f"Label: `{labels_text[0]}`")
                 logging.info(f"Pred: `{preds_text[0]}`")
+
+        # if loss is nan, print the input, label and pred
+        if loss.isnan():
+            logging.info("++++++++++++++ NaN loss detected ++++++++++++++")
+            for i in range(len(inputs_text)):
+                logging.info(f"Input: `{inputs_text[i]}`")
+                logging.info(f"Label: `{labels_text[i]}`")
+                logging.info(f"Pred: `{preds_text[i]}`")
+            logging.info("++++++++++++++++++++++++++++++++++++++++++++++++")
 
         outputs = {
             'loss': loss,
@@ -813,7 +1005,18 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             'metadata': metadata,  # [dict]
         }
 
-        # TODO(zhehuai): handling self.validation_step_outputs for PTL2.0
+        if mode == 'validation':
+            if len(self._validation_dl) > 1:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
+                self.validation_step_outputs[-1] = outputs
+        else:
+            if len(self._test_dl) > 1:
+                self.test_step_outputs[dataloader_idx][-1] = outputs
+            else:
+                self.test_step_outputs[-1] = outputs
         return outputs
 
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
@@ -881,14 +1084,8 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
-        if not outputs:
-            # Handle case where no metrics. This can break checkpoint save/load.
-            app_state = AppState()
-            monitor_mode = app_state.checkpoint_callback_params.mode
-            assert monitor_mode in ['min', 'max']
-            averaged_metric = 0.0 if monitor_mode == 'max' else 1e2
-            logging.warning(f"No outputs to log for {mode} epoch")
-            return torch.Tensor([1e2]), torch.Tensor([averaged_metric])
+        if not outputs or (all([not x for x in outputs])):
+            return
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]
@@ -897,6 +1094,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         averaged_metric = []
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
+            if len(output) == 0:
+                logging.warning(f"Empty output for dataloader_idx: {dataloader_idx}")
+                continue
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
             loss_vals = [x['loss'] for x in output]
             if parallel_state.is_pipeline_last_stage():
@@ -946,7 +1146,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                     for pred, label, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
-                        key = input + label
+                        key = input + label + str(metadata)
                         total_size += 1
                         if key not in inp_label_set:
                             inp_label_set.add(key)
@@ -971,7 +1171,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 if metric_name == 'bleu':
                     metric_result = torch.Tensor(
                         [sacrebleu.corpus_bleu(deduplicated_outputs['preds'], [labels]).score]
-                    )
+                    ).to(self.device)
                 else:
                     for pred, label in zip(deduplicated_outputs['preds'], labels):
                         _ = metric_fn(pred, label)
@@ -981,11 +1181,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 if metric_name == 'rouge':
                     for k, v in metric_result.items():
                         if 'fmeasure' in k:
-                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
+                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True, batch_size=1)
                             logging.info(f"{mode} {metric_name} {k}: {v.item()}")
                     metric_result = metric_result['rouge1_fmeasure']
                 else:
-                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
+                    self.log(metric_log_key, metric_result.item(), sync_dist=True, batch_size=1)
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
                 metric_fn.reset()
@@ -1003,8 +1203,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                         f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                     )
                 filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                output_dir = data_cfg.get("output_dir", "./")
                 self.write_predictions_to_file(
-                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}", output_dir
                 )
 
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
@@ -1013,6 +1214,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
         averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 0 else None
+        averaged_loss = averaged_loss.to(self.device)
+        if averaged_metric is not None:
+            averaged_metric = averaged_metric.to(self.device)
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
         if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
@@ -1024,16 +1228,16 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         if mode == 'validation':
             self.log("validation_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True)
+                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
         elif mode == 'test':
             self.log("test_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True)
+                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
 
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
-        # TODO(zhehuai): add _restore_sequence_parallelism_args after sync to HEAD
+        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -1055,17 +1259,11 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
 
         return averaged_loss, averaged_metric
 
-    def validation_epoch_end(self, outputs):
-        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
-        return averaged_loss
-
-    def test_epoch_end(self, outputs):
-        averaged_loss, averaged_metric = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
-        return averaged_loss
-
     # consistent with speech models
-    def write_predictions_to_file(self, outputs, output_file_path_prefix):
+    def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
+        os.makedirs(output_dir, exist_ok=True)
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
+        output_file_path = os.path.join(output_dir, output_file_path)
         with open(output_file_path, "w") as f_json:
             assert (
                 len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
@@ -1087,3 +1285,22 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
             eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
             dataloaders.append(eval_dl)
         return dataloaders
+
+    def get_test_dataloader(self, data_cfg):
+        datasets = self._build_dataset(data_cfg, False)
+        dataloaders = []
+        if not isinstance(datasets, list):
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
+        for dataset in datasets:
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            dataloaders.append(eval_dl)
+        return dataloaders
+
+    def sharded_state_dict(self, prefix: str = ''):
+        """
+        Force None for the parent class's sharded_state_dict() method if setup is complete.
+        """
+        if self.setup_complete:
+            return None
+        else:
+            return super().sharded_state_dict(prefix=prefix)

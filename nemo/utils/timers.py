@@ -20,7 +20,13 @@ import time
 import numpy as np
 import torch
 
+from nemo.utils.exceptions import NeMoBaseException
+
 __all__ = ["NamedTimer"]
+
+
+class NeMoTimerException(NeMoBaseException, RuntimeError):
+    pass
 
 
 class NamedTimer(object):
@@ -89,7 +95,7 @@ class NamedTimer(object):
         timer_data = self.timers.get(name, {})
 
         if "start" in timer_data:
-            raise RuntimeError(f"Cannot start timer = '{name}' since it is already active")
+            raise NeMoTimerException(f"Cannot start timer = '{name}' since it is already active")
 
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
@@ -108,7 +114,7 @@ class NamedTimer(object):
         """
         timer_data = self.timers.get(name, None)
         if (timer_data is None) or ("start" not in timer_data):
-            raise RuntimeError(f"Cannot end timer = '{name}' since it is not active")
+            raise NeMoTimerException(f"Cannot end timer = '{name}' since it is not active")
 
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
@@ -125,6 +131,12 @@ class NamedTimer(object):
             timer_data["dt"] = timer_data["dt"][-self._buffer_size :]
 
         self.timers[name] = timer_data
+
+    def is_active(self, name=""):
+        timer_data = self.timers.get(name, {})
+        if "start" in timer_data:
+            return True
+        return False
 
     def active_timers(self):
         """

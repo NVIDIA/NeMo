@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import os
+import shutil
+import tarfile
 import tempfile
 from argparse import ArgumentParser
 from typing import Dict, List
@@ -24,8 +26,11 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
+    PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
@@ -73,7 +78,7 @@ python megatron_change_num_partitions.py \
 
 ### Only Tensor Parallelism conversion ###
 
-To the above commands, add the following argument: `--tp_conversion_only` 
+To the above commands, add the following argument: `--tp_conversion_only`
 
 # Note: This requires that the pipeline_model_parallel_size and tgt_pipeline_model_parallel_size is set to 1.
 
@@ -90,9 +95,9 @@ python megatron_change_num_partitions.py \
 
 ### Model Classes ###
 
-# NOTE: Conversion of other model types. 
+# NOTE: Conversion of other model types.
 # Default model type is MegatronGPTModel, if you want another model you need to pass classpath of the model
-# For example - MegatronT5Model - 
+# For example - MegatronT5Model -
 
 python megatron_change_num_partitions.py \
     ...
@@ -101,7 +106,7 @@ python megatron_change_num_partitions.py \
 # Additional arguments:
 
 --num_gpu_per_node: Number of GPUs per node. Default is 8.
---megatron_legacy: Whether the model is a legacy Megatron model or not. Default is False. May be unsuported for 
+--megatron_legacy: Whether the model is a legacy Megatron model or not. Default is False. May be unsuported for
     Pipeline Parallelism change.
 --tokenizer_model_path: Path to tokenizer model. Default is None. When not None, overrides the tokenizer model path
     in the model config.
@@ -141,23 +146,29 @@ def force_cpu_model(cfg):
         # temporarily set to cpu
         original_cpu_init = cfg.get('use_cpu_initialization', False)
         if 'megatron_amp_O2' in cfg:
-            key = 'megatron_amp_O2'
+            amp_o2_key = 'megatron_amp_O2'
             original_amp_o2 = cfg.megatron_amp_O2
         elif 'megatron_amp_02' in cfg:
-            key = 'megatron_amp_02'
+            amp_o2_key = 'megatron_amp_02'
             original_amp_o2 = cfg.megatron_amp_02
         else:
-            key, original_amp_o2 = None, None
+            amp_o2_key, original_amp_o2 = None, None
 
         # Set new values
         cfg.use_cpu_initialization = True
-        if key is not None:
-            cfg[key] = False
+        if amp_o2_key is not None:
+            cfg[amp_o2_key] = False
+
+        # Disable sequence parallelism - Not disabling this gives error when converting the the model to TP=1
+        original_sequence_parallel = cfg.get('sequence_parallel', None)
+        cfg.sequence_parallel = False
 
     # Setup restore dict
     restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_o2
-    if key is not None:
-        restore_dict[key] = original_amp_o2
+    if amp_o2_key is not None:
+        restore_dict[amp_o2_key] = original_amp_o2
+    if original_sequence_parallel is not None:
+        restore_dict['sequence_parallel'] = original_sequence_parallel
 
     return cfg, restore_dict
 
@@ -208,7 +219,7 @@ def compute_tp_splits(
         split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
     else:
         # For T5-converted weights, the splitting needs to be strided such that q,k,v weights are bunched together on each tensor-parallel rank.
-        if 'query_key_value.weight' in param_name and megatron_legacy:
+        if '.query_key_value.' in param_name and megatron_legacy:  # weight or bias
             split_dim = partitions[0][idx].data.shape[0]
             if split_dim % (tp_size * 3) != 0:
                 raise ValueError(
@@ -219,7 +230,7 @@ def compute_tp_splits(
             for i in range(tp_size):
                 tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 3, tp_size)])
                 split.append(tp_qkv)
-        elif 'key_value.weight' in param_name and megatron_legacy:
+        elif '.key_value.' in param_name and megatron_legacy:  # weight or bias
             split_dim = partitions[0][idx].data.shape[0]
             if split_dim % (tp_size * 2) != 0:
                 raise ValueError(
@@ -230,7 +241,7 @@ def compute_tp_splits(
             for i in range(tp_size):
                 tp_qkv = torch.cat([tp_qkv_splits[item] for item in range(i, tp_size * 2, tp_size)])
                 split.append(tp_qkv)
-        elif 'dense_h_to_4h.weight' in param_name and fast_glu_activation:
+        elif ('dense_h_to_4h' in param_name or 'linear_fc1' in param_name) and fast_glu_activation:
             # For Megatron GPT model with Fast Glu activation
             # Handle gated linear units
             # concat all the first halves ('W's) and all the second halves ('V's)
@@ -272,7 +283,7 @@ def compute_tp_merge(idx, name, param, partitions_pp, model_cfg):
         concated = torch.cat([partitions_pp[i][idx].data for i in range(len(partitions_pp))], dim=0)
 
     # Logic for Fast Glu activation
-    if 'dense_h_to_4h.weight' in name and fast_glu_activation:
+    if 'dense_h_to_4h' in name and fast_glu_activation:
         # concat all the first halves ('W's) and all the second halves ('V's)
         wk_splits = []
         for tpr in range(len(partitions_pp)):
@@ -846,18 +857,18 @@ def main():
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
 
-    if precision == "bf16":
+    if precision in ["bf16", "bf16-mixed"]:
         if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
-            precision = "bf16"
+            pass
         else:
             logging.warning("BF16 is not supported on this device. Using FP16 instead.")
-            precision = 16
+            precision = precision[2:]
 
     if precision == 32:
         dtype = torch.float32
-    elif precision == 16:
+    elif precision in [16, "16", "16-mixed"]:
         dtype = torch.float16
-    elif precision == "bf16":
+    elif precision in ["bf16", "bf16-mixed"]:
         dtype = torch.bfloat16
     else:
         dtype = torch.float32  # fallback
@@ -900,7 +911,31 @@ def main():
     if args.model_file is None and args.model_extracted_dir is None:
         raise ValueError("Cannot pass model_file and model_extracted_dir as None at the same time.")
 
-    trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+    tmp_cfg = cls.restore_from(
+        restore_path=args.model_file,
+        trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision),
+        map_location=torch.device("cpu"),
+        return_config=True,
+    )
+    plugins = []
+    if precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
+        scaler = None
+        if precision in [16, '16', '16-mixed']:
+            scaler = GradScaler(
+                init_scale=tmp_cfg.get('native_amp_init_scale', 2 ** 32),
+                growth_interval=tmp_cfg.get('native_amp_growth_interval', 1000),
+                hysteresis=tmp_cfg.get('hysteresis', 2),
+            )
+            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
+            plugin_precision = '16-mixed'
+        else:
+            plugin_precision = 'bf16-mixed'
+
+        if tmp_cfg.get('megatron_amp_O2', False):
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+    trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
 
     if tp_size < 0 or pp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
@@ -949,6 +984,31 @@ def main():
 
     if vp_size > 1:
         set_virtual_parallel_rank_safely(0)
+
+    # Extract tokenizer artifact from the model to temp directory
+    logging.info("Extracting tokenizer artifact from NeMo file...")
+    temp_dir = tempfile.mkdtemp()
+    tokenizer_model_path = None
+    with tarfile.open(args.model_file, "r") as tar:
+        for member in tar.getmembers():
+            if '.model' in member.name:
+                extracted_file = tar.extractfile(member)
+                extracted_file_path = os.path.join(temp_dir, member.name)
+
+                if tokenizer_model_path is None:
+                    logging.info(f"Found tokenizer. Extracting {member.name} to {extracted_file_path}")
+
+                    tokenizer_model_path = extracted_file_path
+                    with open(extracted_file_path, "wb") as f:
+                        f.write(extracted_file.read())
+                else:
+                    if args.tokenizer_model_path is None:
+                        logging.warning(
+                            f"\n\nFound multiple tokenizer artifacts in the model file.\n"
+                            f"Using only {tokenizer_model_path}.\n"
+                            f"If this is incorrect, manually pass the correct tokenizer using "
+                            f"`--tokenizer_model_path`.\n\n"
+                        )
 
     # If input model has TP > 1 or PP > 1
     # Reconstruct the model to have TP = 1 and PP = 1
@@ -1142,7 +1202,9 @@ def main():
         if vp_size > 1:
             set_virtual_parallel_rank_safely(None)
 
-        trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+        trainer = Trainer(
+            plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
+        )
 
         with open_dict(model.cfg):
             if args.tokenizer_model_path is not None:
@@ -1183,7 +1245,7 @@ def main():
 
             """
             Under VP convention
-            Notation : 
+            Notation :
             Stage  = PP rank
             Number = GPT model / layer index
             Ignore TP - every PP has all TP corresponding to that PP
@@ -1277,6 +1339,7 @@ def main():
             trainer=trainer,
             map_location=torch.device("cpu"),
             save_restore_connector=save_restore_connector,
+            override_config_path=tmp_cfg,
         )
         model.to(dtype=dtype)
 
@@ -1347,10 +1410,21 @@ def main():
                 app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
             )
 
-            trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+            trainer = Trainer(
+                plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
+            )
             if args.tokenizer_model_path is not None:
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = args.tokenizer_model_path
+
+            else:
+                if tokenizer_model_path is None:
+                    logging.warning("Could not extract tokenizer model file from checkpoint.")
+
+                else:
+                    # Extract tokenizer info
+                    with open_dict(model.cfg):
+                        model.cfg.tokenizer.model = tokenizer_model_path
 
             model.cfg, restore_dict = force_cpu_model(model.cfg)
 
@@ -1425,6 +1499,9 @@ def main():
             )
 
     logging.info("Successfully finished changing partitions!")
+
+    if temp_dir is not None:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 if __name__ == '__main__':

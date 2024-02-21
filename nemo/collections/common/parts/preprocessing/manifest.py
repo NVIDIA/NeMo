@@ -14,11 +14,13 @@
 
 import json
 import os
+import re
 from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from nemo.utils import logging
 from nemo.utils.data_utils import DataStoreObject, datastore_path_to_local_path, is_datastore_path
+from nemo.utils.nemo_logging import LogMode
 
 
 class ManifestBase:
@@ -91,16 +93,26 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['audio_file'] = item.pop('audio_filename')
     elif 'audio_filepath' in item:
         item['audio_file'] = item.pop('audio_filepath')
-    elif 'audio_file' not in item:
+
+    # Video File
+    if 'video_filename' in item:
+        item['video_file'] = item.pop('video_filename')
+    elif 'video_filepath' in item:
+        item['video_file'] = item.pop('video_filepath')
+
+    if 'video_file' not in item and 'audio_file' not in item:
         raise ValueError(
-            f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
+            f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio/video file key."
         )
 
-    # If the audio path is a relative path and does not exist,
+    # If the audio/video path is a relative path and does not exist,
     # try to attach the parent directory of manifest to the audio path.
     # Revert to the original path if the new path still doesn't exist.
     # Assume that the audio path is like "wavs/xxxxxx.wav".
-    item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+    if 'audio_file' in item:
+        item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+    if 'video_file' in item:
+        item['video_file'] = get_full_path(audio_file=item['video_file'], manifest_file=manifest_file)
 
     # Duration.
     if 'duration' not in item:
@@ -144,7 +156,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         item['feature_file'] = get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
 
     item = dict(
-        audio_file=item['audio_file'],
+        audio_file=item.get('audio_file', None),
+        video_file=item.get('video_file', None),
         duration=item['duration'],
         text=item['text'],
         rttm_file=item['rttm_file'],
@@ -156,6 +169,19 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         lang=item.get('lang', None),
     )
     return item
+
+
+def is_tarred_dataset(audio_file: str, manifest_file: Optional[str] = None) -> bool:
+    if "/" in audio_file or manifest_file is None:
+        # audio files in a tarred dataset don't have `/` in their paths
+        return False
+    if os.path.basename(manifest_file) == "tarred_audio_manifest.json":
+        # the manifest file is a tarred manifest
+        return True
+    if "/sharded_manifests/" in manifest_file and re.match(r'^manifest_(\d+)\.json$', os.path.basename(manifest_file)):
+        # the manifest file is a sharded manifest
+        return True
+    return False
 
 
 def get_full_path(
@@ -195,6 +221,12 @@ def get_full_path(
         ]
     elif isinstance(audio_file, str):
         # If input is a string, get the corresponding full path
+        if is_tarred_dataset(audio_file=audio_file, manifest_file=manifest_file):
+            logging.warning(
+                f"Manifest file `{manifest_file}` seems to be part of a tarred dataset, skip checking for relative paths. If this is not intended, please avoid having `/sharded_manifests/` and `tarred_audio_manifest.json` in manifest_filepath.",
+                mode=LogMode.ONCE,
+            )
+            return audio_file
         if (
             (len(audio_file) < audio_file_len_limit)
             and not os.path.isabs(audio_file)

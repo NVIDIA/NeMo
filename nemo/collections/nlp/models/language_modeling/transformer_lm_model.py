@@ -59,6 +59,9 @@ class TransformerLMModel(ModelPT):
             tokenizer_model=cfg.tokenizer.get("tokenizer_model", None),
             vocab_file=cfg.tokenizer.get("vocab_file", None),
             bpe_dropout=cfg.tokenizer.get("bpe_dropout", 0.0),
+            special_tokens=OmegaConf.to_container(cfg.tokenizer.special_tokens)
+            if cfg.tokenizer.get("special_tokens", None)
+            else None,
         )
 
         # init superclass
@@ -146,6 +149,7 @@ class TransformerLMModel(ModelPT):
         return {"loss": train_loss, "log": tensorboard_logs}
 
     def eval_step(self, batch, batch_idx):
+        mode = 'test' if self.trainer.testing else 'val'
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1
@@ -159,6 +163,7 @@ class TransformerLMModel(ModelPT):
 
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         self.eval_ppl(log_probs=log_probs, labels=labels, mask=output_mask)
+        self.validation_step_outputs.append({}) if mode == 'val' else self.test_step_outputs.append({})
         return {}
 
     def test_step(self, batch, batch_idx):
@@ -179,20 +184,22 @@ class TransformerLMModel(ModelPT):
         dataset_name = "Validation" if mode == 'val' else "Test"
         logging.info(f"\n\n\n\n{dataset_name} PPL: {np.round(eval_ppl.item(), 2)}")
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.eval_epoch_end(outputs, 'val')
+        self.eval_epoch_end(self.validation_step_outputs, 'val')
+        self.validation_step_outputs.clear()  # free memory
         self.eval_loss.reset()
         self.eval_ppl.reset()
 
-    def test_epoch_end(self, outputs):
-        self.eval_epoch_end(outputs, 'test')
+    def on_test_epoch_end(self):
+        self.eval_epoch_end(self.test_step_outputs, 'test')
+        self.test_step_outputs.clear()  # free memory
 
     def setup_tokenizer(
-        self, tokenizer_name=None, tokenizer_model=None, vocab_file=None, bpe_dropout=0.0,
+        self, tokenizer_name=None, tokenizer_model=None, vocab_file=None, bpe_dropout=0.0, special_tokens=None,
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'word']
@@ -204,7 +211,7 @@ class TransformerLMModel(ModelPT):
             tokenizer_model=self.register_artifact("cfg.tokenizer.tokenizer_model", tokenizer_model),
             vocab_file=vocab_file,
             bpe_dropout=bpe_dropout,
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
         )
 

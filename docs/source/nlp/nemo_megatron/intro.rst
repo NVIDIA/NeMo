@@ -24,6 +24,11 @@ team at NVIDIA. NeMo Megatron supports several types of models:
    parallelisms  
    prompt_learning
    retro/retro_model
+   hiddens/hiddens_module
+   peft/landing_page
+   flash_attention
+   positional_embeddings
+   mcore_customization
 
 
 References

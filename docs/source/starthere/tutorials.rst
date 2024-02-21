@@ -47,8 +47,11 @@ To run a tutorial:
      - Offline ASR Inference with Beam Search and External Language Model Rescoring
      - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
    * - ASR
-     - Online ASR inference with Microphone
-     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo.ipynb>`_
+     - Online ASR inference with Microphone (Cache-Aware Streaming)
+     - `Online ASR Microphone Cache Aware Streaming <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_
+   * - ASR
+     - Online ASR inference with Microphone (Buffered Streaming)
+     - `Online ASR Microphone Buffered Streaming <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Buffered_Streaming.ipynb>`_
    * - ASR
      - Fine-tuning CTC Models on New Languages
      - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_
@@ -107,8 +110,14 @@ To run a tutorial:
      - Multi-lingual ASR
      - `Multi-lingual ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Multilang_ASR.ipynb>`_
    * - ASR
-     - Hybrid ASR-TTS Models Tutorial
-     - `Multi-lingual ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_TTS_Tutorial.ipynb>`_
+     - Hybrid ASR-TTS Models
+     - `Hybrid ASR-TTS Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_TTS_Tutorial.ipynb>`_
+   * - ASR
+     - ASR Confidence Estimation
+     - `ASR Confidence Estimation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_Confidence_Estimation.ipynb>`_
+   * - ASR
+     - Confidence-based Ensembles
+     - `Confidence-based Ensembles <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Confidence_Ensembles.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained Language Models for Downstream Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
@@ -149,7 +158,7 @@ To run a tutorial:
      - P-Tuning/Prompt-Tuning
      - `P-Tuning/Prompt-Tuning <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
    * - NLP
-     - Synthetic Tabular Data Generation 
+     - Synthetic Tabular Data Generation
      - `Synthetic Tabular Data Generation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Megatron_Synthetic_Tabular_Data_Generation.ipynb>`_
    * - TTS
      - NeMo TTS Primer
@@ -181,6 +190,12 @@ To run a tutorial:
    * - TTS
      - Pronunciation_customization
      - `TTS Pronunciation_customization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Pronunciation_customization.ipynb>`_
+   * - Tools
+     - NeMo Forced Aligner
+     - `NeMo Forced Aligner <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/NeMo_Forced_Aligner_Tutorial.ipynb>`_
+   * - Tools
+     - Speech Data Explorer
+     - `Speech Data Explorer  <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/SDE_HowTo_v2.ipynb>`_   
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_

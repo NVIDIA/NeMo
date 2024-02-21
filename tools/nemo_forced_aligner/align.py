@@ -110,12 +110,15 @@ class CTMFileConfig:
 @dataclass
 class ASSFileConfig:
     fontsize: int = 20
-    marginv: int = 20
+    vertical_alignment: str = "center"
     # if resegment_text_to_fill_space is True, the ASS files will use new segments
     # such that each segment will not take up more than (approximately) max_lines_per_segment
     # when the ASS file is applied to a video
     resegment_text_to_fill_space: bool = False
     max_lines_per_segment: int = 2
+    text_already_spoken_rgb: List[int] = field(default_factory=lambda: [49, 46, 61])  # dark gray
+    text_being_spoken_rgb: List[int] = field(default_factory=lambda: [57, 171, 9])  # dark green
+    text_not_yet_spoken_rgb: List[int] = field(default_factory=lambda: [194, 193, 199])  # light gray
 
 
 @dataclass
@@ -146,8 +149,8 @@ class AlignmentConfig:
 
     # Output file configs
     save_output_file_formats: List[str] = field(default_factory=lambda: ["ctm", "ass"])
-    ctm_file_config: CTMFileConfig = CTMFileConfig()
-    ass_file_config: ASSFileConfig = ASSFileConfig()
+    ctm_file_config: CTMFileConfig = field(default_factory=lambda: CTMFileConfig())
+    ass_file_config: ASSFileConfig = field(default_factory=lambda: ASSFileConfig())
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -179,6 +182,22 @@ def main(cfg: AlignmentConfig):
 
     if cfg.ctm_file_config.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
+
+    if cfg.ass_file_config.vertical_alignment not in ["top", "center", "bottom"]:
+        raise ValueError("cfg.ass_file_config.vertical_alignment must be one of 'top', 'center' or 'bottom'")
+
+    for rgb_list in [
+        cfg.ass_file_config.text_already_spoken_rgb,
+        cfg.ass_file_config.text_already_spoken_rgb,
+        cfg.ass_file_config.text_already_spoken_rgb,
+    ]:
+        if len(rgb_list) != 3:
+            raise ValueError(
+                "cfg.ass_file_config.text_already_spoken_rgb,"
+                " cfg.ass_file_config.text_being_spoken_rgb,"
+                " and cfg.ass_file_config.text_already_spoken_rgb all need to contain"
+                " exactly 3 elements."
+            )
 
     # Validate manifest contents
     if not is_entry_in_all_lines(cfg.manifest_filepath, "audio_filepath"):

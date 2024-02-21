@@ -42,11 +42,11 @@ from collections import OrderedDict
 from typing import Any, Optional
 
 import torch
+from lightning_fabric.utilities.cloud_io import _load as pl_load
 from megatron.core import parallel_state
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -171,7 +171,7 @@ def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, conver
             converted[final_key] = weight_dict[key]
 
 
-def add_optimizer_state(lm_checkpoint, new_checkpoint, megatron_amp_o2=True):
+def add_optimizer_state(lm_checkpoint, new_checkpoint, megatron_amp_O2=True):
     # this method is to convert lm_checkpoint optimizer states for nemo checkpoint
     OPTIMIZER_KEY = 'optimizer'
     FP32_FP16_KEY = 'fp32_from_fp16_params'
@@ -182,7 +182,7 @@ def add_optimizer_state(lm_checkpoint, new_checkpoint, megatron_amp_o2=True):
     NEW_LR_SCHEDULER = 'lr_schedulers'
     if OPTIMIZER_KEY in lm_checkpoint and OPTIMIZER_KEY in lm_checkpoint[OPTIMIZER_KEY]:
         opt_state = lm_checkpoint[OPTIMIZER_KEY][OPTIMIZER_KEY]
-        if megatron_amp_o2:
+        if megatron_amp_O2:
             opt_dict = dict()
             if LR_SCHEDULER in lm_checkpoint:
                 sched = lm_checkpoint[LR_SCHEDULER]

@@ -14,46 +14,51 @@
 
 import collections
 import itertools
+from typing import Callable, Dict, Iterable, Optional, Union
 
 import torch
 from apex.contrib.optimizers.distributed_fused_adam import (
     DistributedFusedAdam,
-    _coalescing_manager,
-    _coalescing_manager_append_work,
     _disable_pre_forward_hook,
+    _multi_tensor_copy,
 )
 from megatron.core import parallel_state
+from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+from megatron.core.dist_checkpointing.mapping import ShardedTensor
+from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
+from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
 
-
-def _str_to_dtype(dtype):
-    if isinstance(dtype, torch.dtype):
-        return dtype
-    name = str(dtype).strip().lower()
-    if name in ('', 'none'):
-        return torch.float32
-    elif name in ('torch.float32', 'float32', 'float', 'fp32', '32'):
-        return torch.float32
-    elif name in ('torch.float16', 'float16', 'half', 'fp16', '16'):
-        return torch.float16
-    elif name in ('torch.bfloat16', 'bfloat16', 'bf16'):
-        return torch.bfloat16
-    else:
-        raise ValueError(f'unsupported dtype ({dtype})')
+from nemo.utils import str_to_dtype
+from nemo.utils.te_utils import is_float8tensor
 
 
 class MegatronDistributedFusedAdam(DistributedFusedAdam):
-    """Wrapper class that supports NeMo-Megatron optimizations
+    """Adam optimizer with ZeRO algorithm
 
-    When O2-style optimizations are enabled, gradients are accumulated
-    into the main_grad buffer instead of the grad buffer.
+    Child class of Apex DistributedFusedAdam, with optimizations for
+    NeMo-Megatron.
+
+    Arguments:
+        params (iterable): iterable of parameters to optimize or dicts
+            defining parameter groups.
+        disable_distributed_parameters (bool, optional): use standard
+            data-parallel communication instead of ZeRO.
+            (default: False)
+        **kwargs: keyword arguments to pass to Apex
+            DistributedFusedAdam.
 
     """
 
-    def __init__(self, params, disable_distributed_parameters=False, **kwargs):
+    def __init__(
+        self,
+        params: Union[Iterable[torch.nn.Parameter], Iterable[dict]],
+        disable_distributed_parameters: bool = False,
+        **kwargs,
+    ):
 
         # Initialize process groups
         if 'process_group' not in kwargs and not parallel_state.is_unitialized():
-            kwargs['process_group'] = parallel_state.get_data_parallel_group()
+            kwargs['process_group'] = parallel_state.get_data_parallel_group(with_context_parallel=True)
         if disable_distributed_parameters:
             world_size = torch.distributed.get_world_size()
             rank = torch.distributed.get_rank()
@@ -64,7 +69,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Make sure dtypes are in right type
         for keyword in ('dtype', 'grad_sync_dtype', 'param_sync_dtype'):
             if keyword in kwargs:
-                kwargs[keyword] = _str_to_dtype(kwargs[keyword])
+                kwargs[keyword] = str_to_dtype(kwargs[keyword])
 
         # Make sure params are in consistent format (list of param group dicts)
         param_groups = list(params)
@@ -72,78 +77,14 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if not isinstance(param_groups[0], dict):
             param_groups = [{'params': param_groups}]
 
-        # Check if explicit FP32 optimizer is needed
-        self._fp32_optim = None
-        distopt_param_groups = param_groups
-        dtype = kwargs['dtype'] if 'dtype' in kwargs else torch.float32
-        grad_sync_dtype = kwargs['grad_sync_dtype'] if 'grad_sync_dtype' in kwargs else dtype
-        needs_fp32_optimizer = dtype != torch.float32 or grad_sync_dtype != torch.float32
-        if needs_fp32_optimizer:
-            needs_fp32_optimizer = any(
-                any(getattr(param, '_with_fp32_optimizer', False) for param in param_group['params'])
-                for param_group in param_groups
-            )
-        if needs_fp32_optimizer:
-
-            # Find params that require explicit FP32 optimizer
-            distopt_param_groups = []
-            fp32_param_groups = []
-            self._fp32_optim_main_params = collections.OrderedDict()
-            for param_group in param_groups:
-                distopt_param_group = param_group.copy()
-                distopt_param_group['params'] = []
-                fp32_param_group = param_group.copy()
-                fp32_param_group['params'] = []
-                for model_param in param_group['params']:
-                    if getattr(model_param, '_with_fp32_optimizer', False):
-                        main_param = model_param.detach().clone().float()
-                        model_param.main_grad = main_param.grad
-                        fp32_param_group['params'].append(main_param)
-                        self._fp32_optim_main_params[model_param] = main_param
-                    else:
-                        distopt_param_group['params'].append(model_param)
-                distopt_param_groups.append(distopt_param_group)
-                fp32_param_groups.append(fp32_param_group)
-
-            # Add callback hook so grads accumulate into FP32 buffer
-            self._fp32_register_post_backward_hooks()
-
-            # Construct explicit FP32 optimizer
-            adamw_kwargs = {}
-            for name in ('lr', 'betas', 'eps', 'weight_decay', 'amsgrad'):
-                if name in kwargs:
-                    adamw_kwargs[name] = kwargs[name]
-            self._fp32_optim = torch.optim.AdamW(fp32_param_groups, **adamw_kwargs)
-            self._fp32_optim_grad_sync_needed = True
-
         # Construct distributed optimizer
-        super().__init__(distopt_param_groups, **kwargs)
+        super().__init__(param_groups, **kwargs)
 
-    def _fp32_register_post_backward_hooks(self):
-        """Attach hooks for FP32 gradients"""
+    def _broadcast_params(self) -> None:
+        # Assume params have already been synchronized
+        pass
 
-        # Helper function to avoid issues with late binding closures
-        def make_post_backward_hook(param):
-            def post_backward_hook(*unused):
-                self._fp32_optim_grad_sync_needed = True
-                if hasattr(param, 'main_grad'):
-                    with torch.no_grad():
-                        if param.grad is not None:
-                            param.main_grad += param.grad
-                        param.grad = None
-
-            return post_backward_hook
-
-        # Construct hooks and register with params
-        self._fp32_grad_accs = []
-        for param in self._fp32_optim_main_params.keys():
-            param_tmp = param.expand_as(param)
-            grad_acc = param_tmp.grad_fn.next_functions[0][0]
-            hook = make_post_backward_hook(param)
-            grad_acc.register_hook(hook)
-            self._fp32_grad_accs.append(grad_acc)
-
-    def _make_post_backward_hook(self, param, param_group_id, param_id):
+    def _make_post_backward_hook(self, param: torch.nn.Parameter, param_group_id: int, param_id: int) -> Callable:
         def hook(*unused):
             if getattr(param, '_pre_forward_hook_is_enabled', False):
                 raise RuntimeError(
@@ -166,68 +107,243 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
         return hook
 
-    def _filter_distopt_params(self, params):
-        if self._fp32_optim is None:
-            return params
+    def init_params(
+        self,
+        params: Optional[Iterable[torch.nn.Parameter]] = None,
+        param_sync_dtype: Optional[torch.dtype] = None,
+        **kwargs,
+    ) -> None:
+        """Initialize optimizer state for parameters
+
+        Initializes FP8 and non-FP8 params separately.
+
+        """
+
+        # Default cases
         if params is None:
-            return None
+            params = self.parameters()
+        elif isinstance(params, torch.Tensor):
+            params = [params]
+
+        # Ignore parameters that have already been initialized
+        params = [param for param in params if "fragments" not in self.state[param]]
+        if not params:
+            return
+
+        # Initialize FP8 and non-FP8 tensors separately
+        if any(is_float8tensor(param) for param in params):
+            super().init_params(
+                filter(is_float8tensor, params), param_sync_dtype=torch.uint8, **kwargs,
+            )
+        super().init_params(
+            params, param_sync_dtype=param_sync_dtype, **kwargs,
+        )
+
+    def init_params_bucket(
+        self,
+        params: Iterable[torch.nn.Parameter],
+        grad_sync_dtype: Optional[torch.dtype] = None,
+        param_sync_dtype: Optional[torch.dtype] = None,
+        **kwargs,
+    ) -> None:
+        """Initialize optimizer state for parameters in one effective bucket"""
+
+        # Ignore parameters that have already been initialized
         if isinstance(params, torch.Tensor):
             params = [params]
-        return filter(lambda param: param not in self._fp32_optim_main_params, params)
+        params = [param for param in params if "fragments" not in self.state[param]]
+        if not params:
+            return
 
-    def parameters(self, with_fp32_optim_params=False):
-        if with_fp32_optim_params and self._fp32_optim is not None:
-            return itertools.chain(super().parameters(), self._fp32_optim_main_params.keys())
-        else:
-            return super().parameters()
+        # Initialize parameters with FP32 grads
+        fp32_params = []
+        remaining_params = []
+        for param in params:
+            if getattr(param, '_with_fp32_optimizer', False):
+                fp32_params.append(param)
+            else:
+                remaining_params.append(param)
+        params = remaining_params
+        start_bucket_id = len(self.state["buckets"])
+        super().init_params_bucket(
+            fp32_params, grad_sync_dtype=torch.float32, param_sync_dtype=param_sync_dtype, **kwargs,
+        )
+        end_bucket_id = len(self.state["buckets"])
+        fp32_buckets = self.state["buckets"][start_bucket_id:end_bucket_id]
 
-    def init_params(self, params=None):
-        super().init_params(self._filter_distopt_params(params))
+        # Initialize FP8 parameters
+        fp8_params = []
+        remaining_params = []
+        for param in params:
+            if is_float8tensor(param):
+                fp8_params.append(param)
+            else:
+                remaining_params.append(param)
+        params = remaining_params
+        start_bucket_id = len(self.state["buckets"])
+        super().init_params_bucket(
+            fp8_params, grad_sync_dtype=grad_sync_dtype, param_sync_dtype=torch.uint8, **kwargs,
+        )
+        end_bucket_id = len(self.state["buckets"])
+        fp8_buckets = self.state["buckets"][start_bucket_id:end_bucket_id]
 
-    def init_params_bucket(self, params):
-        super().init_params_bucket(self._filter_distopt_params(params))
+        # Initialize remaining parameters as usual
+        normal_buckets = []
+        start_bucket_id = len(self.state["buckets"])
+        super().init_params_bucket(
+            params, grad_sync_dtype=grad_sync_dtype, param_sync_dtype=param_sync_dtype, **kwargs,
+        )
+        end_bucket_id = len(self.state["buckets"])
+        normal_buckets = self.state["buckets"][start_bucket_id:end_bucket_id]
 
-    def try_grad_sync(self, params):
-        params = self._filter_distopt_params(params)
-        params = [p for p in params if not getattr(p, '_disable_greedy_grad_copy', False)]
-        params = [p for p in params if not getattr(p, '_disable_overlap_grad_sync', False)]
+        def add_param_to_bucket(param: torch.nn.Parameter, bucket: self.StateBucket,) -> None:
+            """Add trivial param fragment to bucket"""
+            param_fragments = self.state[param]["fragments"]
+            param_group_id = param_fragments[0].param_group_id
+            param_id = param_fragments[0].param_id
+            bucket_id = bucket.fragments[0].bucket_id
+            param_size = param.numel()
+            bucket_size = bucket.bucket_size
+            fragment = self.ParameterFragment(
+                param_group_id=param_group_id,
+                param_id=param_id,
+                bucket_id=bucket_id,
+                param_range=(param_size, param_size),
+                bucket_range=(bucket_size, bucket_size),
+                in_local_shard=False,
+                shard_range=None,
+                shard_bucket_range=None,
+                shard_param_range=None,
+            )
+            param_fragments.append(fragment)
+            bucket.fragments.append(fragment)
+
+        # Make sure all added buckets depend on provided params
+        for bucket in fp32_buckets:
+            for param in itertools.chain(fp8_params, params):
+                add_param_to_bucket(param, bucket)
+        for bucket in fp8_buckets:
+            for param in itertools.chain(fp32_params, params):
+                add_param_to_bucket(param, bucket)
+        for bucket in normal_buckets:
+            for param in itertools.chain(fp32_params, fp8_params):
+                add_param_to_bucket(param, bucket)
+
+    def _init_param_state(
+        self,
+        param: torch.nn.Parameter,
+        param_group_id: int,
+        param_id: int,
+        param_sync_dtype: Optional[torch.dtype] = None,
+        **kwargs,
+    ) -> None:
+        """Initialize optimizer state for a parameter
+
+        Initializing the master weights requires slicing a flattened
+        view of the param. FP8 tensors do not handle these operations
+        gracefully, so we hack around it by explicitly casting to
+        FP32.
+
+        """
+
+        # Initialize non-FP8 params as usual
+        if not is_float8tensor(param):
+            super()._init_param_state(
+                param, param_group_id, param_id, param_sync_dtype=param_sync_dtype, **kwargs,
+            )
+
+        # Return immediately if already initialized
+        if "fragments" in self.state[param]:
+            return
+
+        # Initialize with FP32 copy of param
+        fp32_param = param.float()
+        super()._init_param_state(
+            fp32_param, param_group_id, param_id, param_sync_dtype=torch.uint8, **kwargs,
+        )
+        self.state[param].update(self.state[fp32_param])
+        del self.state[fp32_param]
+
+    @torch.no_grad()
+    def init_param_buffer(self) -> None:
+        """Allocate contiguous buffers for param buckets
+
+        For FP8 params, the FP8 data buffer is made a view into a
+        contiguous buffer.
+
+        """
+
+        # Make sure all params are initialized
+        self.contiguous_param_buffer = True
+        self.init_params()
+
+        # Construct param buffers
+        buffer_sizes = collections.defaultdict(lambda: 0)
+        for bucket in self.state["buckets"]:
+            dtypes = bucket.dtypes()
+            buffer_sizes[dtypes] = max(bucket.contiguous_buffer_offset + bucket.bucket_size, buffer_sizes[dtypes])
+        for dtypes, buffer_size in buffer_sizes.items():
+            _, _, param_sync_dtype = dtypes
+            self._param_buffers[dtypes] = torch.zeros([buffer_size], dtype=param_sync_dtype, device=self.device)
+
+        # Figure out corresponding positions in params and param buffer
+        params = list(self.parameters())
+        param_flat_views = []
+        param_buffer_views = []
+        for i, param in enumerate(params):
+            fragment = self.state[param]["fragments"][0]
+            bucket_id = fragment.bucket_id
+            bucket = self.state["buckets"][bucket_id]
+            param_size = param.numel()
+            bucket_start, _ = fragment.bucket_range
+            buffer_offset = bucket.contiguous_buffer_offset
+            buffer_start = buffer_offset + bucket_start
+            buffer_end = buffer_start + param_size
+            param_buffer = self._param_buffers[bucket.dtypes()]
+            param_buffer_view = param_buffer[buffer_start:buffer_end].detach()
+            if param_buffer_view.device != param.device:
+                raise RuntimeError(
+                    "Attempted to change a parameter with device={param.device} "
+                    f"into a buffer view with device={param_buffer_view.device}"
+                )
+            if is_float8tensor(param):
+                param_flat_views.append(param._data.detach().view(-1))
+            else:
+                if param_buffer_view.dtype != param.dtype:
+                    raise RuntimeError(
+                        f"Attempted to change a parameter with dtype={param.dtype} "
+                        f"into a buffer view with dtype={param_buffer_view.dtype}"
+                    )
+                param_flat_views.append(param.detach().view(-1))
+            param_buffer_views.append(param_buffer_view)
+
+        # Copy values into param buffer
+        _multi_tensor_copy(
+            param_flat_views, param_buffer_views, dummy_overflow_buf=self._dummy_overflow_buf,
+        )
+
+        # Make all params a view into the param buffer
+        for param, buffer_view in zip(params, param_buffer_views):
+            if is_float8tensor(param):
+                param._data = buffer_view.view(param.size())
+            else:
+                param.data = buffer_view.view(param.size())
+
+    def try_grad_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
+        """Attempt to launch gradient synchronization"""
+
+        def is_grad_copy_enabled(param: torch.nn.Parameter) -> bool:
+            return not getattr(param, '_disable_greedy_grad_copy', False) and not getattr(
+                param, '_disable_overlap_grad_sync', False
+            )
+
+        params = list(filter(is_grad_copy_enabled, params))
         for p in params:
             self._grad_copy(p)
         self._try_start_bucket_grad_sync(params=params)
 
-    def _try_start_bucket_param_sync(self, params=None):
-        super()._try_start_bucket_param_sync(self._filter_distopt_params(params))
-
-    def _fp32_optim_grad_sync(self):
-        if self._fp32_optim is None or not self._fp32_optim_grad_sync_needed:
-            return
-        for model_param, main_param in self._fp32_optim_main_params.items():
-            if model_param.grad is not None:
-                main_param.grad += model_param.grad.detach()
-        with _coalescing_manager(self.process_group, self.device, async_ops=True) as cm:
-            for main_param in self._fp32_optim_main_params.values():
-                _coalescing_manager_append_work(
-                    cm,
-                    torch.distributed.all_reduce(
-                        main_param.grad, op=torch.distributed.ReduceOp.AVG, group=self.process_group, async_op=True,
-                    ),
-                )
-        cm.wait()
-        self._fp32_optim_grad_sync_needed = False
-
-    def zero_grad(self, *args, **kwargs):
+    def zero_grad(self, *args, **kwargs) -> None:
         super().zero_grad(*args, **kwargs)
-
-        # Reset grads for explicit FP32 optimizer
-        if self._fp32_optim is not None:
-            self._fp32_optim_grad_sync_needed = True
-            self._fp32_optim.zero_grad(set_to_none=False)
-            for model_param, main_param in self._fp32_optim_main_params.items():
-                if main_param.grad is None:
-                    main_param.grad = torch.zeros_like(main_param)
-                if model_param.grad is not None:
-                    model_param.grad.zero_()
-                model_param.main_grad = main_param.grad
 
         # Reset main grads
         if self.contiguous_grad_buffer:
@@ -235,7 +351,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 with _disable_pre_forward_hook(param):
                     param.main_grad = self.grad_buffer_view(param)
 
-    def grad_norm(self, parameters=None, norm_type=2.0, force=False):
+    def grad_norm(
+        self, parameters: Optional[Iterable[torch.nn.Parameter]] = None, norm_type: float = 2.0, force: bool = False,
+    ) -> torch.Tensor:
         assert norm_type == 2
 
         if parameters is not None:
@@ -246,23 +364,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if force or self._grad_norm is None:
 
             # Compute norm of local gradients for distributed optimizer
-            grad_norm_sq = self._local_grad_norm(
-                parameters=self._filter_distopt_params(parameters), norm_type=norm_type,
-            )
+            grad_norm_sq = self._local_grad_norm(parameters=parameters, norm_type=norm_type)
             if self.redundant_size > 1:
                 grad_norm_sq /= self.redundant_size
-
-            # Compute norm of local gradients for explicit FP32 optimizer
-            if self._fp32_optim is not None:
-                self._fp32_optim_grad_sync()
-                if parameters is None:
-                    for main_param in self._fp32_optim_main_params.values():
-                        grad_norm_sq += torch.linalg.norm(main_param.grad) ** 2 / self.process_group_size
-                else:
-                    for model_param in parameters:
-                        if model_param in self._fp32_optim_main_params:
-                            main_param = self._fp32_optim_main_params[model_param]
-                            grad_norm_sq += torch.linalg.norm(main_param.grad) ** 2 / self.process_group_size
 
             # Sum over all procs to get grad norm
             torch.distributed.all_reduce(
@@ -273,48 +377,197 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Use cached grad norm
         return super().grad_norm()
 
-    def step(self, closure=None, *, grad_scaler=None):
+    @torch.no_grad()
+    def _param_copy_fragments(self, fragments: Iterable[DistributedFusedAdam.ParameterFragment]) -> None:
+        """Update parameter fragments with values from parameter buckets
 
-        # Apply distributed optimizer
-        loss = super().step(closure=closure, grad_scaler=grad_scaler)
+        For FP8 params, values are copied directly into the FP8 data
+        buffer.
 
-        if self._fp32_optim is not None:
+        """
 
-            # Handle grad scaling
-            if grad_scaler is not None:
-                scaler_state = grad_scaler._per_optimizer_states[id(self)]
-                for _, found_inf in scaler_state['found_inf_per_device'].items():
-                    if found_inf.item():
-                        return loss
+        # Figure out corresponding positions in param buckets and params
+        buffers_in = []
+        buffers_out = []
+        fragments = list(fragments)
+        for fragment in fragments:
 
-            # Update learning rate
-            for distopt_group, fp32_optim_group in zip(self.param_groups, self._fp32_optim.param_groups):
-                fp32_optim_group['lr'] = distopt_group['lr']
+            # Check if fragment needs to be updated
+            bucket_id = fragment.bucket_id
+            bucket_start, bucket_end = fragment.bucket_range
+            param_start, param_end = fragment.param_range
+            if param_end <= param_start or bucket_id not in self._params_buckets:
+                continue
 
-            # Apply explicit FP32 optimizer
-            self._fp32_optim_grad_sync()
-            for main_param in self._fp32_optim_main_params.values():
-                main_param.grad *= self._grad_scale
-            self._fp32_optim.step()
-            for model_param, main_param in self._fp32_optim_main_params.items():
-                model_param.detach().copy_(main_param.detach())
+            # Corresponding positions in bucket and param
+            param_bucket = self._params_buckets[bucket_id]
+            param = self.parameter(fragment)
+            buffer_in = param_bucket.params_bucket[bucket_start:bucket_end]
+            if is_float8tensor(param):
+                # Copy into FP8 params's data buffer
+                assert (
+                    param_bucket.params_bucket.dtype == torch.uint8
+                ), "Expected FP8 params to perform param sync in UINT8"
+                buffer_out = param._data.view(-1)[param_start:param_end]
+                buffers_in.append(buffer_in)
+                buffers_out.append(buffer_out)
+            elif torch.is_floating_point(buffer_in) and torch.is_floating_point(param):
+                # Cast between floating-point dtypes
+                buffer_out = param.detach().view(-1)[param_start:param_end]
+                buffers_in.append(buffer_in)
+                buffers_out.append(buffer_out)
+            else:
+                # Copy most significant bytes for non-floating-point
+                # dtypes
+                # Note: Assume dtypes are little-endian
+                buffer_out = param.detach().view(-1)[param_start:param_end]
+                in_bytes = buffer_in.unsqueeze(-1).view(torch.uint8)
+                out_bytes = buffer_out.unsqueeze(-1).view(torch.uint8)
+                copy_size = min(in_bytes.size(-1), out_bytes.size(-1))
+                buffers_in.append(in_bytes[..., -copy_size:])
+                buffers_out.append(out_bytes[..., -copy_size:])
+                if copy_size < out_bytes.size(-1):
+                    out_bytes[..., :-copy_size].zero_()
 
-        return loss
+        # Copy data from parameter buckets to parameters
+        _multi_tensor_copy(
+            buffers_in, buffers_out, dummy_overflow_buf=self._dummy_overflow_buf,
+        )
 
-    def state_dict(self, *args, **kwargs):
-        state_dict = super().state_dict(*args, **kwargs)
-        if self._fp32_optim is not None and state_dict is not None:
-            state_dict['fp32_optim'] = self._fp32_optim.state_dict()
-            state_dict['fp32_optim_fp32_params'] = list(self._fp32_optim_main_params.values())
-        return state_dict
+        # Update transpose caches
+        params = set(self.parameter(fragment) for fragment in fragments)
+        for param in params:
+            if is_float8tensor(param):
+                param._reset_caches()
+                param.transpose(update_cache=True)
+                param._lazy_transpose_cache = True
 
-    def load_state_dict(self, state_dict):
-        if self._fp32_optim is not None and 'fp32_optim' in state_dict:
-            self._fp32_optim.load_state_dict(state_dict['fp32_optim'])
-            del state_dict['fp32_optim']
-            for old_main_param, new_main_param in zip(
-                self._fp32_optim_main_params.values(), state_dict['fp32_optim_fp32_params']
-            ):
-                old_main_param.copy_(new_main_param.detach())
-            del state_dict['fp32_optim_fp32_params']
-        return super().load_state_dict(state_dict)
+    @torch.no_grad()
+    def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
+        """Make sure local shards of parameters are in expected datatypes
+
+        For FP8 params, FP32 values are cast into FP8 using per-param
+        scaling factors and per-param amaxes are computed and reduced.
+
+        """
+
+        # Just call base class function if there are no FP8 tensors
+        num_fp8_params = sum(1 for param in self.parameters() if is_float8tensor(param))
+        if num_fp8_params == 0:
+            super()._check_params_shard_dtypes(params_buckets)
+            return
+
+        # Cast local data to FP8
+        fp8_params_shards = dict()
+        for bucket_id, param_bucket in params_buckets.items():
+            state_bucket = self.state["buckets"][bucket_id]
+            if state_bucket.param_sync_dtype != torch.uint8:
+                continue
+
+            # Initialize FP8 buffer for param sync
+            params_shard = param_bucket.params_shard
+            if self.contiguous_param_buffer:
+                shard_size = state_bucket.shard_size
+                buffer_offset = state_bucket.contiguous_buffer_offset
+                buffer_start = buffer_offset + self.distributed_rank * shard_size
+                buffer_end = buffer_start + shard_size
+                param_buffer = self._param_buffers[state_bucket.dtypes()]
+                fp8_params_shard = param_buffer[buffer_start:buffer_end]
+            else:
+                fp8_params_shard = torch.empty_like(params_shard, dtype=torch.uint8)
+            param_bucket.params_shard = fp8_params_shard
+
+            # Cast param fragments to FP8
+            for fragment in self.state["buckets"][bucket_id].fragments:
+                param = self.parameter(fragment)
+                if not is_float8tensor(param):
+                    continue
+                if not fragment.in_local_shard:
+                    continue
+                shard_start, shard_end = fragment.shard_range
+                if shard_end <= shard_start:
+                    continue
+                shard_range = slice(shard_start, shard_end)
+                cast_to_fp8(
+                    params_shard[shard_range].view(1, -1),
+                    param._fp8_meta["scaling_fwd"],
+                    param._fp8_meta_index,
+                    param._fp8_dtype,
+                    out=fp8_params_shard[shard_range].view(1, -1),
+                )
+
+        # Update FP8 scaling factors when all buckets have processed
+        if getattr(self, "_check_params_shard_dtypes_progress", None) is None:
+            self._check_params_shard_dtypes_progress = []
+        self._check_params_shard_dtypes_progress.extend(params_buckets.keys())
+        if len(self._check_params_shard_dtypes_progress) == len(self.state["buckets"]):
+            assert len(set(self._check_params_shard_dtypes_progress)) == len(self.state["buckets"])
+
+            # FP8 scaling factors
+            amaxes = []
+            scales = []
+            scale_invs = []
+            i = -1
+            for param in self.parameters():
+                if not is_float8tensor(param):
+                    continue
+                i += 1
+                fp8_meta = param._fp8_meta["scaling_fwd"]
+                fp8_meta_index = param._fp8_meta_index
+                amaxes.append(fp8_meta.amax_history[0][fp8_meta_index].view(1))
+                scales.append(fp8_meta.scale[fp8_meta_index].view(1))
+                scale_invs.append(param._scale_inv.view(1))
+
+            # Update cached scale-inverses
+            packed_scales = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
+            packed_scale_views = [packed_scales[i].view(1) for i in range(num_fp8_params)]
+            _multi_tensor_copy(
+                scales, packed_scale_views, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+            torch.reciprocal(packed_scales, out=packed_scales)
+            _multi_tensor_copy(
+                packed_scale_views, scale_invs, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+
+            # Reduce amaxes
+            # Note: Assume each param has a separate amax
+            packed_amaxes = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
+            packed_amax_views = [packed_amaxes[i].view(1) for i in range(num_fp8_params)]
+            _multi_tensor_copy(
+                amaxes, packed_amax_views, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+            torch.distributed.all_reduce(
+                packed_amaxes, op=torch.distributed.ReduceOp.MAX, group=self.distributed_process_group,
+            )
+            _multi_tensor_copy(
+                packed_amax_views, amaxes, dummy_overflow_buf=self._dummy_overflow_buf,
+            )
+
+            # Reset
+            self._check_params_shard_dtypes_progress = None
+
+        # Handle any remaining dtype conversions
+        super()._check_params_shard_dtypes(params_buckets)
+
+    def sharded_state_dict(self, model_sharded_state_dict):
+        optimizer_state_dict = self.state_dict()
+
+        id_to_sharded_param_map = get_param_id_to_sharded_param_map(
+            model_sharded_state_dict=model_sharded_state_dict, optim_params_iter=self.parameters(),
+        )
+        # Convert state
+        step = optimizer_state_dict['state'].pop('step')
+        state_dict_format = optimizer_state_dict.pop('format', None)
+        optim_state_to_sharding_state(optimizer_state_dict, id_to_sharded_param_map)
+        optimizer_state_dict['state']['step'] = step
+        if state_dict_format is not None:
+            optimizer_state_dict['format'] = state_dict_format
+
+        def rename_fp32_params(x):
+            if isinstance(x, ShardedTensor) and x.key.startswith('optimizer.state.param'):
+                x.key = x.key.replace('optimizer.state.param', 'optimizer.state.fp32_param')
+            return x
+
+        dict_list_map_inplace(rename_fp32_params, optimizer_state_dict)
+
+        return optimizer_state_dict

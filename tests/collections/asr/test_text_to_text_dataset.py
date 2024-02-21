@@ -15,13 +15,21 @@
 import json
 import multiprocessing
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
 from hydra.utils import instantiate
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from omegaconf import OmegaConf
+
+try:
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+except (ImportError, ModuleNotFoundError):
+    raise ModuleNotFoundError(
+        "The package `nemo_text_processing` was not installed in this environment. Please refer to"
+        " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "
+        "this script"
+    )
 
 from nemo.collections.asr.data.text_to_text import TextToTextDataset, TextToTextItem, TextToTextIterableDataset
 from nemo.collections.common import tokenizers
@@ -110,7 +118,7 @@ def tts_tokenizer():
         apostrophe: bool = True
         pad_with_space: bool = True
         add_blank_at: bool = True
-        g2p: G2PConfig = G2PConfig()
+        g2p: G2PConfig = field(default_factory=lambda: G2PConfig())
 
     config = OmegaConf.create(OmegaConf.to_yaml(TextTokenizerCfg()))
     return instantiate(config)

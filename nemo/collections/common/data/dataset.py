@@ -72,7 +72,9 @@ class ConcatDataset(IterableDataset):
             self.sampling_kwargs['seed'] = seed
         elif sampling_technique == 'random':
             self.index_generator = ConcatDataset.random_generator
-            self.sampling_kwargs['p'] = sampling_probabilities
+            self.sampling_kwargs['p'] = (
+                sampling_probabilities if sampling_probabilities else [1 / len(datasets)] * len(datasets)
+            )
             self.sampling_kwargs['seed'] = seed
         elif sampling_technique == 'round-robin':
             self.index_generator = ConcatDataset.round_robin_generator

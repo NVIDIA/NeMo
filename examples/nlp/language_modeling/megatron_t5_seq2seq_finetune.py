@@ -19,13 +19,14 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
-from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -57,6 +58,21 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
                 t5_cfg.encoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
             if hasattr(t5_cfg.decoder, 'ffn_dropout'):
                 t5_cfg.decoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
+
+            if hasattr(cfg.model, 'encoder'):
+                if hasattr(cfg.model.encoder, 'position_embedding_type'):
+                    t5_cfg.encoder.position_embedding_type = cfg.model.encoder.position_embedding_type
+                if hasattr(cfg.model.encoder, 'use_flash_attention'):
+                    t5_cfg.encoder.use_flash_attention = cfg.model.encoder.use_flash_attention
+                if hasattr(cfg.model.encoder, 'attention_dropout'):
+                    t5_cfg.encoder.attention_dropout = cfg.model.encoder.attention_dropout
+            if hasattr(cfg.model, 'decoder'):
+                if hasattr(cfg.model.decoder, 'position_embedding_type'):
+                    t5_cfg.decoder.position_embedding_type = cfg.model.decoder.position_embedding_type
+                if hasattr(cfg.model.decoder, 'use_flash_attention'):
+                    t5_cfg.decoder.use_flash_attention = cfg.model.decoder.use_flash_attention
+                if hasattr(cfg.model.decoder, 'attention_dropout'):
+                    t5_cfg.decoder.attention_dropout = cfg.model.decoder.attention_dropout
         else:
             t5_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.1)
             t5_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.1)
@@ -135,41 +151,41 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
     plugins = []
     strategy = NLPDDPStrategy(
         no_ddp_communication_hook=True,
         gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         find_unused_parameters=False,
     )
-    if cfg.trainer.precision in [16, 'bf16']:
+    if cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
         scaler = None
-        if cfg.trainer.precision == 16:
+        if cfg.trainer.precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
                 init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 hysteresis=cfg.model.get('hysteresis', 2),
             )
-        if megatron_amp_o2:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            # MixedPrecisionPlugin in PTL >= 2.0 requires precision to be 16-mixed or bf16-mixed
+            plugin_precision = '16-mixed'
         else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugin_precision = 'bf16-mixed'
+        if megatron_amp_O2:
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
 
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
-        resume_from_checkpoint = cfg.model.resume_from_checkpoint
-    else:
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
-
-    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+        trainer.ckpt_path = cfg.model.resume_from_checkpoint
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
     if hasattr(cfg.model.data.train_ds, 'task_name'):
         if cfg.model.restore_from_path:
@@ -191,13 +207,13 @@ def main(cfg) -> None:
             model = load_from_checkpoint_dir(MegatronT0Model, cfg, trainer, modify_confg_fn=_modify_config)
     else:
         if cfg.model.restore_from_path:
-            t5_cfg = MegatronT5FinetuneModel.restore_from(
+            t5_cfg = MegatronT5SFTModel.restore_from(
                 restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
-            model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
+            model = load_from_nemo(MegatronT5SFTModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
             validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-            model = load_from_checkpoint_dir(MegatronT5FinetuneModel, cfg, trainer, modify_confg_fn=_modify_config)
+            model = load_from_checkpoint_dir(MegatronT5SFTModel, cfg, trainer, modify_confg_fn=_modify_config)
 
     trainer.fit(model)
     trainer.validate(model)

@@ -22,7 +22,7 @@ import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import (
     cache_datastore_manifests,
@@ -262,17 +262,12 @@ class TextProcessing(object):
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id"):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
 
         self.sep_id = sep_id if add_sep else None
-
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
-            self.pad_id = tokenizer.pad_id
-        else:
-            self.pad_id = 0
 
         if self.prompt_template is not None:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
@@ -461,7 +456,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
@@ -851,7 +846,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         input_key: str = 'input',
         output_key: str = 'output',
         end_string: Optional[str] = None,
-        question_file: Optional[str] = None,
+        question_file: Optional[Union[List[str], str]] = None,
         random_context_prob: Optional[float] = None,
         random_context_num: Optional[int] = 3,
         random_context_positive_percent: Optional[float] = 0.1,
@@ -878,7 +873,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             end_string=end_string,
             sample_alpha=sample_alpha,
         )
-
+        self.is_megatron_iterable = True
         self.shard_manifests = shard_manifests
 
         # Shard manifests if necessary and possible and then expand the paths
@@ -1072,12 +1067,6 @@ def get_tarred_aqa_dataset(
         if len(manifest_filepath) == 1:
             manifest_filepath = manifest_filepath[0]
 
-        question_file_set = config.get('question_file_set', None)
-        if question_file_set is not None:
-            assert len(question_file_set) == len(tarred_audio_filepaths)
-            question_file = question_file_set[dataset_idx]
-        else:
-            question_file = None
         dataset = TarredAudioQuestionAnswerDataset(
             audio_tar_filepaths=tarred_audio_filepath,
             manifest_filepath=manifest_filepath,
@@ -1112,7 +1101,7 @@ def get_tarred_aqa_dataset(
             output_key=config.get('output_key', 'output'),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
-            question_file=question_file,
+            question_file=config.get('question_file', None),
             random_context_num=config.get('random_context_num', 3),
             random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             random_context_prob=config.get('random_context_prob', None),
@@ -1148,6 +1137,11 @@ def get_concat_tarred_aqa_dataset(
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
         conf['tarred_audio_filepaths'] = tarred_audio_filepath
+        question_files = config.get('question_file', None)
+        if isinstance(question_files, ListConfig) and len(question_files) == len(manifest_filepaths):
+            conf['question_file'] = question_files[dataset_idx]
+        else:
+            conf['question_file'] = question_files
         dataset = get_tarred_aqa_dataset(
             config=conf,
             tokenizer=tokenizer,
@@ -1161,12 +1155,21 @@ def get_concat_tarred_aqa_dataset(
         )
         datasets.append(dataset)
 
+    concat_sampling_probabilities = config.get('concat_sampling_probabilities', None)
+    if not isinstance(concat_sampling_probabilities, ListConfig) or len(concat_sampling_probabilities) != len(
+        datasets
+    ):
+        logging.info(
+            f"concat_sampling_probabilities is not provided or is not of the same size as datasets, using uniform sampling."
+        )
+        concat_sampling_probabilities = [1.0 / len(datasets)] * len(datasets)
+
     dataset = ConcatDataset(
         datasets,
         sampling_technique=config.get('concat_sampling_technique', 'temperature'),
         sampling_temperature=config.get('concat_sampling_temperature', 5),
         sampling_scale=config.get('concat_sampling_scale', 1),
-        sampling_probabilities=config.get('concat_sampling_probabilities', None),
+        sampling_probabilities=concat_sampling_probabilities,
         shuffle=config.get('concat_shuffle', True),
         seed=config.get('concat_sampling_seed', None),
         global_rank=global_rank,
@@ -1192,15 +1195,6 @@ def get_tarred_aqa_dataset_from_config(
                 f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
             )
             return None
-
-        if config['concat_sampling_technique'] == 'random':
-            if not 'concat_sampling_probabilities' in config:
-                logging.warning(f"Concat dataset requires `concat_sampling_probabilities` list. Config: {config}")
-                return None
-            else:
-                if not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
-                    logging.warning(f"`concat_sampling_probabilities` need to sum to 1. Config: {config}")
-                    return None
 
     data_parallel_size = parallel_state.get_data_parallel_world_size()
     num_micro_batches = config.global_batch_size // (config.micro_batch_size * data_parallel_size)
@@ -1277,12 +1271,9 @@ def get_aqa_dataset_from_config(
         num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
 
     for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
-        question_file_set = config.get('question_file_set', None)
-        if question_file_set is not None:
-            assert len(question_file_set) == len(manifest_filepath)
-            question_file = question_file_set[dataset_idx]
-        else:
-            question_file = None
+        question_file = config.get('question_file', None)
+        if isinstance(question_file, ListConfig) and len(question_file) == len(manifest_filepath):
+            question_file = question_file[dataset_idx]
         dataset = data_cls(
             manifest_filepath=file_path,
             tokenizer=tokenizer,
