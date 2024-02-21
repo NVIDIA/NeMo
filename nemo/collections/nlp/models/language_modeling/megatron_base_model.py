@@ -330,22 +330,26 @@ class MegatronBaseModel(NLPModel):
             assert isinstance(self.trainer.limit_val_batches, float)
             # Don't reconfigure if limit_val_batches is 0.0
             if self.trainer.limit_val_batches == 0.0: return
+            # len(self._validation_dl) returns len as num of microbatches
+            val_len_in_micro_batches = len(self._validation_dl)
             if self._validation_ds is not None and len(self._validation_dl) != float("inf"):
-                # len(self._validation_dl) returns len as num of microbatches
-                limit_val_micro_batches = int(len(self._validation_dl) * self.trainer.limit_val_batches)
-                if limit_val_micro_batches == 0 and self.trainer.limit_val_batches > 0.0:
-                    min_percentage = 1.0 / len(self._validation_dl)
-                    raise MisconfigurationException(
-                        f"You requested to check {self.trainer.limit_val_batches} of the val_dataloader but"
-                        f" {self.trainer.limit_val_batches} * {len(self._validation_dl)} < 1. Please increase the"
-                        f" `limit_val_batches` argument. Try at least"
-                        f" `limit_val_batches={min_percentage}`"
-        )
-                # Make sure trainer.limit_val_batches is a multiple of num of microbatches
-                if limit_val_micro_batches < get_num_microbatches():
-                    self.trainer.limit_val_batches = get_num_microbatches()
+                if self.trainer.limit_val_batches == 1.0:
+                    self.trainer.limit_val_batches = val_len_in_micro_batches
                 else:
-                    self.trainer.limit_val_batches = limit_val_micro_batches - limit_val_micro_batches % get_num_microbatches()
+                    limit_val_micro_batches = int(val_len_in_micro_batches * self.trainer.limit_val_batches)
+                    if limit_val_micro_batches == 0 and self.trainer.limit_val_batches > 0.0:
+                        min_percentage = 1.0 / len(self._validation_dl)
+                        raise MisconfigurationException(
+                            f"You requested to check {self.trainer.limit_val_batches} of the val_dataloader but"
+                            f" {self.trainer.limit_val_batches} * {len(self._validation_dl)} < 1. Please increase the"
+                            f" `limit_val_batches` argument. Try at least"
+                            f" `limit_val_batches={min_percentage}`"
+            )
+                    # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+                    if limit_val_micro_batches < get_num_microbatches():
+                        self.trainer.limit_val_batches = get_num_microbatches()
+                    else:
+                        self.trainer.limit_val_batches = limit_val_micro_batches - limit_val_micro_batches % get_num_microbatches()
 
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
