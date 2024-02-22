@@ -1811,6 +1811,8 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+        else:
+            raise ValueError("Either distributed_fused_adam or megatron_amp_O2 needs to be set if ddp_overlap is set")
 
         # for cuda graph with pytorch lightning
         # these values will be used outside the capturing range
