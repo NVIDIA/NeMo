@@ -1,0 +1,61 @@
+name: Isort and Black Formatting
+# Incrementally reformat only changed files instead of all
+# Adapted solution from https://stackoverflow.com/a/72088304
+# Replaces pre-commit.ci, since it reformats all the files
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**.py'
+
+permissions:
+  contents: write
+
+jobs:
+  reformat_with_isort_and_black:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # workaround for detached head from https://github.com/actions/checkout/issues/6#issuecomment-544726182
+      - name: reattach HEAD to Head Ref
+        run: git checkout "$(echo ${{ github.head_ref }} | sed -E 's|refs/[a-zA-Z]+/||')"
+        if: github.head_ref != ''
+
+      - name: reattach HEAD to Ref
+        run: git checkout "$(echo ${{ github.ref }} | sed -E 's|refs/[a-zA-Z]+/||')"
+        if: github.head_ref == ''
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        # https://github.com/tj-actions/changed-files
+        with:
+          files: |
+            **.py
+
+      - name: Setup Python env
+        uses: actions/setup-python@v3
+
+      - name: Install black and isort
+        run: pip install black~=24.2 isort>5.1.0,<6.0.0
+
+      - name: Apply black and isort only to changed files
+        run: |
+          if [[ -z "${{ steps.changed-files.outputs.all_changed_files }}" ]]; then exit 0; fi
+          isort ${{ steps.changed-files.outputs.all_changed_files }}
+          black ${{ steps.changed-files.outputs.all_changed_files }}
+
+      - name: Commit changed files
+        run: |
+          if [[ -z $(git status -s) ]]; then exit 0; fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add .
+          git commit -m "Reformatted on CI"
+          git push
