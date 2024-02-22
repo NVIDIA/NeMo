@@ -142,7 +142,17 @@ def get_specs(spec_name, num_experts=None):
 
 
 class EmbeddingScalingMixin(torch.nn.Module):
+    """
+    A mixin class for scaling embeddings in Megatron GPT.
+    The scaling is applied only if the configuration (accessible via `self.config`)
+    includes `apply_embedding_scaling` set to True.
+    """
+
     def forward(self, **kwargs):
+        """
+        Forward pass that scales the output embeddings from the `forward` method of
+        the superclass by the square root of the hidden size specified in the configuration.
+        """
         embeddings = super().forward(**kwargs)
         return embeddings * (self.config.hidden_size ** 0.5)
 
