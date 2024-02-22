@@ -421,12 +421,7 @@ def create_neva_model_and_processor(cfg):
         else:
             image = maybe_image_path
 
-        if neva_cfg.mm_cfg.vision_encoder.from_hf:
-            processor = CLIPImageProcessor.from_pretrained(
-                neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-            )
-        else:
-            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16)
+        processor = model.model.image_processor
 
         if neva_cfg.data.image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)

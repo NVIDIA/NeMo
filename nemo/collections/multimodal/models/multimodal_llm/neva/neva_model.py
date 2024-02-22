@@ -285,8 +285,8 @@ class NevaBaseModel:
                     param.requires_grad = False
                 vision_encoder = vision_encoder.eval()
             image_processor = CLIPImageProcessor.from_pretrained(
-            mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-        )
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
         elif mm_cfg.vision_encoder.get("from_open_clip", False):
             assert mm_cfg.vision_encoder.get("open_clip_model_config") is not None, \
                 f"`open_clip_model_config` needs to be set."
