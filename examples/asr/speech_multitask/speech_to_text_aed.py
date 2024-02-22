@@ -69,8 +69,8 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     # Check for canary spl tokens to create spl_tokenizer.
-    if cfg.get("canary_spl_tokens"):
-        spl_cfg = cfg["canary_spl_tokens"]
+    if cfg.get("spl_tokens"):
+        spl_cfg = cfg["spl_tokens"]
         spl_path, task_tokens, lang_tokens = spl_cfg.get('dir'), spl_cfg.get("task_tokens"), spl_cfg.get("lang_tokens")
         CanaryTokenizer.build_special_tokenizer(tokens=task_tokens + lang_tokens, output_dir=spl_path)
         cfg.model.tokenizer.langs.spl_tokens.dir = spl_path
