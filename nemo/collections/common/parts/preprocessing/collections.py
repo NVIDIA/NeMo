@@ -610,7 +610,7 @@ class ALMAudioTextCollection(ALMAudioText):
         elif 'normalized_text' in item:
             item['answer'] = item['normalized_text']
         else:
-            item['answer'] = ""
+            item['answer'] = "na"
 
         # Question.
         if 'question' in item:

@@ -26,8 +26,8 @@ You'll need to prepare data in the NeMo manifest format, where each line is a py
     "audio_filepath": "path/to/audio.wav",
     "offset": 0.0, # offset of the audio in seconds, this is an optional field
     "duration": 10.0 , # duration of the audio in seconds, can set to `None` to load the whole audio
-    "question": "what is the transcription of the audio?", this is an optional field, see below for more details
-    "answer": "the transcription of the audio",
+    "question": "what is the transcription of the audio?", # this is an optional field, see below for more details
+    "answer": "the transcription of the audio", # optional for inference
 }
 ```
 
