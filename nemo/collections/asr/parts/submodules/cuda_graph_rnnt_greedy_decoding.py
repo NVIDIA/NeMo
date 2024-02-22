@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import contextlib
-from packaging.version import Version
 
 import numpy as np
 import torch
+from packaging.version import Version
 
 try:
-    from cuda import cuda, cudart, nvrtc
     from cuda import __version__ as cuda_python_version
+    from cuda import cuda, cudart, nvrtc
 
     HAVE_CUDA_PYTHON = True
 except ImportError:
