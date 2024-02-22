@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,86 +14,59 @@
 
 
 import json
-import os
 
+import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from torch.utils.data import DataLoader
 
-from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
+from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PEFTSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 mp.set_start_method("spawn", force=True)
+
 """
-This is the script to run inference with a speechllm model.
+This is the script to run inference with a ModularAudioGPTModel.
 
-If you want to evaluate an speechllm file:
+If you want to evaluate an ModularAudioGPTModel:
 
-python eval_audio_gpt_lora.py \
-	model.restore_from_path=$MEGATRON_CKPT \
+MEGATRON_CKPT=/path/to/megatron-llm.nemo
+ALM_DIR=/path/to/nemo_experiments/job_name
+ALM_YAML=$ALM_DIR/version_0/hparams.yaml
+ALM_CKPT="$ALM_DIR/checkpoints/AudioGPT--validation_wer\=0.5-step\=103-epoch\=0-last.ckpt"
+
+VAL_MANIFESTS="[/data/libri-test-other.json,/data/MCV_7.1_test.json,/data/wsj-test.json]"
+VAL_NAMES="[ls-test-other,mcv7.1-test,wsj-test]"
+
+HYDRA_FULL_ERROR=1 \
+NVTE_MASKED_SOFTMAX_FUSION=0 \
+NVTE_FLASH_ATTN=0 \
+NVTE_FUSED_ATTN=0 \
+CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
+    model.restore_from_path=$MEGATRON_CKPT \
     model.peft.restore_from_path=$ALM_CKPT \
     model.peft.restore_from_hparams_path=$ALM_YAML \
     model.data.test_ds.manifest_filepath=$VAL_MANIFESTS \
     model.data.test_ds.names=$VAL_NAMES \
-    model.data.test_ds.global_batch_size=4 \
+    model.data.test_ds.global_batch_size=8 \
+	model.data.test_ds.micro_batch_size=8 \
+	model.data.test_ds.tokens_to_generate=256 \
     ++inference.greedy=False \
-    ++inference.temperature=0.8 \
-    model.data.test_ds.micro_batch_size=4 \
-    model.data.test_ds.tokens_to_generate=128
+    ++inference.top_k=50 \
+    ++inference.top_p=0.95 \
+    ++inference.temperature=0.4 \
+    ++inference.repetition_penalty=1.2 \
+    ++model.data.test_ds.output_dir=${ALM_DIR}
 """
 
 
-@hydra_runner(config_path="conf", config_name="modularized_speech_gpt_config_eval")
-def main(cfg) -> None:
-    logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
-    assert cfg.model.restore_from_path is not None
-    megatron_amp_o2 = cfg.model.get("megatron_amp_O2", False)
-    with_distributed_adam = False
-
-    plugins = []
-    strategy = NLPDDPStrategy(
-        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
-        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-        find_unused_parameters=False,
-    )
-    if cfg.trainer.precision in [16, "bf16"]:
-        scaler = None
-        if cfg.trainer.precision == 16:
-            scaler = GradScaler(
-                init_scale=cfg.model.get("native_amp_init_scale", 2 ** 32),
-                growth_interval=cfg.model.get("native_amp_growth_interval", 1000),
-                hysteresis=cfg.model.get("hysteresis", 2),
-                enabled=False
-                if cfg.model.pipeline_model_parallel_size > 1
-                else True,  # turn off the grad scale for pipeline parallel LM model
-            )
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device="cuda", scaler=scaler))
-
-    if cfg.get("cluster_type", None) == "BCP":
-        plugins.append(TorchElasticEnvironment())
-
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+def get_peft_config(cfg, trainer):
     if cfg.model.peft.restore_from_path:
         if cfg.model.peft.restore_from_path.endswith(".nemo"):
-            peft_model_cfg = MegatronGPTPEFTModel.restore_from(
+            peft_model_cfg = ModularAudioGPTModel.restore_from(
                 restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
             )
         elif cfg.model.peft.restore_from_hparams_path:  # not a .nemo model we expect a hparams.yaml file
@@ -111,7 +84,6 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(peft_model_cfg):
         # update the model config of the trained model with params we want to set at inference time.
-        peft_model_cfg.precision = cfg.trainer.precision
         peft_model_cfg.data.test_ds = cfg.model.data.test_ds
         peft_model_cfg.activations_checkpoint_granularity = None
         peft_model_cfg.activations_checkpoint_method = None
@@ -120,37 +92,63 @@ def main(cfg) -> None:
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
             peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
 
+        # fix for old checkpoints that don't have certain keys
+        if "peft" in peft_model_cfg:
+            peft_key = f"{peft_model_cfg.peft.peft_scheme}_tuning"
+            if "weight_tying" not in peft_model_cfg.peft.get(peft_key):
+                peft_model_cfg.peft[peft_key]["weight_tying"] = False
+            if "layer_selection" not in peft_model_cfg.peft.get(peft_key):
+                peft_model_cfg.peft[peft_key]["layer_selection"] = None
+            if "position_embedding_strategy" not in peft_model_cfg.peft.get(peft_key):
+                peft_model_cfg.peft[peft_key]["position_embedding_strategy"] = None
+
+    return peft_model_cfg
+
+
+def load_audio_models(cfg, peft_model_cfg, model):
+    with open_dict(cfg):
+        if (
+            peft_model_cfg.get("pretrained_audio_model", None) is not None
+            and cfg.model.get("pretrained_audio_model", None) is None
+        ):
+            logging.info(
+                f"model.pretrained_audio_model not found in config, setting it to {peft_model_cfg.pretrained_audio_model} from loaded checkpoint."
+            )
+            cfg.model.pretrained_audio_model = peft_model_cfg.pretrained_audio_model
+        cfg.model.perception = peft_model_cfg.perception
+
+    audio_model, _ = ModularAudioGPTModel.get_audio_encoder_models_and_configs(cfg)
+    speaker_model, _ = ModularAudioGPTModel.get_speaker_model_and_config(cfg)
+    model = ModularAudioGPTModel.load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
+    return model
+
+
+@hydra_runner(config_path="conf", config_name="modular_audio_gpt_config_eval")
+def main(cfg) -> None:
+    logging.info("\n\n************** Experiment configuration ***********")
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
+    assert cfg.model.restore_from_path is not None
+
+    trainer = MegatronTrainerBuilder(cfg).create_trainer()
+
+    peft_model_cfg = get_peft_config(cfg, trainer)
+
+    model = ModularAudioGPTModel.restore_from(
+        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=peft_model_cfg,
+    )
+
     if cfg.model.peft.restore_from_path:
         if '\\' in cfg.model.peft.restore_from_path:
             cfg.model.peft.restore_from_path = cfg.model.peft.restore_from_path.replace('\\', '')
-
-        if cfg.model.peft.restore_from_path.endswith(".nemo"):
-            save_restore_connector = PEFTSaveRestoreConnector(
-                peft_model_nemo_path=cfg.model.peft.restore_from_path, peft_model_ckpt_path=None,
-            )
+        if "peft" in peft_model_cfg:
+            peft_cfg_cls = PEFT_CONFIG_MAP[peft_model_cfg.peft.peft_scheme]
+            model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(peft_model_cfg))
         else:
-            # attempting to load a ckpt peft model.
-            if cfg.model.peft.restore_from_ckpt_name:
-                ckpt_name = cfg.model.peft.restore_from_ckpt_name
-            else:
-                ckpt_name = "model_weights.ckpt"
-            save_restore_connector = PEFTSaveRestoreConnector(
-                peft_model_nemo_path=None,
-                peft_model_ckpt_path=cfg.model.peft.restore_from_path,
-                peft_model_ckpt_name=ckpt_name,
-            )
-    else:
-        save_restore_connector = NLPSaveRestoreConnector()
+            model.load_state_dict(torch.load(cfg.model.peft.restore_from_path), strict=False)
 
-    if os.path.isdir(cfg.model.restore_from_path):
-        save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
+    if peft_model_cfg.freeze_audio_encoder:
+        model = load_audio_models(cfg, peft_model_cfg, model)
 
-    model = ModularAudioGPTLoRAModel.restore_from(
-        restore_path=cfg.model.restore_from_path,
-        trainer=trainer,
-        override_config_path=peft_model_cfg,
-        save_restore_connector=save_restore_connector,
-    )
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
     model.freeze()
@@ -159,14 +157,8 @@ def main(cfg) -> None:
         trainer.test(model)
         exit(0)
 
-    _test_ds = model._build_dataset(peft_model_cfg.data.test_ds, is_train=False)
-    if isinstance(_test_ds, list):
-        _test_ds = _test_ds[0]
-
-    request_dl = DataLoader(
-        dataset=_test_ds, batch_size=peft_model_cfg.data.test_ds.global_batch_size, collate_fn=_test_ds.collate_fn,
-    )
-    response = trainer.predict(model, request_dl)
+    test_loaders = model.get_test_dataloader(peft_model_cfg.data.test_ds)
+    response = trainer.predict(model, test_loaders)
 
     if model.global_rank == 0:
         print("***************************")
