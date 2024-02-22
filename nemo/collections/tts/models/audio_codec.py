@@ -651,5 +651,5 @@ class AudioCodecModel(ModelPT):
             description="For details about this model please refer to the model card: https://ngc.nvidia.com/catalog/models/nvidia:nemo:audio_codec_small_16khz",
         )
         models.append(model)
-        
+
         return models
