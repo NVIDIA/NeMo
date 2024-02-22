@@ -115,11 +115,23 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
     to decide both whether to enter the loop, and also whether to
     execute the next iteration of the loop).
     """
-    capture_status, _, graph, _, _ = cu_call(cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=device).cuda_stream))
+    capture_status, _, graph, _, _ = cu_call(
+        cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=device).cuda_stream)
+    )
     assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
     cuda.cuLaunchKernel(
-        while_loop_kernel, 1, 1, 1, 1, 1, 1, 0, torch.cuda.current_stream(device=device).cuda_stream, while_loop_args.ctypes.data, 0
+        while_loop_kernel,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        torch.cuda.current_stream(device=device).cuda_stream,
+        while_loop_args.ctypes.data,
+        0,
     )
 
     capture_status, _, graph, dependencies, _ = cu_call(
@@ -277,7 +289,9 @@ class RNNTGreedyDecodeCudaGraph:
 
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.device)
-        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(self.graph, stream=stream_for_graph):
+        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
+            self.graph, stream=stream_for_graph
+        ):
             # This is failing...
             self.f = torch.zeros(
                 (self.batch_size, 1, self.encoder_output.shape[-1]),
@@ -343,7 +357,9 @@ class RNNTGreedyDecodeCudaGraph:
                     ],
                     dtype=np.uint64,
                 )
-                with with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle, self.device):
+                with with_conditional_node(
+                    while_loop_kernel, while_loop_args, while_loop_conditional_handle, self.device
+                ):
                     g, hidden_prime = self.caller._pred_step(
                         self.last_label.unsqueeze(1), hidden, batch_size=self.batch_size
                     )
@@ -415,9 +431,7 @@ class RNNTGreedyDecodeCudaGraph:
         if torch.is_autocast_enabled():
             x = x.to(torch.get_autocast_gpu_dtype())
 
-        if (max_time > self.max_time or
-            batch_size > self.batch_size or
-            self.device != x.device):
+        if max_time > self.max_time or batch_size > self.batch_size or self.device != x.device:
             # In the first two cases, we need to recreate the cuda
             # graph to handle larger tensor sizes. In the third case,
             # we need to recreate the graph, as well as all tensors,

@@ -77,6 +77,7 @@ def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16)
             print("Original transcript:", actual)
             print("New transcript:", fast)
 
+
 def test_change_devices():
     if torch.cuda.device_count() < 2:
         pytest.skip("Test requires more than 2 GPUs")
