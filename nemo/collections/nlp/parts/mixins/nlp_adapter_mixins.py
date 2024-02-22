@@ -352,13 +352,14 @@ class NLPAdapterModelMixin:
         """
         Gets the keys associated with the adapters only.
         """
+
         def has_state_dict_changed(initial_state_dict, current_state_dict):
             for key in initial_state_dict.keys():
                 if key in current_state_dict:
                     if not torch.equal(initial_state_dict[key], current_state_dict[key]):
                         return True  # Found a change
             return False
-        
+
         state_dict = self.model.state_dict(prefix=self.model_prefix)
         peft_patterns = ['lora_kqv_adapter.linear_in.weight', 'lora_kqv_adapter.linear_out.weight']
         peft_state_dict = {}
