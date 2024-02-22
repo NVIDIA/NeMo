@@ -1177,13 +1177,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
-        # if limit_val_batches is 0, don't use it for computing eval samples, as it can cause error in building the dataset with 0 samples
-        eval_iters = (
-            (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-            if isinstance(self.trainer.limit_val_batches, int) and self.trainer.limit_val_batches > 0
-            else (max_train_steps // self.trainer.val_check_interval + 1)
-        )
-        test_iters = self.trainer.limit_test_batches
 
         # Add extra FIM tokens to tokenizer
         if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
@@ -1191,11 +1184,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
             self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
 
-        train_valid_test_num_samples = [
-            max_train_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
+        # The line below exploits a quirk in mcore dataset construction, to make number of epochs for validation and test equal to 1
+        # The mcore dataset implementation uses the number N we provide via train_valid_test_num_samples to derive parameter E such that
+        # E = argmin_e e * N_d >= N, or equivalently E = ceildiv(N, N_d)
+        # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
+        # Setting N = 1 we force E to be 1 as well
+        train_valid_test_num_samples = [max_train_steps * global_batch_size, 1, 1]
 
         mock_dataset = self.cfg.data.get("mock_dataset", False)
         kwargs = {
