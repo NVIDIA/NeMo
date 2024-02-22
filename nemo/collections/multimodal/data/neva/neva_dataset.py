@@ -165,6 +165,7 @@ class TarOrFolderVideoLoader:
                 return frames
             else:
                 partition_size = max(1, len(cap) // self.data_cfg['num_frames'])
+                frames = []
                 for i in range(0, len(cap), partition_size):
                     rgb_frame = cap[i].asnumpy()[:, :, ::-1]
                     img = Image.fromarray(rgb_frame).convert('RGB')
