@@ -95,8 +95,8 @@ class TensorRTLLM(ITritonDeployable):
         model_type: str,
         delete_existing_files: bool = True,
         n_gpus: int = 1,
-        tensor_parallel_size = None,
-        pipeline_parallel_size = None,
+        tensor_parallel_size: int = None,
+        pipeline_parallel_size: int = None,
         max_input_token: int = 256,
         max_output_token: int = 256,
         max_batch_size: int = 8,
@@ -106,7 +106,10 @@ class TensorRTLLM(ITritonDeployable):
         paged_kv_cache: bool = False,
         dtype: str = "bfloat16",
         load_model: bool = True,
-        enable_multi_block_mode = False,
+        enable_multi_block_mode: bool = False,
+        use_lora_plugin: str = None,
+        lora_target_modules: List[str] = None,
+        max_lora_rank: int = 64,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -192,6 +195,9 @@ class TensorRTLLM(ITritonDeployable):
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
             enable_multi_block_mode=enable_multi_block_mode,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_lora_rank=max_lora_rank,
         )
 
         tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
@@ -460,7 +466,6 @@ class TensorRTLLM(ITritonDeployable):
         return outputs
 
 
-    @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
@@ -629,7 +634,7 @@ class TensorRTLLM(ITritonDeployable):
                     self.config["builder_config"]["hidden_size"])
             )
 
-        return prompt_embeddings_table
+        return prompt_embeddings_table    
 
     def _load_config_file(self):
         engine_dir = Path(self.model_dir)

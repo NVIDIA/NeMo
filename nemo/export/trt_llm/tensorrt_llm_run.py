@@ -26,6 +26,7 @@ from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.runtime import ModelConfig, SamplingConfig
 from transformers import PreTrainedTokenizer
 from tensorrt_llm.logger import logger
+from tensorrt_llm.quantization import QuantMode
 
 from .tensorrt_llm_build import get_engine_name, MODEL_NAME, refit_runtime_engine  # isort:skip
 from .tensorrt_llm_model import LMHeadModelBuilder
@@ -65,8 +66,7 @@ tensorrt_llm_worker_context = TensorrtLLMWorkerContext()
 def _read_config(config_path: Path):
     with open(config_path, "r") as f:
         config = json.load(f)
-    use_gpt_attention_plugin = config["plugin_config"]["gpt_attention_plugin"]
-    remove_input_padding = config["plugin_config"]["remove_input_padding"]
+
     tensor_parallel_size = config["builder_config"]["tensor_parallel"]
     pipeline_parallel_size = config["builder_config"]["pipeline_parallel"]
     world_size = tensor_parallel_size * pipeline_parallel_size
@@ -76,27 +76,31 @@ def _read_config(config_path: Path):
     num_heads = config["builder_config"]["num_heads"]
     num_kv_heads = config["builder_config"].get("num_kv_heads", num_heads)
     hidden_size = config["builder_config"]["hidden_size"] // tensor_parallel_size
-    vocab_size = config["builder_config"]["vocab_size"]
-    num_layers = config["builder_config"]["num_layers"]
-    paged_kv_cache = config["plugin_config"]["paged_kv_cache"]
-    tokens_per_block = config["builder_config"]["tokens_per_block"]
-    max_prompt_embedding_table_size = config["builder_config"]["max_prompt_embedding_table_size"]
 
     num_heads = num_heads // tensor_parallel_size
     num_kv_heads = (num_kv_heads + tensor_parallel_size - 1) // tensor_parallel_size
 
     model_config = ModelConfig(
+        model_name=config["builder_config"]["name"],
+        max_batch_size=config["builder_config"]["max_batch_size"],
+        vocab_size=config["builder_config"]["vocab_size"],
+        num_layers=config["builder_config"]["num_layers"],
         num_heads=num_heads,
         num_kv_heads=num_kv_heads,
         hidden_size=hidden_size,
-        vocab_size=vocab_size,
-        num_layers=num_layers,
-        gpt_attention_plugin=use_gpt_attention_plugin,
-        remove_input_padding=remove_input_padding,
-        paged_kv_cache=paged_kv_cache,
-        tokens_per_block=tokens_per_block,
-        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-        dtype="bfloat16" if paged_kv_cache else ""
+        gpt_attention_plugin=config["plugin_config"]["gpt_attention_plugin"],
+        remove_input_padding=config["plugin_config"]["remove_input_padding"],
+        paged_kv_cache=config["plugin_config"]["paged_kv_cache"],
+        tokens_per_block=config["builder_config"]["tokens_per_block"],
+        max_prompt_embedding_table_size=config["builder_config"]["max_prompt_embedding_table_size"],
+        dtype="bfloat16" if config["plugin_config"]["paged_kv_cache"] else "",
+        lora_plugin=config["plugin_config"]["lora_plugin"],
+        lora_target_modules=config["builder_config"]["lora_target_modules"],
+        quant_mode=QuantMode(config["builder_config"]["quant_mode"]),
+        use_custom_all_reduce=config["plugin_config"]["use_custom_all_reduce"],
+        use_context_fmha_for_generation=config["plugin_config"]["use_context_fmha_for_generation"],
+        gather_context_logits=config["builder_config"]["gather_context_logits"],
+        gather_generation_logits=config["builder_config"]["gather_generation_logits"],
     )
 
     dtype = config["builder_config"]["precision"]
@@ -131,7 +135,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, num_beams=1):
         with open(serialize_path, "rb") as f:
             engine_buffer = f.read()
         decoder = tensorrt_llm.runtime.GenerationSession(
-            model_config, engine_buffer, runtime_mapping, debug_mode=True
+            model_config, engine_buffer, runtime_mapping, debug_mode=False
         )
 
         sampling_config = SamplingConfig(

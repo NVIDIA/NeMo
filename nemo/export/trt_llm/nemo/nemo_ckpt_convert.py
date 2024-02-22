@@ -37,7 +37,6 @@ from .convert import (
     save_weight_torch
 )
 from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -719,18 +718,21 @@ def build_tokenizer(tokenizer):
             tokenizer.add_special_tokens({"bos_token": "<s>"})
         if tokenizer.eos_token_id is None:
             tokenizer.add_special_tokens({"eos_token": "</s>"})
-    elif isinstance(tokenizer, TokenizerSpec):
-        #If NeMo tokenizer already exists, monkey patch interface
-        def batch_encode_patch(self, ids):
-            if torch.is_tensor(ids):
-                ids = ids.cpu().numpy()
-            return self.ids_to_text(ids)
-        tokenizer.bos_token_id = tokenizer.bos_id
-        tokenizer.eos_token_id = tokenizer.eos_id
-        tokenizer.encode = tokenizer.text_to_ids
-        TokenizerSpec.batch_decode = batch_encode_patch
     else:
-        raise TypeError(f'Unsupported tokenizer build input: {type(tokenizer)}')
+        try:
+            #If NeMo tokenizer, monkey patch interface
+            from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+            if isinstance(tokenizer, TokenizerSpec):
+                def batch_encode_patch(self, ids):
+                    if torch.is_tensor(ids):
+                        ids = ids.cpu().numpy()
+                    return self.ids_to_text(ids)
+                tokenizer.bos_token_id = tokenizer.bos_id
+                tokenizer.eos_token_id = tokenizer.eos_id
+                tokenizer.encode = tokenizer.text_to_ids
+                TokenizerSpec.batch_decode = batch_encode_patch
+        except:
+            raise TypeError(f'Unsupported tokenizer build input: {type(tokenizer)}')
 
     return tokenizer
 

@@ -15,6 +15,7 @@ Referrence impl in tensorrt_llm: tensorrt_llm/models/gpt/model.py.
 import inspect
 from collections import OrderedDict
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import tensorrt as trt
@@ -28,7 +29,7 @@ from tensorrt_llm.functional import (
     send,
     recv
 )
-from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams
+from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams, LoraParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
 from tensorrt_llm.module import Module, ModuleList
 
@@ -79,6 +80,7 @@ class ModelBuilder(Module):
         self._use_prompt_tuning = model_config.use_prompt_tuning
         self._mapping = model_config.mapping
         self.rank = model_config.mapping.rank
+        self.max_lora_rank = model_config.max_lora_rank
 
         if self._mapping.is_first_pp_rank():
             self.vocab_embedding = build_embedding_from_config(
@@ -92,8 +94,10 @@ class ModelBuilder(Module):
                 model_config.positional_embedding, self._dtype, use_prompt_tuning=False
             )
 
-        self.layers = ModuleList(
-            [
+        self.layers = []
+        for layer_id in get_transformer_layers(self._mapping, self._num_layers):
+            model_config.layers[layer_id].max_lora_rank = self.max_lora_rank
+            self.layers.append(
                 build_decoder_layer(
                     model_config.layers[layer_id],
                     layer_id,
@@ -104,9 +108,9 @@ class ModelBuilder(Module):
                     tensor_parallel=self._tensor_parallel,
                     tp_group=model_config.mapping.tp_group
                 )
-                for layer_id in get_transformer_layers(self._mapping, self._num_layers)
-            ]
-        )
+            )
+
+        self.layers = ModuleList(self.layers)
 
         if self._mapping.is_last_pp_rank():
             self.ln_f = build_layernorm_from_config(model_config.final_layernorm, self._dtype)
@@ -124,6 +128,7 @@ class ModelBuilder(Module):
         prompt_vocab_size=None,
         inflight_batching_args=None,
         hidden_states=None,
+        lora_params=None,
     ):
         """Forward function for the full model."""
         ptuning_args = []
@@ -158,6 +163,10 @@ class ModelBuilder(Module):
             #if lora_params.lora_ranks is not None:
             #    lora_layer_params = lora_params.get_layer_params(layer_idx)
 
+            lora_layer_params = None
+            if lora_params.lora_ranks is not None:
+                lora_layer_params = lora_params.get_layer_params(layer_idx)
+
             hidden_states = layer(
                 hidden_states,
                 use_cache=use_cache,
@@ -165,11 +174,14 @@ class ModelBuilder(Module):
                 kv_cache_params=KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
-                    host_max_attention_window_sizes=max_attention_window_size,
                     kv_cache_block_pointers=[pointer],
-                    host_kv_cache_block_pointers=[host_pointer],
-                    cache_indirection=kv_cache_params.cache_indirection),
-                attention_params=attention_params
+                    host_max_attention_window_sizes=max_attention_window_size,
+                    cache_indirection=kv_cache_params.cache_indirection,
+                    host_sink_token_length=kv_cache_params.host_sink_token_length,
+                    host_kv_cache_block_pointers=kv_cache_params.host_kv_cache_block_pointers,
+                ),
+                attention_params=attention_params,
+                lora_layer_params=lora_layer_params,
             )
 
             if use_cache:
@@ -230,6 +242,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         prompt_vocab_size=None,
         inflight_batching_args=None,
         hidden_states=None,
+        lora_params=None,
     ):
 
         """Forward function for the full LMHead model."""
@@ -244,7 +257,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             prompt_tasks,
             prompt_vocab_size,
             inflight_batching_args,
-            hidden_states
+            hidden_states,
+            lora_params,
         )
 
         if use_cache:
@@ -263,7 +277,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             hidden_states.mark_output('hidden_states_output', self._dtype)
 
         if use_cache:
-            if default_net().plugin_config.paged_kv_cache == False:
+            if not default_net().plugin_config.paged_kv_cache:
                 for i, present in zip(
                         self._mapping.pp_layers(self._num_layers), presents):
                     present.mark_output(f'present_key_value_{i}', self._kv_dtype)
@@ -284,7 +298,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         max_beam_width: int = 1,
         paged_kv_cache: bool = False,
         tokens_per_block: int = 64,
-        prompt_embedding_table_size: int = 128,
+        prompt_embedding_table_size: int = 0,
+        lora_target_modules: List[str] = None,
     ):
         """@brief: Prepare inputs Tensors for the model.
 
@@ -295,110 +310,43 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         """
         # Prepare inputs
 
-        enable_two_optimization_profiles = True
-
         head_size = self._hidden_size // self._num_heads
         num_heads_kv = self._num_kv_heads
-        # num_heads_kv = (self._num_kv_heads + self._tensor_parallel - 1) // self._tensor_parallel
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
+        use_gemm_plugin = default_net().plugin_config.gemm_plugin
+        #paged_kv_cache = default_net().plugin_config.paged_kv_cache
+        #tokens_per_block = default_net().plugin_config.tokens_per_block
+        use_custom_all_reduce = default_net().plugin_config.use_custom_all_reduce
+        use_lora_plugin = default_net().plugin_config.lora_plugin
 
         model_inputs = self.prepare_basic_inputs(
-            max_batch_size,
-            max_beam_width,
-            max_input_len,
-            max_new_tokens,
-            num_heads_kv,
-            head_size,
-            self._num_layers,
-            self._kv_dtype,
+            max_batch_size=max_batch_size,
+            max_beam_width=max_beam_width,
+            max_input_len=max_input_len,
+            max_seq_len=max_new_tokens,
+            num_kv_heads=num_heads_kv,
+            head_size=head_size,
+            num_layers=self._num_layers,
+            kv_dtype=self._kv_dtype,
             remove_input_padding=remove_input_padding,
             use_gpt_attention_plugin=use_gpt_attention_plugin,
+            use_gemm_plugin=use_gemm_plugin,
             paged_kv_cache=paged_kv_cache,
             tokens_per_block=tokens_per_block,
-            mapping=self._mapping,
+            gather_context_logits=False,
+            gather_generation_logits=False,
             dtype=self._dtype,
             num_heads=self._num_heads,
+            mapping=self._mapping,
+            max_num_tokens=None,
+            prompt_embedding_table_size=prompt_embedding_table_size,
+            position_encoding_2d=False,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_draft_len=0,
+            use_custom_all_reduce=use_custom_all_reduce,
         )
-
-        bb_range_cxt = [1, (max_batch_size + 1) // 2, max_batch_size]
-        bb_range_gen = [
-            1, (max_batch_size * max_beam_width + 1) // 2,
-            max_batch_size * max_beam_width
-        ]
-        if enable_two_optimization_profiles:
-            bb_range = [bb_range_cxt, bb_range_gen]
-        else:
-            bb_range = [bb_range_gen]
-
-        p_embedding_range = [1, prompt_embedding_table_size // 2, prompt_embedding_table_size]
-        num_tokens_range = [
-            1,
-            max_batch_size * max_beam_width,
-            max(max_input_len * max_batch_size, max_beam_width * max_batch_size),
-        ]
-        inlen_range = [1, 1, max_input_len]
-
-        prompt_embedding_table = None
-        tasks = None
-        prompt_vocab_size = None
-        if self._use_prompt_tuning:
-            assert prompt_embedding_table_size is not None, "prompt_embedding_table_size cannot be None when self._use_prompt_tuning is True"
-            _p_embedding_range = [
-                1, prompt_embedding_table_size // 2, prompt_embedding_table_size
-            ]
-            if enable_two_optimization_profiles:
-                p_embedding_range = [_p_embedding_range, _p_embedding_range]
-            else:
-                p_embedding_range = [_p_embedding_range]
-
-            prompt_embedding_table = Tensor(
-                name='prompt_embedding_table',
-                dtype=self._dtype,
-                shape=[-1, self._hidden_size],
-                dim_range=OrderedDict([
-                    ('prompt_embedding_table_size', p_embedding_range),
-                    ('hidden_size', [self._hidden_size, self._hidden_size]
-                     if enable_two_optimization_profiles else [self._hidden_size]),
-                ]))
-
-            if remove_input_padding:
-                tasks = Tensor(
-                    name="tasks",
-                    dtype=trt.int32,
-                    shape=[1, -1],
-                    dim_range=OrderedDict(
-                        [
-                            ('batch_size_fake',
-                             [1, 1] if enable_two_optimization_profiles else [1]),
-                            ("input_len_task", [num_tokens_range, num_tokens_range]
-                             if enable_two_optimization_profiles else [num_tokens_range]),
-                        ]
-                    ),
-                )
-            else:
-                tasks = Tensor(
-                    name="tasks",
-                    dtype=trt.int32,
-                    shape=[-1, -1],
-                    dim_range=OrderedDict(
-                        [
-                            ("batch_size_beam_width", bb_range),
-                            ('broadcast_dim',
-                             [1, 1] if enable_two_optimization_profiles else [1]),
-                        ]
-                    ),
-                )
-
-            prompt_vocab_size = Tensor(
-                name='prompt_vocab_size',
-                dtype=trt.int32,
-                shape=[1],
-                dim_range=OrderedDict([
-                    ('size',
-                     [1, 1] if enable_two_optimization_profiles else [1])
-                ]))
-
 
         # todo: we should remove this, but hesitant since no explicit argument names below.
         inflight_batching_args = None
@@ -420,20 +368,28 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 host_kv_cache_block_pointers=model_inputs[
                     'host_kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
+                host_sink_token_length=model_inputs['host_sink_token_length'],
             ),
             AttentionParams(
                 sequence_length=model_inputs['sequence_length'],
                 context_lengths=model_inputs['context_lengths'],
                 host_context_lengths=model_inputs['host_context_lengths'],
                 max_context_length=max_input_len,
-                host_request_types=model_inputs['host_request_types']),
-            prompt_embedding_table,
-            tasks,
-            prompt_vocab_size,
+                host_request_types=model_inputs['host_request_types']
+            ),
+            model_inputs['prompt_embedding_table'],
+            model_inputs['tasks'],
+            model_inputs['prompt_vocab_size'],
             inflight_batching_args,
             model_inputs["hidden_states_input"],
+            LoraParams(
+                model_inputs['lora_ranks'],
+                model_inputs['lora_weights_pointers'],
+                host_context_lengths=model_inputs['host_context_lengths'],
+                max_context_length=max_input_len,
+                host_request_types=model_inputs['host_request_types']
+            ),
         )
-
 
     def build(
         self,
@@ -451,6 +407,9 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         enable_context_fmha: bool = True,
         enable_multi_block_mode: bool = False,
         use_refit: bool = False,
+        use_lora_plugin: str = None,
+        lora_target_modules: List[str] = None,
+        max_lora_rank: int = 64,
     ):
         """Builds the model and generate the tensorrt_llm engine.
 
@@ -468,8 +427,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
 
         if self.rank > torch.cuda.device_count():
             print(f"warning: Rank {self.rank} larger than GPUs available ({torch.cuda.device_count()})")
-        # if self._tensor_parallel > torch.cuda.device_count():
-        #     print(f"warning: Not enough GPUs locally, requesting {self._tensor_parallel}, having ({torch.cuda.device_count()}")
 
         build(
             tensorrt_llm_model=self,
@@ -491,6 +448,9 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             enable_context_fmha=enable_context_fmha,
             enable_multi_block_mode=enable_multi_block_mode,
             use_refit=use_refit,
+            use_lora_plugin=use_lora_plugin,
+            lora_target_modules=lora_target_modules,
+            max_lora_rank=max_lora_rank,
         )
 
     def print(self):

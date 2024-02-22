@@ -17,6 +17,7 @@ import argparse
 import os
 import time
 from pathlib import Path
+from typing import List
 
 import tensorrt_llm
 import torch
@@ -134,6 +135,8 @@ def build_rank_engine(
         network.plugin_config.set_gpt_attention_plugin(dtype=args.use_gpt_attention_plugin)
 
     if not ootb:
+        network.plugin_config.use_custom_all_reduce = False
+
         if args.use_gemm_plugin:
             network.plugin_config.set_gemm_plugin(dtype=args.use_gemm_plugin)
         if args.use_layernorm_plugin:
@@ -145,14 +148,21 @@ def build_rank_engine(
             network.plugin_config.set_context_fmha(ContextFMHAType.enabled_with_fp32_acc)
         if args.remove_input_padding:
             network.plugin_config.enable_remove_input_padding()
+        else:
+            network.plugin_config.remove_input_padding = False
         if args.paged_kv_cache:
             network.plugin_config.enable_paged_kv_cache()
+        else:
+            network.plugin_config.paged_kv_cache = False
         if args.use_ib_gpt_attention_plugin:
             network.plugin_config.set_inflight_batching_gpt_attention_plugin(
                 dtype=args.use_ib_gpt_attention_plugin
             )
         if args.enable_multi_block_mode:
             network.plugin_config.enable_mmha_multi_block_mode()
+
+        if args.use_lora_plugin:
+            network.plugin_config.set_lora_plugin(dtype=args.use_lora_plugin)
 
         if args.use_lookup_plugin:
             # Use the plugin for the embedding parallelism and sharing
@@ -163,26 +173,23 @@ def build_rank_engine(
     if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
 
-    use_cache = True #args.paged_kv_cache
-
     with net_guard(network):
         # Prepare
         network.set_named_parameters(tensorrt_llm_gpt.named_parameters())
 
         # Forward       
         inputs = tensorrt_llm_gpt.prepare_inputs(
-            args.max_batch_size,
-            args.max_input_len,
-            args.max_output_len,
-            use_cache,
-            args.max_beam_width,
+            max_batch_size=args.max_batch_size,
+            max_input_len=args.max_input_len,
+            max_new_tokens=args.max_input_len + args.max_output_len,
+            use_cache=True,
+            max_beam_width=args.max_beam_width,
             paged_kv_cache=args.paged_kv_cache,
             tokens_per_block=args.tokens_per_block,
             prompt_embedding_table_size=args.max_prompt_embedding_table_size,
+            lora_target_modules=args.lora_target_modules,
         )
         tensorrt_llm_gpt(*inputs)
-
-    engine = None
 
     # Network -> Engine
     engine = builder.build_engine(network, builder_config)
@@ -221,6 +228,9 @@ def _build_impl(tensorrt_llm_model, args):
         max_batch_size=args.max_batch_size,
         max_input_len=args.max_input_len,
         max_output_len=args.max_output_len,
+        max_beam_width=args.max_beam_width,
+        max_num_tokens=None,
+        max_draft_len=0,
         int8="int8" in args.quantization,
         opt_level=args.builder_opt,
         paged_kv_cache=args.paged_kv_cache,
@@ -230,6 +240,11 @@ def _build_impl(tensorrt_llm_model, args):
         embedding_sharding_dim=args.embedding_sharding_dim,
         fp8="fp8" in args.quantization,
         use_refit=args.use_refit,
+        gather_context_logits=False,
+        gather_generation_logits=False,
+        quant_mode=args.quant_mode,
+        lora_target_modules=args.lora_target_modules,
+        max_lora_rank=args.max_lora_rank,
     )
 
     tp_size = args.mapping.tp_size
@@ -272,6 +287,9 @@ def build(
     enable_context_fmha: bool = True,
     enable_multi_block_mode=False,
     use_refit=False,
+    use_lora_plugin: str = None,
+    lora_target_modules: List[str] = None,
+    max_lora_rank: int = 64,
 ):
     """Builds the tensorrt_llm_model to engine."""
     args = argparse.Namespace()
@@ -311,6 +329,9 @@ def build(
     args.quantization = quantization
     args.enable_multi_block_mode = enable_multi_block_mode
     args.use_refit = use_refit
+    args.use_lora_plugin = use_lora_plugin
+    args.lora_target_modules = lora_target_modules
+    args.max_lora_rank = max_lora_rank
 
     logger.set_level(args.log_level)
 
