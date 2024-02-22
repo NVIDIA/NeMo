@@ -76,6 +76,9 @@ class NLPAdapterModelMixin:
         if self.use_mcore_gpt:
             assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
 
+        # DEBUGGING
+        self.prev_peft_dict = None
+
     def first_stage_of_pipeline(self):
         if hasattr(self, "model") and hasattr(self.model, "pre_process"):
             return self.model.pre_process
@@ -349,6 +352,13 @@ class NLPAdapterModelMixin:
         """
         Gets the keys associated with the adapters only.
         """
+        def has_state_dict_changed(initial_state_dict, current_state_dict):
+            for key in initial_state_dict.keys():
+                if key in current_state_dict:
+                    if not torch.equal(initial_state_dict[key], current_state_dict[key]):
+                        return True  # Found a change
+            return False
+        
         state_dict = self.model.state_dict(prefix=self.model_prefix)
         peft_patterns = ['lora_kqv_adapter.linear_in.weight', 'lora_kqv_adapter.linear_out.weight']
         peft_state_dict = {}
@@ -359,6 +369,11 @@ class NLPAdapterModelMixin:
                 # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
                 new_key = key.replace("model.module.", "model.", 1)
                 peft_state_dict[new_key] = value
+        if not self.prev_peft_dict:
+            self.prev_peft_dict = peft_state_dict
+        else:
+            print('PEFT WEIGHT CHANGE:', has_state_dict_changed(self.prev_peft_dict, peft_state_dict))
+            self.prev_peft_dict = peft_state_dict
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):

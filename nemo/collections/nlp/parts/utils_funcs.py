@@ -49,7 +49,7 @@ def torch_dtype_from_precision(precision: Union[int, str], megatron_amp_O2: Opti
         return torch.bfloat16
     elif precision in [16, '16', '16-mixed']:
         return torch.float16
-    elif precision in [32, '32', '32-true']:
+    elif precision in [32, '32', '32-true', 'fp32']:
         return torch.float32
     else:
         raise ValueError(f"Could not parse the precision of `{precision}` to a valid torch.dtype")

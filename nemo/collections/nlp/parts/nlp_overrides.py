@@ -63,6 +63,7 @@ from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapter, ParallelLinearAdapter
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -561,6 +562,7 @@ class NLPFSDPStrategy(FSDPStrategy):
             )
             auto_wrap_policy = functools.partial(_or_policy, policies=[lambda_policy, transformer_wrap_policy])
             kwargs['auto_wrap_policy'] = auto_wrap_policy
+
         else:
             kwargs['auto_wrap_policy'] = functools.partial(
                 transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
@@ -773,7 +775,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
-        if not self.sharded_checkpoint:
+        if self.sharded_checkpoint:
             logging.info(f'Removing checkpoint: {filepath}')
             self.checkpoint_io.remove_checkpoint(filepath)
         else:
@@ -822,7 +824,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         app_state = AppState()
 
         # Check if using distributed checkpointing
-        dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
+        if model.cfg.get("fsdp", False):
+            dist_ckpt = False
+        else:
+            dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
 
         dist_ckpt_dir = None
 
