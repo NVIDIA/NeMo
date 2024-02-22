@@ -43,8 +43,10 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import ModelParallelConfig
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
-    from megatron.core.tensor_parallel.mappings import \
-        gather_from_sequence_parallel_region, scatter_to_sequence_parallel_region
+    from megatron.core.tensor_parallel.mappings import (
+        gather_from_sequence_parallel_region,
+        scatter_to_sequence_parallel_region,
+    )
 
     HAVE_MEGATRON_CORE = True
 
