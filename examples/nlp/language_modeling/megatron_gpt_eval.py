@@ -199,7 +199,9 @@ def main(cfg) -> None:
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size * max(1, cfg.get('expert_model_parallel_size', 1))
+        == cfg.tensor_model_parallel_size
+        * cfg.pipeline_model_parallel_size
+        * max(1, cfg.get('expert_model_parallel_size', 1))
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     if cfg.gpt_model_file:
@@ -245,7 +247,9 @@ def main(cfg) -> None:
             or cfg.get('expert_model_parallel_size', 1) > 1
         ):
             app_state.model_parallel_size = (
-                cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size * cfg.get('expert_model_parallel_size', 1)
+                cfg.tensor_model_parallel_size
+                * cfg.pipeline_model_parallel_size
+                * cfg.get('expert_model_parallel_size', 1)
             )
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size

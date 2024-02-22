@@ -159,7 +159,6 @@ class AppState(metaclass=Singleton):
         """
         self._expert_model_parallel_rank = rank
 
-
     @property
     def expert_model_parallel_size(self):
         """ Property returns the number of GPUs in each expert parallel group.
@@ -175,7 +174,6 @@ class AppState(metaclass=Singleton):
                 size (int):  Number of GPUs in each expert parallel group.
         """
         self._expert_model_parallel_size = size
-
 
     @property
     def pipeline_model_parallel_size(self):

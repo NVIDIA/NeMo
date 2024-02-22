@@ -327,7 +327,6 @@ def fake_initialize_model_parallel(
                 if rank in ranks:
                     expert_model_parallel_rank = list(ranks).index(rank)
 
-
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
     all_pipeline_model_parallel_group_ranks = []
