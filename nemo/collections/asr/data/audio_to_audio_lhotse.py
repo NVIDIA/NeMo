@@ -25,10 +25,10 @@ class LhotseAudioToTargetDataset(torch.utils.data.Dataset):
             "target_signal": tgt_audio,
             "target_length": tgt_audio_lens,
         }
-        if _key_available(self.REFERENCE_KEY):
+        if _key_available(cuts, self.REFERENCE_KEY):
             ref_audio, ref_audio_lens = collate_audio(cuts, recording_field=self.REFERENCE_KEY)
             ans.update(reference_signal=ref_audio, reference_length=ref_audio_lens)
-        if _key_available(self.EMBEDDING_KEY):
+        if _key_available(cuts, self.EMBEDDING_KEY):
             emb = collate_custom_field(cuts, field=self.EMBEDDING_KEY)
             ans.update(embedding_signal=emb)
         return ans
