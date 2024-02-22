@@ -12,19 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: This will be a part of MCore
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.custom_layers.transformer_engine import TENorm
-from megatron.core.transformer.dot_product_attention import DotProductAttention
-from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+# TODO: This spec will be defined in MCore>=0.6.0 and is temporary
+try:
+
+    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+    from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
+    from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+    from megatron.core.transformer.custom_layers.transformer_engine import TENorm
+    from megatron.core.transformer.dot_product_attention import DotProductAttention
+    from megatron.core.transformer.enums import AttnMaskType
+    from megatron.core.transformer.mlp import MLP, MLPSubmodules
+    from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+    ModuleSpec = None
 
 
 def get_gpt_layer_ammo_spec() -> ModuleSpec:
+    assert HAVE_MEGATRON_CORE
     return ModuleSpec(
         module=TransformerLayer,
         submodules=TransformerLayerSubmodules(
