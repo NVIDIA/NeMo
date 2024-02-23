@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import sys
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 from torch import Tensor
 
@@ -38,6 +38,7 @@ class SamplingParam(TypedDict):
     all_probs: bool  # whether return the log prob for all the tokens in vocab
     compute_logprob: bool  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
     end_strings: List[str]  # generation will stop when one of these tokens is generated
+    random_seed: Optional[int]  # random seed for sampling
 
 
 class OutputType(TypedDict):

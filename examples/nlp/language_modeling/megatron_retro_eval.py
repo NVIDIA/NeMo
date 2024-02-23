@@ -105,6 +105,7 @@ def main(cfg) -> None:
         "add_BOS": cfg.inference.add_BOS,
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
+        "random_seed": cfg.inference.get('random_seed'),
     }
 
     # check whether the DDP is initialized

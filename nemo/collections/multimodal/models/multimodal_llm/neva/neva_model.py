@@ -131,7 +131,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     ):
         self.vision_encoder = vision_encoder
         self.from_hf = isinstance(vision_encoder, CLIPVisionModel)
-        self.from_open_clip = "open_clip" in type(vision_encoder)
+        self.from_open_clip = "open_clip" in str(vision_encoder.__module__)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.class_token_length = class_token_length
@@ -166,13 +166,19 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         assert F == 1, "Only single frame supported"
 
         vision_x = rearrange(vision_x, "b T F c h w -> (b T F) c h w")
-        vision_x = vision_x.to(self.vision_encoder.dtype)
+        # vision_x = vision_x.to(self.vision_encoder.dtype)
+        vision_x = vision_x.to(torch.bfloat16)
         with torch.no_grad():
             if self.from_hf:
                 vision_x = self.vision_encoder(vision_x, output_hidden_states=True)
                 vision_x = vision_x.hidden_states[self.vision_select_layer]
             elif self.from_open_clip:
-                vision_x = self.vision_encoder(vision_x)
+                num_layers = len(self.vision_encoder.trunk.blocks)
+                vision_x = self.vision_encoder.trunk._intermediate_layers(
+                    x=vision_x,
+                    n=(num_layers + self.vision_select_layer)
+                )
+                vision_x = vision_x[0]
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)
@@ -894,12 +900,11 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         logging.info('Building Neva datasets.')
         ds_dict = make_supervised_data_module(
             tokenizer=self.tokenizer,
-            image_processor=self.model.image_processor,
+            image_processor=self.model.module.image_processor if hasattr(self.model, "module") else self.model.image_processor,
             model_cfg=self.cfg,
         )
         self._train_ds = ds_dict["train_dataset"]
         self._validation_ds = ds_dict["eval_dataset"]
-
         return self._train_ds, self._validation_ds
 
     def build_pretraining_data_loader(

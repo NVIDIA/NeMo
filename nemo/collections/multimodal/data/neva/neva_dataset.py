@@ -633,6 +633,7 @@ class LazySupervisedDataset(Dataset):
         self.conv_template = multimodal_cfg["conv_template"]
         self.image_folder = multimodal_cfg['image_folder']
         self.processor = multimodal_cfg["image_processor"]
+        self.image_token_len = multimodal_cfg.get("image_token_len")
 
         self.image_loader = TarOrFolderImageLoader(self.image_folder)
 
@@ -691,9 +692,12 @@ class LazySupervisedDataset(Dataset):
             images_tensors = torch.tensor([])
             if images:
                 images_tensors = torch.stack(images)
-                cur_token_len = (images_tensors[0].shape[1] // 14) * (
-                    images_tensors[0].shape[2] // 14
-                )  # FIXME: 14 is hardcoded patch size
+                if self.image_token_len is None:
+                    cur_token_len = (images_tensors[0].shape[1] // 14) * (
+                        images_tensors[0].shape[2] // 14
+                    )  # FIXME: 14 is hardcoded patch size
+                else:
+                    cur_token_len = self.image_token_len
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,

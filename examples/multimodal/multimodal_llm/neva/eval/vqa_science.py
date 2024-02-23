@@ -96,6 +96,7 @@ def eval_model(args):
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
         "end_strings": cfg.inference.end_strings,
+        "random_seed": cfg.inference.get('random_seed'),
     }
 
     questions = json.load(open(os.path.expanduser(args.question_file), "r"))

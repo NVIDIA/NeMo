@@ -19,6 +19,7 @@ import gradio as gr
 import PIL.Image
 from omegaconf import OmegaConf
 
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 
 CFG_STRING = """
@@ -83,6 +84,7 @@ def predict(prompt, image_base64=None):
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
         "end_strings": cfg.inference.end_strings,
+        "random_seed": cfg.inference.get('random_seed'),
     }
 
     # Generate model responses
