@@ -16,46 +16,61 @@ permissions:
 jobs:
   reformat_with_isort_and_black:
     runs-on: ubuntu-latest
+    permissions:
+      # write permissions required to commit changes
+      contents: write
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: ${{ github.head_ref }}
 
-      # workaround for detached head from https://github.com/actions/checkout/issues/6#issuecomment-544726182
-      - name: reattach HEAD to Head Ref
-        run: git checkout "$(echo ${{ github.head_ref }} | sed -E 's|refs/[a-zA-Z]+/||')"
-        if: github.head_ref != ''
-
-      - name: reattach HEAD to Ref
-        run: git checkout "$(echo ${{ github.ref }} | sed -E 's|refs/[a-zA-Z]+/||')"
-        if: github.head_ref == ''
-
+      # https://github.com/tj-actions/changed-files
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@v42
-        # https://github.com/tj-actions/changed-files
         with:
           files: |
             **.py
 
       - name: Setup Python env
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
       - name: Install black and isort
         run: pip install black~=24.2 isort>5.1.0,<6.0.0
 
-      - name: Apply black and isort only to changed files
-        run: |
-          if [[ -z "${{ steps.changed-files.outputs.all_changed_files }}" ]]; then exit 0; fi
-          isort ${{ steps.changed-files.outputs.all_changed_files }}
-          black ${{ steps.changed-files.outputs.all_changed_files }}
+      - name: black
+        uses: psf/black@stable
+        with:
+          options: "--verbose"
+          src: "${{ steps.changed-files.outputs.all_changed_files }}"
+          version: "~= 24.2"
 
-      - name: Commit changed files
-        run: |
-          if [[ -z $(git status -s) ]]; then exit 0; fi
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add .
-          git commit -m "Reformatted on CI"
-          git push
+#      - name: Apply black to changed files and isort to all files
+#        run: |
+#          if [[ -z "${{ steps.changed-files.outputs.all_changed_files }}" ]]; then exit 0; fi
+#          isort .
+#          black ${{ steps.changed-files.outputs.all_changed_files }}
+
+      - name: isort
+        uses: isort/isort-action@v1
+        with:
+          isort-version: ">5.1.0,<6.0.0"
+          configuration: ""
+
+
+      # https://github.com/stefanzweifel/git-auto-commit-action
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        if: steps.auto-commit-action.outputs.changes_detected == 'true'
+        with:
+            commit_message: Apply isort and black reformatting
+#      - name: Commit changed files
+#        run: |
+#          if [[ -z $(git status -s) ]]; then exit 0; fi
+#          git config user.name github-actions
+#          git config user.email github-actions@github.com
+#          git add .
+#          git commit -m "Reformatted on CI"
+#          git push
