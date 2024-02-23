@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextlib
+import glob
 import os
 from dataclasses import dataclass, is_dataclass
 from typing import List, Optional, Union
@@ -314,8 +315,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if isinstance(asr_model, EncDecMultiTaskModel):
         # Special case for EncDecMultiTaskModel, where the input manifest is directly passed into the model's transcribe() function
         partial_audio = False
-        filepaths = cfg.dataset_manifest
-        assert cfg.dataset_manifest is not None
+        if cfg.audio_dir is not None and not cfg.append_pred:
+            filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        else:
+            filepaths = cfg.dataset_manifest
+            assert cfg.dataset_manifest is not None
     else:
         # prepare audio filepaths and decide wether it's partial audio
         filepaths, partial_audio = prepare_audio_data(cfg)
