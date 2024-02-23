@@ -105,15 +105,20 @@ jobs:
             python -c "import nemo.collections.asr as nemo_asr"
             python -c "import nemo.collections.nlp as nemo_nlp"
             python -c "import nemo.collections.tts as nemo_tts"
-            
-            # Push container
-            echo "Docker: List containers" && docker ps -a
-            DOCKER_COMMIT=$(docker ps --latest --quiet)  # latest container
-            docker commit $DOCKER_COMMIT nemo_container
-            docker tag nemo_container localhost:5000/nemo_container
-            docker push localhost:5000/nemo_container
+
             '
             ### \'\'
+
+
+    - name: Push container to registry for future use
+      run: |
+        # Push container
+        echo "Docker: List containers" && docker ps -a
+        DOCKER_COMMIT=$(docker ps --latest --quiet)  # latest container
+        docker commit $DOCKER_COMMIT nemo_container
+        docker tag nemo_container localhost:5000/nemo_container
+        docker push localhost:5000/nemo_container
+
 
     # - name: Build and push to local registry
     #   uses: docker/build-push-action@v5
