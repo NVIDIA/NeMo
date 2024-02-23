@@ -106,26 +106,32 @@ jobs:
             python -c "import nemo.collections.nlp as nemo_nlp"
             python -c "import nemo.collections.tts as nemo_tts"
             
+            # Push container
+            echo "Docker: List containers" && docker ps -a
+            DOCKER_COMMIT=$(docker ps --latest --quiet)  # latest container
+            docker commit $DOCKER_COMMIT nemo_container
+            docker tag nemo_container localhost:5000/nemo_container
+            docker push localhost:5000/nemo_container
             '
             ### \'\'
 
-    - name: Build and push to local registry
-      uses: docker/build-push-action@v5
-      with:
-          context: .
-          push: true
-          tags: localhost:5000/name/app:latest
+    # - name: Build and push to local registry
+    #   uses: docker/build-push-action@v5
+    #   with:
+    #       context: .
+    #       push: true
+    #       tags: localhost:5000/name/app:latest
 
-    - name: Inspect
-      run: |
-        docker buildx imagetools inspect localhost:5000/name/app:latest 
+    # - name: Inspect
+    #   run: |
+    #     docker buildx imagetools inspect localhost:5000/name/app:latest 
 
 
   cicd-tests:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      image: nvcr.io/nvidia/pytorch:23.10-py3
+      image: localhost:5000/nemo_container
       options: 
         # --user 0:128
         --device=/dev/nvidia0
@@ -142,7 +148,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      image: nvcr.io/nvidia/pytorch:23.10-py3
+      image: localhost:5000/nemo_container
       options: 
         # --user 0:128
         --device=/dev/nvidia0
@@ -156,6 +162,5 @@ jobs:
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
 ##     - name: L2: Multimodal Imagen Train
-
 
  
