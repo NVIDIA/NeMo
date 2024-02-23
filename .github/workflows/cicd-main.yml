@@ -32,7 +32,7 @@ jobs:
   cicd-test-container-setup:
     runs-on: self-hosted-azure
     # uses: actions/cache@v2
-    container:
+    #container:
 #      image: nvcr.io/nvidia/pytorch:23.10-py3
 #      options: 
 #        # --user 0:128
@@ -108,6 +108,17 @@ jobs:
             
             '
             ### \'\'
+
+    - name: Build and push to local registry
+      uses: docker/build-push-action@v5
+      with:
+          context: .
+          push: true
+          tags: localhost:5000/name/app:latest
+
+    - name: Inspect
+      run: |
+        docker buildx imagetools inspect localhost:5000/name/app:latest 
 
 
   cicd-tests:
