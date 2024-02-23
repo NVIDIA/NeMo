@@ -62,7 +62,6 @@ jobs:
 #          configuration: ""
 
       - uses: EndBug/add-and-commit@v9
-        if: steps.auto-commit-action.outputs.changes_detected == 'true'
         with:
             message: Apply isort and black reformatting
 #      - name: Commit changed files
