@@ -15,6 +15,7 @@
 from functools import cached_property
 from pathlib import Path
 from typing import Dict, List
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
@@ -59,13 +60,12 @@ class CanaryTokenizer(AggregateTokenizer):
     def spl_token_to_id(self, token):
         if token_id := self.special_tokens.get(f"<|{token}|>", None):
             return token_id
-        print(self.special_tokens)
         raise KeyError(f"Token {token} not found in tokenizer.")
 
     @staticmethod
-    def build_special_tokenizer(tokens: List[str], output_dir: str | Path) -> SentencePieceTokenizer:
+    def build_special_tokenizer(tokens: List[str], dir: str | Path) -> SentencePieceTokenizer:
         tokens = DEFAULT_TOKENS + [f"<|{t}|>" for t in tokens]
-        output_dir = Path(output_dir)
+        output_dir = Path(dir)
         output_dir.mkdir(exist_ok=True, parents=True)
         text_path = output_dir / "train_text.txt"
         train_text = "\n".join(tokens)

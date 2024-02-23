@@ -523,6 +523,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "transcript": NeuralType(('B', 'T'), LabelsType(), optional=True),
             "transcript_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "prompt": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "prompt_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
@@ -605,7 +607,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         if batch is None:
             return torch.tensor([0.0])
 
-        signal, signal_len, transcript, transcript_len, *_ = batch
+        # During training prompt and prompt_len are null, ignore.
+        signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
@@ -625,6 +628,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         return {'loss': audio_loss, 'log': tensorboard_logs}
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
+        # During inference, dataloader passes pure prompt without transcript text.
         signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 

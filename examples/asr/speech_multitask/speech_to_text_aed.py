@@ -50,12 +50,11 @@ python speech_to_text_aed.py \
 
 
 """
-
+import hydra
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecMultiTaskModel
-from nemo.collections.common.tokenizers import CanaryTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -70,10 +69,10 @@ def main(cfg):
 
     # Check for canary spl tokens to create spl_tokenizer.
     if cfg.get("spl_tokens"):
+        logging.info("Detected spl_tokens config. Building tokenizer.")
         spl_cfg = cfg["spl_tokens"]
-        spl_path, task_tokens, lang_tokens = spl_cfg.get('dir'), spl_cfg.get("task_tokens"), spl_cfg.get("lang_tokens")
-        CanaryTokenizer.build_special_tokenizer(tokens=task_tokens + lang_tokens, output_dir=spl_path)
-        cfg.model.tokenizer.langs.spl_tokens.dir = spl_path
+        hydra.utils.call(spl_cfg)
+        cfg.model.tokenizer.langs.spl_tokens.dir = spl_cfg["dir"]
 
     aed_model = EncDecMultiTaskModel(cfg=cfg.model, trainer=trainer)
 
