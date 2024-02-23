@@ -246,8 +246,9 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
             "batch_duration": 4.0,  # seconds
             "quadratic_duration": 15.0,  # seconds
             "shuffle_buffer_size": 10,
-            "buffer_size": 100,
+            "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -288,6 +289,7 @@ def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Pat
             "batch_duration": 4.0,  # seconds
             "shuffle_buffer_size": 10,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -322,6 +324,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -368,6 +371,7 @@ def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_m
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -399,6 +403,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -446,6 +451,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -475,6 +481,7 @@ def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: 
             "drop_last": False,
             "shuffle_buffer_size": 10,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -534,7 +541,7 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_unweighted(
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
-            "shar_seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -587,7 +594,7 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_weighted(
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
-            "shar_seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -716,3 +723,37 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
     np.testing.assert_equal(audio[0], expected_audio[8000:])
 
     assert cuts[0].id != cuts[1].id
+
+
+def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
+    import numpy as np
+    import soundfile as sf
+    from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
+
+    # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
+    INT16MAX = 2 ** 15
+    expected_audio = np.random.randint(low=-INT16MAX - 1, high=INT16MAX, size=(16000,)).astype(np.float32) / INT16MAX
+    audio_path = str(tmp_path / "dummy.wav")
+    sf.write(audio_path, expected_audio, 16000)
+
+    manifest_path = str(tmp_path / "manifest.json")
+    lhotse.serialization.save_to_jsonl(
+        [
+            # note: relative path
+            {"audio_filepath": "dummy.wav", "offset": 0.0, "duration": 0.5, "text": "irrelevant"},
+        ],
+        manifest_path,
+    )
+
+    cuts = lhotse.CutSet(LazyNeMoIterator(manifest_path))
+    cut = cuts[0]
+    audio = cut.load_audio()
+
+    assert isinstance(cut, lhotse.MonoCut)
+    assert cut.start == 0.0
+    assert cut.duration == 0.5
+    assert cut.sampling_rate == 16000
+    assert cut.num_samples == 8000
+    assert cut.supervisions[0].text == "irrelevant"
+    assert audio.shape == (1, 8000)
+    np.testing.assert_equal(audio[0], expected_audio[:8000])

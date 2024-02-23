@@ -85,7 +85,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -654,8 +654,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+            self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
             self.allreduce_sequence_parallel_gradients()
+            self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
 
+        self.megatron_timer_start('gradient_allreduce', log_level=1)
         if self.use_fsdp:
             # Reduce the gradients omitted from FSDP-sharding
             self.allreduce_fsdp_sharding_omitted_gradients()
@@ -673,12 +676,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+        self.megatron_timer_stop('gradient_allreduce')
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
             'share_embeddings_and_output_weights', True
         ):
+            self.megatron_timer_start('allreduce_first_last_embeddings', log_level=1)
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
+            self.megatron_timer_stop('allreduce_first_last_embeddings')
 
         ## logging
         if self.log_train_loss:
@@ -937,8 +943,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Transfer needed data to GPU
             required_keys = set()
-            max_seqlen = batch.pop('max_seqlen').squeeze() if 'max_seqlen' in batch else None
-            cu_seqlens_argmin = batch.pop('cu_seqlens_argmin') if 'cu_seqlens_argmin' in batch else None
+            max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
+            cu_seqlens_argmin = batch['cu_seqlens_argmin'] if 'cu_seqlens_argmin' in batch else None
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
@@ -1193,18 +1199,25 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 1
             ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
+        mock_dataset = self.cfg.data.get("mock_dataset", False)
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
             "sequence_length": self.cfg.data.seq_length,
-            "blend": self.cfg.data.data_prefix,
             "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
+            "tokenizer": self.tokenizer,
             "reset_position_ids": self.reset_position_ids,
             "reset_attention_mask": self.reset_attention_mask,
             "eod_mask_loss": self.eod_mask_loss,
-            "eod_id": self.tokenizer.eos_id,
+            "mock": mock_dataset,
         }
+
+        if isinstance(self.cfg.data.data_prefix, DictConfig):
+            _pref = self.cfg.data.data_prefix
+            kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+        else:
+            kwargs['blend'] = self.cfg.data.data_prefix
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
@@ -1214,9 +1227,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ).build()
         else:
             dataset_config = GPTDatasetConfig(**kwargs)
+            dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
             self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                GPTDataset, train_valid_test_num_samples, dataset_config,
+                dataset_type, train_valid_test_num_samples, dataset_config,
             ).build()
 
         if self._train_ds is not None:
@@ -1298,11 +1312,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
-            optimizer = self.cfg.optim.get('name', None)
-            assert (
-                optimizer == 'fused_adam'
-            ), f'{optimizer} optimizer is not supported yet with rampup batch size. Please, use fused_adam optimizer instead.'
-
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
@@ -1696,7 +1705,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'fp8': fp8,
             'tp_comm_overlap': ub_tp_comm_overlap,
             # MoE related
-            'num_experts': self.cfg.get('num_experts', None),
+            'num_moe_experts': self.cfg.get('num_moe_experts', None),
             'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
             'moe_router_topk': self.cfg.get('moe_router_topk', 2),
             'moe_grouped_gemm': self.cfg.get('moe_grouped_gemm', False),
@@ -1707,11 +1716,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
         }
-        if model_specific_configs['num_experts'] is not None:
+        if model_specific_configs['num_moe_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
         elif not mcore_supports_moe():
-            if 'num_experts' in model_specific_configs:
-                del model_specific_configs['num_experts']
+            if 'num_moe_experts' in model_specific_configs:
+                del model_specific_configs['num_moe_experts']
             moe_keys = list(filter(lambda x: x.startswith('moe_'), model_specific_configs.keys()))
             for k in moe_keys:
                 del model_specific_configs[k]
