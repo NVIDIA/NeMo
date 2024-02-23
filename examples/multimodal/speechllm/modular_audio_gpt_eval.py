@@ -14,6 +14,7 @@
 
 
 import json
+from pathlib import Path
 
 import torch
 import torch.multiprocessing as mp
@@ -63,59 +64,61 @@ CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
 """
 
 
-def get_peft_config(cfg, trainer):
-    if cfg.model.peft.restore_from_path:
+def get_model_cfg(cfg, trainer, pretrained_model_cfg=None):
+    if pretrained_model_cfg:
+        model_cfg = pretrained_model_cfg
+    elif cfg.model.peft.restore_from_path:
         if cfg.model.peft.restore_from_path.endswith(".nemo"):
-            peft_model_cfg = ModularAudioGPTModel.restore_from(
+            model_cfg = ModularAudioGPTModel.restore_from(
                 restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
             )
         elif cfg.model.peft.restore_from_hparams_path:  # not a .nemo model we expect a hparams.yaml file
-            peft_model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.peft.restore_from_hparams_path).cfg)
-            peft_model_cfg = OmegaConf.create(peft_model_cfg)
+            model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.peft.restore_from_hparams_path).cfg)
+            model_cfg = OmegaConf.create(model_cfg)
             # extract dict inside cfg key and convert it to DictConfig
             # this allows interpolation to work the same way as config from the .restore_from method
         else:
             raise RuntimeError("This script requires a .nemo peft model or path to hparams.yaml (and a ckpt path).")
     else:
-        peft_model_cfg = MegatronGPTSFTModel.restore_from(
+        model_cfg = MegatronGPTSFTModel.restore_from(
             restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
         )
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(peft_model_cfg):
+    with open_dict(model_cfg):
         # update the model config of the trained model with params we want to set at inference time.
-        peft_model_cfg.data.test_ds = cfg.model.data.test_ds
-        peft_model_cfg.activations_checkpoint_granularity = None
-        peft_model_cfg.activations_checkpoint_method = None
-        if peft_model_cfg.get("use_flash_attention", False):
-            peft_model_cfg.use_flash_attention = cfg.model.use_flash_attention
+        model_cfg.data.test_ds = cfg.model.data.test_ds
+        model_cfg.activations_checkpoint_granularity = None
+        model_cfg.activations_checkpoint_method = None
+        if model_cfg.get("use_flash_attention", False):
+            model_cfg.use_flash_attention = cfg.model.use_flash_attention
         if cfg.model.get("seq_len_interpolation_factor", None) is not None:
-            peft_model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
+            model_cfg["seq_len_interpolation_factor"] = cfg.model.seq_len_interpolation_factor
 
         # fix for old checkpoints that don't have certain keys
-        if "peft" in peft_model_cfg:
-            peft_key = f"{peft_model_cfg.peft.peft_scheme}_tuning"
-            if "weight_tying" not in peft_model_cfg.peft.get(peft_key):
-                peft_model_cfg.peft[peft_key]["weight_tying"] = False
-            if "layer_selection" not in peft_model_cfg.peft.get(peft_key):
-                peft_model_cfg.peft[peft_key]["layer_selection"] = None
-            if "position_embedding_strategy" not in peft_model_cfg.peft.get(peft_key):
-                peft_model_cfg.peft[peft_key]["position_embedding_strategy"] = None
+        if "peft" in model_cfg:
+            peft_key = f"{model_cfg.peft.peft_scheme}_tuning"
+            if "weight_tying" not in model_cfg.peft.get(peft_key):
+                model_cfg.peft[peft_key]["weight_tying"] = False
+            if "layer_selection" not in model_cfg.peft.get(peft_key):
+                model_cfg.peft[peft_key]["layer_selection"] = None
+            if "position_embedding_strategy" not in model_cfg.peft.get(peft_key):
+                model_cfg.peft[peft_key]["position_embedding_strategy"] = None
 
-    return peft_model_cfg
+    return model_cfg
 
 
-def load_audio_models(cfg, peft_model_cfg, model):
+def load_audio_models(cfg, model_cfg, model):
     with open_dict(cfg):
         if (
-            peft_model_cfg.get("pretrained_audio_model", None) is not None
+            model_cfg.get("pretrained_audio_model", None) is not None
             and cfg.model.get("pretrained_audio_model", None) is None
         ):
             logging.info(
-                f"model.pretrained_audio_model not found in config, setting it to {peft_model_cfg.pretrained_audio_model} from loaded checkpoint."
+                f"model.pretrained_audio_model not found in config, setting it to {model_cfg.pretrained_audio_model} from loaded checkpoint."
             )
-            cfg.model.pretrained_audio_model = peft_model_cfg.pretrained_audio_model
-        cfg.model.perception = peft_model_cfg.perception
+            cfg.model.pretrained_audio_model = model_cfg.pretrained_audio_model
+        cfg.model.perception = model_cfg.perception
 
     audio_model, _ = ModularAudioGPTModel.get_audio_encoder_models_and_configs(cfg)
     speaker_model, _ = ModularAudioGPTModel.get_speaker_model_and_config(cfg)
@@ -131,23 +134,34 @@ def main(cfg) -> None:
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
 
-    peft_model_cfg = get_peft_config(cfg, trainer)
+    if cfg.model.from_pretrained:
+        logging.info(f"Loading model from cloud: {cfg.model.restore_from_path}")
+        model_cfg = ModularAudioGPTModel.from_pretrained(
+            cfg.model.restore_from_path, trainer=trainer, return_config=True
+        )
+        model_cfg = get_model_cfg(cfg, trainer, model_cfg)
+        model = ModularAudioGPTModel.from_pretrained(
+            cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg
+        )
+    else:
+        model_cfg = get_model_cfg(cfg, trainer)
+        model = ModularAudioGPTModel.restore_from(
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg,
+        )
+        if cfg.model.peft.restore_from_path:
+            if '\\' in cfg.model.peft.restore_from_path:
+                cfg.model.peft.restore_from_path = cfg.model.peft.restore_from_path.replace('\\', '')
+            if "peft" in model_cfg:
+                peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
+                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+            else:
+                model.load_state_dict(torch.load(cfg.model.peft.restore_from_path), strict=False)
+        if model_cfg.freeze_audio_encoder:
+            model = load_audio_models(cfg, model_cfg, model)
 
-    model = ModularAudioGPTModel.restore_from(
-        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=peft_model_cfg,
-    )
-
-    if cfg.model.peft.restore_from_path:
-        if '\\' in cfg.model.peft.restore_from_path:
-            cfg.model.peft.restore_from_path = cfg.model.peft.restore_from_path.replace('\\', '')
-        if "peft" in peft_model_cfg:
-            peft_cfg_cls = PEFT_CONFIG_MAP[peft_model_cfg.peft.peft_scheme]
-            model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(peft_model_cfg))
-        else:
-            model.load_state_dict(torch.load(cfg.model.peft.restore_from_path), strict=False)
-
-    if peft_model_cfg.freeze_audio_encoder:
-        model = load_audio_models(cfg, peft_model_cfg, model)
+    if cfg.get("save_as_nemo", None):
+        model.save_to(cfg.save_as_nemo)
+        logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}")
 
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
@@ -157,7 +171,7 @@ def main(cfg) -> None:
         trainer.test(model)
         exit(0)
 
-    test_loaders = model.get_test_dataloader(peft_model_cfg.data.test_ds)
+    test_loaders = model.get_test_dataloader(model_cfg.data.test_ds)
     response = trainer.predict(model, test_loaders)
 
     if model.global_rank == 0:

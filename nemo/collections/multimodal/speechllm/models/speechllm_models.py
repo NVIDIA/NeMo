@@ -51,6 +51,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import get_comput
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import AppState, logging
 
@@ -86,12 +87,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
-
-        # # Used other keys from metadata to calulate metrics
-        # if hasattr(self.cfg.data, "test_ds") and hasattr(self.cfg.data.test_ds, "metric"):
-        #     self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
-        # if hasattr(self.cfg.data, "validation_ds") and hasattr(self.cfg.data.validation_ds, "metric"):
-        #     self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
 
         self.perception = (
             AudioPerceptionModel(cfg=cfg.perception)
@@ -1304,3 +1299,20 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             return None
         else:
             return super().sharded_state_dict(prefix=prefix)
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="speechllm_fc_llama2_7b",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speechllm_fc_llama2_7b",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speechllm_fc_llama2_7b/versions/1.24.0/files/speechllm_fc_llama2_7b.nemo",
+        )
+        results.append(model)

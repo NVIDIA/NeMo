@@ -36,15 +36,17 @@ exp_manager:
     save_best_model: False
 
 model:
+  from_pretrained: null  # pretrained model name on NGC or HF
+  restore_from_path: null # Path to an existing .nemo model you wish to add new tasks to or run inference with
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  pretrained_audio_model: null  # Path to a .nemo model for audio encoder
+
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   
   global_batch_size: 1
   micro_batch_size: 1
-  pretrained_audio_model: null  # Path to a .nemo model for audio encoder
-  restore_from_path: ??? # Path to an existing .nemo model you wish to add new tasks to or run inference with
-  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   sync_batch_comm: False
   megatron_amp_O2: False
 
@@ -103,10 +105,11 @@ model:
       audio_locator: null # set it to allow multiple audios in a sample, e.g. '|audio|', and use it in the context field of manifest to specify the locations of audios (`audio_filepath` is a list of audios).
 
       metric:
-        name: "wer" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+        name: "bleu" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss', 'wer', 'bleu', 'rouge']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
+save_as_nemo: null  # optional string, set to save the whole model into a single nemo file
 evaluate_metric: True  # set 'true' to calculate metrics (must have labels in data), 'false' to use trainer.predict() to do inference only
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
