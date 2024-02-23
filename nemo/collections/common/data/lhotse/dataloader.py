@@ -159,6 +159,7 @@ def get_lhotse_dataloader_from_config(
             f"Creating a Lhotse DynamicBucketingSampler "
             f"(max_batch_duration={config.batch_duration} max_batch_size={config.batch_size})"
         )
+        print(cuts)
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=config.batch_duration,
@@ -287,7 +288,7 @@ def _merge_supervisions(cuts: CutSet) -> CutSet:
 
 def _flatten_alt_text(cut) -> list:
     ans = [cut]
-    if cut.custom.get("alt_text") is None:
+    if cut.custom is None or cut.custom.get("alt_text") is None:
         return ans
     cut = cut.move_to_memory(audio_format="wav")  # performs I/O once and holds audio in memory from now on
     # Popping to ease eyesight on debug.
