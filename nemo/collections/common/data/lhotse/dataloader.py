@@ -159,7 +159,6 @@ def get_lhotse_dataloader_from_config(
             f"Creating a Lhotse DynamicBucketingSampler "
             f"(max_batch_duration={config.batch_duration} max_batch_size={config.batch_size})"
         )
-        print(cuts)
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=config.batch_duration,
