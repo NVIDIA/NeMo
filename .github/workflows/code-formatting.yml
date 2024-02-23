@@ -36,21 +36,12 @@ jobs:
         with:
           python-version: "3.10"
 
-#      - name: Install black and isort
-#        run: pip install black~=24.2 isort>5.1.0,<6.0.0
-
       - name: black
         uses: psf/black@stable
         with:
           options: "--verbose"
           src: "${{ steps.changed-files.outputs.all_changed_files }}"
           version: "~= 24.2"
-
-#      - name: Apply black to changed files and isort to all files
-#        run: |
-#          if [[ -z "${{ steps.changed-files.outputs.all_changed_files }}" ]]; then exit 0; fi
-#          isort .
-#          black ${{ steps.changed-files.outputs.all_changed_files }}
 
       - name: isort
         uses: isort/isort-action@v1
