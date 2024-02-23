@@ -469,7 +469,7 @@ class UNetModel(nn.Module):
         from_NeMo=False,
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
-        enable_amp_o2_fp16: bool = False,
+        unet_precision: str = "fp32",
         lora_network_alpha=None,
     ):
         super().__init__()
@@ -744,7 +744,7 @@ class UNetModel(nn.Module):
                 print(f"Missing keys: {missing_key}")
                 print(f"Unexpected keys: {unexpected_keys}")
 
-        if enable_amp_o2_fp16:
+        if unet_precision == "fp16":  # AMP O2
             self.convert_to_fp16()
 
     def _input_blocks_mapping(self, input_dict):
