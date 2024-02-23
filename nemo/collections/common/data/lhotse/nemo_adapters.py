@@ -6,6 +6,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import Dict, Iterable, List
 
+from functools import cached_property
+
 try:
     from lhotse.lazy import ImitatesDict
 except ImportError:
@@ -51,13 +53,22 @@ class LazyNeMoIterator(ImitatesDict):
     def path(self) -> str | Path:
         return self.source.path
 
+    @cached_property
+    def root(self) -> Path:
+        """
+        Path to the directory containing the input manifest.
+        It is attached as a prefix to audio paths within the manifest
+        if they are not absolute paths.
+        """
+        return Path(self.path).parent
+
     def __iter__(self):
         from lhotse import SupervisionSegment
         from lhotse.audio import AudioSource, Recording
         from lhotse.utils import compute_num_samples
 
         for data in self.source:
-            audio_path = data.pop("audio_filepath")
+            audio_path = _relative_to_absolute(data.pop("audio_filepath"), self.root)
             duration = data.pop("duration")
             if self.sampling_rate is None:
                 recording = Recording.from_file(audio_path)
@@ -229,3 +240,8 @@ class LazyNeMoTarredIterator(ImitatesDict):
 
 def expand_sharded_filepaths(path: str | Path) -> list[str]:
     return _expand_sharded_filepaths(str(path), shard_strategy="replicate", world_size=1, global_rank=0)
+
+def _relative_to_absolute(audio_path: str | Path, root: str | Path) -> str:
+    if Path(audio_path).is_absolute():
+        return audio_path
+    return str(Path(root) / audio_path)
