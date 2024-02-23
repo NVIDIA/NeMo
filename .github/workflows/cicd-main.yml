@@ -49,7 +49,7 @@ jobs:
       run: |
         # Pull base PyTorch container
         docker pull nvcr.io/nvidia/pytorch:23.10-py3
-        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume $(pwd)/requirements:/workspace nvcr.io/nvidia/pytorch:23.10-py3 /bin/bash -c '
+        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume $(pwd)/requirements:/workspace/requirements nvcr.io/nvidia/pytorch:23.10-py3 /bin/bash -c '
 
             # PyTorch version
             python -c "import torch; print(torch.__version__)"
