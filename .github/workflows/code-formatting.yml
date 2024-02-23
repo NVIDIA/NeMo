@@ -64,11 +64,4 @@ jobs:
       - uses: EndBug/add-and-commit@v9
         with:
             message: Apply isort and black reformatting
-#      - name: Commit changed files
-#        run: |
-#          if [[ -z $(git status -s) ]]; then exit 0; fi
-#          git config user.name github-actions
-#          git config user.email github-actions@github.com
-#          git add .
-#          git commit -m "Reformatted on CI"
-#          git push
+            commit: --signoff
