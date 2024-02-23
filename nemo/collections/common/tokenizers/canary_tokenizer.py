@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 from functools import cached_property
 from pathlib import Path
 from typing import Dict, List
-from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
+
+from nemo.utils import logging
 
 __all__ = ['CanaryTokenizer']
 
@@ -63,9 +64,17 @@ class CanaryTokenizer(AggregateTokenizer):
         raise KeyError(f"Token {token} not found in tokenizer.")
 
     @staticmethod
-    def build_special_tokenizer(tokens: List[str], dir: str | Path) -> SentencePieceTokenizer:
+    def build_special_tokenizer(
+        tokens: List[str], model_dir: str | Path, force_rebuild: bool = False
+    ) -> SentencePieceTokenizer:
+        if force_rebuild:
+            logging.info("Building special tokenizer")
+            # Checks for artifacts of previous build.
+            for file in ["tokenizer.model", "tokenizer.vocab", "vocab.txt", "train_text.txt"]:
+                if os.path.exists(file):
+                    os.remove(file)
         tokens = DEFAULT_TOKENS + [f"<|{t}|>" for t in tokens]
-        output_dir = Path(dir)
+        output_dir = Path(model_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
         text_path = output_dir / "train_text.txt"
         train_text = "\n".join(tokens)
