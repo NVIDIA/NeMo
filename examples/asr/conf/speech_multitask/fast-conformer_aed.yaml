@@ -91,7 +91,7 @@ model:
 
     custom_tokenizer:
       _target_: nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer  # Can be replaced with other tokenizer for different prompt formats
-      tokenizer: null
+      tokenizer: null  # Filled at runtime by all the tokenizers inside the aggregate tokenizer
 
   # Audio Preprocessor
   preprocessor:
