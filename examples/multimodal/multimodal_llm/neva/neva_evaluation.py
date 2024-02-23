@@ -66,6 +66,7 @@ def main(cfg) -> None:
         "all_probs": cfg.inference.all_probs,
         "compute_logprob": cfg.inference.compute_logprob,
         "end_strings": cfg.inference.end_strings,
+        "random_seed": cfg.inference.get('random_seed'),
     }
 
     with open(cfg.prompt_file, 'r') as f:

@@ -225,6 +225,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 "all_probs": False,
                 "compute_logprob": False,
                 "end_strings": self.cfg.inference.get('end_strings', ["<|endoftext|>"]),
+                "random_seed": None,
             }
         elif self.cfg.get("report_validation_metric", False) and not hasattr(self.cfg, 'inference'):
             raise ValueError("Must provide inference parameters for reporting validation metric!")
@@ -801,6 +802,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 "compute_logprob": inference_config["compute_logprob"],
                 "compute_attention_mask": inference_config.get("compute_attention_mask", True),
                 "end_strings": inference_config.get('end_strings', ["<|endoftext|>"]),
+                "random_seed": inference_config.get('random_seed'),
             }
 
             task_ids, processed_inputs = batch

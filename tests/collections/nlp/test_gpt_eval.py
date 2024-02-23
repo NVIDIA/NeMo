@@ -79,6 +79,7 @@ class TestGPTEval:
             "all_probs": False,
             "compute_logprob": False,
             "end_strings": ["<|endoftext|>"],
+            "random_seed": None,
         }
 
         # test logprob

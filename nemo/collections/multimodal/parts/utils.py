@@ -421,7 +421,8 @@ def create_neva_model_and_processor(cfg):
         else:
             image = maybe_image_path
 
-        processor = model.model.image_processor
+        processor = model.model.module.image_processor \
+            if hasattr(model.model, "module") else model.model.image_processor
 
         if neva_cfg.data.image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)

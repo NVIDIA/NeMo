@@ -79,6 +79,7 @@ def get_default_sampling_params():
         "all_probs": False,
         "compute_logprob": False,
         "end_strings": ["<|endoftext|>", "<extra_id_1>"],
+        "random_seed": None,
     }
 
     return sampling_params
@@ -165,6 +166,7 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             top_k=sampling_params['top_k'],
             top_p=sampling_params['top_p'],
             greedy=sampling_params['use_greedy'],
+            random_seed=sampling_params.get('random_seed'),
             repetition_penalty=sampling_params['repetition_penalty'],
             end_strings=sampling_params['end_strings'],
             min_tokens_to_generate=length_params['min_length'],
