@@ -23,7 +23,8 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
 
       # https://github.com/tj-actions/changed-files
       - name: Get changed files
@@ -54,18 +55,16 @@ jobs:
 #          isort .
 #          black ${{ steps.changed-files.outputs.all_changed_files }}
 
-      - name: isort
-        uses: isort/isort-action@v1
-        with:
-          isort-version: ">5.1.0,<6.0.0"
-          configuration: ""
+#      - name: isort
+#        uses: isort/isort-action@v1
+#        with:
+#          isort-version: ">5.1.0,<6.0.0"
+#          configuration: ""
 
-
-      # https://github.com/stefanzweifel/git-auto-commit-action
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: EndBug/add-and-commit@v9
         if: steps.auto-commit-action.outputs.changes_detected == 'true'
         with:
-            commit_message: Apply isort and black reformatting
+            message: Apply isort and black reformatting
 #      - name: Commit changed files
 #        run: |
 #          if [[ -z $(git status -s) ]]; then exit 0; fi
