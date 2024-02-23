@@ -68,7 +68,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
              cd TransformerEngine && \
-             git fetch origin da30634a6c9ccdbb6c587b6c93b1860e4b038204 && \
+             git fetch origin 8c9abbb80dba196f086b8b602a7cf1bce0040a6a && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
              NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
@@ -91,7 +91,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout 240a8ef7a21df201e47b5b2ae33cc5f4c5486849 && \
+             git checkout 5f9c870f9f24b482509699d206a9dbb00958f6fc && \
              pip install .'
       }
     }
@@ -113,6 +113,13 @@ pipeline {
         sh 'python -c "import nemo.collections.asr as nemo_asr"'
         sh 'python -c "import nemo.collections.nlp as nemo_nlp"'
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
+      }
+    }
+    stage('Import Checks'){
+      steps {
+        sh 'python tests/core_ptl/check_imports.py --domain "asr"'
+        sh 'python tests/core_ptl/check_imports.py --domain "nlp"'
+        sh 'python tests/core_ptl/check_imports.py --domain "tts"'
       }
     }
     stage('L0: Unit Tests GPU') {
@@ -421,6 +428,14 @@ pipeline {
             --input /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
             --output /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
+          }
+        }
+        stage('Baichuan2') {
+          steps {
+            sh 'python scripts/nlp_language_modeling/convert_hf_baichuan2_to_nemo.py \
+            --in-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
+            --out-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
+            sh 'rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
           }
         }
       }
@@ -3470,7 +3485,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/token_classification_results"
       }
     }
-    stage('L2: Megatron GPT Pretraining and Resume Training TP=2') {
+    stage('L2: Megatron GPT Pretraining and Resume Training TETransformerLayerTP=2') {
       when {
         anyOf {
           branch 'main'
@@ -3485,6 +3500,91 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=3 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        ++model.name=megatron_gpt_full_te_layer_autocast \
+        model.mcore_gpt=True \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=1 \
+        model.optim.sched.constant_steps=1 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.normalization=layernorm1p \
+        model.bias_activation_fusion=True \
+        model.bias_dropout_add_fusion=True \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method=null \
+        model.activations_checkpoint_granularity=null \
+        model.activations_checkpoint_num_layers=null \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=6 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        ++model.name=megatron_gpt_full_te_layer_autocast \
+        model.mcore_gpt=True \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.normalization=layernorm1p \
+        model.bias_activation_fusion=True \
+        model.bias_dropout_add_fusion=True \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method=null \
+        model.activations_checkpoint_granularity=null \
+        model.activations_checkpoint_num_layers=null \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+      }
+    }
+    // @chcui: model.cpu_offloading_num_layers=7 # temp workaround before m-lm !1124 is merged
+    stage('L2: Megatron GPT Pretraining and Resume Training TP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=1.0 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
         trainer.precision=16 \
@@ -3506,6 +3606,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
@@ -3518,7 +3619,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
+        trainer.limit_val_batches=1.0 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=6 \
         trainer.precision=16 \
@@ -3541,6 +3642,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
@@ -3590,6 +3692,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
        model.num_layers=8 \
+       model.cpu_offloading_num_layers=7 \
        model.hidden_size=256 \
        model.num_attention_heads=8 \
        model.activations_checkpoint_method='block' \
@@ -3731,6 +3834,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
     //     sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
     //   }
     // }
+    // @chcui: model.cpu_offloading_num_layers=7 # temp workaround before m-lm !1124 is merged
     stage('L2: Megatron GPT with ALiBi Pretraining and Resume Training TP=2') {
       when {
         anyOf {
@@ -3768,6 +3872,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
@@ -3816,6 +3921,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
+    // @chcui: model.cpu_offloading_num_layers=7 # temp workaround before m-lm !1124 is merged
     stage('L2: Megatron GPT with KERPLE Pretraining and Resume Training TP=2') {
       when {
         anyOf {
@@ -3853,6 +3959,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
@@ -3901,6 +4008,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
+    // @chcui: model.cpu_offloading_num_layers=7 # temp workaround before m-lm !1124 is merged
     stage('L2: Megatron GPT Pretraining and Resume Training PP=2') {
       when {
         anyOf {
@@ -3941,6 +4049,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
@@ -3979,6 +4088,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
         model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
