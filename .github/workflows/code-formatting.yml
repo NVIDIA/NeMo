@@ -10,9 +10,6 @@ on:
     paths:
       - '**.py'
 
-permissions:
-  contents: write
-
 jobs:
   reformat_with_isort_and_black:
     runs-on: ubuntu-latest
@@ -55,11 +52,11 @@ jobs:
 #          isort .
 #          black ${{ steps.changed-files.outputs.all_changed_files }}
 
-#      - name: isort
-#        uses: isort/isort-action@v1
-#        with:
-#          isort-version: ">5.1.0,<6.0.0"
-#          configuration: ""
+      - name: isort
+        uses: isort/isort-action@v1
+        with:
+          isort-version: ">5.1.0,<6.0.0"
+          configuration: ""
 
       - uses: EndBug/add-and-commit@v9
         with:
