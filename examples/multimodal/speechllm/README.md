@@ -135,12 +135,12 @@ CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
 
 If you froze the audio encoder during training, you will also need to add the following line to the above script:
 ```bash
-    ++model.pretrained_audio_model=/path/to/audio/model.nemo
+++model.pretrained_audio_model=/path/to/audio/model.nemo
 ```
 
 If you want to save the intermediate checkpoints to a single NeMo checkpoint file, you can add the following line to the above script:
 ```bash
-    ++save_to_nemo=/path/to/save/model.nemo
+++save_to_nemo=/path/to/save/model.nemo
 ```
 
 #### **Inference with Complete SpeechLLM Checkpoints**
