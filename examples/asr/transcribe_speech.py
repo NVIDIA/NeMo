@@ -376,7 +376,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     augmentor=augmentor,
                 )
 
-    logging.info(f"Finished transcribing {len(filepaths)} files !")
+    if cfg.dataset_manifest is not None:
+        logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
+    else:
+        logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
 
     # if transcriptions form a tuple of (best_hypotheses, all_hypotheses), extract just best hypothesis
