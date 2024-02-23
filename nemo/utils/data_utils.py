@@ -15,6 +15,7 @@
 import os
 import pathlib
 import shutil
+import json
 import subprocess
 from typing import Tuple
 
@@ -46,6 +47,17 @@ def is_datastore_path(path) -> bool:
     """Check if a path is from a data object store.
     Currently, only AIStore is supported.
     """
+    if os.path.exists(path) and path.endswith('.json'):
+            with open(path, 'r') as file:
+                # Read the first line of the file
+                first_line = file.readline()
+                # Attempt to parse the first line as JSON
+    
+                if first_line:
+                    data = json.loads(first_line)
+                    if data.get('audio_filepath',None) and data['audio_filepath'].startswith('ais://'):
+                        return True
+
     return path.startswith('ais://')
 
 

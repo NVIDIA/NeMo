@@ -688,6 +688,7 @@ def prepare_lr_scheduler(
     optimizer: optim.Optimizer,
     scheduler_config: Union[Dict[str, Any], DictConfig],
     train_dataloader: Optional[dataloader.DataLoader] = None,
+    ipl_config: Optional[DictConfig] = None ,
 ) -> Optional[Dict[str, Any]]:
     """
     Constructs an LR Scheduler (optionally) for a given optimizer, based on a config with the following schema
@@ -889,6 +890,7 @@ def prepare_lr_scheduler(
             num_samples=num_samples,
             batch_size=batch_size,
             drop_last=drop_last,
+            ipl_config=ipl_config
         )
 
     else:
@@ -937,7 +939,7 @@ def prepare_lr_scheduler(
 
 
 def compute_max_steps(
-    max_epochs, accumulate_grad_batches, limit_train_batches, num_workers, num_samples, batch_size, drop_last
+    max_epochs, accumulate_grad_batches, limit_train_batches, num_workers, num_samples, batch_size, drop_last, ipl_config
 ):
     _round = math.floor if drop_last else math.ceil
 
@@ -957,7 +959,23 @@ def compute_max_steps(
         # limit_train_batches is a percentage of batches per epoch
         steps_per_epoch = int(steps_per_epoch * limit_train_batches)
 
-    return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
+    ipl_steps = 0 
+    if ipl_config:
+        if isinstance(ipl_config.num_cache_files, int):
+            num_cache_files = ipl_config.num_cache_files
+        else:
+            num_cache_files = sum(ipl_config.num_cache_files)
+        ipl_num_samples = math.ceil((num_cache_files) / max(1, num_workers))
+        steps_per_epoch_ipl = _round(ipl_num_samples / batch_size)
+        if isinstance(limit_train_batches, int) or limit_train_batches == 0.0:
+            steps_per_epoch_ipl = min(steps_per_epoch_ipl, int(limit_train_batches))
+        elif steps_per_epoch != float('inf'):
+            steps_per_epoch_ipl = int(steps_per_epoch_ipl * limit_train_batches)
+        epochs_with_ipl = max_epochs - ipl_config.m_updates - ipl_config.n_l_updates - 1 
+        ipl_steps = math.ceil(steps_per_epoch_ipl / accumulate_grad_batches) * epochs_with_ipl
+   
+    return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs + ipl_steps
+
 
 
 AVAILABLE_SCHEDULERS = {
