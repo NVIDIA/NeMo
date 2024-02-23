@@ -46,7 +46,7 @@ jobs:
       - name: isort
         uses: isort/isort-action@v1
         with:
-          isort-version: ">5.1.0,<6.0.0"
+          isort-version: "~=5.1.0"
           configuration: ""
 
       - uses: EndBug/add-and-commit@v9
