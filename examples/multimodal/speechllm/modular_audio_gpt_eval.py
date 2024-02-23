@@ -14,6 +14,7 @@
 
 
 import json
+from pathlib import Path
 
 import torch
 import torch.multiprocessing as mp
@@ -148,6 +149,11 @@ def main(cfg) -> None:
 
     if peft_model_cfg.freeze_audio_encoder:
         model = load_audio_models(cfg, peft_model_cfg, model)
+
+    if cfg.get("save_as_nemo", None):
+        model.save_to(cfg.save_as_nemo)
+        logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}")
+        exit(0)
 
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
