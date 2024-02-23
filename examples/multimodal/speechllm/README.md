@@ -1,16 +1,16 @@
 # Modular SpeechLLM
 
-This directory contains example scripts to train and evaluate modular SpeechLLM models [1]. 
+This directory contains example scripts to train and evaluate modular SpeechLLM[1]. 
 
 ## Requirements
 You will need to install this specific branch of NeMo, or use the provided Dockerfile in the root directory of this repository to build a Docker image with all the necessary dependencies. This branch is based on NeMo main branch by 2/14/2024, while diverging from the main branch in the following ways:
-- Migrating to pytorch_lightning==2.2 to fix some bugs with multiple validation dataloader_iter and saving -last.ckpt files.
-- Pinning to megatron-core==0.4.0 to avoid possible unstable behavior of the latest versions or not well supported NeMo components.
+- Migrating to `pytorch_lightning==2.2` to fix some bugs with multiple validation dataloader_iter and saving `-last.ckpt` files.
+- Pinning to `megatron-core==0.4.0` to avoid possible unstable behaviors of the latest versions or not well supported NeMo components.
 
 
 ## Architecture
 
-In general, there're three main components of a modular SpeechLLM model: 
+In general, there're three main components of a modular SpeechLLM: 
 - An audio encoder that processes the input audio and produces a sequence of audio embeddings.
 - A modality adapter that processes the audio embeddings and produces a sequence of embeddings in the same latent space as the token embeddings of a pretrained large language model (LLM).
 - A pretrained large language model (LLM) that processes embeddings from the modality adapter as well as token embeddings of input prompt, and produces the text output. The audio embeddings and text token embeddings are concatenated in time dimension before going into the LLM.
@@ -37,9 +37,9 @@ The `question` field in the manifest is optional, and you can put a list of ques
 ### Training
 
 There are several configs for training a SpeechLLM:
-- `conf/modular_audio_gpt_config_peft.yaml`: a config for training a SpeechLLM model with PEFT (e.g., LoRA), where you don't want to tune the whole LLM but still want to adapt the LLM to your needs.
-- `conf/modular_audio_gpt_config_sft.yaml`: a config for training a SpeechLLM model without PEFT, where you might want to tune the whole LLM or simply freeze it and use as is.
-- `conf/modular_audio_gpt_multi_enc_config_peft.yaml`: a config for training a SpeechLLM model with multiple audio encoders and PEFT, where you can add speaker embeddings to the audio embeddings. Currently only TitaNet is supported as the speaker encoder.
+- `conf/modular_audio_gpt_config_peft.yaml`: a config for training a SpeechLLM with PEFT (e.g., LoRA), where you don't want to tune the whole LLM but still want to adapt the LLM to your needs.
+- `conf/modular_audio_gpt_config_sft.yaml`: a config for training a SpeechLLM without PEFT, where you might want to tune the whole LLM or simply freeze it and use as is.
+- `conf/modular_audio_gpt_multi_enc_config_peft.yaml`: a config for training a SpeechLLM with multiple audio encoders and PEFT, where you can add speaker embeddings to the audio embeddings. Currently only TitaNet is supported as the speaker encoder.
 
 With any config, you can set the following flags to control which components to train or freeze:
 - `model.freeze_llm` # Generally set to `True` unless you want to fine-tune the whole LLM.
@@ -48,7 +48,7 @@ With any config, you can set the following flags to control which components to 
 
 In addition to the config file, you will also need two prepare the audio encoder and the LLM as `*.nemo` files.
 
-To train a SpeechLLM model, you can run the following script:
+To train a SpeechLLM, you can run the following script:
 ```bash
 MEGATRON_MODEL=/path/to/megatron-model.nemo
 ASR_MODEL=/path/to/audio-encoder.nemo
@@ -145,7 +145,7 @@ If you want to save the intermediate checkpoints to a single NeMo checkpoint fil
 
 #### **Inference with Complete SpeechLLM Checkpoints**
 
-If you want to load a pretrained SpeechLLM model from cloud, you can use the following script:
+If you want to load a pretrained SpeechLLM from cloud, you can use the following script:
 ```bash
 TEST_MANIFESTS="[/data/test_1.json,/data/test_2.json]"
 TEST_NAMES="[test-1,test-2]"
