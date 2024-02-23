@@ -13,11 +13,12 @@
 # limitations under the License.
 import math
 import os
+from inspect import isfunction
+
 import torch
 import torch.nn.functional as F
 from apex.contrib.group_norm import GroupNorm
 from einops import rearrange
-from inspect import isfunction
 from torch import einsum, nn
 from torch._dynamo import disable
 
@@ -110,7 +111,7 @@ class FeedForward(nn.Module):
         if use_te:
             activation = 'gelu' if not glu else 'geglu'
             # TODO: more parameters to be confirmed, dropout, seq_length
-            self.net = LayerNormMLP(hidden_size=dim, ffn_hidden_size=inner_dim, activation=activation, )
+            self.net = LayerNormMLP(hidden_size=dim, ffn_hidden_size=inner_dim, activation=activation,)
         else:
             norm = nn.LayerNorm(dim)
             project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
@@ -229,15 +230,15 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
 
 class CrossAttention(nn.Module):
     def __init__(
-            self,
-            query_dim,
-            context_dim=None,
-            heads=8,
-            dim_head=64,
-            dropout=0.0,
-            use_flash_attention=False,
-            lora_network_alpha=None,
-            use_te=False,
+        self,
+        query_dim,
+        context_dim=None,
+        heads=8,
+        dim_head=64,
+        dropout=0.0,
+        use_flash_attention=False,
+        lora_network_alpha=None,
+        use_te=False,
     ):
         super().__init__()
 
@@ -345,17 +346,17 @@ class CrossAttention(nn.Module):
 class BasicTransformerBlock(nn.Module):
     def __init__(
         self,
-            dim,
-            n_heads,
-            d_head,
-            dropout=0.0,
-            context_dim=None,
-            gated_ff=True,
-            use_checkpoint=False,
-            use_flash_attention=False,
-            disable_self_attn=False,
-            lora_network_alpha=None,
-            use_te=False,
+        dim,
+        n_heads,
+        d_head,
+        dropout=0.0,
+        context_dim=None,
+        gated_ff=True,
+        use_checkpoint=False,
+        use_flash_attention=False,
+        disable_self_attn=False,
+        lora_network_alpha=None,
+        use_te=False,
     ):
         super().__init__()
         self.disable_self_attn = disable_self_attn
@@ -407,17 +408,17 @@ class SpatialTransformer(nn.Module):
     def __init__(
         self,
         in_channels,
-            n_heads,
-            d_head,
-            depth=1,
-            dropout=0.0,
-            context_dim=None,
-            disable_self_attn=False,
-            use_linear=False,
-            use_checkpoint=False,
-            use_flash_attention=False,
-            lora_network_alpha=None,
-            use_te=False,
+        n_heads,
+        d_head,
+        depth=1,
+        dropout=0.0,
+        context_dim=None,
+        disable_self_attn=False,
+        use_linear=False,
+        use_checkpoint=False,
+        use_flash_attention=False,
+        lora_network_alpha=None,
+        use_te=False,
     ):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
