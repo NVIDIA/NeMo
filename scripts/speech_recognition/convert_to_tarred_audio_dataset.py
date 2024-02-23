@@ -168,6 +168,14 @@ parser.add_argument(
     "--buckets_num", type=int, default=1, help="Number of buckets to create based on duration.",
 )
 
+parser.add_argument(
+    "--dynamic_buckets_num",
+    type=int,
+    default=30,
+    help="Intended for dynamic (on-the-fly) bucketing; this option will not bucket your dataset during tar conversion. "
+    "Estimates optimal bucket duration bins for a given number of buckets.",
+)
+
 parser.add_argument("--shuffle_seed", type=int, default=None, help="Random seed for use if shuffling is enabled.")
 parser.add_argument(
     '--write_metadata',
@@ -207,6 +215,10 @@ class ASRTarredDatasetConfig:
     shard_manifests: bool = True
     keep_files_together: bool = False
     force_codec: Optional[str] = None
+    use_lhotse: bool = False
+    use_bucketing: bool = False
+    num_buckets: Optional[int] = None
+    bucket_duration_bins: Optional[list[float]] = None
 
 
 @dataclass
@@ -352,7 +364,7 @@ class ASRTarredDatasetBuilder:
                 new_manifest_shard_path = os.path.join(sharded_manifests_dir, f'manifest_{shard_id}.json')
                 with open(new_manifest_shard_path, 'w', encoding='utf-8') as m2:
                     for entry in manifest:
-                        json.dump(entry, m2)
+                        json.dump(entry, m2, ensure_ascii=False)
                         m2.write('\n')
 
         # Flatten the list of list of entries to a list of entries
@@ -365,7 +377,7 @@ class ASRTarredDatasetBuilder:
         new_manifest_path = os.path.join(target_dir, 'tarred_audio_manifest.json')
         with open(new_manifest_path, 'w', encoding='utf-8') as m2:
             for entry in new_entries:
-                json.dump(entry, m2)
+                json.dump(entry, m2, ensure_ascii=False)
                 m2.write('\n')
 
         # Write metadata (default metadata for new datasets)
@@ -376,9 +388,42 @@ class ASRTarredDatasetBuilder:
         metadata.dataset_config = config
         metadata.num_samples_per_shard = len(new_entries) // config.num_shards
 
+        if args.buckets_num <= 1:
+            # Estimate and update dynamic bucketing args
+            bucketing_kwargs = self.estimate_dynamic_bucketing_duration_bins(
+                new_manifest_path, num_buckets=args.dynamic_buckets_num
+            )
+            for k, v in bucketing_kwargs.items():
+                setattr(metadata.dataset_config, k, v)
+
         # Write metadata
         metadata_yaml = OmegaConf.structured(metadata)
         OmegaConf.save(metadata_yaml, new_metadata_path, resolve=True)
+
+    def estimate_dynamic_bucketing_duration_bins(self, manifest_path: str, num_buckets: int = 30) -> dict:
+        from lhotse import CutSet
+        from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
+        from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
+
+        cuts = CutSet(LazyNeMoIterator(manifest_path, missing_sampling_rate_ok=True))
+        bins = estimate_duration_buckets(cuts, num_buckets=num_buckets)
+        print(
+            f"Note: we estimated the optimal bucketing duration bins for {num_buckets} buckets. "
+            "You can enable dynamic bucketing by setting the following options in your training script:\n"
+            "  use_lhotse=true\n"
+            "  use_bucketing=true\n"
+            f"  num_buckets={num_buckets}\n"
+            f"  bucket_duration_bins=[{','.join(map(str, bins))}]\n"
+            "  batch_duration=<tune-this-value>\n"
+            "If you'd like to use a different number of buckets, re-estimate this option manually using "
+            "scripts/speech_recognition/estimate_duration_bins.py"
+        )
+        return dict(
+            use_lhotse=True,
+            use_bucketing=True,
+            num_buckets=num_buckets,
+            bucket_duration_bins=list(map(float, bins)),  # np.float -> float for YAML serialization
+        )
 
     def create_concatenated_dataset(
         self,
@@ -510,7 +555,7 @@ class ASRTarredDatasetBuilder:
                 new_manifest_shard_path = os.path.join(sharded_manifests_dir, f'manifest_{shard_id}.json')
                 with open(new_manifest_shard_path, 'w', encoding='utf-8') as m2:
                     for entry in manifest:
-                        json.dump(entry, m2)
+                        json.dump(entry, m2, ensure_ascii=False)
                         m2.write('\n')
 
         # Flatten the list of list of entries to a list of entries
@@ -529,12 +574,12 @@ class ASRTarredDatasetBuilder:
         with open(new_manifest_path, 'w', encoding='utf-8') as m2:
             # First write all the entries of base manifest
             for entry in base_entries:
-                json.dump(entry, m2)
+                json.dump(entry, m2, ensure_ascii=False)
                 m2.write('\n')
 
             # Finally write the new entries
             for entry in new_entries:
-                json.dump(entry, m2)
+                json.dump(entry, m2, ensure_ascii=False)
                 m2.write('\n')
 
         # Preserve historical metadata
@@ -634,24 +679,12 @@ class ASRTarredDatasetBuilder:
                 to_write = base + "-sub" + str(count[squashed_filename]) + ext
                 count[squashed_filename] += 1
 
+            # Carry over every key in the entry, override audio_filepath and shard_id
             new_entry = {
+                **entry,
                 'audio_filepath': to_write,
-                'duration': entry['duration'],
                 'shard_id': shard_id,  # Keep shard ID for recordkeeping
             }
-
-            if 'label' in entry:
-                new_entry['label'] = entry['label']
-
-            if 'text' in entry:
-                new_entry['text'] = entry['text']
-
-            if 'offset' in entry:
-                new_entry['offset'] = entry['offset']
-
-            if 'lang' in entry:
-                new_entry['lang'] = entry['lang']
-
             new_entries.append(new_entry)
 
         tar.close()
