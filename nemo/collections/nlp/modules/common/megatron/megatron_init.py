@@ -33,8 +33,6 @@ try:
     from megatron.core import tensor_parallel
     from megatron.core.parallel_state import (
         get_pipeline_model_parallel_rank,
-        set_expert_model_parallel_rank,
-        set_expert_model_parallel_world_size,
         set_pipeline_model_parallel_rank,
         set_pipeline_model_parallel_split_rank,
         set_pipeline_model_parallel_world_size,
