@@ -145,7 +145,7 @@ If you want to save the intermediate checkpoints to a single NeMo checkpoint fil
 
 #### **Inference with Complete SpeechLLM Checkpoints**
 
-If you want to load a pretrained SpeechLLM from cloud, you can use the following script:
+If you want to load a trained SpeechLLM from cloud, you can use the following script:
 ```bash
 TEST_MANIFESTS="[/data/test_1.json,/data/test_2.json]"
 TEST_NAMES="[test-1,test-2]"
@@ -158,7 +158,7 @@ CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
     model.data.test_ds.manifest_filepath=$TEST_MANIFESTS \
     model.data.test_ds.names=$TEST_NAMES \
     model.data.test_ds.global_batch_size=8 \
-	model.data.test_ds.micro_batch_size=8 \
+    model.data.test_ds.micro_batch_size=8 \
 	model.data.test_ds.tokens_to_generate=256 \
     ++inference.greedy=False \
     ++inference.top_k=50 \
