@@ -40,13 +40,15 @@ jobs:
         uses: psf/black@stable
         with:
           options: "--verbose"
+          # apply only to changed files (pass explicitly the files)
           src: "${{ steps.changed-files.outputs.all_changed_files }}"
           version: "~= 24.2"
 
       - name: isort
         uses: isort/isort-action@v1
         with:
-          isort-version: "~=5.13.2"
+          isort-version: "5.13.2"
+          # reformat all files with isort - safe since the whole repo is reformatted
           configuration: ""
 
       - uses: EndBug/add-and-commit@v9
