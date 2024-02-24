@@ -181,18 +181,29 @@ class DecoderLayerBuilder(ABC):
 
         self.decoder = self.build_decoder(layer)
         self.assign_weights(layer)
-        self.quantize(layer)
+
+        is_moe = self.decoder.config.moe_num_experts is not None and self.decoder.config.moe_num_experts > 1
+        if not is_moe:
+            self.quantize(layer)
 
     def assign_weights(self, layer: DecoderLayerConfig):
         """Assign the weights to the attention tensorrt_llm layer."""
+        is_moe = self.decoder.config.moe_num_experts is not None and self.decoder.config.moe_num_experts > 1
+
         self.decoder.input_layernorm.weight.value = layer.input_layernorm.weight
         if layer.input_layernorm.bias is not None:
             self.decoder.input_layernorm.bias.value = layer.input_layernorm.bias
 
         if layer.mlp_layernorm is not None: #Falcon has mlp layer norm
-            self.decoder.mlp_layernorm.weight.value = layer.mlp_layernorm.weight
-            if layer.mlp_layernorm.bias is not None:
-                self.decoder.mlp_layernorm.bias.value = layer.mlp_layernorm.bias
+            if is_moe:
+                assert layer.post_layernorm is None
+                self.decoder.post_layernorm.weight.value = layer.mlp_layernorm.weight
+                if layer.mlp_layernorm.bias is not None:
+                    self.decoder.post_layernorm.bias.value = layer.mlp_layernorm.bias
+            else:
+                self.decoder.mlp_layernorm.weight.value = layer.mlp_layernorm.weight
+                if layer.mlp_layernorm.bias is not None:
+                    self.decoder.mlp_layernorm.bias.value = layer.mlp_layernorm.bias
 
         self.decoder.attention.qkv.weight.value = layer.attention.qkv.weight
         if layer.attention.qkv.bias is not None:
@@ -206,18 +217,24 @@ class DecoderLayerBuilder(ABC):
             self.decoder.post_layernorm.weight.value = layer.post_layernorm.weight
             if layer.post_layernorm.bias is not None:
                 self.decoder.post_layernorm.bias.value = layer.post_layernorm.bias
-
-        self.decoder.mlp.fc.weight.value = layer.mlp.fc.weight
-        self.decoder.mlp.proj.weight.value = layer.mlp.proj.weight
-        bias = layer.mlp.fc.bias is not None
-        if bias:
-            self.decoder.mlp.fc.bias.value = layer.mlp.fc.bias
-            self.decoder.mlp.proj.bias.value = layer.mlp.proj.bias
-
-        if layer.mlp.gate:
-            self.decoder.mlp.gate.weight.value = layer.mlp.gate.weight
+        
+        if is_moe:
+            self.decoder.mlp.router.weight.value = layer.mlp.router.weight
+            # TODO: bias
+            self.decoder.mlp.experts_weight_1.value = layer.mlp.fc1.weight
+            self.decoder.mlp.experts_weight_2.value = layer.mlp.fc2.weight
+        else:
+            self.decoder.mlp.fc.weight.value = layer.mlp.fc.weight
+            self.decoder.mlp.proj.weight.value = layer.mlp.proj.weight
+            bias = layer.mlp.fc.bias is not None
             if bias:
-                self.decoder.mlp.gate.bias.value = layer.mlp.gate.bias
+                self.decoder.mlp.fc.bias.value = layer.mlp.fc.bias
+                self.decoder.mlp.proj.bias.value = layer.mlp.proj.bias
+
+            if layer.mlp.gate:
+                self.decoder.mlp.gate.weight.value = layer.mlp.gate.weight
+                if bias:
+                    self.decoder.mlp.gate.bias.value = layer.mlp.gate.bias
 
     def quantize(self, layer: DecoderLayerConfig):
         """Quantizes the decoder layer based on the layer config."""
