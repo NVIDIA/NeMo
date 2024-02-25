@@ -397,6 +397,7 @@ class VoiceboxModel(TextToWaveform):
         return EncDecRNNTModel.setup_test_data(self, test_data_config)
 
     def mfa_align(self, audio, texts: str, sampling_rate: int):
+        """run MFA align then load alignment from textgrid file"""
         with tempfile.TemporaryDirectory() as temp_dir:
             print('Temporary directory created at:', temp_dir)
             # You can create files and directories inside the temporary directory
@@ -448,18 +449,24 @@ class VoiceboxModel(TextToWaveform):
         assert audio.shape[0] == 1
         audio_lens = torch.tensor([audio.shape[1]], device=self.device)
 
+        # audio to mel
         self.voicebox.audio_enc_dec.eval()
         mel = self.voicebox.audio_enc_dec.encode(audio)
         mel_lens = audio_lens * mel.shape[1] // audio.shape[-1]
 
+        # mfa align if needed
         if alignment is None:
             alignment = self.mfa_align(audio=audio, texts=texts, sampling_rate=24000)
         alignment = fix_alignment(alignment=alignment)
+
+        # group phone alignments by words
         ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
         ori_w2p_alis = resample_ali(ori_w2p_alis, mel_lens)
+
+        # edit w2p_alignment, also return new-to-origin mapping for later new_cond construction.
         new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=edit_from, edit_to=edit_to)
 
-        # post processing phones
+        # post processing phones, adding word postfix and ghost silence, also return phone-to-phone mapping for later new_cond construction.
         ori_phn_alis, ori_p2p_mapping = process_alignment(
             w2p_alis=ori_w2p_alis,
             use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
@@ -470,6 +477,8 @@ class VoiceboxModel(TextToWaveform):
             use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
             use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
         )
+
+        # get required duration prediction inputs
         phoneme = [ali.symbol for ali in new_phn_alis]
         dp_cond_mask = torch.tensor([[ali.start == -1 for ali in new_phn_alis]], device=self.device).bool()
         dp_cond = torch.tensor([[ali.duration for ali in new_phn_alis]], device=self.device)
@@ -492,19 +501,22 @@ class VoiceboxModel(TextToWaveform):
             self_attn_mask=phoneme_mask,
             return_aligned_phoneme_ids=False,
         )
+        # cut-and-paste predicted durations and duplicate tokens
         new_dur = torch.where(dp_cond_mask, dp_outputs["durations"].round(), dp_cond).int().clamp(min=0)
         aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(tokens, new_dur)
         new_mel_lens = new_dur.sum().reshape(1,)
 
+        # construct new_cond
         new_cond = torch.zeros((1, new_mel_lens.item(), mel.shape[-1]), device=self.device)
         new_cond_mask = torch.ones((1, new_mel_lens.item()), device=self.device)
         new_cum_dur = new_dur.cumsum(dim=-1)
         ori_cum_dur = ori_dp_cond.int().cumsum(dim=-1)
         for i, j in enumerate(n2o_mapping):
             # new i-th phn to ori j-th phn
-            if j == -1: 
-                # not preserving
-                continue
+
+            # not preserving
+            if j == -1: continue
+
             # ghost silence mapping
             i = new_p2p_mapping[i]
             j = ori_p2p_mapping[j]
@@ -966,7 +978,7 @@ class VoiceboxModel(TextToWaveform):
 
 
 def parse_mfa_textgrid(f_id, seg: None):
-    """
+    """ read alignment from MFA textgrid file
     Args
         - f_id: textgrid_filename
         - seg: `cut.supervisions.segment`, this function can be used for updating `cut.supervisions.segment`.
@@ -1008,6 +1020,7 @@ def parse_mfa_textgrid(f_id, seg: None):
     return alignment
 
 def fix_alignment(alignment: Dict[str, List[AlignmentItem]]) -> Dict[str, List[AlignmentItem]]:
+    """unify silence or unknown phone/word symbols"""
     def phn_transform(symbol):
         if symbol == "" or  symbol == "sp":
             symbol = "sil"
@@ -1029,11 +1042,8 @@ def fix_alignment(alignment: Dict[str, List[AlignmentItem]]) -> Dict[str, List[A
     return new_alignment
 
 def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
+    """group phone alignments according to words"""
     phn_alis: List[AlignmentItem] = alignment["phones"]
-    phn_dur: List[Tuple[str, float]] = []
-    for ali in phn_alis:
-        phn_dur.append((ali.symbol, ali.duration))
-
     word_alis: List[AlignmentItem] = alignment["words"]
     w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
     phn_id = 0
@@ -1058,6 +1068,11 @@ def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
     return w2p_alis
 
 def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to=""):
+    """edit a word from alignment
+    Return:
+        - new_w2p_alis
+        - n2o_mapping: new word position in new_w2p_alis to original word position in w2p_alis. For edited words, no mapped word position, so fill in -1 instead.
+    """
     new_w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
     n2o_mapping: List[int] = []
     for i, (wrd, phn_alis) in enumerate(w2p_alis):
@@ -1081,6 +1096,7 @@ def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to=""):
     return new_w2p_alis, n2o_mapping
 
 def resample_ali(w2p_alis, mel_lens):
+    """resample the time unit from second to number of frames"""
     ori_durs = torch.tensor([[ali.duration for wrd, phn_alis in w2p_alis for ali in phn_alis]], device=mel_lens.device)
     cum_dur = torch.cumsum(ori_durs, -1)
     dur_ratio = mel_lens / cum_dur[:, -1]
@@ -1103,6 +1119,11 @@ def resample_ali(w2p_alis, mel_lens):
 
 
 def process_alignment(w2p_alis: List[Tuple[str, List[AlignmentItem]]]=None, use_word_postfix=True, use_word_ghost_silence=True, edit_from="", edit_to=""):
+    """post processing alignment, to add word postfix and ghost silence. Since ghost silence are added, also return new_p2p_mapping.
+    Return:
+        - new_phn_alis
+        - new_p2p_mapping: new phone position to original phone position. Used for later new_cond generation.
+    """
     new_phn_alis: List[AlignmentItem] = []
     new_p2p_mapping: List[int] = []
     _wrd = "<eps>"
