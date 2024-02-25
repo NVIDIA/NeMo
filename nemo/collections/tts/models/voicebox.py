@@ -458,7 +458,6 @@ class VoiceboxModel(TextToWaveform):
         ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
         ori_w2p_alis = resample_ali(ori_w2p_alis, mel_lens)
         new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=edit_from, edit_to=edit_to)
-        # ori_w2p_alis, new_w2p_alis, unmasked_alis, masked_alis, edit_alis = edit_w2p_alignment(w2p_alis=ori_w2p_alis, mel_lens=mel_lens, edit_from=edit_from, edit_to=edit_to)
 
         # post processing phones
         ori_phn_alis, ori_p2p_mapping = process_alignment(
@@ -1060,8 +1059,6 @@ def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
 
 def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to=""):
     new_w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
-    # ori_phn_alis: List[AlignmentItem] = []
-    # new_phn_alis: List[AlignmentItem] = []
     n2o_mapping: List[int] = []
     for i, (wrd, phn_alis) in enumerate(w2p_alis):
         if wrd == edit_from:
@@ -1076,12 +1073,9 @@ def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to=""):
             phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
 
             new_w2p_alis.append((wrd, phn_alis))
-            # new_phn_alis += phn_alis
             n2o_mapping += [-1] * len(phn_alis)
         else:
             new_w2p_alis.append((wrd, phn_alis))
-            # ori_phn_alis += phn_alis
-            # new_phn_alis += phn_alis
             n2o_mapping += list(range(len(ori_phn_alis)-len(phn_alis), len(ori_phn_alis)))
 
     return new_w2p_alis, n2o_mapping
