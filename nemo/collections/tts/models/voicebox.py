@@ -414,13 +414,13 @@ class VoiceboxModel(TextToWaveform):
         return alignment
 
     # for inference
+    @torch.inference_mode()
     def forward(
         self,
         audio: Tensor = None,
         texts: Optional[List[str]] = None,
         phoneme_ids: Optional[Tensor] = None,
         alignment = None,
-        cond_mask = None,
         edit_from: List[str] | None = None,
         edit_to: List[str] | None = None,
         steps = 3,
@@ -456,28 +456,70 @@ class VoiceboxModel(TextToWaveform):
             alignment = self.mfa_align(audio=audio, texts=texts, sampling_rate=24000)
         alignment = fix_alignment(alignment=alignment)
         ori_w2p_durs, ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
+        ori_w2p_alis, new_w2p_alis, unmasked_alis, masked_alis, edit_alis = edit_w2p_alignment(w2p_alis=ori_w2p_alis, mel_lens=mel_lens, edit_from=edit_from, edit_to=edit_to)
 
-        ori_w2p_durs, dur_ratio = resample_dur(ori_w2p_durs, mel_lens)
-        dur_ratio = dur_ratio[0]
-
-        new_w2p_durs = edit_w2p_alignment(w2p_durs=ori_w2p_durs, edit_from=edit_from, edit_to=edit_to)
-
-        ori_phn_dur = process_alignment(
-            w2p_durs=ori_w2p_durs,
+        # post processing phones
+        ori_phn_dur, ori_phn_alis = process_alignment(
+            w2p_alis=ori_w2p_alis,
             use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
             use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
         )
-        new_phn_dur = process_alignment(
-            w2p_durs=new_w2p_durs,
+        new_phn_dur, new_phn_alis = process_alignment(
+            w2p_alis=new_w2p_alis,
             use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
             use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
         )
+        # phoneme = [phn for phn, _ in new_phn_dur]
+        phoneme = [ali.symbol for ali in new_phn_alis]
+        tokens = torch.tensor([self.tokenizer.text_to_ids(phoneme)[0]], device=self.device)
+        token_lens = torch.tensor([tokens.shape[1]], dtype=torch.long, device=self.device)
+        phoneme_mask = torch.ones_like(tokens).bool()
+        dp_cond_mask = torch.tensor([[ali.start == -1 for ali in new_phn_alis]], device=self.device).bool()
+
+        dp_cond = torch.tensor([[dur for _, dur in new_phn_dur]], device=self.device)
+        self.duration_predictor.eval()
+        dp_outputs = self.duration_predictor.forward(
+            cond=dp_cond,               # might be None
+            texts=None,                 # converted to phoneme_ids by dataset
+            phoneme_ids=tokens,
+            phoneme_len=token_lens,
+            phoneme_mask=phoneme_mask,
+            # cond_drop_prob=self.cfm_wrapper.cond_drop_prob,
+            target=dp_cond,
+            cond_mask=dp_cond_mask,
+            self_attn_mask=phoneme_mask,
+            return_aligned_phoneme_ids=False,
+        )
+        pred_dur = torch.where(dp_cond_mask, dp_outputs["durations"].round(), dp_cond)
+
+        #TODO: cut & paste spectrogram
+        masked_intervals = []
+        for alis in masked_alis:
+            masked_intervals.append((
+                int(alis[0][1][0].start),   # first word's first phone
+                int(alis[-1][1][-1].start + alis[-1][1][-1].duration)   # last word's last phone
+            ))
+
+        unmasked_intervals = []
+        for alis in unmasked_alis:
+            unmasked_intervals.append((
+                int(alis[0][1][0].start),   # first word's first phone
+                int(alis[-1][1][-1].start + alis[-1][1][-1].duration)   # last word's last phone
+            ))
+
+        durations = torch.tensor([[dur for _, dur in new_phn_dur]], device=self.device)
+        aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(tokens, durations)
+
+        cond_mask = torch.zeros((1, mel.shape[1]), device=self.device)
+        for st, ed in masked_intervals:
+            cond_mask[0, st:ed] = 1
+        self_attn_mask = torch.ones_like(cond_mask)
 
         audio = self.cfm_wrapper.sample(
-            cond=cond,
-            texts=texts,
-            phoneme_ids=phoneme_ids,
-            cond_mask=cond_mask,
+            cond=mel,
+            cond_mask=cond_mask.bool(),
+            aligned_phoneme_ids=aligned_tokens,
+            self_attn_mask=self_attn_mask.bool(),
             steps=steps,
             cond_scale=cond_scale,
             decode_to_audio=decode_to_audio
@@ -999,6 +1041,7 @@ def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
     for ali in word_alis:
         wrd = ali.symbol
         w2p_durs.append((wrd, []))
+        w2p_alis.append((wrd, []))
 
         wrd_st = ali.start
         wrd_ed = wrd_st + ali.duration
@@ -1017,28 +1060,64 @@ def map_word_phn_alignment(alignment: Dict[str, List[AlignmentItem]]):
 
     return w2p_durs, w2p_alis
 
-def edit_w2p_alignment(alignment=None, mel_lens=None, w2p_durs=None, edit_from="", edit_to=""):
-    if w2p_durs is None and alignment is not None:
-        w2p_durs, w2p_alis = map_word_phn_alignment(alignment=alignment)
+def edit_w2p_alignment(mel_lens=None, w2p_alis=None, edit_from="", edit_to=""):
     if mel_lens is not None:
-        w2p_durs = resample_dur(w2p_durs, mel_lens)
+        w2p_alis = resample_ali(w2p_alis, mel_lens)
 
-    ori_durs = torch.tensor([[dur for wrd, phn_dur in w2p_durs for _, dur in phn_dur]], device=self.device)
+    ori_durs = torch.tensor([[ali.duration for wrd, phn_alis in w2p_alis for ali in phn_alis]], device=mel_lens.device)
     cum_dur = torch.cumsum(ori_durs, -1)
 
-    new_w2p_durs: List[Tuple[str, List[Tuple[str, float]]]] = []
-    mask = []
-    for wrd, phn_dur in w2p_durs:
+    new_w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
+    # unmasked_alis: List[List[Tuple[str, List[AlignmentItem]]]] = [[]]
+    # masked_alis: List[List[Tuple[str, List[AlignmentItem]]]] = []
+    # edit_alis: List[List[Tuple[str, List[AlignmentItem]]]] = []
+    n2o_mapping: List = [Tuple[int, int]]
+    for wrd, phn_alis in w2p_alis:
         if wrd == edit_from:
+            # store for calculate masked interval
+            masked_alis.append([])
+            masked_alis[-1].append((wrd, phn_alis))
+
             # MFA G2P
             phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa -\"").read().split('\t')[1].strip().split(' ')
-            phn_dur = [(phn, 0) for phn in phns]
+            
+            # start=-1 to note masked
             wrd = edit_to
-        new_w2p_durs.append((wrd, phn_dur))
-    return new_w2p_durs
+            phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
+            # phn_alis = [AlignmentItem(symbol=phn, start=ali.start, duration=ali.duration) for phn, ali in zip(phns, phn_alis)]
+            new_w2p_alis.append((wrd, phn_alis))
+            edit_alis.append([])
+            edit_alis[-1].append((wrd, phn_alis))
+        else:
+            if not unmasked_alis[-1]:
+                # first unmasked interval
+                unmasked_alis[-1].append((wrd, phn_alis))
+            else:
+                last_phn_ali = unmasked_alis[-1][-1][1][-1]
+                if phn_alis[0].start > last_phn_ali.start + last_phn_ali.duration:
+                    # new unmasked interval
+                    unmasked_alis.append([])
+                unmasked_alis[-1].append((wrd, phn_alis))
+            new_w2p_alis.append((wrd, phn_alis))
 
-def resample_dur(w2p_durs, mel_lens):
-    ori_durs = torch.tensor([[dur for wrd, phn_dur in w2p_durs for _, dur in phn_dur]], device=self.device)
+    masked_intervals = []
+    for alis in masked_alis:
+        masked_intervals.append((
+            int(alis[0][1][0].start),   # first word's first phone
+            int(alis[-1][1][-1].start + alis[-1][1][-1].duration)   # last word's last phone
+        ))
+
+    unmasked_intervals = []
+    for alis in unmasked_alis:
+        unmasked_intervals.append((
+            int(alis[0][1][0].start),   # first word's first phone
+            int(alis[-1][1][-1].start + alis[-1][1][-1].duration)   # last word's last phone
+        ))
+    return w2p_alis, new_w2p_alis, unmasked_alis, masked_alis, edit_alis
+    # return w2p_alis, new_w2p_alis, unmasked_alis, masked_alis, edit_alis
+
+def resample_ali(w2p_alis, mel_lens):
+    ori_durs = torch.tensor([[ali.duration for wrd, phn_alis in w2p_alis for ali in phn_alis]], device=mel_lens.device)
     cum_dur = torch.cumsum(ori_durs, -1)
     dur_ratio = mel_lens / cum_dur[:, -1]
     cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
@@ -1048,48 +1127,69 @@ def resample_dur(w2p_durs, mel_lens):
     rsmp_durs[:, 0] = cum_dur[:, 0]
     rsmp_durs[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
     pos = 0
-    rsmp_w2p_durs = []
-    for wrd, phn_dur in w2p_durs:
-        rsmp_w2p_durs.append((wrd, []))
-        for phn, _ in phn_dur:
-            rsmp_w2p_durs[-1][-1].append((phn, rsmp_durs[0, pos]))
+    _end = 0
+    rsmp_w2p_alis = []
+    for wrd, phn_alis in w2p_alis:
+        rsmp_w2p_alis.append((wrd, []))
+        for ali in phn_alis:
+            rsmp_w2p_alis[-1][-1].append(AlignmentItem(symbol=ali.symbol, start=_end, duration=cum_dur[0, pos].item() - _end))
+            _end = cum_dur[0, pos].item()
             pos += 1
-    return rsmp_w2p_durs, dur_ratio
+    return rsmp_w2p_alis
 
-def process_alignment(alignment=None, w2p_durs=None, use_word_postfix=True, use_word_ghost_silence=True, edit_from="", edit_to="") -> List[Tuple[str, float]]:
-    if w2p_durs is None and alignment is not None:
-        w2p_durs = map_word_phn_alignment(alignment=alignment)
+# def resample_dur(w2p_durs, mel_lens):
+#     ori_durs = torch.tensor([[dur for wrd, phn_dur in w2p_durs for _, dur in phn_dur]], device=self.device)
+#     cum_dur = torch.cumsum(ori_durs, -1)
+#     dur_ratio = mel_lens / cum_dur[:, -1]
+#     cum_dur = cum_dur * rearrange(dur_ratio, 'b -> b 1')
+#     cum_dur = torch.round(cum_dur)
 
+#     rsmp_durs = torch.zeros_like(cum_dur)
+#     rsmp_durs[:, 0] = cum_dur[:, 0]
+#     rsmp_durs[:, 1:] = cum_dur[:, 1:] - cum_dur[:, :-1]
+#     pos = 0
+#     rsmp_w2p_durs = []
+#     for wrd, phn_dur in w2p_durs:
+#         rsmp_w2p_durs.append((wrd, []))
+#         for phn, _ in phn_dur:
+#             rsmp_w2p_durs[-1][-1].append((phn, rsmp_durs[0, pos]))
+#             pos += 1
+#     return rsmp_w2p_durs, dur_ratio
+
+def process_alignment(w2p_alis: List[Tuple[str, List[AlignmentItem]]]=None, use_word_postfix=True, use_word_ghost_silence=True, edit_from="", edit_to="") -> List[Tuple[str, float]]:
     new_phn_dur: List[Tuple[str, float]] = []
+    new_phn_alis: List[AlignmentItem] = []
     _wrd = "<eps>"
-    for wrd, phn_dur in w2p_durs:
+    for wrd, phn_alis in w2p_alis:
         if use_word_ghost_silence and len(new_phn_dur) > 0:
             if wrd != "<eps>" and _wrd != "<eps>":
-                if use_word_postfix:
-                    new_phn_dur.append(("sil_S", 0))
+                # symbol
+                sil_symbol = "sil_S" if use_word_postfix else "sil"
+                # start
+                assert len(new_phn_alis) > 0
+                _start = new_phn_alis[-1].start
+                start_ = phn_alis[0].start
+                if _start == -1 or start_ == -1:
+                    start = -1
                 else:
-                    new_phn_dur.append(("sil", 0))
+                    start = start_
+                # append
+                new_phn_dur.append((sil_symbol, 0))
+                new_phn_alis.append(AlignmentItem(symbol=sil_symbol, start=start, duration=0))
             _wrd = wrd
 
-        # if wrd == edit_from:
-        #     phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa -\"").read().split('\t')[1].strip().split(' ')
-        #     edit_phn_dur = [(phn, 0) for phn in phns]
-        #     edit_wrd = edit_to
-        #     pass
-
-        postfixs = [""] * len(phn_dur)
+        postfixs = [""] * len(phn_alis)
         if use_word_postfix:
-            if len(phn_dur) == 1:
+            if len(phn_alis) == 1:
                 postfixs = ["_S"]
             else:
-                postfixs = ["_B"] + ["_I"] * (len(phn_dur)-2) + ["_E"]
+                postfixs = ["_B"] + ["_I"] * (len(phn_alis)-2) + ["_E"]
 
-        _durs = []
-        for p_dur, postfix in zip(phn_dur, postfixs):
-            _durs.append((p_dur[0] + postfix, p_dur[1]))
-        new_phn_dur += _durs
+        for p_ali, postfix in zip(phn_alis, postfixs):
+            new_phn_dur.append((p_ali.symbol + postfix, p_ali.duration))
+            new_phn_alis.append(AlignmentItem(symbol=p_ali.symbol + postfix, start=p_ali.start, duration=p_ali.duration))
 
-    return new_phn_dur
+    return new_phn_dur, new_phn_alis
 
 
 @torch.no_grad()
