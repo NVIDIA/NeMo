@@ -21,10 +21,9 @@ from typing import Dict, List, Union, Optional, Tuple
 from omegaconf import ListConfig
 
 def count_files_for_pseudo_labeling(
-        input_manifest_files: Union[str, List[str]],
-        dataset_weights: Optional[Union[float, List[float]]] = None
+        input_manifest_files: Union[str, ListConfig[str]],
+        dataset_weights: Optional[Union[float, ListConfig[float]]] = None
         ) -> Tuple[List[int], List[int]]:
-    
     """
     Counts how many audio files are going to be used for pseudo labeling.
     Args:
@@ -37,14 +36,17 @@ def count_files_for_pseudo_labeling(
         with open(file_path, 'r') as file:
             return len(file.readlines())
     
+    if not dataset_weights:
+        dataset_weights = [1] * len(input_manifest_files)
+    if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List) :
+            dataset_weights = [float(dataset_weights)]
+
     if isinstance(input_manifest_files, str):
         num_all_files = get_num_lines(input_manifest_files)
-        weight = dataset_weights if isinstance(dataset_weights, float) else dataset_weights[0]
-        return num_all_files, int(num_all_files * weight)
+        return num_all_files, int(num_all_files * dataset_weights[0])
     else:
-        dataset_weights = [dataset_weights] if isinstance(dataset_weights, float) else dataset_weights
         num_all_files = [get_num_lines(manifest_path) for manifest_path in input_manifest_files]
-        num_cache_files = [int(files * weight) for files, weight in zip(num_all_files, dataset_weights)] if dataset_weights else num_all_files
+        num_cache_files = [int(files * dataset_weights[idx] ) if idx < len(dataset_weights) else files for idx, files in enumerate(num_all_files)]
         return num_all_files, num_cache_files
     
 
@@ -68,20 +70,21 @@ def write_cache_manifest(cache_manifest: str, hypotheses: List[str], data: List[
     else:
         cache_data = []
         update_size = len(data) * len(data[0])
-        with open(cache_manifest, 'r', encoding='utf-8') as cache_file:
-            for i, line in enumerate(cache_file):
-                data_entry = json.loads(line)
-                cache_data += [data_entry]
-        random.shuffle(cache_data)
-        with open(cache_manifest, 'w', encoding='utf-8') as cache_file:
-            for data_entry in cache_data[:-update_size]:
-                json.dump(data_entry, cache_file, ensure_ascii=False)
-                cache_file.write('\n')
-            for i,audio_data in enumerate(data):
-                for j,data_entry in enumerate(audio_data):
-                    data_entry['text'] = hypotheses[i][j]
+        if update_size > 0:
+            with open(cache_manifest, 'r', encoding='utf-8') as cache_file:
+                for i, line in enumerate(cache_file):
+                    data_entry = json.loads(line)
+                    cache_data += [data_entry]
+            random.shuffle(cache_data)
+            with open(cache_manifest, 'w', encoding='utf-8') as cache_file:
+                for data_entry in cache_data[:-update_size]:
                     json.dump(data_entry, cache_file, ensure_ascii=False)
                     cache_file.write('\n')
+                for i,audio_data in enumerate(data):
+                    for j,data_entry in enumerate(audio_data):
+                        data_entry['text'] = hypotheses[i][j]
+                        json.dump(data_entry, cache_file, ensure_ascii=False)
+                        cache_file.write('\n')
 
 def rm_punctuation(line: str, punctuation: str):
     """
