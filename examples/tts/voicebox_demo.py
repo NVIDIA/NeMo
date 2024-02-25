@@ -35,8 +35,9 @@ tgt_word_masks = {
 
 def get_audio_data(audio_path, device):
     # audio_data, orig_sr = sf.read(audio_path)
-    _, orig_sr = librosa.load(audio_path)
-    audio_data, _ = librosa.load(audio_path, sr=sampling_rate)
+    _audio_data, orig_sr = librosa.load(audio_path, sr=16000)
+    audio_data = librosa.resample(_audio_data, orig_sr=16000, target_sr=sampling_rate)
+    # audio_data, _ = librosa.load(audio_path, sr=sampling_rate)
     # audio_data = audio_data / max(np.abs(audio_data))
     audio = torch.tensor(audio_data, dtype=torch.float, device=device).unsqueeze(0)
     audio_len = torch.tensor(audio.shape[1], device=device).unsqueeze(0)
