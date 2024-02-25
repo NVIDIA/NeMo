@@ -492,7 +492,7 @@ class VoiceboxModel(TextToWaveform):
             self_attn_mask=phoneme_mask,
             return_aligned_phoneme_ids=False,
         )
-        new_dur = torch.where(dp_cond_mask, dp_outputs["durations"].round(), dp_cond).int()
+        new_dur = torch.where(dp_cond_mask, dp_outputs["durations"].round(), dp_cond).int().clamp(min=0)
         aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(tokens, new_dur)
         new_mel_lens = new_dur.sum().reshape(1,)
 
