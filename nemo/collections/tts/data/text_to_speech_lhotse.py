@@ -149,20 +149,21 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
 
         cuts = cuts.sort_by_duration()
         cuts = cuts.map(self.change_prefix)
-        audio, audio_lens, _cuts = self.load_audio(cuts)
+        # audio, audio_lens, _cuts = self.load_audio(cuts)
+        # audio_22050, audio_lens_22050, _cuts = self.load_audio(cuts.resample(22050))
+        audio_24k, audio_lens_24k, _cuts = self.load_audio(cuts.resample(24000))
         if "texts" in _cuts[0].supervisions[0].custom:
             texts = [c.supervisions[0].custom["texts"][0] for c in _cuts]
         else:
             texts = [c.supervisions[0].text for c in _cuts]
 
-        audio_22050, audio_lens_22050, _ = self.load_audio(cuts.resample(22050))
-        audio_24k, audio_lens_24k, _ = self.load_audio(cuts.resample(24000))
         batch.update({
             "cuts": cuts,
-            "audio": audio,
-            "audio_lens": audio_lens,
-            "audio_22050": audio_22050,
-            "audio_lens_22050": audio_lens_22050,
+            "audio_paths": [cut.recording.sources[0].source for cut in cuts],
+            # "audio": audio,
+            # "audio_lens": audio_lens,
+            # "audio_22050": audio_22050,
+            # "audio_lens_22050": audio_lens_22050,
             "audio_24k": audio_24k,
             "audio_lens_24k": audio_lens_24k,
             "texts": texts,
