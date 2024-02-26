@@ -238,7 +238,7 @@ class GPTEmbeddingDataset(Dataset):
         # import sys
         # print(f"example = {example}")
         aaa = ["query: " + example['question'].strip(), "passage: " + example['pos_doc'][0].strip()]
-        for i in range(4):
+        for i in range(1):
             aaa.append("passage: " + example['neg_doc'][i].strip())
         aaa = [aaa]
         sentence_features = [self.tokenize(sentence) for sentence in zip(*aaa)]
