@@ -136,7 +136,7 @@ class GPTFIMDataset(GPTDataset):
 
         sample_len = sample.shape[0]
         segment_breaks = np.argwhere(sample == self.eod_tok_id)
-        np_rng = self.rng 
+        np_rng = self.rng
 
         if segment_breaks.shape != (0, 1):  # then there is an EOD token in this example
             curr_start_position = 0
