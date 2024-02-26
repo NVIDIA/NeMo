@@ -130,9 +130,9 @@ The parameters commonly shared across most multimodal language models include:
 +---------------------------+--------------+---------------------------------------------------------------------------------------+
 | :code:`global_batch_size` | int          | global batch size that takes consideration of gradient accumulation, data parallelism |
 +---------------------------+--------------+---------------------------------------------------------------------------------------+
-| :code:`tensor_model_parallel_size`       | int         | intra-layer model parallelism                                                     |
+| :code:`tensor_model_parallel_size`       | int         | intra-layer model parallelism                                           |
 +---------------------------+--------------+---------------------------------------------------------------------------------------+
-| :code:`pipeline_model_parallel_size`     | int         | inter-layer model parallelism                                                           |
+| :code:`pipeline_model_parallel_size`     | int         | inter-layer model parallelism                                           |
 +---------------------------+--------------+---------------------------------------------------------------------------------------+
 | :code:`seed`              | int          | seed used in training                                                                 |
 +---------------------------+--------------+---------------------------------------------------------------------------------------+

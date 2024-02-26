@@ -12,7 +12,7 @@ NeMo Multimodal currently supports the following models:
 +-----------------------------------+----------+-------------+------+-------------------------+------------------+
 | Model                             | Training | Fine-Tuning | PEFT | Evaluation              | Inference        |
 +===================================+==========+=============+======+=========================+==================+
-| `NeVA (LLaVA) <./neva.html>`_     | ✓        | ✓           | -    | -                       | ✓                |
+| `NeVA (LLaVA) <./neva.html>`_     | +        | +           | -    | -                       | +                |
 +-----------------------------------+----------+-------------+------+-------------------------+------------------+
 | Kosmos-2                          | WIP      | WIP         | -    | -                       | WIP              |
 +-----------------------------------+----------+-------------+------+-------------------------+------------------+
@@ -35,7 +35,7 @@ LLaVA :cite:`mm-models-llava` focuses on creating a dataset for visual instructi
     2. Instruction Fine-tuning: Custom-built 158k multimodal instruction dataset employed for fine-tuning targeting multimodal chatbot scenarios, with a variant targeting the Science QA dataset.
 
 Flamingo: A Visual Language Model for Few-Shot Learning
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Flamingo :cite:`mm-models-flamingo` addresses inconsistent visual feature map sizes by generating fixed-length feature sequences, enhancing visual relevance generation.
 
@@ -47,7 +47,7 @@ Flamingo :cite:`mm-models-flamingo` addresses inconsistent visual feature map si
     - Dataset: Utilizes data from various datasets like M3W, ALIGN, LTIP, and VTP emphasizing multimodal in-context learning.
 
 Kosmos-1: Language Is Not All You Need: Aligning Perception with Language Models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Kosmos-1 :cite:`mm-models-kosmos1` by Microsoft is a Multimodal Large Language Model (MLLM) aimed at melding language, perception, action, and world modeling.
 
