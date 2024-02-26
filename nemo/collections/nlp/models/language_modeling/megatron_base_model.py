@@ -737,6 +737,7 @@ class MegatronBaseModel(NLPModel):
 
             # Determine whether to store master params in optimizer
             if self.cfg.get('fp8_params', False):
+                assert self.with_distributed_adam, "Distributed Adam optimizer needed for FP8 weights."
                 optim_kwargs['store_params'] = True
             elif optim_dtype == model_dtype:
                 optim_kwargs['store_params'] = False

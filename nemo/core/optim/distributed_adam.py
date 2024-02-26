@@ -434,13 +434,11 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             buffers_in, buffers_out, dummy_overflow_buf=self._dummy_overflow_buf,
         )
 
-        # Update transpose caches
-        params = set(self.parameter(fragment) for fragment in fragments)
-        for param in params:
-            if is_float8tensor(param):
-                param._reset_caches()
-                param.transpose(update_cache=True)
-                param._lazy_transpose_cache = True
+        # # Update transpose caches
+        # params = set(self.parameter(fragment) for fragment in fragments)
+        # for param in params:
+        #     if is_float8tensor(param):
+        #         param.transpose(cache=True)
 
     @torch.no_grad()
     def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
@@ -458,7 +456,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             return
 
         # Cast local data to FP8
-        fp8_params_shards = dict()
         for bucket_id, param_bucket in params_buckets.items():
             state_bucket = self.state["buckets"][bucket_id]
             if state_bucket.param_sync_dtype != torch.uint8:

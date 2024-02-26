@@ -282,6 +282,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             build_model_context = nullcontext
             if HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
                 build_model_context = transformer_engine.pytorch.fp8_model_init
+                assert self.with_distributed_adam, "Distributed Adam optimizer needed for FP8 weights."
             with build_model_context():
                 self.model = build_model(
                     model_provider_func=self.model_provider_func,
@@ -421,12 +422,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 fp8_amax_history_len=self.cfg.get('fp8_amax_history_len', 1024),
                 fp8_amax_compute_algo=self.cfg.get('fp8_amax_compute_algo', 'max'),
                 reduce_amax=self.cfg.get('reduce_amax', True),
-                use_emha=self.cfg.get('use_emha', False),
                 ub_tp_comm_overlap=self.cfg.get('ub_tp_comm_overlap', False),
                 use_flash_attention=self.cfg.get('use_flash_attention', False),
                 megatron_legacy=self.cfg.get('megatron_legacy', False),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
+                cuda_graph=self.cfg.get('cuda_graph', False),
+                micro_batch_size=self.cfg.get('micro_batch_size', None),
+                seq_length=self.cfg.get('encoder_seq_length', None),
             )
         return model
 

@@ -70,7 +70,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from transformer_engine.common import recipe
-    from transformer_engine.pytorch import TransformerLayer, fp8_autocast
+    from transformer_engine.pytorch import TransformerLayer, fp8_autocast, make_graphed_callables
     from transformer_engine.pytorch.distributed import checkpoint as te_checkpoint
 
     HAVE_TE = True
@@ -794,7 +794,6 @@ class AutocastTransformerLayer(TransformerLayer):
         output_layernorm: bool = False,
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
-        use_emha: bool = False,
         ub_tp_comm_overlap: bool = False,
         ub_bulk_wgrad: bool = True,
         ub_bulk_dgrad: bool = True,
@@ -842,7 +841,6 @@ class AutocastTransformerLayer(TransformerLayer):
             ub_atomic_gemm_rs=ub_atomic_gemm_rs,
             device=device,
         )
-        # use_emha=use_emha,
 
         # Dtype for forward pass - ignore amp O2
         self.dtype = utils_funcs.torch_dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
@@ -850,7 +848,7 @@ class AutocastTransformerLayer(TransformerLayer):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
         encoder_output: Optional[torch.Tensor] = None,
         enc_dec_attn_mask: Optional[torch.Tensor] = None,
         inference_params: Optional[Any] = None,
@@ -932,7 +930,6 @@ class ParallelTransformer(MegatronModule):
         fp8_amax_history_len=1024,
         fp8_amax_compute_algo='max',
         reduce_amax=True,
-        use_emha=False,
         ub_tp_comm_overlap=False,
         normalize_attention_scores=True,
         multi_query_attention=False,
@@ -940,6 +937,9 @@ class ParallelTransformer(MegatronModule):
         moe_frequency=1,
         moe_dropout=0.0,
         use_flash_attention=False,
+        cuda_graph=False,
+        micro_batch_size=None,
+        seq_length=None,
     ):
         super(ParallelTransformer, self).__init__(config=config)
 
@@ -1081,12 +1081,9 @@ class ParallelTransformer(MegatronModule):
                     params_dtype=config.params_dtype,
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     fuse_wgrad_accumulation=config.gradient_accumulation_fusion,
-                    seq_length=None,  # used for jit warmup
-                    micro_batch_size=None,  # used for jit warmup
                     sequence_parallel=config.sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
-                    use_emha=use_emha,
                     ub_tp_comm_overlap=ub_tp_comm_overlap,
                     ub_bulk_wgrad=config.tp_comm_bulk_wgrad,
                     ub_bulk_dgrad=config.tp_comm_bulk_dgrad,
@@ -1096,6 +1093,8 @@ class ParallelTransformer(MegatronModule):
                     ub_atomic_gemm_rs=config.tp_comm_atomic_rs,
                     zero_centered_gamma=normalization == 'layernorm1p',
                     device='cpu' if config.use_cpu_initialization else 'cuda',
+                    micro_batch_size=micro_batch_size,
+                    seq_length=seq_length,
                 )
             else:
                 return ParallelTransformerLayer(
@@ -1174,7 +1173,29 @@ class ParallelTransformer(MegatronModule):
             else:
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
-        self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
+        self.layers = [build_layer(i + 1 + offset) for i in range(self.num_layers)]
+        if cuda_graph:
+            assert seq_length is not None, "Must pass `seq_length` for cuda graph capture."
+            assert micro_batch_size is not None, "Must pass `micro_batch_size` for cuda graph capture."
+            sq = seq_length
+            if config.sequence_parallel:
+                sq = seq_length // parallel_state.get_tensor_model_parallel_world_size()
+            graph_inputs = tuple([(torch.ones(
+                sq, micro_batch_size, hidden_size, requires_grad=True,
+                device="cuda", dtype=config.params_dtype),) for _ in range(self.num_layers)])
+
+            fp8_group = None
+            if self.fp8 and parallel_state.model_parallel_is_initialized():
+                fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True)
+
+            self.layers = make_graphed_callables(
+                tuple(self.layers), graph_inputs,
+                enabled=self.fp8,
+                fp8_group=fp8_group,
+                fp8_recipe=self.fp8_recipe)
+            del graph_inputs
+        self.layers = torch.nn.ModuleList(self.layers)
+
         if self.pre_process and self.transformer_block_type == 'post_ln':
             # Final layer norm before output.
             if normalization == 'layernorm':
@@ -1587,12 +1608,12 @@ class ParallelTransformer(MegatronModule):
                         if self.transformer_engine:
                             hidden_states = layer(
                                 hidden_states,
-                                attention_mask,
-                                encoder_output=encoder_output,
-                                enc_dec_attn_mask=enc_dec_attn_mask,
-                                inference_params=self.inference_params,
-                                is_first_microbatch=is_first_microbatch,
-                                checkpoint_core_attention=checkpoint_core_attention,
+                                # attention_mask,
+                                # encoder_output=encoder_output,
+                                # enc_dec_attn_mask=enc_dec_attn_mask,
+                                # inference_params=self.inference_params,
+                                # is_first_microbatch=is_first_microbatch,
+                                # checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
                             hidden_states = layer(

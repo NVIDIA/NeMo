@@ -161,11 +161,13 @@ class GPTModel(MegatronModule):
         fp8_amax_history_len=1024,
         fp8_amax_compute_algo='max',
         reduce_amax=True,
-        use_emha=False,
         ub_tp_comm_overlap=False,
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
         rotary_base=10000,
+        cuda_graph=False,
+        micro_batch_size=None,
+        seq_length=None,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -241,11 +243,13 @@ class GPTModel(MegatronModule):
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
             reduce_amax=reduce_amax,
-            use_emha=use_emha,
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             use_flash_attention=use_flash_attention,
             seq_len_interpolation_factor=seq_len_interpolation_factor,
             rotary_base=rotary_base,
+            cuda_graph=cuda_graph,
+            micro_batch_size=micro_batch_size,
+            seq_length=seq_length,
         )
 
         if self.share_embeddings_and_output_weights:
