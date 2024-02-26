@@ -378,7 +378,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                         augmentor=augmentor,
                     )
                     asr_model.full_timer.stop()
-                    logging.info(f"Decoder time: {asr_model.decoding.decoding.decoder_timer.total():.1f}")
+                    logging.info(f"Decoder time: {asr_model.decoding.decoding.timer.total():.1f}")
                     logging.info(f"Full time: {asr_model.full_timer.total():.1f}")
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
