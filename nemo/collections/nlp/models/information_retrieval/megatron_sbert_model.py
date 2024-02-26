@@ -26,7 +26,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor, nn
 
-from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
+from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset, GPTEmbeddingDataset
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -489,8 +489,11 @@ class MegatronSBertModel(MegatronBertModel):
                     passage_prefix=passage_prefix,
                 )
 
-        self._train_ds = BertEmbeddingDataset(
+        self._train_ds2 = BertEmbeddingDataset(
             train_data, num_hard_negs=hard_negatives_to_train, query_prefix=query_prefix, passage_prefix=passage_prefix
+        )
+        self._train_ds = GPTEmbeddingDataset(
+            train_file_path, tokenizer=self.tokenizer
         )
 
         if self._train_ds is not None:
@@ -650,7 +653,24 @@ class MegatronSBertModel(MegatronBertModel):
             persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
-        dataloader.collate_fn = self.batching_collate
+        dataloader2 = torch.utils.data.DataLoader(
+            self._train_ds2,
+            shuffle=False,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
+        )
+        dataloader2.collate_fn = self.batching_collate
+        import sys
+        for i, i2 in zip(dataloader, dataloader2):
+            print(i)
+            print("*********")
+            print(i2)
+            sys.exit()
+        print("DONE")
+        sys.exit()
+        
 
         return dataloader
 
@@ -703,9 +723,16 @@ class MegatronSBertModel(MegatronBertModel):
             :return:
                 a batch of tensors for the model
             """
+        import sys
+        print(f"batch = {batch}")
+        for sentence in zip(*batch):
+            print(sentence)
 
+        sys.exit()
         sentence_features = [self.tokenize(sentence) for sentence in zip(*batch)]
-
+        print(f"sentence_features = {sentence_features}")
+        import sys
+        sys.exit()
         return sentence_features
 
     def get_forward_output_and_loss_func(self):
