@@ -313,7 +313,7 @@ class T5G2PModel(G2PModel, Exportable):
 
     def forward_for_export(self, input_ids):
         outputs = self.model.generate(
-            input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_target_len
+            input_ids, output_scores=True, return_dict_in_generate=True, max_length=self.max_source_len
         )
         generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
         return tuple(generated_ids)
