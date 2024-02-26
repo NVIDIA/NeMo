@@ -18,6 +18,7 @@ import numpy as np
 from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
 from megatron.core.datasets.indexed_dataset import MMapIndexedDataset
 from megatron.core.datasets.utils import Split
+from nemo.utils import logging
 
 
 # is_dataset_built_on_rank function is needed for mcore GPTDatasetConfig
@@ -37,6 +38,8 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
         self.fim = fim
+        self.np_rng = np.random.RandomState(seed=self.config.random_seed)
+        logging.info(f'GPTFIMDataset np_rng initialized with seed={self.config.random_seed}.')
 
 
 class GPTFIMDataset(GPTDataset):
@@ -133,7 +136,7 @@ class GPTFIMDataset(GPTDataset):
 
         sample_len = sample.shape[0]
         segment_breaks = np.argwhere(sample == self.eod_tok_id)
-        np_rng = np.random.RandomState(seed=self.config.random_seed)
+        np_rng = self.rng 
 
         if segment_breaks.shape != (0, 1):  # then there is an EOD token in this example
             curr_start_position = 0
