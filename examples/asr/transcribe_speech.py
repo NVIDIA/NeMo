@@ -363,14 +363,23 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     decoder_type=cfg.decoder_type,
                 )
             else:
-                transcriptions = asr_model.transcribe(
-                    audio=filepaths,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    return_hypotheses=cfg.return_hypotheses,
-                    channel_selector=cfg.channel_selector,
-                    augmentor=augmentor,
-                )
+                from nemo.utils.timers import SimpleTimer
+
+                for _ in range(2):
+                    asr_model.full_timer = SimpleTimer()
+                    asr_model.decoding.decoding.timer.reset()
+                    asr_model.full_timer.start()
+                    transcriptions = asr_model.transcribe(
+                        audio=filepaths,
+                        batch_size=cfg.batch_size,
+                        num_workers=cfg.num_workers,
+                        return_hypotheses=cfg.return_hypotheses,
+                        channel_selector=cfg.channel_selector,
+                        augmentor=augmentor,
+                    )
+                    asr_model.full_timer.stop()
+                    logging.info(f"Decoder time: {asr_model.decoding.decoding.timer.total():.1f}")
+                    logging.info(f"Full time: {asr_model.full_timer.total():.1f}")
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
