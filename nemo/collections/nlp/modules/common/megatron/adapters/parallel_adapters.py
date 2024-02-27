@@ -242,7 +242,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         elif init_method == 'normal':
             init_fn = init_method_normal(0.2)
         elif init_method == 'kaiming':
-            init_fn = init_method_kaiming_uniform
+            init_fn = init_method_kaiming_uniform()
         elif init_method == "zero":
             init_fn = init_method_const(0.0)
         else:
