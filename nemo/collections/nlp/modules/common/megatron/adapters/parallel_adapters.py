@@ -27,7 +27,7 @@ import torch.nn.init as init
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal, init_method_kaiming_uniform
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
@@ -236,10 +236,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             init_fn = init.xavier_normal_
         elif init_method == 'normal':
             init_fn = init_method_normal(0.2)
+        elif init_method == 'kaiming':
+            init_fn = init_method_kaiming_uniform
         elif init_method == "zero":
             init_fn = init_method_const(0.0)
         else:
-            raise NotImplementedError("out_init_method should be zero, normal or xavier")
+            raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
         return init_fn
 
     def adapter_unfreeze(self,):
