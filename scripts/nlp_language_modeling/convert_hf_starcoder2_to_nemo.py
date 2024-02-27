@@ -32,6 +32,7 @@ from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
 from sentencepiece import SentencePieceProcessor
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -42,11 +43,13 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-from transformers import AutoModelForCausalLM, AutoTokenizer
+
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--in-file", type=str, default=None, required=True, help="Path to Huggingface StarCoder2 checkpoints")
+    parser.add_argument(
+        "--in-file", type=str, default=None, required=True, help="Path to Huggingface StarCoder2 checkpoints"
+    )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
@@ -93,10 +96,14 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
 def load_config(sc2_config, tokenizer_path):
     nemo_config = OmegaConf.load(
-        os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_starcoder2_config.yaml')
+        os.path.join(
+            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_starcoder2_config.yaml'
+        )
     ).model
 
-    nemo_config.encoder_seq_length = sc2_config['sliding_window'] if sc2_config.get('sliding_window') else sc2_config['max_position_embeddings']
+    nemo_config.encoder_seq_length = (
+        sc2_config['sliding_window'] if sc2_config.get('sliding_window') else sc2_config['max_position_embeddings']
+    )
     nemo_config.num_layers = int(sc2_config['num_hidden_layers'])
     nemo_config.hidden_size = sc2_config['hidden_size']
     nemo_config.ffn_hidden_size = sc2_config['intermediate_size']
@@ -129,7 +136,7 @@ def load_sc2_ckpt(in_dir):
 
     model = AutoModelForCausalLM.from_pretrained(in_dir)
     ckpt = model.state_dict()
-    
+
     tokenizer = AutoTokenizer.from_pretrained(in_dir)
     return model_args, ckpt, tokenizer
 
@@ -222,7 +229,7 @@ def convert(args):
 
         new_q_bias_tensor_shape = (head_num, head_size)
         new_kv_bias_tensor_shape = (num_query_groups, head_size)
-        
+
         q = ckpt[f'model.layers.{l}.self_attn.q_proj.weight'].view(*new_q_tensor_shape)
         k = ckpt[f'model.layers.{l}.self_attn.k_proj.weight'].view(*new_kv_tensor_shape)
         v = ckpt[f'model.layers.{l}.self_attn.v_proj.weight'].view(*new_kv_tensor_shape)
@@ -230,7 +237,7 @@ def convert(args):
         q_bias = ckpt[f'model.layers.{l}.self_attn.q_proj.bias'].view(*new_q_bias_tensor_shape)
         k_bias = ckpt[f'model.layers.{l}.self_attn.k_proj.bias'].view(*new_kv_bias_tensor_shape)
         v_bias = ckpt[f'model.layers.{l}.self_attn.v_proj.bias'].view(*new_kv_bias_tensor_shape)
-        
+
         # Note: we assume wq & wk have been appropriately transposed to work with
         # NeMo/Megatron's rotary embedding. The reference checkpoint/implementation
         # will not work OotB without transposing wq/wk matrices.
@@ -241,7 +248,7 @@ def convert(args):
             qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
             qkv_weights_l.append(k[i : i + 1, :, :])
             qkv_weights_l.append(v[i : i + 1, :, :])
-            
+
             qkv_bias_l.append(q_bias[i * heads_per_group : (i + 1) * heads_per_group, :])
             qkv_bias_l.append(k_bias[i : i + 1, :])
             qkv_bias_l.append(v_bias[i : i + 1, :])
@@ -256,7 +263,7 @@ def convert(args):
         qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups)])
         if mcore_gpt:
             qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
-            
+
             qkv_bias_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.bias'
         else:
             qkv_weights_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.weight'
@@ -274,9 +281,8 @@ def convert(args):
         checkpoint['state_dict'][o_weight_base_name] = param_to_weights(o_weight)
         checkpoint['state_dict'][o_bias_base_name] = param_to_weights(o_bias)
 
-
         # MLP
-        mlp_cfc_weight= ckpt[f'model.layers.{l}.mlp.c_fc.weight']
+        mlp_cfc_weight = ckpt[f'model.layers.{l}.mlp.c_fc.weight']
         mlp_cfc_bias = ckpt[f'model.layers.{l}.mlp.c_fc.bias']
         if mcore_gpt:
             mlp_down_base_name_weight = f'model.decoder.layers.{l}.mlp.linear_fc1.weight'
@@ -285,7 +291,7 @@ def convert(args):
             raise Exception("not implemented")
         checkpoint['state_dict'][mlp_down_base_name_weight] = param_to_weights(mlp_cfc_weight)
         checkpoint['state_dict'][mlp_down_base_name_bias] = param_to_weights(mlp_cfc_bias)
-        
+
         mlp_up_weight = ckpt[f'model.layers.{l}.mlp.c_proj.weight']
         mlp_up_bias = ckpt[f'model.layers.{l}.mlp.c_proj.bias']
         if mcore_gpt:
@@ -337,7 +343,7 @@ def convert(args):
     checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
-    
+
     del ckpt
 
     if nemo_config.get('megatron_amp_O2', False):
