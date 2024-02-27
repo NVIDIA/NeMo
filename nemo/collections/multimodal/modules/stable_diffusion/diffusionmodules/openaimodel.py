@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from abc import abstractmethod
+
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from abc import abstractmethod
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (

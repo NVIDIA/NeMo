@@ -15,18 +15,20 @@
 import functools
 import itertools
 import os
-import pytorch_lightning as pl
 import re
 import shutil
 import tempfile
-import torch
 from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
+
+import pytorch_lightning as pl
+import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from omegaconf import OmegaConf
-from pathlib import Path
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.core.optimizer import LightningOptimizer
@@ -52,7 +54,6 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
-from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
@@ -66,6 +67,7 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
