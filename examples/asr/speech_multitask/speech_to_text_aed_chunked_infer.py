@@ -46,7 +46,7 @@ import copy
 import glob
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Literal, Optional
+from typing import Optional
 
 import pytorch_lightning as pl
 import torch

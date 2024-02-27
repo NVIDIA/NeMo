@@ -16,7 +16,7 @@ import contextlib
 import glob
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import List, Literal, Optional, Union
+from typing import List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
