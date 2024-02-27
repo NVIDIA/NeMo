@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import contextlib
 from typing import Any, Optional, Tuple, Union
 
 import numpy as np
@@ -516,7 +515,6 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         self, encoder_output_projected: torch.Tensor, encoder_output_length: torch.Tensor,
     ):
         batch_size, max_time, encoder_dim = encoder_output_projected.shape
-        logging.warning(f"Reinit, max time: {max_time}, batch size: {batch_size}")
 
         self.state = LoopLabelsState(
             batch_size=batch_size,
@@ -529,6 +527,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             preserve_alignments=self.preserve_alignments,
             preserve_frame_confidence=self.preserve_frame_confidence,
         )
+        logging.warning(f"Reinit, max time: {self.state.max_time}, batch size: {self.state.batch_size}")
         self.state.all_durations = self.durations.to(self.state.device)
 
         self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
