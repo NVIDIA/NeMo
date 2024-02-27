@@ -121,7 +121,6 @@ model:
     use_flash_attention: True
     enable_amp_o2_fp16: False
     resblock_gn_groups: 32
-    use_te_fp8: False
 
   first_stage_config:
     _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
@@ -192,7 +191,7 @@ model:
       synthetic_data_length: 10000
       train:
           dataset_path:
-            - /datasets/coyo/wdinfo/coyo-700m/wdinfo-selene.pkl
+            - /datasets/coyo/test.pkl
           augmentations:
             resize_smallest_side: 512
             center_crop_h_w: 512, 512
