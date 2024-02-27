@@ -46,7 +46,7 @@ import copy
 import glob
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -99,6 +99,7 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     amp: bool = False
     amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
+    matmul_precision: Literal["highest", "high", "medium"] = "highest"
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -137,6 +138,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
 
     # setup GPU
+    torch.set_float32_matmul_precision(cfg.matmul_precision)
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
