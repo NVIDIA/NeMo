@@ -15,13 +15,25 @@
 from typing import Any, Callable, Optional
 
 import torch
-from megatron.core import parallel_state, tensor_parallel
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-
-from transformer_engine.pytorch import TransformerLayer
 
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
+    from megatron.core.transformer.transformer_layer import BaseTransformerLayer
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    BaseTransformerLayer = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
+
+from transformer_engine.pytorch import TransformerLayer
 
 
 # Copied from nemo/collections/nlp/modules/common/megatron/transformer.py
@@ -135,9 +147,6 @@ class AutocastTransformerLayer(TransformerLayer):
                 is_first_microbatch=is_first_microbatch,
                 checkpoint_core_attention=checkpoint_core_attention,
             )
-
-
-from megatron.core.transformer.transformer_layer import BaseTransformerLayer
 
 
 class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer):
