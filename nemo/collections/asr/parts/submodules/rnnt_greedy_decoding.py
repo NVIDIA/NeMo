@@ -611,9 +611,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # switch between more efficient batch decoding technique
         self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            if loop_labels and use_cuda_graph_decoder:
-                raise ValueError("loop_labels and use_cuda_graph_decoder is unsupported configuration")
-            elif loop_labels:
+            if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
                 self._decoding_computer = GreedyBatchedRNNTLoopLabelsComputer(
