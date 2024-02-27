@@ -169,12 +169,14 @@ class SimpleTimer:
         self.total_time = 0
         self._start_time = None
 
-    def start(self):
-        torch.cuda.synchronize()
+    def start(self, device=None):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize(device=device)
         self._start_time = time.perf_counter_ns()
 
-    def stop(self):
-        torch.cuda.synchronize()
+    def stop(self, device=None):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize(device=device)
         self.total_time += time.perf_counter_ns() - self._start_time
         self._start_time = None
 

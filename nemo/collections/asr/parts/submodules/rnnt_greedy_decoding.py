@@ -669,11 +669,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
 
-                self.timer.start()
+                self.timer.start(device=encoder_output.device)
                 hypotheses = self._greedy_decode(
                     inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
                 )
-                self.timer.stop()
+                self.timer.stop(device=encoder_output.device)
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
