@@ -662,14 +662,21 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
             logits, decoder_lengths=logits_len, return_hypotheses=trcfg.return_hypotheses,
         )
-        logits = logits.cpu()
-
         if trcfg.return_hypotheses:
+            # See comment in
+            # ctc_greedy_decoding.py::GreedyCTCInfer::forward() to
+            # understand this idiom.
+            logits_cpu = torch.empty(logits.shape,
+                                     dtype=logits.dtype,
+                                     pin_memory=True)
+            logits_cpu.copy_(logits)
+            logits_len = logits_len.cpu()
             # dump log probs per file
-            for idx in range(logits.shape[0]):
-                current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+            for idx in range(logits_cpu.shape[0]):
+                current_hypotheses[idx].y_sequence = logits_cpu[idx][: logits_len[idx]]
                 if current_hypotheses[idx].alignments is None:
                     current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
+            del logits_cpu
 
         # cleanup memory
         del logits, logits_len
