@@ -395,9 +395,9 @@ class MegatronSBertModel(MegatronBertModel):
         with open(train_file_path) as f:
             train_data = json.load(f)
 
-        random_seed = 42
-        set_seed(random_seed)
-        random.shuffle(train_data)
+        # random_seed = 42
+        # set_seed(random_seed)
+        # random.shuffle(train_data)
 
         self.train_data = train_data
 
@@ -458,7 +458,7 @@ class MegatronSBertModel(MegatronBertModel):
         query_prefix = "query:"
         passage_prefix = "passage:"
         evaluation_sample_size = self.cfg.data.get("evaluation_sample_size", 100)
-        hard_negatives_to_train = self.cfg.data.get("hard_negatives_to_train", 4)
+        num_hard_negatives = self.cfg.data.get("hard_negatives_to_train", 4)
         evaluation_steps = self.cfg.data.get("evaluation_steps", 100)
 
         # TODO @ataghibakhsh: Handle valid and test datasets better
@@ -467,33 +467,36 @@ class MegatronSBertModel(MegatronBertModel):
         self._validation_ds = None
         self._test_ds = None
 
-        if train_file_path:  # we don't support calculating validation loss for multiple train files
-            valid_data = None
-            if evaluation_sample_size:
-                if evaluation_steps == 0:
-                    raise ValueError(
-                        "The --evaluation_steps should be greater than 0 " "when --evaluation_sample_size is set"
-                    )
+        # if train_file_path:  # we don't support calculating validation loss for multiple train files
+        #     valid_data = None
+        #     if evaluation_sample_size:
+        #         if evaluation_steps == 0:
+        #             raise ValueError(
+        #                 "The --evaluation_steps should be greater than 0 " "when --evaluation_sample_size is set"
+        #             )
 
-                if evaluation_sample_size >= len(train_data):
-                    raise ValueError("The --evaluation_sample_size cannot be greater " "than train set size.")
+        #         if evaluation_sample_size >= len(train_data):
+        #             raise ValueError("The --evaluation_sample_size cannot be greater " "than train set size.")
 
-                valid_data = train_data[-evaluation_sample_size:]
-                train_data = train_data[:-evaluation_sample_size]
+        #         valid_data = train_data[-evaluation_sample_size:]
+        #         train_data = train_data[:-evaluation_sample_size]
 
-            if evaluation_sample_size:
-                self._validation_ds = BertEmbeddingDataset(
-                    valid_data,
-                    num_hard_negs=hard_negatives_to_train,
-                    query_prefix=query_prefix,
-                    passage_prefix=passage_prefix,
-                )
+        #     if evaluation_sample_size:
+        #         self._validation_ds = BertEmbeddingDataset(
+        #             valid_data,
+        #             num_hard_negs=hard_negatives_to_train,
+        #             query_prefix=query_prefix,
+        #             passage_prefix=passage_prefix,
+        #         )
 
-        self._train_ds2 = BertEmbeddingDataset(
-            train_data, num_hard_negs=hard_negatives_to_train, query_prefix=query_prefix, passage_prefix=passage_prefix
-        )
+        # self._train_ds2 = BertEmbeddingDataset(
+        #     train_data, num_hard_negs=hard_negatives_to_train, query_prefix=query_prefix, passage_prefix=passage_prefix
+        # )
         self._train_ds = GPTEmbeddingDataset(
-            train_file_path, tokenizer=self.tokenizer
+            train_file_path, tokenizer=self.tokenizer, add_bos=True, num_hard_negatives=num_hard_negatives
+        )
+        self._validation_ds = GPTEmbeddingDataset(
+            train_file_path, tokenizer=self.tokenizer, add_bos=True, data_type="validation", num_hard_negatives=num_hard_negatives
         )
 
         if self._train_ds is not None:
@@ -544,7 +547,7 @@ class MegatronSBertModel(MegatronBertModel):
             else:
                 self.build_train_valid_test_datasets()
                 self.setup_training_data(self.cfg.data)
-                self.setup_validation_data(self.cfg.data)
+                # self.setup_validation_data(self.cfg.data)
                 # self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
@@ -651,26 +654,20 @@ class MegatronSBertModel(MegatronBertModel):
             num_workers=self.cfg.data.num_workers,
             pin_memory=True,
             persistent_workers=True if self.cfg.data.num_workers > 0 else False,
+            collate_fn=dataset.collate_fn
         )
 
-        dataloader2 = torch.utils.data.DataLoader(
-            self._train_ds2,
-            shuffle=False,
-            batch_sampler=batch_sampler,
-            num_workers=self.cfg.data.num_workers,
-            pin_memory=True,
-            persistent_workers=True if self.cfg.data.num_workers > 0 else False,
-        )
-        dataloader2.collate_fn = self.batching_collate
-        import sys
-        for i, i2 in zip(dataloader, dataloader2):
-            print(i)
-            print("*********")
-            print(i2)
-            sys.exit()
-        print("DONE")
-        sys.exit()
-        
+        # dataloader2 = torch.utils.data.DataLoader(
+        #     self._train_ds2,
+        #     shuffle=False,
+        #     batch_sampler=batch_sampler,
+        #     num_workers=self.cfg.data.num_workers,
+        #     pin_memory=True,
+        #     persistent_workers=True if self.cfg.data.num_workers > 0 else False,
+        # )
+
+        # print("$$$$$$$$$")
+        # dataloader2.collate_fn  = self.batching_collate
 
         return dataloader
 
@@ -723,24 +720,18 @@ class MegatronSBertModel(MegatronBertModel):
             :return:
                 a batch of tensors for the model
             """
-        import sys
-        print(f"batch = {batch}")
-        for sentence in zip(*batch):
-            print(sentence)
 
-        sys.exit()
         sentence_features = [self.tokenize(sentence) for sentence in zip(*batch)]
-        print(f"sentence_features = {sentence_features}")
-        import sys
-        sys.exit()
+        # print(f"sentence_features = {sentence_features}")
+
         return sentence_features
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
-            batches = next(dataloader_iter)
-
-            (
+            batch = next(dataloader_iter)
+            batch = {k:v.cuda(non_blocking=True) for k,v in batch.items()}
+            '''(
                 tokens_batch,
                 types_batch,
                 sentence_order_batch,
@@ -770,12 +761,13 @@ class MegatronSBertModel(MegatronBertModel):
             forward_args = [
                 {"input_ids": tokens, "token_type_ids": types, "attention_mask": padding_mask}
                 for tokens, padding_mask, types in zip(tokens_batch, padding_mask_batch, types_batch)
-            ]
-
+            ]'''
+            # self.model.eval()
+            
             if self.mcore_bert:
                 raise Exception("mcore not supported at the moment. It will be added in the near future")
             else:
-                output_tensor = [self.forward(**forward_arg).permute(1, 0) for forward_arg in forward_args]
+                output_tensor = self.forward(**batch).permute(1, 0) #output_tensor = [self.forward(**forward_arg).permute(1, 0) for forward_arg in forward_args]
 
             def loss_func(output_tensor):
 
@@ -798,14 +790,19 @@ class MegatronSBertModel(MegatronBertModel):
         return fwd_output_and_loss_func
 
     def loss_func(self, output_tensor):
-        queries = output_tensor[0]  # shape (bs, embedding_dim)
-        positives = output_tensor[1]  # shape (bs, embedding_dim)
+        # queries = output_tensor[0]  # shape (bs, embedding_dim)
+        # positives = output_tensor[1]  # shape (bs, embedding_dim)
+
+        chunks = output_tensor.chunk(self.cfg.micro_batch_size)
+        queries = torch.stack([item[0] for item in chunks])  # shape (bs, embedding_dim)
+        positives = torch.stack([item[1] for item in chunks])  # shape (bs, embedding_dim)
 
         pos_inbatch_negs_scores = torch.mm(
             queries, positives.transpose(0, 1)
         )  # shape (bs, bs); each positive is negative for other queries.
 
-        hard_negs = output_tensor[2:]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
+        # hard_negs = output_tensor[2:]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
+        hard_negs = [torch.stack([item[i+2] for item in chunks]) for i in range(self.cfg.data.get("hard_negatives_to_train", 4))]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         hard_negs_scores = (
             torch.multiply(queries.unsqueeze(0).repeat(len(hard_negs), 1, 1), torch.stack(hard_negs),).sum(axis=-1).T
