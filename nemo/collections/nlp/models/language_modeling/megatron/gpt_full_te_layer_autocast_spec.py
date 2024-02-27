@@ -16,14 +16,14 @@ from typing import Any, Callable, Optional
 
 import torch
 
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.parts import utils_funcs
 
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.transformer.spec_utils import ModuleSpec
-    from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
+    from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
     HAVE_MEGATRON_CORE = True
 
