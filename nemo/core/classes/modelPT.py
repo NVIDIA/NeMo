@@ -805,6 +805,23 @@ class ModelPT(LightningModule, Model):
         else:
             return [self._optimizer], [self._scheduler]
 
+    def propagate_model_guid(self):
+        """
+        Propagates the model GUID to all submodules, recursively.
+        """
+        if self._done_propagate_guid:
+            return
+
+        def recursively_propagate_guid(module: "NeuralModule"):
+            module.model_guid = self.model_guid
+            for child in module.children():
+                recursively_propagate_guid(child)
+
+        for _, _, module in self.named_nemo_modules():
+            module.model_guid = self.model_guid
+            recursively_propagate_guid(module)
+        self._done_propagate_guid = True
+
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
         This is called on every process when using DDP.
@@ -812,6 +829,7 @@ class ModelPT(LightningModule, Model):
         Args:
             stage: fit, validate, test or predict
         """
+        self.propagate_model_guid()
         if stage == 'fit':
             train_deferred_setup = (
                 'train_ds' in self._cfg
@@ -1634,6 +1652,7 @@ class ModelPT(LightningModule, Model):
             # Generate a unique uuid for the instance
             # also determine if the model is being restored or not, and preserve the path
             self.model_guid = str(uuid.uuid4())
+            self._done_propagate_guid = False
             if self._is_model_being_restored():
                 restore_path = appstate.model_restore_path
             else:
