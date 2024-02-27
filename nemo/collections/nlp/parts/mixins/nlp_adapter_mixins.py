@@ -92,8 +92,11 @@ class NLPAdapterModelMixin:
         """
         k = [n for n, p in self.named_parameters()]
         state_dict_keys = self.state_dict().keys()
-        b = [n for n, p in self.named_buffers() if n in state_dict_keys or
-             n.replace("model.module.", "model.", 1) in state_dict_keys]
+        b = [
+            n
+            for n, p in self.named_buffers()
+            if n in state_dict_keys or n.replace("model.module.", "model.", 1) in state_dict_keys
+        ]
         # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
         return set(k + b)
 
