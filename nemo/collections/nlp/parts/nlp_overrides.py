@@ -129,6 +129,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 context_parallel_size=app_state.context_parallel_size,
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
+                expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -1462,12 +1463,9 @@ class CustomProgressBar(TQDMProgressBar):
         return self.bar
 
     def on_train_epoch_start(self, trainer, *_):
-        if trainer.max_steps > 0 and (trainer.ckpt_path is not None):
-            # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
-            # is truncated to max_steps - step being resumed at
-            num_training_batches = trainer.max_steps
-        else:
-            num_training_batches = trainer.num_training_batches
+        # Use trainer.max_steps as the num_training_batches since len(dataloader) aka num_training_batches is returned as the total num of micro batches
+        # instead of total num of global batches with this PR: https://github.com/NVIDIA/NeMo/pull/8426
+        num_training_batches = trainer.max_steps
         self.train_progress_bar.reset(num_training_batches)
         self.train_progress_bar.initial = 0
         self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
