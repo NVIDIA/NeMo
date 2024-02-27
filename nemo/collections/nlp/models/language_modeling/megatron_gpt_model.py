@@ -1193,6 +1193,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
+        # TODO: @athitten make num of eval and test samples 1 always, after clarifying its working.
         train_valid_test_num_samples = [
             max_train_steps * global_batch_size,
             eval_iters * global_batch_size,
