@@ -39,6 +39,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import
     is_dataset_built_on_rank,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
+    get_gpt_full_te_layer_autocast_spec,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -128,16 +131,17 @@ def mcore_supports_moe() -> bool:
 
 
 def get_specs(spec_name, num_experts=None):
-    if spec_name == '':
-        if num_experts is not None:
-            assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
-            return get_gpt_layer_with_transformer_engine_spec(num_experts)
-        else:
-            return get_gpt_layer_with_transformer_engine_spec()
-    elif spec_name == 'megatron_falcon_gpt':
-        return get_falcon_layer_spec()
-    else:
+    if num_experts is not None:
+        assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
+
+    name_spec_dict = {
+        "": get_gpt_layer_with_transformer_engine_spec(num_experts),
+        "megatron_falcon_gpt": get_falcon_layer_spec(),
+        "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
+    }
+    if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
+    return name_spec_dict[spec_name]
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -328,6 +332,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
+        self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
         self.loss_broadcast_src_rank = None
 
         self.inference_params = None
@@ -689,6 +694,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_first_last_embeddings()
             self.megatron_timer_stop('allreduce_first_last_embeddings')
 
+        if self.log_memory_usage:
+            mem_reserved = torch.cuda.max_memory_reserved()
+            self.log(
+                'peak_memory_usage', mem_reserved, prog_bar=True, rank_zero_only=True, batch_size=1,
+            )
+
         ## logging
         if self.log_train_loss:
             # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
@@ -754,7 +765,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # (@adithyare) adapter training now extends MegatronGPTModel
             # so we have to add this check here to ensure we do not
             # perform all_reduce when grad is None.
-            # grad can be None when performing PeFT training.
+            # grad can be None when performing PEFT training.
             if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
@@ -774,7 +785,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._append_sequence_parallel_module_grads(module, grads)
         else:
             self._append_sequence_parallel_module_grads(self.model, grads)
-
+        if not grads:
+            # may be empty for PEFT training
+            return
         coalesced = torch._utils._flatten_dense_tensors(grads)
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
@@ -1175,15 +1188,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def build_train_valid_test_datasets(self):
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_val_batches()
-        logging.info('Building GPT datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+        logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
 
         # Add extra FIM tokens to tokenizer
         if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
@@ -1191,23 +1200,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
             self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
 
-        train_valid_test_num_samples = [
-            max_train_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
+        # The line below exploits a quirk in mcore dataset construction, to make number of epochs for validation and test equal to 1
+        # The mcore dataset implementation uses the number N we provide via train_valid_test_num_samples to derive parameter E such that
+        # E = argmin_e e * N_d >= N, or equivalently E = ceildiv(N, N_d)
+        # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
+        # Setting N = 1 we force E to be 1 as well
+        train_valid_test_num_samples = [max_train_steps * global_batch_size, 1, 1]
 
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[
-                1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration
-
-        mock_dataset = self.cfg.data.get("mock_dataset", False)
+        mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
             "sequence_length": self.cfg.data.seq_length,
-            "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
             "tokenizer": self.tokenizer,
             "reset_position_ids": self.reset_position_ids,
@@ -1216,11 +1220,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "mock": mock_dataset,
         }
 
+        # support for dict data input type
         if isinstance(self.cfg.data.data_prefix, DictConfig):
             _pref = self.cfg.data.data_prefix
             kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
         else:
             kwargs['blend'] = self.cfg.data.data_prefix
+            kwargs["split"] = self.cfg.data.splits_string
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
@@ -1328,6 +1334,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
+            # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+            self._reconfigure_val_batches()
 
         if stage == 'fit':
             self.initialize_last_rank_embeddings()
