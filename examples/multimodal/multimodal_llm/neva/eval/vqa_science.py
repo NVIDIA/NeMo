@@ -124,7 +124,7 @@ def eval_model(args):
             sampling_params=sampling_params,
             inference_config=cfg,
         )
-        # import  pdb; pdb.set_trace()
+
         outputs = responses[0]["clean_response"]
 
         # prompt for answer
@@ -132,7 +132,7 @@ def eval_model(args):
             outputs_reasoning = outputs
 
             responses = model.generate(
-                input_prompts=[prompt + outputs_reasoning + ' ###\nANSWER:'],
+                input_prompts=[dict(prompt=qs + outputs_reasoning + ' ###\nANSWER:', image=line.get('image', None))],
                 length_params=length_params,
                 sampling_params=sampling_params,
                 inference_config=cfg,
@@ -165,7 +165,6 @@ if __name__ == "__main__":
     parser.add_argument("--image-folder", type=str, default="")
     parser.add_argument("--question-file", type=str, default="tables/question.json")
     parser.add_argument("--answers-file", type=str, default="answer.jsonl")
-    parser.add_argument("--conv-mode", type=str, default="llava_v0")
     parser.add_argument("--tp", type=int, default=1)
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)

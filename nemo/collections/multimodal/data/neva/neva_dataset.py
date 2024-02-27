@@ -188,6 +188,44 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     return sources
 
 
+def process_image(processor, image, image_aspect_ratio="square"):
+    if isinstance(processor, CLIPImageProcessor):
+        # image processor from HF
+        if image_aspect_ratio == 'keep':
+            max_hw, min_hw = max(image.size), min(image.size)
+            aspect_ratio = max_hw / min_hw
+            max_len, min_len = 448, 224
+            shortest_edge = int(min(max_len / aspect_ratio, min_len))
+            image = processor.preprocess(
+                image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
+            )['pixel_values'][0]
+        elif image_aspect_ratio == 'pad':
+
+            def expand2square(pil_img, background_color):
+                width, height = pil_img.size
+                if width == height:
+                    return pil_img
+                elif width > height:
+                    result = Image.new(pil_img.mode, (width, width), background_color)
+                    result.paste(pil_img, (0, (width - height) // 2))
+                    return result
+                else:
+                    result = Image.new(pil_img.mode, (height, height), background_color)
+                    result.paste(pil_img, ((height - width) // 2, 0))
+                    return result
+
+            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+        else:
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+    else:
+        assert (
+                image_aspect_ratio == 'square'
+        ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+        image = processor(image)
+    return image
+
+
 def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
     """
     Preprocesses sources for the LLaMA 2 model configuration.
@@ -654,40 +692,7 @@ class LazySupervisedDataset(Dataset):
                 image = self.image_loader.open_image(image_file)
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
-                if isinstance(self.processor, CLIPImageProcessor):
-                    # image processor from HF
-                    if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
-                        max_hw, min_hw = max(image.size), min(image.size)
-                        aspect_ratio = max_hw / min_hw
-                        max_len, min_len = 448, 224
-                        shortest_edge = int(min(max_len / aspect_ratio, min_len))
-                        image = self.processor.preprocess(
-                            image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-                        )['pixel_values'][0]
-                    elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
-
-                        def expand2square(pil_img, background_color):
-                            width, height = pil_img.size
-                            if width == height:
-                                return pil_img
-                            elif width > height:
-                                result = Image.new(pil_img.mode, (width, width), background_color)
-                                result.paste(pil_img, (0, (width - height) // 2))
-                                return result
-                            else:
-                                result = Image.new(pil_img.mode, (height, height), background_color)
-                                result.paste(pil_img, ((height - width) // 2, 0))
-                                return result
-
-                        image = expand2square(image, tuple(int(x * 255) for x in self.processor.image_mean))
-                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                    else:
-                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-                else:
-                    assert (
-                        self.multimodal_cfg['image_aspect_ratio'] == 'square'
-                    ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
-                    image = self.processor(image)
+                image = process_image(self.processor, image, self.multimodal_cfg['image_aspect_ratio'])
                 images.append(image)
             images_tensors = torch.tensor([])
             if images:

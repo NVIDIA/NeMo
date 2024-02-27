@@ -20,11 +20,11 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from transformers import CLIPImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
+from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -423,35 +423,7 @@ def create_neva_model_and_processor(cfg):
 
         processor = model.model.module.image_processor \
             if hasattr(model.model, "module") else model.model.image_processor
-
-        if neva_cfg.data.image_aspect_ratio == 'keep':
-            max_hw, min_hw = max(image.size), min(image.size)
-            aspect_ratio = max_hw / min_hw
-            max_len, min_len = 448, 224
-            shortest_edge = int(min(max_len / aspect_ratio, min_len))
-            image = processor.preprocess(
-                image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-            )['pixel_values'][0]
-        elif neva_cfg.data.image_aspect_ratio == 'pad':
-
-            def expand2square(pil_img, background_color):
-                width, height = pil_img.size
-                if width == height:
-                    return pil_img
-                elif width > height:
-                    result = Image.new(pil_img.mode, (width, width), background_color)
-                    result.paste(pil_img, (0, (width - height) // 2))
-                    return result
-                else:
-                    result = Image.new(pil_img.mode, (height, height), background_color)
-                    result.paste(pil_img, ((height - width) // 2, 0))
-                    return result
-
-            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-        else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-
+        image = process_image(processor, image, neva_cfg.data.image_aspect_ratio)
         if neva_cfg.precision in [16, '16', '16-mixed']:
             media = image.type(torch.float16)
         elif neva_cfg.precision in [32, '32', '32-true']:
