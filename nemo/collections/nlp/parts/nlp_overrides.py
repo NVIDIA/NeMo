@@ -15,20 +15,18 @@
 import functools
 import itertools
 import os
+import pytorch_lightning as pl
 import re
 import shutil
 import tempfile
+import torch
 from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
-
-import pytorch_lightning as pl
-import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from omegaconf import OmegaConf
+from pathlib import Path
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.core.optimizer import LightningOptimizer
@@ -54,6 +52,7 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
+from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
@@ -67,7 +66,6 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
@@ -1001,30 +999,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     new_state_dict[new_key_] = state_dict[key_]
                 else:
                     new_state_dict[key_] = state_dict[key_]
-            state_dict = new_state_dict
-
-        if conf.get('unet_config') and conf.get('unet_config').get('use_te_fp8') == False:
-            # remove _extra_state in fp8 if there is.
-            new_state_dict = {}
-            for key in state_dict.keys():
-                if 'extra_state' in key:
-                    continue
-
-                ### LayerNormLinear
-                # norm_to_q.layer_norm_{weight|bias} -> norm_to_q.0.{weight|bias}
-                # norm_to_q.weight -> norm_to_q.1.weight
-                new_key = key.replace('norm_to_q.layer_norm_', 'norm_to_q.0.')
-                new_key = new_key.replace('norm_to_q.weight', 'norm_to_q.1.weight')
-
-                ### LayerNormMLP
-                # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
-                # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
-                # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
-                new_key = new_key.replace('ff.net.layer_norm_', 'ff.net.0.')
-                new_key = new_key.replace('ff.net.fc1_', 'ff.net.1.proj.')
-                new_key = new_key.replace('ff.net.fc2_', 'ff.net.3.')
-
-                new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
         return state_dict
