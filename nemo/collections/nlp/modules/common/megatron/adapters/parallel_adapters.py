@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 import enum
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Optional
