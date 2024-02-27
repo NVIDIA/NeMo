@@ -187,7 +187,7 @@ def get_nmt_tokenizer(
             merges_file=merges_file,
             **special_tokens_dict,
             use_fast=use_fast,
-            trust_remote_code=trust_remote_code
+            trust_remote_code=trust_remote_code,
         )
     elif library == 'sentencepiece':
         logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
