@@ -54,7 +54,9 @@ def get_args():
 
 def load_config(chatglm_config):
     nemo_config = OmegaConf.load(
-        os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_chatglm_config.yaml')
+        os.path.join(
+            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_chatglm_config.yaml'
+        )
     ).model
     nemo_config.encoder_seq_length = chatglm_config['seq_length']
     nemo_config.num_layers = int(chatglm_config['num_layers'])
@@ -89,7 +91,7 @@ def convert(args):
     logging.info(f"loading checkpoint {args.in_file}")
     model = AutoModel.from_pretrained(args.in_file, trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(args.in_file, trust_remote_code=True)
-    
+
     hf_config = vars(model.config)
     hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
     print(f"hf_config: {hf_config}")
@@ -173,7 +175,9 @@ def convert(args):
         old_tensor_shape = hf_qkv_weights.size()
         new_q_tensor_shape = (head_num, head_size, old_tensor_shape[1])
         new_kv_tensor_shape = (num_query_groups, head_size, old_tensor_shape[1])
-        q, k, v = hf_qkv_weights.split([head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0)
+        q, k, v = hf_qkv_weights.split(
+            [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0
+        )
         q = q.view(*new_q_tensor_shape)
         k = k.view(*new_kv_tensor_shape)
         v = v.view(*new_kv_tensor_shape)
@@ -183,11 +187,13 @@ def convert(args):
             qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
             qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
         qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
-        
+
         hf_qkv_bias = model.state_dict()[f'transformer.encoder.layers.{l}.self_attention.query_key_value.bias']
         new_q_tensor_shape = (head_num, head_size)
         new_kv_tensor_shape = (num_query_groups, head_size)
-        q, k, v = hf_qkv_bias.split([head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0)
+        q, k, v = hf_qkv_bias.split(
+            [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0
+        )
         q = q.view(*new_q_tensor_shape)
         k = k.view(*new_kv_tensor_shape)
         v = v.view(*new_kv_tensor_shape)
