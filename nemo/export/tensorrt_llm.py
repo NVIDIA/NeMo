@@ -272,9 +272,9 @@ class TensorRTLLM(ITritonDeployable):
             stream=self.stream)
 
     def refit(
-            self,
-            nemo_model,
-            nemo_model_config,
+        self,
+        nemo_model,
+        nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
 
