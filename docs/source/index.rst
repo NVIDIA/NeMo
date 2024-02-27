@@ -12,6 +12,15 @@ NVIDIA NeMo Framework Developer Docs
    starthere/migration-guide
 
 .. toctree::
+   :maxdepth: 2
+   :caption: Community Model Converters
+   :name: CheckpointConverters
+
+   ckpt_converters/user_guide
+   ckpt_converters/dev_guide
+
+
+.. toctree::
    :maxdepth: 3
    :caption: Multimodal (MM)
    :name: Multimodal
