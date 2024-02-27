@@ -166,9 +166,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
             # `prediction_cpu_tensor = decoder_output.cpu()`
             # cpu() does not use pinned memory, meaning that a slow pageable
             # copy must be done instead.
-            prediction_cpu_tensor = torch.empty(decoder_output.shape,
-                                                dtype=decoder_output.dtype,
-                                                pin_memory=True)
+            prediction_cpu_tensor = torch.empty(decoder_output.shape, dtype=decoder_output.dtype, pin_memory=True)
             prediction_cpu_tensor.copy_(decoder_output)
             if decoder_lengths is not None and isinstance(decoder_lengths, torch.Tensor):
                 # Before this change, self._greedy_decode_labels would copy
