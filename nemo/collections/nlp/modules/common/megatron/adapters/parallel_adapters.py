@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import math
 import enum
 import logging
 import re
@@ -242,7 +242,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         elif init_method == 'normal':
             init_fn = init_method_normal(0.2)
         elif init_method == 'kaiming':
-            init_fn = init_method_kaiming_uniform()
+            init_fn = init_method_kaiming_uniform(math.sqrt(5))
         elif init_method == "zero":
             init_fn = init_method_const(0.0)
         else:
