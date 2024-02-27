@@ -99,7 +99,7 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     amp: bool = False
     amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
-    matmul_precision: Literal["highest", "high", "medium"] = "highest"
+    matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
