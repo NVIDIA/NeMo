@@ -646,9 +646,9 @@ class AudioCodecModel(ModelPT):
         models = []
 
         model = PretrainedModelInfo(
-            pretrained_model_name="audio_codec_small_16khz",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/audio_codec_small_16khz/versions/v1/files/audio_codec_small_16khz.nemo",
-            description="For details about this model please refer to the model card: https://ngc.nvidia.com/catalog/models/nvidia:nemo:audio_codec_small_16khz",
+            pretrained_model_name="audio_codec_16khz_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/audio_codec_16khz_small/versions/v1/files/audio_codec_16khz_small.nemo",
+            description="For details about this model please refer to the model card: https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/audio_codec_16khz_small",
         )
         models.append(model)
 
