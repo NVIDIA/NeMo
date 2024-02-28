@@ -86,8 +86,8 @@ and text-to-speech synthesis (TTS).
 The primary objective of NeMo is to provide a scalable framework for researchers and developers from industry and academia
 to more easily implement and design new generative AI models by being able to leverage existing code and pretrained models.
 
-For developer documentation, please see the `NeMo Framework Developer Documenation <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_ and for
-enterprise documentation, please see the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_.
+For developer documentation, please see the `NeMo Framework Developer Documentation <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_ 
+and for enterprise documentation, please see the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_.
 
 All NeMo models are trained with `Lightning <https://github.com/Lightning-AI/lightning>`_ and
 training is automatically scalable to 1000s of GPUs.
@@ -136,11 +136,47 @@ we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/ma
 Key Features
 ------------
 
-* `Large Language Models <nemo/collections/nlp/README.md>`_
-* `Multimodal <nemo/collections/multimodal/README.md>`_
-* `Automatic Speech Recognition <nemo/collections/asr/README.md>`_
-* `Text to Speech <nemo/collections/tts/README.md>`_
-* `Computer Vision <nemo/collections/vision/README.md>`_
+.. raw:: html
+
+   <details open>
+     <summary>Model Parallelisms</summary>
+      When applicable, NeMo models take advantage of the latest possible distributed training techniques,
+      including parallelism strategies such as
+      <ul>
+        <li>data parallelism</li>
+        <li>tensor parallelism</li>
+        <li>pipeline model parallelism</li>
+        <li>fully sharded data parallelism (FSDP)</li>
+        <li>sequence parallelism</li>
+        <li>context parallelism</li>
+        <li>mixture-of-experts (MoE)</li>
+      </ul>
+   </details>
+
+   <details open>
+     <summary>Large Language Models</summary>
+     <p><a href="nemo/collections/nlp/README.md">nemo/collections/nlp/README.md</a></p>
+   </details>
+
+   <details open>
+     <summary>Multimodal</summary>
+     <p><a href="nemo/collections/multimodal/README.md">nemo/collections/multimodal/README.md</a></p>
+   </details>
+
+   <details open>
+     <summary>Automatic Speech Recognition</summary>
+     <p><a href="nemo/collections/asr/README.md">nemo/collections/asr/README.md</a></p>
+   </details>
+
+   <details>
+     <summary open>Text to Speech</summary>
+     <p><a href="nemo/collections/tts/README.md">nemo/collections/tts/README.md</a></p>
+   </details>
+
+   <details>
+     <summary open>Computer Vision</summary>
+     <p><a href="nemo/collections/vision/README.md">nemo/collections/vision/README.md</a></p>
+   </details>
 
 Requirements
 ------------
