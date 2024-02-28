@@ -494,7 +494,7 @@ class TensorRTLLM(ITritonDeployable):
                 stop_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
                 infer_input["stop_words_list"] = [[stop_word] for stop_word in stop_words_list]
             if "bad_words_list" in inputs:
-                bad_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
+                bad_words_list = str_ndarray2list(inputs.pop("bad_words_list"))
                 infer_input["bad_words_list"] = [[bad_word] for bad_word in bad_words_list]
             if "no_repeat_ngram_size" in inputs:
                 infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
@@ -528,7 +528,7 @@ class TensorRTLLM(ITritonDeployable):
                 stop_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
                 infer_input["stop_words_list"] = [[stop_word] for stop_word in stop_words_list]
             if "bad_words_list" in inputs:
-                bad_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
+                bad_words_list = str_ndarray2list(inputs.pop("bad_words_list"))
                 infer_input["bad_words_list"] = [[bad_word] for bad_word in bad_words_list]
             if "no_repeat_ngram_size" in inputs:
                 infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
