@@ -93,17 +93,7 @@ All NeMo models are trained with `Lightning <https://github.com/Lightning-AI/lig
 training is automatically scalable to 1000s of GPUs.
 
 When applicable, NeMo models take advantage of the latest possible distributed training techniques,
-including parallelism strategies such as
-
-* data parallelism
-* tensor parallelism
-* pipeline model parallelism
-* fully sharded data parallelism (FSDP)
-* sequence parallelism
-* context parallelism
-* mixture-of-experts (MoE)
-
-and mixed precision training recipes with bfloat16 and FP8 training.
+parallelism strategies, and mixed precision training recipes with bfloat16 and FP8 training.
 
 NeMo's Transformer based LLM and Multimodal models leverage `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_ for FP8 training on NVIDIA Hopper GPUs
 and leverages `NVIDIA Megatron Core <https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core>`_ for scaling transformer model training.
@@ -139,7 +129,7 @@ Key Features
 .. raw:: html
 
    <details open>
-     <summary>Model Parallelisms</summary>
+     <summary>Model Parallelism</summary>
         <p>When applicable, NeMo models take advantage of the latest possible distributed training techniques and parallelism strategies:</p>
       <ul>
         <li>data parallelism</li>
