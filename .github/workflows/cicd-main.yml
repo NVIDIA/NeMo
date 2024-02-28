@@ -146,6 +146,8 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /home/TestData:/home/TestData
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
     - name: "L0: Unit Tests GPU"
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
@@ -164,6 +166,8 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /home/TestData:/home/TestData
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
     - name: "L0: Unit Tests CPU"
       run: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -187,6 +191,8 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /home/TestData:/home/TestData
     steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
         - run: |
             CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
             --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
@@ -208,6 +214,8 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /home/TestData:/home/TestData
     steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
         - run: |
             python scripts/nlp_language_modeling/convert_starcoder_hf_to_nemo.py \
             --config examples/nlp/language_modeling/conf/megatron_gpt_config.yaml \
@@ -229,6 +237,8 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /home/TestData:/home/TestData
     steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
         - run: |
             python scripts/nlp_language_modeling/convert_hf_falcon_to_nemo.py \
             --config examples/nlp/language_modeling/conf/megatron_falcon_config.yaml \
