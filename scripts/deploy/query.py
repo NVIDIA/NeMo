@@ -298,7 +298,7 @@ def query(argv):
             task_id=args.task_id,
             init_timeout=args.init_timeout,
         )
-        print(outputs[0])
+        print(outputs[0][0])
 
 
 if __name__ == '__main__':
