@@ -5,7 +5,7 @@ import torch.nn as nn
 from omegaconf import ListConfig
 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims, instantiate_from_config
-
+from nemo.collections.multimodal.parts.utils import randn_like
 
 class StandardDiffusionLoss(nn.Module):
     def __init__(
@@ -35,15 +35,16 @@ class StandardDiffusionLoss(nn.Module):
 
         self.batch2model_keys = set(batch2model_keys)
 
-    def __call__(self, network, denoiser, conditioner, input, batch):
+    def __call__(self, network, denoiser, conditioner, input, batch, rng=None):
         cond = conditioner(batch)
         additional_model_inputs = {key: batch[key] for key in self.batch2model_keys.intersection(batch)}
 
-        sigmas = self.sigma_sampler(input.shape[0]).to(input.device)
-        noise = torch.randn_like(input)
+        rand = torch.randint(0, self.sigma_sampler.num_idx, (input.shape[0],), generator=rng, device=rng.device).to(self.sigma_sampler.sigmas.device)
+        sigmas = self.sigma_sampler(input.shape[0], rand=rand).to(input.device)
+        noise = randn_like(input, generator=rng)
         if self.offset_noise_level > 0.0:
             noise = noise + self.offset_noise_level * append_dims(
-                torch.randn(input.shape[0], device=input.device), input.ndim
+                torch.randn(input.shape[0], device=input.device, generator=rng), input.ndim
             )
         noised_input = input + noise * append_dims(sigmas, input.ndim)
         model_output = denoiser(network, noised_input, sigmas, cond, **additional_model_inputs)

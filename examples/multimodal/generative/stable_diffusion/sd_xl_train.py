@@ -67,7 +67,7 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
         )
 
 
-@hydra_runner(config_path='conf', config_name='sd_xl_base_train_no_conditions')
+@hydra_runner(config_path='conf', config_name='sd_xl_base_train')
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')

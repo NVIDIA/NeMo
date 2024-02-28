@@ -159,7 +159,7 @@ class DiffusionEngine(nn.Module, Serialization):
         return z
 
     def forward(self, x, batch):
-        loss = self.loss_fn(self.model, self.denoiser, self.conditioner, x, batch)
+        loss = self.loss_fn(self.model, self.denoiser, self.conditioner, x, batch, rng=self.rng)
         loss_mean = loss.mean()
         log_prefix = 'train' if self.training else 'val'
         loss_dict = {f"{log_prefix}/loss": loss_mean}
@@ -238,7 +238,7 @@ class DiffusionEngine(nn.Module, Serialization):
         shape: Union[None, Tuple, List] = None,
         **kwargs,
     ):
-        randn = torch.randn(batch_size, *shape).to(self.device)
+        randn = torch.randn(batch_size, *shape, generator=self.rng).to(self.device)
 
         denoiser = lambda input, sigma, c: self.denoiser(self.model, input, sigma, c, **kwargs)
         samples = self.sampler(denoiser, randn, cond, uc=uc)
