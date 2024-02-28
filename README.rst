@@ -144,27 +144,27 @@ Key Features
 
    <details open>
      <summary>Large Language Models</summary>
-     <p><a href="nemo/collections/nlp/README.md">nemo/collections/nlp/README.md</a></p>
+     <p><a href="nemo/collections/nlp/README.md">LLM Key Features</a></p>
    </details>
 
    <details open>
      <summary>Multimodal</summary>
-     <p><a href="nemo/collections/multimodal/README.md">nemo/collections/multimodal/README.md</a></p>
+     <p><a href="nemo/collections/multimodal/README.md">MM Key Features</a></p>
    </details>
 
    <details open>
      <summary>Automatic Speech Recognition</summary>
-     <p><a href="nemo/collections/asr/README.md">nemo/collections/asr/README.md</a></p>
+     <p><a href="nemo/collections/asr/README.md">ASR Key Features</a></p>
    </details>
 
    <details open>
      <summary>Text to Speech</summary>
-     <p><a href="nemo/collections/tts/README.md">nemo/collections/tts/README.md</a></p>
+     <p><a href="nemo/collections/tts/README.md">TTS Key Features</a></p>
    </details>
 
    <details open>
      <summary>Computer Vision</summary>
-     <p><a href="nemo/collections/vision/README.md">nemo/collections/vision/README.md</a></p>
+     <p><a href="nemo/collections/vision/README.md">Vision Key Features</a></p>
    </details>
 
 Requirements
