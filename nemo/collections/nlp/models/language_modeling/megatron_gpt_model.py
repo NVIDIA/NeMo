@@ -29,6 +29,7 @@ from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -142,6 +143,22 @@ def get_specs(spec_name, num_experts=None):
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
+
+
+class EmbeddingScalingMixin(torch.nn.Module):
+    """
+    A mixin class for scaling embeddings in Megatron GPT.
+    The scaling is applied only if the configuration (accessible via `self.config`)
+    includes `apply_embedding_scaling` set to True.
+    """
+
+    def forward(self, **kwargs):
+        """
+        Forward pass that scales the output embeddings from the `forward` method of
+        the superclass by the square root of the hidden size specified in the configuration.
+        """
+        embeddings = super().forward(**kwargs)
+        return embeddings * (self.config.hidden_size ** 0.5)
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -365,6 +382,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
@@ -433,6 +452,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
     def setup_optimizer_param_groups(self):
@@ -1204,12 +1225,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Setting N = 1 we force E to be 1 as well
         train_valid_test_num_samples = [max_train_steps * global_batch_size, 1, 1]
 
-        mock_dataset = self.cfg.data.get("mock_dataset", False)
+        mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
             "sequence_length": self.cfg.data.seq_length,
-            "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
             "tokenizer": self.tokenizer,
             "reset_position_ids": self.reset_position_ids,
@@ -1218,11 +1238,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "mock": mock_dataset,
         }
 
+        # support for dict data input type
         if isinstance(self.cfg.data.data_prefix, DictConfig):
             _pref = self.cfg.data.data_prefix
             kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
         else:
             kwargs['blend'] = self.cfg.data.data_prefix
+            kwargs["split"] = self.cfg.data.splits_string
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
