@@ -39,12 +39,20 @@ def get_args(argv):
         type=str,
         help="Name of the triton model"
     )
-    parser.add_argument(
+    prompt_group = parser.add_mutually_exclusive_group(required=True)
+    prompt_group.add_argument(
         "-p",
         "--prompt",
-        required=True,
+        required=False,
         type=str,
         help="Prompt"
+    )
+    prompt_group.add_argument(
+        "-pf",
+        "--prompt_file",
+        required=False,
+        type=str,
+        help="File to read the prompt from"
     )
     parser.add_argument(
         "-swl",
@@ -241,6 +249,10 @@ def query_llm_streaming(
 
 def query(argv):
     args = get_args(argv)
+
+    if args.prompt_file is not None:
+        with open(args.prompt_file, "r") as f:
+            args.prompt = f.read()
 
     if args.enable_streaming:
         output = query_llm_streaming(
