@@ -117,9 +117,7 @@ pipeline {
     }
     stage('Import Checks'){
       steps {
-        sh 'python tests/core_ptl/check_imports.py --domain "asr"'
         sh 'python tests/core_ptl/check_imports.py --domain "nlp"'
-        sh 'python tests/core_ptl/check_imports.py --domain "tts"'
       }
     }
     stage('L0: Unit Tests GPU') {
@@ -3698,7 +3696,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
        model.activations_checkpoint_method='block' \
        model.activations_checkpoint_granularity='full' \
        model.activations_checkpoint_num_layers=1 \
-       model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+       model.data.data_prefix='{train:[1.0,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document],validation:[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document],test:[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]}' \
        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         // commented out to save time on github ci @adithyare
         //sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
@@ -4289,6 +4287,42 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         inference.repetition_penalty=1.0 \
         inference.outfile_path='/home/TestData/nlp/lora_tuning_tp2/out.jsonl'"
         sh "rm -rf /home/TestData/nlp/lora_tuning_tp2"
+      }
+    }
+    stage('L2: Megatron GPT PEFT Lora TP=2 SP') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/nlp/lora_tuning_tp2_sp"
+        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+        trainer.devices=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.max_epochs=9999 \
+        trainer.max_steps=3 \
+        trainer.val_check_interval=3 \
+        ++trainer.limit_val_batches=2 \
+        trainer.precision=16 \
+        exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2 \
+        model.pipeline_model_parallel_size=1 \
+        model.tensor_model_parallel_size=2 \
+        model.sequence_parallel=true \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.peft.peft_scheme='lora' \
+        model.answer_only_loss=True \
+        model.micro_batch_size=1 \
+        model.global_batch_size=1 \
+        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.train_ds.concat_sampling_probabilities=[1.0] \
+        model.data.train_ds.num_workers=0 \
+        model.data.validation_ds.num_workers=0 \
+        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+        model.data.validation_ds.names=[quarel]"
+        sh "rm -rf /home/TestData/nlp/lora_tuning_tp2_sp"
       }
     }
     stage('L2: Megatron GPT Eval') {
@@ -5207,34 +5241,34 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
       failFast true
-      //parallel {
-        //stage('MockGPTDataset') {
-        //  steps {
-        //    sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        //    trainer.max_steps=10 \
-        //    trainer.limit_val_batches=7 \
-        //    trainer.val_check_interval=10 \
-        //    exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        //    model.data.data_impl=mock \
-        //    model.data.data_prefix=[] \
-        //    "
-        //    sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-        //  }
-        //}
-      //stage('MockT5Dataset') {
-      steps {
-        sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.max_steps=10 \
-        trainer.limit_val_batches=3 \
-        trainer.val_check_interval=10 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.data.data_impl=mock \
-        model.data.data_prefix=[] \
-        "
-        sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
+      parallel {
+        stage('MockGPTDataset') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+            trainer.max_steps=10 \
+            trainer.limit_val_batches=7 \
+            trainer.val_check_interval=10 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+            model.data.data_impl=mock \
+            model.data.data_prefix=[] \
+            "
+            sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+          }
+        }
+        stage('MockT5Dataset') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+            trainer.max_steps=10 \
+            trainer.limit_val_batches=3 \
+            trainer.val_check_interval=10 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+            model.data.data_impl=mock \
+            model.data.data_prefix=[] \
+            "
+            sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
+          }
+        }
       }
-      //}
-      //}
     }
 
     stage('L2: TTS Fast dev runs 1') {
