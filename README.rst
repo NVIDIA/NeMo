@@ -77,7 +77,6 @@ Latest News
   </details>
 
 
-
 Introduction
 ------------
 
@@ -87,7 +86,8 @@ and text-to-speech synthesis (TTS).
 The primary objective of NeMo is to provide a scalable framework for researchers and developers from industry and academia
 to more easily implement and design new generative AI models by being able to leverage existing code and pretrained models.
 
-For technical documentation, please see the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_.
+For developer documentation, please see the `NeMo Framework Developer Documenation <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_ and for
+enterprise documentation, please see the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_.
 
 All NeMo models are trained with `Lightning <https://github.com/Lightning-AI/lightning>`_ and
 training is automatically scalable to 1000s of GPUs.
