@@ -16,23 +16,21 @@ In this repository, you will find several tutorials discussing what is Automatic
 
 4) `Online_ASR_Microphone_Demo`: A short notebook that enables us to speak into a microphone and transcribe speech in an online manner. Note that this is not the most efficient way to perform streaming ASR, and it is more of a demo.
 
-5) `Offline_ASR`: ASR models are able to transcribe speech to text, however that text might be inaccurate. Here, we discuss how to leverage external language models build with KenLM to improve the accuracy of ASR transcriptions. Further, we discuss how we can extract time stamps from an ASR model with some heuristics.
+5) `ASR_for_telephony_speech`: Audio sources are not homogenous, nor are the ways to store large audio datasets. Here, we discuss our observations and recommendations when working with audio obtained from Telephony speech sources.
 
-6) `ASR_for_telephony_speech`: Audio sources are not homogenous, nor are the ways to store large audio datasets. Here, we discuss our observations and recommendations when working with audio obtained from Telephony speech sources.
+6) `Online_Noise_Augmentation`: While academic datasets are useful for training ASR model, there can often be cases where such datasets are pristine and don't really represent the use case in the real world. So we discuss how to make the model more noise robust with Online audio augmentation.
 
-7) `Online_Noise_Augmentation`: While academic datasets are useful for training ASR model, there can often be cases where such datasets are pristine and don't really represent the use case in the real world. So we discuss how to make the model more noise robust with Online audio augmentation.
+7) `Intro_to_Transducers`: Previous tutorials discuss ASR models in context of the Connectionist Temporal Classification Loss. In this tutorial, we introduce the Transducer loss, and the components of this loss function that are constructed in the config file. This tutorial is a prerequisite to the `ASR_with_Transducers` tutorial.
 
-8) `Intro_to_Transducers`: Previous tutorials discuss ASR models in context of the Connectionist Temporal Classification Loss. In this tutorial, we introduce the Transducer loss, and the components of this loss function that are constructed in the config file. This tutorial is a prerequisite to the `ASR_with_Transducers` tutorial.
+8) `ASR_with_Transducers`: In this tutorial, we take a deep dive into Transducer based ASR models, discussing the similarity of setup and config to CTC models and then train a small ContextNet model on the AN4 dataset. We then discuss how to change the decoding strategy of a trained Transducer from greedy search to beam search. Finally, we wrap up this tutorial by extraining the alignment matrix from a trained Transducer model. 
 
-9) `ASR_with_Transducers`: In this tutorial, we take a deep dive into Transducer based ASR models, discussing the similarity of setup and config to CTC models and then train a small ContextNet model on the AN4 dataset. We then discuss how to change the decoding strategy of a trained Transducer from greedy search to beam search. Finally, we wrap up this tutorial by extraining the alignment matrix from a trained Transducer model. 
+9) `Self_Supervised_Pre_Training`: It can often be difficult to obtain labeled data for ASR training. In this tutorial, we demonstrate how to pre-train a speech model in an unsupervised manner, and then fine-tune with CTC loss.
 
-10) `Self_Supervised_Pre_Training`: It can often be difficult to obtain labeled data for ASR training. In this tutorial, we demonstrate how to pre-train a speech model in an unsupervised manner, and then fine-tune with CTC loss.
+10) `Offline_ASR_with_VAD_for_CTC_models`: In this tutorial, we will demonstrate how to use offline VAD to extract speech segments and transcribe the speech segments with CTC models. This will help to exclude some non_speech utterances and could save computation resources by removing unnecessary input to the ASR system.
 
-11) `Offline_ASR_with_VAD_for_CTC_models`: In this tutorial, we will demonstrate how to use offline VAD to extract speech segments and transcribe the speech segments with CTC models. This will help to exclude some non_speech utterances and could save computation resources by removing unnecessary input to the ASR system.
+11) `Multilang_ASR`: We will learn how to work with existing checkpoints of multilingual ASR models and how to train new ones. It is possible to create a multilingual version of any ASR model that uses tokenizers. This notebook shows how to create a multilingual version of the small monolingual Conformer Transducer model.
 
-12) `Multilang_ASR`: We will learn how to work with existing checkpoints of multilingual ASR models and how to train new ones. It is possible to create a multilingual version of any ASR model that uses tokenizers. This notebook shows how to create a multilingual version of the small monolingual Conformer Transducer model.
-
-13) `ASR_Example_CommonVoice_Finetuning`: Learn how to fine-tune an ASR model using CommonVoice to a new alphabet, Esperanto. We walk through the data processing steps of MCV data using HuggingFace Datasets, preparation of the tokenizer, model and then setup fine-tuning.
+12) `ASR_Example_CommonVoice_Finetuning`: Learn how to fine-tune an ASR model using CommonVoice to a new alphabet, Esperanto. We walk through the data processing steps of MCV data using HuggingFace Datasets, preparation of the tokenizer, model and then setup fine-tuning.
 
 
 ----------------
