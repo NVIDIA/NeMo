@@ -125,7 +125,7 @@ def main(cfg) -> None:
 
     if cfg.model.peft.restore_from_path:
         model.load_adapters(cfg.model.peft.restore_from_path)
-    elif cfg.model.peft.restore_from_ckpt:
+    elif cfg.model.peft.restore_from_ckpt.checkpoint_dir and cfg.model.peft.restore_from_ckpt.checkpoint_name:
         peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
         checkpoint_path = os.path.join(
             cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name
