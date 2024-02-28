@@ -167,13 +167,13 @@ Key Features
      <p><a href="nemo/collections/asr/README.md">nemo/collections/asr/README.md</a></p>
    </details>
 
-   <details>
-     <summary open>Text to Speech</summary>
+   <details open>
+     <summary>Text to Speech</summary>
      <p><a href="nemo/collections/tts/README.md">nemo/collections/tts/README.md</a></p>
    </details>
 
-   <details>
-     <summary open>Computer Vision</summary>
+   <details open>
+     <summary>Computer Vision</summary>
      <p><a href="nemo/collections/vision/README.md">nemo/collections/vision/README.md</a></p>
    </details>
 
