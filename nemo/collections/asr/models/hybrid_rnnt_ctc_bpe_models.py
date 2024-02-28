@@ -349,7 +349,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 if all_hyp:
                     for beams_idx, beams in enumerate(all_hyp):
                         target = target_transcripts[sample_idx + beams_idx ]
-                        if target is not None and restore_pc:
+                        if target and restore_pc:
                             target_split_w = target.split()
                             wer_dist_min = 1000
                             min_pred_text = ""
