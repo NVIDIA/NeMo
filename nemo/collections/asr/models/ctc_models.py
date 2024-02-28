@@ -663,11 +663,17 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             logits, decoder_lengths=logits_len, return_hypotheses=trcfg.return_hypotheses,
         )
         if trcfg.return_hypotheses:
-            # See comment in
-            # ctc_greedy_decoding.py::GreedyCTCInfer::forward() to
-            # understand this idiom.
-            logits_cpu = torch.empty(logits.shape, dtype=logits.dtype, pin_memory=True)
-            logits_cpu.copy_(logits)
+            if logits.is_cuda:
+                # See comment in
+                # ctc_greedy_decoding.py::GreedyCTCInfer::forward() to
+                # understand this idiom.
+                logits_cpu = torch.empty(logits.shape,
+                                         dtype=logits.dtype,
+                                         device=torch.device("cpu"),
+                                         pin_memory=True)
+                logits_cpu.copy_(logits, non_blocking=True)
+            else:
+                logits_cpu = logits
             logits_len = logits_len.cpu()
             # dump log probs per file
             for idx in range(logits_cpu.shape[0]):

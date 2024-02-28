@@ -162,12 +162,19 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
             hypotheses = []
             # Process each sequence independently
 
-            # This two-liner is around twenty times faster than:
-            # `prediction_cpu_tensor = decoder_output.cpu()`
-            # cpu() does not use pinned memory, meaning that a slow pageable
-            # copy must be done instead.
-            prediction_cpu_tensor = torch.empty(decoder_output.shape, dtype=decoder_output.dtype, pin_memory=True)
-            prediction_cpu_tensor.copy_(decoder_output)
+            if decoder_output.is_cuda:
+                # This two-liner is around twenty times faster than:
+                # `prediction_cpu_tensor = decoder_output.cpu()`
+                # cpu() does not use pinned memory, meaning that a slow pageable
+                # copy must be done instead.
+                prediction_cpu_tensor = torch.empty(decoder_output.shape,
+                                                    dtype=decoder_output.dtype,
+                                                    device=torch.device("cpu"),
+                                                    pin_memory=True)
+                prediction_cpu_tensor.copy_(decoder_output, non_blocking=True)
+            else:
+                prediction_cpu_tensor = decoder_output
+
             if decoder_lengths is not None and isinstance(decoder_lengths, torch.Tensor):
                 # Before this change, self._greedy_decode_labels would copy
                 # each scalar from GPU to CPU one at a time, in the line:
