@@ -601,13 +601,18 @@ def generate_streaming(
 
     input_lengths = [t.shape[0] for t in input_tensors]
 
-    for cur_outputs in outputs:
-        output_lines_list = [
-            tokenizer.batch_decode(cur_outputs[b, :, input_lengths[b] :])
-            for b in range(len(cur_outputs))
-        ]
-        yield output_lines_list
-
+    final_output = None
+    for output in outputs:
+        for cur_outputs in output:
+            if cur_outputs is not None:
+                final_output = cur_outputs
+        break
+    assert(final_output is not None)
+    assert(final_output.shape[0] == len(input_texts))
+    for input_index in range(len(input_texts)):
+        output_line = tokenizer.batch_decode(final_output[input_index, :, input_lengths[input_index] :])
+        yield output_line
+        
 def unload(host_context: TensorrtLLMHostContext):
     """Frees the GPU resource from the TensorrtLLMHostContext and reset the host_context."""
     if host_context.executor is not None:
