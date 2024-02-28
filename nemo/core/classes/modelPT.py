@@ -809,8 +809,6 @@ class ModelPT(LightningModule, Model):
         """
         Propagates the model GUID to all submodules, recursively.
         """
-        if self._done_propagate_guid:
-            return
 
         def recursively_propagate_guid(module: "NeuralModule"):
             module.model_guid = self.model_guid
@@ -820,7 +818,6 @@ class ModelPT(LightningModule, Model):
         for _, _, module in self.named_nemo_modules():
             module.model_guid = self.model_guid
             recursively_propagate_guid(module)
-        self._done_propagate_guid = True
 
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
@@ -1652,7 +1649,6 @@ class ModelPT(LightningModule, Model):
             # Generate a unique uuid for the instance
             # also determine if the model is being restored or not, and preserve the path
             self.model_guid = str(uuid.uuid4())
-            self._done_propagate_guid = False
             if self._is_model_being_restored():
                 restore_path = appstate.model_restore_path
             else:
