@@ -536,9 +536,11 @@ class TensorRTLLM(ITritonDeployable):
                 task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
                 infer_input["task_ids"] = task_id[0]
 
-            outputs = self.forward(**infer_input, streaming=True)
-            for request_output in outputs:
-                yield {"outputs": cast_output(request_output, np.bytes_)}
+            partial_outputs = self.forward(**infer_input, streaming=True)
+            # On each request to this generator, run the model for one step and return a dict
+            # with full outputs generated until this step.
+            for output_texts in partial_outputs:
+                yield {"outputs": cast_output(output_texts, np.bytes_)}
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)

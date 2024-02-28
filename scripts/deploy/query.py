@@ -255,7 +255,7 @@ def query(argv):
             args.prompt = f.read()
 
     if args.enable_streaming:
-        output = query_llm_streaming(
+        output_generator = query_llm_streaming(
             url=args.url,
             model_name=args.model_name,
             prompts=[args.prompt],
@@ -269,12 +269,22 @@ def query(argv):
             task_id=args.task_id,
             init_timeout=args.init_timeout,
         )
+        # The query returns a generator that yields one array per model step,
+        # with the partial generated text in the last dimension. Print that partial text
+        # incrementally and compare it with all the text generated so far.
+        prev_output = ''
+        for output in output_generator:
+            cur_output = output[0][0]
+            if prev_output == '' or cur_output.startswith(prev_output):
+                print(cur_output[len(prev_output):], end='', flush=True)
+            else:
+                print("WARN: Partial output mismatch, restarting output...")
+                print(cur_output, end='', flush=True)
+            prev_output = cur_output
+        print()
 
-        print("output: ")
-        for o in output:
-            print(o)
     else:
-        output = query_llm(
+        outputs = query_llm(
             url=args.url,
             model_name=args.model_name,
             prompts=[args.prompt],
@@ -288,7 +298,7 @@ def query(argv):
             task_id=args.task_id,
             init_timeout=args.init_timeout,
         )
-        print("output: ", output)
+        print(outputs[0])
 
 
 if __name__ == '__main__':
