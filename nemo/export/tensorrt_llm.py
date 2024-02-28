@@ -476,6 +476,7 @@ class TensorRTLLM(ITritonDeployable):
         outputs = (Tensor(name="outputs", shape=(-1,), dtype=bytes),)
         return outputs
 
+    @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
