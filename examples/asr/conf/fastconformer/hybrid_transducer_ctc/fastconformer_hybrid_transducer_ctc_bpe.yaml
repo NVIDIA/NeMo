@@ -169,8 +169,19 @@ model:
       alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
 
   # The section which would contain the decoder and decoding configs of the auxiliary CTC decoder
+  ipl:
+    m_updates: 0
+    restore_pc: True # restore pc by comparing with already existing transcriptions if there are any
+    #for this option to work decoding strategy in aux_ctc should be "beam" and return_best_hypotheses False
+    manifest_filepath: ??? # path to unlabeled datasets 
+    dataset_weights: 1 # what part of the datasets to use default is 1 (whole dataset)
+    cache_manifest: ??? # where to keep generated pseudo-labels (optional)
+    dropout: 0.1 # dropout to change to after m_updates 
+    n_l_updates: 0 
+    p_cache: 0.2 # probability with which cache is updated
+  # The section which would contain the decoder and decoding configs of the auxiliary CTC decoder
   aux_ctc:
-    ctc_loss_weight: 0.3 # the weight used to combine the CTC loss with the RNNT loss
+    ctc_loss_weight: 0.4 # the weight used to combine the CTC loss with the RNNT loss
     use_cer: false
     ctc_reduction: 'mean_batch'
     decoder:
@@ -179,8 +190,12 @@ model:
       num_classes: -1
       vocabulary: []
     decoding:
-      strategy: "greedy"
-
+      strategy: "beam"
+      beam:
+        beam_size: 5
+        beam_alpha: 0.5
+        beam_beta: 1
+        return_best_hypothesis: False
   # config for InterCTC loss: https://arxiv.org/abs/2102.03216
   # specify loss weights and which layers to use for InterCTC
   # e.g., to reproduce the paper results, set loss_weights: [0.3]
