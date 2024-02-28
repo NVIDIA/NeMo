@@ -39,8 +39,8 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     python convert_nemo_llama_to_hf.py \
     --in-file /path/to/file.nemo or /path/to/extracted_folder \
     --out-file /path/to/pytorch_model.bin \
-    --hf-in-file /path/to/input_hf_folder \
-    --hf-out-file /path/to/output_hf_folder
+    --hf-in-path /path/to/input_hf_folder \
+    --hf-out-path /path/to/output_hf_folder
 
     Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Llama2 70b). 
     However this option makes the conversion script significantly slower.
