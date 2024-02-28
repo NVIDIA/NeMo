@@ -140,8 +140,8 @@ Key Features
 
    <details open>
      <summary>Model Parallelisms</summary>
-      When applicable, NeMo models take advantage of the latest possible distributed training techniques,
-      including parallelism strategies such as
+      <p>When applicable, NeMo models take advantage of the latest possible distributed training techniques,
+      including parallelism strategies such as</p>
       <ul>
         <li>data parallelism</li>
         <li>tensor parallelism</li>
