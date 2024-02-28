@@ -45,7 +45,7 @@ Latest News
 
   <details open>
 
-    <summary>LLM</summary>
+    <summary>Large Language Models</summary>
       <ul>
       <li>
       2023/12/06 `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_
@@ -61,6 +61,22 @@ Latest News
       </li>
       </ul>
 
+  </details>
+
+  <details>
+    <summary>Multimodal</summary>
+  </details>
+
+  <details>
+    <summary>Automatic Speech Recognition</summary>
+  </details>
+
+  <details>
+    <summary>Text To Speech</summary>
+  </details>
+
+  <details>
+    <summary>Computer Vision</summary>
   </details>
 
 
