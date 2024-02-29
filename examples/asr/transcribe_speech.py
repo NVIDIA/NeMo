@@ -371,7 +371,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             else:
                 from nemo.utils.timers import SimpleTimer
 
-                for _ in range(2):
+                for _ in range(5):
                     asr_model.full_timer = SimpleTimer()
                     asr_model.decoding.decoding.timer.reset()
                     asr_model.full_timer.start()
