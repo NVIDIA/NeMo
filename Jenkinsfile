@@ -2567,31 +2567,15 @@ pipeline {
         }
       }
       failFast true
-      parallel {
-        stage('L2: NMT Inference - PostLN') {
-            steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python nmt_transformer_infer.py \
-              --model=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
-              --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
-              --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
-              --target_lang en \
-              --source_lang de \
-              '
-            }
-        }
-        stage('L2: NMT Inference - Pre-LN') {
-            steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python nmt_transformer_infer.py \
-              --model=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
-              --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.test.src \
-              --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
-              --target_lang de \
-              --source_lang en \
-              '
-            }
-        }
+      steps {
+        sh 'cd examples/nlp/machine_translation && \
+        python nmt_transformer_infer.py \
+        --model=/home/TestData/nlp/nmt/toy_data/enes_v16k_s100k_6x6.nemo \
+        --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
+        --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+        --target_lang en \
+        --source_lang de \
+        '
       }
     }
 
@@ -2606,7 +2590,7 @@ pipeline {
       steps {
         sh "cd examples/nlp/machine_translation && \
         python enc_dec_nmt_finetune.py \
-        model_path=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+        model_path=/home/TestData/nlp/nmt/toy_data/enes_v16k_s100k_6x6.nemo \
         trainer.devices=[0] \
         ~trainer.max_epochs \
         model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
