@@ -49,49 +49,6 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     However this option makes the conversion script significantly slower.
 """
 
-#################
-### Utilities ###
-#################
-
-
-def force_cpu_model(cfg):
-    with open_dict(cfg):
-        # temporarily set to cpu
-        original_cpu_init = cfg.get('use_cpu_initialization', False)
-        if 'megatron_amp_O2' in cfg:
-            key = 'megatron_amp_O2'
-            original_amp_o2 = cfg.megatron_amp_O2
-        elif 'megatron_amp_02' in cfg:
-            key = 'megatron_amp_02'
-            original_amp_o2 = cfg.megatron_amp_02
-        else:
-            key, original_amp_o2 = None, None
-
-        # Set new values
-        cfg.use_cpu_initialization = True
-        if key is not None:
-            cfg[key] = False
-
-    # Setup restore dict
-    restore_dict = {'use_cpu_initialization': original_cpu_init}  # 'megatron_amp_O2': original_amp_o2
-    if key is not None:
-        restore_dict[key] = original_amp_o2
-
-    return cfg, restore_dict
-
-
-def restore_model_config(cfg, original_dict):
-    with open_dict(cfg):
-        for key, val in original_dict.items():
-            logging.info(f"Restoring model config key ({key}) from {cfg[key]} to original value of {val}")
-            cfg[key] = val
-    return cfg
-
-
-#################
-### Utilities ###
-#################
-
 
 def get_args():
     parser = ArgumentParser()
@@ -156,10 +113,6 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     model = MegatronGPTModel.restore_from(
         input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
     )
-
-    # Restore model config
-    restore_model_config(model.cfg, restore_dict)
-
     if precision is None:
         precision = model.cfg.precision
     if precision in [32, "32"]:
