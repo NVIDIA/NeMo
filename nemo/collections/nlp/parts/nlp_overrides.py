@@ -359,7 +359,8 @@ class NLPDDPStrategy(DDPStrategy):
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
-    def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+    # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
+    def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
         if (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -389,7 +390,7 @@ class NLPDDPStrategy(DDPStrategy):
                         new_state_dict[new_key] = checkpoint['state_dict'][key]
                     checkpoint['state_dict'] = new_state_dict
 
-            self.lightning_module.load_state_dict(checkpoint["state_dict"])
+            self.lightning_module.load_state_dict(checkpoint["state_dict"], strict=strict)
 
     def _fix_tensors_device(self, ckpt: Dict) -> Dict:
         """ Ensure checkpoint tensors are on the correct device."""
