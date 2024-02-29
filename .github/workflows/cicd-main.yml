@@ -577,6 +577,99 @@ jobs:
             exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results
             rm -rf examples/speaker_tasks/recognition/speaker_recognition_results
 
+  L2_Speaker_dev_run_Speaker_Diarization:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
+            model.diarizer.speaker_embeddings.model_path=titanet_large \
+            model.train_ds.batch_size=5 \
+            model.validation_ds.batch_size=5 \
+            model.train_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.validation_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/msdd_data.50step.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/msdd_data.50step.json \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results
+            rm -rf examples/speaker_tasks/diarization/speaker_diarization_results
+
+  L2_Speaker_dev_run_Speech_to_Label:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/speech_classification/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
+            exp_manager.exp_dir=examples/asr/speech_to_label_results
+            rm -rf examples/asr/speech_to_label_results
+
+  L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
+            diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.speaker_embeddings.parameters.save_embeddings=True \
+            diarizer.speaker_embeddings.parameters.window_length_in_sec=[1.5] \
+            diarizer.speaker_embeddings.parameters.shift_length_in_sec=[0.75] \
+            diarizer.speaker_embeddings.parameters.multiscale_weights=[1.0] \
+            diarizer.asr.model_path=QuartzNet15x5Base-En \
+            diarizer.asr.parameters.asr_based_vad=True \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results
+            rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results
 
 
 
