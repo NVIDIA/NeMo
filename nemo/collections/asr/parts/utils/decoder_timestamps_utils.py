@@ -21,9 +21,14 @@ import torch
 from omegaconf import OmegaConf
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
-from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCBPEDecoding,
+    CTCBPEDecodingConfig,
+    CTCDecoding,
+    CTCDecodingConfig,
+)
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
@@ -44,7 +49,7 @@ def if_none_get_default(param, default_value):
     return (param, default_value)[param is None]
 
 
-class WERBPE_TS(WERBPE):
+class WERBPE_TS(WER):
     """
     This is WERBPE_TS class that is modified for generating word_timestamps with logits.
     The functions in WER class is modified to save the word_timestamps whenever BPE token
@@ -430,10 +435,12 @@ class ASRDecoderTimeStamps:
         )
 
         with torch.cuda.amp.autocast():
-            transcript_logits_list = asr_model.transcribe(
-                self.audio_file_list, batch_size=self.asr_batch_size, logprobs=True
-            )
+            transcript_hyps_list = asr_model.transcribe(
+                self.audio_file_list, batch_size=self.asr_batch_size, return_hypotheses=True
+            )  # type: List[nemo_asr.parts.Hypothesis]
+            transcript_logits_list = [hyp.alignments for hyp in transcript_hyps_list]
             for idx, logit_np in enumerate(transcript_logits_list):
+                logit_np = logit_np.cpu().numpy()
                 uniq_id = get_uniqname_from_filepath(self.audio_file_list[idx])
                 if self.beam_search_decoder:
                     logging.info(
@@ -556,10 +563,12 @@ class ASRDecoderTimeStamps:
         )
 
         with torch.cuda.amp.autocast():
-            transcript_logits_list = asr_model.transcribe(
-                self.audio_file_list, batch_size=self.asr_batch_size, logprobs=True
-            )
+            transcript_hyps_list = asr_model.transcribe(
+                self.audio_file_list, batch_size=self.asr_batch_size, return_hypotheses=True
+            )  # type: List[nemo_asr.parts.Hypothesis]
+            transcript_logits_list = [hyp.alignments for hyp in transcript_hyps_list]
             for idx, logit_np in enumerate(transcript_logits_list):
+                log_prob = logit_np.cpu().numpy()
                 uniq_id = get_uniqname_from_filepath(self.audio_file_list[idx])
                 if self.beam_search_decoder:
                     logging.info(

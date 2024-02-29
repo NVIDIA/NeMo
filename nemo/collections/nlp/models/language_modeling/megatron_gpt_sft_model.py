@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset, GPTSFTPackedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
@@ -89,13 +89,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             if hasattr(self.cfg.data.test_ds, "metric"):
                 self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
 
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
+        # Set the profile start and end steps in the unit of global batach
+        if hasattr(self, '_nsys_profile_enabled'):
+            self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
+            self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
 
         self._reset_activation_checkpointing_args()
-        self._reset_sequence_parallelism_args()
         self.virtual_tokens = 0
 
     def setup_metric(self, data_cfg):
@@ -193,21 +192,14 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
-        if not self.cfg.get('mcore_gpt', False):
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                if isinstance(self.model, list):
-                    for i, module in enumerate(self.model):
-                        parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                        module.sync_initial_word_embeddings()
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-                else:
-                    self.model.sync_initial_word_embeddings()
+        self.initialize_last_rank_embeddings()
 
-        if self.cfg.get('transformer_engine', False):
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
         self.setup_complete = True
 
     def _build_dataset(self, data_cfg, is_train=True):
+        packed_sequence = data_cfg.get("packed_sequence", False)
         datasets = []
         # Determine if we are using a single dataset or a list of datasets.
         is_list_config = isinstance(data_cfg.file_names, ListConfig)
@@ -260,9 +252,18 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             )
             data_cfg.max_seq_length = self.cfg.max_position_embeddings
 
+        # TE requires that the first input dim is divisible by 8 and the second by 16 for fp8
+        # When using sequence parallel, sequence will further be split by TP size
+        pad_seq_length_to_mult = (
+            8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
+        )
+
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
             if self.cfg.data.get("chat", False):
                 dataset_cls = GPTSFTChatDataset
+            elif packed_sequence:
+                dataset_cls = GPTSFTPackedDataset
+                assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             else:
                 dataset_cls = GPTSFTDataset
             dataset = dataset_cls(
@@ -270,11 +271,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 tokenizer=self.tokenizer,
                 max_seq_length=data_cfg.max_seq_length,
                 min_seq_length=data_cfg.min_seq_length,
+                pad_seq_length_to_mult=pad_seq_length_to_mult,
                 add_bos=data_cfg.get('add_bos', False),
                 add_eos=data_cfg.get('add_eos', True),
                 add_sep=data_cfg.get('add_sep', False),
                 sep_id=self.sep_id,
-                max_num_samples=num_samples[0],
+                max_num_samples=num_samples[0] if not packed_sequence else None,
                 seed=data_cfg.get('seed', 1234),
                 label_key=data_cfg.get('label_key', 'answer'),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
@@ -298,9 +300,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 special_tokens=self.cfg.data.get(
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+                is_test=not is_train,
             )
             datasets.append(dataset)
         if is_train:
+            if packed_sequence:
+                num_train_samples_after_blend = sum(len(dataset) for dataset in datasets)
             dataset = BlendableDataset(
                 datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
             )
@@ -322,12 +327,21 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
         batch = next(dataloader_iter)
+
+        log_token_counts = self.cfg.get('log_token_counts', False)
+        if log_token_counts:
+            token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
+
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
         batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+        if log_token_counts:
+            self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
+            self.log('tokens_avg', token_count_avg, prog_bar=True, sync_dist=True, batch_size=1)
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -338,20 +352,22 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
-        self.model.config.no_sync_func = no_sync_func
-        self.model.config.grad_sync_func = grad_sync_func
-        self.model.config.param_sync_func = param_sync_func
+        for module in self.get_model_module_list():
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
 
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=data_iter,
-            model=[self.model],
+            forward_step_func=self.get_forward_output_and_loss_func(tuning=True),
+            data_iterator=self._make_data_iterator_list(data_iter),
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             seq_length=seq_length,
             micro_batch_size=get_micro_batch_size(),
+            first_val_step=first_val_step,
         )
 
         # only the last stages of the pipeline return losses
@@ -587,7 +603,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
-        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -810,7 +825,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()
-        self._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -823,7 +837,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def on_test_epoch_start(self):
         self._reset_activation_checkpointing_args()
-        self._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,

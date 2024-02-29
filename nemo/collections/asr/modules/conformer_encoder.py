@@ -610,7 +610,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 )
 
             # saving tensors if required for interctc loss
-            if self.is_access_enabled():
+            if self.is_access_enabled(getattr(self, "model_guid", None)):
                 if self.interctc_capture_at_layers is None:
                     self.interctc_capture_at_layers = self.access_cfg.get('interctc', {}).get('capture_layers', [])
                 if lth in self.interctc_capture_at_layers:
@@ -785,6 +785,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
         if att_context_size is not None:
             self.att_context_size = att_context_size
+
+        self.setup_streaming_params()
 
     def setup_streaming_params(
         self,
