@@ -53,6 +53,12 @@ from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimSta
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
+try:
+    from torch.cuda.amp.grad_scaler import _refresh_per_optimizer_state
+except ImportError:
+    # since PyTorch 2.3 the path has changed
+    from torch.amp.grad_scaler import _refresh_per_optimizer_state
+
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
@@ -1315,7 +1321,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     self._hysteresis_tracker = self.hysteresis
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
-        self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
+        self._per_optimizer_states = defaultdict(_refresh_per_optimizer_state)
 
     def state_dict(self):
         """
