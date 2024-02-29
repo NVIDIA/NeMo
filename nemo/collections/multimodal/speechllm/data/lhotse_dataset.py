@@ -355,6 +355,12 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     pass
                 else:
                     cut.question = self.question + ' ' + canary_text
+        audio_ratio = []
+        for id, cut in enumerate(cuts):
+            if hasattr(cut, "is_text_only") and cut.is_text_only:
+                audio_ratio.append(0.0)
+            else:
+                audio_ratio.append(1.0)
 
         collated_text_data = collate_text_data(
             cuts=cuts,
@@ -369,7 +375,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 "sample_ids": list(cuts.ids),
                 "audio_signal": audio,
                 "audio_signal_length": audio_lens,
-                "audio_ratio": torch.ones(audio.shape[0], dtype=torch.float32),
+                "audio_ratio": torch.FloatTensor(audio_ratio),
                 **collated_text_data,
             }
         )

@@ -1541,6 +1541,9 @@ class CrossAttendModularAudioGPTLoRAModel(ModularAudioGPTLoRAModel):
         )
         input_embeds = self._get_text_embeddings(input_ids, None).transpose(0, 1)
         encoder_input, extra_outputs = self.perception_cross_attn(encoded, encoded_len, input_embeds, input_lengths=input_length, return_mems=True)
+        if 'audio_ratio' in audio_batch:
+            audio_ratio = audio_batch['audio_ratio'][..., None, None]
+            encoder_input = encoder_input * audio_ratio + input_embeds * (1 - audio_ratio)
         if 'alpha_xattn' in extra_outputs:
             alpha_xattn = extra_outputs['alpha_xattn']
             self.log(

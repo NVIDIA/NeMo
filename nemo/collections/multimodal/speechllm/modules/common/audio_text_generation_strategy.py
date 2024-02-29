@@ -260,6 +260,7 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
             decoder_mems_list = self.extra_outputs.get('decoder_mems_list', None)
             if decoder_mems_list is not None:
                 decoder_mems_list = decoder_mems_list[:,:,:curr_context_length-1]
+            # need to use audio_ratio field if to support text-only decoding
             embeddings2use, self.extra_outputs = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use, input_embeds_hidden = self.input_embeds_hidden, decoder_mems_list=decoder_mems_list, input_lengths=tokens2use.squeeze(-1) != self.model.tokenizer.eos_id, return_mems=True)
             self.input_embeds_hidden = self.extra_outputs.get('input_embeds_hidden', None)
             embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use.transpose(0, 1), started)
