@@ -130,6 +130,7 @@ class FALCONDecoderLayerBuilder(DecoderLayerBuilder):
             tp_size=self.tensor_parallel,
             layer_id=self.layer_id,
             layernorm_epsilon=1e-5,
+            max_lora_rank=layer.max_lora_rank,
         )
 
         return flayer
