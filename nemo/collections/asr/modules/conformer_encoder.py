@@ -437,6 +437,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         )
         # will be set in self.forward() if defined in AccessMixin config
         self.interctc_capture_at_layers = None
+
     def set_dropout(self, dropout):
         for layer in self.layers:
             layer.set_dropout(dropout)

@@ -73,6 +73,7 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
         self._max_cache_len = max_cache_len
+
     def set_dropout(self, dropout):
         self.dropout.p = dropout
 
@@ -198,6 +199,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
     def set_dropout(self, dropout):
         self.dropout.p = dropout
+
     def forward(self, query, key, value, mask, pos_emb, cache=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
         Args:
@@ -307,6 +309,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
 
     def set_dropout(self, dropout):
         self.dropout.p = dropout
+
     def forward(self, query, key, value, pad_mask, pos_emb, cache=None):
         """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks
         Args:

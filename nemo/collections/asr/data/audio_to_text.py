@@ -245,14 +245,13 @@ def cache_datastore_manifests(
     """
     if isinstance(manifest_filepaths, str):
         manifest_filepaths = manifest_filepaths.split(',')
-    #added supportt for chaching manifests for pseudo labeling
+    # added supportt for chaching manifests for pseudo labeling
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         torch.distributed.barrier()
         if torch.distributed.get_world_size() > 1:
-            all_manifests =  [None]  * torch.distributed.get_world_size()
+            all_manifests = [None] * torch.distributed.get_world_size()
             torch.distributed.all_gather_object(all_manifests, manifest_filepaths)
-            manifest_filepaths = set([file for manifests in all_manifests for file  in manifests])
-    
+            manifest_filepaths = set([file for manifests in all_manifests for file in manifests])
 
     num_datastore_manifests = sum([is_datastore_path(f) for f in manifest_filepaths])
 

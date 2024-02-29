@@ -13,16 +13,16 @@
 # limitations under the License.
 
 import copy
+import json
 import os
+import tempfile
 from typing import Dict, List, Optional, Union
 
-import torch
-import json
-import tempfile
-from tqdm import tqdm
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 import editdistance
+import torch
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from tqdm import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
@@ -34,10 +34,10 @@ from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTC
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
+from nemo.collections.asr.parts.utils.ipl_utils import *
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-from nemo.collections.asr.parts.utils.ipl_utils import *
 
 
 class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
@@ -93,11 +93,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 )
             )
             cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
-        
+
         if cfg.get("ipl", None):
             with open_dict(cfg.ipl):
-                cfg.ipl.num_all_files, cfg.ipl.num_cache_files = count_files_for_pseudo_labeling(cfg.ipl.manifest_filepath,
-                                                                                        cfg.ipl.get('dataset_weights', None))
+                cfg.ipl.num_all_files, cfg.ipl.num_cache_files = count_files_for_pseudo_labeling(
+                    cfg.ipl.manifest_filepath, cfg.ipl.get('dataset_weights', None)
+                )
                 if not cfg.ipl.get("cache_manifest", None):
                     cfg.ipl.cache_manifest = "/tmp/manifest_pseudo_labeled.json"
 
@@ -191,7 +192,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         )
 
     def on_train_epoch_end(self):
-        
+
         """
         This function is mainly used for iterative pseudo labeling algorithm.
         To make it work in config file 'ipl' parameters should be provided.
@@ -208,8 +209,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             data, hypotheses = self.update_cache_hypotheses()
             torch.distributed.barrier()
 
-            gathered_hypotheses = [None]  * torch.distributed.get_world_size()
-            gathered_data = [None]  * torch.distributed.get_world_size()
+            gathered_hypotheses = [None] * torch.distributed.get_world_size()
+            gathered_data = [None] * torch.distributed.get_world_size()
             torch.distributed.all_gather_object(gathered_data, data)
             torch.distributed.all_gather_object(gathered_hypotheses, hypotheses)
 
@@ -217,12 +218,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 write_cache_manifest(self.cfg.ipl.cache_manifest, gathered_hypotheses, gathered_data)
             torch.distributed.barrier()
 
-            self.encoder.set_dropout(self.cfg.ipl.dropout)            
+            self.encoder.set_dropout(self.cfg.ipl.dropout)
             self.cfg.ipl.m_updates -= 1
             needs_update = False
         if self.cfg.ipl.m_updates == -1 and self.cfg.ipl.n_l_updates > 0:
             self.cfg.ipl.n_l_updates -= 1
-        else: 
+        else:
             if needs_update:
                 data, hypotheses = self.update_cache_hypotheses(False)
                 torch.distributed.barrier()
@@ -234,17 +235,17 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 if torch.distributed.get_rank() == 0:
                     write_cache_manifest(self.cfg.ipl.cache_manifest, gathered_hypotheses, all_random_samples, False)
                 torch.distributed.barrier()
-            
+
             if self.cfg.ipl.n_l_updates == 0:
                 if isinstance(self.cfg.train_ds.manifest_filepath, str):
                     self.cfg.train_ds.manifest_filepath = [self.cfg.train_ds.manifest_filepath]
                     self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
                 else:
                     self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
-           
+
                 self.cfg.ipl.n_l_updates -= 1
                 self.trainer.reload_dataloaders_every_n_epochs = 1
-   
+
             self.setup_training_data(self.cfg.train_ds)
 
     def update_cache_hypotheses(self, update_whole_cache=True):
@@ -262,9 +263,13 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         whole_pseudo_data = []
         update_data = []
 
-        manifest_paths =  [self.cfg.ipl.manifest_filepath] if isinstance(self.cfg.ipl.manifest_filepath, str) else self.cfg.ipl.manifest_filepath 
+        manifest_paths = (
+            [self.cfg.ipl.manifest_filepath]
+            if isinstance(self.cfg.ipl.manifest_filepath, str)
+            else self.cfg.ipl.manifest_filepath
+        )
         dataset_weights = self.cfg.ipl.get("dataset_weights", [1] * len(manifest_paths))
-        if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List) :
+        if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List):
             dataset_weights = [float(dataset_weights)]
 
         for idx, manifest_path in enumerate(manifest_paths):
@@ -281,21 +286,23 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                     json.dump(data_entry, temp_manifest, ensure_ascii=False)
                     temp_manifest.write('\n')
 
-            hypotheses = self.generate_pseudo_labels(temporary_manifest,
-                                                    target_transcripts=transcriptions, 
-                                                    restore_pc=self.cfg.ipl.restore_pc,
-                                                    batch_size = self.cfg.train_ds.batch_size,
-                                                    num_workers=self.cfg.train_ds.num_workers,
-                                                    )
+            hypotheses = self.generate_pseudo_labels(
+                temporary_manifest,
+                target_transcripts=transcriptions,
+                restore_pc=self.cfg.ipl.restore_pc,
+                batch_size=self.cfg.train_ds.batch_size,
+                num_workers=self.cfg.train_ds.num_workers,
+            )
             return update_data, hypotheses
-    
+
     def generate_pseudo_labels(
         self,
         cache_manifest: str,
         batch_size: int = 4,
         num_workers: int = 4,
         restore_pc: bool = True,
-        target_transcripts: List[str] = None):
+        target_transcripts: List[str] = None,
+    ):
         """
         Generates pseudo labels for unlabeled data.
         Args:
@@ -328,32 +335,32 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             'channel_selector': None,
             'use_start_end_token': False,
         }
-        
+
         dataloader = self._setup_pseudo_label_dataloader_from_config(dl_config)
 
         self.preprocessor.featurizer.dither = 0.0
         self.preprocessor.featurizer.pad_to = 0
         sample_idx = 0
-        
+
         for test_batch in tqdm(dataloader, desc="Transcribing"):
             encoded, encoded_len = self.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
-            
+
             logits = self.ctc_decoder(encoder_output=encoded)
             logits = logits.cpu()
             if self.cfg.aux_ctc.decoding.strategy == "beam":
                 best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-                logits, encoded_len, return_hypotheses=True,
+                    logits, encoded_len, return_hypotheses=True,
                 )
                 if all_hyp:
                     for beams_idx, beams in enumerate(all_hyp):
-                        target = target_transcripts[sample_idx + beams_idx ]
+                        target = target_transcripts[sample_idx + beams_idx]
                         if target and restore_pc:
                             target_split_w = target.split()
                             wer_dist_min = 1000
                             min_pred_text = ""
-                            for _, candidate in enumerate(beams): 
+                            for _, candidate in enumerate(beams):
                                 print("will do pc restore")
                                 pred_text = candidate.text
                                 compare_text = pred_text
@@ -363,7 +370,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                                 if wer_dist < wer_dist_min:
                                     min_pred_text = pred_text
-                                    wer_dist_min =  wer_dist
+                                    wer_dist_min = wer_dist
                             hypotheses.append(min_pred_text)
                         else:
                             hypotheses.append(best_hyp[beams_idx].text)
@@ -372,7 +379,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                     hypotheses += [hyp.text for hyp in best_hyp]
             else:
                 best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-                logits, encoded_len, return_hypotheses=False,)
+                    logits, encoded_len, return_hypotheses=False,
+                )
                 hypotheses += best_hyp
             del logits
             del encoded
@@ -385,12 +393,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.encoder.unfreeze()
         self.decoder.unfreeze()
         self.joint.unfreeze()
-  
+
         self.ctc_decoder.unfreeze()
         return hypotheses
-    
+
     def _setup_pseudo_label_dataloader_from_config(self, config: Dict):
-    
+
         dataset = audio_to_text_dataset.get_bpe_dataset(config=config, tokenizer=self.tokenizer, augmentor=None)
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
@@ -400,7 +408,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         else:
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
-        
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
@@ -410,6 +418,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
         )
+
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
