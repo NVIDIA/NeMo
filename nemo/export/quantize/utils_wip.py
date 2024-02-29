@@ -47,11 +47,11 @@ def temporary_directory():
     dist.barrier()
 
 
-def copy_artifacts(model, output_dir: str):
-    """Copy all model artifacts to a given output directory and return modified config."""
+def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
+    """Save all model artifacts and tokenizer config to a given output directory."""
     app_state = AppState()
     model_file = app_state.model_restore_path
-    model_config = copy.deepcopy(model.cfg)
+    model_cfg = copy.deepcopy(model.cfg)
 
     # Setup model file handling context: directory or tarball
     if os.path.isfile(model_file):
@@ -66,11 +66,15 @@ def copy_artifacts(model, output_dir: str):
     # Copy or extract artifacts depending on the context
     with model_file_handler(**kwargs) as maybe_tar:
         for arti_name, arti_item in model.artifacts.items():
-            _, arti_file = arti_item.path.split("nemo:")
+            arti_file = arti_item.path.removeprefix("nemo:")
+            arti_path = os.path.join(output_dir, arti_name)
             if maybe_tar is not None:
                 maybe_tar.extract(f"./{arti_file}", path=output_dir)
+                os.rename(os.path.join(output_dir, arti_file), arti_path)
             else:
-                shutil.copy(os.path.join(model_file, arti_file), output_dir)
-            # Update artifact path to basename
-            OmegaConf.update(model_config, arti_name, os.path.basename(arti_file))
-    return model_config
+                shutil.copy(os.path.join(model_file, arti_file), arti_path)
+            # Store artifact path as basename by default. Otherwise save absolute path but bear in mind
+            # that in this case output directory should be permanent for correct artifact recovery later
+            arti_path = os.path.abspath(arti_path) if use_abspath else os.path.basename(arti_path)
+            OmegaConf.update(model_cfg, arti_name, arti_path)
+    OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))

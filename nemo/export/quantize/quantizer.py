@@ -32,7 +32,7 @@ from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-from .utils_wip import copy_artifacts, temporary_directory  # TODO: Find a good place for these utils
+from .utils_wip import save_artifacts, temporary_directory  # TODO: Find a good place for these utils
 
 QUANT_CFG_CHOICES = {
     "int8": atq.INT8_DEFAULT_CFG,
@@ -161,6 +161,5 @@ class Quantizer:
             if is_global_rank_zero():
                 logging.info(f"Exporting quantized weights, tokenizer config, and model artifacts to {output_file}...")
                 with tarfile.open(output_file, "w:gz") as tar:
-                    config = copy_artifacts(model, tmp_dir)
-                    OmegaConf.save(config.tokenizer, os.path.join(tmp_dir, "tokenizer_config.yaml"))
+                    save_artifacts(model, tmp_dir)
                     tar.add(tmp_dir, arcname="./")
