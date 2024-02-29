@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import copy
 import importlib
 import os
+import shutil
+import tarfile
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from functools import lru_cache
@@ -636,3 +639,36 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     checkpoint_dir = filepath.with_name(filepath.stem)
 
     return checkpoint_dir
+
+
+def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
+    """Save all model artifacts and tokenizer config to a given output directory."""
+    app_state = AppState()
+    model_file = app_state.model_restore_path
+    model_cfg = copy.deepcopy(model.cfg)
+
+    # Setup model file handling context: directory or tarball
+    if os.path.isfile(model_file):
+        model_file_handler = tarfile.open
+        kwargs = {"name": model_file, "mode": "r:"}
+    elif os.path.isdir(model_file):
+        model_file_handler = contextlib.nullcontext
+        kwargs = {}
+    else:
+        raise FileNotFoundError(model_file)
+
+    # Copy or extract artifacts depending on the context
+    with model_file_handler(**kwargs) as maybe_tar:
+        for arti_name, arti_item in model.artifacts.items():
+            _, arti_file = arti_item.path.split("nemo:")
+            arti_path = os.path.join(output_dir, arti_name)
+            if maybe_tar is not None:
+                maybe_tar.extract(f"./{arti_file}", path=output_dir)
+                os.rename(os.path.join(output_dir, arti_file), arti_path)
+            else:
+                shutil.copy(os.path.join(model_file, arti_file), arti_path)
+            # Store artifact path as basename by default. Otherwise save absolute path but bear in mind
+            # that in this case output directory should be permanent for correct artifact recovery later
+            arti_path = os.path.abspath(arti_path) if use_abspath else os.path.basename(arti_path)
+            OmegaConf.update(model_cfg, arti_name, arti_path)
+    OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))

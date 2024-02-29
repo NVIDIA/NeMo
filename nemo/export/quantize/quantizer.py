@@ -30,9 +30,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
+from nemo.utils.distributed import temporary_directory
 from nemo.utils.get_rank import is_global_rank_zero
-
-from .utils_wip import save_artifacts, temporary_directory  # TODO: Find a good place for these utils
+from nemo.utils.model_utils import save_artifacts
 
 QUANT_CFG_CHOICES = {
     "int8": atq.INT8_DEFAULT_CFG,
