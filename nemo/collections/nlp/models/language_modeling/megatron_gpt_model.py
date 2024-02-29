@@ -43,7 +43,6 @@ from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec i
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
     get_gpt_full_te_layer_autocast_spec,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.model_specs import get_gpt_layer_ammo_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron.model_specs import get_gpt_layer_ammo_spec
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
