@@ -534,29 +534,30 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
                 int specifying the number of rnn layers.
 
             Optionally, it may also contain the following:
-            forget_gate_bias:
-                float, set by default to 1.0, which constructs a forget gate
-                initialized to 1.0.
-                Reference:
-                [An Empirical Exploration of Recurrent Network Architectures](http://proceedings.mlr.press/v37/jozefowicz15.pdf)
 
-            t_max:
-                int value, set to None by default. If an int is specified, performs Chrono Initialization
-                of the LSTM network, based on the maximum number of timesteps `t_max` expected during the course
-                of training.
-                Reference:
-                [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
+                forget_gate_bias:
+                    float, set by default to 1.0, which constructs a forget gate
+                    initialized to 1.0.
+                    Reference:
+                    [An Empirical Exploration of Recurrent Network Architectures](http://proceedings.mlr.press/v37/jozefowicz15.pdf)
 
-            weights_init_scale:
-                Float scale of the weights after initialization. Setting to lower than one
-                sometimes helps reduce variance between runs.
+                t_max:
+                    int value, set to None by default. If an int is specified, performs Chrono Initialization
+                    of the LSTM network, based on the maximum number of timesteps `t_max` expected during the course
+                    of training.
+                    Reference:
+                    [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
 
-            hidden_hidden_bias_scale:
-                Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
-                the default behaviour.
+                weights_init_scale:
+                    Float scale of the weights after initialization. Setting to lower than one
+                    sometimes helps reduce variance between runs.
 
-            dropout:
-                float, set to 0.0 by default. Optional dropout applied at the end of the final LSTM RNN layer.
+                hidden_hidden_bias_scale:
+                    Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+                    the default behaviour.
+
+                dropout:
+                    float, set to 0.0 by default. Optional dropout applied at the end of the final LSTM RNN layer.
 
         vocab_size: int, specifying the vocabulary size of the embedding layer of the Prediction network,
             excluding the RNNT blank token.
@@ -1209,14 +1210,21 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
             When the flag is set, the input and output signature of `forward()` of this method changes.
             Input - in addition to `encoder_outputs` (mandatory argument), the following arguments can be provided.
+
                 - decoder_outputs (optional). Required if loss computation is required.
+
                 - encoder_lengths (required)
+
                 - transcripts (optional). Required for wer calculation.
+
                 - transcript_lengths (optional). Required for wer calculation.
+
                 - compute_wer (bool, default false). Whether to compute WER or not for the fused batch.
 
             Output - instead of the usual `joint` log prob tensor, the following results can be returned.
+
                 - loss (optional). Returned if decoder_outputs, transcripts and transript_lengths are not None.
+
                 - wer_numerator + wer_denominator (optional). Returned if transcripts, transcripts_lengths are provided
                     and compute_wer is set.
 
@@ -1791,14 +1799,21 @@ class SampledRNNTJoint(RNNTJoint):
 
             When the flag is set, the input and output signature of `forward()` of this method changes.
             Input - in addition to `encoder_outputs` (mandatory argument), the following arguments can be provided.
+
                 - decoder_outputs (optional). Required if loss computation is required.
+
                 - encoder_lengths (required)
+
                 - transcripts (optional). Required for wer calculation.
+
                 - transcript_lengths (optional). Required for wer calculation.
+
                 - compute_wer (bool, default false). Whether to compute WER or not for the fused batch.
 
             Output - instead of the usual `joint` log prob tensor, the following results can be returned.
+
                 - loss (optional). Returned if decoder_outputs, transcripts and transript_lengths are not None.
+
                 - wer_numerator + wer_denominator (optional). Returned if transcripts, transcripts_lengths are provided
                     and compute_wer is set.
 

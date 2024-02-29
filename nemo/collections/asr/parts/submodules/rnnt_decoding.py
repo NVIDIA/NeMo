@@ -960,7 +960,9 @@ class RNNTDecoding(AbstractRNNTDecoding):
         decoding_cfg: A dict-like object which contains the following key-value pairs.
             strategy: str value which represents the type of decoding that can occur.
                 Possible values are :
+
                 -   greedy, greedy_batch (for greedy decoding).
+
                 -   beam, tsd, alsd (for beam search decoding).
 
             compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
@@ -1007,35 +1009,46 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
 
-                    name: The method name (str).
+                    name:
+                        The method name (str).
                         Supported values:
+
                             - 'max_prob' for using the maximum token probability as a confidence.
+
                             - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
-                    entropy_type: Which type of entropy to use (str).
+                    entropy_type:
+                        Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+
                             - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
                                 Note that for this entropy, the alpha should comply the following inequality:
                                 (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
                                 where V is the model vocabulary size.
+
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
+
                             - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                    alpha:
+                        Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
                         When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
-                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                    entropy_norm:
+                        A mapping of the entropy value to the interval [0,1].
                         Supported values:
+
                             - 'lin' for using the linear mapping.
+
                             - 'exp' for using exponential mapping with linear shift.
 
             The config may further contain the following sub-dictionaries:
@@ -1190,9 +1203,12 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
     Args:
         decoding_cfg: A dict-like object which contains the following key-value pairs.
-            strategy: str value which represents the type of decoding that can occur.
+            strategy:
+                str value which represents the type of decoding that can occur.
                 Possible values are :
+
                 -   greedy, greedy_batch (for greedy decoding).
+
                 -   beam, tsd, alsd (for beam search decoding).
 
             compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
@@ -1257,23 +1273,29 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
 
-                    name: The method name (str).
+                    name:
+                        The method name (str).
                         Supported values:
+
                             - 'max_prob' for using the maximum token probability as a confidence.
+
                             - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+
                             - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
                                 Note that for this entropy, the alpha should comply the following inequality:
                                 (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
                                 where V is the model vocabulary size.
+
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
+
                             - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
@@ -1285,7 +1307,9 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
+
                             - 'lin' for using the linear mapping.
+
                             - 'exp' for using exponential mapping with linear shift.
 
             The config may further contain the following sub-dictionaries:
