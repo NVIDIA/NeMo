@@ -192,12 +192,20 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             A tuple  (g, state) such that -
 
             If add_sos is False:
-                g: (B, U, D)
-                state: [(B, C)] storing the history context including the new words in y.
+
+                g:
+                    (B, U, D)
+
+                state:
+                    [(B, C)] storing the history context including the new words in y.
 
             If add_sos is True:
-                g: (B, U + 1, D)
-                state: [(B, C)] storing the history context including the new words in y.
+
+                g:
+                    (B, U + 1, D)
+
+                state:
+                    [(B, C)] storing the history context including the new words in y.
 
         """
         # Get device and dtype of current module
@@ -309,17 +317,17 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """
         Create batch of decoder states.
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([(B, H)])
+        Args:
+            batch_states (list): batch of decoder states
+                ([(B, H)])
 
-           decoder_states (list of list): list of decoder states
-               [B x ([(1, C)]]
+            decoder_states (list of list): list of decoder states
+                [B x ([(1, C)]]
 
-       Returns:
-           batch_states (tuple): batch of decoder states
-               ([(B, C)])
-       """
+        Returns:
+            batch_states (tuple): batch of decoder states
+                ([(B, C)])
+        """
         new_state = torch.stack([s[0] for s in decoder_states])
 
         return [new_state]
@@ -405,7 +413,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         Returns:
             batch of decoder states with partial copy at ids (or a specific value).
-                (B x C)
+            (B x C)
         """
 
         if value is None:
@@ -445,7 +453,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             Returns a tuple (b_y, b_states, lm_tokens) such that:
             b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
             b_state is a list of list of RNN states, each of shape [L, B, H].
-                Represented as B x List[states].
+            Represented as B x List[states].
             lm_token is a list of the final integer tokens of the hypotheses in the batch.
         """
         final_batch = len(hypotheses)
@@ -518,24 +526,37 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     Args:
         prednet: A dict-like object which contains the following key-value pairs.
-            pred_hidden: int specifying the hidden dimension of the prediction net.
-            pred_rnn_layers: int specifying the number of rnn layers.
+
+            pred_hidden:
+                int specifying the hidden dimension of the prediction net.
+
+            pred_rnn_layers:
+                int specifying the number of rnn layers.
 
             Optionally, it may also contain the following:
-            forget_gate_bias: float, set by default to 1.0, which constructs a forget gate
+            forget_gate_bias:
+                float, set by default to 1.0, which constructs a forget gate
                 initialized to 1.0.
                 Reference:
                 [An Empirical Exploration of Recurrent Network Architectures](http://proceedings.mlr.press/v37/jozefowicz15.pdf)
-            t_max: int value, set to None by default. If an int is specified, performs Chrono Initialization
+
+            t_max:
+                int value, set to None by default. If an int is specified, performs Chrono Initialization
                 of the LSTM network, based on the maximum number of timesteps `t_max` expected during the course
                 of training.
                 Reference:
                 [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
-            weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
+
+            weights_init_scale:
+                Float scale of the weights after initialization. Setting to lower than one
                 sometimes helps reduce variance between runs.
-            hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+
+            hidden_hidden_bias_scale:
+                Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
                 the default behaviour.
-            dropout: float, set to 0.0 by default. Optional dropout applied at the end of the final LSTM RNN layer.
+
+            dropout:
+                float, set to 0.0 by default. Optional dropout applied at the end of the final LSTM RNN layer.
 
         vocab_size: int, specifying the vocabulary size of the embedding layer of the Prediction network,
             excluding the RNNT blank token.
@@ -690,16 +711,27 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             A tuple  (g, hid) such that -
 
             If add_sos is False:
-                g: (B, U, H)
-                hid: (h, c) where h is the final sequence hidden state and c is the final cell state:
-                    h (tensor), shape (L, B, H)
-                    c (tensor), shape (L, B, H)
+
+                g:
+                    (B, U, H)
+
+                hid:
+                    (h, c) where h is the final sequence hidden state and c is the final cell state:
+
+                        h (tensor), shape (L, B, H)
+
+                        c (tensor), shape (L, B, H)
 
             If add_sos is True:
-                g: (B, U + 1, H)
-                hid: (h, c) where h is the final sequence hidden state and c is the final cell state:
-                    h (tensor), shape (L, B, H)
-                    c (tensor), shape (L, B, H)
+                g:
+                    (B, U + 1, H)
+
+                hid:
+                    (h, c) where h is the final sequence hidden state and c is the final cell state:
+
+                        h (tensor), shape (L, B, H)
+
+                        c (tensor), shape (L, B, H)
 
         """
         # Get device and dtype of current module
@@ -815,8 +847,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         Returns:
             Tuple of 2 tensors, each of shape [L, B, H], where
+
                 L = Number of RNN layers
+
                 B = Batch size
+
                 H = Hidden size of RNN.
         """
         batch = y.size(0)
@@ -902,7 +937,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             Returns a tuple (b_y, b_states, lm_tokens) such that:
             b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
             b_state is a list of list of RNN states, each of shape [L, B, H].
-                Represented as B x List[states].
+            Represented as B x List[states].
             lm_token is a list of the final integer tokens of the hypotheses in the batch.
         """
         final_batch = len(hypotheses)
@@ -1139,7 +1174,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
             pred_hidden: int specifying the hidden dimension of the prediction net.
             joint_hidden: int specifying the hidden dimension of the joint net
             activation: Activation function used in the joint step. Can be one of
-                ['relu', 'tanh', 'sigmoid'].
+            ['relu', 'tanh', 'sigmoid'].
 
             Optionally, it may also contain the following:
             dropout: float, set to 0.0 by default. Optional dropout applied at the end of the joint net.
@@ -1717,7 +1752,7 @@ class SampledRNNTJoint(RNNTJoint):
             pred_hidden: int specifying the hidden dimension of the prediction net.
             joint_hidden: int specifying the hidden dimension of the joint net
             activation: Activation function used in the joint step. Can be one of
-                ['relu', 'tanh', 'sigmoid'].
+            ['relu', 'tanh', 'sigmoid'].
 
             Optionally, it may also contain the following:
             dropout: float, set to 0.0 by default. Optional dropout applied at the end of the joint net.
