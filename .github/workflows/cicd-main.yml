@@ -437,7 +437,7 @@ jobs:
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results
             rm -rf examples/asr/speech_to_text_wpe_conformer_results
 
-   # L2: ASR dev run - part two
+  # L2: ASR dev run - part two
   ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
@@ -469,3 +469,115 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_squeezeformer_results
             rm -rf examples/asr/speech_to_text_wpe_squeezeformer_results
+
+  L2_Speech_to_Text_EMA:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/asr_ctc/speech_to_text_ctc.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.devices=2 \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            +exp_manager.ema.enable=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results
+            rm -rf examples/asr/speech_to_text_results
+
+  L2_Speech_to_Text_AED:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/speech_multitask/speech_to_text_aed.py \
+            model.prompt_format=canary \
+            model.model_defaults.asr_enc_hidden=256 \
+            model.model_defaults.lm_dec_hidden=256 \
+            model.encoder.n_layers=12 \
+            model.transf_encoder.num_layers=0 \
+            model.transf_decoder.config_dict.num_layers=12 \
+            model.train_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_train.json \
+            ++model.train_ds.is_tarred=false \
+            model.train_ds.batch_duration=60 \
+            +model.train_ds.text_field="answer" \
+            +model.train_ds.lang_field="target_lang" \
+            model.validation_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_val.json \
+            +model.validation_ds.text_field="answer" \
+            +model.validation_ds.lang_field="target_lang" \
+            model.test_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_val.json \
+            +model.test_ds.text_field="answer" \
+            +model.test_ds.lang_field="target_lang" \
+            model.tokenizer.langs.spl_tokens.dir=/home/TestData/asr_tokenizers/canary/canary_spl_tokenizer_v32 \
+            model.tokenizer.langs.spl_tokens.type="bpe" \
+            model.tokenizer.langs.en.dir=/home/TestData/asr_tokenizers/canary/en/tokenizer_spe_bpe_v1024_max_4 \
+            model.tokenizer.langs.en.type=bpe \
+            ++model.tokenizer.langs.es.dir=/home/TestData/asr_tokenizers/canary/es/tokenizer_spe_bpe_v1024_max_4 \
+            ++model.tokenizer.langs.es.type=bpe \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.use_distributed_sampler=false \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_aed_results
+            rm -rf examples/asr/speech_to_text_results
+
+
+  # L2: Speaker dev run
+  L2_Speaker_dev_run_Speaker_Recognition:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/speaker_tasks/recognition/speaker_reco.py \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=2 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.decoder.num_classes=2 \
+            trainer.max_epochs=10 \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results
+            rm -rf examples/speaker_tasks/recognition/speaker_recognition_results
+
+
+
+
+
