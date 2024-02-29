@@ -306,6 +306,7 @@ jobs:
             rm -rf examples/asr/speech_to_text_wpe_results
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
+    needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
       image: localhost:5000/nemo_container
