@@ -601,12 +601,30 @@ def generate_streaming(
 
     input_lengths = [t.shape[0] for t in input_tensors]
 
-    for cur_outputs in outputs:
-        output_lines_list = [
-            tokenizer.batch_decode(cur_outputs[b, :, input_lengths[b] :])
-            for b in range(len(cur_outputs))
-        ]
-        yield output_lines_list
+    # 'outputs' is a generator that yields one generator, not sure why... Unwrap that.
+    for output in outputs:
+        # Now iterate over the partial outputs, decode and yield each intermediate result.
+        generated_tokens = 0
+        for partial_outputs in output:
+            if partial_outputs is None:
+                break
+            # partial_outputs is a tensor with shape=(len(input_texts), 1, output_length),
+            # where the last dimension contains a progressively increasing number of valid, generated tokens.
+            assert(partial_outputs.shape[0] == len(input_texts))
+            outputs = []
+            generated_tokens += 1
+
+            # For each input in the batch...
+            for input_index in range(len(input_texts)):
+                # Extract the generated part of the output tensor and decode it.
+                input_length = input_lengths[input_index]
+                decoded_output = tokenizer.batch_decode(partial_outputs[input_index, :, input_length : input_length + generated_tokens])[0]
+                outputs.append(decoded_output)
+
+            # Yield the list of decoded partial responses.
+            yield outputs
+        # See above - 'outputs' yields just one item.
+        break
 
 def unload(host_context: TensorrtLLMHostContext):
     """Frees the GPU resource from the TensorrtLLMHostContext and reset the host_context."""
