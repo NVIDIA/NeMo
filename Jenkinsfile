@@ -428,7 +428,7 @@ pipeline {
         }
         stage('Baichuan2') {
           steps {
-            sh 'python scripts/nlp_language_modeling/convert_baichuan2_hf_to_nemo.py \
+            sh 'python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
             --in-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
             --out-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
