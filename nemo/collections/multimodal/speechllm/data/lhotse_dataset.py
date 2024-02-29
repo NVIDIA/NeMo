@@ -337,6 +337,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         audio, audio_lens, cuts = self.load_audio(cuts)
 
         return_batch = {}
+        audio_ratio = []
+        for id, cut in enumerate(cuts):
+            if hasattr(cut, "is_text_only") and cut.is_text_only:
+                audio_ratio.append(0.0)
+            else:
+                audio_ratio.append(1.0)
+
         if self.canary_processor != None:
             is_canary_tokens_augment = torch.rand(1) < self.canary_tokens_augment_ratio
             _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
@@ -349,18 +356,14 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(
                     canary_tokens[id][: self.context_len_for_AR_decoding].tolist()
                 )
-                if self.convert_canary_prompt_to_text:
+                if audio_ratio[id] == 0.0:
+                    assert hasattr(cut, "question")
+                elif self.convert_canary_prompt_to_text:
                     cut.question = convert_canary_prompt_to_text(canary_text, is_canary_tokens_augment)
                 elif hasattr(cut, "question"):
                     pass
                 else:
                     cut.question = self.question + ' ' + canary_text
-        audio_ratio = []
-        for id, cut in enumerate(cuts):
-            if hasattr(cut, "is_text_only") and cut.is_text_only:
-                audio_ratio.append(0.0)
-            else:
-                audio_ratio.append(1.0)
 
         collated_text_data = collate_text_data(
             cuts=cuts,
