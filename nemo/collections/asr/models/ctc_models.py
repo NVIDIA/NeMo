@@ -667,10 +667,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 # See comment in
                 # ctc_greedy_decoding.py::GreedyCTCInfer::forward() to
                 # understand this idiom.
-                logits_cpu = torch.empty(logits.shape,
-                                         dtype=logits.dtype,
-                                         device=torch.device("cpu"),
-                                         pin_memory=True)
+                logits_cpu = torch.empty(logits.shape, dtype=logits.dtype, device=torch.device("cpu"), pin_memory=True)
                 logits_cpu.copy_(logits, non_blocking=True)
             else:
                 logits_cpu = logits
