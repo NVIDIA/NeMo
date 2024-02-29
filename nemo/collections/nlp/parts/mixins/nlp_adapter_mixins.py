@@ -486,7 +486,7 @@ class NLPAdapterModelMixin:
         """
 
         peft_cfg = cls.restore_from(path, return_config=True)
-        if peft_cfg.peft.peft_scheme not in [None, 'none']:
+        if hasattr(peft_cfg, 'peft') and peft_cfg.peft.peft_scheme not in [None, 'none']:
             # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
             for p in ['tensor_model_parallel_size', 'pipeline_model_parallel_size']:
                 assert peft_cfg.get(p) == cfg.model.get(
