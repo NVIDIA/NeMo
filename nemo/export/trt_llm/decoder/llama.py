@@ -145,6 +145,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                     rotary_base=layer.rotary_base,
                     rotary_scaling=rotary_scaling,
                     moe_config=moe_config,
+                    max_lora_rank=layer.max_lora_rank
                 )
         else:
             config = PretrainedConfig(
