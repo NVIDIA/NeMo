@@ -121,6 +121,7 @@ class TranscriptionConfig:
     ] = None  # Used to select a single channel from multichannel audio, or use average across channels
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
+    presort_manifest: bool = True  # Significant inference speedup on short-form data due to padding reduction
 
     # General configs
     output_filename: Optional[str] = None

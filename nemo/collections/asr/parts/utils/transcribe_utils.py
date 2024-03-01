@@ -284,8 +284,19 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
 
         with open(cfg.dataset_manifest, 'r', encoding='utf_8') as f:
             has_two_fields = []
-            for line in f:
-                item = json.loads(line)
+
+            if cfg.presort_manifest:
+                # We pre-load the manifest into CPU RAM below to check whether duration data is available
+                # and sort it descendingly for a significant inference speedup.
+                # Descending sort is preferred to present the largest possible mini-batch to the model
+                # at the very beginning to fail fast on OOM and pre-allocate max GPU memory needed.
+                items = [json.loads(l) for l in f]
+                if all("duration" in item for item in items):
+                    items = sorted(items, reverse=True, key=lambda item: item["duration"])
+            else:
+                items = (json.loads(l) for l in f)
+
+            for item in items:
                 if "offset" in item and "duration" in item:
                     has_two_fields.append(True)
                 else:
