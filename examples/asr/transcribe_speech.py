@@ -135,6 +135,7 @@ class TranscriptionConfig:
     batch_duration: float | None = None
     use_bucketing: bool = False
     num_buckets: int = 30
+    bucket_buffer_size: int = 20000
     quadratic_duration: float | None = 15.0
 
     # Set to True to output greedy timestamp information (only supported models)
@@ -385,6 +386,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     quadratic_duration=cfg.quadratic_duration,
                     use_bucketing=cfg.use_bucketing,
                     num_buckets=cfg.num_buckets,
+                    bucket_buffer_size=cfg.bucket_buffer_size,
                     num_workers=cfg.num_workers,
                     return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,

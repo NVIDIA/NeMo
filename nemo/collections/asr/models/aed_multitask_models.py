@@ -856,7 +856,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         batching_conf = {
             k: v
             for k, v in config.items()
-            if k in {"batch_size", "batch_duration", "use_bucketing", "num_buckets", "quadratic_duration"}
+            if k
+            in {
+                "batch_size",
+                "batch_duration",
+                "use_bucketing",
+                "num_buckets",
+                "quadratic_duration",
+                "bucket_buffer_size",
+            }
         }
         dl_config = {
             **batching_conf,

@@ -67,6 +67,7 @@ class TranscribeConfig:
     use_bucketing: bool = False
     num_buckets: int = 30
     quadratic_duration: float | None = 15.0
+    bucket_buffer_size: int = 20000
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = False
