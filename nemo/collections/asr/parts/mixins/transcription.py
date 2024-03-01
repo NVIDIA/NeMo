@@ -17,7 +17,7 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -54,12 +54,19 @@ class InternalTranscribeConfig:
 
 @dataclass
 class TranscribeConfig:
-    batch_size: int = 4
+    batch_size: int | None = 4
     return_hypotheses: bool = False
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
     verbose: bool = True
+
+    # Dynamic batch size and bucketing settings using lhotse
+    use_lhotse: bool = False
+    batch_duration: float | None = None
+    use_bucketing: bool = False
+    num_buckets: int = 30
+    quadratic_duration: float | None = 15.0
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = False
@@ -708,9 +715,16 @@ class ASRTranscriptionMixin(TranscriptionMixin):
                         "Only `str` (path to audio file) or `dict` are supported as input."
                     )
 
+        batching_conf = {
+            k: v
+            for k, v in asdict(trcfg).items()
+            if k
+            in {"batch_size", "batch_duration", "use_lhotse", "use_bucketing", "num_buckets", "quadratic_duration"}
+        }
+
         ds_config = {
+            **batching_conf,
             'paths2audio_files': audio_files,
-            'batch_size': get_value_from_transcription_config(trcfg, 'batch_size', 4),
             'temp_dir': temp_dir,
             'num_workers': get_value_from_transcription_config(trcfg, 'num_workers', 0),
             'channel_selector': get_value_from_transcription_config(trcfg, 'channel_selector', None),

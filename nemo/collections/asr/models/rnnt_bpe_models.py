@@ -555,17 +555,25 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         """
         if 'manifest_filepath' in config:
             manifest_filepath = config['manifest_filepath']
-            batch_size = config['batch_size']
+            # batch_size = config['batch_size']
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+            # batch_size = min(config['batch_size'], len(config['paths2audio_files']))
 
+        batching_conf = {
+            k: v
+            for k, v in config.items()
+            if k
+            in {"batch_size", "batch_duration", "use_lhotse", "use_bucketing", "num_buckets", "quadratic_duration"}
+        }
         dl_config = {
+            **batching_conf,
             'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': batch_size,
+            # 'batch_size': batch_size,
             'shuffle': False,
-            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
+            # 'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
+            "num_workers": config['num_workers'],
             'pin_memory': True,
             'channel_selector': config.get('channel_selector', None),
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),

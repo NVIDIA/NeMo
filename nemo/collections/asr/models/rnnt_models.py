@@ -243,6 +243,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
+        **config_kwargs,
     ) -> TranscriptionReturnType:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -265,6 +266,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
+            **config_kwargs: (Optional[Dict]) additional arguments to override the default TranscribeConfig.
+                Note: If override_config is passed, these arguments will be ignored.
 
         Returns:
             Returns a tuple of 2 items -
@@ -282,6 +285,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             override_config=override_config,
             # Additional arguments
             partial_hypothesis=partial_hypothesis,
+            **config_kwargs,
         )
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):

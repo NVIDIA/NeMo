@@ -124,11 +124,18 @@ class TranscriptionConfig:
 
     # General configs
     output_filename: Optional[str] = None
-    batch_size: int = 32
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
+
+    # Dynamic batch size and bucketing settings using lhotse
+    use_lhotse: bool = False
+    batch_size: int | None = 32
+    batch_duration: float | None = None
+    use_bucketing: bool = False
+    num_buckets: int = 30
+    quadratic_duration: float | None = 15.0
 
     # Set to True to output greedy timestamp information (only supported models)
     compute_timestamps: bool = False
@@ -372,6 +379,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 transcriptions = asr_model.transcribe(
                     audio=filepaths,
                     batch_size=cfg.batch_size,
+                    batch_duration=cfg.batch_duration,
+                    use_lhotse=cfg.use_lhotse,
+                    quadratic_duration=cfg.quadratic_duration,
+                    use_bucketing=cfg.use_bucketing,
+                    num_buckets=cfg.num_buckets,
                     num_workers=cfg.num_workers,
                     return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,
