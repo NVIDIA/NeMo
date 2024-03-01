@@ -17,9 +17,9 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import dataclass
 from functools import partial
-from typing import Any, ClassVar, Dict, List, Optional, Protocol, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -54,20 +54,12 @@ class InternalTranscribeConfig:
 
 @dataclass
 class TranscribeConfig:
-    batch_size: int | None = 4
+    batch_size: int = 4
     return_hypotheses: bool = False
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
     verbose: bool = True
-
-    # Dynamic batch size and bucketing settings using lhotse
-    use_lhotse: bool = False
-    batch_duration: float | None = None
-    use_bucketing: bool = False
-    num_buckets: int = 30
-    quadratic_duration: float | None = 15.0
-    bucket_buffer_size: int = 20000
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = False
@@ -111,31 +103,6 @@ def get_value_from_transcription_config(trcfg, key, default):
             f"Using default value of {default} for {key} because it is not present in the transcription config {trcfg}."
         )
         return default
-
-
-class IsDataclass(Protocol):
-    """Typing hint for dataclass instances. Source: https://stackoverflow.com/a/55240861"""
-
-    __dataclass_fields__: ClassVar[dict[str, Any]]
-
-
-def get_batching_related_config_subset(trcfg: dict | IsDataclass) -> dict:
-    if is_dataclass(trcfg):
-        trcfg = asdict(trcfg)
-    return {
-        k: v
-        for k, v in trcfg.items()
-        if k
-        in {
-            "batch_size",
-            "batch_duration",
-            "use_lhotse",
-            "use_bucketing",
-            "num_buckets",
-            "quadratic_duration",
-            "bucket_buffer_size",
-        }
-    }
 
 
 class TranscriptionTensorDataset(Dataset):
@@ -743,10 +710,9 @@ class ASRTranscriptionMixin(TranscriptionMixin):
                         "Only `str` (path to audio file) or `dict` are supported as input."
                     )
 
-        batching_conf = get_batching_related_config_subset(trcfg)
         ds_config = {
-            **batching_conf,
             'paths2audio_files': audio_files,
+            'batch_size': get_value_from_transcription_config(trcfg, 'batch_size', 4),
             'temp_dir': temp_dir,
             'num_workers': get_value_from_transcription_config(trcfg, 'num_workers', 0),
             'channel_selector': get_value_from_transcription_config(trcfg, 'channel_selector', None),

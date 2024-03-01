@@ -31,11 +31,7 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, InterCTCMixin, TranscribeConfig
-from nemo.collections.asr.parts.mixins.transcription import (
-    GenericTranscriptionType,
-    TranscriptionReturnType,
-    get_batching_related_config_subset,
-)
+from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType, TranscriptionReturnType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -710,20 +706,19 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         """
         if 'manifest_filepath' in config:
             manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            if config["batch_size"] is not None:
-                config["batch_size"] = min(config['batch_size'], len(config['paths2audio_files']))
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
 
-        batching_conf = get_batching_related_config_subset(config)
         dl_config = {
-            **batching_conf,
             'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'labels': OmegaConf.to_container(self.decoder.vocabulary),
+            'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': config.get('num_workers', 0),
+            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
             'channel_selector': config.get('channel_selector', None),
         }
