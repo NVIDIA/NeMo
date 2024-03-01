@@ -33,6 +33,7 @@ from nemo.collections.asr.parts.mixins.transcription import (
     GenericTranscriptionType,
     InternalTranscribeConfig,
     TranscribeConfig,
+    get_batching_related_config_subset,
 )
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
@@ -852,29 +853,16 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        # batch_size = min(config['batch_size'], len(config['paths2audio_files']))
-        batching_conf = {
-            k: v
-            for k, v in config.items()
-            if k
-            in {
-                "batch_size",
-                "batch_duration",
-                "use_bucketing",
-                "num_buckets",
-                "quadratic_duration",
-                "bucket_buffer_size",
-            }
-        }
+        if config["batch_size"] is not None:
+            config["batch_size"] = min(config['batch_size'], len(config['paths2audio_files']))
+        batching_conf = get_batching_related_config_subset(config)
         dl_config = {
             **batching_conf,
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            # 'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            # 'num_workers': min(batch_size, os.cpu_count() - 1),
-            'num_workers': config['num_workers'],
+            'num_workers': config.get('num_workers', 0),
             'pin_memory': True,
             'use_lhotse': True,
             'drop_last': False,

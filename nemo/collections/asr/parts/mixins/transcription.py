@@ -17,9 +17,9 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Optional, Protocol, Tuple, Union
 
 import numpy as np
 import torch
@@ -71,8 +71,8 @@ class TranscribeConfig:
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = False
-    text_field: str = "answer"
-    lang_field: str = "target_lang"
+    text_field: str = "text"
+    lang_field: str = "lang"
 
     _internal: Optional[InternalTranscribeConfig] = None
 
@@ -111,6 +111,31 @@ def get_value_from_transcription_config(trcfg, key, default):
             f"Using default value of {default} for {key} because it is not present in the transcription config {trcfg}."
         )
         return default
+
+
+class IsDataclass(Protocol):
+    """Typing hint for dataclass instances. Source: https://stackoverflow.com/a/55240861"""
+
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+def get_batching_related_config_subset(trcfg: dict | IsDataclass) -> dict:
+    if is_dataclass(trcfg):
+        trcfg = asdict(trcfg)
+    return {
+        k: v
+        for k, v in trcfg.items()
+        if k
+        in {
+            "batch_size",
+            "batch_duration",
+            "use_lhotse",
+            "use_bucketing",
+            "num_buckets",
+            "quadratic_duration",
+            "bucket_buffer_size",
+        }
+    }
 
 
 class TranscriptionTensorDataset(Dataset):
@@ -718,21 +743,7 @@ class ASRTranscriptionMixin(TranscriptionMixin):
                         "Only `str` (path to audio file) or `dict` are supported as input."
                     )
 
-        batching_conf = {
-            k: v
-            for k, v in asdict(trcfg).items()
-            if k
-            in {
-                "batch_size",
-                "batch_duration",
-                "use_lhotse",
-                "use_bucketing",
-                "num_buckets",
-                "quadratic_duration",
-                "bucket_buffer_size",
-            }
-        }
-
+        batching_conf = get_batching_related_config_subset(trcfg)
         ds_config = {
             **batching_conf,
             'paths2audio_files': audio_files,

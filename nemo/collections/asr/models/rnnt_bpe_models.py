@@ -27,6 +27,7 @@ from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.mixins.transcription import get_batching_related_config_subset
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo
@@ -555,33 +556,18 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         """
         if 'manifest_filepath' in config:
             manifest_filepath = config['manifest_filepath']
-            # batch_size = config['batch_size']
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            # batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+            if config["batch_size"] is not None:
+                config["batch_size"] = min(config['batch_size'], len(config['paths2audio_files']))
 
-        batching_conf = {
-            k: v
-            for k, v in config.items()
-            if k
-            in {
-                "batch_size",
-                "batch_duration",
-                "use_lhotse",
-                "use_bucketing",
-                "num_buckets",
-                "quadratic_duration",
-                "bucket_buffer_size",
-            }
-        }
+        batching_conf = get_batching_related_config_subset(config)
         dl_config = {
             **batching_conf,
             'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
-            # 'batch_size': batch_size,
             'shuffle': False,
-            # 'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
-            "num_workers": config['num_workers'],
+            "num_workers": config.get('num_workers', 0),
             'pin_memory': True,
             'channel_selector': config.get('channel_selector', None),
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
