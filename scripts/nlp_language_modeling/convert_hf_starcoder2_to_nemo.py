@@ -31,7 +31,6 @@ import torch.nn
 from omegaconf import OmegaConf
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.trainer.trainer import Trainer
-from sentencepiece import SentencePieceProcessor
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -112,6 +111,7 @@ def load_config(sc2_config, tokenizer_path):
     nemo_config.activation = 'gelu'
     nemo_config.tokenizer.model = tokenizer_path
     nemo_config['rotary_base'] = sc2_config['rope_theta']
+    nemo_config['apply_rope_fusion'] = False
 
     base = 128
     while sc2_config['vocab_size'] % base != 0:
@@ -256,10 +256,10 @@ def convert(args):
         qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups)])
         if mcore_gpt:
             qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
-            
             qkv_bias_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.bias'
         else:
             qkv_weights_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.weight'
+            qkv_bias_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.bias'
         checkpoint['state_dict'][qkv_weights_base_name] = param_to_weights(qkv_weights)
         checkpoint['state_dict'][qkv_bias_base_name] = param_to_weights(qkv_bias)
 
@@ -271,6 +271,7 @@ def convert(args):
             o_bias_base_name = f'model.decoder.layers.{l}.self_attention.linear_proj.bias'
         else:
             o_weight_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
+            o_bias_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.bias'
         checkpoint['state_dict'][o_weight_base_name] = param_to_weights(o_weight)
         checkpoint['state_dict'][o_bias_base_name] = param_to_weights(o_bias)
 
@@ -304,6 +305,7 @@ def convert(args):
             input_ln_bias_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_bias'
         else:
             input_ln_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
+            input_ln_bias_name = f'model.language_model.encoder.layers.{l}.input_layernorm.bias'
         checkpoint['state_dict'][input_ln_base_name] = param_to_weights(input_ln_weight)
         checkpoint['state_dict'][input_ln_bias_name] = param_to_weights(input_ln_bias)
 
@@ -314,6 +316,7 @@ def convert(args):
             post_attn_ln_bias_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_bias'
         else:
             post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
+            post_attn_ln_bias_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
         checkpoint['state_dict'][post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
         checkpoint['state_dict'][post_attn_ln_bias_name] = param_to_weights(post_attn_ln_bias)
 
