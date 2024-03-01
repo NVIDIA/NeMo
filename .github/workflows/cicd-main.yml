@@ -1616,7 +1616,7 @@ jobs:
             exp_manager=null
 
   # L2: Parallel BERT Question-Answering SQUAD v1.1 & v2.0
-  L2_Parallel_BERT_Question-Answering_SQUAD_v1.1:
+  L2_Parallel_BERT_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
@@ -1655,7 +1655,7 @@ jobs:
             trainer.accelerator="gpu" \
             exp_manager=null
 
-  L2_Parallel_BERT_Question-Answering_SQUAD_v2.0:
+  L2_Parallel_BERT_Question-Answering_SQUAD_v2_0:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
@@ -1692,7 +1692,7 @@ jobs:
             exp_manager=null
 
   # L2: Parallel BART Question-Answering SQUAD v1.1 & v2.0
-  L2_Parallel_BART_Question-Answering_SQUAD_v1.1:
+  L2_Parallel_BART_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
@@ -1731,7 +1731,7 @@ jobs:
             trainer.accelerator="gpu" \
             exp_manager=null
 
-  L2_Parallel_BART_Question-Answering_SQUAD_v2.0:
+  L2_Parallel_BART_Question-Answering_SQUAD_v2_0:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
@@ -1768,7 +1768,7 @@ jobs:
             exp_manager=null
 
   # L2: Parallel GPT2 Question-Answering SQUAD v1.1 & v2.0
-  L2_Parallel_GPT2_Question-Answering_SQUAD_v1.1:
+  L2_Parallel_GPT2_Question-Answering_SQUAD_v1_1:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
@@ -1807,7 +1807,7 @@ jobs:
             trainer.accelerator="gpu" \
             exp_manager=null
 
-  L2_Parallel_GPT2_Question-Answering_SQUAD_v2.0:
+  L2_Parallel_GPT2_Question-Answering_SQUAD_v2_0:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
