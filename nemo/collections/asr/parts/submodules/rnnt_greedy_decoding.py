@@ -205,6 +205,10 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
         # set confidence calculation method
         self._init_confidence_method(confidence_method_cfg)
 
+        from nemo.utils.timers import SimpleTimer
+
+        self.timer = SimpleTimer()
+
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
@@ -687,9 +691,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
+                self.timer.start(device=encoder_output.device)
                 hypotheses = self._greedy_decode(
                     inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
                 )
+                self.timer.stop(device=encoder_output.device)
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
@@ -2737,9 +2743,11 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
+                self.timer.start(device=encoder_output.device)
                 hypotheses = self._greedy_decode(
                     inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
                 )
+                self.timer.stop(device=encoder_output.device)
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, logitlen)
