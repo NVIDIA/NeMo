@@ -140,38 +140,49 @@ For more information, see `nemo.collections.asr.modules <./api.html#modules>`__.
 Inference with Multi-task Models
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Multi-task models that use structured prompts require addition task tokens as input, in which case it's recommended to use manifests as inputs. Below is an example of using the `nvidia/canary-1b` model:
+Multi-task models that use structured prompts require additionl task tokens as input, in which case it is recommended to use manifest as input. Below is an example of using the `nvidia/canary-1b` model:
 
 .. code-block:: python
-  from nemo.collections.asr.models import EncDecMultiTaskModel
-  
-  # load model
-  canary_model = EncDecMultiTaskModel.from_pretrained('nvidia/canary-1b')
-  
-  # update dcode params
-  decode_cfg = canary_model.cfg.decoding
-  decode_cfg.beam.beam_size = 1
-  canary_model.change_decoding_strategy(decode_cfg)
+    from nemo.collections.asr.models import EncDecMultiTaskModel
+   
+    # load model
+    canary_model = EncDecMultiTaskModel.from_pretrained('nvidia/canary-1b')
+   
+    # update dcode params
+    decode_cfg = canary_model.cfg.decoding
+    decode_cfg.beam.beam_size = 1
+    canary_model.change_decoding_strategy(decode_cfg)
 
-  # run transcribe
-  predicted_text = canary_model.transcribe(
-      "<path to input manifest file>",
-      batch_size=16,  # batch size to run the inference with
-  )
+    # run transcribe
+    predicted_text = canary_model.transcribe(
+          "<path to input manifest file>",
+          batch_size=16,  # batch size to run the inference with
+    )
 
 Here the manifest file should be a json file where each line has the following format:
 
 .. code-block:: bash
-{
-    "audio_filepath": "/path/to/audio.wav",  # path to the audio file
-    "duration": None,  # duration of the audio in seconds, set to `None` to use full audio
-    "taskname": "asr",  # use "ast" for speech-to-text translation
-    "source_lang": "en",  # language of the audio input, set `source_lang`==`target_lang` for ASR
-    "target_lang": "en",  # language of the text output
-    "pnc": "yes",  # whether to have PnC output, choices=['yes', 'no']
-    "answer": "na", # set to non-dummy strings to calculate WER/BLEU scores 
-}
+    {
+       "audio_filepath": "/path/to/audio.wav",  # path to the audio file
+       "duration": None,  # duration of the audio in seconds, set to `None` to use full audio
+       "taskname": "asr",  # use "ast" for speech-to-text translation
+       "source_lang": "en",  # language of the audio input, set `source_lang`==`target_lang` for ASR
+       "target_lang": "en",  # language of the text output
+       "pnc": "yes",  # whether to have PnC output, choices=['yes', 'no']
+       "answer": "na", # set to non-dummy strings to calculate WER/BLEU scores 
+    }
 
+Note that using manifest allows to specify the task configuration for each audio individually. If we want to use the same task configuration for all the audio files, it can be specified in `transcribe` method directly. 
+
+.. code-block:: python
+    canary_model.transcribe(
+            audio=[list of audio files],
+            batch_size=4,  # batch size to run the inference with
+            task="asr",  # use "ast" for speech-to-text translation
+            source_lang="en",  # language of the audio input, set `source_lang`==`target_lang` for ASR
+            target_lang="en",  # language of the text output
+            pnc=True,  # whether to have PnC output, choices=[True, False]
+    )
 
 Inference on long audio
 ^^^^^^^^^^^^^^^^^^^^^^^
