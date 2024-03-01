@@ -750,4 +750,339 @@ jobs:
             rm -rf ./test_simulator
 
 
+  # L2: ASR Multi-dataloader dev run
+  L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/asr_ctc/speech_to_text_ctc.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=[/home/TestData/an4_dataset/an4_val.json,/home/TestData/an4_dataset/an4_val.json] \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            +trainer.num_sanity_val_steps=1 \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results
+            rm -rf examples/asr/speech_to_text_results
+
+  L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/speech_classification/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=[/home/TestData/speech_commands/test_manifest.json,/home/TestData/speech_commands/test_manifest.json] \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            +trainer.num_sanity_val_steps=1 \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
+            exp_manager.exp_dir=examples/asr/speech_to_label_results
+            rm -rf examples/asr/speech_to_label_results
+
+
+  # L2: ASR Adapters
+  L2_ASR_Adapters_Linear_Adapters:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/asr_adapters/train_asr_adapter.py \
+            model.pretrained_model="stt_en_conformer_ctc_small" \
+            model.adapter.adapter_name="an4" \
+            model.adapter.linear.in_features=176 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.max_steps=5 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_adapters_results
+            rm -rf examples/asr/speech_to_text_adapters_results
+
+  L2_ASR_Adapters_RelPos_MHA_Adapters:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/asr_adapters/train_asr_adapter.py \
+            model.pretrained_model="stt_en_conformer_ctc_small" \
+            model.adapter.adapter_name="encoder:an4" \
+            model.adapter.adapter_type="tiny_attn" \
+            model.adapter.tiny_attn.n_feat=176 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.max_steps=5 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_adapters_mha_results
+            rm -rf examples/asr/speech_to_text_adapters_mha_results
+
+
+  # L2: Speech Transcription
+  L2_Speech_Transcription_Speech_to_Text_Transcribe:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/asr/transcribe_speech.py \
+            pretrained_name="QuartzNet15x5Base-En" \
+            audio_dir="/home/TestData/an4_transcribe/test_subset/" \
+            output_filename="stt_test_res.json" \
+            amp=true
+            rm -rf stt_test_res.json
+
+  # L2: Transducer alignment
+  L2_Transducer_alignment_Running_pytest:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
+
+
+  # L2: Segmentation Tool
+  L2_Segmentation_Tool_Install_ctc_segmentation_requirements:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd tools/ctc_segmentation && \
+            pip install -r requirements.txt && \
+            apt-get update && apt-get install libsox-fmt-all -y
+
+  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
+    needs: [L2_Segmentation_Tool_Install_ctc_segmentation_requirements]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd tools/ctc_segmentation && \
+            TIME=`date +"%Y-%m-%d-%T"` && \
+            /bin/bash run_segmentation.sh \
+            --MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" \
+            --DATA_DIR=/home/TestData/ctc_segmentation/eng \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
+            --LANGUAGE=en \
+            --USE_NEMO_NORMALIZATION="TRUE" && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
+            -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt && \
+            rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
+
+  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
+    needs: [L2_Segmentation_Tool_Install_ctc_segmentation_requirements]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd tools/ctc_segmentation && \
+            TIME=`date +"%Y-%m-%d-%T"` && \
+            /bin/bash run_segmentation.sh \
+            --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
+            --DATA_DIR=/home/TestData/ctc_segmentation/ru \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output${TIME} \
+            --LANGUAGE=ru \
+            --ADDITIONAL_SPLIT_SYMBOLS=";" && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments_1.7.txt \
+            -g /home/TestData/ctc_segmentation/ru/output${TIME}/verified_segments/ru_segments.txt && \
+            rm -rf /home/TestData/ctc_segmentation/ru/output${TIME}
+
+
+  # L2: G2P Models
+  L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+
+    # TODO: pleasefixme @redoctopus
+    # - name: ByT5G2P training, evaluation and inference
+    #   run: |
+    #     cd examples/tts/g2p && \
+    #         TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_T5=output_byt5_${TIME} && \
+    #         python g2p_train_and_evaluate.py \
+    #             train_manifest=/home/TestData/g2p/g2p.json \
+    #             validation_manifest=/home/TestData/g2p/g2p.json \
+    #             model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
+    #             trainer.max_epochs=1 \
+    #             model.max_source_len=64 \
+    #             trainer.devices=[1] \
+    #             do_training=True \
+    #             do_testing=True \
+    #             exp_manager.exp_dir=${OUTPUT_DIR_T5} \
+    #             +exp_manager.use_datetime_version=False\
+    #             +exp_manager.version=test && \
+    #         python g2p_inference.py \
+    #             pretrained_model=${OUTPUT_DIR_T5}/T5G2P/test/checkpoints/T5G2P.nemo \
+    #             manifest_filepath=/home/TestData/g2p/g2p.json \
+    #             phoneme_field=text
+    #   }
+    # }
+  L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/tts/g2p && \
+                TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
+                python g2p_heteronym_classification_train_and_evaluate.py \
+                    train_manifest=/home/TestData/g2p/manifest.json \
+                    validation_manifest=/home/TestData/g2p/manifest.json \
+                    test_manifest=/home/TestData/g2p/manifest.json \
+                    model.wordids=/home/TestData/g2p/wordids.tsv \
+                    trainer.max_epochs=1 \
+                    model.max_seq_length=64 \
+                    do_training=True \
+                    do_testing=True \
+                    exp_manager.exp_dir=${OUTPUT_DIR} \
+                    +exp_manager.use_datetime_version=False\
+                    +exp_manager.version=test && \
+                python g2p_heteronym_classification_inference.py \
+                    manifest=/home/TestData/g2p/manifest.json \
+                    pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
+                    output_manifest=preds.json
+
 
