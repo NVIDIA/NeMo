@@ -30,13 +30,11 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
     """Configuration object for Megatron Core GPT FIM datasets
 
         Attributes:
-            tokenizer: model tokenizer
             fim: fill in the middle parameters config
     """
 
-    def __init__(self, tokenizer, fim, **kwargs):
+    def __init__(self, fim, **kwargs):
         super().__init__(**kwargs)
-        self.tokenizer = tokenizer
         self.fim = fim
         self.np_rng = np.random.RandomState(seed=self.config.random_seed)
         logging.info(f'GPTFIMDataset np_rng initialized with seed={self.config.random_seed}.')
