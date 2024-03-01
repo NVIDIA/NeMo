@@ -389,6 +389,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
+        **config_kwargs,
     ) -> Union[List[str], List[Hypothesis]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -409,6 +410,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[MultiTaskTranscriptionConfig]) A config to override the default config.
+            **config_kwargs: (Optional[Dict]) additional arguments to override the default TranscribeConfig.
+                Note: If override_config is passed, these arguments will be ignored.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -434,7 +437,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 )
             trcfg = override_config
 
-        return super().transcribe(audio=audio, override_config=trcfg)
+        return super().transcribe(audio=audio, override_config=trcfg, **config_kwargs)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict], inference: bool = False):
         assert config.get("use_lhotse", False), (
@@ -848,14 +851,22 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        # batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        batching_conf = {
+            k: v
+            for k, v in config.items()
+            if k
+            in {"batch_size", "batch_duration", "use_lhotse", "use_bucketing", "num_buckets", "quadratic_duration"}
+        }
         dl_config = {
+            **batching_conf,
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': batch_size,
+            # 'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': min(batch_size, os.cpu_count() - 1),
+            # 'num_workers': min(batch_size, os.cpu_count() - 1),
+            'num_workers': config['num_workers'],
             'pin_memory': True,
             'use_lhotse': True,
             'use_bucketing': False,
