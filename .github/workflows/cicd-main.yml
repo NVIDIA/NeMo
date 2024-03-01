@@ -1125,7 +1125,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
@@ -1166,7 +1166,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_gen_bert_outputs \
@@ -1203,7 +1203,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/processed_assistant \
             model.dataset.dialogues_example_dir=sgd_gen_bert_intent_classification_outputs \
@@ -1239,7 +1239,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/drive_thru_revised \
@@ -1278,7 +1278,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/design_dataset \
@@ -1318,7 +1318,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/design_dataset \
@@ -1351,7 +1351,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/design_dataset \
@@ -1384,7 +1384,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
@@ -1423,7 +1423,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
@@ -1461,7 +1461,7 @@ jobs:
 #       parallel {
 #         - name: Dialogue: Answer Extender using DialogueGPTGenerationModel
 #           - run: |
-#             sh cd examples/nlp/dialogue && \
+#             cd examples/nlp/dialogue && \
 #             python dialogue.py \
 #             do_training=False \
 #             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
@@ -1499,7 +1499,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/dialogue && \
+            cd examples/nlp/dialogue && \
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
@@ -1533,7 +1533,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/duplex_text_normalization && \
+            cd examples/nlp/duplex_text_normalization && \
             python duplex_text_normalization_train.py \
             data.validation_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv \
             mode=tn \
@@ -1566,7 +1566,7 @@ jobs:
 #   }
 #   failFast true
 #   - run: |
-#     sh cd examples/nlp/token_classification && \
+#     cd examples/nlp/token_classification && \
 #     python token_classification_train.py \
 #     model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
 #     model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
@@ -1601,7 +1601,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/text_classification && \
+            cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
             model.dataset.num_classes=6 \
             model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
@@ -1634,7 +1634,7 @@ jobs:
           uses: actions/checkout@v3
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
-            sh cd examples/nlp/question_answering && \
+            cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1673,7 +1673,7 @@ jobs:
           uses: actions/checkout@v3
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
-            sh cd examples/nlp/question_answering && \
+            cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1709,7 +1709,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/question_answering && \
+            cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1748,7 +1748,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/question_answering && \
+            cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1785,7 +1785,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/question_answering && \
+            cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1824,7 +1824,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/question_answering && \
+            cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1861,7 +1861,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/intent_slot_classification && \
+            cd examples/nlp/intent_slot_classification && \
             python intent_slot_classification.py \
             model.data_dir=/home/TestData/nlp/retail \
             model.validation_ds.prefix=dev \
@@ -1889,7 +1889,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v3
         - run: |
-            sh cd examples/nlp/intent_slot_classification && \
+            cd examples/nlp/intent_slot_classification && \
             python multi_label_intent_slot_classification.py \
             model.data_dir=/home/TestData/nlp/new_multiatis \
             model.validation_ds.prefix=dev \
