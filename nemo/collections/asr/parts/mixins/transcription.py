@@ -70,6 +70,8 @@ class TranscribeConfig:
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = False
+    text_field: str = "answer"
+    lang_field: str = "target_lang"
 
     _internal: Optional[InternalTranscribeConfig] = None
 
