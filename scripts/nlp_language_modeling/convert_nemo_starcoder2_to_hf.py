@@ -37,9 +37,19 @@ def get_args():
     parser = ArgumentParser()
     parser.add_argument("--in-file", type=str, default=None, required=True, help="Path to NeMo Starcoder2 checkpoint")
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output HF checkpoint.")
-    parser.add_argument('--hf-model-name', type=str, default=None, required=True, help="Name of HF checkpoint. e.g. a folder containing https://huggingface.co/bigcode/starcoder2-7b_base/tree/main")
+    parser.add_argument(
+        '--hf-model-name',
+        type=str,
+        default=None,
+        required=True,
+        help="Name of HF checkpoint. e.g. a folder containing https://huggingface.co/bigcode/starcoder2-7b_base/tree/main",
+    )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
-    parser.add_argument("--cpu-only", action="store_true", help="Load model in cpu only. Useful if the model cannot fit in GPU memory, but this option makes the conversion script significantly slower.")
+    parser.add_argument(
+        "--cpu-only",
+        action="store_true",
+        help="Load model in cpu only. Useful if the model cannot fit in GPU memory, but this option makes the conversion script significantly slower.",
+    )
     args = parser.parse_args()
     return args
 
@@ -85,7 +95,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
 
     if cpu_only:
         logging.info("******** Loading model on CPU. This will take a significant amount of time.")
-    
+
     model = MegatronGPTModel.restore_from(
         in_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
     )
@@ -93,7 +103,6 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     nemo_config = model.cfg
 
     mcore_gpt = nemo_config.mcore_gpt
-
 
     if precision is None:
         precision = model.cfg.precision
@@ -139,7 +148,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     state_dict[embed_weights_base_name] = param_to_weights(embed_weight)
 
     has_bias = nemo_config.bias
-    
+
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
 
@@ -222,7 +231,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
         else:
             post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.mlp.linear_fc1.layer_norm.weight'
             post_attn_ln_base_name_bias = f'model.language_model.encoder.layers.{l}.mlp.linear_fc1.layer_norm.bias'
-            
+
         state_dict[hf_post_attn_ln_weight_name] = param_to_weights(ckpt[post_attn_ln_base_name])
         if has_bias:
             state_dict[hf_post_attn_ln_bias_name] = param_to_weights(ckpt[post_attn_ln_base_name_bias])
