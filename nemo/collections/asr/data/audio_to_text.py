@@ -21,11 +21,12 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import braceexpand
 import numpy as np
 import torch
-import webdataset as wd
+import webdataset as wds
 from torch.utils.data import ChainDataset
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
@@ -48,6 +49,8 @@ __all__ = [
     'TarredAudioToCharDataset',
     'TarredAudioToBPEDataset',
 ]
+
+VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
 
 def _speech_collate_fn(batch, pad_id):
@@ -861,15 +864,15 @@ class _TarredAudioToTextDataset(IterableDataset):
         )
 
         # Put together WebDataset pipeline
-        self._dataset = wd.DataPipeline(
-            wd.SimpleShardList(urls=audio_tar_filepaths),
-            wd.shuffle(shuffle_n),
-            wd.tarfile_to_samples(),
-            wd.rename(audio='wav;ogg;flac', key='__key__'),
-            wd.to_tuple('audio', 'key'),
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(urls=audio_tar_filepaths),
+            wds.shuffle(shuffle_n),
+            wds.tarfile_to_samples(),
+            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
+            wds.to_tuple('audio', 'key'),
             self._filter,
             self._loop_offsets,
-            wd.map(self._build_sample),
+            wds.map(self._build_sample),
         )
 
     def _filter(self, iterator):

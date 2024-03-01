@@ -16,7 +16,7 @@ import os
 from typing import Dict, List, Optional, Union
 
 import torch
-import webdataset as wd
+import webdataset as wds
 
 from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -27,7 +27,7 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 from nemo.utils import logging
 
 # List of valid file formats (prioritized by order of importance)
-VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
+VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
 
 def repeat_signal(signal: torch.Tensor, sig_len: int, required_length: int) -> torch.Tensor:
@@ -567,18 +567,14 @@ class _TarredAudioLabelDataset(IterableDataset):
             global_rank=global_rank,
         )
         # Put together WebDataset
-        self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
-
-        if shuffle_n > 0:
-            self._dataset = self._dataset.shuffle(shuffle_n)
-        else:
-            logging.info("WebDataset will not shuffle files within the tar files.")
-
-        self._dataset = (
-            self._dataset.rename(audio=VALID_FILE_FORMATS, key='__key__')
-            .to_tuple('audio', 'key')
-            .pipe(self._filter)
-            .map(f=self._build_sample)
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(urls=audio_tar_filepaths),
+            wds.shuffle(shuffle_n),
+            wds.tarfile_to_samples(),
+            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
+            wds.to_tuple('audio', 'key'),
+            self._filter,
+            wds.map(f=self._build_sample),
         )
 
     def _filter(self, iterator):
@@ -1164,18 +1160,14 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
             global_rank=global_rank,
         )
         # Put together WebDataset
-        self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
-
-        if shuffle_n > 0:
-            self._dataset = self._dataset.shuffle(shuffle_n)
-        else:
-            logging.info("WebDataset will not shuffle files within the tar files.")
-
-        self._dataset = (
-            self._dataset.rename(audio=VALID_FILE_FORMATS, key='__key__')
-            .to_tuple('audio', 'key')
-            .pipe(self._filter)
-            .map(f=self._build_sample)
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(urls=audio_tar_filepaths),
+            wds.shuffle(shuffle_n),
+            wds.tarfile_to_samples(),
+            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
+            wds.to_tuple('audio', 'key'),
+            self._filter,
+            wds.map(self._build_sample),
         )
 
     def _get_label_set(self):

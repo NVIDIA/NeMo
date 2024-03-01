@@ -609,7 +609,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             )
             new_file_sink = wds.TarWriter(str(new_file))
             append_ds_to_rewrite = (
-                wds.WebDataset(urls=[str(append_file)], nodesplitter=None)
+                wds.WebDataset(urls=[str(append_file)])
                 .decode(wds.handle_extension('.pyd', decode_pyd))
                 .to_tuple('__key__', 'batch.pyd')
             )
@@ -626,7 +626,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         if files_to_repack_with_matches and pop_file_ds is None:
             pop_file, _ = files_to_repack_with_matches.pop()
             pop_file_ds = (
-                wds.WebDataset(urls=[str(pop_file)], nodesplitter=None)
+                wds.WebDataset(urls=[str(pop_file)])
                 .decode(wds.handle_extension('.pyd', decode_pyd))
                 .to_tuple('__key__', 'batch.pyd')
             )
@@ -1050,14 +1050,13 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         else:
             raise ValueError(f"Invalid shard strategy! Allowed values are: {valid_shard_strategies}")
 
-        self._dataset = wds.WebDataset(urls=self.tar_files, nodesplitter=None).decode(
-            wds.handle_extension('.pyd', decode_pyd)
+        self._dataset = (
+            wds.WebDataset(urls=self.tar_files, nodesplitter=None)
+            .decode(wds.handle_extension('.pyd', decode_pyd))
+            .shuffle(shuffle_n)
+            .to_tuple('__key__', 'batch.pyd')
+            .map(f=self._build_sample)
         )
-        if shuffle_n > 0:
-            self._dataset.shuffle(shuffle_n)
-        else:
-            logging.info("WebDataset will not shuffle files within the tar files.")
-        self._dataset = self._dataset.to_tuple('__key__', 'batch.pyd').map(f=self._build_sample)
 
         self.use_audio = use_audio
 
