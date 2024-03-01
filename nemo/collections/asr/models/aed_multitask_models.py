@@ -387,6 +387,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
+        text_field: str = "text",
+        lang_field: str = "lang",
         verbose: bool = True,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
     ) -> Union[List[str], List[Hypothesis]]:
@@ -425,6 +427,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 pnc=pnc,
                 source_lang=source_lang,
                 target_lang=target_lang,
+                text_field=text_field,
+                lang_field=lang_field,
             )
         else:
             if not isinstance(override_config, MultiTaskTranscriptionConfig):
@@ -434,7 +438,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 )
             trcfg = override_config
 
-        return super().transcribe(audio=audio, override_config=trcfg, **config_kwargs)
+        return super().transcribe(audio=audio, override_config=trcfg)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict], inference: bool = False):
         assert config.get("use_lhotse", False), (

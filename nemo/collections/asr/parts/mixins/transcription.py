@@ -189,6 +189,8 @@ class TranscriptionMixin(ABC):
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
+        text_field: str = "text",
+        lang_field: str = "lang",
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
         **config_kwargs,
