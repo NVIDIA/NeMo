@@ -92,6 +92,8 @@ class NLPAdapterModelMixin:
         """
         k = [n for n, p in self.named_parameters()]
         b = [n for n, p in self.named_buffers() if n.replace("model.module.", "model.", 1) in self.state_dict().keys()]
+        if self.megatron_amp_O2:
+            k = [key.replace("model.module.", "model.", 1) for key in k]
         # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
         return set(k + b)
 
@@ -199,6 +201,8 @@ class NLPAdapterModelMixin:
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
         self.tunable_base_param_keys = set()
+        if self.megatron_amp_O2:
+            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
         for cfg in peft_cfgs:
             if hasattr(cfg, "weight_tying") and cfg.weight_tying:
