@@ -71,13 +71,14 @@ class TextGeneration:
                         E.g [‘sentence’, ‘sentence2’ … ]
 
                     2. Tuple of Pytorch Tensors (context_tokens, context_lengths). The `context_tokens` has shape (batch_size, seq_length),  it's the batched sequences of tokens used as a prompst for the generation or as model inputs to the encoder. 
-                       The generative model will skip the tokenization and padding step.  The `context_lengths` has shape (batch_size,), it indicates the length of the context tokens for each of the input sequences.
+                        The generative model will skip the tokenization and padding step.  The `context_lengths` has shape (batch_size,), it indicates the length of the context tokens for each of the input sequences.
                         E.g. ( torch.tensor([[23,5234,23,35,…], [223,323,23,23232,232,...] …]), torch.tensor([20, 30, …]))
 
                     3. List of python dict objects. Used for prompt/p-tuning inputs where a set of key-value pairs are converted into input token embeddings for the model.
                         E.g. [{"prompt-tag": "sentiment", "sentence": "this is a good movie"},
-                              {"prompt-tag": "qa", "context": "some context text", "question": "a simple question"} ... ]
-                              where 'prompt-tag' is used to identify the type of NLP task to solve.
+                        {"prompt-tag": "qa", "context": "some context text", "question": "a simple question"} ... ]
+                        where 'prompt-tag' is used to identify the type of NLP task to solve.
+
             length_params (LengthParam):
                 a dictionary type which controls the sampling length.
 
