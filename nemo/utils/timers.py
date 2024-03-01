@@ -20,7 +20,7 @@ import time
 import numpy as np
 import torch
 
-__all__ = ["NamedTimer"]
+__all__ = ["NamedTimer", "SimpleTimer"]
 
 
 class NamedTimer(object):
@@ -158,3 +158,27 @@ class NamedTimer(object):
         data = {k: fn(v["dt"]) for k, v in self.timers.items() if ("dt" in v)}
 
         return data
+
+
+class SimpleTimer:
+    def __init__(self):
+        self.total_time = 0
+        self._start_time = None
+
+    def reset(self):
+        self.total_time = 0
+        self._start_time = None
+
+    def start(self, device=None):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize(device=device)
+        self._start_time = time.perf_counter_ns()
+
+    def stop(self, device=None):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize(device=device)
+        self.total_time += time.perf_counter_ns() - self._start_time
+        self._start_time = None
+
+    def total(self):
+        return self.total_time / 1e9
