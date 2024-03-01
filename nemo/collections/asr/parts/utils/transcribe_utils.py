@@ -310,6 +310,21 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
     return filepaths, partial_audio
 
 
+def restore_transcription_order(manifest_path: str, transcriptions: list) -> list:
+    with open(manifest_path) as f:
+        items = [(idx, json.loads(l)) for idx, l in enumerate(f)]
+    new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]
+    is_list = isinstance(transcriptions[0], list)
+    if is_list:
+        transcriptions = list(zip(*transcriptions))
+    reordered = [None] * len(transcriptions)
+    for new, old in enumerate(new2old):
+        reordered[old] = transcriptions[new]
+    if is_list:
+        transcriptions = tuple(map(list, zip(*reordered)))
+    return transcriptions
+
+
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
     """ Compute filename of output manifest and update cfg"""
     if cfg.output_filename is None:

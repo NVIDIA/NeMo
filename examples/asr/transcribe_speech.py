@@ -33,6 +33,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
+    restore_transcription_order,
     setup_model,
     transcribe_partial_audio,
     write_transcription,
@@ -386,18 +387,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
         if cfg.presort_manifest:
-            # Restore the original order after transcription.
-            with open(cfg.dataset_manifest, "r") as f:
-                items = [(idx, json.loads(l)) for idx, l in enumerate(f)]
-            new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]
-            is_list = isinstance(transcriptions[0], list)
-            if is_list:
-                transcriptions = list(zip(*transcriptions))
-            reordered = [None] * len(transcriptions)
-            for new, old in enumerate(new2old):
-                reordered[old] = transcriptions[new]
-            if is_list:
-                transcriptions = tuple(map(list, zip(*reordered)))
+            transcriptions = restore_transcription_order(cfg.dataset_manifest, transcriptions)
     else:
         logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")

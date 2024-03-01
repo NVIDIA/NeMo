@@ -125,7 +125,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
-        **config_kwargs,
     ) -> TranscriptionReturnType:
         """
         If modify this function, please remember update transcribe_partial_audio() in
@@ -148,8 +147,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
-            **config_kwargs: (Optional[Dict]) additional arguments to override the default TranscribeConfig.
-                Note: If override_config is passed, these arguments will be ignored.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -163,7 +160,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             augmentor=augmentor,
             verbose=verbose,
             override_config=override_config,
-            **config_kwargs,
         )
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
