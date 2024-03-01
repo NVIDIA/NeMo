@@ -722,7 +722,15 @@ class ASRTranscriptionMixin(TranscriptionMixin):
             k: v
             for k, v in asdict(trcfg).items()
             if k
-            in {"batch_size", "batch_duration", "use_lhotse", "use_bucketing", "num_buckets", "quadratic_duration"}
+            in {
+                "batch_size",
+                "batch_duration",
+                "use_lhotse",
+                "use_bucketing",
+                "num_buckets",
+                "quadratic_duration",
+                "bucket_buffer_size",
+            }
         }
 
         ds_config = {

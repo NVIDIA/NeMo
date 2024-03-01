@@ -125,6 +125,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
+        **config_kwargs,
     ) -> TranscriptionReturnType:
         """
         If modify this function, please remember update transcribe_partial_audio() in
@@ -147,6 +148,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
+            **config_kwargs: (Optional[Dict]) additional arguments to override the default TranscribeConfig.
+                Note: If override_config is passed, these arguments will be ignored.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -160,6 +163,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             augmentor=augmentor,
             verbose=verbose,
             override_config=override_config,
+            **config_kwargs,
         )
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
@@ -702,19 +706,34 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         """
         if 'manifest_filepath' in config:
             manifest_filepath = config['manifest_filepath']
-            batch_size = config['batch_size']
+            # batch_size = config['batch_size']
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+            # batch_size = min(config['batch_size'], len(config['paths2audio_files']))
 
+        batching_conf = {
+            k: v
+            for k, v in config.items()
+            if k
+            in {
+                "batch_size",
+                "batch_duration",
+                "use_bucketing",
+                "num_buckets",
+                "quadratic_duration",
+                "bucket_buffer_size",
+            }
+        }
         dl_config = {
+            **batching_conf,
             'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'labels': OmegaConf.to_container(self.decoder.vocabulary),
-            'batch_size': batch_size,
+            # 'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
+            'num_workers': config.get('num_workers', 0),
+            # 'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
             'channel_selector': config.get('channel_selector', None),
         }
