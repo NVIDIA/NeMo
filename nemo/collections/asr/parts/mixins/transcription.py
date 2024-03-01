@@ -728,6 +728,8 @@ class ASRTranscriptionMixin(TranscriptionMixin):
             'temp_dir': temp_dir,
             'num_workers': get_value_from_transcription_config(trcfg, 'num_workers', 0),
             'channel_selector': get_value_from_transcription_config(trcfg, 'channel_selector', None),
+            'text_field': get_value_from_transcription_config(trcfg, 'text_field', 'text'),
+            'lang_field': get_value_from_transcription_config(trcfg, 'lang_field', 'lang'),
         }
 
         augmentor = get_value_from_transcription_config(trcfg, 'augmentor', None)

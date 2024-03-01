@@ -190,6 +190,7 @@ class TranscriptionConfig:
 
     # key for groundtruth text in manifest
     gt_text_attr_name: str = "text"
+    gt_lang_attr_name: str = "lang"
 
     # Use model's transcribe() function instead of transcribe_partial_audio() by default
     # Only use transcribe_partial_audio() when the audio is too long to fit in memory
@@ -388,6 +389,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     return_hypotheses=cfg.return_hypotheses,
                     channel_selector=cfg.channel_selector,
                     augmentor=augmentor,
+                    text_field=cfg.gt_text_attr_name,
+                    lang_field=cfg.gt_lang_attr_name,
                 )
 
     if cfg.dataset_manifest is not None:

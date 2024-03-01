@@ -103,6 +103,8 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     pnc: Optional[bool] = None
     source_lang: Optional[str] = None
     target_lang: Optional[str] = None
+    text_field: str = "answer"
+    lang_field: str = "target_lang"
 
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = None
 
@@ -428,6 +430,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 pnc=pnc,
                 source_lang=source_lang,
                 target_lang=target_lang,
+                **config_kwargs,
             )
         else:
             if not isinstance(override_config, MultiTaskTranscriptionConfig):
@@ -852,11 +855,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             A pytorch DataLoader for the given audio file(s).
         """
         # batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        assert config.get(
+            "use_lhotse", True
+        ), "Transcribing with use_lhotse=False is not supported for EncDecMultiTaskModel"
+
         batching_conf = {
             k: v
             for k, v in config.items()
-            if k
-            in {"batch_size", "batch_duration", "use_lhotse", "use_bucketing", "num_buckets", "quadratic_duration"}
+            if k in {"batch_size", "batch_duration", "use_bucketing", "num_buckets", "quadratic_duration"}
         }
         dl_config = {
             **batching_conf,
@@ -869,10 +875,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             'num_workers': config['num_workers'],
             'pin_memory': True,
             'use_lhotse': True,
-            'use_bucketing': False,
             'drop_last': False,
-            'text_field': 'answer',
-            'lang_field': 'target_lang',
+            'text_field': config.get('text_field', 'answer'),
+            'lang_field': config.get('lang_field', 'target_lang'),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config), inference=True)
