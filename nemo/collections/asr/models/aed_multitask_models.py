@@ -855,10 +855,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             A pytorch DataLoader for the given audio file(s).
         """
         # batch_size = min(config['batch_size'], len(config['paths2audio_files']))
-        assert config.get(
-            "use_lhotse", True
-        ), "Transcribing with use_lhotse=False is not supported for EncDecMultiTaskModel"
-
         batching_conf = {
             k: v
             for k, v in config.items()
