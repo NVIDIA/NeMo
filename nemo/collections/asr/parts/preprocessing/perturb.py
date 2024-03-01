@@ -1280,7 +1280,7 @@ class AugmentationDataset(IterableDataset):
             wds.tarfile_to_samples(),
             wds.rename(audio='wav;ogg;flac', key='__key__'),
             wds.to_tuple('audio', 'key'),
-            self._loop_offsets(),
+            self._loop_offsets,
         )
 
     def __len__(self):
