@@ -2004,3 +2004,1596 @@ jobs:
     #   }
     # }
 
+
+  # L2: Parallel NLP Examples 2
+  L2_Parallel_NLP_Examples2_NER_finetuning_from_pretrained_Test:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/token_classification && \
+            python token_classification_train.py \
+            pretrained_model=ner_en_bert \
+            model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            model.train_ds.batch_size=2 \
+            model.dataset.use_cache=false \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=true \
+            model.dataset.class_balancing="weighted_loss" \
+            exp_manager.exp_dir=null
+ 
+  L2_Parallel_NLP_Examples2_Punctuation_and_capitalization_finetuning_from_pretrained_test:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/token_classification && \
+            data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+            python punctuation_capitalization_train_evaluate.py \
+              pretrained_model=punctuation_en_bert \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[1] \
+              trainer.accelerator="gpu" \
+              +trainer.fast_dev_run=true \
+              exp_manager.exp_dir=null && \
+            rm -rf "${data_dir}"
+
+  L2_Parallel_NLP_Examples2_NER_with_TurkuNLP__bert-base-finnish-cased-v1:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/token_classification && \
+            python token_classification_train.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=true \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name="TurkuNLP/bert-base-finnish-cased-v1" \
+            exp_manager.exp_dir=null
+        
+  L2_Parallel_NLP_Examples2_Evaluation_script_for_Token_Classification:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            sh python examples/nlp/token_classification/token_classification_evaluate.py \
+            model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            model.dataset.use_cache=false \
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo
+
+  L2_Parallel_NLP_Examples2_Evaluation_script_for_Punctuation:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            sh data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+              +do_training=false \
+              +do_testing=true \
+              model.test_ds.ds_item="${data_dir}" \
+              ~model.train_ds \
+              ~model.validation_ds \
+              +model.test_ds.use_cache=false \
+              pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
+            rm -rf "${data_dir}"
+
+  L2_Parallel_NLP_Examples2_Punctuation_Capitalization_2GPUs_with_DistilBERT_Finetuning_on_other_data:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/token_classification && \
+            output_dir="$(mktemp -d -p "$(pwd)")" && \
+            tmp_data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${tmp_data_dir}"/ && \
+            python punctuation_capitalization_train_evaluate.py \
+              model.train_ds.use_tarred_dataset=false \
+              model.train_ds.ds_item="${tmp_data_dir}" \
+              model.validation_ds.ds_item="${tmp_data_dir}" \
+              model.test_ds.ds_item="${tmp_data_dir}" \
+              model.language_model.pretrained_model_name=distilbert-base-uncased \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.accelerator="gpu" \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir="${output_dir}" \
+              +do_testing=true && \
+            tmp_data_dir_2="$(mktemp -d -p "$(pwd)")" && \
+            mv "${tmp_data_dir}"/* "${tmp_data_dir_2}" && \
+            rm -rf "${tmp_data_dir}" && \
+            python punctuation_capitalization_train_evaluate.py \
+              model.train_ds.use_tarred_dataset=false \
+              model.train_ds.ds_item="${tmp_data_dir_2}" \
+              model.validation_ds.ds_item="${tmp_data_dir_2}" \
+              model.test_ds.ds_item="${tmp_data_dir_2}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.accelerator="gpu" \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              exp_manager=null && \
+            rm -rf /workspace/NeMo/examples/nlp/token_classification/nemo_experiments \
+              "${tmp_data_dir_2}" \
+              "${output_dir}"
+
+  # Punctuation & Capitalization tarred dataset:
+  Punctuation_Capitalization_tarred_dataset_create_and_use_tarred_dataset:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            sh data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp -r /home/TestData/nlp/token_classification_punctuation/*.txt \
+              /home/TestData/nlp/token_classification_punctuation/wmt_wiki_10000 \
+              "${data_dir}"/ && \
+            usual_data=${data_dir}/wmt_wiki_10000 && \
+            output_dir="$(mktemp -d -p "$(pwd)")" && \
+            tarred_data=${output_dir}/train_tarred && \
+            tokens_in_batch=2000 && \
+            max_seq_length=512 && \
+            lm_model=distilbert-base-uncased && \
+            python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
+              --text ${usual_data}/input.txt \
+              --labels ${usual_data}/labels.txt \
+              --output_dir ${tarred_data} \
+              --tokens_in_batch ${tokens_in_batch} \
+              --max_seq_length 512 \
+              --lines_per_dataset_fragment 2000 \
+              --num_batches_per_tarfile 5 \
+              --tar_file_prefix punctuation_capitalization \
+              --tokenizer_name ${lm_model} \
+              --use_fast_tokenizer \
+              --pad_label O \
+              --n_jobs 3 && \
+            echo "Number of tarred files in dataset:" && \
+            ls ${tarred_data}/*.tar | wc -l && \
+            echo "Label id files in dataset:" && \
+            ls ${tarred_data}/*.csv && \
+            metadata_file=${tarred_data}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length${max_seq_length}.${lm_model}.json && \
+            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
+              model.train_ds.ds_item=${tarred_data} \
+              model.language_model.pretrained_model_name=${lm_model} \
+              model.train_ds.use_tarred_dataset=true \
+              model.train_ds.tar_metadata_file=${metadata_file} \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.accelerator="gpu" \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir=${output_dir}/output && \
+            rm -rf "${output_dir}" "${data_dir}"
+
+  # Punctuation_Capitalization_Different_ways_of_passing_labels_to_model
+  Punctuation_Capitalization_Using_model-common_datasets_parameters-label_vocab_dir:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/token_classification && \
+            work_dir="$(mktemp -d -p "$(pwd)")" && \
+            label_vocab_dir="${work_dir}/labels" && \
+            mkdir -p ${label_vocab_dir} && \
+            data_dir="${work_dir}/data" && \
+            mkdir -p "${data_dir}" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
+            output_dir="${work_dir}/output" && \
+            mkdir -p "${output_dir}" && \
+            punct_label_vocab="${label_vocab_dir}/punct_label_vocab.csv" && \
+            capit_label_vocab="${label_vocab_dir}/capit_label_vocab.csv" && \
+            printf "O\n,\n.\n?\n" > "${punct_label_vocab}" && \
+            printf "O\nU\n" > "${capit_label_vocab}" && \
+            python punctuation_capitalization_train_evaluate.py \
+              model.train_ds.use_tarred_dataset=false \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
+              model.language_model.pretrained_model_name=distilbert-base-uncased \
+              model.common_dataset_parameters.label_vocab_dir="${label_vocab_dir}" \
+              model.class_labels.punct_labels_file="$(basename "${punct_label_vocab}")" \
+              model.class_labels.capit_labels_file="$(basename "${capit_label_vocab}")" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir="${output_dir}" \
+              +do_testing=false && \
+            python punctuation_capitalization_train_evaluate.py \
+              +do_training=false \
+              +do_testing=true \
+              ~model.train_ds \
+              ~model.validation_ds \
+              model.test_ds.ds_item="${data_dir}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              exp_manager=null && \
+            rm -rf "${work_dir}"
+        
+  Punctuation_Capitalization_Using_model-common_datasets_parameters-punct-capit-_label_ids:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/token_classification && \
+            work_dir="$(mktemp -d -p "$(pwd)")" && \
+            output_dir="${work_dir}/output" && \
+            mkdir -p "${output_dir}" && \
+            data_dir="${work_dir}/data" && \
+            mkdir -p "${data_dir}" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
+            conf_name=punctuation_capitalization_config_with_ids && \
+            cp conf/punctuation_capitalization_config.yaml "${work_dir}/${conf_name}.yaml" && \
+            sed -i $\s/punct_label_ids: null/punct_label_ids: {O: 0, \\\,\\\: 1, .: 2, \\\?\\\: 3}/\ \
+              "${work_dir}/${conf_name}.yaml" && \
+            sed -i $\s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\ \
+              "${work_dir}/${conf_name}.yaml" && \
+            python punctuation_capitalization_train_evaluate.py \
+              --config-path "${work_dir}" \
+              --config-name "${conf_name}" \
+              model.train_ds.use_tarred_dataset=false \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
+              model.language_model.pretrained_model_name=distilbert-base-uncased \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir="${output_dir}" \
+              +do_testing=false && \
+            python punctuation_capitalization_train_evaluate.py \
+              +do_training=false \
+              +do_testing=true \
+              ~model.train_ds \
+              ~model.validation_ds \
+              model.test_ds.ds_item="${data_dir}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              exp_manager=null && \
+            rm -rf "${work_dir}"
+
+  # Punctuation & Capitalization inference      
+  Punctuation_Capitalization_inference_Restore_punctuation_and_capitalization_in_long_text:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            sh output_dir="$(mktemp -d -p "$(pwd)")" && \
+            python examples/nlp/token_classification/punctuate_capitalize_infer.py \
+              --input_manifest /home/TestData/nlp/token_classification_punctuation/iwslt_tst2019.manifest \
+              --output_text "${output_dir}/iwslt_inference_result.txt" \
+              --max_seq_length 92 \
+              --step 8 \
+              --margin 16 \
+              --pretrained_name punctuation_en_bert \
+              --batch_size 32 && \
+            rm -rf "${output_dir}"
+  
+  # L2: Parallel Pretraining BERT pretraining from Text/Preprocessed
+  L2_Pretraining_BERT_pretraining_from_Text:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/language_modeling && \
+            python bert_pretraining.py \
+            --config-name=bert_pretraining_from_text_config.yaml \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            trainer.precision=16 \
+            +trainer.fast_dev_run=true \
+            model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
+            model.train_ds.batch_size=32 \
+            model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
+            model.validation_ds.batch_size=32 \
+            model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
+            model.optim.lr=0.01 \
+            model.optim.sched.warmup_ratio=0.1 \
+            model.tokenizer.tokenizer_name=sentencepiece \
+            model.tokenizer.tokenizer_model=/home/TestData/nlp/wikitext-2/tokenizer_bpe_v3193/tokenizer.model \
+            model.mask_prob=0.15 \
+            model.short_seq_prob=0.1 \
+            exp_manager.exp_dir=PretrainingBERTFromText \
+              
+            rm -f /home/TestData/nlp/wikitext-2/*.pkl
+            rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
+            ls -lha examples/nlp/language_modeling
+        
+  TL2_Pretraining_BERT_from_Preprocessed:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/language_modeling && \
+            python bert_pretraining.py \
+            --config-name=bert_pretraining_from_preprocessed_config.yaml \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            trainer.precision=16 \
+            +trainer.fast_dev_run=false \
+            +trainer.max_epochs=1 \
+            +trainer.limit_val_batches=0 \
+            +trainer.limit_train_batches=1 \
+            model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
+            model.train_ds.batch_size=8 \
+            model.language_model.lm_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
+            model.language_model.config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
+            model.optim.lr=0.875e-4 \
+            model.optim.weight_decay=0.01 \
+            model.optim.sched.warmup_ratio=0.01 \
+            exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
+            exp_manager.create_checkpoint_callback=False \
+              
+            rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
+            ls -lha examples/nlp/language_modeling
+
+  # L2: Entity Linking        
+  L2_Entity_Linking_Self_Alignment_Pretraining_BERT:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/entity_linking && \
+            python self_alignment_pretraining.py \
+            project_dir=. \
+            trainer.val_check_interval=3 \
+            model.raw_data=None \
+            model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+            model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_validation_pairs.tsv \
+            model.train_ds.batch_size=8 \
+            model.validation_ds.batch_size=8 \
+            exp_manager.exp_dir=null
+
+
+  # TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
+  # is in the release container
+  # L2: NMT Attention is All You Need Training
+  L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            sh python examples/nlp/machine_translation/enc_dec_nmt.py \
+            --config-path=conf \
+            --config-name=aayn_base \
+            do_testing=false \
+            model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+            model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+            model.encoder.num_layers=1 \
+            model.encoder.hidden_size=64 \
+            model.encoder.inner_size=256 \
+            model.decoder.num_layers=1 \
+            model.decoder.hidden_size=64 \
+            model.decoder.inner_size=256 \
+            +model.optim.capturable=True \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.val_check_interval=2 \
+            +trainer.limit_val_batches=1 \
+            +trainer.max_steps=2 \
+            trainer.precision=16 \
+            +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
+            +exp_manager.create_checkpoint_callback=true \
+              
+            sh python examples/nlp/machine_translation/enc_dec_nmt.py \
+            --config-path=conf \
+            --config-name=aayn_base \
+            do_testing=true \
+            model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+            model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+            model.encoder.num_layers=1 \
+            model.encoder.hidden_size=64 \
+            model.encoder.inner_size=256 \
+            model.decoder.num_layers=1 \
+            model.decoder.hidden_size=64 \
+            model.decoder.inner_size=256 \
+            +model.optim.capturable=True \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.val_check_interval=10 \
+            +trainer.limit_val_batches=1 \
+            +trainer.limit_test_batches=1 \
+            +trainer.max_steps=10 \
+            +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
+            +exp_manager.create_checkpoint_callback=true \
+            +exp_manager.resume_if_exists=True \
+              
+            rm -rf examples/nlp/machine_translation/nmt_results
+        
+  L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+              cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              do_testing=true \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.encoder.pre_ln=true \
+              model.decoder.pre_ln=true \
+              trainer.devices=[1] \
+              trainer.accelerator="gpu" \
+              +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
+              exp_manager=null \
+        
+  L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+              cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              do_testing=true \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
+              model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+              model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+              model.test_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+              model.test_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              trainer.devices=[0] \
+              trainer.accelerator="gpu" \
+              +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
+              exp_manager=null \
+
+  # L2: NMT Attention is All You Need Inference
+  L2_NMT_Attention_is_All_You_Need_Inference_NMT_Inference_-_PostLN:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/machine_translation && \
+            python nmt_transformer_infer.py \
+            --model=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
+            --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
+            --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+            --target_lang en \
+            --source_lang de \
+
+  L2_NMT_Attention_is_All_You_Need_Inference_NMT_Inference_-_Pre-LN:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/machine_translation && \
+            python nmt_transformer_infer.py \
+            --model=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+            --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.test.src \
+            --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+            --target_lang de \
+            --source_lang en \
+
+  # L2: NMT Attention is All You Need Finetuning
+  L2_NMT_Attention_is_All_You_Need_Finetuning:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/machine_translation && \
+            python enc_dec_nmt_finetune.py \
+            model_path=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+            trainer.devices=[0] \
+            ~trainer.max_epochs \
+            model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            +trainer.val_check_interval=10 \
+            +trainer.limit_val_batches=1 \
+            +trainer.limit_test_batches=1 \
+            +trainer.max_steps=10 \
+            +exp_manager.exp_dir=examples/nlp/machine_translation/nmt_finetune \
+            +exp_manager.create_checkpoint_callback=True \
+            +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
+            +exp_manager.checkpoint_callback_params.mode=max \
+            +exp_manager.checkpoint_callback_params.save_best_model=true \
+        
+            rm -rf examples/nlp/machine_translation/nmt_finetune
+  
+  # L2: NMT Tarred Dataset Creation
+  L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/machine_translation && \
+            python enc_dec_nmt.py \
+            --config-path=conf \
+            --config-name=aayn_base \
+            do_training=false \
+            model.preproc_out_dir=$PWD/preproc_out_dir \
+            model.train_ds.use_tarred_dataset=true \
+            model.train_ds.n_preproc_jobs=2 \
+            model.train_ds.lines_per_dataset_fragment=500 \
+            model.train_ds.num_batches_per_tarfile=10 \
+            model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.encoder_tokenizer.vocab_size=2000 \
+            model.decoder_tokenizer.vocab_size=2000 \
+            ~model.test_ds \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=true \
+            exp_manager=null \
+
+  L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            cd examples/nlp/machine_translation && \
+            python create_tarred_parallel_dataset.py \
+            --src_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            --tgt_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            --out_dir $PWD/out_dir \
+            --encoder_tokenizer_vocab_size=2000 \
+            --decoder_tokenizer_vocab_size=2000 \
+            --tokens_in_batch=1000 \
+            --lines_per_dataset_fragment=500 \
+            --num_batches_per_tarfile=10 \
+            --n_preproc_jobs=2 \
+        
+  L2_Megatron_NMT_Training_TP2:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/nlp/machine_translation/megatron_nmt_training.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            +trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=10 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
+            model.tensor_model_parallel_size=2 \
+            model.seq_length=128 \
+            model.encoder.num_layers=4 \
+            model.encoder.hidden_size=64 \
+            model.encoder.num_attention_heads=8 \
+            model.encoder.activation=swiglu \
+            model.encoder.masked_softmax_fusion=False \
+            model.encoder.bias_activation_fusion=False \
+            model.encoder.activations_checkpoint_method=block \
+            model.encoder.activations_checkpoint_num_layers=1 \
+            model.decoder.num_layers=2 \
+            model.decoder.hidden_size=64 \
+            model.decoder.num_attention_heads=8 \
+            model.decoder.activation=swiglu \
+            model.decoder.masked_softmax_fusion=False \
+            model.decoder.bias_activation_fusion=False \
+            model.decoder.activations_checkpoint_method=block \
+            model.decoder.activations_checkpoint_num_layers=1 \
+            model.micro_batch_size=2 \
+            model.global_batch_size=4 \
+            model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.train_ds.num_workers=1 \
+            model.validation_ds.num_workers=1 \
+            ~model.test_ds \
+            model.train_ds.dataset_type=text_memmap \
+            model.encoder_tokenizer.library=sentencepiece \
+            model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+            model.decoder_tokenizer.library=sentencepiece \
+            model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
+            # Change val_check_interval to 1 for resume as the len(dataloder) is 1 due to max_steps being the same as that of training and Lightning 2.0 raises an error
+            # if val_check_interval > len(dataloder: https://github.com/Lightning-AI/lightning/blob/2.0.6/src/lightning/pytorch/loops/fit_loop.py#L259 at the beginning of fit_loop.run()
+            python examples/nlp/machine_translation/megatron_nmt_training.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=1 \
+            +trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=10 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
+            model.tensor_model_parallel_size=2 \
+            model.seq_length=128 \
+            model.encoder.num_layers=4 \
+            model.encoder.hidden_size=64 \
+            model.encoder.num_attention_heads=8 \
+            model.encoder.activation=swiglu \
+            model.encoder.masked_softmax_fusion=False \
+            model.encoder.bias_activation_fusion=False \
+            model.encoder.activations_checkpoint_method=block \
+            model.encoder.activations_checkpoint_num_layers=1 \
+            model.decoder.num_layers=2 \
+            model.decoder.hidden_size=64 \
+            model.decoder.num_attention_heads=8 \
+            model.decoder.activation=swiglu \
+            model.decoder.masked_softmax_fusion=False \
+            model.decoder.bias_activation_fusion=False \
+            model.decoder.activations_checkpoint_method=block \
+            model.decoder.activations_checkpoint_num_layers=1 \
+            model.micro_batch_size=2 \
+            model.global_batch_size=4 \
+            model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+            model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+            model.train_ds.num_workers=1 \
+            model.validation_ds.num_workers=1 \
+            ~model.test_ds \
+            model.train_ds.dataset_type=text_memmap \
+            model.encoder_tokenizer.library=sentencepiece \
+            model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+            model.decoder_tokenizer.library=sentencepiece \
+            model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
+            rm -rf examples/nlp/machine_translation/megatron_nmt_results
+        
+  L2_Megatron_BART_Perceiver_MIM_Training_TP2:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/nlp/language_modeling/megatron_bart_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=10 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/megatron_mim_results \
+            model.tensor_model_parallel_size=2 \
+            model.seq_length=128 \
+            model.encoder.num_layers=4 \
+            model.encoder.hidden_size=64 \
+            model.encoder.arch=perceiver \
+            model.encoder.num_attention_heads=8 \
+            model.encoder.activation=swiglu \
+            model.encoder.masked_softmax_fusion=False \
+            model.encoder.bias_activation_fusion=False \
+            model.encoder.activations_checkpoint_method=block \
+            model.encoder.activations_checkpoint_num_layers=1 \
+            model.decoder.num_layers=2 \
+            model.decoder.hidden_size=64 \
+            model.decoder.num_attention_heads=8 \
+            model.decoder.activation=swiglu \
+            model.decoder.masked_softmax_fusion=False \
+            model.decoder.bias_activation_fusion=False \
+            model.decoder.activations_checkpoint_method=block \
+            model.decoder.activations_checkpoint_num_layers=1 \
+            model.micro_batch_size=2 \
+            model.global_batch_size=4 \
+            model.data.data_impl=text_mmap \
+            model.data.data_prefix=[1.0,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src] \
+            model.data.splits_string=\\"800,100,100\"\ \
+            model.data.whole_word_masking=False \
+            model.tokenizer.library=sentencepiece \
+            model.tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+            ++model.hiddens.enc_output_name=z \
+            ++model.hiddens.transform.q_z_given_x.cls_name=cond_gaussian \
+            ++model.hiddens.transform.q_z_given_x.hidden_size=64 \
+            ++model.hiddens.loss.mim.cls_name=a_mim \
+            ++model.hiddens.loss.mim.loss_weight=0.5"
+            # Change val_check_interval to 1 for resume as the len(dataloder) is 1 due to max_steps being the same as that of training and Lightning 2.0 raises an error
+            # if val_check_interval > len(dataloder: https://github.com/Lightning-AI/lightning/blob/2.0.6/src/lightning/pytorch/loops/fit_loop.py#L259 at the beginning of fit_loop.run()
+            python examples/nlp/language_modeling/megatron_bart_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=1 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=10 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/megatron_mim_results \
+            model.tensor_model_parallel_size=2 \
+            model.seq_length=128 \
+            model.encoder.num_layers=4 \
+            model.encoder.hidden_size=64 \
+            model.encoder.arch=perceiver \
+            model.encoder.num_attention_heads=8 \
+            model.encoder.activation=swiglu \
+            model.encoder.masked_softmax_fusion=False \
+            model.encoder.bias_activation_fusion=False \
+            model.encoder.activations_checkpoint_method=block \
+            model.encoder.activations_checkpoint_num_layers=1 \
+            model.decoder.num_layers=2 \
+            model.decoder.hidden_size=64 \
+            model.decoder.num_attention_heads=8 \
+            model.decoder.activation=swiglu \
+            model.decoder.masked_softmax_fusion=False \
+            model.decoder.bias_activation_fusion=False \
+            model.decoder.activations_checkpoint_method=block \
+            model.decoder.activations_checkpoint_num_layers=1 \
+            model.micro_batch_size=2 \
+            model.global_batch_size=4 \
+            model.data.data_impl=text_mmap \
+            model.data.data_prefix=[1.0,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src] \
+            model.data.splits_string=\\"800,100,100\"\ \
+            model.data.whole_word_masking=False \
+            model.tokenizer.library=sentencepiece \
+            model.tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+            ++model.hiddens.enc_output_name=z \
+            ++model.hiddens.transform.q_z_given_x.cls_name=cond_gaussian \
+            ++model.hiddens.transform.q_z_given_x.hidden_size=64 \
+            ++model.hiddens.loss.mim.cls_name=a_mim \
+            ++model.hiddens.loss.mim.loss_weight=0.5"
+            rm -rf examples/nlp/language_modeling/megatron_mim_results
+
+    # stage('L2: NMT Bottleneck Fallback') {
+    #   when {
+    #     anyOf {
+    #       branch 'main'
+    #       changeRequest target: 'main'
+    #     }
+    #   }
+    #   failFast true
+    #   parallel {
+    #     stage('L2: seq2seq (no bottleneck)') {
+    #         steps {
+    #           sh 'cd examples/nlp/machine_translation && \
+    #           enc_dec_nmt-bottleneck.py \
+    #           --config-path=conf \
+    #           --config-name=aayn_bottleneck \
+    #           do_testing=true \
+    #           model.model_type=nll \
+    #           model.encoder.arch=seq2seq \
+    #           model.encoder.hidden_steps=1 \
+    #           model.encoder.hidden_blocks=1 \
+    #           model.encoder.hidden_init_method=params \
+    #           model.encoder.hidden_size=64 \
+    #           model.encoder.inner_size=128 \
+    #           model.encoder.num_attention_heads=2 \
+    #           model.encoder.num_layers=2 \
+    #           model.decoder.hidden_size=64 \
+    #           model.decoder.inner_size=128 \
+    #           model.decoder.num_attention_heads=2 \
+    #           model.decoder.num_layers=2 \
+    #           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
+    #           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
+    #           model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+    #           model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+    #           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src \
+    #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref \
+    #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           trainer.devices=[1] \
+    #           trainer.accelerator="gpu" \
+    #           +trainer.fast_dev_run=true \
+    #           +trainer.limit_test_batches=2 \
+    #           exp_manager=null \
+    #           '
+    #         }
+    #     }
+    #   }
+    # }
+    # stage('L2: NMT Bottleneck Architecture') {
+    #   when {
+    #     anyOf {
+    #       branch 'main'
+    #       changeRequest target: 'main'
+    #     }
+    #   }
+    #   failFast true
+    #   parallel {
+    #     stage('Bridge Encoder (identity)') {
+    #         steps {
+    #           sh 'cd examples/nlp/machine_translation && \
+    #           enc_dec_nmt-bottleneck.py \
+    #           --config-path=conf \
+    #           --config-name=aayn_bottleneck \
+    #           do_testing=true \
+    #           model.model_type=nll \
+    #           model.encoder.arch=bridge \
+    #           model.encoder.hidden_steps=1 \
+    #           model.encoder.hidden_blocks=1 \
+    #           model.encoder.hidden_init_method=identity \
+    #           model.encoder.hidden_size=64 \
+    #           model.encoder.inner_size=128 \
+    #           model.encoder.num_attention_heads=2 \
+    #           model.encoder.num_layers=2 \
+    #           model.decoder.hidden_size=64 \
+    #           model.decoder.inner_size=128 \
+    #           model.decoder.num_attention_heads=2 \
+    #           model.decoder.num_layers=2 \
+    #           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    #           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #		 trainer.devices=[0] \
+    # 		 trainer.accelerator="gpu" \
+    #           +trainer.fast_dev_run=true \
+    #           +trainer.limit_test_batches=2 \
+    #           exp_manager=null \
+    #           '
+    #         }
+    #     }
+    #     stage('Perceiver Encoder (params)') {
+    #         steps {
+    #           sh 'cd examples/nlp/machine_translation && \
+    #           enc_dec_nmt-bottleneck.py \
+    #           --config-path=conf \
+    #           --config-name=aayn_bottleneck \
+    #           do_testing=true \
+    #           model.model_type=nll \
+    #           model.encoder.arch=perceiver \
+    #           model.encoder.hidden_steps=1 \
+    #           model.encoder.hidden_blocks=1 \
+    #           model.encoder.hidden_init_method=params \
+    #           model.encoder.hidden_size=64 \
+    #           model.encoder.inner_size=128 \
+    #           model.encoder.num_attention_heads=2 \
+    #           model.encoder.num_layers=2 \
+    #           model.decoder.hidden_size=64 \
+    #           model.decoder.inner_size=128 \
+    #           model.decoder.num_attention_heads=2 \
+    #           model.decoder.num_layers=2 \
+    #           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    #           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           trainer.devices=[1] \
+    #           trainer.accelerator="gpu" \
+    #           +trainer.fast_dev_run=true \
+    #           +trainer.limit_test_batches=2 \
+    #           exp_manager=null \
+    #           '
+    #         }
+    #     }
+    #   }
+    # }
+    # stage('L2: NMT Bottleneck LVM') {
+    #   when {
+    #     anyOf {
+    #       branch 'main'
+    #       changeRequest target: 'main'
+    #     }
+    #   }
+    #   failFast true
+    #   parallel {
+    #     stage('VAE') {
+    #         steps {
+    #           sh 'cd examples/nlp/machine_translation && \
+    #           enc_dec_nmt-bottleneck.py \
+    #           --config-path=conf \
+    #           --config-name=aayn_bottleneck \
+    #           do_testing=true \
+    #           model.model_type=vae \
+    #           model.encoder.arch=perceiver \
+    #           model.encoder.hidden_steps=1 \
+    #           model.encoder.hidden_blocks=1 \
+    #           model.encoder.hidden_init_method=params \
+    #           model.encoder.hidden_size=64 \
+    #           model.encoder.inner_size=128 \
+    #           model.encoder.num_attention_heads=2 \
+    #           model.encoder.num_layers=2 \
+    #           model.decoder.hidden_size=64 \
+    #           model.decoder.inner_size=128 \
+    #           model.decoder.num_attention_heads=2 \
+    #           model.decoder.num_layers=2 \
+    #           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    #           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           trainer.devices=[0] \
+    #           trainer.accelerator="gpu" \
+    #           +trainer.fast_dev_run=true \
+    #           +trainer.limit_test_batches=2 \
+    #           exp_manager=null \
+    #           '
+    #         }
+    #     }
+    #     stage('MIM') {
+    #         steps {
+    #           sh 'cd examples/nlp/machine_translation && \
+    #           enc_dec_nmt-bottleneck.py \
+    #           --config-path=conf \
+    #           --config-name=aayn_bottleneck \
+    #           do_testing=true \
+    #           model.model_type=mim \
+    #           model.encoder.arch=perceiver \
+    #           model.encoder.hidden_steps=1 \
+    #           model.encoder.hidden_blocks=1 \
+    #           model.encoder.hidden_init_method=params \
+    #           model.encoder.hidden_size=64 \
+    #           model.encoder.inner_size=128 \
+    #           model.encoder.num_attention_heads=2 \
+    #           model.encoder.num_layers=2 \
+    #           model.decoder.hidden_size=64 \
+    #           model.decoder.inner_size=128 \
+    #           model.decoder.num_attention_heads=2 \
+    #           model.decoder.num_layers=2 \
+    #           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    #           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    #           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    #           trainer.devices=[1] \
+    #           trainer.accelerator="gpu" \
+    #           +trainer.fast_dev_run=true \
+    #           +trainer.limit_test_batches=2 \
+    #           exp_manager=null \
+    #           '
+    #         }
+    #     }
+    #   }
+    # }
+        
+  L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=10 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+            model.pipeline_model_parallel_size=2 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.data.seq_length=128 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+            model.num_layers=8 \
+            model.hidden_size=256 \
+            model.num_attention_heads=8 \
+            model.activations_checkpoint_method=block \
+            model.activations_checkpoint_num_layers=1 \
+            model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
+            model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
+
+            python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=20 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+            exp_manager.resume_if_exists=True \
+            model.pipeline_model_parallel_size=2 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.data.seq_length=128 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+            model.num_layers=8 \
+            model.hidden_size=256 \
+            model.num_attention_heads=8 \
+            model.activations_checkpoint_method=block \
+            model.activations_checkpoint_num_layers=1 \
+            model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
+            model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
+
+            rm -rf examples/nlp/language_modeling/bert_pretrain_results
+            rm -rf examples/nlp/language_modeling/bert_index_mappings
+        
+  L2_Megatron_Bert_Pretraining_and_Resume_Training:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=10 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+            model.tensor_model_parallel_size=2 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.sequence_parallel=True \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.data.seq_length=128 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+            model.num_layers=8 \
+            model.hidden_size=256 \
+            model.num_attention_heads=8 \
+            model.activations_checkpoint_method=block \
+            model.activations_checkpoint_num_layers=1 \
+            model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
+            model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
+
+            python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=20 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+            exp_manager.resume_if_exists=True \
+            model.tensor_model_parallel_size=2 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.data.seq_length=128 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+            model.num_layers=8 \
+            model.hidden_size=256 \
+            model.num_attention_heads=8 \
+            model.activations_checkpoint_method=block \
+            model.activations_checkpoint_num_layers=1 \
+            model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
+            model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
+
+            rm -rf examples/nlp/language_modeling/bert_pretrain_results
+            rm -rf examples/nlp/language_modeling/bert_index_mappings
+
+  L2_Megatron_Core_Bert_Pretraining_and_Resume_Training:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=10 \
+            trainer.precision=32 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+            model.mcore_bert=True \
+            model.tensor_model_parallel_size=2 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.sequence_parallel=True \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.data.seq_length=128 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+            model.num_layers=8 \
+            model.hidden_size=256 \
+            model.num_attention_heads=8 \
+            model.activations_checkpoint_method=block \
+            model.activations_checkpoint_num_layers=1 \
+            model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
+            model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
+
+            python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            trainer.devices=2 \
+            trainer.accelerator=gpu \
+            trainer.log_every_n_steps=1 \
+            trainer.val_check_interval=10 \
+            trainer.limit_val_batches=2 \
+            trainer.accumulate_grad_batches=1 \
+            trainer.max_steps=20 \
+            trainer.precision=32 \
+            trainer.gradient_clip_val=1.0 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+            exp_manager.resume_if_exists=True \
+            model.mcore_bert=True \
+            model.tensor_model_parallel_size=2 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.data.seq_length=128 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+            model.num_layers=8 \
+            model.hidden_size=256 \
+            model.num_attention_heads=8 \
+            model.activations_checkpoint_method=block \
+            model.activations_checkpoint_num_layers=1 \
+            model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
+            model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
+
+            rm -rf examples/nlp/language_modeling/bert_pretrain_results
+            rm -rf examples/nlp/language_modeling/bert_index_mappings
+
+  L2_Megatron_RETRO_Pretraining_and_Resume_Training:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: localhost:5000/nemo_container
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g 
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /home/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - run: |
+            python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.devices=2 \
+            trainer.num_nodes=1 \
+            trainer.accelerator=gpu \
+            trainer.accumulate_grad_batches=1 \
+            trainer.limit_val_batches=2 \
+            exp_manager.resume_if_exists=True \
+            trainer.max_steps=10 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            trainer.val_check_interval=10 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
+            model.data.data_prefix= \
+            model.data.knn_index= \
+            model.data.retrieval_prefix= \
+            model.tensor_model_parallel_size=2 \
+            model.micro_batch_size=4 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.chunk_size=32 \
+            model.enc_num_layers=2 \
+            model.dec_num_layers=2 \
+            model.enc_cross_attention=[1] \
+            model.dec_cross_attention=[1] \
+            +model.data.mock=True
+
+            python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.devices=2 \
+            trainer.num_nodes=1 \
+            trainer.accelerator=gpu \
+            trainer.accumulate_grad_batches=1 \
+            trainer.limit_val_batches=2 \
+            exp_manager.resume_if_exists=True \
+            trainer.max_steps=20 \
+            trainer.precision=16 \
+            trainer.gradient_clip_val=1.0 \
+            trainer.val_check_interval=10 \
+            exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
+            model.data.data_prefix= \
+            model.data.knn_index= \
+            model.data.retrieval_prefix= \
+            model.tensor_model_parallel_size=2 \
+            model.micro_batch_size=4 \
+            model.optim.name=fused_adam \
+            model.optim.lr=2e-4 \
+            model.optim.sched.warmup_steps=2 \
+            model.optim.sched.constant_steps=2 \
+            model.optim.sched.min_lr=8e-5 \
+            model.max_position_embeddings=128 \
+            model.encoder_seq_length=128 \
+            model.chunk_size=32 \
+            model.enc_num_layers=2 \
+            model.dec_num_layers=2 \
+            model.enc_cross_attention=[1] \
+            model.dec_cross_attention=[1] \
+            +model.data.mock=True
+
+            rm -rf examples/nlp/language_modeling/retro_results
