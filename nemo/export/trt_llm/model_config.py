@@ -319,6 +319,7 @@ class DecoderLayerConfig:
     moe_top_k: int = None
     moe_tp_mode: int = None
     moe_renorm_mode: int = None
+
     vocab_size: int = 0
     norm_epsilon: float = 0.0
     max_lora_rank: int = 64

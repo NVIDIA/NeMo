@@ -186,7 +186,7 @@ def get_args(argv):
         action='store_true',
         help="Enables streaming sentences."
     )
-    parser.add_argument(    
+    parser.add_argument(
         '--use_lora_plugin',
         nargs='?',
         const=None,
