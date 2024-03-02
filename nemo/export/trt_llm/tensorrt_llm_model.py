@@ -159,9 +159,6 @@ class ModelBuilder(Module):
                 kv_cache_params.kv_cache_block_pointers,
                 kv_cache_params.host_kv_cache_block_pointers,
                 kv_cache_params.host_max_attention_window_sizes)):
-            #lora_layer_params = None
-            #if lora_params.lora_ranks is not None:
-            #    lora_layer_params = lora_params.get_layer_params(layer_idx)
 
             lora_layer_params = None
             if lora_params.lora_ranks is not None:
@@ -184,7 +181,7 @@ class ModelBuilder(Module):
                 lora_layer_params=lora_layer_params,
             )
 
-            if use_cache:
+        if use_cache:
                 presents.append(hidden_states[1])
                 hidden_states = hidden_states[0]
 
