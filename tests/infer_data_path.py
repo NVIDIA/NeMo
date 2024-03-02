@@ -15,7 +15,6 @@
 import urllib.request as req
 from pathlib import Path
 
-
 def get_infer_test_data():
     test_data = {}
 

@@ -56,7 +56,6 @@ def get_transformer_layers(mapping, num_layers):
     return layers_range
 
 
-
 class ModelBuilder(Module):
     """A generic tensorrt_llm transformer model builder.
 
@@ -83,10 +82,13 @@ class ModelBuilder(Module):
         self.rank = model_config.mapping.rank
         self.max_lora_rank = model_config.max_lora_rank
 
-        # TODO: support use_parallel_embedding.
         if self._mapping.is_first_pp_rank():
             self.vocab_embedding = build_embedding_from_config(
-                model_config.vocab_embedding, self._dtype, use_prompt_tuning=self._use_prompt_tuning
+                model_config.vocab_embedding, 
+                self._dtype, 
+                use_prompt_tuning=self._use_prompt_tuning,
+                tensor_parallel=model_config.mapping.tp_size,
+                tensor_parallel_rank=model_config.mapping.tp_rank,
             )
             self.positional_embedding = build_embedding_from_config(
                 model_config.positional_embedding, self._dtype, use_prompt_tuning=False
@@ -132,7 +134,7 @@ class ModelBuilder(Module):
         ptuning_args = []
         if self._use_prompt_tuning:
             ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
-
+            
         if self._mapping.is_first_pp_rank():
             x = self.vocab_embedding(input_ids, *ptuning_args)
             if hasattr(self, "positional_embedding") and self.positional_embedding:
@@ -150,26 +152,27 @@ class ModelBuilder(Module):
         if attention_mask is not None:
             attention_mask = expand_mask(attention_mask, shape(input_ids, -1))
 
-
-        for idx, (layer, past, pointers,
-                  max_kv_cache_length) in enumerate(
-                    zip(self.layers, kv_cache_params.past_key_value,
-                        kv_cache_params.kv_cache_block_pointers,
-                        kv_cache_params.host_max_attention_window_sizes)):
+        for layer_idx, (
+                layer, past, pointer, host_pointer,
+                max_attention_window_size) in enumerate(
+            zip(self.layers, kv_cache_params.past_key_value,
+                kv_cache_params.kv_cache_block_pointers,
+                kv_cache_params.host_kv_cache_block_pointers,
+                kv_cache_params.host_max_attention_window_sizes)):
 
             lora_layer_params = None
             if lora_params.lora_ranks is not None:
-                lora_layer_params = lora_params.get_layer_params(idx)
+                lora_layer_params = lora_params.get_layer_params(layer_idx)
 
             hidden_states = layer(
                 hidden_states,
-                attention_mask=attention_mask,
                 use_cache=use_cache,
+                attention_mask=attention_mask,
                 kv_cache_params=KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
-                    kv_cache_block_pointers=[pointers],
-                    host_max_attention_window_sizes=max_kv_cache_length,
+                    kv_cache_block_pointers=[pointer],
+                    host_max_attention_window_sizes=max_attention_window_size,
                     cache_indirection=kv_cache_params.cache_indirection,
                     host_sink_token_length=kv_cache_params.host_sink_token_length,
                     host_kv_cache_block_pointers=kv_cache_params.host_kv_cache_block_pointers,
@@ -178,7 +181,7 @@ class ModelBuilder(Module):
                 lora_layer_params=lora_layer_params,
             )
 
-            if use_cache:
+        if use_cache:
                 presents.append(hidden_states[1])
                 hidden_states = hidden_states[0]
 
@@ -359,9 +362,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                     'host_max_attention_window_sizes'],
                 kv_cache_block_pointers=model_inputs[
                     'kv_cache_block_pointers_list'],
+                host_kv_cache_block_pointers=model_inputs[
+                    'host_kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
                 host_sink_token_length=model_inputs['host_sink_token_length'],
-                host_kv_cache_block_pointers=model_inputs['host_kv_cache_block_pointers_list'],
             ),
             AttentionParams(
                 sequence_length=model_inputs['sequence_length'],
@@ -399,6 +403,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         paged_kv_cache: bool = False,
         enable_context_fmha: bool = True,
         enable_multi_block_mode: bool = False,
+        use_refit: bool = False,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
@@ -439,6 +444,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             paged_kv_cache=paged_kv_cache,
             enable_context_fmha=enable_context_fmha,
             enable_multi_block_mode=enable_multi_block_mode,
+            use_refit=use_refit,
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
             max_lora_rank=max_lora_rank,

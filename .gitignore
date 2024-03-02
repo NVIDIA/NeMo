@@ -129,6 +129,7 @@ venv.bak/
 
 # VSCode project settins
 .vscode/
+.devcontainer/
 
 # Spyder project settings
 .spyderproject
@@ -179,3 +180,5 @@ examples/neural_graphs/*.yml
 .hydra/
 nemo_experiments/
 
+# Custom dockerfile(s)
+Dockerfile.*

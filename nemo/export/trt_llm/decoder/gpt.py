@@ -130,5 +130,6 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
             num_kv_heads=self.num_kv_heads,
             tp_group=self.tp_group,
             tp_size=self.tensor_parallel,
+            max_lora_rank=layer.max_lora_rank,
         )
 

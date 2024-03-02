@@ -40,6 +40,10 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
         "bias": "bias",
         "intermediate_size": "ffn_hidden_size",
         "num_kv_heads": "num_query_groups",
+        "moe_num_experts": "num_moe_experts",
+        "moe_top_k": "num_experts_per_token",
+        "moe_tp_mode": "moe_tp_mode",
+        "moe_renorm_mode": "moe_renorm_mode",
         "norm_epsilon": "layernorm_epsilon",
     }
 

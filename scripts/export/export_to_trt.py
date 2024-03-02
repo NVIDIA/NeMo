@@ -117,15 +117,15 @@ def get_args(argv):
     parser.add_argument(
         "-uib",
         "--use_inflight_batching",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable inflight batching for TensorRT-LLM Triton backend."
     )
     parser.add_argument(
         "-upkc",
         "--use_paged_kv_cache",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable paged kv cache."
     )
     parser.add_argument(
@@ -172,8 +172,8 @@ def get_args(argv):
     parser.add_argument(
         "-dm",
         "--debug_mode",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable debug mode"
     )
 
@@ -183,8 +183,7 @@ def get_args(argv):
 
 def nemo_export(argv):
     args = get_args(argv)
-
-    if args.debug_mode == "True":
+    if args.debug_mode:
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
@@ -192,16 +191,6 @@ def nemo_export(argv):
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
     LOGGER.info(args)
-
-    if args.use_inflight_batching == "True":
-        args.use_inflight_batching = True
-    else:
-        args.use_inflight_batching = False
-
-    if args.use_paged_kv_cache == "True":
-        args.use_paged_kv_cache = True
-    else:
-        args.use_paged_kv_cache = False
 
     if args.dtype != "bf16":
         LOGGER.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
@@ -225,7 +214,6 @@ def nemo_export(argv):
             use_inflight_batching=args.use_inflight_batching,
             paged_kv_cache=args.use_paged_kv_cache,
             enable_multi_block_mode=args.multi_block_mode,
-            #dtype=args.dtype,
             use_lora_plugin=args.use_lora_plugin,
             lora_target_modules=args.lora_target_modules,
             max_lora_rank=args.max_lora_rank,
@@ -234,6 +222,7 @@ def nemo_export(argv):
         LOGGER.info("Export is successful.")
     except Exception as error:
         LOGGER.error("Error message: " + str(error))
+        raise error
 
 
 if __name__ == '__main__':

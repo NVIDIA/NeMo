@@ -44,15 +44,25 @@ def get_args(argv):
     parser.add_argument(
         "-pnc",
         "--ptuning_nemo_checkpoint",
+        nargs='+',
         type=str,
+        required=False,
         help="Source .nemo file for prompt embeddings table"
+    )
+    parser.add_argument(
+        '-ti',
+        '--task_ids',
+        nargs='+',
+        type=str,
+        required=False,
+        help='Unique task names for the prompt embedding.'
     )
     parser.add_argument(
         "-mt",
         "--model_type",
         type=str,
         required=False,
-        choices=["gptnext", "gpt", "llama", "falcon", "starcoder"],
+        choices=["gptnext", "gpt", "llama", "falcon", "starcoder", "mixtral"],
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
              " gptnext and gpt are the same and keeping it for backward compatibility"
     )
@@ -149,14 +159,15 @@ def get_args(argv):
     parser.add_argument(
         "-upkc",
         "--use_paged_kv_cache",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable paged kv cache."
     )
     parser.add_argument(
         "-dcf",
         "--disable_context_fmha",
-        action="store_true",
+        default=False,
+        action='store_true',
         help="Disable fused Context MultiHeadedAttention (required for V100 support)."
     )
     parser.add_argument(
@@ -169,6 +180,13 @@ def get_args(argv):
                         It is beneifical when batchxnum_heads cannot fully utilize GPU.'
     )
     parser.add_argument(
+        "-es",
+        '--enable_streaming',
+        default=False,
+        action='store_true',
+        help="Enables streaming sentences."
+    )
+    parser.add_argument(    
         '--use_lora_plugin',
         nargs='?',
         const=None,
@@ -203,8 +221,8 @@ def get_args(argv):
     parser.add_argument(
         "-dm",
         "--debug_mode",
-        default="False",
-        type=str,
+        default=False,
+        action='store_true',
         help="Enable debug mode"
     )
 
@@ -215,20 +233,10 @@ def get_args(argv):
 def nemo_deploy(argv):
     args = get_args(argv)
 
-    if args.debug_mode == "True":
+    if args.debug_mode:
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
-
-    if args.use_paged_kv_cache == "True":
-        args.use_paged_kv_cache = True
-    else:
-        args.use_paged_kv_cache = False
-
-    if args.disable_context_fmha == "True":
-        args.disable_context_fmha = True
-    else:
-        args.disable_context_fmha = False
 
     LOGGER.setLevel(loglevel)
     LOGGER.info("Logging level set to {}".format(loglevel))
@@ -265,7 +273,6 @@ def nemo_deploy(argv):
         )
         return
 
-
     ptuning_tables_files = []
     if not args.ptuning_nemo_checkpoint is None:
         if args.max_prompt_embedding_table_size is None:
@@ -274,22 +281,29 @@ def nemo_deploy(argv):
             )
             return
 
-        ptuning_nemo_checkpoint_path = Path(args.ptuning_nemo_checkpoint)
-        if ptuning_nemo_checkpoint_path.exists():
-            if ptuning_nemo_checkpoint_path.is_file():
-                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
-            elif ptuning_nemo_checkpoint_path.is_dir():
-                ptuning_tables_files.append(args.ptuning_nemo_checkpoint)
+        for pt_checkpoint in args.ptuning_nemo_checkpoint:
+            ptuning_nemo_checkpoint_path = Path(pt_checkpoint)
+            if ptuning_nemo_checkpoint_path.exists():
+                if ptuning_nemo_checkpoint_path.is_file():
+                    ptuning_tables_files.append(pt_checkpoint)
+                else:
+                    LOGGER.error(
+                        "Could not read the prompt tuning tables from {0}".format(pt_checkpoint)
+                    )
+                    return
             else:
                 LOGGER.error(
-                    "Could not read the prompt tuning tables from {0}".format(args.ptuning_nemo_checkpoint)
+                    "File or directory {0} does not exist.".format(pt_checkpoint)
                 )
                 return
-        else:
-            LOGGER.error(
-                "File or directory {0} does not exist.".format(args.ptuning_nemo_checkpoint)
-            )
-            return
+
+        if args.task_ids is not None:
+            if len(ptuning_tables_files) != len(args.task_ids):
+                LOGGER.error(
+                    "Number of task ids and prompt embedding tables have to match. "
+                    "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
+                )
+                return
 
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path)
 
@@ -319,10 +333,15 @@ def nemo_deploy(argv):
             return
 
     try:
-        for task, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
-            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task))
+        for i, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
+            if args.task_ids is not None:
+                task_id = args.task_ids[i]
+            else:
+                task_id = i
+
+            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task_id))
             trt_llm_exporter.add_prompt_table(
-                task_name=str(task),
+                task_name=str(task_id),
                 prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
@@ -336,7 +355,8 @@ def nemo_deploy(argv):
             triton_model_version=args.triton_model_version,
             max_batch_size=args.max_batch_size,
             port=args.triton_port,
-            http_address=args.triton_http_address,
+            address=args.triton_http_address,
+            streaming=args.enable_streaming
         )
 
         LOGGER.info("Triton deploy function will be called.")

@@ -23,20 +23,32 @@ import pickle
 import tensorrt_llm
 import torch
 import tempfile
+import wrapt
+from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
+from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config, nemo_model_to_model_config
+from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
+from .utils import is_nemo_file, unpack_nemo_ckpt
+from .trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
+from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
 
 from nemo.deploy import ITritonDeployable
+
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
 except:
     pass
 import logging
 
-from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
-from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config
-from .trt_llm.tensorrt_llm_run import generate, load
-from .utils import is_nemo_file, unpack_nemo_ckpt
+
+@wrapt.decorator
+def noop_decorator(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
 
 use_pytriton = True
+batch = noop_decorator
 try:
     from pytriton.decorators import batch
     from pytriton.model_config import Tensor
@@ -47,7 +59,6 @@ LOGGER = logging.getLogger("NeMo")
 
 
 class TensorRTLLM(ITritonDeployable):
-
     """
     Exports nemo checkpoints to TensorRT-LLM and run fast inference.
 
@@ -66,7 +77,7 @@ class TensorRTLLM(ITritonDeployable):
 
     """
 
-    def __init__(self, model_dir: str, load_model: bool=True):
+    def __init__(self, model_dir: str, load_model: bool = True):
         """
         Args:
             model_dir (str): path for storing the TensorRT-LLM model files.
@@ -136,9 +147,10 @@ class TensorRTLLM(ITritonDeployable):
                             "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type))
 
         if model_type == "gpt" or model_type == "starcoder":
-            # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
-            # gpt and starcoder use the similar model architecture. So, gpt can be used for starcoder.
             model_type = "gptnext"
+
+        if model_type == "mixtral":
+            model_type = "llama"
 
         if pipeline_parallel_size is None:
             tensor_parallel_size = n_gpus
@@ -184,7 +196,7 @@ class TensorRTLLM(ITritonDeployable):
         model_config_to_tensorrt_llm(
             model_configs,
             self.model_dir,
-            world_size=tensor_parallel_size*pipeline_parallel_size,
+            world_size=tensor_parallel_size * pipeline_parallel_size,
             max_input_len=max_input_token,
             max_output_len=max_output_token,
             max_batch_size=max_batch_size,
@@ -212,6 +224,79 @@ class TensorRTLLM(ITritonDeployable):
         if load_model:
             self._load()
 
+    def build(
+        self,
+        nemo_model,
+        nemo_model_config,
+        tokenizer=None,
+        max_input_token: int = 256,
+        max_output_token: int = 256,
+        max_batch_size: int = 8,
+        use_refit: bool = False,
+        model_type: str = "gptnext",
+    ):
+        from megatron.core import parallel_state
+
+        self.use_refit = use_refit
+        self.stream = torch.cuda.Stream()
+        self.model_type = model_type
+        self.tokenizer = build_tokenizer(tokenizer)
+
+        # Each model shard has its own directory
+        if parallel_state.get_data_parallel_world_size() > 1:
+            self.model_dir = os.path.join(
+                self.model_dir, f"dp{parallel_state.get_data_parallel_rank()}")
+        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+            self.model_dir = os.path.join(
+                self.model_dir, f"tp{parallel_state.get_tensor_model_parallel_rank()}")
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            self.model_dir = os.path.join(
+                self.model_dir, f"pp{parallel_state.get_pipeline_model_parallel_rank()}")
+
+        # Build or refit TRT-LLM engine from a nemo model. 
+        model_configs = nemo_model_to_model_config(
+            nemo_model=nemo_model,
+            decoder_type=model_type,
+            nemo_model_config=nemo_model_config,
+        )
+
+        model_config_to_tensorrt_llm(
+            model_configs,
+            self.model_dir,
+            max_input_len=max_input_token,
+            max_output_len=max_output_token,
+            max_batch_size=max_batch_size,
+            max_beam_width=1,
+            max_prompt_embedding_table_size=0,
+            use_refit=self.use_refit,
+        )
+        # Use load_refit to handle multiprocessed environment
+        self.model = load_refit(
+            tokenizer=self.tokenizer,
+            engine_dir=self.model_dir,
+            model_configs=model_configs,
+            stream=self.stream)
+
+    def refit(
+        self,
+        nemo_model,
+        nemo_model_config,
+    ):
+        assert self.use_refit, "TRT-LLM model must be built() with refit=True"
+
+        # Build or refit TRT-LLM engine from a nemo model. 
+        model_configs = nemo_model_to_model_config(
+            nemo_model=nemo_model,
+            decoder_type=self.model_type,
+            nemo_model_config=nemo_model_config
+        )
+
+        self.model = load_refit(
+            tokenizer=self.tokenizer,
+            engine_dir=self.model_dir,
+            model_configs=model_configs,
+            stream=self.stream)
+
     def forward(
         self,
         input_texts: List[str],
@@ -223,9 +308,10 @@ class TensorRTLLM(ITritonDeployable):
         bad_words_list: List[str] = None,
         no_repeat_ngram_size: int = None,
         task_ids: List[str] = None,
-        prompt_embeddings_table = None,
+        prompt_embeddings_table=None,
         prompt_embeddings_checkpoint_path: str = None,
         streaming: bool = False,
+        output_log_probs: bool = False,
         **sampling_kwargs,
     ):
 
@@ -277,30 +363,55 @@ class TensorRTLLM(ITritonDeployable):
                                                                    "it needs to match with len of input_texts.")
 
                     if len(task_ids) == 1:
-                        assert task_ids[0] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(task_ids[0])
+                        assert task_ids[0] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(
+                            task_ids[0])
                         input_task_ids = [self.task_ids[task_ids[0]] for i in range(len(input_texts))]
                     else:
                         input_task_ids = []
                         for i in range(len(input_texts)):
-                            assert task_ids[i] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
+                            assert task_ids[
+                                       i] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(
+                                task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
+            if not streaming:
+                if torch.distributed.is_initialized():
+                    multiprocessed_env = True
+                else:
+                    multiprocessed_env = False
 
-            return generate(
-                input_texts=input_texts,
-                max_output_len=max_output_token,
-                host_context=self.model,
-                top_k=top_k,
-                top_p=top_p,
-                temperature=temperature,
-                prompt_table=prompt_table,
-                task_vocab_size=tv_size,
-                task_ids=input_task_ids,
-                stop_words_list=stop_words_list,
-                bad_words_list=bad_words_list,
-                no_repeat_ngram_size=no_repeat_ngram_size,
-                streaming=streaming,
-                **sampling_kwargs,
-            )
+                return generate(
+                    input_texts=input_texts,
+                    max_output_len=max_output_token,
+                    host_context=self.model,
+                    top_k=top_k,
+                    top_p=top_p,
+                    temperature=temperature,
+                    prompt_table=prompt_table,
+                    task_vocab_size=tv_size,
+                    task_ids=input_task_ids,
+                    stop_words_list=stop_words_list,
+                    bad_words_list=bad_words_list,
+                    no_repeat_ngram_size=no_repeat_ngram_size,
+                    output_log_probs=output_log_probs,
+                    multiprocessed_env=multiprocessed_env,
+                    **sampling_kwargs,
+                )
+            else:
+                return generate_streaming(
+                    input_texts=input_texts,
+                    max_output_len=max_output_token,
+                    host_context=self.model,
+                    top_k=top_k,
+                    top_p=top_p,
+                    temperature=temperature,
+                    prompt_table=prompt_table,
+                    task_vocab_size=tv_size,
+                    task_ids=input_task_ids,
+                    stop_words_list=stop_words_list,
+                    bad_words_list=bad_words_list,
+                    no_repeat_ngram_size=no_repeat_ngram_size,
+                    **sampling_kwargs,
+                )
 
     def add_prompt_table(self, task_name: str, prompt_embeddings_checkpoint_path: str):
         # TODO: check if the added table's size is larger than the max_prompt_embedding_table_size
@@ -341,7 +452,7 @@ class TensorRTLLM(ITritonDeployable):
     @property
     def get_supported_models_list(self):
         # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
-        return ["gpt", "gptnext", "llama", "falcon", "starcoder"]
+        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral"]
 
     @property
     def get_hidden_size(self):
@@ -372,6 +483,7 @@ class TensorRTLLM(ITritonDeployable):
         return outputs
 
 
+    @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
@@ -386,11 +498,11 @@ class TensorRTLLM(ITritonDeployable):
             if "random_seed" in inputs:
                 infer_input["random_seed"] = inputs.pop("random_seed")[0][0]
             if "stop_words_list" in inputs:
-                swl = np.char.decode(inputs.pop("stop_words_list").astype("bytes"), encoding="utf-8")
-                infer_input["stop_words_list"] = swl[0]
+                stop_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
+                infer_input["stop_words_list"] = [[stop_word] for stop_word in stop_words_list]
             if "bad_words_list" in inputs:
-                swl = np.char.decode(inputs.pop("bad_words_list").astype("bytes"), encoding="utf-8")
-                infer_input["bad_words_list"] = swl[0]
+                bad_words_list = str_ndarray2list(inputs.pop("bad_words_list"))
+                infer_input["bad_words_list"] = [[bad_word] for bad_word in bad_words_list]
             if "no_repeat_ngram_size" in inputs:
                 infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
             if "task_id" in inputs:
@@ -400,6 +512,42 @@ class TensorRTLLM(ITritonDeployable):
             output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
             return {"outputs": output}
+        except Exception as error:
+            err_msg = "An error occurred: {0}".format(str(error))
+            output = cast_output([err_msg], np.bytes_)
+            return {"outputs": output}
+
+    @batch
+    def triton_infer_fn_streaming(self, **inputs: np.ndarray):
+        try:
+            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
+            if "max_output_token" in inputs:
+                infer_input["max_output_token"] = inputs.pop("max_output_token")[0][0]
+            if "top_k" in inputs:
+                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+            if "top_p" in inputs:
+                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+            if "temperature" in inputs:
+                infer_input["temperature"] = inputs.pop("temperature")[0][0]
+            if "random_seed" in inputs:
+                infer_input["random_seed"] = inputs.pop("random_seed")[0][0]
+            if "stop_words_list" in inputs:
+                stop_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
+                infer_input["stop_words_list"] = [[stop_word] for stop_word in stop_words_list]
+            if "bad_words_list" in inputs:
+                bad_words_list = str_ndarray2list(inputs.pop("bad_words_list"))
+                infer_input["bad_words_list"] = [[bad_word] for bad_word in bad_words_list]
+            if "no_repeat_ngram_size" in inputs:
+                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
+            if "task_id" in inputs:
+                task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
+                infer_input["task_ids"] = task_id[0]
+
+            partial_outputs = self.forward(**infer_input, streaming=True)
+            # On each request to this generator, run the model for one step and return a dict
+            # with full outputs generated until this step.
+            for output_texts in partial_outputs:
+                yield {"outputs": cast_output(output_texts, np.bytes_)}
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
@@ -448,7 +596,25 @@ class TensorRTLLM(ITritonDeployable):
                                             "Please check the nemo checkpoint format for the prompt "
                                             "embedding table.".format(mw_path))
             weights = torch.load(mw_path)
-            weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
+
+            weights_found = True
+            if "model.embedding.adapter_layer.ptuning_adapter.inference_table" in weights:
+                weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
+            elif "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight" in weights:
+                weights = weights[
+                    "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"]
+            elif 'prompt_table' in weights:
+                if "prompt_table.taskname.prompt_embeddings.weight" in weights['prompt_table']:
+                    weights = weights['prompt_table']["prompt_table.taskname.prompt_embeddings.weight"]
+                else:
+                    weights_found = False
+            else:
+                weights_found = False
+
+            if not weights_found:
+                raise Exception(
+                    "Could not find the embedding table in the {0}. Please check the nemo file format".format(
+                        prompt_embeddings_checkpoint_path))
 
             return weights.cpu().detach()
         return None

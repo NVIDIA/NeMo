@@ -24,6 +24,8 @@ from pathlib import Path
 import typing
 from typing import Dict, List, Tuple
 
+import csv
+import torch
 import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
@@ -40,8 +42,8 @@ from .model_config import (
     ModelConfig,
 )
 from .nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
-from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint, convert_dist_checkpoint
-from .tensor_utils import get_tensor_from_dict, split
+from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint, convert_dist_checkpoint, convert_nemo_model
+from .tensor_utils import get_tensor_from_dict, split, get_tensor_parallel_group
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -134,7 +136,6 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
     return build_tokenizer(tokenizer_config)
 
-
 def nemo_to_model_config(
     in_file: str, 
     decoder_type: str, 
@@ -214,3 +215,130 @@ def nemo_to_model_config(
         )
 
     return model_configs, tokenizer
+
+def to_word_list_format(word_dict: List[List[str]],
+                        tokenizer=None):
+    '''
+    format of word_dict
+        len(word_dict) should be same to batch_size
+        word_dict[i] means the words for batch i
+        len(word_dict[i]) must be 1, which means it only contains 1 string
+        This string can contains several sentences and split by ",".
+        For example, if word_dict[2] = " I am happy, I am sad", then this function will return
+        the ids for two short sentences " I am happy" and " I am sad".
+    '''
+    assert tokenizer is not None, "need to set tokenizer"
+
+    flat_ids = []
+    offsets = []
+    # We use a similar trick as in NeMo to deal with the fact that the encoding of a single word
+    # can't always be trusted. See
+    #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229
+    ids_ref = tokenizer.encode("<extra_id_1>")
+    for word_dict_item in word_dict:
+        item_flat_ids = []
+        item_offsets = []
+
+        if isinstance(word_dict_item[0], bytes):
+            word_dict_item = [word_dict_item[0].decode()]
+
+        words = list(csv.reader(word_dict_item))[0]
+        for word in words:
+            ids = tokenizer.encode(f"<extra_id_1>{word}")
+            if ids[0:len(ids_ref)] == ids_ref:
+                # It worked! We can obtain the token(s) associated to `word` by stripping the prefix tokens.
+                ids = ids[len(ids_ref):]
+            else:
+                # Unfortunately the prefix was merged with `word`. We could try with a different prefix, but
+                # for now we just use the basic encoding since this should be a very rare edge case.
+                ids = tokenizer.encode(word)
+                logging.warning(f"The encoding of word '{word}' into tokens {ids} might be incorrect")
+
+            if len(ids) == 0:
+                continue
+
+            item_flat_ids += ids
+            item_offsets.append(len(ids))
+
+        flat_ids.append(np.array(item_flat_ids))
+        offsets.append(np.cumsum(np.array(item_offsets)))
+
+    pad_to = max(1, max(len(ids) for ids in flat_ids))
+
+    for i, (ids, offs) in enumerate(zip(flat_ids, offsets)):
+        flat_ids[i] = np.pad(ids, (0, pad_to - len(ids)), constant_values=0)
+        offsets[i] = np.pad(offs, (0, pad_to - len(offs)), constant_values=-1)
+
+    return np.array([flat_ids, offsets], dtype="int32").transpose((1, 0, 2))
+
+def nemo_model_to_model_config(
+    nemo_model: str, 
+    decoder_type: str, 
+    nemo_model_config: str, 
+    dtype_str: str = "float32",
+) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
+    """Converts the NEMO model object and construct the `ModelConfig` before tensorrt_llm deployment."""
+    from megatron.core import parallel_state
+    assert nemo_model_config is not None, "gpt_model_config must be provided when in is a nemo model"
+
+    weights_dict, llm_model_config = convert_nemo_model(
+        nemo_model, nemo_model_config, dtype_str, decoder_type)
+    is_mcore = nemo_model_config.get("mcore_gpt", False)
+    llm_model_config.is_mcore = is_mcore
+
+    model_config = ModelConfig()
+    model_config.use_prompt_tuning = False
+    model_config.dtype = dtype_str
+    model_config.use_parallel_embedding = True
+    str_dtype_to_trt(dtype_str)
+
+    model_config.vocab_embedding = EmbeddingConfig(
+        weight=get_tensor_from_dict(weights_dict, "wte"), is_local=True
+    )
+
+    model_config.final_layernorm = LayernormConfig(
+        weight=get_tensor_from_dict(weights_dict, "final_layernorm.weight"),
+        bias=get_tensor_from_dict(weights_dict, "final_layernorm.bias"),
+    )
+    model_config.final_layernorm.layernorm_type = (
+        LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
+    )
+
+    tensor_parallel_size = nemo_model_config.tensor_model_parallel_size
+    pipeline_parallel_size = 1
+    world_size = tensor_parallel_size*pipeline_parallel_size
+
+    #hack since tensorrt_llm doesnt support DP natively so init all ranks with DP=1  
+    model_config.mapping = tensorrt_llm.Mapping(
+        world_size=tensor_parallel_size*pipeline_parallel_size, 
+        rank=tensorrt_llm.mpi_rank() % world_size,
+        tp_size=tensor_parallel_size, 
+        pp_size=pipeline_parallel_size)
+    model_config.mapping.rank = tensorrt_llm.mpi_rank()
+    model_config.mapping.tp_group = get_tensor_parallel_group(tensor_parallel_size)
+
+    LOGGER.info(f'''Resharing: Rank {tensorrt_llm.mpi_rank()} mapping:
+        tp_rank  {parallel_state.get_tensor_model_parallel_rank()} -> {model_config.mapping.tp_rank}, 
+        pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {model_config.mapping.pp_rank}, 
+        tp_group {model_config.mapping.tp_group}'''
+    )
+
+    for i in range(llm_model_config.n_layer):
+        model_config.layers.append(
+            DecoderLayerConfig.from_nemo(
+                weights_dict=weights_dict,
+                llm_config=llm_model_config,
+                decoder_type=decoder_type,
+                layer_id=i,
+                rank=model_config.mapping.tp_rank,
+                is_mcore=llm_model_config.is_mcore,
+            )
+        )
+    lm_head_weight = get_tensor_from_dict(weights_dict, "lm_head.weight")
+
+    assert model_config.vocab_size_padded == model_config.vocab_size
+
+    model_config.lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
+    model_config.lm_head.weight = lm_head_weight
+    
+    return [model_config]

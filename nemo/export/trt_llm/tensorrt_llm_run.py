@@ -28,7 +28,12 @@ from transformers import PreTrainedTokenizer
 from tensorrt_llm.logger import logger
 from tensorrt_llm.quantization import QuantMode
 
-from .tensorrt_llm_build import get_engine_name, MODEL_NAME  # isort:skip
+from .tensorrt_llm_build import get_engine_name, MODEL_NAME, refit_runtime_engine  # isort:skip
+from .tensorrt_llm_model import LMHeadModelBuilder
+
+from .tensor_utils import get_tensor_parallel_group
+
+from .nemo_utils import to_word_list_format # isort:skip
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -162,6 +167,7 @@ def _forward(
         bad_words_list=None,
         no_repeat_ngram_size=None,
         streaming: bool = False,
+        multiprocessed_env=False,
         **sampling_kwargs,
 ) -> Optional[torch.IntTensor]:
     """The impl of `forward` API for on a single GPU worker with tensor as IO.
@@ -217,7 +223,6 @@ def _forward(
                 setattr(sampling_config, key, param)
 
             decoder.setup(batch_size, max_context_length=max_length, max_new_tokens=max_output_len)
-
             if decoder.remove_input_padding:
                 if stop_words_list is not None:
                     LOGGER.warning("stop_words_list should be set to None with remove_input_padding=True "
@@ -243,13 +248,13 @@ def _forward(
                     no_repeat_ngram_size=no_repeat_ngram_size,
                     streaming=streaming,
                 )
-
             torch.cuda.synchronize()
-            runtime_rank = tensorrt_llm.mpi_rank()
-            if runtime_rank == 0:
-                return output_ids
-            else:
-                return None
+
+        runtime_rank = tensorrt_llm.mpi_rank()
+        if runtime_rank == 0 or multiprocessed_env:
+            return output_ids, decoder.log_probs
+        else:
+            return None
 
     except Exception as e:
         print(e)
@@ -263,6 +268,7 @@ def load(
 
     It also supports running the TRT LLM model on multi-GPU.
     """
+    # the parent dir of the engine_dir 
     config_path = os.path.join(engine_dir, "config.json")
     with open(config_path, "r") as f:
         config = json.load(f)
@@ -290,6 +296,90 @@ def load(
         max_input_len=max_input_len,
     )
 
+def load_refit(
+    tokenizer, 
+    engine_dir: str, 
+    num_beams: int = 1, 
+    model_configs: List = None,
+    stream = None,
+) -> TensorrtLLMHostContext:
+    """Loaded the compiled LLM model and run it.
+
+    It also supports running the TRT LLM model on multi-GPU.
+    """
+
+    config_path = os.path.join(engine_dir, "config.json")
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    """The impl of `load` API for on a single GPU worker."""
+    tensorrt_llm.logger.set_level("error")
+
+    engine_dir = Path(engine_dir)
+    config_path = engine_dir / "config.json"
+
+    model_config, world_size, tensor_parallel_size, pipeline_parallel_size, \
+        dtype, max_input_len, max_batch_size = _read_config(config_path)
+
+    runtime_rank = torch.cuda.current_device()
+    assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
+
+    # Manipulate the tensorrt_llm mapping to make it compatible with the multiprocessed env.
+    assert tensorrt_llm.mpi_world_size() == torch.distributed.get_world_size(), "MPI world size mismatch"
+    runtime_mapping = tensorrt_llm.Mapping(
+        world_size=tensorrt_llm.mpi_world_size(),
+        rank=runtime_rank,
+        tp_size=tensorrt_llm.mpi_world_size(),
+        pp_size=1,
+    ) # TODO: Support pipeline parallel
+
+    engine_name = get_engine_name(
+        MODEL_NAME, dtype, tensor_parallel_size, pipeline_parallel_size, tensorrt_llm.mpi_rank())
+
+    logger.info(
+        f"Loading engine: Rank ({tensorrt_llm.mpi_rank()} -> {engine_dir}/{engine_name}")
+
+    serialize_path = os.path.join(engine_dir, engine_name)
+    with open(serialize_path, "rb") as f:
+        engine_buffer = f.read()
+        
+    decoder = tensorrt_llm.runtime.GenerationSession(
+        model_config, engine_buffer, runtime_mapping, debug_mode=False, stream=stream)
+    runtime_mapping.rank = runtime_rank
+    runtime_mapping.tp_group = get_tensor_parallel_group(
+        tensor_parallel_size
+    )  # Override the tp_group to support TP+DP
+    runtime_mapping.tp_rank = runtime_rank
+    runtime_mapping.tp_size = tensor_parallel_size
+    runtime_mapping.pp_group = [runtime_rank]  
+    runtime_mapping.pp_rank = 0
+    
+    sampling_config = SamplingConfig(
+        end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams
+    )
+ 
+    # create a new builder and refit the current engine
+    new_builder = LMHeadModelBuilder(model_configs[0])
+    engine = decoder.runtime.engine
+    refit_runtime_engine(new_builder.named_parameters(), engine)
+
+    # Initialize the global context so it can be used during `run` API.
+    global tensorrt_llm_worker_context
+    tensorrt_llm_worker_context.decoder = decoder
+    tensorrt_llm_worker_context.sampling_config = sampling_config
+    tensorrt_llm_worker_context.max_batch_size = max_batch_size
+    tensorrt_llm_worker_context.max_input_len = max_input_len
+
+    max_batch_size = config["builder_config"]["max_batch_size"]
+    max_input_len = config["builder_config"]["max_input_len"]
+
+    return TensorrtLLMHostContext(
+        executor=None,
+        world_size=world_size,
+        tokenizer=tokenizer,
+        max_batch_size=max_batch_size,
+        max_input_len=max_input_len,
+    )
+
 
 def forward(
         input_tensors: List[torch.IntTensor],
@@ -305,7 +395,9 @@ def forward(
         bad_words_list=None,
         no_repeat_ngram_size=None,
         streaming: bool = False,
+        multiprocessed_env=False,
         **sampling_kwargs,
+
 ) -> Optional[torch.IntTensor]:
     """Run the loaded model with the host_context provided from the `load` API."""
     batch_size = len(input_tensors)
@@ -320,7 +412,7 @@ def forward(
     ), f"input length {max_length} exceedng max input length {max_input_len}"
 
     world_size = host_context.world_size
-    if world_size == 1:
+    if world_size == 1 or multiprocessed_env:
         return _forward(
             input_tensors=input_tensors,
             max_output_len=max_output_len,
@@ -334,6 +426,7 @@ def forward(
             bad_words_list=bad_words_list,
             no_repeat_ngram_size=no_repeat_ngram_size,
             streaming=streaming,
+            multiprocessed_env=multiprocessed_env,
             **sampling_kwargs
         )
     else:
@@ -379,6 +472,80 @@ def generate(
         bad_words_list=None,
         no_repeat_ngram_size=None,
         streaming: bool = False,
+        output_log_probs=False,
+        multiprocessed_env=False,
+        **sampling_kwargs,
+) -> Optional[List[List[str]]]:
+    """Generate the output sequence from the input sequence.
+
+    Returns a 2D string list with shape [batch_size, num_beams].
+    """
+    tokenizer = host_context.tokenizer
+    input_tensors = [
+        torch.IntTensor(tokenizer.encode(t)) for t in input_texts
+    ]
+
+    batch_size = len(input_texts)
+
+    stop_words_list_tensors = None
+    if stop_words_list is not None:
+        stop_words_arrays = to_word_list_format(stop_words_list, tokenizer)
+        stop_words_list_tensors = torch.Tensor(stop_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+    
+    bad_words_list_tensors = None
+    if bad_words_list is not None:
+        bad_words_arrays = to_word_list_format(bad_words_list, tokenizer)
+        bad_words_list_tensors = torch.Tensor(bad_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+    
+    if no_repeat_ngram_size is not None:
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
+            torch.cuda.current_device())
+    
+    outputs, log_probs = forward(
+        input_tensors=input_tensors,
+        max_output_len=max_output_len,
+        host_context=host_context,
+        top_k=top_k,
+        top_p=top_p,
+        temperature=temperature,
+        prompt_table=prompt_table,
+        task_vocab_size=task_vocab_size,
+        task_ids=task_ids,
+        stop_words_list=stop_words_list_tensors,
+        bad_words_list=bad_words_list_tensors,
+        no_repeat_ngram_size=no_repeat_ngram_size,
+        streaming=False,
+        output_log_probs=output_log_probs,
+        multiprocessed_env=multiprocessed_env,
+        **sampling_kwargs
+    )
+    assert outputs is not None
+
+    input_lengths = [t.shape[0] for t in input_tensors]
+
+    output_lines_list = [
+        tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
+        for b in range(outputs.shape[0])
+    ]
+
+    if output_log_probs:
+        return output_lines_list, log_probs
+    return output_lines_list
+
+
+def generate_streaming(
+        input_texts: List[str],
+        max_output_len: int,
+        host_context: TensorrtLLMHostContext,
+        top_k: int = 1,
+        top_p: float = 0.0,
+        temperature: float = 1.0,
+        prompt_table=None,
+        task_vocab_size=None,
+        task_ids: List[int]=None,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
         **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
@@ -427,28 +594,37 @@ def generate(
         stop_words_list=stop_words_list_tensors,
         bad_words_list=bad_words_list_tensors,
         no_repeat_ngram_size=no_repeat_ngram_size,
-        streaming=streaming,
+        streaming=True,
         **sampling_kwargs
     )
     assert outputs is not None
 
     input_lengths = [t.shape[0] for t in input_tensors]
-    
-    if streaming:
-        #TODO: outputs is a generator, how to enable the streaming for triton
-        final_outputs = [ cur_outputs for cur_outputs in outputs ]
-        output_lines_list = [
-            tokenizer.batch_decode(final_outputs[-1][b, :, input_lengths[b] :])
-            for b in range(len(final_outputs[-1]))
-       ]
-    else:
-        output_lines_list = [
-            tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
-            for b in range(outputs.shape[0])
-       ] 
 
-    return output_lines_list
+    # 'outputs' is a generator that yields one generator, not sure why... Unwrap that.
+    for output in outputs:
+        # Now iterate over the partial outputs, decode and yield each intermediate result.
+        generated_tokens = 0
+        for partial_outputs in output:
+            if partial_outputs is None:
+                break
+            # partial_outputs is a tensor with shape=(len(input_texts), 1, output_length),
+            # where the last dimension contains a progressively increasing number of valid, generated tokens.
+            assert(partial_outputs.shape[0] == len(input_texts))
+            outputs = []
+            generated_tokens += 1
 
+            # For each input in the batch...
+            for input_index in range(len(input_texts)):
+                # Extract the generated part of the output tensor and decode it.
+                input_length = input_lengths[input_index]
+                decoded_output = tokenizer.batch_decode(partial_outputs[input_index, :, input_length : input_length + generated_tokens])[0]
+                outputs.append(decoded_output)
+
+            # Yield the list of decoded partial responses.
+            yield outputs
+        # See above - 'outputs' yields just one item.
+        break
 
 def unload(host_context: TensorrtLLMHostContext):
     """Frees the GPU resource from the TensorrtLLMHostContext and reset the host_context."""

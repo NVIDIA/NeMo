@@ -315,6 +315,10 @@ class DecoderLayerConfig:
     rotary_scaling: float = None
     position_embedding_type: str = None
 
+    moe_num_experts: int = None
+    moe_top_k: int = None
+    moe_tp_mode: int = None
+    moe_renorm_mode: int = None
     vocab_size: int = 0
     norm_epsilon: float = 0.0
     max_lora_rank: int = 64
@@ -348,6 +352,10 @@ class DecoderLayerConfig:
             rotary_scaling=(llm_config.rotary_scaling if hasattr(llm_config, "rotary_scaling") else None),
             position_embedding_type=(llm_config.position_embedding_type if hasattr(llm_config, "position_embedding_type") else None),
             num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
+            moe_num_experts=(llm_config.moe_num_experts if hasattr(llm_config, "moe_num_experts") else None),
+            moe_top_k=(llm_config.moe_top_k if hasattr(llm_config, "moe_top_k") else None),
+            moe_tp_mode=(llm_config.moe_tp_mode if hasattr(llm_config, "moe_tp_mode") else None),
+            moe_renorm_mode=(llm_config.moe_renorm_mode if hasattr(llm_config, "moe_renorm_mode") else None),
             vocab_size=llm_config.vocab_size,
             norm_epsilon=llm_config.norm_epsilon,
         )
@@ -434,9 +442,6 @@ class ModelConfig:
     quantization: str = QUANTIZATION_NONE
     dtype: str = "float16"
 
-    # Parallel metadata
-    rank: int = 0
-    tensor_parallel: int = 1
 
     # Model structure and weights
     vocab_embedding: EmbeddingConfig = None
@@ -447,8 +452,10 @@ class ModelConfig:
 
     # Ptuning metadata
     use_prompt_tuning: bool = False
+    use_parallel_embedding:bool = False
     max_lora_rank: int = 64
 
+    # Parallel metadata
     mapping = None 
 
     def to_dict(self) -> dict:
@@ -464,7 +471,7 @@ class ModelConfig:
     def vocab_size(self):
         """Returns the vocab_size of the model."""
         return (
-            self.vocab_embedding.local_vocab_size * self.tensor_parallel
+            self.vocab_embedding.local_vocab_size * self.mapping.tp_size
             if self.vocab_embedding.is_local
             else self.vocab_embedding.local_vocab_size
         )
@@ -472,7 +479,7 @@ class ModelConfig:
     @property
     def vocab_size_padded(self):
         """Returns the padded vocab_size of the model rounds to the tensor_parallel."""
-        return pad_vocab_size(self.vocab_size, self.tensor_parallel)
+        return pad_vocab_size(self.vocab_size, self.mapping.tp_size)
 
     @property
     def hidden_size(self):

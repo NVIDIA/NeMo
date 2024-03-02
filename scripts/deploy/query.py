@@ -16,7 +16,7 @@ import argparse
 import sys
 import typing
 
-from pytriton.client import ModelClient
+from pytriton.client import ModelClient, DecoupledModelClient
 import numpy as np
 
 
@@ -39,12 +39,20 @@ def get_args(argv):
         type=str,
         help="Name of the triton model"
     )
-    parser.add_argument(
+    prompt_group = parser.add_mutually_exclusive_group(required=True)
+    prompt_group.add_argument(
         "-p",
         "--prompt",
-        required=True,
+        required=False,
         type=str,
         help="Prompt"
+    )
+    prompt_group.add_argument(
+        "-pf",
+        "--prompt_file",
+        required=False,
+        type=str,
+        help="File to read the prompt from"
     )
     parser.add_argument(
         "-swl",
@@ -99,6 +107,13 @@ def get_args(argv):
         help="Task id for the prompt embedding tables"
     )
     parser.add_argument(
+        "-es",
+        '--enable_streaming',
+        default=False,
+        action='store_true',
+        help="Enables streaming sentences."
+    )
+    parser.add_argument(
         "-it",
         "--init_timeout",
         default=60.0,
@@ -133,33 +148,33 @@ def query_llm(
     prompts = str_list2numpy(prompts)
     inputs = {"prompts": prompts}
 
-    if not max_output_token is None:
+    if max_output_token is not None:
         inputs["max_output_token"] = np.full(prompts.shape, max_output_token, dtype=np.int_)
 
-    if not top_k is None:
+    if top_k is not None:
         inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
 
-    if not top_p is None:
+    if top_p is not None:
         inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
 
-    if not temperature is None:
+    if temperature is not None:
         inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
 
-    if not random_seed is None:
+    if random_seed is not None:
         inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.single)
 
-    if not stop_words_list is None:
+    if stop_words_list is not None:
         stop_words_list = np.char.encode(stop_words_list, "utf-8")
         inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
 
-    if not bad_words_list is None:
+    if bad_words_list is not None:
         bad_words_list = np.char.encode(bad_words_list, "utf-8")
         inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
 
-    if not no_repeat_ngram_size is None:
+    if no_repeat_ngram_size is not None:
         inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
 
-    if not task_id is None:
+    if task_id is not None:
         task_id = np.char.encode(task_id, "utf-8")
         inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
 
@@ -174,25 +189,116 @@ def query_llm(
         return result_dict["outputs"]
 
 
+def query_llm_streaming(
+        url,
+        model_name,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        init_timeout=60.0,
+):
+    prompts = str_list2numpy(prompts)
+    inputs = {"prompts": prompts}
+
+    if max_output_token is not None:
+        inputs["max_output_token"] = np.full(prompts.shape, max_output_token, dtype=np.int_)
+
+    if top_k is not None:
+        inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
+
+    if top_p is not None:
+        inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
+
+    if temperature is not None:
+        inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+
+    if random_seed is not None:
+        inputs["random_seed"] = np.full(prompts.shape, random_seed, dtype=np.int_)
+
+    if stop_words_list is not None:
+        stop_words_list = np.char.encode(stop_words_list, "utf-8")
+        inputs["stop_words_list"] = np.full((prompts.shape[0], len(stop_words_list)), stop_words_list)
+
+    if bad_words_list is not None:
+        bad_words_list = np.char.encode(bad_words_list, "utf-8")
+        inputs["bad_words_list"] = np.full((prompts.shape[0], len(bad_words_list)), bad_words_list)
+
+    if no_repeat_ngram_size is not None:
+        inputs["no_repeat_ngram_size"] = np.full(prompts.shape, no_repeat_ngram_size, dtype=np.single)
+
+    if task_id is not None:
+        task_id = np.char.encode(task_id, "utf-8")
+        inputs["task_id"] = np.full((prompts.shape[0], len([task_id])), task_id)
+
+    with DecoupledModelClient(url, model_name, init_timeout_s=init_timeout) as client:
+        for partial_result_dict in client.infer_batch(**inputs):
+            output_type = client.model_config.outputs[0].dtype
+            if output_type == np.bytes_:
+                sentences = np.char.decode(partial_result_dict["outputs"].astype("bytes"), "utf-8")
+                yield sentences
+            else:
+                yield partial_result_dict["outputs"]
+
+
 def query(argv):
     args = get_args(argv)
 
-    output = query_llm(
-        url=args.url,
-        model_name=args.model_name,
-        prompts=[args.prompt],
-        stop_words_list=None if args.stop_words_list is None else [args.stop_words_list],
-        bad_words_list=None if args.bad_words_list is None else [args.bad_words_list],
-        no_repeat_ngram_size=args.no_repeat_ngram_size,
-        max_output_token=args.max_output_token,
-        top_k=args.top_k,
-        top_p=args.top_p,
-        temperature=args.temperature,
-        task_id=args.task_id,
-        init_timeout=args.init_timeout,
-    )
+    if args.prompt_file is not None:
+        with open(args.prompt_file, "r") as f:
+            args.prompt = f.read()
 
-    print("output: ", output)
+    if args.enable_streaming:
+        output_generator = query_llm_streaming(
+            url=args.url,
+            model_name=args.model_name,
+            prompts=[args.prompt],
+            stop_words_list=None if args.stop_words_list is None else [args.stop_words_list],
+            bad_words_list=None if args.bad_words_list is None else [args.bad_words_list],
+            no_repeat_ngram_size=args.no_repeat_ngram_size,
+            max_output_token=args.max_output_token,
+            top_k=args.top_k,
+            top_p=args.top_p,
+            temperature=args.temperature,
+            task_id=args.task_id,
+            init_timeout=args.init_timeout,
+        )
+        # The query returns a generator that yields one array per model step,
+        # with the partial generated text in the last dimension. Print that partial text
+        # incrementally and compare it with all the text generated so far.
+        prev_output = ''
+        for output in output_generator:
+            cur_output = output[0][0]
+            if prev_output == '' or cur_output.startswith(prev_output):
+                print(cur_output[len(prev_output):], end='', flush=True)
+            else:
+                print("WARN: Partial output mismatch, restarting output...")
+                print(cur_output, end='', flush=True)
+            prev_output = cur_output
+        print()
+
+    else:
+        outputs = query_llm(
+            url=args.url,
+            model_name=args.model_name,
+            prompts=[args.prompt],
+            stop_words_list=None if args.stop_words_list is None else [args.stop_words_list],
+            bad_words_list=None if args.bad_words_list is None else [args.bad_words_list],
+            no_repeat_ngram_size=args.no_repeat_ngram_size,
+            max_output_token=args.max_output_token,
+            top_k=args.top_k,
+            top_p=args.top_p,
+            temperature=args.temperature,
+            task_id=args.task_id,
+            init_timeout=args.init_timeout,
+        )
+        print(outputs[0][0])
 
 
 if __name__ == '__main__':

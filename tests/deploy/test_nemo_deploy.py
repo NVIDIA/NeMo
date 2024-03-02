@@ -79,7 +79,7 @@ def get_accuracy_with_lambada(nq, use_async=False):
         return trtllm_accuracy, trtllm_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs
 
 
-def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True):
+def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True, use_streaming=False):
     test_data = get_infer_test_data()
 
     model_info = test_data[model_name]
@@ -116,6 +116,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
         )
         trt_llm_exporter = TensorRTLLM(model_dir=model_info["trt_llm_model_dir"])
         use_inflight_batching = not use_pytriton
+
         trt_llm_exporter.export(
             nemo_checkpoint_path=model_info["checkpoint"],
             model_type=model_info["model_type"],
@@ -128,17 +129,41 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
 
         prompts = model_info["prompt_template"]
         if use_pytriton:
-            nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000)
-            nm.deploy()
-            nm.run()
-            nq = NemoQuery(url="http://localhost", model_name=model_name)
-            output = nq.query_llm(
-                    prompts=prompts,
-                    max_output_token=model_info["max_output_token"],
-                    top_k=1,
-                    top_p=0.0,
-                    temperature=1.0,
-            )
+            if not use_streaming:
+                nm = DeployPyTriton(
+                    model=trt_llm_exporter,
+                    triton_model_name=model_name,
+                    port=8000,
+                )
+                nm.deploy()
+                nm.run()
+                nq = NemoQuery(url="http://localhost:8000", model_name=model_name)
+                output = nq.query_llm(
+                        prompts=prompts,
+                        max_output_token=model_info["max_output_token"],
+                        top_k=1,
+                        top_p=0.0,
+                        temperature=1.0,
+                )
+            else:
+                nm = DeployPyTriton(
+                    model=trt_llm_exporter,
+                    triton_model_name=model_name,
+                    port=8001,
+                    streaming=True,
+                )
+
+                nm.deploy()
+                nm.run()
+                nq = NemoQuery(url="grpc://localhost:8001", model_name=model_name)
+                output_gen = nq.query_llm_streaming(
+                        prompts=prompts,
+                        max_output_token=model_info["max_output_token"],
+                        top_k=1,
+                        top_p=0.0,
+                        temperature=1.0,
+                )
+                output = [ cur_output for cur_output in output_gen ][-1]
         else:
             model_repo_dir="/tmp/ensemble"
             nm = DeployTensorRTLLM(model=trt_llm_exporter, triton_model_name=model_name, port=8000, model_repo_dir=model_repo_dir)
@@ -232,6 +257,16 @@ def test_LLAMA2_7B_base_1gpu_ifb(n_gpus):
         pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
 
     run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False, skip_accuracy=False)
+
+
+
+@pytest.mark.parametrize("n_gpus", [1])
+def test_LLAMA2_7B_base_1gpu_streaming(n_gpus):
+    """Here we test the trt-llm transfer and infer function with IFB and c++ backend"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
+
+    run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=True, skip_accuracy=True, use_streaming=True)
 
 
 @pytest.mark.parametrize("n_gpus", [1])
