@@ -327,6 +327,7 @@ def nemo_deploy(argv):
                 use_lora_plugin=args.use_lora_plugin,
                 lora_target_modules=args.lora_target_modules,
                 max_lora_rank=args.max_lora_rank,
+                save_nemo_model_config=True,
             )
         except Exception as error:
             LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
