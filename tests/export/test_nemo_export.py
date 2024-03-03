@@ -169,6 +169,7 @@ def run_trt_llm_inference(
             max_output_token=max_output_token,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            save_nemo_model_config=True,
         )
 
         if ptuning:
