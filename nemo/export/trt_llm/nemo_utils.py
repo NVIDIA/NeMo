@@ -18,6 +18,7 @@ import datetime
 import logging
 import os
 import sys
+import shutil
 import tempfile
 from pathlib import Path
 import typing
@@ -55,6 +56,7 @@ def _nemo_decode(
     storage_type: str = "bfloat16",
     load_checkpoints_on_gpu: bool = False,
     decoder_type: str = "gptnext",
+    save_nemo_model_config: bool = False,
 ) -> Tuple[Dict[str, np.ndarray], PretrainedConfig, PreTrainedTokenizer]:
     """Decodes the NEMO file and returns the weights dict, llm config and tokenizer."""
     args = argparse.Namespace()
@@ -99,6 +101,9 @@ def _nemo_decode(
             weights_dict, llm_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
         LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
 
+        if save_nemo_model_config:
+            shutil.copyfile(unpacked_checkpoint_dir._checkpoints_dir / "model_config.yaml", args.out_dir / "model_config.yaml")
+
         return weights_dict, llm_config, tokenizer
 
 
@@ -138,6 +143,7 @@ def nemo_to_model_config(
     dtype: str = "bfloat16",
     tensor_parallel_size: int = 1,
     pipeline_parallel_size: int = 1,
+    save_nemo_model_config: bool = False,
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = dtype
@@ -150,6 +156,7 @@ def nemo_to_model_config(
         storage_type=dtype_str,
         load_checkpoints_on_gpu=False,
         decoder_type=decoder_type,
+        save_nemo_model_config=save_nemo_model_config,
     )
 
     world_size = tensor_parallel_size*pipeline_parallel_size
