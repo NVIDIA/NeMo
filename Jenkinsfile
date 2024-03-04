@@ -453,15 +453,39 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('Llama') {
+        stage('Llama2 - INT8 SQ') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python examples/nlp/language_modeling/megatron_llama_quantization.py \
+            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/ci.nemo \
             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
             quantization.algorithm=int8_sq \
             quantization.num_calib_size=8 \
             inference.batch_size=2 \
-            model_save_path=/home/TestData/nlp/megatron_llama/ci.qnemo'
+            model_save=/home/TestData/nlp/megatron_llama/ci.qnemo'
+            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+          }
+        }
+        stage('Llama2 - FP8') {
+          steps {
+            sh 'mpirun -n 2 --allow-run-as-root python examples/nlp/language_modeling/megatron_llama_quantization.py \
+            model_file=/home/TestData/nlp/megatron_llama/ci.nemo \
+            quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+            quantization.algorithm=fp8 \
+            quantization.num_calib_size=8 \
+            inference.batch_size=2 \
+            model_save=/home/TestData/nlp/megatron_llama/ci.qnemo'
+            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+          }
+        }
+        stage('Llama2 - INT4 AWQ') {
+          steps {
+            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
+            model_file=/home/TestData/nlp/megatron_llama/ci.nemo \
+            quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+            quantization.algorithm=int4_awq \
+            quantization.num_calib_size=8 \
+            inference.batch_size=2 \
+            model_save=/home/TestData/nlp/megatron_llama/ci.qnemo'
             sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
           }
         }
