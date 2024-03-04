@@ -14,8 +14,10 @@
 
 import contextlib
 import glob
+import json
 import os
 from dataclasses import dataclass, is_dataclass
+from tempfile import NamedTemporaryFile
 from typing import List, Optional, Union
 
 import pytorch_lightning as pl
@@ -32,6 +34,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
+    read_and_maybe_sort_manifest,
     restore_transcription_order,
     setup_model,
     transcribe_partial_audio,
@@ -320,17 +323,16 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if isinstance(asr_model, EncDecMultiTaskModel):
         # Special case for EncDecMultiTaskModel, where the input manifest is directly passed into the model's transcribe() function
         partial_audio = False
-        if cfg.presort_manifest:
-            logging.warning(
-                "Pre-sorting manifest for EncDecMultiTaskModel is currently not supported; "
-                "please do it manually. We'll proceed with an unsorted manifest."
-            )
-            cfg.presort_manifest = False
         if cfg.audio_dir is not None and not cfg.append_pred:
             filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
         else:
-            filepaths = cfg.dataset_manifest
             assert cfg.dataset_manifest is not None
+            if cfg.presort_manifest:
+                with NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+                    for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=True):
+                        print(json.dumps(item), file=f)
+                    cfg.dataset_manifest = f.name
+            filepaths = cfg.dataset_manifest
     else:
         # prepare audio filepaths and decide wether it's partial audio
         filepaths, partial_audio = prepare_audio_data(cfg)
