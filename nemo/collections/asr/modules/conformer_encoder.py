@@ -203,8 +203,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
-                "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_channel": NeuralType(('B', 'D', 'D', 'D'), ChannelType(), optional=True),
+                "cache_last_time": NeuralType(('B', 'D', 'D', 'D'), ChannelType(), optional=True),
                 "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
             }
         )
