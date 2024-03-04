@@ -22,6 +22,7 @@ from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
+from datetime import timedelta
 
 import pytorch_lightning as pl
 import torch
@@ -105,7 +106,7 @@ except (ImportError, ModuleNotFoundError):
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
-def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) -> None:
+def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None, timeout: timedelta = None) -> None:
     """ Initializes Megatron-LM model parallel if using model parallelism.
 
     Args:
@@ -130,6 +131,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
+                timeout=timeout
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -208,7 +210,7 @@ class NLPDDPStrategy(DDPStrategy):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-                init_model_parallel(self.sharp, self.nccl_communicator_config_path)
+                init_model_parallel(self.sharp, self.nccl_communicator_config_path, timeout=self._timeout)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
