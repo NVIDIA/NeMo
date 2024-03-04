@@ -18,7 +18,7 @@ Spotlight Models
 
 Vision-Language models are at the forefront of multimodal learning, showcasing impressive abilities in tasks that require a combination of visual and textual comprehension. Let's take a quick look at some key models driving progress in this field:
 
-#. **Contrastive Learning Based Models**: At the forefront is CLIP :cite:`mm-models-radford2021clip`, which harnesses contrastive learning to jointly fine-tune a text and image encoder, facilitating a gamut of downstream tasks. CLIP's success has spurred further research, leading to models like ALIGN :cite:`mm-models-saharia2022photorealistic` and DeCLIP :cite:`mm-models-li2021declip`.
+#. **Contrastive Learning Based Models**: At the forefront is CLIP :cite:`mm-models-radford2021learning`, which harnesses contrastive learning to jointly fine-tune a text and image encoder, facilitating a gamut of downstream tasks. CLIP's success has spurred further research, leading to models like ALIGN :cite:`mm-models-saharia2022photorealistic` and DeCLIP :cite:`mm-models-li2021declip`.
 
 Anatomy of Vision-Language Models
 ----------------------------------
