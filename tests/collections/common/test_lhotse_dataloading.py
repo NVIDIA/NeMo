@@ -767,31 +767,51 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
 
 
 def test_extended_data_input_config(cutset_shar_path, nemo_tarred_manifest_path_multi):
-    raise NotImplemented  # TODO
     config = OmegaConf.create(
         {
-            "input_config": ...,
+            "input_config": [
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": nemo_tarred_manifest_path_multi[0],
+                    "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                    "weight": 0.5,
+                    "tags": {"language": "en", "modality": "audio", "dataset_name": "D1",},
+                },
+                {
+                    "type": "lhotse_shar",
+                    "shar_path": cutset_shar_path,
+                    "weight": 0.5,
+                    "tags": {"language": "en", "modality": "audio", "dataset_name": "D2",},
+                },
+            ],
             "sample_rate": 16000,
             "shuffle": True,
-            "use_lhotse": True,
             "num_workers": 0,
-            # lhotse specific
-            "use_bucketing": True,
-            "num_buckets": 2,
-            "drop_last": False,
-            "batch_duration": 4.0,  # seconds
-            "quadratic_duration": 15.0,  # seconds
-            "shuffle_buffer_size": 10,
-            "bucket_buffer_size": 100,
+            "batch_size": 4,
             "seed": 0,
             "shard_seed": 0,
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
-    )
+    class Identity(torch.utils.data.Dataset):
+        def __getitem__(self, cuts: lhotse.CutSet) -> lhotse.CutSet:
+            return cuts
 
-    # Note: we use islice here because with Lhotse Shar the dataloader will always be infinite.
-    batches = [batch for batch in islice(dl, 4)]
-    assert len(batches) == 4
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(c.custom["language"] == "en" for c in b)
+    assert all(c.custom["modality"] == "audio" for c in b)
+    assert sum(c.custom["dataset_name"] == "D1" for c in b) == 2
+    assert sum(c.custom["dataset_name"] == "D2" for c in b) == 2
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(c.custom["language"] == "en" for c in b)
+    assert all(c.custom["modality"] == "audio" for c in b)
+    assert sum(c.custom["dataset_name"] == "D1" for c in b) == 3
+    assert sum(c.custom["dataset_name"] == "D2" for c in b) == 1

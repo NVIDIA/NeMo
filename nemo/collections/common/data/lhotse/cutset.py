@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Sequence, Tuple
 
 from lhotse import CutSet
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
 
@@ -35,11 +35,11 @@ def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
     if config.get("input_config") is not None:
         return read_dataset_config(config)
     # Now, we'll figure out if we should read Lhotse manifest or NeMo manifest.
-    use_nemo_manifest = all(config.lhotse.get(opt) is None for opt in ("cuts_path", "shar_path"))
+    use_nemo_manifest = all(config.get(opt) is None for opt in ("cuts_path", "shar_path"))
     if use_nemo_manifest:
         assert (
             config.get("manifest_filepath") is not None
-        ), "You must specify either: manifest_filepath, lhotse.cuts_path, or lhotse.shar_path"
+        ), "You must specify either: manifest_filepath, cuts_path, or shar_path"
         is_tarred = config.get("tarred_audio_filepaths") is not None
     else:
         is_tarred = config.get("shar_path") is not None
@@ -108,16 +108,14 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
             tags:
               task: ast
             components:
-              - name: dataset_3
-                type: nemo_tarred
+              - type: nemo_tarred
                 manifest_filepath: /path/to/ast1/manifest__OP_0..512_CL_.json
                 tarred_audio_filepath: /path/to/ast1/tarred_audio/audio__OP_0..512_CL_.tar
                 weight: 0.2
                 tags:
                   src_lang: en
                   tgt_lang: pl
-              - name: dataset_2
-                type: nemo_tarred
+              - type: nemo_tarred
                 manifest_filepath: /path/to/ast2/manifest__OP_0..512_CL_.json
                 tarred_audio_filepath: /path/to/ast2/tarred_audio/audio__OP_0..512_CL_.tar
                 weight: 0.8
@@ -127,19 +125,17 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
     """
     propagate_attrs = {
         "shuffle": config.shuffle,
-        "lhotse": {
-            "shar_seed": config.get("shard_seed", "trng"),
-            "text_field": config.get("text_field", "text"),
-            "lang_field": config.get("lang_field", "lang"),
-        },
+        "shard_seed": config.shard_seed,
+        "text_field": config.text_field,
+        "lang_field": config.lang_field,
+        "missing_sampling_rate_ok": config.missing_sampling_rate_ok,
+        "max_open_streams": config.max_open_streams,
     }
-    cuts, is_tarred = parse_and_combine_datasets(
-        config.input_config, max_open_streams=config.get("max_open_streams"), propagate_attrs=propagate_attrs
-    )
+    cuts, is_tarred = parse_and_combine_datasets(config.input_config, propagate_attrs=propagate_attrs)
     return cuts, is_tarred
 
 
-def parse_group(grp_cfg) -> [CutSet, bool]:
+def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     assert grp_cfg.type in KNOWN_DATASET_CONFIG_TYPES, f"Unknown item type in dataset config list: {grp_cfg.type=}"
     if grp_cfg.type == "nemo_tarred":
         is_tarred = True
@@ -154,13 +150,11 @@ def parse_group(grp_cfg) -> [CutSet, bool]:
         is_tarred = False
         cuts = read_lhotse_manifest(grp_cfg, is_tarred=is_tarred)
     elif grp_cfg.type == "group":
-        cuts, is_tarred = parse_and_combine_datasets(
-            grp_cfg.components, max_open_streams=grp_cfg.get("max_open_streams")
-        )
+        cuts, is_tarred = parse_and_combine_datasets(grp_cfg.components, propagate_attrs=propagate_attrs,)
     else:
         raise ValueError(f"Unrecognized group: {grp_cfg.type}")
     # Attach extra tags to every utterance dynamically, if provided.
-    if (extra_tags := grp_cfg.get("extra_tags")) is not None:
+    if (extra_tags := grp_cfg.get("tags")) is not None:
         cuts = cuts.map(partial(attach_tags, tags=extra_tags))
     return cuts, is_tarred
 
@@ -172,34 +166,38 @@ def attach_tags(cut, tags: dict):
 
 
 def parse_and_combine_datasets(
-    config_list, max_open_streams: int | None = None, propagate_attrs: dict | None = None
+    config_list: list[DictConfig] | ListConfig, propagate_attrs: dict
 ) -> tuple[CutSet, bool]:
     cuts = []
     weights = []
     tarred_status = []
     assert len(config_list) > 0, "Empty group in dataset config list."
+
     for item in config_list:
-        if propagate_attrs is not None:
-            for k, v in propagate_attrs.items():
-                if k == "lhotse":
-                    if item.get("lhotse") is not None:
-                        for inner_k, inner_v in propagate_attrs[k].items():
-                            if inner_k not in item.lhotse:
-                                item.lhotse[k] = v
-                    else:
-                        item[k] = v
-                elif k not in item:
-                    item[k] = v
-        item_cuts, item_is_tarred = parse_group(item)
+
+        # Check if we have any attributes that are propagated downwards to each item in the group.
+        # If a key already exists in the item, it takes precedence (we will not overwrite);
+        # otherwise we will assign it.
+        # We also update propagate_atts for the next sub-groups based on what's present in this group
+        next_propagate_attrs = propagate_attrs.copy()
+        for k, v in propagate_attrs.items():
+            if k not in item:
+                item[k] = v
+            else:
+                next_propagate_attrs[k] = item[k]
+
+        # Load the item (which may also be another group) as a CutSet.
+        item_cuts, item_is_tarred = parse_group(item, next_propagate_attrs)
         cuts.append(item_cuts)
         tarred_status.append(item_is_tarred)
         if (w := item.get("weight")) is not None:
             weights.append(w)
+
     assert all(t == tarred_status[0] for t in tarred_status), "Mixing tarred and non-tarred datasets is not supported."
     assert len(cuts) == len(
         weights
     ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
-    cuts = mux(*cuts, weights=weights if weights else None, max_open_streams=max_open_streams)
+    cuts = mux(*cuts, weights=weights if weights else None, max_open_streams=propagate_attrs.get("max_open_streams"))
     return cuts, tarred_status[0]
 
 
@@ -220,7 +218,7 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
         # - integer means we'll set a specific seed in every worker, and data would be duplicated across them.
         #   This is mostly useful for unit testing or debugging.
         shard_seed = config.shard_seed
-        if config.cuts_path is not None:
+        if config.get("cuts_path") is not None:
             warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
         if isinstance(config.shar_path, (str, Path)):
             logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
