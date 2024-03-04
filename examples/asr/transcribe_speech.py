@@ -320,6 +320,12 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if isinstance(asr_model, EncDecMultiTaskModel):
         # Special case for EncDecMultiTaskModel, where the input manifest is directly passed into the model's transcribe() function
         partial_audio = False
+        if cfg.presort_manifest:
+            logging.warning(
+                "Pre-sorting manifest for EncDecMultiTaskModel is currently not supported; "
+                "please do it manually. We'll proceed with an unsorted manifest."
+            )
+            cfg.presort_manifest = False
         if cfg.audio_dir is not None and not cfg.append_pred:
             filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
         else:

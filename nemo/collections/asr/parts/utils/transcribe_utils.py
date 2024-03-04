@@ -321,8 +321,8 @@ def restore_transcription_order(manifest_path: str, transcriptions: list) -> lis
     for new, old in enumerate(new2old):
         reordered[old] = transcriptions[new]
     if is_list:
-        transcriptions = tuple(map(list, zip(*reordered)))
-    return transcriptions
+        reordered = tuple(map(list, zip(*reordered)))
+    return reordered
 
 
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
