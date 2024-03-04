@@ -310,6 +310,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         canary_processor: Optional = None,
         context_len_for_AR_decoding: Optional = 5,
         convert_canary_prompt_to_text: bool = False,
+        prepend_to_exist_question: Optional = None,
         canary_tokens_augment_ratio: float = 0.0,
     ):
         from lhotse.dataset import AudioSamples, CutMix
@@ -328,6 +329,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.canary_processor = canary_processor
         self.context_len_for_AR_decoding = context_len_for_AR_decoding
         self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
+        self.prepend_to_exist_question = prepend_to_exist_question
         self.canary_tokens_augment_ratio = canary_tokens_augment_ratio
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
@@ -358,6 +360,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 )
                 if audio_ratio[id] == 0.0:
                     assert hasattr(cut, "question")
+                elif self.prepend_to_exist_question and hasattr(cut, "question"):
+                    cut.question = self.prepend_to_exist_question + cut.question
                 elif self.convert_canary_prompt_to_text:
                     cut.question = convert_canary_prompt_to_text(canary_text, is_canary_tokens_augment)
                 elif hasattr(cut, "question"):

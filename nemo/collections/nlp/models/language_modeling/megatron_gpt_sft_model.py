@@ -317,8 +317,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
         batch = next(dataloader_iter)
-        # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
-        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        # TODO: Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+        if 'context_start_idx' not in batch:
+            batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
         # data_iter = itertools.chain([batch])

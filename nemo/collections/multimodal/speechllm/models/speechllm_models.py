@@ -291,10 +291,9 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         )
 
         input_embeds = lm_embedding.word_embeddings(input_ids)
-        if self.cfg.data.train_ds.get('add_bos', False):
-            encoded = torch.concat([input_embeds[:, :1], encoded], axis=1)
-
         if isinstance(encoded, torch.Tensor):
+            if self.cfg.data.train_ds.get('add_bos', False):
+                encoded = torch.concat([input_embeds[:, :1], encoded], axis=1)
             # single audio
             encoder_input, encoder_length = self._concat_features(encoded, encoded_len, input_embeds, input_length)
         else:
@@ -633,6 +632,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 canary_processor=canary_processer,
                 context_len_for_AR_decoding=context_len_for_AR_decoding,
                 convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
+                prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
                 canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),
             )
 
