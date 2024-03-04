@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+import copy
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
