@@ -18,6 +18,7 @@ import importlib
 import os
 import shutil
 import tarfile
+import tempfile
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from functools import lru_cache
@@ -62,6 +63,18 @@ class ArtifactItem:
     path: str = ""
     path_type: ArtifactPathType = ArtifactPathType.LOCAL_PATH
     hashed_path: Optional[str] = None
+
+
+def load_config(model_file: str) -> DictConfig:
+    """Load model config from extracted directory or '.nemo' tarball."""
+    if os.path.isfile(model_file):
+        with tempfile.TemporaryDirectory() as tmp, tarfile.open(model_file, "r:") as tar:
+            tar.extract("./model_config.yaml", path=tmp)
+            model_config = OmegaConf.load(os.path.join(tmp, "model_config.yaml"))
+    else:
+        model_config = OmegaConf.load(os.path.join(model_file, "model_config.yaml"))
+
+    return model_config
 
 
 def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:

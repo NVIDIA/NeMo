@@ -31,7 +31,7 @@ from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 from nemo.utils.distributed import temporary_directory
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import save_artifacts
+from nemo.utils.model_utils import load_config, save_artifacts
 
 QUANT_CFG_CHOICES = {
     "int8": atq.INT8_DEFAULT_CFG,
@@ -96,15 +96,13 @@ class Quantizer:
         tensor_model_parallel_size: Optional[int] = None,
         pipeline_model_parallel_size: Optional[int] = None,
     ):
+        """Load model using AMMO layer spec for quantization."""
+        model_cfg = self._load_and_modify_config(
+            model_file, tensor_model_parallel_size, pipeline_model_parallel_size
+        )
+
         trainer = Trainer(strategy=NLPDDPStrategy(), **self.trainer_config)
         connector = NLPSaveRestoreConnector()
-
-        if os.path.isdir(model_file):
-            connector.model_extracted_dir = model_file
-
-        model_cfg = self._restore_and_modify_config(
-            model_file, trainer, connector, tensor_model_parallel_size, pipeline_model_parallel_size
-        )
 
         model = MegatronGPTModel.restore_from(
             restore_path=model_file, trainer=trainer, override_config_path=model_cfg, save_restore_connector=connector,
@@ -132,17 +130,14 @@ class Quantizer:
                 model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
             model.trainer.strategy.setup_environment()
 
-    def _restore_and_modify_config(
+    def _load_and_modify_config(
         self,
         model_file: str,
-        trainer: Trainer,
-        connector: NLPSaveRestoreConnector,
         tensor_model_parallel_size: Optional[int] = None,
         pipeline_model_parallel_size: Optional[int] = None,
     ):
-        model_cfg = MegatronGPTModel.restore_from(
-            restore_path=model_file, trainer=trainer, save_restore_connector=connector, return_config=True,
-        )
+        model_cfg = load_config(model_file)
+
         with open_dict(model_cfg):
             model_cfg.activations_checkpoint_method = None
             model_cfg.activations_checkpoint_granularity = None
@@ -163,6 +158,7 @@ class Quantizer:
         tensor_model_parallel_size: Optional[int] = None,
         pipeline_model_parallel_size: Optional[int] = None,
     ):
+        """Quantize model checkpoint using given dataloader and optional custom parallelism settings."""
         model = self._load_model(model_file, tensor_model_parallel_size, pipeline_model_parallel_size)
         model.set_inference_config(OmegaConf.to_container(self.inference_config))
 
@@ -176,6 +172,7 @@ class Quantizer:
         return model
 
     def export(self, model, model_save: str):
+        """Export model to '.qnemo' format for TensorRT-LLM engine build."""
         torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
 
         with temporary_directory() as tmp_dir:
