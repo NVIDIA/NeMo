@@ -32,9 +32,10 @@ Example usage:
 ```
 python examples/nlp/language_modeling/megatron_llama_quantization.py \
     model_file=llama2-7b-fp16.nemo \
-    decoder_type=llama \
-    quantization.algorithm=int8_sq \
-    model_save_path=llama2-7b-fp16.qnemo
+    model_save=llama2-7b-fp8.qnemo \
+    quantization.algorithm=fp8 \
+    export.decoder_type=llama \
+    export.inference_tensor_parallel=1
 ```
 """
 
@@ -66,7 +67,7 @@ def main(cfg) -> None:
     if not torch.cuda.is_available():
         raise EnvironmentError("GPU is required for the inference.")
 
-    quantizer = Quantizer(cfg.quantization, cfg.inference, cfg.trainer)
+    quantizer = Quantizer(cfg.quantization, cfg.inference, cfg.export, cfg.trainer)
 
     dataloader = get_calib_dataloader(
         cfg.quantization.calib_dataset,
@@ -76,9 +77,11 @@ def main(cfg) -> None:
     )
     dataloader = [data for data in dataloader]
 
-    model = quantizer.quantize(cfg.model_file, dataloader, cfg.tensor_model_parallel_size)
+    model = quantizer.quantize(
+        cfg.model_file, dataloader, cfg.tensor_model_parallel_size, cfg.pipeline_model_parallel_size
+    )
 
-    quantizer.export(model, cfg.model_save_path, cfg.decoder_type, cfg.dtype, cfg.inference_tensor_parallel)
+    quantizer.export(model, cfg.model_save)
 
 
 if __name__ == '__main__':

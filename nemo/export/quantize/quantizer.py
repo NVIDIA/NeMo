@@ -15,12 +15,11 @@
 import copy
 import os
 import tarfile
-from typing import Optional
+from typing import List, Optional
 
 import ammo.torch.quantization as atq
 import torch.distributed as dist
 from ammo.torch.export import export_model_config
-from ammo.torch.utils import print_rank_0
 from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import DictConfig, open_dict
@@ -41,6 +40,8 @@ QUANT_CFG_CHOICES = {
     "int4_awq": atq.INT4_AWQ_CFG,
     "w4a8_awq": atq.W4A8_AWQ_BETA_CFG,
 }
+
+SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 
 
 class Quantizer:
@@ -64,16 +65,24 @@ class Quantizer:
     model families is experimental and might not be fully supported.
 
     Available quantization methods are listed in QUANT_CFG_CHOICES dictionary on top of this file.
-    Please consult AMMO docummentation for details. You can also ispect different choices in
+    Please consult AMMO documentation for details. You can also inspect different choices in
     examples/nlp/language_modeling/conf/megatron_llama_quantization.yaml for quantization algorithms and
     calibration data as well as recommended settings.
     """
 
-    def __init__(self, quantization_config: DictConfig, inference_config: DictConfig, trainer_config: DictConfig):
+    def __init__(
+        self,
+        quantization_config: DictConfig,
+        inference_config: DictConfig,
+        export_config: DictConfig,
+        trainer_config: DictConfig,
+    ):
+        assert export_config.dtype in SUPPORTED_DTYPE
+        assert quantization_config.algorithm in QUANT_CFG_CHOICES
         self.quantization_config = quantization_config
         self.inference_config = inference_config
+        self.export_config = export_config
         self.trainer_config = trainer_config
-        assert self.quantization_config.algorithm in QUANT_CFG_CHOICES
         atq_config = QUANT_CFG_CHOICES[quantization_config.algorithm]
         if quantization_config.algorithm != "fp8":
             # disable quantization for the last output layer
@@ -81,17 +90,27 @@ class Quantizer:
             atq_config["quant_cfg"]["*.output_layer.*"] = {"enable": False}
         self.atq_config = atq_config
 
-    def _load_model(self, model_file, tensor_model_parallel_size: Optional[int] = None):
+    def _load_model(
+        self,
+        model_file: str,
+        tensor_model_parallel_size: Optional[int] = None,
+        pipeline_model_parallel_size: Optional[int] = None,
+    ):
         trainer = Trainer(strategy=NLPDDPStrategy(), **self.trainer_config)
         connector = NLPSaveRestoreConnector()
 
         if os.path.isdir(model_file):
             connector.model_extracted_dir = model_file
 
-        model_cfg = self._restore_and_modify_config(model_file, trainer, connector, tensor_model_parallel_size)
+        model_cfg = self._restore_and_modify_config(
+            model_file, trainer, connector, tensor_model_parallel_size, pipeline_model_parallel_size
+        )
 
         model = MegatronGPTModel.restore_from(
-            restore_path=model_file, trainer=trainer, override_config_path=model_cfg, save_restore_connector=connector,
+            restore_path=model_file,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            save_restore_connector=connector,
         )
         model.freeze()
 
@@ -99,7 +118,10 @@ class Quantizer:
             model.model.module.language_model.encoder.activations_checkpoint_method = None
         except AttributeError:
             pass
-        print_rank_0(model)
+
+        if is_global_rank_zero():
+            print(model)
+
         self._check_ddp_initialized(model)
         return model
 
@@ -119,47 +141,60 @@ class Quantizer:
         trainer: Trainer,
         connector: NLPSaveRestoreConnector,
         tensor_model_parallel_size: Optional[int] = None,
+        pipeline_model_parallel_size: Optional[int] = None,
     ):
         model_cfg = MegatronGPTModel.restore_from(
-            restore_path=model_file, trainer=trainer, save_restore_connector=connector, return_config=True,
+            restore_path=model_file,
+            trainer=trainer,
+            save_restore_connector=connector,
+            return_config=True,
         )
         with open_dict(model_cfg):
             model_cfg.activations_checkpoint_method = None
             model_cfg.activations_checkpoint_granularity = None
             if tensor_model_parallel_size is not None:
                 model_cfg.tensor_model_parallel_size = tensor_model_parallel_size
-            model_cfg.name = "ammo"  # Model needs to be loaded in "ammo" layer spec
+            if pipeline_model_parallel_size is not None:
+                model_cfg.pipeline_model_parallel_size = pipeline_model_parallel_size
+            # Only custom AMMO spec is supported for PTQ: this custom spec is largely based on local Megatron-LM
+            # layer definitions to avoid Transformer Engine implementations that are currently not supported.
+            model_cfg.name = "ammo"
 
         return model_cfg
 
-    def quantize(self, model_file: str, dataloader, tensor_model_parallel_size: Optional[int] = None):
-        model = self._load_model(model_file, tensor_model_parallel_size)
+    def quantize(
+        self,
+        model_file: str,
+        dataloader: List[List[str]],
+        tensor_model_parallel_size: Optional[int] = None,
+        pipeline_model_parallel_size: Optional[int] = None,
+    ):
+        model = self._load_model(model_file, tensor_model_parallel_size, pipeline_model_parallel_size)
         model.set_inference_config(OmegaConf.to_container(self.inference_config))
 
         def forward_loop():
             for i, batch in enumerate(dataloader):
-                print_rank_0(f"Calibrating batch {i}")
+                if is_global_rank_zero():
+                    print(f"Calibrating batch {i}")
                 model.predict_step(batch, i)
 
         atq.quantize(model, self.atq_config, forward_loop)
         return model
 
-    def export(self, model, output_file: str, decoder_type: str, dtype: str, inference_tensor_parallel: int):
-        supported_dtype = [16, "16", "bf16"]  # FIXME: Move that to top
-        assert dtype in supported_dtype, f"{dtype} not supported. Supported dtypes are {supported_dtype}"
-        torch_dtype = torch_dtype_from_precision(dtype)
+    def export(self, model, model_save: str):
+        torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
 
         with temporary_directory() as tmp_dir:
             export_model_config(
                 model=model,
-                decoder_type=decoder_type,
+                decoder_type=self.export_config.decoder_type,
                 dtype=torch_dtype,
                 export_dir=tmp_dir,
-                inference_tensor_parallel=inference_tensor_parallel,
+                inference_tensor_parallel=self.export_config.inference_tensor_parallel,
             )
             dist.barrier()  # Wait until all ranks complete export_model_config step
             if is_global_rank_zero():
-                logging.info(f"Exporting quantized weights, tokenizer config, and model artifacts to {output_file}...")
-                with tarfile.open(output_file, "w:gz") as tar:
+                logging.info(f"Exporting quantized weights, model artifacts, and tokenizer config to {model_save}...")
+                with tarfile.open(model_save, "w:gz") as tar:
                     save_artifacts(model, tmp_dir)
                     tar.add(tmp_dir, arcname="./")

@@ -24,12 +24,14 @@ quantization:
   quantize_bmm1: false
   algorithm: fp8 # int8_sq, fp8, int8, int4_awq
   calib_dataset: cnn_dailymail # pileval, wikitext, cnn_dailymail
-  num_calib_size: 128 # number of samples used for calibration
+  num_calib_size: 512 # number of samples used for calibration
 
+export:
+  decoder_type: llama # gptnext, gpt2, llama
+  inference_tensor_parallel: 1 # Default using 1 TP for inference
+  dtype: 16 # Default precision data type
+
+model_file: llama2-7b-fp16.nemo # Nemo file path
+model_save: llama2-7b-fp8.qnemo # Path where the quantized model will be saved
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
-decoder_type: llama # gptnext, llama
-model_file: llama2-7b-fp16.nemo # nemo file path
-model_save_path: llama2-7b-fp16.qnemo # Path where the quantized model will be saved
-inference_tensor_parallel: 1 # Default using 1 TP for inference
-dtype: 16 # Default precision data type
