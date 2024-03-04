@@ -159,19 +159,12 @@ class ModelBuilder(Module):
                 kv_cache_params.kv_cache_block_pointers,
                 kv_cache_params.host_kv_cache_block_pointers,
                 kv_cache_params.host_max_attention_window_sizes)):
-            #lora_layer_params = None
-            #if lora_params.lora_ranks is not None:
-            #    lora_layer_params = lora_params.get_layer_params(layer_idx)
 
-            lora_layer_params = None
-            if lora_params.lora_ranks is not None:
-                lora_layer_params = lora_params.get_layer_params(layer_idx)
-
-            hidden_states = layer(
-                hidden_states,
-                use_cache=use_cache,
-                attention_mask=attention_mask,
-                kv_cache_params=KeyValueCacheParams(
+            decoder_params = {
+                "hidden_states": hidden_states,
+                "attention_mask": attention_mask,
+                "use_cache": use_cache,
+                "kv_cache_params": KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
                     kv_cache_block_pointers=[pointer],
@@ -180,9 +173,13 @@ class ModelBuilder(Module):
                     host_sink_token_length=kv_cache_params.host_sink_token_length,
                     host_kv_cache_block_pointers=kv_cache_params.host_kv_cache_block_pointers,
                 ),
-                attention_params=attention_params,
-                lora_layer_params=lora_layer_params,
-            )
+                "attention_params": attention_params,
+            }
+
+            if lora_params.lora_ranks is not None:
+                decoder_params["lora_layer_params"] = lora_params.get_layer_params(layer_idx)
+
+            hidden_states = layer(**decoder_params)
 
             if use_cache:
                 presents.append(hidden_states[1])
