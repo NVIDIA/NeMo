@@ -85,14 +85,6 @@ pipeline {
       }
     }
 
-    stage('Pytorch lightning installation') {
-      steps {
-         sh 'git clone -b athitten/recursion_fix_2.2.0.post0 https://github.com/athitten/pytorch-lightning.git && \
-             cd pytorch-lightning && \
-             PACKAGE_NAME=pytorch pip install -e .'
-      }
-    }
-
     // pip package should be working with main, if not we can update the commit here
     // until the pip package is updated
     stage('Megatron Core installation') {
