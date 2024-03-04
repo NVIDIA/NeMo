@@ -18,8 +18,8 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
-from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
