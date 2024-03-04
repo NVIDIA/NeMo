@@ -462,19 +462,21 @@ pipeline {
             quantization.num_calib_size=8 \
             inference.batch_size=2 \
             model_save=/home/TestData/nlp/megatron_llama/ci.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.qnemo'
           }
         }
         stage('Llama2 - FP8') {
           steps {
             sh 'mpirun -n 2 --allow-run-as-root python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/ci.nemo \
+            tensor_model_parallel_size=2 \
+            trainer.devices=2 \
             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
             quantization.algorithm=fp8 \
             quantization.num_calib_size=8 \
             inference.batch_size=2 \
             model_save=/home/TestData/nlp/megatron_llama/ci.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.qnemo'
           }
         }
         stage('Llama2 - INT4 AWQ') {
@@ -486,11 +488,12 @@ pipeline {
             quantization.num_calib_size=8 \
             inference.batch_size=2 \
             model_save=/home/TestData/nlp/megatron_llama/ci.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.nemo'
+            sh 'rm -f /home/TestData/nlp/megatron_llama/ci.qnemo'
           }
         }
       }
     }
+
     stage('L2: ASR dev run') {
       when {
         anyOf {
