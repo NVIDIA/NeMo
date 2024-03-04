@@ -1167,8 +1167,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 model_module.train()
 
         if mode == 'val':
-            # MegatronGPTSFTModel class supports multiple dataloaders and uses validation_step of MegatronGPTModel.
-            # Supporting that case with below lines
+            # Append with the correct dataloader_idx in case of multiple dataloaders
             if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
                 self.validation_step_outputs[dataloader_idx].append(loss)
             else:
