@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from collections import Counter
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
@@ -766,10 +766,10 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     np.testing.assert_equal(audio[0], expected_audio[:8000])
 
 
-def test_extended_data_input_config(cutset_shar_path, nemo_tarred_manifest_path_multi):
+def test_extended_data_input_cfg(cutset_shar_path, nemo_tarred_manifest_path_multi):
     config = OmegaConf.create(
         {
-            "input_config": [
+            "input_cfg": [
                 {
                     "type": "nemo_tarred",
                     "manifest_filepath": nemo_tarred_manifest_path_multi[0],
@@ -815,3 +815,88 @@ def test_extended_data_input_config(cutset_shar_path, nemo_tarred_manifest_path_
     assert all(c.custom["modality"] == "audio" for c in b)
     assert sum(c.custom["dataset_name"] == "D1" for c in b) == 1
     assert sum(c.custom["dataset_name"] == "D2" for c in b) == 3
+
+
+def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest_path_multi):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "group",
+                    "input_cfg": [
+                        {
+                            "type": "nemo_tarred",
+                            "manifest_filepath": nemo_tarred_manifest_path_multi[0],
+                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D1",},
+                        },
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path,
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D2",},
+                        },
+                    ],
+                    "weight": 0.2,
+                    "tags": {"group_name": "G1",},
+                },
+                {
+                    "type": "group",
+                    "weight": 0.8,
+                    "input_cfg": [
+                        {
+                            "type": "nemo_tarred",
+                            "manifest_filepath": nemo_tarred_manifest_path_multi[0],
+                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D3",},
+                        },
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path,
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D4",},
+                        },
+                    ],
+                    "tags": {"group_name": "G2",},
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 32,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    class Identity(torch.utils.data.Dataset):
+        def __getitem__(self, cuts: lhotse.CutSet) -> lhotse.CutSet:
+            return cuts
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Sample 100 mini-batches and test statistical properties
+    group_occurrences = Counter()
+    dataset_occurrences = Counter()
+    for batch in islice(dl, 100):
+        for cut in batch:
+            group_occurrences[cut.group_name] += 1
+            dataset_occurrences[cut.dataset_name] += 1
+
+    tot = sum(group_occurrences.values())
+    for k in group_occurrences:
+        group_occurrences[k] /= tot
+    for k in dataset_occurrences:
+        dataset_occurrences[k] /= tot
+
+    def almost(number):
+        return pytest.approx(number, abs=0.02)
+
+    assert group_occurrences["G1"] == almost(0.2)  # group weight: 0.2
+    assert group_occurrences["G2"] == almost(0.8)  # group weight: 0.8
+    assert dataset_occurrences["D1"] == almost(0.1)  # group weight: 0.2 * dataset weight 0.5 => 0.1
+    assert dataset_occurrences["D2"] == almost(0.1)  # group weight: 0.2 * dataset weight 0.5 => 0.1
+    assert dataset_occurrences["D3"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4
+    assert dataset_occurrences["D4"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4

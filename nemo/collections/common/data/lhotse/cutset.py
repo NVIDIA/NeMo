@@ -32,7 +32,7 @@ def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
     Returns a tuple of ``CutSet`` and a boolean indicating whether the data is tarred (True) or not (False).
     """
     # First, check if the dataset is specified in the new configuration format and use it if possible.
-    if config.get("input_config") is not None:
+    if config.get("input_cfg") is not None:
         return read_dataset_config(config)
     # Now, we'll figure out if we should read Lhotse manifest or NeMo manifest.
     use_nemo_manifest = all(config.get(opt) is None for opt in ("cuts_path", "shar_path"))
@@ -79,13 +79,13 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
     Example 2. Combine multiple (4) datasets, with 2 corresponding to different tasks (ASR, AST).
         There are two levels of weights: per task (outer) and per dataset (inner).
         The final weight is the product of outer and inner weight::
-        input_config:
+        input_cfg:
           - name: asr_data
             type: group
             weight: 0.7
             tags:
               task: asr
-            components:
+            input_cfg:
               - name: dataset_1
                 type: nemo_tarred
                 manifest_filepath: /path/to/asr1/manifest__OP_0..512_CL_.json
@@ -107,7 +107,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
             weight: 0.3
             tags:
               task: ast
-            components:
+            input_cfg:
               - type: nemo_tarred
                 manifest_filepath: /path/to/ast1/manifest__OP_0..512_CL_.json
                 tarred_audio_filepath: /path/to/ast1/tarred_audio/audio__OP_0..512_CL_.tar
@@ -131,7 +131,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "missing_sampling_rate_ok": config.missing_sampling_rate_ok,
         "max_open_streams": config.max_open_streams,
     }
-    cuts, is_tarred = parse_and_combine_datasets(config.input_config, propagate_attrs=propagate_attrs)
+    cuts, is_tarred = parse_and_combine_datasets(config.input_cfg, propagate_attrs=propagate_attrs)
     return cuts, is_tarred
 
 
@@ -150,7 +150,7 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
         is_tarred = False
         cuts = read_lhotse_manifest(grp_cfg, is_tarred=is_tarred)
     elif grp_cfg.type == "group":
-        cuts, is_tarred = parse_and_combine_datasets(grp_cfg.components, propagate_attrs=propagate_attrs,)
+        cuts, is_tarred = parse_and_combine_datasets(grp_cfg.input_cfg, propagate_attrs=propagate_attrs,)
     else:
         raise ValueError(f"Unrecognized group: {grp_cfg.type}")
     # Attach extra tags to every utterance dynamically, if provided.
