@@ -17,13 +17,12 @@ from itertools import islice
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import lhotse
 import pytest
 import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-
-lhotse = pytest.importorskip("lhotse", reason="Lhotse + NeMo tests require Lhotse (pip install lhotse).")
 
 requires_torchaudio = pytest.mark.skipif(
     not lhotse.utils.is_torchaudio_available(), reason="Lhotse Shar format support requires torchaudio."
@@ -765,3 +764,34 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     assert cut.supervisions[0].text == "irrelevant"
     assert audio.shape == (1, 8000)
     np.testing.assert_equal(audio[0], expected_audio[:8000])
+
+
+def test_extended_data_input_config(cutset_shar_path, nemo_tarred_manifest_path_multi):
+    raise NotImplemented  # TODO
+    config = OmegaConf.create(
+        {
+            "input_config": ...,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            # lhotse specific
+            "use_bucketing": True,
+            "num_buckets": 2,
+            "drop_last": False,
+            "batch_duration": 4.0,  # seconds
+            "quadratic_duration": 15.0,  # seconds
+            "shuffle_buffer_size": 10,
+            "bucket_buffer_size": 100,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    # Note: we use islice here because with Lhotse Shar the dataloader will always be infinite.
+    batches = [batch for batch in islice(dl, 4)]
+    assert len(batches) == 4
