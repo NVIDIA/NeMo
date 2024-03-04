@@ -282,16 +282,14 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
 
-        has_two_fields = []
+        all_entries_have_offset_and_duration = True
         for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
-            if "offset" in item and "duration" in item:
-                has_two_fields.append(True)
-            else:
-                has_two_fields.append(False)
+            if not ("offset" in item and "duration" in item):
+                all_entries_have_offset_and_duration = False
             audio_key = cfg.get('audio_key', 'audio_filepath')
             audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
             filepaths.append(audio_file)
-        partial_audio = all(has_two_fields)
+        partial_audio = all_entries_have_offset_and_duration
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
     return filepaths, partial_audio
@@ -312,6 +310,7 @@ def restore_transcription_order(manifest_path: str, transcriptions: list) -> lis
     if not all("duration" in item[1] for item in items):
         return transcriptions
     new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]
+    del items  # free up some memory
     is_list = isinstance(transcriptions[0], list)
     if is_list:
         transcriptions = list(zip(*transcriptions))

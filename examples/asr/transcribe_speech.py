@@ -320,6 +320,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         else:
             cfg.decoding = cfg.rnnt_decoding
 
+    remove_path_after_done = None
     if isinstance(asr_model, EncDecMultiTaskModel):
         # Special case for EncDecMultiTaskModel, where the input manifest is directly passed into the model's transcribe() function
         partial_audio = False
@@ -332,6 +333,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=True):
                         print(json.dumps(item), file=f)
                     cfg.dataset_manifest = f.name
+                    remove_path_after_done = f.name
             filepaths = cfg.dataset_manifest
     else:
         # prepare audio filepaths and decide wether it's partial audio
@@ -394,6 +396,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
         if cfg.presort_manifest:
             transcriptions = restore_transcription_order(cfg.dataset_manifest, transcriptions)
+            if remove_path_after_done is not None:
+                os.unlink(remove_path_after_done)
     else:
         logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
