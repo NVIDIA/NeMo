@@ -97,9 +97,7 @@ class Quantizer:
         pipeline_model_parallel_size: Optional[int] = None,
     ):
         """Load model using AMMO layer spec for quantization."""
-        model_cfg = self._load_and_modify_config(
-            model_file, tensor_model_parallel_size, pipeline_model_parallel_size
-        )
+        model_cfg = self._load_and_modify_config(model_file, tensor_model_parallel_size, pipeline_model_parallel_size)
 
         trainer = Trainer(strategy=NLPDDPStrategy(), **self.trainer_config)
         connector = NLPSaveRestoreConnector()
