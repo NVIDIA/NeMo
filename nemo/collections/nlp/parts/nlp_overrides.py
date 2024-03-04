@@ -336,8 +336,9 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         ):
-            assert len(checkpoint['optimizer_states']) == 1, \
-                "Currently only support checkpointing 1 distributed optimizer per time!"
+            assert (
+                len(checkpoint['optimizer_states']) == 1
+            ), "Currently only support checkpointing 1 distributed optimizer per time!"
             # converts the optimizer states to their sharded equivalents
             sharded_optim_state = self.optimizer_sharded_state_dict(
                 unsharded_optim_state=checkpoint['optimizer_states'][0]
@@ -434,15 +435,13 @@ class NLPDDPStrategy(DDPStrategy):
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]            
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
             strategy = dist_checkpointing.strategies.tensorstore.TensorStoreLoadShardedStrategy(
                 load_directly_on_device=True
             )
             checkpoint = dist_checkpointing.load(
-                sharded_state_dict=checkpoint, 
-                checkpoint_dir=checkpoint_path,
-                sharded_strategy=strategy
-                )
+                sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path, sharded_strategy=strategy
+            )
 
             return checkpoint
 

@@ -511,7 +511,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Handle any remaining dtype conversions
         super()._check_params_shard_dtypes(params_buckets)
 
-
     def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None):
         if optimizer_state_dict is None:
             optimizer_state_dict = self.state_dict()
