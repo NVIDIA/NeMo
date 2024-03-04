@@ -1779,7 +1779,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
         return loss_mean, loss_dict
 
-    def training_step(self, dataloader_iter):
+    def training_step(self, batch):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -1792,6 +1792,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
+        dataloader_iter = iter([batch])
         loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
@@ -1908,7 +1909,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             return [x, *c_list]
 
         def fwd_output_and_loss_func(dataloader_iter, model):
-            batch, _, _ = next(dataloader_iter)
+            batch = next(dataloader_iter)
             batch = process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             if len(self.conditioning_keys) == 0:
