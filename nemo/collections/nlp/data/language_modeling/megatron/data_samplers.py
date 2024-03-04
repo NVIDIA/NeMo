@@ -78,7 +78,7 @@ class BaseMegatronSampler:
         )
 
     def __len__(self):
-        num_available_samples: int = self.total_samples - self.consumed_samples
+        num_available_samples: int = self.total_samples # - self.consumed_samples   # the length should always be the total lenght, even if we restart halfway through.
         if self.global_batch_size is not None:
             if self.drop_last:
                 num_global_batches = num_available_samples // self.global_batch_size
@@ -162,7 +162,7 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
 
     def __len__(self):
         active_total_samples = self.total_samples - (self.last_batch_size if self.drop_last else 0)
-        num_available_samples = active_total_samples - self.consumed_samples % active_total_samples
+        num_available_samples = active_total_samples # - self.consumed_samples % active_total_samples  # do not redefine length if we start in the middle
         if self.global_batch_size is not None:
             if self.drop_last:
                 num_global_batches = num_available_samples // self.global_batch_size
