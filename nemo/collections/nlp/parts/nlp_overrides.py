@@ -67,6 +67,7 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
@@ -129,6 +130,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 context_parallel_size=app_state.context_parallel_size,
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
+                expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
