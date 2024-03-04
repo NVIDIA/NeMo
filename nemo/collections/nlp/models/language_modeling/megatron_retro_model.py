@@ -150,7 +150,7 @@ class MegatronRetroModel(MegatronGPTModel):
             cfg.encoder_seq_length = retro_preprocess_config.retro_gpt_seq_length
             cfg.data.seq_length = retro_preprocess_config.retro_gpt_seq_length
             cfg.max_position_embeddings = retro_preprocess_config.retro_gpt_seq_length           
-            cfg.data.splits_string = retro_preprocess_config.retro_gpt_split
+            # cfg.data.splits_string = retro_preprocess_config.retro_gpt_split      # remove because lastest RETRO data-object have separate RETRO training split and RETRO preprocessing split
             cfg.tokenizer.model = retro_preprocess_config.retro_gpt_tokenizer_model
             cfg.tokenizer.type = retro_preprocess_config.retro_gpt_tokenizer_type
             cfg.tokenizer.vocab_file = retro_preprocess_config.retro_gpt_vocab_file
@@ -160,6 +160,8 @@ class MegatronRetroModel(MegatronGPTModel):
                 cfg.retro_valid_samples_with_neighbors = retro_preprocess_config.retro_gpt_valid_samples
             cfg.data.retro_data.retro_block_size = retro_preprocess_config.retro_block_size
             cfg.data.retro_data.retro_chunk_length = retro_preprocess_config.retro_gpt_chunk_length
+            cfg.data.retro_data.retro_split_preprocessing = retro_preprocess_config.retro_gpt_split
+            cfg.data.retro_data.retro_neighbor_dirs = retro_preprocess_config.retro_neighbor_dirs
 
         return cfg
 
@@ -405,6 +407,8 @@ class MegatronRetroModel(MegatronGPTModel):
         retro_config.retro_num_retrieved_chunks = self.cfg.retro.get('retro_num_retrieved_chunks', 2)
         retro_config.retro_verify_neighbor_count = self.cfg.retro.get('retro_verify_neighbor_count', True)
         retro_config.retro_retrieved_length = retro_config.retro_num_retrieved_chunks * retro_config.retro_chunk_length
+        retro_config.retro_split_preprocessing = self.cfg.data.retro_data.get('retro_split_preprocessing')
+        retro_config.retro_neighbor_dirs = self.cfg.data.retro_data.get('retro_neighbor_dirs')
         logging.info("retro_config: ")
         logging.info(retro_config)
 

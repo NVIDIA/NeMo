@@ -3247,7 +3247,7 @@ pipeline {
         sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
       }
     }
-    stage('L2: Megatron RETRO Pretraining and Resume Training') {
+    stage('L2: (Legacy) Megatron RETRO Pretraining and Resume Training') {
       when {
         anyOf {
           branch 'r1.23.0'
@@ -3256,7 +3256,7 @@ pipeline {
       }
       failFast true
       steps {
-        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
         trainer.devices=2 \
         trainer.num_nodes=1 \
         trainer.accelerator=gpu \
@@ -3267,7 +3267,7 @@ pipeline {
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         trainer.val_check_interval=10 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
+        exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
         model.data.data_prefix='' \
         model.data.knn_index='' \
         model.data.retrieval_prefix='' \
@@ -3286,7 +3286,7 @@ pipeline {
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
         +model.data.mock=True"
-        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
         trainer.devices=2 \
         trainer.num_nodes=1 \
         trainer.accelerator=gpu \
@@ -3297,7 +3297,7 @@ pipeline {
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         trainer.val_check_interval=10 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
+        exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
         model.data.data_prefix='' \
         model.data.knn_index='' \
         model.data.retrieval_prefix='' \
@@ -3316,10 +3316,10 @@ pipeline {
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
         +model.data.mock=True"
-        sh "rm -rf examples/nlp/language_modeling/retro_results"
+        sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
       }
     }
-    stage('L2: Megatron RETRO muTransfer Pretraining Performance') {
+    stage('L2: (Legacy) Megatron RETRO muTransfer Pretraining Performance') {
       when {
         anyOf {
           branch 'r1.23.0'
@@ -3328,7 +3328,7 @@ pipeline {
       }
       failFast true
       steps {
-            sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
+            sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain_legacy.py \
                 trainer.devices=2 \
                 trainer.num_nodes=1 \
                 trainer.accelerator=gpu \
@@ -3340,7 +3340,7 @@ pipeline {
                 trainer.limit_val_batches=0 \
                 trainer.gradient_clip_val=1.0 \
                 +trainer.num_sanity_val_steps=0 \
-                exp_manager.exp_dir=examples/nlp/language_modeling/retro_results/ \
+                exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results/ \
                 +exp_manager.version=smalltest \
                 model.data.neighbors=2 \
                 model.megatron_amp_O2=False \
@@ -3391,7 +3391,7 @@ import torch
 if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
     import sys
     sys.exit(0)
-event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
+event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_legacy_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
 ea = EventAccumulator(str(event_file)).Reload()
 vals = []
 for i in ea.Scalars('reduced_train_loss'):
@@ -3399,7 +3399,63 @@ for i in ea.Scalars('reduced_train_loss'):
 training_curve = pd.DataFrame({'loss': vals})
 gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
 assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
-        sh "rm -rf examples/nlp/language_modeling/retro_results"
+        sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
+      }
+    }
+    stage('L2: Megatron RETRO Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'r1.23.0'
+          changeRequest target: 'r1.23.0'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=8 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
+            model.data.num_workers=4 \
+            ++cluster_type=BCP \
+            model.micro_batch_size=8 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=10 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'98,2,0\' \
+            trainer.max_steps=15"
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=8 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
+            model.data.num_workers=4 \
+            ++cluster_type=BCP \
+            model.micro_batch_size=8 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=10 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'98,2,0\' \
+            trainer.max_steps=30"
+        sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
       }
     }
     stage('L2: BioMegatron Bert NER Task') {

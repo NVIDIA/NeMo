@@ -211,7 +211,7 @@ model:
     data_prefix: ???     # will be overrided by value from RETRO preprocessed workdir 
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
-    splits_string: 900,50,50     # will be overrided by value from RETRO preprocessed workdir 
+    splits_string: 98,2,0
     seq_length: ${model.encoder_seq_length}     # will be overrided by value from RETRO preprocessed workdir 
     skip_warmup: True
     num_workers: 2
@@ -227,6 +227,8 @@ model:
     retro_data:
       retro_block_size: 10000
       retro_chunk_length: 64
+      retro_split_preprocessing: 98,2,0
+      retro_neighbor_dirs: null
 
 
   # Nsys profiling options

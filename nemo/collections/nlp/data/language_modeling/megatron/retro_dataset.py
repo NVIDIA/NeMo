@@ -33,12 +33,11 @@ from nemo.utils import logging
 
 try:
     from megatron.core import mpu, tensor_parallel
-    from megatron.core.models.retro.data.config import RetroGPTDatasets
+    from megatron.core.models.retro.data.config import RetroGPTChunkDatasets
     from megatron.core.models.retro.model import RetroConfig
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.blended_megatron_dataset_config import GPTDatasetConfig
-    from megatron.core.datasets.gpt_dataset import GPTDataset
-    from megatron.core.models.retro.data.query import get_retro_datasets
+    from megatron.core.models.retro.data.query.multi_split_gpt_dataset import MultiSplitGPTDataset, MultiSplitGPTDatasetConfig
+    from megatron.core.models.retro.data.query.retro_dataset import get_retro_datasets
     from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
     HAVE_MEGATRON_CORE = True
@@ -73,6 +72,8 @@ class RETRODataset(Dataset):
         return len(self.mcore_retro_dataset.chunk_dataset.sample_dataset)
     
     def _get_text(self, idx: int):
+        # return the tokens ids of idx
+        # Caveat: these tokens are got from the already pre-tokenized data file, mcore's GPTDataset doesn't run __getitem__, only run _query_document_sample_shuffle_indices
         return self.mcore_retro_dataset[idx]
 
     def __getitem__(self, idx):
@@ -136,11 +137,12 @@ def build_train_valid_test_datasets(
 
     # gpt dataset
     train_ds, valid_ds, test_ds = gpt_train_valid_test_datasets_provider(cfg, train_valid_test_num_samples)
-    gpt_datasets = RetroGPTDatasets(
-        train=(train_ds, train_valid_test_num_samples[0]),
-        valid=(valid_ds, train_valid_test_num_samples[1]),
-        test=(test_ds, train_valid_test_num_samples[2]),
-    )
+
+    gpt_datasets = {
+        "train" : (train_ds, train_valid_test_num_samples[0]),
+        "valid" : (valid_ds, train_valid_test_num_samples[1]),
+        "test"  : (test_ds, train_valid_test_num_samples[2]),
+    }
 
     retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
         config=retro_config,
@@ -182,30 +184,28 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples):
     def is_dataset_built_on_rank():
         return (mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()) and mpu.get_tensor_model_parallel_rank() == 0
 
-    def core_gpt_dataset_config_from_args(cfg):  # need to make sure all args are the overriden written
-        # Implemented from core_gpt_dataset_config_from_args in M-LM/pretrain_gpt.py
-        return GPTDatasetConfig(
-            is_built_on_rank=is_dataset_built_on_rank,
-            random_seed=cfg.seed,
-            sequence_length=cfg.data.seq_length,
-            blend=cfg.data.data_prefix,
-            blend_per_split=[None, None, None], # no corresponding argument in Nemo, set to None, train/valid/test is constructed from data_path and split
-            split=cfg.data.splits_string,
-            path_to_cache=None, # no corresponding argument in Nemo, set to None, train/valid/test is constructed from data_path and split
-            return_document_ids=False,
-        )
+    data_config = MultiSplitGPTDatasetConfig(
+        is_built_on_rank=is_dataset_built_on_rank,
+        random_seed=cfg.seed,
+        sequence_length=cfg.data.seq_length,
+        blend=cfg.data.data_prefix,
+        split=cfg.data.splits_string,
+        split_preprocessing=cfg.data.retro_data.retro_split_preprocessing,
+        path_to_cache=None,
+        return_document_ids=False,
+        reset_position_ids=cfg.data.get('reset_position_ids', False),
+        reset_attention_mask=cfg.data.get('reset_attention_mask', False),
+        eod_mask_loss=cfg.data.get('eod_mask_loss', False),
+    )
 
     print("> building train, validation, and test datasets for GPT ...")
 
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
-        GPTDataset,
+        MultiSplitGPTDataset,
         train_val_test_num_samples,
-        core_gpt_dataset_config_from_args(cfg)
+        data_config
     ).build()
 
     print("> finished creating GPT datasets ...")
 
-
-
     return train_ds, valid_ds, test_ds
-
