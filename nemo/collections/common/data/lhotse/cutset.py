@@ -197,7 +197,12 @@ def parse_and_combine_datasets(
     assert len(cuts) == len(
         weights
     ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
-    cuts = mux(*cuts, weights=weights if weights else None, max_open_streams=propagate_attrs.get("max_open_streams"))
+    cuts = mux(
+        *cuts,
+        weights=weights if weights else None,
+        max_open_streams=propagate_attrs["max_open_streams"],
+        seed=propagate_attrs["shard_seed"],
+    )
     return cuts, tarred_status[0]
 
 
@@ -273,6 +278,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     config.manifest_filepath,
                     tar_paths=config.tarred_audio_filepaths,
                     shuffle_shards=config.shuffle,
+                    shard_seed=config.shard_seed,
                     **common_kwargs,
                 )
             )
@@ -286,7 +292,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         #         this ensures that we distribute the data from each source uniformly throughout each epoch.
         #         Setting equal weights would exhaust the shorter data sources closer the towards the beginning
         #         of an epoch (or over-sample it in the case of infinite CutSet iteration with .repeat()).
-        # Format option 1:
+        # Format option 2:
         #   Assume it's [[path1, weight1], [path2, weight2], ...] (while tarred_audio_filepaths remain unchanged).
         #   Note: this option allows to manually set the weights for multiple datasets.
         logging.info(
@@ -302,7 +308,11 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
             manifest_path = manifest_info[0]
             if is_tarred:
                 nemo_iter = LazyNeMoTarredIterator(
-                    manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=config.shuffle, **common_kwargs
+                    manifest_path=manifest_path,
+                    tar_paths=tar_path,
+                    shuffle_shards=config.shuffle,
+                    shard_seed=config.shard_seed,
+                    **common_kwargs,
                 )
             else:
                 nemo_iter = LazyNeMoIterator(manifest_path, **notar_kwargs, **common_kwargs)

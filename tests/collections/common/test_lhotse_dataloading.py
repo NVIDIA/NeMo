@@ -813,5 +813,5 @@ def test_extended_data_input_config(cutset_shar_path, nemo_tarred_manifest_path_
     assert isinstance(b, lhotse.CutSet)
     assert all(c.custom["language"] == "en" for c in b)
     assert all(c.custom["modality"] == "audio" for c in b)
-    assert sum(c.custom["dataset_name"] == "D1" for c in b) == 3
-    assert sum(c.custom["dataset_name"] == "D2" for c in b) == 1
+    assert sum(c.custom["dataset_name"] == "D1" for c in b) == 1
+    assert sum(c.custom["dataset_name"] == "D2" for c in b) == 3
