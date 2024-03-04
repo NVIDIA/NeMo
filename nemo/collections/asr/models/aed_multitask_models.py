@@ -103,6 +103,8 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     pnc: Optional[bool] = None
     source_lang: Optional[str] = None
     target_lang: Optional[str] = None
+    text_field: str = "text"
+    lang_field: str = "lang"
 
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = None
 
@@ -387,8 +389,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
-        text_field: str = "text",
-        lang_field: str = "lang",
         verbose: bool = True,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
     ) -> Union[List[str], List[Hypothesis]]:
@@ -427,8 +427,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 pnc=pnc,
                 source_lang=source_lang,
                 target_lang=target_lang,
-                text_field=text_field,
-                lang_field=lang_field,
             )
         else:
             if not isinstance(override_config, MultiTaskTranscriptionConfig):

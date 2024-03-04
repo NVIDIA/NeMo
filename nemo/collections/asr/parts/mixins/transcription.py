@@ -62,9 +62,7 @@ class TranscribeConfig:
     verbose: bool = True
 
     # Utility
-    partial_hypothesis: Optional[List[Any]] = False
-    text_field: str = "text"
-    lang_field: str = "lang"
+    partial_hypothesis: Optional[List[Any]] = None
 
     _internal: Optional[InternalTranscribeConfig] = None
 
@@ -194,8 +192,6 @@ class TranscriptionMixin(ABC):
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
-        text_field: str = "text",
-        lang_field: str = "lang",
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
         **config_kwargs,

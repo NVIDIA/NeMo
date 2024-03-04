@@ -241,8 +241,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
-        text_field: str = "text",
-        lang_field: str = "lang",
         verbose: bool = True,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
@@ -280,8 +278,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             num_workers=num_workers,
             channel_selector=channel_selector,
             augmentor=augmentor,
-            text_field=text_field,
-            lang_field=lang_field,
             verbose=verbose,
             override_config=override_config,
             # Additional arguments

@@ -14,7 +14,6 @@
 
 import contextlib
 import glob
-import json
 import os
 from dataclasses import dataclass, is_dataclass
 from typing import List, Optional, Union
@@ -373,16 +372,15 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     decoder_type=cfg.decoder_type,
                 )
             else:
-                transcriptions = asr_model.transcribe(
-                    audio=filepaths,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    return_hypotheses=cfg.return_hypotheses,
-                    channel_selector=cfg.channel_selector,
-                    augmentor=augmentor,
-                    text_field=cfg.gt_text_attr_name,
-                    lang_field=cfg.gt_lang_attr_name,
-                )
+                override_cfg = asr_model.get_transcribe_config()
+                override_cfg.batch_size = cfg.batch_size
+                override_cfg.num_workers = cfg.num_workers
+                override_cfg.return_hypotheses = cfg.return_hypotheses
+                override_cfg.channel_selector = cfg.channel_selector
+                override_cfg.augmentor = augmentor
+                override_cfg.text_field = cfg.gt_text_attr_name
+                override_cfg.lang_field = cfg.gt_lang_attr_name
+                transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
