@@ -36,8 +36,8 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
     def __init__(self, fim, **kwargs):
         super().__init__(**kwargs)
         self.fim = fim
-        self.np_rng = np.random.RandomState(seed=self.config.random_seed)
-        logging.info(f'GPTFIMDataset np_rng initialized with seed={self.config.random_seed}.')
+        self.np_rng = np.random.RandomState(seed=self.random_seed)
+        logging.info(f'GPTFIMDataset np_rng initialized with seed={self.random_seed}.')
 
 
 class GPTFIMDataset(GPTDataset):
