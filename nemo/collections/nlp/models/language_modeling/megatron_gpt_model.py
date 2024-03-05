@@ -29,6 +29,7 @@ from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -39,6 +40,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import
     is_dataset_built_on_rank,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
+    get_gpt_full_te_layer_autocast_spec,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -70,6 +74,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
+from nemo.utils.te_utils import is_float8tensor
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -84,7 +89,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -127,16 +132,33 @@ def mcore_supports_moe() -> bool:
 
 
 def get_specs(spec_name, num_experts=None):
-    if spec_name == '':
-        if num_experts is not None:
-            assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
-            return get_gpt_layer_with_transformer_engine_spec(num_experts)
-        else:
-            return get_gpt_layer_with_transformer_engine_spec()
-    elif spec_name == 'megatron_falcon_gpt':
-        return get_falcon_layer_spec()
-    else:
+    if num_experts is not None:
+        assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
+
+    name_spec_dict = {
+        "": get_gpt_layer_with_transformer_engine_spec(num_experts),
+        "megatron_falcon_gpt": get_falcon_layer_spec(),
+        "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
+    }
+    if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
+    return name_spec_dict[spec_name]
+
+
+class EmbeddingScalingMixin(torch.nn.Module):
+    """
+    A mixin class for scaling embeddings in Megatron GPT.
+    The scaling is applied only if the configuration (accessible via `self.config`)
+    includes `apply_embedding_scaling` set to True.
+    """
+
+    def forward(self, **kwargs):
+        """
+        Forward pass that scales the output embeddings from the `forward` method of
+        the superclass by the square root of the hidden size specified in the configuration.
+        """
+        embeddings = super().forward(**kwargs)
+        return embeddings * (self.config.hidden_size ** 0.5)
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -326,6 +348,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
+        self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
         self.loss_broadcast_src_rank = None
 
         self.inference_params = None
@@ -359,6 +382,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
@@ -427,6 +452,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
     def setup_optimizer_param_groups(self):
@@ -483,8 +510,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     param._disable_overlap_grad_sync = True
 
             # Initialize parameter buckets for overlapped grad and param syncs
-            # Note: Params with disabled overlapping are put in the
-            # last param bucket
+            # Note: Params with disabled overlapping and params in the
+            # first layer are put together in a bucket. If FP8 tensors
+            # are detected, those are also put in the first layer's
+            # bucket.
+            def make_parameter_bucket(module: torch.nn.Module) -> List[torch.nn.Parameter]:
+                bucket = [
+                    param for param in module.parameters() if not getattr(param, '_disable_overlap_grad_sync', False)
+                ]
+                if any(is_float8tensor(param) for param in bucket):
+                    bucket = list(filter(is_float8tensor, bucket))
+                return bucket
+
             buckets = []
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
@@ -493,13 +530,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module = module.module
                     stage_bucket = []
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    for layer in layers:
-                        stage_bucket.extend(
-                            p
-                            for p in layer.parameters()
-                            if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
-                        )
-                    buckets.append(stage_bucket)
+                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
             else:
                 # Initialize a bucket for each Transformer layer
                 modules = self.model if isinstance(self.model, list) else [self.model]
@@ -507,21 +538,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if isinstance(module, (Float16Module, MCoreFloat16Module)):
                         module = module.module
                     layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    for layer in layers:
-                        buckets.append(
-                            [
-                                p
-                                for p in layer.parameters()
-                                if not getattr(p, '_disable_overlap_grad_sync', False) and p.requires_grad
-                            ]
-                        )
+                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
             buckets.reverse()
-            used_params = set()
-            for bucket in buckets:
-                used_params.update(bucket)
-            remaining_params = [p for p in self.parameters() if p not in used_params and p.requires_grad]
-            if remaining_params:
-                buckets.append(remaining_params)
+            used_params = set(itertools.chain.from_iterable(buckets))
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -660,8 +680,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+            self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
             self.allreduce_sequence_parallel_gradients()
+            self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
 
+        self.megatron_timer_start('gradient_allreduce', log_level=1)
         if self.use_fsdp:
             # Reduce the gradients omitted from FSDP-sharding
             self.allreduce_fsdp_sharding_omitted_gradients()
@@ -679,12 +702,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+        self.megatron_timer_stop('gradient_allreduce')
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
             'share_embeddings_and_output_weights', True
         ):
+            self.megatron_timer_start('allreduce_first_last_embeddings', log_level=1)
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
+            self.megatron_timer_stop('allreduce_first_last_embeddings')
+
+        if self.log_memory_usage:
+            mem_reserved = torch.cuda.max_memory_reserved()
+            self.log(
+                'peak_memory_usage', mem_reserved, prog_bar=True, rank_zero_only=True, batch_size=1,
+            )
 
         ## logging
         if self.log_train_loss:
@@ -751,7 +783,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # (@adithyare) adapter training now extends MegatronGPTModel
             # so we have to add this check here to ensure we do not
             # perform all_reduce when grad is None.
-            # grad can be None when performing PeFT training.
+            # grad can be None when performing PEFT training.
             if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
@@ -771,7 +803,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._append_sequence_parallel_module_grads(module, grads)
         else:
             self._append_sequence_parallel_module_grads(self.model, grads)
-
+        if not grads:
+            # may be empty for PEFT training
+            return
         coalesced = torch._utils._flatten_dense_tensors(grads)
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
@@ -910,11 +944,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return batch
 
     def get_batch_on_this_context_parallel_rank(self, batch):
-        cp_size = self.cfg.get('context_parallel_size', 1)
         num_valid_tokens_in_ub = None
         if 'loss_mask' in batch and batch['loss_mask'] is not None:
             num_valid_tokens_in_ub = batch['loss_mask'].sum()
 
+        cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
             for key, val in batch.items():
@@ -943,8 +977,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Transfer needed data to GPU
             required_keys = set()
-            max_seqlen = batch.pop('max_seqlen').squeeze() if 'max_seqlen' in batch else None
-            cu_seqlens_argmin = batch.pop('cu_seqlens_argmin') if 'cu_seqlens_argmin' in batch else None
+            max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
+            cu_seqlens_argmin = batch['cu_seqlens_argmin'] if 'cu_seqlens_argmin' in batch else None
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
@@ -1011,7 +1045,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                cp_size = self.cfg.get('context_parallel_size', 1)
+                cp_size = parallel_state.get_context_parallel_world_size()
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
@@ -1070,6 +1104,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            # Currently for all MCore transformer layer specs causal attention mask
+            # is used so we can delegate creating it to MCore/TE and pass None below
+            if isinstance(model, MCoreGPTModel):
+                attention_mask = None
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
@@ -1167,21 +1205,33 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
         loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
-        cp_size = self.cfg.get('context_parallel_size', 1)
-        if cp_size > 1:
+        if parallel_state.get_context_parallel_world_size() > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         return loss
 
     def build_train_valid_test_datasets(self):
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_val_batches()
-        logging.info('Building GPT datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+        logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
+
+        # TODO: @athitten make num of eval and test samples 1 always, after it works with non DictConfig data_prefix.
+        train_valid_test_num_samples = [
+            max_train_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
+
+        # The line below exploits a quirk in mcore dataset construction, to make number of epochs for validation and test equal to 1
+        # The mcore dataset implementation uses the number N we provide via train_valid_test_num_samples to derive parameter E such that
+        # E = argmin_e e * N_d >= N, or equivalently E = ceildiv(N, N_d)
+        # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
+        # Setting N = 1 we force E to be 1 as well
+        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            train_valid_test_num_samples[1] = 1
 
         # Add extra FIM tokens to tokenizer
         if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
@@ -1189,29 +1239,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
             self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
 
-        train_valid_test_num_samples = [
-            max_train_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
-
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[
-                1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration
-
+        mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {
             "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
             "sequence_length": self.cfg.data.seq_length,
-            "blend": self.cfg.data.data_prefix,
-            "split": self.cfg.data.splits_string,
             "path_to_cache": self.cfg.data.index_mapping_dir,
+            "tokenizer": self.tokenizer,
             "reset_position_ids": self.reset_position_ids,
             "reset_attention_mask": self.reset_attention_mask,
             "eod_mask_loss": self.eod_mask_loss,
-            "eod_id": self.tokenizer.eos_id,
+            "mock": mock_dataset,
         }
+
+        # support for dict data input type
+        if isinstance(self.cfg.data.data_prefix, DictConfig):
+            _pref = self.cfg.data.data_prefix
+            kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+        else:
+            kwargs['blend'] = self.cfg.data.data_prefix
+            kwargs["split"] = self.cfg.data.splits_string
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
@@ -1221,9 +1268,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ).build()
         else:
             dataset_config = GPTDatasetConfig(**kwargs)
+            dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
             self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                GPTDataset, train_valid_test_num_samples, dataset_config,
+                dataset_type, train_valid_test_num_samples, dataset_config,
             ).build()
 
         if self._train_ds is not None:
@@ -1305,11 +1353,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
-            optimizer = self.cfg.optim.get('name', None)
-            assert (
-                optimizer == 'fused_adam'
-            ), f'{optimizer} optimizer is not supported yet with rampup batch size. Please, use fused_adam optimizer instead.'
-
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
@@ -1323,6 +1366,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
+            # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+            self._reconfigure_val_batches()
 
         if stage == 'fit':
             self.initialize_last_rank_embeddings()
@@ -1703,7 +1748,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'fp8': fp8,
             'tp_comm_overlap': ub_tp_comm_overlap,
             # MoE related
-            'num_experts': self.cfg.get('num_experts', None),
+            'num_moe_experts': self.cfg.get('num_moe_experts', None),
             'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
             'moe_router_topk': self.cfg.get('moe_router_topk', 2),
             'moe_grouped_gemm': self.cfg.get('moe_grouped_gemm', False),
@@ -1714,11 +1759,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
         }
-        if model_specific_configs['num_experts'] is not None:
+        if model_specific_configs['num_moe_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
         elif not mcore_supports_moe():
-            if 'num_experts' in model_specific_configs:
-                del model_specific_configs['num_experts']
+            if 'num_moe_experts' in model_specific_configs:
+                del model_specific_configs['num_moe_experts']
             moe_keys = list(filter(lambda x: x.startswith('moe_'), model_specific_configs.keys()))
             for k in moe_keys:
                 del model_specific_configs[k]

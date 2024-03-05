@@ -25,7 +25,7 @@ from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, OnlineSampleMapping
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -63,7 +63,7 @@ class GPTSFTDataset(Dataset):
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
-        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
@@ -160,6 +160,7 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
+            osm = OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -171,6 +172,7 @@ class GPTSFTDataset(Dataset):
                 name=self.file_path.split('/')[-1],
                 binary_head=False,
                 index_mapping_dir=self.index_mapping_dir,
+                samples_mapping=osm,
             )
         else:
             self.samples_mapping = None
@@ -489,7 +491,14 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         return len(self.indexed_dataset)
 
     def _load_packed_dataset(self, file_path):
-        self.indexed_dataset = np.load(file_path, allow_pickle=True)
+        try:
+            self.indexed_dataset = np.load(file_path, allow_pickle=True)
+        except Exception as e:
+            logging.error(
+                f"Failed to load packed dataset. The dataset should be a `.npy` file. "
+                f"Please check if the packed dataset was prepared correctly. The original error was:\n {e}",
+            )
+            exit(1)
 
     def _build_loss_mask(self, processed_example):
         if self.answer_only_loss:

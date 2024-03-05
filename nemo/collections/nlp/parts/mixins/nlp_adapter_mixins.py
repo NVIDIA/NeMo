@@ -67,10 +67,6 @@ class NLPAdapterModelMixin:
         self.setup_complete = False
         self.use_ptuning_only = False
         super().__init__(*args, **kwargs)
-        if hasattr(self, "enc_dec_model"):
-            self.model_prefix = "enc_dec_model.module." if self.cfg.megatron_amp_O2 else "enc_dec_model."  # for T5
-        else:
-            self.model_prefix = "model.module." if self.cfg.get('megatron_amp_O2', False) else "model."
 
         self.use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
         if self.use_mcore_gpt:
@@ -175,6 +171,8 @@ class NLPAdapterModelMixin:
 
         if self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is not supported when using PEFT')
+        if self.cfg.optim.name == "distributed_fused_adam":
+            raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
 
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
@@ -347,12 +345,12 @@ class NLPAdapterModelMixin:
         """
         Gets the keys associated with the adapters only.
         """
-        state_dict = self.model.state_dict(prefix=self.model_prefix)
+        state_dict = super().state_dict()
         peft_state_dict = {}
         for k in self.adapter_keys.union(self.tunable_base_param_keys):
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
-            peft_state_dict[new_k] = state_dict[k]
+            peft_state_dict[new_k] = state_dict[new_k]
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -363,7 +361,7 @@ class NLPAdapterModelMixin:
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix=self.model_prefix)
+            return super().state_dict()
 
     def sharded_state_dict(self, prefix: str = ''):
         use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
@@ -488,6 +486,13 @@ class NLPAdapterModelMixin:
         """
 
         peft_cfg = cls.restore_from(path, return_config=True)
+        if hasattr(peft_cfg, 'peft') and peft_cfg.peft.peft_scheme not in [None, 'none']:
+            # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
+            for p in ['tensor_model_parallel_size', 'pipeline_model_parallel_size']:
+                assert peft_cfg.get(p) == cfg.model.get(
+                    p
+                ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({peft_cfg.get(p)})"
+
         with open_dict(peft_cfg):
             # update the model config of the trained model with params we want to set at inference time.
             peft_cfg.precision = cfg.trainer.precision
@@ -499,5 +504,5 @@ class NLPAdapterModelMixin:
         with open_dict(cfg):
             cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos
             cfg.inference.tokens_to_generate = peft_cfg.data.test_ds.tokens_to_generate
-
+        peft_cfg.megatron_amp_O2 = False  # always evaluate with O1
         return peft_cfg

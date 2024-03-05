@@ -34,6 +34,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import GreedyBatchedRNNTLoopLabelsComputer
+from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import GreedyBatchedTDTLoopLabelsComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.rnn import label_collate
@@ -567,14 +569,14 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     - 'exp' for using exponential mapping with linear shift.
         loop_labels: Switching between decoding algorithms. Both algorithms produce equivalent results.
             loop_labels=True algorithm is faster (especially for large batches) but can use a bit more memory
-                (negligible overhead compared to the amount of memory used by the encoder).
+            (negligible overhead compared to the amount of memory used by the encoder).
             loop_labels=False (default) is an implementation of a traditional decoding algorithm, which iterates over
-                frames (encoder output vectors), and in the inner loop, decodes labels for the current frame one by one,
-                stopping when <blank> is found.
+            frames (encoder output vectors), and in the inner loop, decodes labels for the current frame one by one,
+            stopping when <blank> is found.
             loop_labels=True iterates over labels, on each step finding the next non-blank label
-                (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
-                to prediction network (with maximum possible batch size),
-                which makes it especially useful for scaling the prediction network.
+            (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
+            to prediction network (with maximum possible batch size),
+            which makes it especially useful for scaling the prediction network.
     """
 
     def __init__(
@@ -587,6 +589,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = False,
+        use_cuda_graph_decoder: bool = False,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -598,12 +601,32 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
 
+        self.use_cuda_graph_decoder = use_cuda_graph_decoder
+
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
+        self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            if loop_labels:
+            if loop_labels and use_cuda_graph_decoder:
+                raise ValueError("loop_labels and use_cuda_graph_decoder is unsupported configuration")
+            elif loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
+                self._decoding_computer = GreedyBatchedRNNTLoopLabelsComputer(
+                    decoder=self.decoder,
+                    joint=self.joint,
+                    blank_index=self._blank_index,
+                    max_symbols_per_step=self.max_symbols,
+                    preserve_alignments=preserve_alignments,
+                    preserve_frame_confidence=preserve_frame_confidence,
+                    confidence_method_cfg=confidence_method_cfg,
+                )
+            elif use_cuda_graph_decoder:
+                from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import (
+                    RNNTGreedyDecodeCudaGraph,
+                )
+
+                self._greedy_decode = RNNTGreedyDecodeCudaGraph(max_symbols_per_step, self)
             else:
                 # previous algo: loop over frames
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
@@ -642,6 +665,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
+
                 hypotheses = self._greedy_decode(
                     inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
                 )
@@ -670,155 +694,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
-        batch_size, max_time, _ = x.shape
-
-        x = self.joint.project_encoder(x)  # do not recalculate joint projection, project only once
-
-        # Initialize empty hypotheses and all necessary tensors
-        batched_hyps = rnnt_utils.BatchedHyps(
-            batch_size=batch_size, init_length=max_time, device=x.device, float_dtype=x.dtype
-        )
-        time_indices = torch.zeros([batch_size], dtype=torch.long, device=device)  # always of batch_size
-        active_indices = torch.arange(batch_size, dtype=torch.long, device=device)  # initial: all indices
-        labels = torch.full([batch_size], fill_value=self._blank_index, dtype=torch.long, device=device)
-        state = None
-
-        # init additional structs for hypotheses: last decoder state, alignments, frame_confidence
-        last_decoder_state = [None for _ in range(batch_size)]
-
-        alignments: Optional[rnnt_utils.BatchedAlignments]
-        if self.preserve_alignments or self.preserve_frame_confidence:
-            alignments = rnnt_utils.BatchedAlignments(
-                batch_size=batch_size,
-                logits_dim=self.joint.num_classes_with_blank,
-                init_length=max_time * 2,  # blank for each timestep + text tokens
-                device=x.device,
-                float_dtype=x.dtype,
-                store_alignments=self.preserve_alignments,
-                store_frame_confidence=self.preserve_frame_confidence,
-            )
-        else:
-            alignments = None
-
-        # loop while there are active indices
-        while (current_batch_size := active_indices.shape[0]) > 0:
-            # stage 1: get decoder (prediction network) output
-            if state is None:
-                # start of the loop, SOS symbol is passed into prediction network
-                decoder_output, state, *_ = self._pred_step(self._SOS, state, batch_size=current_batch_size)
-            else:
-                # pass the labels (found in the inner loop) to the prediction network
-                decoder_output, state, *_ = self._pred_step(labels.unsqueeze(1), state, batch_size=current_batch_size)
-            decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-
-            # stage 2: get joint output, iteratively seeking for non-blank labels
-            # blank label in `labels` tensor means "end of hypothesis" (for this index)
-            logits = (
-                self._joint_step_after_projection(
-                    x[active_indices, time_indices[active_indices]].unsqueeze(1),
-                    decoder_output,
-                    log_normalize=True if self.preserve_frame_confidence else None,
-                )
-                .squeeze(1)
-                .squeeze(1)
-            )
-            scores, labels = logits.max(-1)
-
-            # search for non-blank labels using joint, advancing time indices for blank labels
-            # checking max_symbols is not needed, since we already forced advancing time indices for such cases
-            blank_mask = labels == self._blank_index
-            if alignments is not None:
-                alignments.add_results_(
-                    active_indices=active_indices,
-                    time_indices=time_indices[active_indices],
-                    logits=logits if self.preserve_alignments else None,
-                    labels=labels if self.preserve_alignments else None,
-                    confidence=torch.tensor(self._get_confidence(logits), device=device)
-                    if self.preserve_frame_confidence
-                    else None,
-                )
-            # advance_mask is a mask for current batch for searching non-blank labels;
-            # each element is True if non-blank symbol is not yet found AND we can increase the time index
-            advance_mask = torch.logical_and(blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices]))
-            while advance_mask.any():
-                advance_indices = active_indices[advance_mask]
-                time_indices[advance_indices] += 1
-                logits = (
-                    self._joint_step_after_projection(
-                        x[advance_indices, time_indices[advance_indices]].unsqueeze(1),
-                        decoder_output[advance_mask],
-                        log_normalize=True if self.preserve_frame_confidence else None,
-                    )
-                    .squeeze(1)
-                    .squeeze(1)
-                )
-                # get labels (greedy) and scores from current logits, replace labels/scores with new
-                # labels[advance_mask] are blank, and we are looking for non-blank labels
-                more_scores, more_labels = logits.max(-1)
-                labels[advance_mask] = more_labels
-                scores[advance_mask] = more_scores
-                if alignments is not None:
-                    alignments.add_results_(
-                        active_indices=advance_indices,
-                        time_indices=time_indices[advance_indices],
-                        logits=logits if self.preserve_alignments else None,
-                        labels=more_labels if self.preserve_alignments else None,
-                        confidence=torch.tensor(self._get_confidence(logits), device=device)
-                        if self.preserve_frame_confidence
-                        else None,
-                    )
-                blank_mask = labels == self._blank_index
-                advance_mask = torch.logical_and(
-                    blank_mask, (time_indices[active_indices] + 1 < out_len[active_indices])
-                )
-
-            # stage 3: filter labels and state, store hypotheses
-            # the only case, when there are blank labels in predictions - when we found the end for some utterances
-            if blank_mask.any():
-                non_blank_mask = ~blank_mask
-                labels = labels[non_blank_mask]
-                scores = scores[non_blank_mask]
-
-                # select states for hyps that became inactive (is it necessary?)
-                # this seems to be redundant, but used in the `loop_frames` output
-                inactive_global_indices = active_indices[blank_mask]
-                inactive_inner_indices = torch.arange(current_batch_size, device=device, dtype=torch.long)[blank_mask]
-                for idx, batch_idx in zip(inactive_global_indices.cpu().numpy(), inactive_inner_indices.cpu().numpy()):
-                    last_decoder_state[idx] = self.decoder.batch_select_state(state, batch_idx)
-
-                # update active indices and state
-                active_indices = active_indices[non_blank_mask]
-                state = self.decoder.mask_select_states(state, non_blank_mask)
-            # store hypotheses
-            batched_hyps.add_results_(
-                active_indices, labels, time_indices[active_indices].clone(), scores,
-            )
-
-            # stage 4: to avoid looping, go to next frame after max_symbols emission
-            if self.max_symbols is not None:
-                # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
-                # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
-                force_blank_mask = torch.logical_and(
-                    torch.logical_and(
-                        labels != self._blank_index,
-                        batched_hyps.last_timestep_lasts[active_indices] >= self.max_symbols,
-                    ),
-                    batched_hyps.last_timestep[active_indices] == time_indices[active_indices],
-                )
-                if force_blank_mask.any():
-                    # forced blank is not stored in the alignments following the original implementation
-                    time_indices[active_indices[force_blank_mask]] += 1  # emit blank => advance time indices
-                    # elements with time indices >= out_len become inactive, remove them from batch
-                    still_active_mask = time_indices[active_indices] < out_len[active_indices]
-                    active_indices = active_indices[still_active_mask]
-                    labels = labels[still_active_mask]
-                    state = self.decoder.mask_select_states(state, still_active_mask)
-
+        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
-        # preserve last decoder state (is it necessary?)
-        for i, last_state in enumerate(last_decoder_state):
-            # assert last_state is not None
-            hyps[i].dec_state = last_state
+        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
+            hyp.dec_state = state
         return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(
@@ -2422,6 +2301,7 @@ class GreedyBatchedRNNTInferConfig:
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = False
+    use_cuda_graph_decoder: bool = False
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
@@ -2772,8 +2652,20 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
+        self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            self._greedy_decode = self._greedy_decode_blank_as_pad
+            # batched "loop frames" is not implemented for TDT
+            self._decoding_computer = GreedyBatchedTDTLoopLabelsComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                blank_index=self._blank_index,
+                durations=self.durations,
+                max_symbols_per_step=self.max_symbols,
+                preserve_alignments=preserve_alignments,
+                preserve_frame_confidence=preserve_frame_confidence,
+                confidence_method_cfg=confidence_method_cfg,
+            )
+            self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:
             self._greedy_decode = self._greedy_decode_masked
 
@@ -2819,174 +2711,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
 
         return (packed_result,)
 
-    def _greedy_decode_blank_as_pad(
-        self,
-        x: torch.Tensor,
-        out_len: torch.Tensor,
-        device: torch.device,
-        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
-    ):
-        if partial_hypotheses is not None:
-            raise NotImplementedError("`partial_hypotheses` support is not supported")
-
-        with torch.inference_mode():
-            # x: [B, T, D]
-            # out_len: [B]
-            # device: torch.device
-
-            # Initialize list of Hypothesis
-            batchsize = x.shape[0]
-            hypotheses = [
-                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
-            ]
-
-            # Initialize Hidden state matrix (shared by entire batch)
-            hidden = None
-
-            # If alignments need to be preserved, register a danling list to hold the values
-            if self.preserve_alignments:
-                # alignments is a 3-dimensional dangling list representing B x T x U
-                for hyp in hypotheses:
-                    hyp.alignments = [[]]
-
-            # If confidence scores need to be preserved, register a danling list to hold the values
-            if self.preserve_frame_confidence:
-                # frame_confidence is a 3-dimensional dangling list representing B x T x U
-                for hyp in hypotheses:
-                    hyp.frame_confidence = [[]]
-
-            # Last Label buffer + Last Label without blank buffer
-            # batch level equivalent of the last_label
-            last_label = torch.full([batchsize, 1], fill_value=self._blank_index, dtype=torch.long, device=device)
-
-            # Mask buffers
-            blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
-
-            # Get max sequence length
-            max_out_len = out_len.max()
-
-            # skip means the number of frames the next decoding step should "jump" to. When skip == 1
-            # it means the next decoding step will just use the next input frame.
-            skip = 1
-            for time_idx in range(max_out_len):
-                if skip > 1:  # if skip > 1 at the current step, we decrement it and skip the current frame.
-                    skip -= 1
-                    continue
-                f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
-
-                # need_to_stay is a boolean indicates whether the next decoding step should remain in the same frame.
-                need_to_stay = True
-                symbols_added = 0
-
-                # Reset blank mask
-                blank_mask.mul_(False)
-
-                # Update blank mask with time mask
-                # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
-                # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
-                blank_mask = time_idx >= out_len
-
-                # Start inner loop
-                while need_to_stay and (self.max_symbols is None or symbols_added < self.max_symbols):
-                    # Batch prediction and joint network steps
-                    # If very first prediction step, submit SOS tag (blank) to pred_step.
-                    # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
-                    if time_idx == 0 and symbols_added == 0 and hidden is None:
-                        g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
-                    else:
-                        # Perform batch step prediction of decoder, getting new states and scores ("g")
-                        g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
-
-                    # Batched joint step - Output = [B, V + 1 + num-big-blanks]
-                    # Note: log_normalize must not be True here since the joiner output is contanetation of both token logits and duration logits,
-                    # and they need to be normalized independently.
-                    joined = self._joint_step(f, g, log_normalize=None)
-                    logp = joined[:, 0, 0, : -len(self.durations)]
-                    duration_logp = joined[:, 0, 0, -len(self.durations) :]
-
-                    if logp.dtype != torch.float32:
-                        logp = logp.float()
-                        duration_logp = duration_logp.float()
-
-                    # get the max for both token and duration predictions.
-                    v, k = logp.max(1)
-                    dv, dk = duration_logp.max(1)
-
-                    # here we set the skip value to be the minimum of all predicted durations, hense the "torch.min(dk)" call there.
-                    # Please refer to Section 5.2 of our paper https://arxiv.org/pdf/2304.06795.pdf for explanation of this.
-                    skip = self.durations[int(torch.min(dk))]
-
-                    # this is a special case: if all batches emit blanks, we require that skip be at least 1
-                    # so we don't loop forever at the current frame.
-                    if blank_mask.all():
-                        if skip == 0:
-                            skip = 1
-
-                    need_to_stay = skip == 0
-                    del g
-
-                    # Update blank mask with current predicted blanks
-                    # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
-                    k_is_blank = k == self._blank_index
-                    blank_mask.bitwise_or_(k_is_blank)
-
-                    del k_is_blank
-                    del logp, duration_logp
-
-                    # If all samples predict / have predicted prior blanks, exit loop early
-                    # This is equivalent to if single sample predicted k
-                    if not blank_mask.all():
-                        # Collect batch indices where blanks occurred now/past
-                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
-
-                        # Recover prior state for all samples which predicted blank now/past
-                        if hidden is not None:
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
-
-                        elif len(blank_indices) > 0 and hidden is None:
-                            # Reset state if there were some blank and other non-blank predictions in batch
-                            # Original state is filled with zeros so we just multiply
-                            # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
-
-                        # Recover prior predicted label for all samples which predicted blank now/past
-                        k[blank_indices] = last_label[blank_indices, 0]
-
-                        # Update new label and hidden state for next iteration
-                        last_label = k.clone().view(-1, 1)
-                        hidden = hidden_prime
-
-                        # Update predicted labels, accounting for time mask
-                        # If blank was predicted even once, now or in the past,
-                        # Force the current predicted label to also be blank
-                        # This ensures that blanks propogate across all timesteps
-                        # once they have occured (normally stopping condition of sample level loop).
-                        for kidx, ki in enumerate(k):
-                            if blank_mask[kidx] == 0:
-                                hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
-                                hypotheses[kidx].score += float(v[kidx])
-
-                        symbols_added += 1
-
-            # Remove trailing empty list of alignments at T_{am-len} x Uj
-            if self.preserve_alignments:
-                for batch_idx in range(batchsize):
-                    if len(hypotheses[batch_idx].alignments[-1]) == 0:
-                        del hypotheses[batch_idx].alignments[-1]
-
-            # Remove trailing empty list of confidence scores at T_{am-len} x Uj
-            if self.preserve_frame_confidence:
-                for batch_idx in range(batchsize):
-                    if len(hypotheses[batch_idx].frame_confidence[-1]) == 0:
-                        del hypotheses[batch_idx].frame_confidence[-1]
-
-        # Preserve states
-        for batch_idx in range(batchsize):
-            hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
-
-        return hypotheses
-
     def _greedy_decode_masked(
         self,
         x: torch.Tensor,
@@ -2995,3 +2719,25 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         raise NotImplementedError("masked greedy-batched decode is not supported for TDT models.")
+
+    @torch.inference_mode()
+    def _greedy_decode_blank_as_pad_loop_labels(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+    ) -> list[rnnt_utils.Hypothesis]:
+        """
+        Optimized batched greedy decoding.
+        The main idea: search for next labels for the whole batch (evaluating Joint)
+        and thus always evaluate prediction network with maximum possible batch size
+        """
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not implemented")
+
+        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
+            hyp.dec_state = state
+        return hyps

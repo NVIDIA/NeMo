@@ -24,6 +24,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
+from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
@@ -33,7 +34,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPVisionTransformer,
     MegatronCLIPModel,
 )
-from nemo.collections.multimodal.parts.utils import extend_instance, load_nemo_model_weights
+from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, get_specs
@@ -612,8 +613,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         output_tensor = self.model(**forward_args)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
-        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only)
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
+        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step)
 
     def training_step(self, dataloader_iter, batch_idx):
         """
@@ -623,7 +624,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         """
         return MegatronGPTModel.training_step(self, dataloader_iter, batch_idx)
 
-    def get_forward_output_and_loss_func(self, validation_step=False):
+    def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def loss_func(output_tensor, loss_mask):
             loss_for_ub = self.loss_func(loss_mask, output_tensor)
             if validation_step and not self.cfg.data.get('validation_drop_last', True):
@@ -921,7 +922,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         Returns:
             List of available pre-trained models.
         """
-        return []
+        return None
 
     def setup_test_data(self, cfg):
         pass
