@@ -202,7 +202,7 @@ def get_infer_test_data():
     test_data["STARCODER1-15B-base"]["prompt_template"] = ["def fibonnaci(n"]
     test_data["STARCODER1-15B-base"]["expected_keyword"] = ["fibonnaci"]
     test_data["STARCODER1-15B-base"]["max_output_token"] = 128
-    test_data["STARCODER1-15B-base"]["max_batch_size"] = 10
+    test_data["STARCODER1-15B-base"]["max_batch_size"] = 5
 
     return test_data
 
