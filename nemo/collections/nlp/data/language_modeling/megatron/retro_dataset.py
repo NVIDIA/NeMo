@@ -33,11 +33,15 @@ from nemo.utils import logging
 
 try:
     from megatron.core import mpu, tensor_parallel
-    from megatron.core.models.retro.data.config import RetroGPTChunkDatasets
-    from megatron.core.models.retro.model import RetroConfig
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.models.retro.data.query.multi_split_gpt_dataset import MultiSplitGPTDataset, MultiSplitGPTDatasetConfig
+    from megatron.core.models.retro.data.config import RetroGPTChunkDatasets
+    from megatron.core.models.retro.data.query.multi_split_gpt_dataset import (
+        MultiSplitGPTDataset,
+        MultiSplitGPTDatasetConfig,
+    )
     from megatron.core.models.retro.data.query.retro_dataset import get_retro_datasets
+    from megatron.core.models.retro.model import RetroConfig
+
     from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
     HAVE_MEGATRON_CORE = True
@@ -46,15 +50,9 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+
 class RETRODataset(Dataset):
-    def __init__(
-        self,
-        cfg,
-        retro_config: RetroConfig,
-        tokenizer,
-        mcore_retro_dataset,
-        number_samples_with_neighbors
-    ):
+    def __init__(self, cfg, retro_config: RetroConfig, tokenizer, mcore_retro_dataset, number_samples_with_neighbors):
         super().__init__()
 
         self.reset_position_ids = cfg.data.get('reset_position_ids', False)
@@ -70,7 +68,7 @@ class RETRODataset(Dataset):
 
     def __len__(self):
         return len(self.mcore_retro_dataset.chunk_dataset.sample_dataset)
-    
+
     def _get_text(self, idx: int):
         # return the tokens ids of idx
         # Caveat: these tokens are got from the already pre-tokenized data file, mcore's GPTDataset doesn't run __getitem__, only run _query_document_sample_shuffle_indices
@@ -85,36 +83,30 @@ class RETRODataset(Dataset):
 
         # Unpack
         tokens_ = torch.from_numpy(sample['text'])
-        tokens_ = tokens_.long() # size should be [seq_length]
+        tokens_ = tokens_.long()  # size should be [seq_length]
         labels = tokens_[1:].contiguous()
         tokens = tokens_[:-1].contiguous()
         neighbor_tokens = torch.from_numpy(sample['neighbor_tokens'])
-        neighbor_tokens = neighbor_tokens.long() # size should be [l, k, r]
+        neighbor_tokens = neighbor_tokens.long()  # size should be [l, k, r]
 
         # note: [l, k, r]  => [l*k, r]
         # note: 2x == neighbor, continuation
-        neighbor_tokens = neighbor_tokens \
-            .view(-1, self.retro_config.retro_retrieved_length).long()
+        neighbor_tokens = neighbor_tokens.view(-1, self.retro_config.retro_retrieved_length).long()
 
         # Get the masks and postition ids for tokens and neighbor_tokens
-        tokens = torch.unsqueeze(tokens, 0)     # get_ltor_masks_and_position_ids takes as input tokens arguments as a batch (2D tensor), so need to convert tokens from 1D to 2D
+        tokens = torch.unsqueeze(
+            tokens, 0
+        )  # get_ltor_masks_and_position_ids takes as input tokens arguments as a batch (2D tensor), so need to convert tokens from 1D to 2D
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-            tokens,
-            self.eos_id,
-            self.reset_position_ids,
-            self.reset_attention_mask,
-            self.eod_mask_loss)
-        tokens, attention_mask, loss_mask, position_ids  = tokens[0], attention_mask[0], loss_mask[0], position_ids[0]
-        _, _, neighbor_position_ids = get_ltor_masks_and_position_ids( # neighbor_tokens is already a 2D array
-            neighbor_tokens,
-            self.eos_id,
-            self.reset_position_ids,
-            self.reset_attention_mask,
-            self.eod_mask_loss)
-        neighbor_attention_mask = torch.zeros([1, 1])  # just a dummy values, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
-
-
-
+            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss
+        )
+        tokens, attention_mask, loss_mask, position_ids = tokens[0], attention_mask[0], loss_mask[0], position_ids[0]
+        _, _, neighbor_position_ids = get_ltor_masks_and_position_ids(  # neighbor_tokens is already a 2D array
+            neighbor_tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss
+        )
+        neighbor_attention_mask = torch.zeros(
+            [1, 1]
+        )  # just a dummy values, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
 
         return {
             'tokens': tokens,
@@ -124,51 +116,60 @@ class RETRODataset(Dataset):
             'position_ids': position_ids,
             'context_input_ids': neighbor_tokens,
             'context_attention_mask': neighbor_attention_mask,
-            'context_position_ids': neighbor_position_ids
+            'context_position_ids': neighbor_position_ids,
         }
 
+
 def build_train_valid_test_datasets(
-    cfg,
-    retro_config: RetroConfig,
-    train_valid_test_num_samples,
-    seq_length,
-    tokenizer,
+    cfg, retro_config: RetroConfig, train_valid_test_num_samples, seq_length, tokenizer,
 ):
 
     # gpt dataset
     train_ds, valid_ds, test_ds = gpt_train_valid_test_datasets_provider(cfg, train_valid_test_num_samples, tokenizer)
 
     gpt_datasets = {
-        "train" : (train_ds, train_valid_test_num_samples[0]),
-        "valid" : (valid_ds, train_valid_test_num_samples[1]),
-        "test"  : (test_ds, train_valid_test_num_samples[2]),
+        "train": (train_ds, train_valid_test_num_samples[0]),
+        "valid": (valid_ds, train_valid_test_num_samples[1]),
+        "test": (test_ds, train_valid_test_num_samples[2]),
     }
 
     retro_train_ds, retro_valid_ds, retro_test_ds = get_retro_datasets(
-        config=retro_config,
-        gpt_datasets=gpt_datasets,
-        sample_length=seq_length,
-        eod_token_id=tokenizer.eos_id,
+        config=retro_config, gpt_datasets=gpt_datasets, sample_length=seq_length, eod_token_id=tokenizer.eos_id,
     )
 
-    train_ds = RETRODataset(
-        cfg = cfg, 
-        retro_config = retro_config, 
-        tokenizer = tokenizer,
-        mcore_retro_dataset = retro_train_ds,
-        number_samples_with_neighbors=train_valid_test_num_samples[0]) if retro_train_ds else None
-    valid_ds = RETRODataset(
-        cfg = cfg, 
-        retro_config = retro_config, 
-        tokenizer = tokenizer,
-        mcore_retro_dataset = retro_valid_ds,
-        number_samples_with_neighbors=train_valid_test_num_samples[1]) if retro_valid_ds else None
-    test_ds = RETRODataset(
-        cfg = cfg, 
-        retro_config = retro_config, 
-        tokenizer = tokenizer,
-        mcore_retro_dataset = retro_test_ds,
-        number_samples_with_neighbors=train_valid_test_num_samples[2]) if retro_test_ds else None
+    train_ds = (
+        RETRODataset(
+            cfg=cfg,
+            retro_config=retro_config,
+            tokenizer=tokenizer,
+            mcore_retro_dataset=retro_train_ds,
+            number_samples_with_neighbors=train_valid_test_num_samples[0],
+        )
+        if retro_train_ds
+        else None
+    )
+    valid_ds = (
+        RETRODataset(
+            cfg=cfg,
+            retro_config=retro_config,
+            tokenizer=tokenizer,
+            mcore_retro_dataset=retro_valid_ds,
+            number_samples_with_neighbors=train_valid_test_num_samples[1],
+        )
+        if retro_valid_ds
+        else None
+    )
+    test_ds = (
+        RETRODataset(
+            cfg=cfg,
+            retro_config=retro_config,
+            tokenizer=tokenizer,
+            mcore_retro_dataset=retro_test_ds,
+            number_samples_with_neighbors=train_valid_test_num_samples[2],
+        )
+        if retro_test_ds
+        else None
+    )
 
     return train_ds, valid_ds, test_ds
 
@@ -182,7 +183,9 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
     """
 
     def is_dataset_built_on_rank():
-        return (mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()) and mpu.get_tensor_model_parallel_rank() == 0
+        return (
+            mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
+        ) and mpu.get_tensor_model_parallel_rank() == 0
 
     data_config = MultiSplitGPTDatasetConfig(
         is_built_on_rank=is_dataset_built_on_rank,
@@ -196,15 +199,13 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
         reset_position_ids=cfg.data.get('reset_position_ids', False),
         reset_attention_mask=cfg.data.get('reset_attention_mask', False),
         eod_mask_loss=cfg.data.get('eod_mask_loss', False),
-        tokenizer=tokenizer
+        tokenizer=tokenizer,
     )
 
     print("> building train, validation, and test datasets for GPT ...")
 
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
-        MultiSplitGPTDataset,
-        train_val_test_num_samples,
-        data_config
+        MultiSplitGPTDataset, train_val_test_num_samples, data_config
     ).build()
 
     print("> finished creating GPT datasets ...")

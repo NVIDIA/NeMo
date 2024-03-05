@@ -1378,7 +1378,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
             else:
                 self._test_dl = None
-                
+
     def generate(
         self,
         inputs: Union[List[str], torch.Tensor, List[dict]],

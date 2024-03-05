@@ -16,16 +16,15 @@ import itertools
 import json
 import os
 import queue
-import warnings
 import types
+import warnings
 from dataclasses import fields
 from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
-from omegaconf import open_dict
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -33,6 +32,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
+
 # from nemo.collections.nlp.data.language_modeling.megatron.retro_dummy_dataset import build_train_valid_test_datasets as dummy_build_train_valid_test_datasets  # turn on when running with dummy data
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -79,6 +79,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, parallel_state
+    from megatron.core.models.retro.data.utils import get_config_path as get_retro_config_path
+    from megatron.core.models.retro.data.utils import get_gpt_data_dir as get_retro_data_dir
     from megatron.core.models.retro.model import RetroModel as MCoreRetroModel
     from megatron.core.models.retro.model.config import RetroConfig
     from megatron.core.models.retro.model.decoder_spec import get_retro_decoder_block_spec
@@ -86,11 +88,6 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-    from megatron.core.models.retro.data.utils import (
-        get_config_path as get_retro_config_path,
-        get_gpt_data_dir as get_retro_data_dir,
-    )
-
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -119,13 +116,11 @@ class MegatronRetroModel(MegatronGPTModel):
     """
 
     def load_retro_config(self, cfg: DictConfig):
-        assert cfg.retro.get('retro_project_dir') is not None, \
-            "`--retro-project-dir` must be set to use Retro."
+        assert cfg.retro.get('retro_project_dir') is not None, "`--retro-project-dir` must be set to use Retro."
 
         # Retro config path.
         retro_config_path = get_retro_config_path(cfg.retro.get('retro_project_dir'))
-        assert os.path.exists(retro_config_path), \
-            "retro project dir missing config.json."
+        assert os.path.exists(retro_config_path), "retro project dir missing config.json."
 
         # Load retro config.
         with open(retro_config_path) as f:
@@ -149,7 +144,7 @@ class MegatronRetroModel(MegatronGPTModel):
             cfg.data.data_prefix = data_path
             cfg.encoder_seq_length = retro_preprocess_config.retro_gpt_seq_length
             cfg.data.seq_length = retro_preprocess_config.retro_gpt_seq_length
-            cfg.max_position_embeddings = retro_preprocess_config.retro_gpt_seq_length           
+            cfg.max_position_embeddings = retro_preprocess_config.retro_gpt_seq_length
             # cfg.data.splits_string = retro_preprocess_config.retro_gpt_split      # remove because lastest RETRO data-object have separate RETRO training split and RETRO preprocessing split
             cfg.tokenizer.model = retro_preprocess_config.retro_gpt_tokenizer_model
             cfg.tokenizer.type = retro_preprocess_config.retro_gpt_tokenizer_type
@@ -172,11 +167,14 @@ class MegatronRetroModel(MegatronGPTModel):
 
         super().__init__(cfg, trainer=trainer)
 
-        logging.info("\n\n************** Experiment configuration (after overriding with RETRO's workdir values) ***********")
+        logging.info(
+            "\n\n************** Experiment configuration (after overriding with RETRO's workdir values) ***********"
+        )
         logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
         # compile helpers for megatron
         from megatron.core.datasets.utils import compile_helpers
+
         compile_helpers()
 
         return
@@ -187,7 +185,9 @@ class MegatronRetroModel(MegatronGPTModel):
             self.retro_model_config = self.build_retro_config()
             model = MCoreRetroModel(
                 config=self.retro_model_config,
-                transformer_layer_spec=get_retro_decoder_block_spec(self.retro_model_config, use_transformer_engine=True),
+                transformer_layer_spec=get_retro_decoder_block_spec(
+                    self.retro_model_config, use_transformer_engine=True
+                ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.data.get('seq_length', 512),
                 pre_process=pre_process,
@@ -200,10 +200,12 @@ class MegatronRetroModel(MegatronGPTModel):
             )
 
         else:
-            assert self.mcore_gpt==True, "Currently only support mcore Retro."
+            assert self.mcore_gpt == True, "Currently only support mcore Retro."
         return model
 
-    def forward(self, tokens, text_position_ids, attention_mask, labels, context_input_ids, context_position_ids, context_mask):
+    def forward(
+        self, tokens, text_position_ids, attention_mask, labels, context_input_ids, context_position_ids, context_mask
+    ):
         output_tensor = self.model(
             tokens,
             text_position_ids,
@@ -260,7 +262,9 @@ class MegatronRetroModel(MegatronGPTModel):
             else:
                 required_keys.add('attention_mask')
                 if parallel_state.is_pipeline_first_stage():
-                    required_keys.update(('tokens', 'position_ids', 'context_input_ids', 'context_position_ids','context_mask'))
+                    required_keys.update(
+                        ('tokens', 'position_ids', 'context_input_ids', 'context_position_ids', 'context_mask')
+                    )
                 if parallel_state.is_pipeline_last_stage():
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion:
@@ -285,7 +289,7 @@ class MegatronRetroModel(MegatronGPTModel):
                 'attention_mask': batch['attention_mask'],
                 'context_input_ids': batch['context_input_ids'],
                 'context_position_ids': batch['context_position_ids'],
-                'context_mask': None,   # batch neighbor_attention_mask will be set to None following Lawrence's implementation
+                'context_mask': None,  # batch neighbor_attention_mask will be set to None following Lawrence's implementation
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
             }
@@ -367,13 +371,14 @@ class MegatronRetroModel(MegatronGPTModel):
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             output_tensor = model(
-                tokens, 
-                position_ids, 
-                attention_mask, 
-                context_input_ids=context_input_ids, 
-                context_position_ids=context_position_ids, 
-                context_mask=None,   # batch neighbor_attention_mask will be set to None following Lawrence's implementation
-                **extra_arg)
+                tokens,
+                position_ids,
+                attention_mask,
+                context_input_ids=context_input_ids,
+                context_position_ids=context_position_ids,
+                context_mask=None,  # batch neighbor_attention_mask will be set to None following Lawrence's implementation
+                **extra_arg,
+            )
 
             # Advance inference sequence offset.
             if self.inference_params:
