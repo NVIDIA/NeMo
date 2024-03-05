@@ -60,18 +60,30 @@ from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTra
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
+from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
+
+
+try:
+    import amp_C
+
+    HAVE_AMP_C = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_AMP_C = False
 
 try:
     from megatron.core import dist_checkpointing, parallel_state
@@ -117,6 +129,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 context_parallel_size=app_state.context_parallel_size,
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
+                expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -249,7 +262,7 @@ class NLPDDPStrategy(DDPStrategy):
             ValueError: If a parameter ID does not match any model sharded parameter.
         """
 
-        optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)  # MainParamsOptimizerWrapper
+        optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
 
         model_sharded_state_dict = self.lightning_module.sharded_state_dict()
 
@@ -258,8 +271,21 @@ class NLPDDPStrategy(DDPStrategy):
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
 
-        if not isinstance(optimizer, MainParamsOptimizerWrapper):
+        if isinstance(optimizer, MegatronDistributedFusedAdam):
             return optimizer.sharded_state_dict(model_sharded_state_dict)
+        elif not isinstance(optimizer, MainParamsOptimizerWrapper):
+            # Regular optimizer, e.g. Adam or FusedAdam
+            init_optimizer_states(optimizer)
+            optimizer_state_dict = optimizer.state_dict()
+            id_to_sharded_param_map = get_param_id_to_sharded_param_map(
+                model_sharded_state_dict=model_sharded_state_dict,
+                optim_params_iter=itertools.chain.from_iterable(g['params'] for g in optimizer.param_groups),
+            )
+            optim_state_to_sharding_state(optimizer_state_dict, id_to_sharded_param_map)
+            return optimizer_state_dict
+
+        # MainParamsOptimizerWrapper
+        init_optimizer_states(optimizer.optimizer)
 
         optimizer_state_dict = optimizer.state_dict()
 
@@ -517,6 +543,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         sharded_checkpoint: bool = False,
         precision: Union[int, str] = 'bf16-mixed',
         nccl_communicator_config_path: Optional[str] = None,
+        sharp: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -561,6 +588,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         )
 
         self.nccl_communicator_config_path = nccl_communicator_config_path
+        self.sharp = sharp
         super().__init__(**kwargs)
 
     def _set_mixed_precision_recipe(
@@ -750,7 +778,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
-        if not self.sharded_checkpoint:
+        if self.sharded_checkpoint:
             logging.info(f'Removing checkpoint: {filepath}')
             self.checkpoint_io.remove_checkpoint(filepath)
         else:
@@ -787,7 +815,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         app_state = AppState()
 
         # Check if using distributed checkpointing
-        dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
+        if model.cfg.get("fsdp", False):
+            dist_ckpt = False
+        else:
+            dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
 
         dist_ckpt_dir = None
 
@@ -885,7 +916,14 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                         self._update_artifact_paths(model, path2yaml_file=config_yaml)
 
                     # create tar file
-                    self._make_nemo_file_from_folder(save_path, tmpdir)
+                    if self.pack_nemo_file:
+                        self._make_nemo_file_from_folder(save_path, tmpdir)
+                    else:
+                        # Get the folder path from the save_path and move all values inside the tmpdir to the folder
+                        folder_path = os.path.dirname(save_path)
+
+                        for file in os.listdir(tmpdir):
+                            shutil.move(os.path.join(tmpdir, file), folder_path)
 
         else:
             return super().save_to(model, save_path)
@@ -928,7 +966,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # Modify state key for Dreambooth inference
         if (
             conf.get('target')
-            == 'nemo.collections.multimodal.models.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
+            == 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
         ):
             new_state_dict = {}
             for key in state_dict.keys():
@@ -1138,7 +1176,13 @@ class GradScaler(torch.cuda.amp.GradScaler):
         )
         self.optimizer_update_skipped: Optional[bool] = None
         self.hysteresis = hysteresis
-        self._hysteresis_tracker = self.hysteresis
+
+    def _lazy_init_scale_growth_tracker(self, dev):
+        super()._lazy_init_scale_growth_tracker(dev)
+        if HAVE_AMP_C:
+            self._hysteresis_tracker = torch.tensor([self.hysteresis], dtype=torch.int32, device=dev)
+        else:
+            self._hysteresis_tracker = self.hysteresis
 
     def _unscale_grads_(self, optimizer, *args):
         if getattr(optimizer, "_custom_amp_unscale_grads", False):
@@ -1148,14 +1192,17 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
-        found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
+        found_infs = tuple(optimizer_state["found_inf_per_device"].values())
+        found_inf = torch.stack(found_infs).sum(dim=0, keepdim=True)
 
         # Update across all model parallel instances.
         torch.distributed.all_reduce(
             found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
         )
 
-        if found_inf.item() == 0:
+        self._found_infs_cpu = found_inf.item()
+        self._found_infs_cuda = found_inf
+        if self._found_infs_cpu == 0:
             retval = optimizer.step(*args, **kwargs)
             self.optimizer_update_skipped = False
         else:
@@ -1211,11 +1258,38 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     )
                     found_inf_combined += found_inf
 
-            if found_inf_combined > 0:
-                self._hysteresis_tracker -= 1
-                if self._hysteresis_tracker <= 0:
-                    # When hysteresis becomes zero, follow the native grad scale update rule.
-                    # Increase scale and reset growth tracker
+            if HAVE_AMP_C:
+                amp_C.update_scale_hysteresis(
+                    _scale,
+                    _growth_tracker,
+                    self._hysteresis_tracker,
+                    found_inf_combined,
+                    self._growth_factor,
+                    self._backoff_factor,
+                    self._growth_interval,
+                    self.hysteresis,
+                )
+            else:
+                if found_inf_combined > 0:
+                    self._hysteresis_tracker -= 1
+                    if self._hysteresis_tracker <= 0:
+                        # When hysteresis becomes zero, follow the native grad scale update rule.
+                        # Increase scale and reset growth tracker
+                        torch._amp_update_scale_(
+                            _scale,
+                            _growth_tracker,
+                            found_inf_combined,
+                            self._growth_factor,
+                            self._backoff_factor,
+                            self._growth_interval,
+                        )
+                    else:
+                        # Only reset the growth tracker when hysteresis is larger than zero
+                        _growth_tracker.fill_(0.0)
+                else:
+                    # When no inf found, follow the native grad scale update rule.
+                    # Increment growth_tracker, update scale when growth tracker reaches the interval, and
+                    # reset the hysteresis tracker.
                     torch._amp_update_scale_(
                         _scale,
                         _growth_tracker,
@@ -1224,22 +1298,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                         self._backoff_factor,
                         self._growth_interval,
                     )
-                else:
-                    # Only reset the growth tracker when hysteresis is larger than zero
-                    _growth_tracker.fill_(0.0)
-            else:
-                # When no inf found, follow the native grad scale update rule.
-                # Increment growth_tracker, update scale when growth tracker reaches the interval, and
-                # reset the hysteresis tracker.
-                torch._amp_update_scale_(
-                    _scale,
-                    _growth_tracker,
-                    found_inf_combined,
-                    self._growth_factor,
-                    self._backoff_factor,
-                    self._growth_interval,
-                )
-                self._hysteresis_tracker = self.hysteresis
+                    self._hysteresis_tracker = self.hysteresis
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
         self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
@@ -1286,7 +1345,10 @@ class GradScaler(torch.cuda.amp.GradScaler):
         if "_hysterisis_tracker" in state_dict:
             self._hysteresis_tracker = state_dict["_hysterisis_tracker"]
         else:
-            self._hysteresis_tracker = 1
+            if HAVE_AMP_C:
+                self._hysteresis_tracker = torch.tensor([1], dtype=torch.int32, device="cuda")
+            else:
+                self._hysteresis_tracker = 1
 
 
 class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
@@ -1404,12 +1466,9 @@ class CustomProgressBar(TQDMProgressBar):
         return self.bar
 
     def on_train_epoch_start(self, trainer, *_):
-        if trainer.max_steps > 0 and (trainer.ckpt_path is not None):
-            # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
-            # is truncated to max_steps - step being resumed at
-            num_training_batches = trainer.max_steps
-        else:
-            num_training_batches = trainer.num_training_batches
+        # Use trainer.max_steps as the num_training_batches since len(dataloader) aka num_training_batches is returned as the total num of micro batches
+        # instead of total num of global batches with this PR: https://github.com/NVIDIA/NeMo/pull/8426
+        num_training_batches = trainer.max_steps
         self.train_progress_bar.reset(num_training_batches)
         self.train_progress_bar.initial = 0
         self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")

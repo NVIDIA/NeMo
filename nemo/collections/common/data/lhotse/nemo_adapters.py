@@ -18,17 +18,19 @@ import secrets
 import tarfile
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, List
+from typing import Generator, Iterable, List
 
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
-from lhotse.lazy import ImitatesDict, LazyIteratorChain, LazyJsonlIterator
+from lhotse.cut import Cut
+from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
 from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
-class LazyNeMoIterator(ImitatesDict):
+class LazyNeMoIterator:
     """
     ``LazyNeMoIterator`` reads a NeMo (non-tarred) JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
@@ -36,53 +38,60 @@ class LazyNeMoIterator(ImitatesDict):
     Currently, it requires the following keys in NeMo manifests:
     - "audio_filepath"
     - "duration"
-    - "text" (overridable with text_field argument)
+    - "text" (overridable with ``text_field`` argument)
+
+    Specially supported keys are:
+    - [recommended] "sampling_rate" allows us to provide a valid Lhotse ``Recording`` object without checking the audio file
+    - "offset" for partial recording reads
+    - "lang" is mapped to Lhotse superivsion's language (overridable with ``lang_field`` argument)
 
     Every other key found in the manifest will be attached to Lhotse Cut and accessible via ``cut.custom[key]``.
 
-    .. caution:: If sampling rate is not specified, we will perform some I/O (as much as required by soundfile.info)
-        to discover the sampling rate of the audio file. Otherwise, if sampling rate is provided, we assume every
-        audio file has the same sampling rate.
+    .. caution:: We will perform some I/O (as much as required by soundfile.info) to discover the sampling rate
+        of the audio file. If this is not acceptable, convert the manifest to Lhotse format which contains
+        sampling rate info. For pure metadata iteration purposes we also provide a ``missing_sampling_rate_ok`` flag that
+        will create only partially valid Lhotse objects (with metadata related to sampling rate / num samples missing).
 
     Example::
 
-        >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json", sampling_rate=16000))
+        >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json"))
     """
 
     def __init__(
-        self, path: str | Path, sampling_rate: int | None = None, text_field: str = "text", lang_field: str = "lang"
+        self,
+        path: str | Path,
+        text_field: str = "text",
+        lang_field: str = "lang",
+        missing_sampling_rate_ok: bool = False,
     ) -> None:
         self.source = LazyJsonlIterator(path)
-        self.sampling_rate = sampling_rate
         self.text_field = text_field
         self.lang_field = lang_field
+        self.missing_sampling_rate_ok = missing_sampling_rate_ok
 
     @property
     def path(self) -> str | Path:
         return self.source.path
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[Cut, None, None]:
         for data in self.source:
-            audio_path = data.pop("audio_filepath")
+            audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path))
             duration = data.pop("duration")
-            if self.sampling_rate is None:
-                recording = Recording.from_file(audio_path)
-            else:
-                recording = Recording(
-                    id=Path(audio_path).name,
-                    sources=[AudioSource(type="file", channels=[0], source=audio_path)],
-                    sampling_rate=self.sampling_rate,
-                    duration=duration,
-                    num_samples=compute_num_samples(duration, self.sampling_rate),
-                )
+            offset = data.pop("offset", None)
+            recording = self._create_recording(audio_path, duration, data.pop("sampling_rate", None))
             cut = recording.to_cut()
+            if offset is not None:
+                cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
+                cut.id = f"{cut.id}-{round(offset * 1e2):06d}-{round(duration * 1e2):06d}"
+            # Note that start=0 and not start=offset because supervision's start if relative to the
+            # start of the cut; and cut.start is already set to offset
             cut.supervisions.append(
                 SupervisionSegment(
                     id=cut.id,
                     recording_id=cut.recording_id,
                     start=0,
                     duration=cut.duration,
-                    text=data[self.text_field],
+                    text=data.get(self.text_field),
                     language=data.get(self.lang_field),
                 )
             )
@@ -95,8 +104,31 @@ class LazyNeMoIterator(ImitatesDict):
     def __add__(self, other):
         return LazyIteratorChain(self, other)
 
+    def _create_recording(self, audio_path: str, duration: float, sampling_rate: int | None = None,) -> Recording:
+        if sampling_rate is not None:
+            # TODO(pzelasko): It will only work with single-channel audio in the current shape.
+            return Recording(
+                id=audio_path,
+                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
+                sampling_rate=sampling_rate,
+                num_samples=compute_num_samples(duration, sampling_rate),
+                duration=duration,
+                channel_ids=[0],
+            )
+        elif self.missing_sampling_rate_ok:
+            return Recording(
+                id=audio_path,
+                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
+                sampling_rate=-1,
+                num_samples=-1,
+                duration=duration,
+                channel_ids=[0],
+            )
+        else:
+            return Recording.from_file(audio_path)
 
-class LazyNeMoTarredIterator(ImitatesDict):
+
+class LazyNeMoTarredIterator:
     """
     ``LazyNeMoTarredIterator`` reads a NeMo tarred JSON manifest and converts it on the fly to an ``Iterable[Cut]``.
     It's used to create a ``lhotse.CutSet``.
@@ -106,6 +138,9 @@ class LazyNeMoTarredIterator(ImitatesDict):
     - "duration"
     - "text" (overridable with text_field argument)
     - "shard_id"
+
+    Specially supported keys are:
+    - "lang" is mapped to Lhotse superivsion's language (overridable with ``lang_field`` argument)
 
     Every other key found in the manifest will be attached to Lhotse Cut and accessible via ``cut.custom[key]``.
 
@@ -188,7 +223,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
     def shard_ids(self) -> List[int]:
         return sorted(self.shard_id_to_manifest.keys())
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[Cut, None, None]:
         shard_ids = self.shard_ids
 
         if self.shuffle_shards:
@@ -200,7 +235,6 @@ class LazyNeMoTarredIterator(ImitatesDict):
             tar_path = self.shard_id_to_tar_path[sid]
             with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
                 for data, tar_info in zip(shard_manifest, tar):
-                    print(f"{data=}, {tar_info=}")
                     assert (
                         data["audio_filepath"] == tar_info.name
                     ), f"Mismatched JSON manifest and tar file. {data['audio_filepath']=} != {tar_info.name=}"
@@ -224,7 +258,7 @@ class LazyNeMoTarredIterator(ImitatesDict):
                             recording_id=cut.recording_id,
                             start=0,
                             duration=cut.duration,
-                            text=data[self.text_field],
+                            text=data.get(self.text_field),
                             language=data.get(self.lang_field),
                         )
                     )

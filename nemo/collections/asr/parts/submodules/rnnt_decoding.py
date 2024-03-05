@@ -208,15 +208,17 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
-        if self.durations is not None:  # this means it's a TDT model.
+        if self.durations is not None and self.durations != []:  # this means it's a TDT model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
-            if self.big_blank_durations is not None:
+            if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
             if self.cfg.strategy not in ['greedy', 'greedy_batch']:
                 raise ValueError("currently only greedy and greedy_batch inference is supported for TDT models")
 
-        if self.big_blank_durations is not None:  # this means it's a multi-blank model.
+        if (
+            self.big_blank_durations is not None and self.big_blank_durations != []
+        ):  # this means it's a multi-blank model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
             if self.cfg.strategy not in ['greedy', 'greedy_batch']:
@@ -260,8 +262,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
 
         if self.cfg.strategy == 'greedy':
-            if self.big_blank_durations is None:
-                if self.durations is None:
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if self.durations is None or self.durations == []:
                     self.decoding = rnnt_greedy_decoding.GreedyRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
@@ -303,8 +305,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
 
         elif self.cfg.strategy == 'greedy_batch':
-            if self.big_blank_durations is None:
-                if self.durations is None:
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if self.durations is None or self.durations == []:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedRNNTInfer(
                         decoder_model=decoder,
                         joint_model=joint,
@@ -316,6 +318,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
+                        loop_labels=self.cfg.greedy.get('loop_labels', False),
+                        use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', False),
                     )
                 else:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
@@ -521,10 +525,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
             # RNN-T sample level is already preprocessed by implicit RNNT decoding
             # Simply remove any blank and possibly big blank tokens
-            if self.big_blank_durations is not None:  # multi-blank RNNT
+            if self.big_blank_durations is not None and self.big_blank_durations != []:  # multi-blank RNNT
                 num_extra_outputs = len(self.big_blank_durations)
                 prediction = [p for p in prediction if p < self.blank_id - num_extra_outputs]
-            elif self.durations is not None:  # TDT model.
+            elif self.durations is not None and self.durations != []:  # TDT model.
                 prediction = [p for p in prediction if p < self.blank_id]
             else:  # standard RNN-T
                 prediction = [p for p in prediction if p != self.blank_id]
@@ -954,9 +958,13 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
     Args:
         decoding_cfg: A dict-like object which contains the following key-value pairs.
-            strategy: str value which represents the type of decoding that can occur.
+
+            strategy:
+                str value which represents the type of decoding that can occur.
                 Possible values are :
+
                 -   greedy, greedy_batch (for greedy decoding).
+
                 -   beam, tsd, alsd (for beam search decoding).
 
             compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
@@ -1003,93 +1011,105 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
 
-                    name: The method name (str).
+                    name:
+                        The method name (str).
                         Supported values:
+
                             - 'max_prob' for using the maximum token probability as a confidence.
+
                             - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
-                    entropy_type: Which type of entropy to use (str).
+                    entropy_type:
+                        Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+
                             - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
                                 Note that for this entropy, the alpha should comply the following inequality:
                                 (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
                                 where V is the model vocabulary size.
+
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
+
                             - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
-                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                    alpha:
+                        Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
                         When the alpha equals one, scaling is not applied to 'max_prob',
                         and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
 
-                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                    entropy_norm:
+                        A mapping of the entropy value to the interval [0,1].
                         Supported values:
+
                             - 'lin' for using the linear mapping.
+
                             - 'exp' for using exponential mapping with linear shift.
 
             The config may further contain the following sub-dictionaries:
-            "greedy":
-                max_symbols: int, describing the maximum number of target tokens to decode per
-                    timestep during greedy decoding. Setting to larger values allows longer sentences
-                    to be decoded, at the cost of increased execution time.
 
-                preserve_frame_confidence: Same as above, overrides above value.
+                "greedy":
+                    max_symbols: int, describing the maximum number of target tokens to decode per
+                        timestep during greedy decoding. Setting to larger values allows longer sentences
+                        to be decoded, at the cost of increased execution time.
 
-                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
+                    preserve_frame_confidence: Same as above, overrides above value.
 
-            "beam":
-                beam_size: int, defining the beam size for beam search. Must be >= 1.
-                    If beam_size == 1, will perform cached greedy search. This might be slightly different
-                    results compared to the greedy search above.
+                    confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
-                score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
-                    Set to True by default.
+                "beam":
+                    beam_size: int, defining the beam size for beam search. Must be >= 1.
+                        If beam_size == 1, will perform cached greedy search. This might be slightly different
+                        results compared to the greedy search above.
 
-                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
-                    hypotheses after beam search has concluded. This flag is set by default.
+                    score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
+                        Set to True by default.
 
-                tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
-                    per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
-                    at increased cost to execution time.
+                    return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
+                        hypotheses after beam search has concluded. This flag is set by default.
 
-                alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                    If an integer is provided, it can decode sequences of that particular maximum length.
-                    If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
-                    where seq_len is the length of the acoustic model output (T).
+                    tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
+                        per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
+                        at increased cost to execution time.
 
-                    NOTE:
-                        If a float is provided, it can be greater than 1!
-                        By default, a float of 2.0 is used so that a target sequence can be at most twice
-                        as long as the acoustic model output length T.
+                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
+                        If an integer is provided, it can decode sequences of that particular maximum length.
+                        If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
+                        where seq_len is the length of the acoustic model output (T).
 
-                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
-                    and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
+                        NOTE:
+                            If a float is provided, it can be greater than 1!
+                            By default, a float of 2.0 is used so that a target sequence can be at most twice
+                            as long as the acoustic model output length T.
 
-                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                    in order to reduce expensive beam search cost later. int >= 0.
+                    maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+                        and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
-                    Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                    and affects the speed of inference since large values will perform large beam search in the next step.
+                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
+                        in order to reduce expensive beam search cost later. int >= 0.
 
-                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                    expansion apart from the "most likely" candidate.
-                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                    tuned on a validation set.
+                    maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+                        Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+                        and affects the speed of inference since large values will perform large beam search in the next step.
 
-                softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
+                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+                        The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
+                        where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
+                        predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
+                        expansion apart from the "most likely" candidate.
+                        Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+                        but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+                        thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+                        tuned on a validation set.
+
+                    softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
@@ -1186,9 +1206,13 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
     Args:
         decoding_cfg: A dict-like object which contains the following key-value pairs.
-            strategy: str value which represents the type of decoding that can occur.
+
+            strategy:
+                str value which represents the type of decoding that can occur.
                 Possible values are :
+
                 -   greedy, greedy_batch (for greedy decoding).
+
                 -   beam, tsd, alsd (for beam search decoding).
 
             compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
@@ -1253,23 +1277,29 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
 
-                    name: The method name (str).
+                    name:
+                        The method name (str).
                         Supported values:
+
                             - 'max_prob' for using the maximum token probability as a confidence.
+
                             - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
                         Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+
                             - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                                 the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
                                 Note that for this entropy, the alpha should comply the following inequality:
                                 (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
                                 where V is the model vocabulary size.
+
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
+
                             - 'renyi' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                                 where α is a parameter. When α == 1, it works like the Gibbs entropy.
@@ -1281,65 +1311,68 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
+
                             - 'lin' for using the linear mapping.
+
                             - 'exp' for using exponential mapping with linear shift.
 
             The config may further contain the following sub-dictionaries:
-            "greedy":
-                max_symbols: int, describing the maximum number of target tokens to decode per
-                    timestep during greedy decoding. Setting to larger values allows longer sentences
-                    to be decoded, at the cost of increased execution time.
 
-                preserve_frame_confidence: Same as above, overrides above value.
+                "greedy":
+                    max_symbols: int, describing the maximum number of target tokens to decode per
+                        timestep during greedy decoding. Setting to larger values allows longer sentences
+                        to be decoded, at the cost of increased execution time.
 
-                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
+                    preserve_frame_confidence: Same as above, overrides above value.
 
-            "beam":
-                beam_size: int, defining the beam size for beam search. Must be >= 1.
-                    If beam_size == 1, will perform cached greedy search. This might be slightly different
-                    results compared to the greedy search above.
+                    confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
 
-                score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
-                    Set to True by default.
+                "beam":
+                    beam_size: int, defining the beam size for beam search. Must be >= 1.
+                        If beam_size == 1, will perform cached greedy search. This might be slightly different
+                        results compared to the greedy search above.
 
-                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
-                    hypotheses after beam search has concluded.
+                    score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
+                        Set to True by default.
 
-                tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
-                    per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
-                    at increased cost to execution time.
+                    return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
+                        hypotheses after beam search has concluded.
 
-                alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                    If an integer is provided, it can decode sequences of that particular maximum length.
-                    If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
-                    where seq_len is the length of the acoustic model output (T).
+                    tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
+                        per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
+                        at increased cost to execution time.
 
-                    NOTE:
-                        If a float is provided, it can be greater than 1!
-                        By default, a float of 2.0 is used so that a target sequence can be at most twice
-                        as long as the acoustic model output length T.
+                    alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
+                        If an integer is provided, it can decode sequences of that particular maximum length.
+                        If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
+                        where seq_len is the length of the acoustic model output (T).
 
-                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
-                    and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
+                        NOTE:
+                            If a float is provided, it can be greater than 1!
+                            By default, a float of 2.0 is used so that a target sequence can be at most twice
+                            as long as the acoustic model output length T.
 
-                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                    in order to reduce expensive beam search cost later. int >= 0.
+                    maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+                        and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
-                maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
-                    Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                    and affects the speed of inference since large values will perform large beam search in the next step.
+                    maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
+                        in order to reduce expensive beam search cost later. int >= 0.
 
-                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                    expansion apart from the "most likely" candidate.
-                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                    tuned on a validation set.
+                    maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+                        Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+                        and affects the speed of inference since large values will perform large beam search in the next step.
 
-                softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
+                    maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+                        The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
+                        where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
+                        predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
+                        expansion apart from the "most likely" candidate.
+                        Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+                        but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+                        thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+                        tuned on a validation set.
+
+                    softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
@@ -1495,8 +1528,8 @@ class RNNTDecodingConfig:
     rnnt_timestamp_type: str = "all"  # can be char, word or all for both
 
     # greedy decoding config
-    greedy: rnnt_greedy_decoding.GreedyRNNTInferConfig = field(
-        default_factory=lambda: rnnt_greedy_decoding.GreedyRNNTInferConfig()
+    greedy: rnnt_greedy_decoding.GreedyBatchedRNNTInferConfig = field(
+        default_factory=rnnt_greedy_decoding.GreedyBatchedRNNTInferConfig
     )
 
     # beam decoding config
@@ -1506,6 +1539,12 @@ class RNNTDecodingConfig:
 
     # can be used to change temperature for decoding
     temperature: float = 1.0
+
+    # config for TDT decoding.
+    durations: Optional[List[int]] = field(default_factory=list)
+
+    # config for multiblank decoding.
+    big_blank_durations: Optional[List[int]] = field(default_factory=list)
 
 
 @dataclass

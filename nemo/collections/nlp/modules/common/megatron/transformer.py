@@ -538,7 +538,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
             if self.is_adapter_available():
                 adapter_1 = self.get_adapter_module(AdapterName.PRE_ATTN_ADAPTER)
-                if adapter_1:
+                if adapter_1 and self.adapter_cfg[AdapterName.PRE_ATTN_ADAPTER]['enabled']:
                     attention_output = (
                         adapter_1(attention_output) + attention_output
                     )  # simple adapter call with residual connection
@@ -615,7 +615,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if self.is_adapter_available():
             # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
             adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
-            if adapter_2:
+            if adapter_2 and self.adapter_cfg[AdapterName.POST_ATTN_ADAPTER]['enabled']:
                 mlp_output = adapter_2(mlp_output) + mlp_output  # simple adapter call with residual connection
 
         residual = layernorm_input
@@ -625,7 +625,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         )
 
         output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
-        # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
 
         if self.transformer_block_type == 'post_ln':
             output = self.post_attention_layernorm(output)
@@ -797,6 +796,12 @@ class AutocastTransformerLayer(TransformerLayer):
         drop_path_rate: float = 0,
         use_emha: bool = False,
         ub_tp_comm_overlap: bool = False,
+        ub_bulk_wgrad: bool = True,
+        ub_bulk_dgrad: bool = True,
+        ub_split_ag: bool = True,
+        ub_split_rs: bool = True,
+        ub_atomic_gemm_ag: bool = False,
+        ub_atomic_gemm_rs: bool = False,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
         device: str = 'cuda',
@@ -829,6 +834,12 @@ class AutocastTransformerLayer(TransformerLayer):
             fuse_qkv_params=True,
             zero_centered_gamma=zero_centered_gamma,
             ub_tp_comm_overlap=ub_tp_comm_overlap,
+            ub_bulk_wgrad=ub_bulk_wgrad,
+            ub_bulk_dgrad=ub_bulk_dgrad,
+            ub_split_ag=ub_split_ag,
+            ub_split_rs=ub_split_rs,
+            ub_atomic_gemm_ag=ub_atomic_gemm_ag,
+            ub_atomic_gemm_rs=ub_atomic_gemm_rs,
             device=device,
         )
         # use_emha=use_emha,
@@ -1077,6 +1088,12 @@ class ParallelTransformer(MegatronModule):
                     autocast_dtype=precision,
                     use_emha=use_emha,
                     ub_tp_comm_overlap=ub_tp_comm_overlap,
+                    ub_bulk_wgrad=config.tp_comm_bulk_wgrad,
+                    ub_bulk_dgrad=config.tp_comm_bulk_dgrad,
+                    ub_split_ag=config.tp_comm_split_ag,
+                    ub_split_rs=config.tp_comm_split_rs,
+                    ub_atomic_gemm_ag=config.tp_comm_atomic_ag,
+                    ub_atomic_gemm_rs=config.tp_comm_atomic_rs,
                     zero_centered_gamma=normalization == 'layernorm1p',
                     device='cpu' if config.use_cpu_initialization else 'cuda',
                 )
@@ -1158,6 +1175,27 @@ class ParallelTransformer(MegatronModule):
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
+        if self.pre_process and self.transformer_block_type == 'post_ln':
+            # Final layer norm before output.
+            if normalization == 'layernorm':
+                self.initial_layernorm = get_layer_norm(
+                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=config.sequence_parallel
+                )
+
+            elif normalization == 'layernorm1p':
+                self.initial_layernorm = LayerNorm1P(
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=config.sequence_parallel
+                )
+            elif normalization == 'low_precision_layernorm':
+                self.initial_layernorm = LPLayerNorm(hidden_size, layernorm_epsilon)
+            else:
+                self.initial_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            # for architectures such as MPT, there is no bias term even on the layernorms
+            # this code allows us to remove the bias terms from the layernorm module
+            # so that we can support MPT. However, certain apex-based LNs don't support
+            # removing bias, so we also have to check for that
+            if not bias and normalization not in ['layernorm', 'layernorm1p']:
+                remove_bias_from_layernorm(self.initial_layernorm)
 
         if self.post_process and self.transformer_block_type != 'post_ln':
             # Final layer norm before output.
@@ -1435,7 +1473,10 @@ class ParallelTransformer(MegatronModule):
                 'get_key_value does not work with ' 'activation checkpointing'
             )
 
-        if not self.pre_process:
+        if self.pre_process:
+            if self.transformer_block_type == 'post_ln':
+                hidden_states = self.initial_layernorm(hidden_states)
+        else:
             # See set_input_tensor()
             hidden_states = self.input_tensor
 

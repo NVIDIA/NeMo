@@ -47,8 +47,11 @@ To run a tutorial:
      - Offline ASR Inference with Beam Search and External Language Model Rescoring
      - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
    * - ASR
-     - Online ASR inference with Microphone
-     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo.ipynb>`_
+     - Online ASR inference with Microphone (Cache-Aware Streaming)
+     - `Online ASR Microphone Cache Aware Streaming <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_
+   * - ASR
+     - Online ASR inference with Microphone (Buffered Streaming)
+     - `Online ASR Microphone Buffered Streaming <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo_Buffered_Streaming.ipynb>`_
    * - ASR
      - Fine-tuning CTC Models on New Languages
      - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_
@@ -157,6 +160,18 @@ To run a tutorial:
    * - NLP
      - Synthetic Tabular Data Generation
      - `Synthetic Tabular Data Generation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Megatron_Synthetic_Tabular_Data_Generation.ipynb>`_
+   * - Multimodal
+     - Multimodal Data Preparation
+     - `Multimodal Data Preparation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/Multimodal%20Data%20Preparation.ipynb>`_
+   * - Multimodal
+     - NeVA (LLaVA) Tutorial
+     - `NeVA (LLaVA) Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/NeVA%20Tutorial.ipynb>`_
+   * - Multimodal
+     - Stable Diffusion Tutorial
+     - `Stable Diffusion Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/Stable%20Diffusion%20Tutorial.ipynb>`_
+   * - Multimodal
+     - DreamBooth Tutorial
+     - `DreamBooth Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/DreamBooth%20Tutorial.ipynb>`_
    * - TTS
      - NeMo TTS Primer
      - `NeMo TTS Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/NeMo_TTS_Primer.ipynb>`_

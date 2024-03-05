@@ -63,13 +63,10 @@ class NLPAdapterModelMixin:
 
     def __init__(self, *args, **kwargs):
         self.use_peft = False
+        self.tunable_base_param_names = []
         self.setup_complete = False
         self.use_ptuning_only = False
         super().__init__(*args, **kwargs)
-        if hasattr(self, "enc_dec_model"):
-            self.model_prefix = "enc_dec_model.module." if self.cfg.megatron_amp_O2 else "enc_dec_model."  # for T5
-        else:
-            self.model_prefix = "model.module." if self.cfg.megatron_amp_O2 else "model."
 
         self.use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
         if self.use_mcore_gpt:
@@ -172,6 +169,11 @@ class NLPAdapterModelMixin:
             peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
         """
 
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None):
+            raise ValueError('Virtual pipeline model parallel is not supported when using PEFT')
+        if self.cfg.optim.name == "distributed_fused_adam":
+            raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
+
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
 
@@ -192,10 +194,14 @@ class NLPAdapterModelMixin:
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
+        self.tunable_base_param_keys = set()
 
         for cfg in peft_cfgs:
-            if cfg.weight_tying:
+            if hasattr(cfg, "weight_tying") and cfg.weight_tying:
                 self.tie_weights(cfg)
+
+            if hasattr(cfg, "tunable_base_param_names") and cfg.tunable_base_param_names:
+                self.set_tunable_base_params(cfg)
         self.use_peft = True
 
     def _get_config_and_state_dict_from_nemo(self, filepath, map_location):
@@ -216,7 +222,6 @@ class NLPAdapterModelMixin:
                 model_weights = os.path.join(tmpdir, model_weights_ckpt)
                 model_weights = inject_model_parallel_rank(model_weights)
                 state_dict = torch.load(model_weights, map_location=map_location)
-
                 return conf, state_dict
             finally:
                 os.chdir(cwd)
@@ -239,6 +244,12 @@ class NLPAdapterModelMixin:
                     module.set_enabled_adapters(enabled=True)
                     module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                     opt_params += [p for p in module.parameters() if p.requires_grad]
+
+            for name, param in self.named_parameters():
+                if name in self.tunable_base_param_keys:
+                    param.requires_grad = True
+                    opt_params += [param]
+
             self._optimizer_param_groups = ({"params": opt_params},)
             logging.info(f"Optimizer groups set:\n{self.summarize()}")
         else:
@@ -282,8 +293,16 @@ class NLPAdapterModelMixin:
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
-        assert set(state_dict.keys()) == self.adapter_keys
+        assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
         super().load_state_dict(state_dict, strict=False)
+
+    def set_tunable_base_params(self, peft_cfg):
+        for n, p in self.named_parameters():
+            for tpn in peft_cfg.tunable_base_param_names:
+                # TODO: simplistic param name matching, should support regex-like syntax @adithyare
+                if f".{tpn}." in n:
+                    self.tunable_base_param_keys.add(n)
+                    p.requires_grad = True  # We set these to true to trigger setup_optimizer_param_groups
 
     def tie_weights(self, peft_cfg):
         pos_idx = 0
@@ -326,12 +345,12 @@ class NLPAdapterModelMixin:
         """
         Gets the keys associated with the adapters only.
         """
-        state_dict = self.model.state_dict(prefix=self.model_prefix)
+        state_dict = super().state_dict()
         peft_state_dict = {}
-        for k in self.adapter_keys:
+        for k in self.adapter_keys.union(self.tunable_base_param_keys):
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
-            peft_state_dict[new_k] = state_dict[k]
+            peft_state_dict[new_k] = state_dict[new_k]
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -342,7 +361,7 @@ class NLPAdapterModelMixin:
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix=self.model_prefix)
+            return super().state_dict()
 
     def sharded_state_dict(self, prefix: str = ''):
         use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
@@ -360,7 +379,7 @@ class NLPAdapterModelMixin:
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
-            assert set(state_dict.keys()) == self.adapter_keys
+            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
@@ -467,6 +486,13 @@ class NLPAdapterModelMixin:
         """
 
         peft_cfg = cls.restore_from(path, return_config=True)
+        if hasattr(peft_cfg, 'peft') and peft_cfg.peft.peft_scheme not in [None, 'none']:
+            # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
+            for p in ['tensor_model_parallel_size', 'pipeline_model_parallel_size']:
+                assert peft_cfg.get(p) == cfg.model.get(
+                    p
+                ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({peft_cfg.get(p)})"
+
         with open_dict(peft_cfg):
             # update the model config of the trained model with params we want to set at inference time.
             peft_cfg.precision = cfg.trainer.precision
@@ -478,5 +504,5 @@ class NLPAdapterModelMixin:
         with open_dict(cfg):
             cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos
             cfg.inference.tokens_to_generate = peft_cfg.data.test_ds.tokens_to_generate
-
+        peft_cfg.megatron_amp_O2 = False  # always evaluate with O1
         return peft_cfg
