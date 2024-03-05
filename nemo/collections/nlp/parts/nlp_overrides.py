@@ -128,6 +128,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 context_parallel_size=app_state.context_parallel_size,
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
+                expert_model_parallel_size=app_state.expert_model_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -358,7 +359,8 @@ class NLPDDPStrategy(DDPStrategy):
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
-    def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
+    # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
+    def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
         if (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -388,7 +390,7 @@ class NLPDDPStrategy(DDPStrategy):
                         new_state_dict[new_key] = checkpoint['state_dict'][key]
                     checkpoint['state_dict'] = new_state_dict
 
-            self.lightning_module.load_state_dict(checkpoint["state_dict"])
+            self.lightning_module.load_state_dict(checkpoint["state_dict"], strict=strict)
 
     def _fix_tensors_device(self, ckpt: Dict) -> Dict:
         """ Ensure checkpoint tensors are on the correct device."""
@@ -779,7 +781,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
-        if not self.sharded_checkpoint:
+        if self.sharded_checkpoint:
             logging.info(f'Removing checkpoint: {filepath}')
             self.checkpoint_io.remove_checkpoint(filepath)
         else:
@@ -816,7 +818,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         app_state = AppState()
 
         # Check if using distributed checkpointing
-        dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
+        if model.cfg.get("fsdp", False):
+            dist_ckpt = False
+        else:
+            dist_ckpt = hasattr(model, 'sharded_state_dict') and model.sharded_state_dict() is not None
 
         dist_ckpt_dir = None
 
@@ -1464,12 +1469,9 @@ class CustomProgressBar(TQDMProgressBar):
         return self.bar
 
     def on_train_epoch_start(self, trainer, *_):
-        if trainer.max_steps > 0 and (trainer.ckpt_path is not None):
-            # while resuming from a ckpt use trainer.max_steps as the total for progress bar as trainer.num_training_batches
-            # is truncated to max_steps - step being resumed at
-            num_training_batches = trainer.max_steps
-        else:
-            num_training_batches = trainer.num_training_batches
+        # Use trainer.max_steps as the num_training_batches since len(dataloader) aka num_training_batches is returned as the total num of micro batches
+        # instead of total num of global batches with this PR: https://github.com/NVIDIA/NeMo/pull/8426
+        num_training_batches = trainer.max_steps
         self.train_progress_bar.reset(num_training_batches)
         self.train_progress_bar.initial = 0
         self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
