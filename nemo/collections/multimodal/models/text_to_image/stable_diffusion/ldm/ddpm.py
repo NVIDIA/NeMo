@@ -1781,6 +1781,16 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
     def training_step(self, batch):
         """
+            Notice: `training_step` used to have the following signature to support pipeline
+            parallelism:
+
+                def training_step(self, dataloader_iter, batch_idx):
+
+            However, full iteration CUDA Graph callback is not compatible with this signature
+            right now, due to we need to wrap the dataloader to generate static tensor outside
+            the CUDA Graph. This signature moves `next(dataloader)` into the CUDA Graph
+            capturing region, thus we disabled it.
+
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
