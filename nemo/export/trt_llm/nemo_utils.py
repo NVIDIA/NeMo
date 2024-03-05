@@ -174,6 +174,10 @@ def nemo_to_model_config(
             weight=get_tensor_from_dict(weights_dict, "wte")
         )
 
+        model_configs[i].positional_embedding = EmbeddingConfig(
+            weight=get_tensor_from_dict(weights_dict, "wpe")
+        )
+
         model_configs[i].final_layernorm = LayernormConfig(
             weight=get_tensor_from_dict(weights_dict, "final_layernorm.weight"),
             bias=get_tensor_from_dict(weights_dict, "final_layernorm.bias"),
@@ -294,6 +298,10 @@ def nemo_model_to_model_config(
 
     model_config.vocab_embedding = EmbeddingConfig(
         weight=get_tensor_from_dict(weights_dict, "wte"), is_local=True
+    )
+
+    model_config.positional_embedding = EmbeddingConfig(
+        weight=get_tensor_from_dict(weights_dict, "wpe"), is_local=True
     )
 
     model_config.final_layernorm = LayernormConfig(

@@ -283,26 +283,27 @@ def split_and_save_weight(
     elif "attention.query_key_value.bias" in key or "attention.linear_qkv.bias" in key:
         if "attention.linear_qkv.bias" in key:
             key = key.replace("attention.linear_qkv.bias", "attention.query_key_value.bias")
-        if local_dim is None:
-            local_dim = vals[0].shape[-1] // 3
 
-        if num_attention_heads != num_kv_heads:
-            val = vals[0]
-            # out_feature = local_dim + 2 * head_size; assumes local_dim equals to hidden_dim
-            b_q, b_kv = np.split(val, [local_dim], axis=-1)
-            b_q_split = np.split(b_q, split_factor, axis=-1)
-            split_vals = [np.concatenate((i, b_kv), axis=-1) for i in b_q_split]
-        else:
-            if use_attention_nemo_shape:
-                head_num = num_attention_heads // tp_size
-                size_per_head = local_dim // num_attention_heads
-                nemo_shape = (head_num, 3, size_per_head)
-                vals = [val.reshape(nemo_shape) for val in vals]
-                vals = [val.transpose(1, 0, 2) for val in vals]
+        qkv_hidden_dim = vals[0].shape[0]
+        size_per_head = qkv_hidden_dim // (num_attention_heads + 2 * num_kv_heads)
+        q_num = num_attention_heads // num_kv_heads
 
-            vals = [val.reshape(3, local_dim) for val in vals]
-            val = np.concatenate(vals, axis=-1)
-            split_vals = np.split(val, split_factor, axis=-1)
+        # We first concat all sub weights per tp rank together.
+
+        len_vals = len(vals)
+        val = np.concatenate(vals, axis=0)
+        val = val.reshape(num_kv_heads * len_vals // tp_size, q_num + 2, size_per_head)
+
+        # Split the QKV to separate variables.
+
+        qkv = np.split(val, [q_num, q_num + 1], axis=1)
+        q_split = np.split(qkv[0], split_factor, axis=0)
+        k_split = np.split(qkv[1], split_factor, axis=0)
+        v_split = np.split(qkv[2], split_factor, axis=0)
+
+        # Concatenate Q, K, and V together
+        split_vals = [np.concatenate([q_split[i].reshape(-1), k_split[i].reshape(-1), v_split[i].reshape(-1)], axis=0)
+                      for i in range(split_factor)]
         save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:

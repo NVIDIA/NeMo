@@ -259,6 +259,14 @@ def test_LLAMA2_7B_base_1gpu_ifb(n_gpus):
     run_trt_llm_export("LLAMA2-7B-base", n_gpus, use_pytriton=False, skip_accuracy=False)
 
 
+@pytest.mark.parametrize("n_gpus", [1])
+def test_STARCODER1_15B_base_1gpu_ifb(n_gpus):
+    """Here we test the trt-llm transfer and infer function with IFB and c++ backend"""
+    if n_gpus > torch.cuda.device_count():
+        pytest.skip("Skipping the test due to not enough number of GPUs", allow_module_level=True)
+
+    run_trt_llm_export("STARCODER1-15B-base", n_gpus, use_pytriton=False, skip_accuracy=False)
+
 
 @pytest.mark.parametrize("n_gpus", [1])
 def test_LLAMA2_7B_base_1gpu_streaming(n_gpus):
