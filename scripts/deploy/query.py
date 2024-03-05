@@ -39,12 +39,20 @@ def get_args(argv):
         type=str,
         help="Name of the triton model"
     )
-    parser.add_argument(
+    prompt_group = parser.add_mutually_exclusive_group(required=True)
+    prompt_group.add_argument(
         "-p",
         "--prompt",
-        required=True,
+        required=False,
         type=str,
         help="Prompt"
+    )
+    prompt_group.add_argument(
+        "-pf",
+        "--prompt_file",
+        required=False,
+        type=str,
+        help="File to read the prompt from"
     )
     parser.add_argument(
         "-swl",
@@ -242,27 +250,12 @@ def query_llm_streaming(
 def query(argv):
     args = get_args(argv)
 
-    if args.enable_streaming:
-        output = query_llm_streaming(
-            url=args.url,
-            model_name=args.model_name,
-            prompts=[args.prompt],
-            stop_words_list=None if args.stop_words_list is None else [args.stop_words_list],
-            bad_words_list=None if args.bad_words_list is None else [args.bad_words_list],
-            no_repeat_ngram_size=args.no_repeat_ngram_size,
-            max_output_token=args.max_output_token,
-            top_k=args.top_k,
-            top_p=args.top_p,
-            temperature=args.temperature,
-            task_id=args.task_id,
-            init_timeout=args.init_timeout,
-        )
+    if args.prompt_file is not None:
+        with open(args.prompt_file, "r") as f:
+            args.prompt = f.read()
 
-        print("output: ")
-        for o in output:
-            print(o)
-    else:
-        output = query_llm(
+    if args.enable_streaming:
+        output_generator = query_llm_streaming(
             url=args.url,
             model_name=args.model_name,
             prompts=[args.prompt],
@@ -276,7 +269,36 @@ def query(argv):
             task_id=args.task_id,
             init_timeout=args.init_timeout,
         )
-        print("output: ", output)
+        # The query returns a generator that yields one array per model step,
+        # with the partial generated text in the last dimension. Print that partial text
+        # incrementally and compare it with all the text generated so far.
+        prev_output = ''
+        for output in output_generator:
+            cur_output = output[0][0]
+            if prev_output == '' or cur_output.startswith(prev_output):
+                print(cur_output[len(prev_output):], end='', flush=True)
+            else:
+                print("WARN: Partial output mismatch, restarting output...")
+                print(cur_output, end='', flush=True)
+            prev_output = cur_output
+        print()
+
+    else:
+        outputs = query_llm(
+            url=args.url,
+            model_name=args.model_name,
+            prompts=[args.prompt],
+            stop_words_list=None if args.stop_words_list is None else [args.stop_words_list],
+            bad_words_list=None if args.bad_words_list is None else [args.bad_words_list],
+            no_repeat_ngram_size=args.no_repeat_ngram_size,
+            max_output_token=args.max_output_token,
+            top_k=args.top_k,
+            top_p=args.top_p,
+            temperature=args.temperature,
+            task_id=args.task_id,
+            init_timeout=args.init_timeout,
+        )
+        print(outputs[0][0])
 
 
 if __name__ == '__main__':

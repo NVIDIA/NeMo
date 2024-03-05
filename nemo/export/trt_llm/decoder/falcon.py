@@ -14,7 +14,9 @@ from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType
-from tensorrt_llm.models.falcon.model import FalconDecoderLayer 
+from tensorrt_llm.models.falcon.model import FalconDecoderLayer
+from tensorrt_llm.models.modeling_utils import PretrainedConfig
+from tensorrt_llm.quantization import QuantMode
 from typing_extensions import override
 
 from ..model_config import (
@@ -114,22 +116,37 @@ class FALCONDecoderLayerBuilder(DecoderLayerBuilder):
     def build_decoder(self, layer):
         #Falcon 7B: parallel_attention=True, new_decoder_architecture=False
         #Falcon 40B/180B: parallel_attention=True, new_decoder_architecture=True
-        flayer = FalconDecoderLayer(
-            hidden_size=self.hidden_size,
-            num_attention_heads=self.num_attention_heads,
-            max_position_embeddings=self.max_position_embeddings,
-            num_attention_kv_heads=self.num_kv_heads,
+        config = PretrainedConfig(
+            architecture=None,
             dtype=self.dtype,
+            logits_dtype=self.dtype,
+            vocab_size=layer.vocab_size,
+            max_position_embeddings=self.max_position_embeddings,
+            hidden_size=self.hidden_size,
+            num_hidden_layers=self.num_layers,
+            num_attention_heads=self.num_attention_heads,
+            num_key_value_heads=self.num_kv_heads,
             hidden_act=non_gated_version(self.hidden_act),
-            mlp_hidden_size=layer.ffn_hidden_size_local * self.tensor_parallel,
-            bias=False, # False from HF repo config
-            use_alibi=False,
-            new_decoder_architecture=False if self.num_layers==32 else True, # No other way to pass in model variant config, determine model variant by num_layers (7B: 32 layers)
-            parallel_attention=True,
-            tp_group=self.tp_group,
+            intermediate_size=layer.ffn_hidden_size_local * self.tensor_parallel,
+            norm_epsilon=layer.norm_epsilon,
+            position_embedding_type="rope_gpt_neox",
+            world_size=self.tensor_parallel,
             tp_size=self.tensor_parallel,
-            layer_id=self.layer_id,
-            layernorm_epsilon=1e-5,
+            pp_size=1,
+            quant_mode=QuantMode(0),
+            quant_kwargs=None,
+            max_lora_rank=layer.max_lora_rank,
+            use_parallel_embedding=False,
         )
 
-        return flayer
+        # No other way to pass in model variant config, determine model variant by num_layers (7B: 32 layers)
+        config.set_if_not_exist('new_decoder_architecture', False if self.num_layers == 32 else True)
+        config.set_if_not_exist('parallel_attention', True)
+        config.set_if_not_exist('layernorm_epsilon', 1e-5)
+        config.set_if_not_exist('bias', False)
+
+        return FalconDecoderLayer(
+            config=config,
+            layer_idx=self.layer_id,
+        )
+

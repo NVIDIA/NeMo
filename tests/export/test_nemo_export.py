@@ -169,6 +169,7 @@ def run_trt_llm_inference(
             max_output_token=max_output_token,
             max_batch_size=max_batch_size,
             max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+            save_nemo_model_config=True,
         )
 
         if ptuning:
@@ -200,14 +201,14 @@ def run_trt_llm_inference(
             nm.deploy()
             nm.run()
             nq = NemoQuery(url="localhost:8000", model_name=model_name)
-            stop_words_list = ["Paris", "whale", "falcon"]
+            # stop_words_list = ["Paris", "whale", "falcon"]
             output_deployed = nq.query_llm(
                 prompts=prompt,
                 max_output_token=max_output_token,
                 top_k=1,
                 top_p=0.0,
                 temperature=1.0,
-                stop_words_list = stop_words_list,
+                # stop_words_list = stop_words_list,
             )
 
             #for i in range(len(stop_words_list[0])):

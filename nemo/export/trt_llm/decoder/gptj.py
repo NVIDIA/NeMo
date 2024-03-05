@@ -110,4 +110,5 @@ class GPTJDecoderLayerBuilder(DecoderLayerBuilder):
             hidden_act=self.hidden_act,
             tp_group=self.tp_group,
             tp_size=self.tensor_parallel,
+            max_lora_rank=layer.max_lora_rank,
         )
