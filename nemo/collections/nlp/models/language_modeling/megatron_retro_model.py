@@ -175,10 +175,6 @@ class MegatronRetroModel(MegatronGPTModel):
         logging.info("\n\n************** Experiment configuration (after overriding with RETRO's workdir values) ***********")
         logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-        # compile helpers for megatron
-        from megatron.core.datasets.utils import compile_helpers
-        compile_helpers()
-
         return
 
     def model_provider_func(self, pre_process, post_process):
