@@ -383,7 +383,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     pass
                 else:
                     cut.question = self.question + ' ' + canary_text
-                self._inject_random_context_into_question(cut)
+        for id, cut in enumerate(cuts):
+            self._inject_random_context_into_question(cut)
 
         collated_text_data = collate_text_data(
             cuts=cuts,
