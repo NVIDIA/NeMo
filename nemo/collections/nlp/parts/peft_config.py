@@ -183,6 +183,7 @@ class LoraPEFTConfig(PEFTConfig):
             "gather_output": False,
             "dropout": lora_cfg.adapter_dropout,
             "alpha": lora_cfg.get("alpha", lora_cfg.adapter_dim),
+            "fp8_weights": lora_cfg.get("fp8_weights", False),
         }
 
         if lora_cfg.weight_tying:
