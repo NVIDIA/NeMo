@@ -634,6 +634,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
                 prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
                 canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),
+                random_context_prob=data_cfg.get('random_context_prob', 0.0),
             )
 
         if data_cfg.get('is_tarred', False):

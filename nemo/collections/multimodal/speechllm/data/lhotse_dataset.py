@@ -312,6 +312,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         convert_canary_prompt_to_text: bool = False,
         prepend_to_exist_question: Optional = None,
         canary_tokens_augment_ratio: float = 0.0,
+        random_context_prob: float = 0.0,
     ):
         from lhotse.dataset import AudioSamples, CutMix
 
@@ -331,6 +332,20 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
         self.prepend_to_exist_question = prepend_to_exist_question
         self.canary_tokens_augment_ratio = canary_tokens_augment_ratio
+        self.random_context_prob = random_context_prob
+
+    def _inject_random_context_into_question(self, cut, random_context_num=32, random_context_positive_percent=0.1):
+        if self.random_context_prob is not None and self.random_context_prob > 0:
+            current_words = cut.supervisions[0].text.split()
+            if np.random.random() < self.random_context_prob and hasattr(self, 'random_context') and len(self.random_context) > 0:
+                positive_num = int(random_context_num * random_context_positive_percent)
+                positives = np.random.choice(current_words, positive_num)
+                negatives = np.random.choice(self.random_context, random_context_num - positive_num)
+                candidate_words = np.concatenate((positives, negatives))
+                np.random.shuffle(candidate_words)
+                context = f"Following words may occur in audio: {candidate_words} ".replace('\n', '')
+                cut.question = context + cut.question
+            self.random_context = current_words
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
@@ -368,6 +383,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     pass
                 else:
                     cut.question = self.question + ' ' + canary_text
+                self._inject_random_context_into_question(cut)
 
         collated_text_data = collate_text_data(
             cuts=cuts,
