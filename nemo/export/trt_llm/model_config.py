@@ -374,7 +374,7 @@ class DecoderLayerConfig:
     def hidden_size(self):
         """Returns the hidden size of the transformer model."""
         if self.is_moe:
-            return self.mlp.fc1.weight.shape[-1]
+            return self.mlp.fc2.weight.shape[1]
         else:
             return self.mlp.fc.weight.shape[1]
 

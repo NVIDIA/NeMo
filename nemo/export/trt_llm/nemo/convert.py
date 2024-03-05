@@ -363,25 +363,18 @@ def split_and_save_weight(
         # for experts weights TP 2 is 
         # transformer.layers.0.mlp.experts_weight_2
         # lc2 is: torch.Size([8, 4096, 7168])
+
     elif "experts.linear_fc1.weight" in key:
-        # transformer.layers.0.mlp.experts_weight_1
-        # lc 1 is: torch.Size([8, 14336, 4096])
-        # if split_gated_activation:
-        #     splits = [np.split(val, 2, axis=-1) for val in vals]
-        #     vals, gates = list(zip(*splits))
-        #(TODO:) this part could be wrong because of the SWIGLU
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
-        split_vals = np.split(val, split_factor, axis=1)
-        save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
-        # if split_gated_activation:
-        #     assert not save_int8
-        #     prefix, dot, suffix = key.rpartition(".")
-        #     key = prefix + ".gate" + dot + suffix
+        w1, w3 = np.split(val, 2, axis=1)
+        # w1 splits
+        split_w1s = np.split(w1, split_factor, axis=1)
+        # w3 splits
+        split_w3s = np.split(w3, split_factor, axis=1)
 
-        #     gate = np.concatenate(gates, axis=cat_dim)
-        #     split_vals = np.split(gate, split_factor, axis=cat_dim)
-        #     save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+        split_vals = [np.concatenate(item, axis=1) for item in zip(split_w3s, split_w1s)]
+        save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "experts.linear_fc2.weight" in key:
         cat_dim = -1
