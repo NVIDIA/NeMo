@@ -194,7 +194,6 @@ def split_and_save_weight(
 
     if torch.is_tensor(vals[0]):
         vals = [torch_to_numpy(val.cpu().to(storage_type)) for val in vals]
-    print(key, vals[0].shape)
 
     if (
         "input_layernorm.weight" in key
