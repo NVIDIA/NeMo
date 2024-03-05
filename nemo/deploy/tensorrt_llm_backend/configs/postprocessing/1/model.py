@@ -5,6 +5,7 @@ import os
 import numpy as np
 import triton_python_backend_utils as pb_utils
 from transformers import LlamaTokenizer
+from transformers import AutoTokenizer
 
 TOKENIZER_DIR = os.environ.get("TOKENIZER_DIR", "/model")
 
@@ -42,7 +43,16 @@ class TritonPythonModel:
         # Convert Triton types to numpy types
         self.output_dtype = pb_utils.triton_string_to_numpy(output_config["data_type"])
 
-        self.tokenizer = LlamaTokenizer.from_pretrained(TOKENIZER_DIR, legacy=False)
+        self.llama = True
+
+        try:
+            self.tokenizer = LlamaTokenizer.from_pretrained(TOKENIZER_DIR, legacy=False)
+        except:
+            self.llama = False
+
+        if not self.llama:
+            self.tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_DIR + '/huggingface_tokenizer', legacy=False)
+
         vocab = self.tokenizer.convert_ids_to_tokens(
             list(range(self.tokenizer.vocab_size))
         )
@@ -122,11 +132,15 @@ class TritonPythonModel:
             pass
 
         # handle typical tokens
-        tokens = self.tokenizer.convert_ids_to_tokens(token_id)
-        if ord(tokens[0]) == SPACE_CHAR:
-            return f" {tokens[1:]}"
-        if ord(tokens[0]) == NEWLINE_CHAR:
-            return "\n"
+        if self.llama:
+            tokens = self.tokenizer.convert_ids_to_tokens(token_id)
+            if ord(tokens[0]) == SPACE_CHAR:
+                return f" {tokens[1:]}"
+            if ord(tokens[0]) == NEWLINE_CHAR:
+                return "\n"
+        else:
+            tokens = self.tokenizer.decode(token_id)
+
         return tokens
 
     def _postprocessing(self, tokens_batch):

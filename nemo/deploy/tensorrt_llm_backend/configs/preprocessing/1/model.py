@@ -34,10 +34,12 @@ import torch
 import triton_python_backend_utils as pb_utils
 from torch.nn.utils.rnn import pad_sequence
 from transformers import LlamaTokenizer
+from transformers import AutoTokenizer
 
 TOKENIZER_DIR = os.environ.get("TOKENIZER_DIR", "/model")
 
 END_ID = 2
+
 
 # SYSTEM_PROMPT = (
 #     """You are a helpful, respectful and honest assistant."""
@@ -89,7 +91,17 @@ class TritonPythonModel:
                 ),
             )
 
-        self.encoder = LlamaTokenizer.from_pretrained(TOKENIZER_DIR, legacy=False)
+        self.llama = True
+        self.eos_id = None
+
+        try:
+            self.encoder = LlamaTokenizer.from_pretrained(TOKENIZER_DIR, legacy=False)
+        except:
+            self.llama = False
+
+        if not self.llama:
+            self.encoder = AutoTokenizer.from_pretrained(TOKENIZER_DIR + '/huggingface_tokenizer', legacy=False)
+            self.eos_id = self.encoder.eos_token_id
 
     def execute(self, requests):
         """`execute` must be implemented in every Python model. `execute`
@@ -176,7 +188,10 @@ class TritonPythonModel:
 
         start_lengths = torch.IntTensor([[len(ids)] for ids in start_ids])
 
-        start_ids = pad_sequence(start_ids, batch_first=True, padding_value=END_ID)
+        if self.llama:
+            start_ids = pad_sequence(start_ids, batch_first=True, padding_value=END_ID)
+        else:
+            start_ids = pad_sequence(start_ids, batch_first=True, padding_value=self.eos_id)
 
         return start_ids, start_lengths
 

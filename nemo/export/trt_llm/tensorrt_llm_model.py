@@ -90,9 +90,11 @@ class ModelBuilder(Module):
                 tensor_parallel=model_config.mapping.tp_size,
                 tensor_parallel_rank=model_config.mapping.tp_rank,
             )
-            self.positional_embedding = build_embedding_from_config(
-                model_config.positional_embedding, self._dtype, use_prompt_tuning=False
-            )
+
+            if model_config.positional_embedding.weight is not None:
+                self.positional_embedding = build_embedding_from_config(
+                    model_config.positional_embedding, self._dtype, use_prompt_tuning=False
+                )
 
         self.layers = []
         for layer_id in get_transformer_layers(self._mapping, self._num_layers):

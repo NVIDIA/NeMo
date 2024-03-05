@@ -80,6 +80,11 @@ def _read_config(config_path: Path):
     num_heads = num_heads // tensor_parallel_size
     num_kv_heads = (num_kv_heads + tensor_parallel_size - 1) // tensor_parallel_size
 
+    if "tokens_per_block" in config["plugin_config"]:
+        tokens_per_block = config["plugin_config"]["tokens_per_block"]
+    else:
+        tokens_per_block = config["builder_config"]["tokens_per_block"]
+
     model_config = ModelConfig(
         model_name=config["builder_config"]["name"],
         max_batch_size=config["builder_config"]["max_batch_size"],
@@ -91,7 +96,7 @@ def _read_config(config_path: Path):
         gpt_attention_plugin=config["plugin_config"]["gpt_attention_plugin"],
         remove_input_padding=config["plugin_config"]["remove_input_padding"],
         paged_kv_cache=config["plugin_config"]["paged_kv_cache"],
-        tokens_per_block=config["builder_config"]["tokens_per_block"],
+        tokens_per_block=tokens_per_block,
         max_prompt_embedding_table_size=config["builder_config"]["max_prompt_embedding_table_size"],
         dtype="bfloat16" if config["plugin_config"]["paged_kv_cache"] else "",
         lora_plugin=config["plugin_config"]["lora_plugin"],
@@ -196,12 +201,13 @@ def _forward(
         pad_id = sampling_config.pad_id
 
         if decoder.remove_input_padding:
-            line_encoded = [torch.tensor(t, dtype=torch.int32).cuda() for t in input_tensors]
+            line_encoded = torch.concat(input_tensors).cuda()
         else:
             line_encoded = torch.nested.to_padded_tensor(
                 torch.nested.nested_tensor(input_tensors, dtype=torch.int32), pad_id
             ).cuda()
-            input_lengths = torch.tensor(input_lengths, dtype=torch.int32).cuda()
+
+        input_lengths = torch.tensor(input_lengths, dtype=torch.int32).cuda()
 
         if prompt_table is None:
             ptuning_args = []
@@ -223,36 +229,23 @@ def _forward(
                 setattr(sampling_config, key, param)
 
             decoder.setup(batch_size, max_context_length=max_length, max_new_tokens=max_output_len)
-            if decoder.remove_input_padding:
-                if stop_words_list is not None:
-                    LOGGER.warning("stop_words_list should be set to None with remove_input_padding=True "
-                                  "and it will be ignored.")
-
-                if bad_words_list is not None:
-                    LOGGER.warning("bad_words_list should be set to None with remove_input_padding=True "
-                                  "and it will be ignored.")
-
-                if no_repeat_ngram_size is not None:
-                    LOGGER.warning("no_repeat_ngram_size should be set to None with remove_input_padding=True "
-                                  "and it will be ignored.")
-
-                output_ids = decoder.decode_batch(line_encoded, sampling_config)
-            else:
-                output_ids = decoder.decode(
-                    line_encoded,
-                    input_lengths,
-                    sampling_config,
-                    *ptuning_args,
-                    stop_words_list=stop_words_list,
-                    bad_words_list=bad_words_list,
-                    no_repeat_ngram_size=no_repeat_ngram_size,
-                    streaming=streaming,
-                )
+            outputs = decoder.decode(
+                line_encoded,
+                input_lengths,
+                sampling_config,
+                *ptuning_args,
+                stop_words_list=stop_words_list,
+                bad_words_list=bad_words_list,
+                no_repeat_ngram_size=no_repeat_ngram_size,
+                streaming=streaming,
+                output_sequence_lengths=True,
+                return_dict=True,
+            )
             torch.cuda.synchronize()
 
         runtime_rank = tensorrt_llm.mpi_rank()
         if runtime_rank == 0 or multiprocessed_env:
-            return output_ids, decoder.log_probs
+            return outputs, decoder.log_probs
         else:
             return None
 
@@ -521,11 +514,13 @@ def generate(
     )
     assert outputs is not None
 
+    output_ids = outputs['output_ids']
+    sequence_lengths = outputs['sequence_lengths']
     input_lengths = [t.shape[0] for t in input_tensors]
 
     output_lines_list = [
-        tokenizer.batch_decode(outputs[b, :, input_lengths[b] :])
-        for b in range(outputs.shape[0])
+        tokenizer.batch_decode(output_ids[b, :, input_lengths[b]: sequence_lengths[b][0]])
+        for b in range(output_ids.shape[0])
     ]
 
     if output_log_probs:
@@ -581,7 +576,7 @@ def generate_streaming(
         no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
             torch.cuda.current_device())
 
-    outputs = forward(
+    outputs, log_probs = forward(
         input_tensors=input_tensors,
         max_output_len=max_output_len,
         host_context=host_context,
@@ -603,9 +598,11 @@ def generate_streaming(
 
     # 'outputs' is a generator that yields one generator, not sure why... Unwrap that.
     for output in outputs:
+        output_ids = output['output_ids']
+        sequence_lengths = output['sequence_lengths']
         # Now iterate over the partial outputs, decode and yield each intermediate result.
         generated_tokens = 0
-        for partial_outputs in output:
+        for partial_outputs in output_ids:
             if partial_outputs is None:
                 break
             # partial_outputs is a tensor with shape=(len(input_texts), 1, output_length),

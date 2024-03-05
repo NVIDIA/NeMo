@@ -98,10 +98,12 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
     def build_decoder(self, layer):
         rotary_pct = layer.rotary_pct
         position_embedding_type = (
-            PositionEmbeddingType.learned_absolute
-            if rotary_pct == 0.0
-            else PositionEmbeddingType.rope_gpt_neox
+            PositionEmbeddingType.rope_gpt_neox
+            if layer.position_embedding_type == "rope"
+            else PositionEmbeddingType.learned_absolute
         )
+
+        assert not (position_embedding_type == PositionEmbeddingType.rope_gpt_neox and rotary_pct == 0.0)
 
         bias_qkv = layer.attention.qkv.bias is not None
 
