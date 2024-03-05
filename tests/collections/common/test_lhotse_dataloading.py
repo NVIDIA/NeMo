@@ -23,6 +23,7 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.text_adapters import TextExample
 
 requires_torchaudio = pytest.mark.skipif(
     not lhotse.utils.is_torchaudio_available(), reason="Lhotse Shar format support requires torchaudio."
@@ -937,3 +938,76 @@ def test_extended_data_input_cfg_yaml_path(tmp_path, cutset_shar_path, nemo_tarr
     assert isinstance(batch, lhotse.CutSet)
     for cut in batch:
         assert cut.dataset_name in ("D1", "D2")
+
+
+@pytest.fixture(scope="session")
+def txt_pair_paths(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("text_data")
+
+    es_path = tmp_path / "text.es"
+    es_path.write_text(
+        """Ahora bien , las criaturas no son felices .
+Dicha fragmentación foto-disruptiva cuasi continua del lentículo puede obtenerse mediante espaciados adecuados de las posiciones focales y planos de incisión dentro del volumen del lentículo deseado .
+Los macrómeros hidrófobos e hidrófilosadecuados para los injertos son descritos en el documento WO95 / 06078 .
+Dios sigue siendo fundamental .
+Parece que la mayoría de las habitaciones cuentan con ... more
+Con respecto a los Estados no miembros que no reconocieran a la organización , los responsables serían sus Estados miembros y , en ese caso , se aplicarían los artículos relativos a la responsabilidad del Estado .
+Definición de toe clip en inglés :
+Volviendo a las Figs.7A-7C , cada acoplamiento 22 , 28 incluye una partedentada integral 125 y una cara plana 212 ."""
+    )
+
+    en_path = tmp_path / "text.en"
+    en_path.write_text(
+        """But , obviously , the creatures are not happy .
+Such a quasi-continuous photodisruptive fragmentation of the lenticle can be obtained by suitable spacings of the focal positions and incision planes within the desired lenticle volume .
+Suitable hydrophobic and hydrophilic macromers for the grafts are described in WO 95 / 06078 .
+God is still primal .
+Most of us had the kobe beef , which ... More
+With regard to non-member States that do not recognize the organization , member States would have to be held responsible and the articles on State responsibility would then apply .
+Definition of toe box in English :
+Turning to FIGS . 7A-7C , each coupling 22 , 28 includes an integral serrated portion 125 and a flat face 212 ."""
+    )
+
+    return en_path, es_path
+
+
+def test_text_file_pairs_input(txt_pair_paths: tuple[Path, Path]):
+    en_path, es_path = txt_pair_paths
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_zip",
+                    "sources": [en_path, es_path],
+                    "tags": {"source_lang": "en", "target_lang": "es", "modality": "text"},
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextExample) for c in b)
+    assert all(c.source_lang == "en" for c in b)
+    assert all(c.target_lang == "es" for c in b)
+    assert all(c.modality == "text" for c in b)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextExample) for c in b)
+    assert all(c.source_lang == "en" for c in b)
+    assert all(c.target_lang == "es" for c in b)
+    assert all(c.modality == "text" for c in b)

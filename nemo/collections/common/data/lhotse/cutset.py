@@ -23,6 +23,7 @@ from lhotse import CutSet
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
+from nemo.collections.common.data.lhotse.text_adapters import LhotseTextZipAdapter
 
 
 def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
@@ -52,7 +53,7 @@ def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
     return cuts, is_tarred
 
 
-KNOWN_DATASET_CONFIG_TYPES = frozenset(("nemo", "nemo_tarred", "lhotse", "lhotse_shar", "group"))
+KNOWN_DATASET_CONFIG_TYPES = frozenset(("nemo", "nemo_tarred", "lhotse", "lhotse_shar", "txt_zip", "group"))
 
 
 def read_dataset_config(config) -> tuple[CutSet, bool]:
@@ -143,6 +144,9 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     elif grp_cfg.type == "lhotse":
         is_tarred = False
         cuts = read_lhotse_manifest(grp_cfg, is_tarred=is_tarred)
+    elif grp_cfg.type == "txt_zip":
+        is_tarred = False
+        cuts = read_zipped_text_paths(grp_cfg)
     elif grp_cfg.type == "group":
         cuts, is_tarred = parse_and_combine_datasets(grp_cfg.input_cfg, propagate_attrs=propagate_attrs,)
     else:
@@ -151,6 +155,10 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     if (extra_tags := grp_cfg.get("tags")) is not None:
         cuts = cuts.map(partial(attach_tags, tags=extra_tags))
     return cuts, is_tarred
+
+
+def read_zipped_text_paths(config: DictConfig) -> CutSet:
+    return CutSet(LhotseTextZipAdapter(config.sources))
 
 
 def attach_tags(cut, tags: dict):
@@ -188,15 +196,18 @@ def parse_and_combine_datasets(
             weights.append(w)
 
     assert all(t == tarred_status[0] for t in tarred_status), "Mixing tarred and non-tarred datasets is not supported."
-    assert len(cuts) == len(
+    assert len(weights) == 0 or len(cuts) == len(
         weights
     ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
-    cuts = mux(
-        *cuts,
-        weights=weights if weights else None,
-        max_open_streams=propagate_attrs["max_open_streams"],
-        seed=propagate_attrs["shard_seed"],
-    )
+    if len(cuts) > 1:
+        cuts = mux(
+            *cuts,
+            weights=weights if weights else None,
+            max_open_streams=propagate_attrs["max_open_streams"],
+            seed=propagate_attrs["shard_seed"],
+        )
+    else:
+        (cuts,) = cuts
     return cuts, tarred_status[0]
 
 
