@@ -59,17 +59,15 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
     """
     Input configuration format examples.
     Example 1. Combine two datasets with equal weights and attach custom metadata in ``tags`` to each cut::
-        input_config:
-          - name: dataset_1
-            type: nemo_tarred
+        input_cfg:
+          - type: nemo_tarred
             manifest_filepath: /path/to/manifest__OP_0..512_CL_.json
             tarred_audio_filepath: /path/to/tarred_audio/audio__OP_0..512_CL_.tar
             weight: 0.5
             tags:
               lang: en
               some_metadata: some_value
-          - name: dataset_2
-            type: nemo_tarred
+          - type: nemo_tarred
             manifest_filepath: /path/to/manifest__OP_0..512_CL_.json
             tarred_audio_filepath: /path/to/tarred_audio/audio__OP_0..512_CL_.tar
             weight: 0.5
@@ -80,30 +78,26 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         There are two levels of weights: per task (outer) and per dataset (inner).
         The final weight is the product of outer and inner weight::
         input_cfg:
-          - name: asr_data
-            type: group
+          - type: group
             weight: 0.7
             tags:
               task: asr
             input_cfg:
-              - name: dataset_1
-                type: nemo_tarred
+              - type: nemo_tarred
                 manifest_filepath: /path/to/asr1/manifest__OP_0..512_CL_.json
                 tarred_audio_filepath: /path/to/tarred_audio/asr1/audio__OP_0..512_CL_.tar
                 weight: 0.6
                 tags:
                   lang: en
                   some_metadata: some_value
-              - name: dataset_2
-                type: nemo_tarred
+              - type: nemo_tarred
                 manifest_filepath: /path/to/asr2/manifest__OP_0..512_CL_.json
                 tarred_audio_filepath: /path/to/asr2/tarred_audio/audio__OP_0..512_CL_.tar
                 weight: 0.4
                 tags:
                   lang: pl
                   some_metadata: some_value
-          - name: ast_data
-            type: group
+          - type: group
             weight: 0.3
             tags:
               task: ast

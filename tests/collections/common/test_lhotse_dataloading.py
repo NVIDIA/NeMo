@@ -766,6 +766,11 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     np.testing.assert_equal(audio[0], expected_audio[:8000])
 
 
+class Identity(torch.utils.data.Dataset):
+    def __getitem__(self, cuts: lhotse.CutSet) -> lhotse.CutSet:
+        return cuts
+
+
 def test_extended_data_input_cfg(cutset_shar_path, nemo_tarred_manifest_path_multi):
     config = OmegaConf.create(
         {
@@ -792,10 +797,6 @@ def test_extended_data_input_cfg(cutset_shar_path, nemo_tarred_manifest_path_mul
             "shard_seed": 0,
         }
     )
-
-    class Identity(torch.utils.data.Dataset):
-        def __getitem__(self, cuts: lhotse.CutSet) -> lhotse.CutSet:
-            return cuts
 
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
 
@@ -871,10 +872,6 @@ def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest
         }
     )
 
-    class Identity(torch.utils.data.Dataset):
-        def __getitem__(self, cuts: lhotse.CutSet) -> lhotse.CutSet:
-            return cuts
-
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
 
     # Sample 100 mini-batches and test statistical properties
@@ -900,3 +897,43 @@ def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest
     assert dataset_occurrences["D2"] == almost(0.1)  # group weight: 0.2 * dataset weight 0.5 => 0.1
     assert dataset_occurrences["D3"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4
     assert dataset_occurrences["D4"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4
+
+
+def test_extended_data_input_cfg_yaml_path(tmp_path, cutset_shar_path, nemo_tarred_manifest_path_multi):
+    input_cfg = [
+        {
+            "type": "nemo_tarred",
+            "manifest_filepath": str(nemo_tarred_manifest_path_multi[0]),
+            "tarred_audio_filepaths": str(nemo_tarred_manifest_path_multi[1]),
+            "weight": 0.5,
+            "tags": {"language": "en", "modality": "audio", "dataset_name": "D1",},
+        },
+        {
+            "type": "lhotse_shar",
+            "shar_path": str(cutset_shar_path),
+            "weight": 0.5,
+            "tags": {"language": "en", "modality": "audio", "dataset_name": "D2",},
+        },
+    ]
+
+    yaml_path = tmp_path / "input_cfg.yaml"
+    lhotse.serialization.save_to_yaml(input_cfg, yaml_path)
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": input_cfg,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 32,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    batch = next(iter(dl))
+    assert isinstance(batch, lhotse.CutSet)
+    for cut in batch:
+        assert cut.dataset_name in ("D1", "D2")
