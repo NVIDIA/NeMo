@@ -179,8 +179,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Use cached grad norm
         return super().grad_norm()
 
-    def sharded_state_dict(self, model_sharded_state_dict):
-        optimizer_state_dict = self.state_dict()
+    def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None):
+        if optimizer_state_dict is None:
+            optimizer_state_dict = self.state_dict()
 
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict, optim_params_iter=self.parameters(),
