@@ -72,6 +72,8 @@ class NLPAdapterModelMixin:
         else:
             self.model_prefix = "model.module." if self.cfg.get('megatron_amp_O2', False) else "model."
 
+        self.is_fp8_enabled = self.cfg.get('fp8', False)
+
         self.use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
         if self.use_mcore_gpt:
             assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
@@ -355,6 +357,11 @@ class NLPAdapterModelMixin:
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
             peft_state_dict[new_k] = state_dict[k]
+        if self.is_fp8_enabled:
+            for key in state_dict.keys():
+                if "_extra_state" in key:
+                    new_k = key.replace("model.module.", "model.", 1)
+                    peft_state_dict[new_k] = state_dict[key]
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -383,7 +390,11 @@ class NLPAdapterModelMixin:
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
-            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+            if not self.is_fp8_enabled:
+                assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+            else:
+                state_dict_keys = [k for k in state_dict.keys() if "_extra_state" not in k]
+                assert set(state_dict_keys) == self.adapter_keys.union(self.tunable_base_param_keys)
             super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
