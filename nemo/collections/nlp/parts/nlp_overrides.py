@@ -383,7 +383,7 @@ class NLPDDPStrategy(DDPStrategy):
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
 
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(unsharded_optim_state=None)]
             strategy = dist_checkpointing.strategies.tensorstore.TensorStoreLoadShardedStrategy(
                 load_directly_on_device=True
             )
