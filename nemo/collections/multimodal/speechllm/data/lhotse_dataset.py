@@ -337,6 +337,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     def _inject_random_context_into_question(self, cut, random_context_num=32, random_context_positive_percent=0.1):
         if self.random_context_prob is not None and self.random_context_prob > 0:
             current_words = cut.supervisions[0].text.split()
+            if len(current_words) == 0:
+                return
             if np.random.random() < self.random_context_prob and hasattr(self, 'random_context') and len(self.random_context) > 0:
                 positive_num = int(random_context_num * random_context_positive_percent)
                 positives = np.random.choice(current_words, positive_num)
