@@ -223,6 +223,13 @@ class DecoderLayerBuilder(ABC):
             # TODO: bias
             self.decoder.mlp.experts_weight_1.value = layer.mlp.fc1.weight
             self.decoder.mlp.experts_weight_2.value = layer.mlp.fc2.weight
+
+            if layer.mlp.fc1.bias is not None:
+                self.decoder.mlp.experts_bias_1.value = layer.mlp.fc1.bias
+
+            if layer.mlp.fc2.bias is not None:
+                self.decoder.mlp.experts_bias_2.value = layer.mlp.fc2.bias
+
         else:
             self.decoder.mlp.fc.weight.value = layer.mlp.fc.weight
             self.decoder.mlp.proj.weight.value = layer.mlp.proj.weight
