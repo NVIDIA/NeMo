@@ -467,7 +467,7 @@ pipeline {
         }
         stage('Llama2 - FP8') {
           steps {
-            sh 'mpirun -n 2 --allow-run-as-root python examples/nlp/language_modeling/megatron_llama_quantization.py \
+            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/ci.nemo \
             tensor_model_parallel_size=2 \
             trainer.devices=2 \
