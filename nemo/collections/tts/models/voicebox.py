@@ -619,8 +619,8 @@ class VoiceboxModel(TextToWaveform):
         # hop_size = ztts_audio.shape[-1] / new_cond_mask.shape[-1]
         new_audio_lens = torch.clamp((new_mel_lens-1) * hop_size, max=ztts_audio.shape[-1]).long()
 
-        new_cond_st_idx = torch.clamp(cond_st_idx-1, min=0) * hop_size
-        new_cond_ed_idx = torch.clamp(cond_ed_idx-1, min=0) * hop_size
+        new_cond_st_idx = cond_st_idx * hop_size
+        new_cond_ed_idx = torch.clamp(cond_ed_idx * hop_size, max=ztts_audio.shape[-1])
         ori_cond_st_idx = new_cond_st_idx
         ori_cond_ed_idx = audio_lens - (new_audio_lens - new_cond_ed_idx)
         for i in range(len(batch)):
