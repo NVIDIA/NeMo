@@ -381,7 +381,10 @@ class DecoderLayerConfig:
     @property
     def ffn_hidden_size_local(self):
         """Returns the ffn hidden size of the transformer model."""
-        return self.mlp.fc2.weight.shape[-1]
+        if self.is_moe:
+            return self.mlp.fc2.weight.shape[-1]
+        else:
+            return self.mlp.fc.weight.shape[0]
 
     @staticmethod
     def from_nemo(

@@ -355,15 +355,9 @@ def split_and_save_weight(
     ):
         pass
     elif "mlp.router.weight" in key:
-        # TRT-LLM wants 8 x 4096, 4096 is split when TP 2 it's 8x 2048
         val = np.concatenate(vals, axis=1)
         split_vals = np.split(val, split_factor, axis=0)
-        #save_split(split_vals, saved_dir, key, tp_rank, split_factor)
         save_split(split_vals, saved_dir, key, tp_rank, split_factor)
-        # for experts weights TP 2 is 
-        # transformer.layers.0.mlp.experts_weight_2
-        # lc2 is: torch.Size([8, 4096, 7168])
-
     elif "experts.linear_fc1.weight" in key:
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
