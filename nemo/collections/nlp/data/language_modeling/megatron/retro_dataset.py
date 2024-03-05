@@ -136,7 +136,7 @@ def build_train_valid_test_datasets(
 ):
 
     # gpt dataset
-    train_ds, valid_ds, test_ds = gpt_train_valid_test_datasets_provider(cfg, train_valid_test_num_samples)
+    train_ds, valid_ds, test_ds = gpt_train_valid_test_datasets_provider(cfg, train_valid_test_num_samples, tokenizer)
 
     gpt_datasets = {
         "train" : (train_ds, train_valid_test_num_samples[0]),
@@ -173,7 +173,7 @@ def build_train_valid_test_datasets(
     return train_ds, valid_ds, test_ds
 
 
-def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples):
+def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, tokenizer):
     """Build the train test and validation datasets.
        Implemented from train_valid_test_datasets_provider in M-LM/pretrain_gpt.py
 
@@ -196,6 +196,7 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples):
         reset_position_ids=cfg.data.get('reset_position_ids', False),
         reset_attention_mask=cfg.data.get('reset_attention_mask', False),
         eod_mask_loss=cfg.data.get('eod_mask_loss', False),
+        tokenizer=tokenizer
     )
 
     print("> building train, validation, and test datasets for GPT ...")
