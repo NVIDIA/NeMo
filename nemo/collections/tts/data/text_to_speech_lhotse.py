@@ -40,7 +40,7 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
-    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, textgrid_dir=None, use_word_postfix=False, use_word_ghost_silence=False, num_workers=0):
+    def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None, corpus_dir=None, textgrid_dir=None, use_word_postfix=False, use_word_ghost_silence=False, num_workers=0, load_audio=True):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -71,7 +71,8 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         if corpus_dir is not None:
             self.old_prefix = "download/librilight"
 
-        self.load_audio = AudioSamples(num_workers=num_workers, fault_tolerant=True)
+        if load_audio:
+            self.load_audio = AudioSamples(num_workers=num_workers, fault_tolerant=True)
 
         self.use_word_postfix = use_word_postfix
         self.use_word_ghost_silence = use_word_ghost_silence
@@ -149,25 +150,36 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
 
         cuts = cuts.sort_by_duration()
         cuts = cuts.map(self.change_prefix)
-        # audio, audio_lens, _cuts = self.load_audio(cuts)
-        # audio_22050, audio_lens_22050, _cuts = self.load_audio(cuts.resample(22050))
-        audio_24k, audio_lens_24k, _cuts = self.load_audio(cuts.resample(24000))
+        batch.update({
+            "cuts": cuts,
+            "audio_paths": [cut.recording.sources[0].source for cut in cuts],
+        })
+
+        if hasattr(self, 'load_audio'):
+            # audio, audio_lens, _cuts = self.load_audio(cuts)
+            # audio_22050, audio_lens_22050, _cuts = self.load_audio(cuts.resample(22050))
+            audio_24k, audio_lens_24k, _cuts = self.load_audio(cuts.resample(24000))
+            batch.update({
+                # "audio": audio,
+                # "audio_lens": audio_lens,
+                # "audio_22050": audio_22050,
+                # "audio_lens_22050": audio_lens_22050,
+                "audio_24k": audio_24k,
+                "audio_lens_24k": audio_lens_24k,
+            })
+        else:
+            _cuts = cuts
+
         if "texts" in _cuts[0].supervisions[0].custom:
             texts = [c.supervisions[0].custom["texts"][0] for c in _cuts]
         else:
             texts = [c.supervisions[0].text for c in _cuts]
 
         batch.update({
-            "cuts": cuts,
-            "audio_paths": [cut.recording.sources[0].source for cut in cuts],
-            # "audio": audio,
-            # "audio_lens": audio_lens,
-            # "audio_22050": audio_22050,
-            # "audio_lens_22050": audio_lens_22050,
-            "audio_24k": audio_24k,
-            "audio_lens_24k": audio_lens_24k,
             "texts": texts,
         })
+        if not hasattr(self, "load_audio"):
+            return batch
 
         if self.tokenizer is not None:
             if isinstance(self.tokenizer, TextProcessor):

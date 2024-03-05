@@ -418,12 +418,15 @@ class VoiceboxModel(TextToWaveform):
     @torch.inference_mode()
     def forward(
         self,
-        audio: Tensor = None,
+        audio: Tensor | None = None,
+        audio_lens: Tensor | None = None,
         texts: Optional[List[str]] = None,
+        mel: Tensor | None = None,
+        mel_lens: Tensor | None = None,
         phoneme_ids: Optional[Tensor] = None,
-        alignment = None,
+        alignments: List[Dict[str, List[AlignmentItem]]] | None = None,
         edit_from: List[str] | None = None,
-        edit_to: List[str] | None = None,
+        edit_to: List[str] | List[Tuple[str, List[str]]] | None = None,
         steps = 3,
         cond_scale = 1.,
         decode_to_audio = True,
@@ -445,48 +448,74 @@ class VoiceboxModel(TextToWaveform):
             - `steps`, ODE solver denoising steps
             - `cond_scale`, interpolate scaling for classifier-free inference guidance
         """
-        assert audio.ndim == 2
-        assert audio.shape[0] == 1
-        audio_lens = torch.tensor([audio.shape[1]], device=self.device)
-
-        # audio to mel
+        from lhotse.dataset.collation import collate_vectors
         self.voicebox.audio_enc_dec.eval()
-        mel = self.voicebox.audio_enc_dec.encode(audio)
-        mel_lens = audio_lens * mel.shape[1] // audio.shape[-1]
+
+        if mel is None or mel_lens is None:
+            assert audio is not None and audio_lens is not None
+            assert audio.ndim == 2
+            # assert audio.shape[0] == 1
+            # audio_lens = torch.tensor([audio.shape[1]], device=self.device)
+
+            # audio to mel
+            mel = self.voicebox.audio_enc_dec.encode(audio)
+            mel_lens = audio_lens * mel.shape[1] // audio.shape[-1]
 
         # mfa align if needed
-        if alignment is None:
-            alignment = self.mfa_align(audio=audio, texts=texts, sampling_rate=24000)
-        alignment = fix_alignment(alignment=alignment)
+        if alignments is None:
+            alignments = [self.mfa_align(audio=audio[i].unsqueeze(0), texts=texts[i], sampling_rate=24000) for i in len(texts)]
 
-        # group phone alignments by words
-        ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
-        ori_w2p_alis = resample_ali(ori_w2p_alis, mel_lens)
+        def parse_dp_input_from_ali(alignment, mel_len, ed_f, ed_t):
+            alignment = fix_alignment(alignment=alignment)
 
-        # edit w2p_alignment, also return new-to-origin mapping for later new_cond construction.
-        new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=edit_from, edit_to=edit_to)
+            # group phone alignments by words
+            ori_w2p_alis = map_word_phn_alignment(alignment=alignment)
+            ori_w2p_alis = resample_ali(ori_w2p_alis, mel_len.unsqueeze(0))
 
-        # post processing phones, adding word postfix and ghost silence, also return phone-to-phone mapping for later new_cond construction.
-        ori_phn_alis, ori_p2p_mapping = process_alignment(
-            w2p_alis=ori_w2p_alis,
-            use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
-            use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
-        )
-        new_phn_alis, new_p2p_mapping = process_alignment(
-            w2p_alis=new_w2p_alis,
-            use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
-            use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
-        )
+            # edit w2p_alignment, also return new-to-origin mapping for later new_cond construction.
+            new_w2p_alis, n2o_mapping = edit_w2p_alignment(w2p_alis=ori_w2p_alis, edit_from=ed_f, edit_to=ed_t)
 
-        # get required duration prediction inputs
-        phoneme = [ali.symbol for ali in new_phn_alis]
-        dp_cond_mask = torch.tensor([[ali.start == -1 for ali in new_phn_alis]], device=self.device).bool()
-        dp_cond = torch.tensor([[ali.duration for ali in new_phn_alis]], device=self.device)
-        ori_dp_cond = torch.tensor([[ali.duration for ali in ori_phn_alis]], device=self.device)
+            # post processing phones, adding word postfix and ghost silence, also return phone-to-phone mapping for later new_cond construction.
+            ori_phn_alis, ori_p2p_mapping = process_alignment(
+                w2p_alis=ori_w2p_alis,
+                use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
+                use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
+            )
+            new_phn_alis, new_p2p_mapping = process_alignment(
+                w2p_alis=new_w2p_alis,
+                use_word_postfix=self.cfg.ds_kwargs.use_word_postfix,
+                use_word_ghost_silence=self.cfg.ds_kwargs.use_word_ghost_silence,
+            )
 
-        tokens = torch.tensor([self.tokenizer.text_to_ids(phoneme)[0]], device=self.device)
-        token_lens = torch.tensor([tokens.shape[1]], dtype=torch.long, device=self.device)
-        phoneme_mask = torch.ones_like(tokens).bool()
+            # get required duration prediction inputs
+            phoneme = [ali.symbol for ali in new_phn_alis]
+            dp_cond_mask = torch.tensor([ali.start == -1 for ali in new_phn_alis], device=self.device).bool()
+            dp_cond = torch.tensor([ali.duration for ali in new_phn_alis], device=self.device)
+            ori_dp_cond = torch.tensor([ali.duration for ali in ori_phn_alis], device=self.device)
+
+            tokens = torch.tensor(self.tokenizer.text_to_ids(phoneme)[0], device=self.device, dtype=torch.long)
+            # token_lens = torch.tensor([tokens.shape[0]], dtype=torch.long, device=self.device)
+            phoneme_mask = torch.ones_like(tokens)
+            return {
+                "dp_cond": dp_cond,
+                "dp_cond_mask": dp_cond_mask,
+                "tokens": tokens,
+                "phoneme_mask": phoneme_mask,
+                "ori_dp_cond": ori_dp_cond,
+                "n2o_mapping": n2o_mapping,
+                "ori_p2p_mapping": ori_p2p_mapping,
+                "new_p2p_mapping": new_p2p_mapping,
+            }
+
+        batch = [parse_dp_input_from_ali(alignment, mel_lens[i], edit_from[i], edit_to[i]) for i, alignment in enumerate(alignments)]
+
+        tokens = [dp_in["tokens"] for dp_in in batch]
+        token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long, device=self.device)
+        tokens = collate_vectors(tokens, padding_value=0)
+        ori_dp_cond = collate_vectors([dp_in["ori_dp_cond"] for dp_in in batch], padding_value=0)
+        dp_cond = collate_vectors([dp_in["dp_cond"] for dp_in in batch], padding_value=0)
+        dp_cond_mask = collate_vectors([dp_in["dp_cond_mask"] for dp_in in batch], padding_value=0).bool()
+        phoneme_mask = collate_vectors([dp_in["phoneme_mask"] for dp_in in batch], padding_value=0).bool()
 
         self.duration_predictor.eval()
         dp_outputs = self.duration_predictor.forward(
@@ -503,40 +532,115 @@ class VoiceboxModel(TextToWaveform):
         )
         # cut-and-paste predicted durations and duplicate tokens
         new_dur = torch.where(dp_cond_mask, dp_outputs["durations"].round(), dp_cond).int().clamp(min=0)
-        aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(tokens, new_dur)
-        new_mel_lens = new_dur.sum().reshape(1,)
+        new_mel_lens = new_dur.sum(-1)
 
         # construct new_cond
-        new_cond = torch.zeros((1, new_mel_lens.item(), mel.shape[-1]), device=self.device)
-        new_cond_mask = torch.ones((1, new_mel_lens.item()), device=self.device)
+        # new_cond_mask = torch.ones(aligned_tokens.shape, device=self.device)
+        new_cond_mask = get_mask_from_lengths(new_mel_lens)
+        self_attn_mask = get_mask_from_lengths(new_mel_lens)
+        new_cond = torch.zeros((*new_cond_mask.shape, mel.shape[-1]), device=self.device)
+
         new_cum_dur = new_dur.cumsum(dim=-1)
         ori_cum_dur = ori_dp_cond.int().cumsum(dim=-1)
-        for i, j in enumerate(n2o_mapping):
-            # new i-th phn to ori j-th phn
+        for bi, dp_in in enumerate(batch):
+            n2o_mapping = dp_in["n2o_mapping"]
+            new_p2p_mapping = dp_in["new_p2p_mapping"]
+            ori_p2p_mapping = dp_in["ori_p2p_mapping"]
+            for i, j in enumerate(n2o_mapping):
+                # new i-th phn to ori j-th phn
 
-            # not preserving
-            if j == -1: continue
+                # not preserving
+                if j == -1: continue
 
-            # ghost silence mapping
-            i = new_p2p_mapping[i]
-            j = ori_p2p_mapping[j]
+                # ghost silence mapping
+                i = new_p2p_mapping[i]
+                j = ori_p2p_mapping[j]
 
-            new_slice = slice(0, new_cum_dur[0, i].item()) if i == 0 else slice(new_cum_dur[0, i-1].item(), new_cum_dur[0, i].item())
-            ori_slice = slice(0, ori_cum_dur[0, j].item()) if j == 0 else slice(ori_cum_dur[0, j-1].item(), ori_cum_dur[0, j].item())
-            new_cond[0, new_slice] = mel[0, ori_slice]
-            new_cond_mask[0, new_slice] = 0
-        self_attn_mask = torch.ones_like(new_cond_mask)
+                new_slice = slice(0, new_cum_dur[bi, i].item()) if i == 0 else slice(new_cum_dur[bi, i-1].item(), new_cum_dur[bi, i].item())
+                ori_slice = slice(0, ori_cum_dur[bi, j].item()) if j == 0 else slice(ori_cum_dur[bi, j-1].item(), ori_cum_dur[bi, j].item())
+                new_cond[bi, new_slice] = mel[bi, ori_slice]
+                new_cond_mask[bi, new_slice] = 0
 
-        audio = self.cfm_wrapper.sample(
-            cond=mel,
-            cond_mask=new_cond_mask.bool(),
-            aligned_phoneme_ids=aligned_tokens,
-            self_attn_mask=self_attn_mask.bool(),
+        cond_st_idx = torch.arange(new_cond.shape[1], 0, -1, device=self.device).reshape(1, -1) * new_cond_mask
+        cond_st_idx = cond_st_idx.argmax(dim=1)
+        cond_ed_idx = torch.arange(new_cond.shape[1], device=self.device).reshape(1, -1) * new_cond_mask
+        cond_ed_idx = cond_ed_idx.argmax(dim=1) + 1
+
+        # zero-shot TTS
+        def parse_zero_shot_TTS(cond, cond_mask, self_attn_mask, tokens, durs):
+            # mel lens
+            m_lens = self_attn_mask.sum(-1)
+
+            # tail padding
+            new_cond_ = torch.cat([cond, torch.ones_like(cond) * -4.5252], dim=1)
+            self_attn_mask_ = torch.cat([self_attn_mask, torch.zeros_like(self_attn_mask)], dim=1).bool()
+            new_cond_mask_ = torch.cat([cond_mask, torch.zeros_like(cond_mask)], dim=1).bool()
+
+            new_self_attn_mask = get_mask_from_lengths(m_lens * 2)
+            ztts_mask = new_self_attn_mask & ~self_attn_mask_
+
+            new_cond = new_cond_
+            new_cond_mask = new_cond_mask_ | ztts_mask
+
+            new_tokens = torch.cat([tokens, tokens], dim=1)
+            new_dur = torch.cat([durs, durs], dim=1)
+            aligned_tokens = self.duration_predictor.align_phoneme_ids_with_durations(new_tokens, new_dur)
+            return {
+                "cond": new_cond,
+                "cond_mask": new_cond_mask.bool(),
+                "self_attn_mask": new_self_attn_mask.bool(),
+                "aligned_tokens": aligned_tokens,
+            }
+
+        args = parse_zero_shot_TTS(new_cond, new_cond_mask, self_attn_mask, tokens, new_dur)
+
+        pred = self.cfm_wrapper.sample(
+            cond=args["cond"],
+            cond_mask=args["cond_mask"],
+            aligned_phoneme_ids=args["aligned_tokens"],
+            self_attn_mask=args["self_attn_mask"],
             steps=steps,
             cond_scale=cond_scale,
-            decode_to_audio=decode_to_audio
+            decode_to_audio=False
         )
-        return audio
+
+        edit_mel = torch.ones_like(new_cond) * -4.5252
+        ztts_mel = torch.ones_like(new_cond) * -4.5252
+        for i in range(len(batch)):
+            edit_mel[i, :new_mel_lens[i]] = pred[i, :new_mel_lens[i]]
+            ztts_mel[i, :new_mel_lens[i]] = pred[i, new_mel_lens[i]:new_mel_lens[i]*2]
+        edit_audio = self.voicebox.audio_enc_dec.decode(edit_mel)
+        ztts_audio = self.voicebox.audio_enc_dec.decode(ztts_mel)
+        resyn_audio = self.voicebox.audio_enc_dec.decode(mel)
+        if resyn_audio.shape[-1] < audio.shape[-1]:
+            resyn_audio = F.pad(resyn_audio, (0, audio.shape[-1]-resyn_audio.shape[-1]))
+
+        hop_size = self.voicebox.audio_enc_dec.downsample_factor
+        # hop_size = ztts_audio.shape[-1] / new_cond_mask.shape[-1]
+        new_audio_lens = torch.clamp((new_mel_lens-1) * hop_size, max=ztts_audio.shape[-1]).long()
+
+        new_cond_st_idx = torch.clamp(cond_st_idx-1, min=0) * hop_size
+        new_cond_ed_idx = torch.clamp(cond_ed_idx-1, min=0) * hop_size
+        ori_cond_st_idx = new_cond_st_idx
+        ori_cond_ed_idx = audio_lens - (new_audio_lens - new_cond_ed_idx)
+        for i in range(len(batch)):
+            ztts_audio[i, :new_cond_st_idx[i]] = audio[i, :ori_cond_st_idx[i]]
+            ztts_audio[i, new_cond_ed_idx[i]:new_audio_lens[i]] = audio[i, ori_cond_ed_idx[i]:audio_lens[i]]
+
+        return {
+            "edit_audio": edit_audio,
+            "ztts_audio": ztts_audio,
+            "resyn_audio": resyn_audio,
+            "ori_mel_lens": mel_lens,
+            "ori_audio_lens": audio_lens,
+            "ori_cond_st_idx": ori_cond_st_idx,
+            "ori_cond_ed_idx": ori_cond_ed_idx,
+            "new_mel_lens": new_mel_lens,
+            "new_audio_lens": new_audio_lens,
+            "new_cond_st_idx": new_cond_st_idx,
+            "new_cond_ed_idx": new_cond_ed_idx,
+            "args": args,
+        }
 
     def on_before_optimizer_step(self, optimizer):
         # Compute the 2-norm for each layer
@@ -784,7 +888,6 @@ class VoiceboxModel(TextToWaveform):
 
     @torch.no_grad()
     def parse_0_tts(self, batch):
-        batch = self.parse_input(batch)
         mel = batch['mel']
         mel_lens = batch['mel_lens']
         mel_mask = get_mask_from_lengths(mel_lens) # (b, t)
@@ -816,6 +919,7 @@ class VoiceboxModel(TextToWaveform):
 
     @torch.no_grad()
     def val_vb_0_tts(self, batch: List, batch_idx: int) -> STEP_OUTPUT | None:
+        batch = self.parse_input(batch)
         batch = self.parse_0_tts(batch)
 
         self.voicebox.eval()
@@ -1073,20 +1177,34 @@ def edit_w2p_alignment(w2p_alis=None, edit_from="", edit_to=""):
         - new_w2p_alis
         - n2o_mapping: new word position in new_w2p_alis to original word position in w2p_alis. For edited words, no mapped word position, so fill in -1 instead.
     """
+    import random
+    words = [wrd for wrd, _ in w2p_alis]
+    if edit_from is None:
+        edit_from = random.choice([wrd for wrd in words if wrd not in ["<eps>", "<unk>"]])
+        edit_to = edit_from
+    edit_pos = [i for i, wrd in enumerate(words) if wrd == edit_from]
+    edit_pos = random.choice(edit_pos)
+
     new_w2p_alis: List[Tuple[str, List[AlignmentItem]]] = []
+    ori_phn_alis = []
     n2o_mapping: List[int] = []
     for i, (wrd, phn_alis) in enumerate(w2p_alis):
-        if wrd == edit_from:
-            # store for calculate masked interval
-            ori_phn_alis += phn_alis
+        # store for calculate masked interval
+        ori_phn_alis += phn_alis
 
-            # MFA G2P
-            phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa -\"").read().split('\t')[1].strip().split(' ')
-            
+        if i == edit_pos:
+            assert wrd == edit_from
+
+            if isinstance(edit_to, str):
+                # MFA G2P
+                wrd = edit_to
+                phns = os.popen(f"conda run -n aligner bash -c \"echo '{edit_to}' | mfa g2p -n 1 - english_us_arpa - 2> /dev/null\"").read().split('\t')[1].strip().split(' ')
+            elif isinstance(edit_to, Tuple):
+                assert isinstance(edit_to[0], str) and isinstance(edit_to[1], List)
+                wrd, phns = edit_to
+
             # start=-1 to note masked
-            wrd = edit_to
             phn_alis = [AlignmentItem(symbol=phn, start=-1, duration=0) for phn in phns]
-
             new_w2p_alis.append((wrd, phn_alis))
             n2o_mapping += [-1] * len(phn_alis)
         else:

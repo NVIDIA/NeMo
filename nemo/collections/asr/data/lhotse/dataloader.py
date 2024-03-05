@@ -32,6 +32,17 @@ def get_lhotse_dataloader_from_config(config, global_rank: int, world_size: int,
     cuts = cuts.filter(
         lambda c: config.get("min_duration", -1) <= c.duration <= config.get("max_duration", float("inf"))
     )
+    if config.get("filter_ids", None) is not None:
+        # _cuts = cuts.filter(
+        #     lambda c: c.id not in config.get("filter_ids", None)
+        # )
+        cuts = cuts.filter(
+            lambda c: c.id in config.get("filter_ids", None)
+        )
+    cuts = cuts.filter(
+        lambda c: "spn" not in [ali.symbol for ali in c.supervisions[0].alignment["phones"]]
+    )
+    # cuts = cuts.to_eager().sort_by_duration()
 
     # 2. Optional on-the-fly speed perturbation,
     #    mux here ensures it's uniformly distributed throughout sampling,
