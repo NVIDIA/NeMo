@@ -17,6 +17,7 @@ from typing import Dict, List
 
 import torch
 from omegaconf import DictConfig, ListConfig
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.data import ConcatMapDataset
@@ -26,7 +27,6 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import Sequen
 from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
-
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -288,12 +288,18 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        batch = next(dataloader_iter)
+        # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+        # from the dataloader_iter are already extracted in the child class. In that case extact only the batch
+        # from the data_iterator
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        else:
+            batch = next(dataloader_iter)
         if isinstance(batch, dict):
             # convert to list if not already converted.
             batch = self._process_batch(batch)
@@ -313,10 +319,6 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         )
 
     def inference_step(self, dataloader_iter, mode: str):
-        # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
         # Regular finetuning datasets will return a list of dicts for each microbatch.
         # But T0 datasets will return a single dict for the global batch.
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
@@ -327,7 +329,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
         # this will be ignored.
-        loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
+        loss = self.fwd_bwd_step(itertools.chain([batch]), forward_only=True)
 
         predicted_token_ids, _ = self.decode(
             tokens_enc=batch['text_enc'],
