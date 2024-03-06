@@ -13,12 +13,11 @@
 # limitations under the License.
 import math
 import os
-from inspect import isfunction
-
 import torch
 import torch.nn.functional as F
 from apex.contrib.group_norm import GroupNorm
 from einops import rearrange
+from inspect import isfunction
 from torch import einsum, nn
 from torch._dynamo import disable
 
@@ -243,6 +242,10 @@ class CrossAttention(nn.Module):
         super().__init__()
 
         self.inner_dim = dim_head * heads
+        if context_dim is None:
+            self.is_self_attn = True
+        else:
+            self.is_self_attn = False  # cross-attention
         context_dim = default(context_dim, query_dim)
         # make attention part be aware of self-attention/cross-attention
         self.context_dim = context_dim
@@ -255,12 +258,14 @@ class CrossAttention(nn.Module):
         self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
         self.to_v = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
 
+        self.use_te = use_te
         if use_te:
-            self.norm_to_q = LayerNormLinear(query_dim, self.inner_dim, bias=False)
+            return_layernorm_output = True if self.is_self_attn else False
+            self.norm_to_q = LayerNormLinear(query_dim, self.inner_dim, bias=False,
+                                             return_layernorm_output=return_layernorm_output)
         else:
-            norm = nn.LayerNorm(query_dim)
-            to_q = LinearWrapper(query_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
-            self.norm_to_q = nn.Sequential(norm, to_q)
+            self.norm = nn.LayerNorm(query_dim)
+            self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
 
         self.to_out = nn.Sequential(
             LinearWrapper(self.inner_dim, query_dim, lora_network_alpha=lora_network_alpha), nn.Dropout(dropout)
@@ -276,8 +281,18 @@ class CrossAttention(nn.Module):
     def forward(self, x, context=None, mask=None):
         h = self.heads
 
-        q = self.norm_to_q(x)
-        context = default(context, x)
+        if self.use_te:
+            q_out = self.norm_to_q(x)
+            if self.is_self_attn:
+                q, ln_out = q_out
+                context = default(context, ln_out)
+            else:
+                q = q_out
+                context = default(context, x)
+        else:
+            x = self.norm(x)
+            q = self.to_q(x)
+            context = default(context, x)
         k = self.to_k(context)
         v = self.to_v(context)
 
