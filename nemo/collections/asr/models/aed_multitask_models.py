@@ -103,8 +103,8 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     pnc: Optional[bool] = None
     source_lang: Optional[str] = None
     target_lang: Optional[str] = None
-    text_field: str = "text"
-    lang_field: str = "lang"
+    text_field: str = "answer"
+    lang_field: str = "target_lang"
 
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = None
 
