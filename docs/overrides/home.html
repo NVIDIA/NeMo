@@ -38,6 +38,7 @@
         .tx-hero__content {
             padding-bottom: 1rem;
             margin: 0 auto;
+            font-weight: 300;
         }
 
         .tx-hero__image{
@@ -313,7 +314,7 @@
                     <img src="assets/images/nvidia-logo.png" draggable="false">
                 </div>
                 <div class="tx-hero__content">
-                    <h1>NVIDIA NeMo</h1>
+                    <h1>NVIDIA NeMo <br> Research Updates</h1>
                     <p>{{ config.site_description }}</p>
                     
                     <!-- <a href="{{ page.next_page.url | url }}" title="{{ page.next_page.title | e }}" -->
@@ -358,7 +359,7 @@
     <!-- WHAT IS NEMO ? -->
     <section class="tx-container-2">
         <div class="md-grid md-typeset">
-            <div class="tx-hero__image-2" style="margin-top: 100px">
+            <div class="tx-hero__image-2" style="margin-top: 15%">
                 <img
                         src="assets/images/state-of-the-art-convai-models-2c50-d@2x.png"
                         alt=""
@@ -373,16 +374,18 @@
                     <h1 id="what-is-nemo">What is NeMo?</h1><br>
 
                     <p>
-                        NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition 
-                        (<a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/intro.html">ASR</a>), 
-                        natural language processing (<a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/nemo_megatron/intro.html">NLP</a>),
-                        and text-to-speech synthesis (<a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tts/intro.html">TTS</a>). 
-                        The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models)
-                        and make it easier to create new conversational AI models.<br><br>
+                        NVIDIA NeMo™ framework is an end-to-end platform for development of  multimodal generative AI models at scale
+                        anywhere —on any cloud or on-premises.<br><br>
 
-                        A NeMo model is composed of building blocks called neural modules. The inputs and 
-                        outputs of these modules are strongly typed  with neural types that can automatically perform the 
-                        semantic checks between the modules.<br><br>
+                        The NeMo framework  supports large language models (LLMs) and models for  automatic speech recognition (ASR),
+                        text-to-speech (TTS), neural machine translation (NMT), natural language processing (NLP) and computer vision (CV).
+                        It also supports many  text LM architectures  ( Transformer, T5, GPT, BERT , MoE, RETRO etc)  and various
+                        multimodal models.<br><br>
+
+                        The NeMo framework offers an array of customization techniques to refine pretrained LLMs for specialized use
+                        cases including p-tuning, LoRA, Supervised fine-tuning (SFT), Reinforcement learning from human feedback (RLHF),
+                        SteerLM, and more. Through these diverse customization options, NeMo offers wide-ranging flexibility that is
+                        crucial in meeting varying business requirements.<br><br>
                     </p><br>
                 </div>
             </div>
@@ -391,62 +394,55 @@
 
     <!-- 3rd Section -->
     <!-- LLM with NeMo -->
-    <section class="tx-container-3">
-        <div class="md-grid md-typeset">
-            <div class="tx-hero">
+<!--    <section class="tx-container-3">-->
+<!--        <div class="md-grid md-typeset">-->
+<!--            <div class="tx-hero">-->
 
-                <!-- Hero image -->
-                <div class="tx-hero__image-3">
-                    <img
-                            src="assets/images/convai-nemo-megatron.svg"
-                            alt=""
-                            width="2800"
-                            draggable="false"
-                    >
-                </div>
+<!--                &lt;!&ndash; Hero image &ndash;&gt;-->
+<!--                <div class="tx-hero__image-3">-->
+<!--                    <img-->
+<!--                            src="assets/images/convai-nemo-megatron.svg"-->
+<!--                            alt=""-->
+<!--                            width="2800"-->
+<!--                            draggable="false"-->
+<!--                    >-->
+<!--                </div>-->
 
-                <!-- Hero content -->
-                <div class="tx-hero__content">
-                    <br>
-                    <h1 id="nemo-megatron">Large-Scale Language Modeling with NeMo Megatron</h1><br>
+<!--                &lt;!&ndash; Hero content &ndash;&gt;-->
+<!--                <div class="tx-hero__content">-->
+<!--                    <br>-->
+<!--                    <h1 id="nemo-megatron">Large-Scale Language Modeling with NeMo Megatron</h1><br>-->
 
-                    <p>
-                        NeMo Megatron is an end-to-end platform that delivers high training efficiency across 
-                        thousands of GPUs and makes it practical for enterprises to deploy large-scale NLP. 
-                        It provides capabilities to curate training data, train large-scale models up to trillions 
-                        of parameters and deploy them in inference.<br><br>
+<!--                    <p>-->
+<!--                        NeMo Megatron is an end-to-end platform that delivers high training efficiency across -->
+<!--                        thousands of GPUs and makes it practical for enterprises to deploy large-scale NLP. -->
+<!--                        It provides capabilities to curate training data, train large-scale models up to trillions -->
+<!--                        of parameters and deploy them in inference.<br><br>-->
 
-                        It performs data curation tasks such as formatting, filtering, deduplication, and blending 
-                        that can otherwise take months. It includes state-of-the-art parallelization techniques such 
-                        as tensor parallelism, pipeline parallelism, sequence parallelism, and selective activation 
-                        recomputation, to scale models efficiently.<br><br>
+<!--                        It performs data curation tasks such as formatting, filtering, deduplication, and blending -->
+<!--                        that can otherwise take months. It includes state-of-the-art parallelization techniques such -->
+<!--                        as tensor parallelism, pipeline parallelism, sequence parallelism, and selective activation -->
+<!--                        recomputation, to scale models efficiently.<br><br>-->
 
-                        These models can be exported to the NVIDIA Triton™ Inference Server to run large-scale NLP 
-                        models on multiple GPUs and multiple nodes.<br><br>
+<!--                        These models can be exported to the NVIDIA Triton™ Inference Server to run large-scale NLP -->
+<!--                        models on multiple GPUs and multiple nodes.<br><br>-->
 
-                        NeMo Megaton is optimized to run on DGX system on-prem as well as in the cloud.
-                        
-                    </p><br>
-                </div>
-            </div>
-        </div>
-    </section>
+<!--                        NeMo Megaton is optimized to run on DGX system on-prem as well as in the cloud.-->
+<!--                        -->
+<!--                    </p><br>-->
+<!--                </div>-->
+<!--            </div>-->
+<!--        </div>-->
+<!--    </section>-->
 
     <!-- 4th Section -->
     <!-- OSS -->
-    <section class="tx-container-2">
+    <section class="tx-container-3">
         <div class="md-grid md-typeset">
-            <div class="tx-hero__image-2" style="max-width: 40%; margin-top: 10%;">
-                <img
-                        src="assets/images/deep-learning-nemo-integration.png"
-                        alt=""
-                        draggable="false"
-                        align="left"
-                >
-            </div>
+
             <div class="tx-hero">
                 <!-- Hero content -->
-                <div class="tx-hero__content-2">
+                <div class="tx-hero__content">
                     <h1 id="nemo-oss">Flexible, Open-Source, <br>Rapidly Expanding Ecosystem</h1><br>
 
                     <p>
@@ -462,18 +458,28 @@
 
                     </p><br>
                 </div>
+
+                <div class="tx-hero__image-2" style="max-width: 40%; margin-top: 0%; margin-left: 5%;">
+                <!-- style="max-width: 50%; margin-top: 10%; margin-right: 5%;"-->
+                <img
+                        src="assets/images/deep-learning-nemo-integration.png"
+                        alt=""
+                        draggable="false"
+                        align="right"
+                >
+                </div>
             </div>
         </div>
     </section>
 
     <!-- 5th Section -->
     <!-- RIVA -->
-    <section class="tx-container-3">
+    <section class="tx-container-2">
         <div class="md-grid md-typeset">
             <div class="tx-hero">
 
                 <!-- Hero image -->
-                <div class="tx-hero__image-3">
+                <div class="tx-hero__image-2">
                     <img
                             src="assets/images/deploy-to-production-2c50-d@2x.png"
                             alt=""
@@ -483,7 +489,7 @@
                 </div>
 
                 <!-- Hero content -->
-                <div class="tx-hero__content">
+                <div class="tx-hero__content-2">
                     <br>
                     <h1 id="deploy-riva">Deploy to Production using NVIDIA AI </h1><br>
 
