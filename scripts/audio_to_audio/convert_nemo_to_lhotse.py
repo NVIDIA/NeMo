@@ -89,11 +89,17 @@ def main():
             recording = create_recording(get_full_path(audio_file=item.pop(args.input_key), manifest_file=args.input))
             cut = recording.to_cut().truncate(duration=item.pop("duration"), offset=item.pop("offset", 0.0))
             if args.target_key in item:
-                cut.target_recording = create_recording(get_full_path(audio_file=item.pop(args.target_key), manifest_file=args.input))
+                cut.target_recording = create_recording(
+                    get_full_path(audio_file=item.pop(args.target_key), manifest_file=args.input)
+                )
             if args.reference_key in item:
-                cut.reference_recording = create_recording(get_full_path(audio_file=item.pop(args.reference_key), manifest_file=args.input))
+                cut.reference_recording = create_recording(
+                    get_full_path(audio_file=item.pop(args.reference_key), manifest_file=args.input)
+                )
             if args.embedding_key in item:
-                cut.embedding_vector = create_array(get_full_path(audio_file=item.pop(args.embedding_key), manifest_file=args.input))
+                cut.embedding_vector = create_array(
+                    get_full_path(audio_file=item.pop(args.embedding_key), manifest_file=args.input)
+                )
             if item:
                 cut.custom = item  # any field that's still left goes to custom fields
             writer.write(cut)
