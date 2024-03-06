@@ -14,6 +14,8 @@ def collate_vectors(items, max_length: int, padding_value):
             [vectors, padding_value * torch.ones(vectors.size(0), max_length - vectors.size(1), dtype=vectors.dtype)],
             dim=1,
         )
+    if items[0].shape[0] < 1:
+        vectors = vectors.long()
     return vectors
 
 
