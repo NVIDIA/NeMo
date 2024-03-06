@@ -95,6 +95,12 @@ jobs:
                 pip install . && \
                 popd
 
+            # Install only for test: L2: Segmentation Tool
+            pushd tools/ctc_segmentation && \
+                pip install -r requirements.txt && \
+                apt-get update && apt-get install libsox-fmt-all -y && \
+                popd
+
             # PyTorch Lightning version
             python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
 
@@ -119,7 +125,6 @@ jobs:
         docker tag nemo_container localhost:5000/nemo_container
         docker push localhost:5000/nemo_container
 
-
     # - name: Build and push to local registry
     #   uses: docker/build-push-action@v5
     #   with:
@@ -130,6 +135,12 @@ jobs:
     # - name: Inspect
     #   run: |
     #     docker buildx imagetools inspect localhost:5000/name/app:latest 
+
+    #- name: Post-workflow execution
+    #  uses: gacts/run-and-post-run@v1
+    #  with:
+    #    post: |
+    #      chmod -R 777 .
 
 
   L0_Unit_Tests_GPU:
@@ -923,31 +934,9 @@ jobs:
         - run: |
             pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
 
-
   # L2: Segmentation Tool
-  L2_Segmentation_Tool_Install_ctc_segmentation_requirements:
-    needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
-    container:
-      image: localhost:5000/nemo_container
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g 
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /home/TestData:/home/TestData
-    steps:
-        - name: Checkout repository
-          uses: actions/checkout@v3
-        - run: |
-            cd tools/ctc_segmentation && \
-            pip install -r requirements.txt && \
-            apt-get update && apt-get install libsox-fmt-all -y
-
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
-    needs: [L2_Segmentation_Tool_Install_ctc_segmentation_requirements]
+    needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
       image: localhost:5000/nemo_container
@@ -977,7 +966,7 @@ jobs:
             rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
 
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
-    needs: [L2_Segmentation_Tool_Install_ctc_segmentation_requirements]
+    needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
       image: localhost:5000/nemo_container
