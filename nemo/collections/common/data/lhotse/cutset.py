@@ -23,7 +23,7 @@ from lhotse import CutSet
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
-from nemo.collections.common.data.lhotse.text_adapters import LhotseTextZipAdapter
+from nemo.collections.common.data.lhotse.text_adapters import LhotseTextAdapter, LhotseTextPairAdapter
 
 
 def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
@@ -53,7 +53,7 @@ def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
     return cuts, is_tarred
 
 
-KNOWN_DATASET_CONFIG_TYPES = frozenset(("nemo", "nemo_tarred", "lhotse", "lhotse_shar", "txt_zip", "group"))
+KNOWN_DATASET_CONFIG_TYPES = frozenset(("nemo", "nemo_tarred", "lhotse", "lhotse_shar", "txt", "txt_pair", "group"))
 
 
 def read_dataset_config(config) -> tuple[CutSet, bool]:
@@ -144,21 +144,41 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     elif grp_cfg.type == "lhotse":
         is_tarred = False
         cuts = read_lhotse_manifest(grp_cfg, is_tarred=is_tarred)
-    elif grp_cfg.type == "txt_zip":
-        is_tarred = False
-        cuts = read_zipped_text_paths(grp_cfg)
+    elif grp_cfg.type == "txt":
+        is_tarred = True
+        cuts = read_txt_paths(grp_cfg)
+    elif grp_cfg.type == "txt_pair":
+        is_tarred = True
+        cuts = read_txt_pair_paths(grp_cfg)
     elif grp_cfg.type == "group":
         cuts, is_tarred = parse_and_combine_datasets(grp_cfg.input_cfg, propagate_attrs=propagate_attrs,)
     else:
         raise ValueError(f"Unrecognized group: {grp_cfg.type}")
     # Attach extra tags to every utterance dynamically, if provided.
     if (extra_tags := grp_cfg.get("tags")) is not None:
-        cuts = cuts.map(partial(attach_tags, tags=extra_tags))
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
     return cuts, is_tarred
 
 
-def read_zipped_text_paths(config: DictConfig) -> CutSet:
-    return CutSet(LhotseTextZipAdapter(config.sources))
+def read_txt_paths(config: DictConfig) -> CutSet:
+    return CutSet(
+        LhotseTextAdapter(
+            paths=config.paths, language=config.language, shuffle_shards=config.shuffle, shard_seed=config.shard_seed,
+        )
+    ).repeat()
+
+
+def read_txt_pair_paths(config: DictConfig) -> CutSet:
+    return CutSet(
+        LhotseTextPairAdapter(
+            source_paths=config.source_paths,
+            target_paths=config.target_paths,
+            source_language=config.source_language,
+            target_language=config.target_language,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+        )
+    ).repeat()
 
 
 def attach_tags(cut, tags: dict):
@@ -286,7 +306,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     shard_seed=config.shard_seed,
                     **common_kwargs,
                 )
-            )
+            ).repeat()
         else:
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
     else:

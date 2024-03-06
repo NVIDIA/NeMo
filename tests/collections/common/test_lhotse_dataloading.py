@@ -18,12 +18,17 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import lhotse
+import numpy as np
 import pytest
 import torch
+from lhotse.cut import Cut
+from lhotse.cut.text import TextPairExample
 from omegaconf import OmegaConf
 
+from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.lhotse.text_adapters import TextExample
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 requires_torchaudio = pytest.mark.skipif(
     not lhotse.utils.is_torchaudio_available(), reason="Lhotse Shar format support requires torchaudio."
@@ -736,6 +741,7 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
 def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     import numpy as np
     import soundfile as sf
+
     from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
 
     # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
@@ -941,21 +947,8 @@ def test_extended_data_input_cfg_yaml_path(tmp_path, cutset_shar_path, nemo_tarr
 
 
 @pytest.fixture(scope="session")
-def txt_pair_paths(tmp_path_factory):
+def txt_en_path(tmp_path_factory):
     tmp_path = tmp_path_factory.mktemp("text_data")
-
-    es_path = tmp_path / "text.es"
-    es_path.write_text(
-        """Ahora bien , las criaturas no son felices .
-Dicha fragmentación foto-disruptiva cuasi continua del lentículo puede obtenerse mediante espaciados adecuados de las posiciones focales y planos de incisión dentro del volumen del lentículo deseado .
-Los macrómeros hidrófobos e hidrófilosadecuados para los injertos son descritos en el documento WO95 / 06078 .
-Dios sigue siendo fundamental .
-Parece que la mayoría de las habitaciones cuentan con ... more
-Con respecto a los Estados no miembros que no reconocieran a la organización , los responsables serían sus Estados miembros y , en ese caso , se aplicarían los artículos relativos a la responsabilidad del Estado .
-Definición de toe clip en inglés :
-Volviendo a las Figs.7A-7C , cada acoplamiento 22 , 28 incluye una partedentada integral 125 y una cara plana 212 ."""
-    )
-
     en_path = tmp_path / "text.en"
     en_path.write_text(
         """But , obviously , the creatures are not happy .
@@ -967,23 +960,30 @@ With regard to non-member States that do not recognize the organization , member
 Definition of toe box in English :
 Turning to FIGS . 7A-7C , each coupling 22 , 28 includes an integral serrated portion 125 and a flat face 212 ."""
     )
+    return en_path
 
-    return en_path, es_path
+
+@pytest.fixture(scope="session")
+def txt_es_path(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("text_data")
+    es_path = tmp_path / "text.es"
+    es_path.write_text(
+        """But , obviously , the creatures are not happy .
+Such a quasi-continuous photodisruptive fragmentation of the lenticle can be obtained by suitable spacings of the focal positions and incision planes within the desired lenticle volume .
+Suitable hydrophobic and hydrophilic macromers for the grafts are described in WO 95 / 06078 .
+God is still primal .
+Most of us had the kobe beef , which ... More
+With regard to non-member States that do not recognize the organization , member States would have to be held responsible and the articles on State responsibility would then apply .
+Definition of toe box in English :
+Turning to FIGS . 7A-7C , each coupling 22 , 28 includes an integral serrated portion 125 and a flat face 212 ."""
+    )
+    return es_path
 
 
-def test_text_file_pairs_input(txt_pair_paths: tuple[Path, Path]):
-    en_path, es_path = txt_pair_paths
-
+def test_text_file_input(txt_en_path, txt_es_path):
     config = OmegaConf.create(
         {
-            "input_cfg": [
-                {
-                    "type": "txt_zip",
-                    "sources": [en_path, es_path],
-                    "tags": {"source_lang": "en", "target_lang": "es", "modality": "text"},
-                },
-            ],
-            "sample_rate": 16000,
+            "input_cfg": [{"type": "txt", "paths": txt_en_path, "language": "en",},],
             "shuffle": True,
             "num_workers": 0,
             "batch_size": 4,
@@ -992,6 +992,7 @@ def test_text_file_pairs_input(txt_pair_paths: tuple[Path, Path]):
         }
     )
 
+    # Note: this test does not need to pass a tokenizer because we use static batch sizes
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
 
     # Note: we use islice here because the dataloader will be infinite.
@@ -1000,14 +1001,207 @@ def test_text_file_pairs_input(txt_pair_paths: tuple[Path, Path]):
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
     assert all(isinstance(c, TextExample) for c in b)
-    assert all(c.source_lang == "en" for c in b)
-    assert all(c.target_lang == "es" for c in b)
-    assert all(c.modality == "text" for c in b)
+    assert all(c.language == "en" for c in b)
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert isinstance(b, lhotse.CutSet)
     assert all(isinstance(c, TextExample) for c in b)
-    assert all(c.source_lang == "en" for c in b)
-    assert all(c.target_lang == "es" for c in b)
-    assert all(c.modality == "text" for c in b)
+    assert all(c.language == "en" for c in b)
+
+
+def test_text_file_pairs_input(txt_en_path, txt_es_path):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": txt_en_path,
+                    "target_paths": txt_es_path,
+                    "source_language": "en",
+                    "target_language": "es",
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    # Note: this test does not need to pass a tokenizer because we use static batch sizes
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+
+@pytest.fixture(scope="session")
+def txt_pair_paths_shards(tmp_path_factory, txt_en_path, txt_es_path):
+    tmp_path = tmp_path_factory.mktemp("text_data_shards")
+
+    en_text = txt_en_path.read_text().splitlines()
+    (tmp_path / "en_0.txt").write_text("\n".join(en_text[:5]))
+    (tmp_path / "en_1.txt").write_text("\n".join(en_text[5:]))
+
+    es_text = txt_es_path.read_text().splitlines()
+    (tmp_path / "es_0.txt").write_text("\n".join(es_text[:5]))
+    (tmp_path / "es_1.txt").write_text("\n".join(es_text[5:]))
+
+    return f"{tmp_path}/en__OP_0..1_CL_.txt", f"{tmp_path}/es__OP_0..1_CL_.txt"
+
+
+def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str]):
+    en_paths, es_paths = txt_pair_paths_shards
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": en_paths,
+                    "target_paths": es_paths,
+                    "source_language": "en",
+                    "target_language": "es",
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    # Note: this test does not need to pass a tokenizer because we use static batch sizes
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+
+@pytest.fixture(scope="session")
+def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> TokenizerWrapper:
+    tmpdir = tmp_path_factory.mktemp("en_es_tokenizer")
+    text_path = tmpdir / "text.txt"
+    text_path.write_text(txt_en_path.read_text() + "\n" + txt_es_path.read_text())
+    create_spt_model(text_path, vocab_size=128, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
+    return TokenizerWrapper(SentencePieceTokenizer(str(tmpdir / "tokenizer.model")))
+
+
+def test_multimodal_text_audio_dataloading(
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: TokenizerWrapper,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": en_paths,
+                    "target_paths": es_paths,
+                    "source_language": "en",
+                    "target_language": "es",
+                    "tags": {"modality": "text",},
+                },
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": manifest_filepath,
+                    "tarred_audio_filepaths": tarred_audio_filepaths,
+                    "tags": {"modality": "audio",},
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "use_multimodal_sampling": True,
+            "batch_tokens": 1024,
+            # How to set token equivalent duration in actual training?
+            #   assuming fbank frames: 0.01 is the base due to frame shift;
+            #       + subsampling x8 gives us 0.08
+            #   assuming discrete audio tokens, with frame rate 50Hz,
+            #       we'd get 0.02
+            #   in this test we'll just use 0.1 for simplicity
+            "token_equivalent_duration": 0.1,
+            "quadratic_factor": 50,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=en_es_tokenizer,
+    )
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 7
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(203.0)
+    assert min(ex.num_tokens for ex in b) == pytest.approx(10)
+    assert max(ex.num_tokens for ex in b) == pytest.approx(84)
+    assert sum(isinstance(ex, Cut) for ex in b) == 4
+    assert sum(isinstance(ex, TextPairExample) for ex in b) == 3
+    for ex in b:
+        if isinstance(ex, Cut):
+            assert ex.modality == "audio"
+            assert isinstance(ex.load_audio(), np.ndarray)
+            assert isinstance(ex.supervisions[0].text, str)
+        if isinstance(ex, TextPairExample):
+            assert ex.modality == "text"
+            assert ex.source.language == "en"
+            assert ex.target.language == "es"
+            assert isinstance(ex.source.text, str)
+            assert isinstance(ex.target.text, str)
+            assert isinstance(ex.source.tokens, np.ndarray)
+            assert isinstance(ex.target.tokens, np.ndarray)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 9
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(198.0)
+    assert min(ex.num_tokens for ex in b) == pytest.approx(10)
+    assert max(ex.num_tokens for ex in b) == pytest.approx(84)
+    assert sum(isinstance(ex, Cut) for ex in b) == 6
+    assert sum(isinstance(ex, TextPairExample) for ex in b) == 3
+    for ex in b:
+        if isinstance(ex, Cut):
+            assert ex.modality == "audio"
+            assert isinstance(ex.load_audio(), np.ndarray)
+            assert isinstance(ex.supervisions[0].text, str)
+        if isinstance(ex, TextPairExample):
+            assert ex.modality == "text"
+            assert ex.source.language == "en"
+            assert ex.target.language == "es"
+            assert isinstance(ex.source.text, str)
+            assert isinstance(ex.target.text, str)
+            assert isinstance(ex.source.tokens, np.ndarray)
+            assert isinstance(ex.target.tokens, np.ndarray)
