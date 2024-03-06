@@ -111,10 +111,11 @@ class Quantizer:
         except AttributeError:
             pass
 
+        self._check_ddp_initialized(model)
+
         if is_global_rank_zero():
             print(model)
 
-        self._check_ddp_initialized(model)
         return model
 
     def _check_ddp_initialized(self, model):
