@@ -203,6 +203,10 @@ class CrossAttention(nn.Module):
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0, use_flash_attention=False, use_te=False):
         super().__init__()
         inner_dim = dim_head * heads
+        if context_dim is None:
+            self.is_self_attn = True
+        else:
+            self.is_self_attn = False # cross-attention
         context_dim = default(context_dim, query_dim)
         # make attention part be aware of self-attention/cross-attention
         self.context_dim = context_dim
@@ -212,12 +216,13 @@ class CrossAttention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
+        self.use_te = use_te
         if use_te:
-            self.norm_to_q = LayerNormLinear(query_dim, inner_dim, bias=False)
+            return_layernorm_output = True if self.is_self_attn else False
+            self.norm_to_q = LayerNormLinear(query_dim, inner_dim, bias=False, return_layernorm_output=return_layernorm_output)
         else:
-            norm = nn.LayerNorm(query_dim)
-            to_q = nn.Linear(query_dim, inner_dim, bias=False)
-            self.norm_to_q = nn.Sequential(norm, to_q)
+            self.norm = nn.LayerNorm(query_dim)
+            self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
 
         self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
         self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
@@ -234,8 +239,18 @@ class CrossAttention(nn.Module):
     def forward(self, x, context=None, mask=None):
         h = self.heads
 
-        q = self.norm_to_q(x)
-        context = default(context, x)
+        if self.use_te:
+            q_out = self.norm_to_q(x)
+            if self.is_self_attn:
+                q, ln_out = q_out
+                context = default(context, ln_out)
+            else:
+                q = q_out
+                context = default(context, x)
+        else:
+            x = self.norm(x)
+            q = self.to_q(x)
+            context = default(context, x)
         k = self.to_k(context)
         v = self.to_v(context)
 

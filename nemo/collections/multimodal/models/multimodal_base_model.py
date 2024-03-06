@@ -211,6 +211,7 @@ class MultimodalModel(ModelPT, Exportable):
                 checkpoint['state_dict'] = new_state_dict
 
             if cfg.get('unet_config') and cfg.get('unet_config').get('precision') != 'fp8':
+                # Mapping potential fp8 ckpt to fp16 model
                 # remove _extra_state in fp8 if there is.
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():
@@ -218,10 +219,10 @@ class MultimodalModel(ModelPT, Exportable):
                         continue
 
                     ### LayerNormLinear
-                    # norm_to_q.layer_norm_{weight|bias} -> norm_to_q.0.{weight|bias}
-                    # norm_to_q.weight -> norm_to_q.1.weight
-                    new_key = key.replace('norm_to_q.layer_norm_', 'norm_to_q.0.')
-                    new_key = new_key.replace('norm_to_q.weight', 'norm_to_q.1.weight')
+                    # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
+                    # norm_to_q.weight -> to_q.weight
+                    new_key = key.replace('norm_to_q.layer_norm_', 'norm.')
+                    new_key = new_key.replace('norm_to_q.weight', 'to_q.weight')
 
                     ### LayerNormMLP
                     # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
