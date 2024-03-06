@@ -42,9 +42,6 @@ jobs:
 #        --env TRANSFORMERS_OFFLINE=0 
 #        --env HYDRA_FULL_ERROR=1
     steps:
-    - name: cleanup old checkout  
-      run: chmod +w -R ${GITHUB_WORKSPACE}
-
     - name: Checkout repository
       uses: actions/checkout@v3
 
