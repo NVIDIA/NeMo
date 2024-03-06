@@ -277,6 +277,10 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
+        infused_adapter = self.get_adapter_module(AdapterName.MLP_INFUSED)
+        if infused_adapter:
+            intermediate_parallel = infused_adapter(intermediate_parallel)
+
         # [s, b, h]
         output, output_bias = self.linear_fc2(intermediate_parallel)
 
@@ -345,7 +349,7 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
             attention_mask=attention_mask,
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb,
-            packed_seq_param=packed_seq_params,
+            packed_seq_params=packed_seq_params,
         )
 
         # adapter logic
