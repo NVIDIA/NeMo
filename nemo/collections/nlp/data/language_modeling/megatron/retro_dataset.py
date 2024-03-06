@@ -31,6 +31,15 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import
 from nemo.core import Dataset
 from nemo.utils import logging
 
+from megatron.core import mpu, tensor_parallel
+from megatron.core.models.retro.data.config import RetroGPTChunkDatasets
+from megatron.core.models.retro.model import RetroConfig
+from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+from megatron.core.models.retro.data.query.multi_split_gpt_dataset import MultiSplitGPTDataset, MultiSplitGPTDatasetConfig
+from megatron.core.models.retro.data.query.retro_dataset import get_retro_datasets
+from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+
+
 try:
     from megatron.core import mpu, tensor_parallel
     from megatron.core.models.retro.data.config import RetroGPTChunkDatasets
