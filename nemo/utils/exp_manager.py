@@ -176,7 +176,7 @@ class ExpManagerConfig:
     # Wall clock time limit
     max_time_per_run: Optional[str] = None
     # time to sleep non 0 ranks during initialization
-    seconds_to_sleep: float = 5
+    seconds_to_sleep: float = 1
 
 
 class TimingCallback(Callback):
@@ -326,6 +326,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     global_rank = trainer.node_rank * trainer.num_devices + local_rank
     logging.rank = global_rank
+
+    if not torch.distributed.is_initialized() and trainer.num_nodes * trainer.num_devices > 1:
+
+        def dummy():
+            return
+
+        if trainer.strategy.launcher is not None:
+            trainer.strategy.launcher.launch(dummy, trainer=trainer)
+        trainer.strategy.setup_environment()
 
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -525,6 +534,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         time.sleep(cfg.seconds_to_sleep)
 
     add_handlers_to_mcore_logger()
+
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     return log_dir
 
