@@ -462,7 +462,12 @@ class DecoderLayerConfig:
             rank,
         )
 
-        if llm_config.moe_num_experts is not None and llm_config.moe_num_experts > 1:
+        moe = False
+        if llm_config.moe_num_experts is not None:
+            if llm_config.moe_num_experts > 1:
+                moe = True
+
+        if moe:
             layer_config.mlp = MoEMLPConfig.from_nemo(weights_dict, llm_config, layer_id, rank, is_mcore)
         else:
             layer_config.mlp = MLPConfig.from_nemo(weights_dict, llm_config, layer_id, rank, is_mcore)
