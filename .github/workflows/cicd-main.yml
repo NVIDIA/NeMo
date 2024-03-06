@@ -1859,7 +1859,7 @@ jobs:
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=checkpoints
-            sh rm -rf checkpoints
+            rm -rf checkpoints
 
   L2_Intent_and_Slot_Classification_Tasks_Multi-Label_Intent_and_Slot_Classification:
     needs: [cicd-test-container-setup]
@@ -1886,7 +1886,7 @@ jobs:
             trainer.devices=[0] \
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=checkpoints2
-            sh rm -rf checkpoints2
+            rm -rf checkpoints2
 
     # TODO: add when megatron-bert is supported again
     # stage('L2: Model Parallel Size 2 Megatron Text Classification') {
