@@ -416,7 +416,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
             wds.tarfile_to_samples(),
             wds.rename(pkl='pkl', key='__key__'),
             wds.to_tuple('pkl', 'key'),
-            wds.map(f=self._build_sample),
+            wds.map(self._build_sample),
         )
 
     def _build_sample(self, fname):

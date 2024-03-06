@@ -265,7 +265,7 @@ class TarredSentenceDataset(IterableDataset):
             .shuffle(shuffle_n)
             .rename(pkl='pkl', key='__key__')
             .to_tuple('pkl', 'key')
-            .map(f=self._build_sample)
+            .map(self._build_sample)
         )
 
     def _build_sample(self, fname):

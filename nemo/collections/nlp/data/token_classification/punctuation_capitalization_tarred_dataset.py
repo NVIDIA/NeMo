@@ -1055,7 +1055,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             .decode(wds.handle_extension('.pyd', decode_pyd))
             .shuffle(shuffle_n)
             .to_tuple('__key__', 'batch.pyd')
-            .map(f=self._build_sample)
+            .map(self._build_sample)
         )
 
         self.use_audio = use_audio

@@ -350,7 +350,7 @@ class TarredVocoderDataset(IterableDataset):
             wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
             wds.to_tuple('audio', 'key'),
             self._filter,
-            wds.map(f=self._build_sample),
+            wds.map(self._build_sample),
         )
 
     def _filter(self, iterator):

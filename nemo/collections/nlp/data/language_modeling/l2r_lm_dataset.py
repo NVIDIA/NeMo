@@ -205,7 +205,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
             .shuffle(shuffle_n)
             .rename(npy='npy', key='__key__')
             .to_tuple('npy', 'key')
-            .map(f=self._build_sample)
+            .map(self._build_sample)
         )
 
     def _build_sample(self, tup):

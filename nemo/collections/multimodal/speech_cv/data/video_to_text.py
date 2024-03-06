@@ -606,7 +606,7 @@ class _TarredVideoToTextDataset(IterableDataset):
             wds.to_tuple('video', 'key'),
             self._filter,
             self._loop_offsets,
-            wds.map(f=self._build_sample),
+            wds.map(self._build_sample),
         )
 
     def _filter(self, iterator):
