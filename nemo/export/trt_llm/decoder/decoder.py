@@ -182,13 +182,13 @@ class DecoderLayerBuilder(ABC):
         self.decoder = self.build_decoder(layer)
         self.assign_weights(layer)
 
-        is_moe = self.decoder.config.moe_num_experts is not None and self.decoder.config.moe_num_experts > 1
+        is_moe = hasattr(self.decoder, "config") and self.decoder.config.moe_num_experts is not None and self.decoder.config.moe_num_experts > 1
         if not is_moe:
             self.quantize(layer)
 
     def assign_weights(self, layer: DecoderLayerConfig):
         """Assign the weights to the attention tensorrt_llm layer."""
-        is_moe = self.decoder.config.moe_num_experts is not None and self.decoder.config.moe_num_experts > 1
+        is_moe = hasattr(self.decoder, "config") and self.decoder.config.moe_num_experts is not None and self.decoder.config.moe_num_experts > 1
 
         self.decoder.input_layernorm.weight.value = layer.input_layernorm.weight
         if layer.input_layernorm.bias is not None:
