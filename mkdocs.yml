@@ -165,8 +165,8 @@ markdown_extensions:
 # Page Tree
 nav:
   - Home: index.md
-  # NeMo Blog Posts
-  - Research News:
+  # NeMo Research Notes
+  - Research Notes:
       - blogs/index.md
   # NeMo Publications
   - Publications:
