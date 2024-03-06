@@ -1,12 +1,12 @@
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
-  top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
-  top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
-  temperature: 1.0 # sampling temperature
+  top_k: 1  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
+  top_p: 0.0 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
+  temperature: 0.0 # sampling temperature
   add_BOS: False # add the bos token at the begining of the prompt
-  tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+  tokens_to_generate: 100 # The minimum length of the sequence to be generated.
   all_probs: False  # whether return the log prob for all the tokens in vocab
-  repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
+  repetition_penalty: 1.0  # The parameter for repetition penalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
   batch_size: 8
@@ -36,6 +36,8 @@ retrieval_service:
   frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
   pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
   store_retrieved: False # whether store the retrieved documents, so it can be checked
+  peft: True
+  add_top_1: True
   combo_service:
     service_ip: '0.0.0.0'
     service_port: 17181 
@@ -50,6 +52,16 @@ model:
     row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
     norm_type: 'mixedfusedlayernorm' # IGNORED if layer_adapter is used,  options are ['layernorm', 'mixedfusedlayernorm']
 
+  task_templates: # Add more/replace tasks as needed, these are just examples
+    taskname: "boolq" # The task name
+    # prompt_template: " \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+    prompt_template: " {question} {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+    prompt_template_fields: ["question", "answer"]
+    total_virtual_tokens: 0 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
+    virtual_token_splits: [] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
+    truncate_field: "question" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+    answer_only_loss: True 
+    answer_field: "answer"
 
   # restore_path: /workspaces/research/results/megatron_retro/2023-04-12_19-06-10/checkpoints/megatron_retro.nemo
   # /workspaces/research/results/megatron_retro/2023-04-21_12-02-08/checkpoints/megatron_retro.nemo

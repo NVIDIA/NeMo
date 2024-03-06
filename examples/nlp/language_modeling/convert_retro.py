@@ -77,7 +77,7 @@ def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, conver
             converted[final_key] = weight_dict[key]
 
 
-def set_weights(P, lm_checkpoint, new_checkpoint):
+def set_weights(P, lm_checkpoint, new_checkpoint, target_count):
     pre_layer = min(P)
     count = 0
     for name in lm_checkpoint['state_dict'].keys():
@@ -114,7 +114,7 @@ def set_weights(P, lm_checkpoint, new_checkpoint):
                     if parts[5] == 'retriever':
                         # skip the extra retriever
                         continue
-                    if count < 6: # used to be 8
+                    if count < target_count: # used to be 8
                         parts[2] = 'pre_decoder.model'
                         del parts[1]
                         new_checkpoint['.'.join(parts)] = lm_checkpoint['state_dict'][name]
@@ -148,26 +148,31 @@ if __name__ == "__main__":
         lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting'
         result_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted/'
         P = [8, 11, 14, 17, 20, 23]
+        count = 6
     elif args.model == "2b":
         # 2b retro 
         lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/iter_0097656'
         result_path = '/home/aficek/software/playground/retro_convert/gpt3-2b-pretraining-retro-fitting/converted/'
         P = [8, 11, 14, 17, 20, 23]
+        count = 6
     elif args.model == "8b":
         # 8b retro
         lm_ckpt_path = '/raid/aficek/retro_paper/models/gpt3-8b-pretraining-retro-fitting-noseqpar/iter_0097656'
         result_path = '/raid/aficek/retro_paper/models/gpt3-8b-pretraining-retro-fitting-noseqpar/converted/'
-        P = [8, 11, 14, 17, 20, 23]
+        P = [8, 11, 14, 17, 20, 23, 26, 29]
+        count = 8
     elif args.model == "22b":
         # 22b retro
         lm_ckpt_path = '/raid/aficek/retro_paper/models/gpt3-22b-pretraining-retro-fitting-noseqpar/iter_0048828'
         result_path = '/raid/aficek/retro_paper/models/gpt3-22b-pretraining-retro-fitting-noseqpar/converted/'
         P = [8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38]
+        count = 11
     elif args.model == "43b":
         # 43b retro        
         lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-'
         result_path = '/home/aficek/software/playground/retro_convert/gpt3-'
         P = [8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47]
+        count = 14
     else:
         print("Model type not selected, used some other result_path and lm_ckpt_path")
         # result_path = '/raid/users/aficek/gpt/gpt3-2b-pretraining-retro-fitting/converted'
@@ -202,13 +207,16 @@ if __name__ == "__main__":
         parse_weights(old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=name_translate)
         print('\n'.join(checkpoint['state_dict'].keys()))
         new_checkpoint = OrderedDict()
-        set_weights(P, checkpoint, new_checkpoint)
+        set_weights(P, checkpoint, new_checkpoint, count) 
         os.makedirs(result_path + subdir, exist_ok=True)
         vocab_size = new_checkpoint['model.encoder_embedding.word_embeddings.weight'].shape[0]
-        new_checkpoint['model.tokens_head.bias'] = torch.zeros(256000, dtype=torch.float32)
-        new_checkpoint['model.encoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32)
-        new_checkpoint['model.pre_decoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32)
-        new_checkpoint['model.post_decoder.rotary_pos_emb.inv_freq'] =torch.zeros(16, dtype=torch.float32)
+        # new_checkpoint['model.tokens_head.bias'] = torch.zeros(256000, dtype=torch.float32)
+        # new_checkpoint['model.encoder.rotary_pos_emb.inv_freq'] = RotaryEmbedding(args_dict['kv_channels'])
+        # new_checkpoint['model.pre_decoder.rotary_pos_emb.inv_freq'] = RotaryEmbedding(args_dict['kv_channels'])
+        # new_checkpoint['model.post_decoder.rotary_pos_emb.inv_freq'] = RotaryEmbedding(args_dict['kv_channels'])
+        # new_checkpoint['model.encoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32)
+        # new_checkpoint['model.pre_decoder.rotary_pos_emb.inv_freq'] = torch.zeros(16, dtype=torch.float32)
+        # new_checkpoint['model.post_decoder.rotary_pos_emb.inv_freq'] =torch.zeros(16, dtype=torch.float32)
         output_path = result_path + subdir + '/model_weights.ckpt'
         torch.save(new_checkpoint, output_path)
         print("Output to path: ", output_path)

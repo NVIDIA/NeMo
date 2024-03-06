@@ -21,7 +21,7 @@ trainer:
   val_check_interval: 0.5
   limit_val_batches: null
   limit_test_batches: null
-  accumulate_grad_batches: 1
+  # accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null
 
@@ -95,7 +95,8 @@ model:
 
   task_templates: # Add more/replace tasks as needed, these are just examples
     taskname: "boolq" # The task name
-    prompt_template: " \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+    # prompt_template: " \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+    prompt_template: " {question} {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
     prompt_template_fields: ["question", "answer"]
     total_virtual_tokens: 0 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
     virtual_token_splits: [] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens

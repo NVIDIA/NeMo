@@ -679,7 +679,13 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
         sentences = output['sentences']
         modified = []
         for sentence in sentences:
-            sentence = 'Answer:' + sentence.split(' \nAnswer:')[1]
+            sentence = sentence.split('Answer: The answer is')[1]
+            # sentence = self.model.tokenizer.text_to_ids(sentence)[:10]
+            # sentence = self.model.tokenizer.ids_to_text(sentence)
+            sentence = 'Answer:' + sentence
+            sentence = sentence.split(".")[0]
+            # sentence = sentence.split(" ")[:10]
+            # sentence = " ".join(sentence)
             modified.append(sentence)
         output['sentences'] = modified
         return output

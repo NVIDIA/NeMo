@@ -93,7 +93,7 @@ def main(cfg) -> None:
     model_cfg.task_templates = cfg["task_templates"]
     autocast_dtype = torch.float
     model = MegatronRetrievalModel.restore_from(
-        model_path, trainer=trainer, save_restore_connector=save_restore_connector, override_config_path=model_cfg,
+        model_path, trainer=trainer, save_restore_connector=save_restore_connector, override_config_path=model_cfg, strict=False
     ).to(dtype=autocast_dtype)
 
     length_params: LengthParam = {
@@ -164,14 +164,14 @@ def main(cfg) -> None:
 
 
     sentences = [sent for item in response for sent in item["sentences"]]
-    with open("temp_output.jsonl", "w") as pred_file:
+    with open("/results/temp_output.jsonl", "w") as pred_file:
         for sent in sentences:
             sent = sent.strip()
             sent = sent.replace("\n", " ")
             sent = sent.replace("\r", " ")
             pred_file.write(sent + "\n")
 
-    output_lns = load_preds("temp_output.jsonl", "Answer:")
+    output_lns = load_preds("/results/temp_output.jsonl", "Answer:")
     reference_lns = load_ref(cfg.data_paths, "answer")
 
     assert len(output_lns) == len(reference_lns)

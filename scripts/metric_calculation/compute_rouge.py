@@ -115,3 +115,5 @@ if __name__ == "__main__":
 
     scores = calculate_rouge(output_lns=output_lns, reference_lns=reference_lns)
     print(scores)
+
+    print("Average rouge: ", (scores["rouge1"] + scores["rouge2"] + scores["rougeL"]) / 3)

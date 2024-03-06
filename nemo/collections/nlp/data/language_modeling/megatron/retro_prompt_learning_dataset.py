@@ -322,11 +322,11 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         length_before_answer = answer_start_idx
         
         # padding strategy 1: consider virtual prompt length and make the length_before_answer be >= chunk size
-        padding_length = 0
-        if length_before_answer < self.chunk_size:
-            padding_length = self.chunk_size - length_before_answer
-            input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
-            answer_start_idx += padding_length
+        # padding_length = 0
+        # if length_before_answer < self.chunk_size:
+        #     padding_length = self.chunk_size - length_before_answer
+        #     input_ids = input_ids[:len(temp_pads)] + [self.pad_token_id] * padding_length + input_ids[len(temp_pads):]
+        #     answer_start_idx += padding_length
         
         # padding strategy 2:  make the length_before_answer be a mutiple of chunk_size
         # but still padding in the middle between virtual tokens and top1
@@ -335,9 +335,9 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         # answer_start_idx += padding_length
 
         # padding strategy 3: pad at the beginning, make the length_before_answer be a mutiple of chunk_size
-        # padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
-        # input_ids = [self.pad_token_id] * padding_length + input_ids
-        # answer_start_idx += padding_length
+        padding_length = (self.chunk_size - length_before_answer % self.chunk_size) % self.chunk_size
+        input_ids = [self.pad_token_id] * padding_length + input_ids
+        answer_start_idx += padding_length
 
         # padding_strategy 4: do not pad input
 

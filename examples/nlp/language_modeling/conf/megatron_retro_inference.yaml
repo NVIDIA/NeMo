@@ -1,12 +1,12 @@
 inference:
-  greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
-  top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
-  top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
-  temperature: 1.0 # sampling temperature
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
+  top_k: 1  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
+  top_p: 0.0 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
+  temperature: 0.0 # sampling temperature
   add_BOS: False # add the bos token at the begining of the prompt
   tokens_to_generate: 100 # The minimum length of the sequence to be generated.
   all_probs: False  # whether return the log prob for all the tokens in vocab
-  repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
+  repetition_penalty: 1.0  # The parameter for repetition penalty. 1.0 means no penalty.
   min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.
   compute_logprob: False  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
   batch_size: 128
@@ -51,7 +51,8 @@ retrieval_service:
 task_templates: # Add more/replace tasks as needed, these are just examples
   taskname: "qasper" # The task name
   # prompt_template: "System: This is a chat between a user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions based on the context. The assistant should also indicate when the answer cannot be found in the context.\n\ntitle: , {question}\n\nAssistant: {answer}"
-  prompt_template: " \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+  # prompt_template: " \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+  prompt_template: " {question} {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
   prompt_template_fields: ["question", "answer"]
   total_virtual_tokens: 0 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
   virtual_token_splits: [] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens

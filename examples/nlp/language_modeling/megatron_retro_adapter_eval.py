@@ -25,6 +25,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_datase
 
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from scripts.metric_calculation.compute_rouge import load_preds, load_ref, calculate_rouge
 
 from nemo.core.config import hydra_runner
 
@@ -106,6 +107,7 @@ def main(cfg) -> None:
     model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
         cfg.model.restore_path, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
     )
+    model_cfg.task_templates = cfg["model"]["task_templates"]
 
     with open_dict(model_cfg):
         # model_cfg.restore_from_path = "/workspaces/research/downloaded/megatron_retro_converted.nemo"
@@ -191,7 +193,7 @@ def main(cfg) -> None:
         drop_last=False,
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
-        num_neighbors=int(cfg.retrieval_service.neighbors)+1,
+        num_neighbors=int(cfg.retrieval_service.neighbors),
         retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len
     )
 
@@ -218,6 +220,25 @@ def main(cfg) -> None:
                 pred_file.write(sent + "\n")
     print(f"Inference Complete, prediction file saved at {cfg.pred_file_path}")
     print("***************************")
+
+    sentences = [sent for item in response for sent in item["sentences"]]
+    with open("/results/temp_output.jsonl", "w") as pred_file:
+        for sent in sentences:
+            sent = sent.strip()
+            sent = sent.replace("\n", " ")
+            sent = sent.replace("\r", " ")
+            pred_file.write(sent + "\n")
+
+    output_lns = load_preds("/results/temp_output.jsonl", "Answer:")
+    reference_lns = load_ref(cfg.data_paths, "answer")
+
+    assert len(output_lns) == len(reference_lns)
+    print("Calculating Rouge")
+
+    rouge_scores = calculate_rouge(output_lns=output_lns, reference_lns=reference_lns)
+    print("rouge: ", rouge_scores)
+    print("Average rouge: ", (rouge_scores["rouge1"] + rouge_scores["rouge2"] + rouge_scores["rougeL"]) / 3 )
+
 
 
 if __name__ == '__main__':

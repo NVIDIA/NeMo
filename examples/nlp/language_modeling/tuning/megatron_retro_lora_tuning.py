@@ -97,7 +97,7 @@ def main(cfg) -> None:
     if os.path.isdir(cfg.get('restore_from_path')):
         save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
     frozen_model_cfg = MegatronFusedRetrievalLoraModel.restore_from(
-        cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+        cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
     )
 
     # frozen_model_cfg.tokenizer = cfg.model.tokenizer

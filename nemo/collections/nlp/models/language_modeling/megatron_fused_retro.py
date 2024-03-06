@@ -128,6 +128,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
             trainer=trainer,
             save_restore_connector=save_restore_connector,
             override_config_path=frozen_model_cfg,
+            strict=False
         ).to(dtype=self.autocast_dtype)
 
         for _, layer in self.model.named_modules():
@@ -398,6 +399,7 @@ class MegatronFusedRetrievalLoraModel(MegatronRetrievalModel):
             trainer=trainer,
             save_restore_connector=save_restore_connector,
             override_config_path=frozen_model_cfg,
+            strict=False
         ).to(dtype=self.autocast_dtype)
 
         for _, layer in self.model.named_modules():

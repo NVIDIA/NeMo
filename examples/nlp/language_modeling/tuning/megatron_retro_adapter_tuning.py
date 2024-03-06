@@ -37,13 +37,9 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    # with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
+    with_distributed_adam = cfg.model.optim.get('name') == 'distributed_fused_adam'
+
     plugins = []
-    # strategy = NLPDDPStrategy(
-    #     no_ddp_communication_hook=True if megatron_amp_o2 else False,
-    #     gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-    #     find_unused_parameters=False,
-    # )
 
     strategy = NLPDDPStrategy(
         no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
@@ -78,7 +74,7 @@ def main(cfg) -> None:
         cfg.get('restore_from_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
     )
 
-    frozen_model_cfg.tokenizer = cfg.model.tokenizer
+    # frozen_model_cfg.tokenizer = cfg.model.tokenizer
     frozen_model_cfg.data = cfg.model.data
     frozen_model_cfg.adapter_tuning = cfg.model.adapter_tuning
     frozen_model_cfg.optim = cfg.model.optim
