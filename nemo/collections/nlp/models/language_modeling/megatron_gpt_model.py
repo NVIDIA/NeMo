@@ -960,7 +960,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         val.shape[seq_dim] // (2 * cp_size),
                         *val.shape[(seq_dim + 1) :],
                     )
-                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device=val.device)
+                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
+                        non_blocking=True
+                    )
                     val = val.index_select(seq_dim, index)
                     val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
                     batch[key] = val
@@ -1104,6 +1106,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            # Currently for all MCore transformer layer specs causal attention mask
+            # is used so we can delegate creating it to MCore/TE and pass None below
+            if isinstance(model, MCoreGPTModel):
+                attention_mask = None
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
