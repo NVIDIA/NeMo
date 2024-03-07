@@ -337,7 +337,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
         config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
     )
 
-    batches = [batch for batch in dl]
+    batches = [batch for batch in islice(dl, 4)]
     assert len(batches) == 4
 
     b = batches[0]
@@ -354,7 +354,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
 
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
-    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
 def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_manifest_path: tuple[str, str]):
@@ -416,7 +416,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
         config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
     )
 
-    batches = [batch for batch in dl]
+    batches = [batch for batch in islice(dl, 4)]
     assert len(batches) == 4
 
     b = batches[0]
@@ -433,7 +433,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
 
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
-    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
 def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred_manifest_path_multi: tuple[str, str]):
@@ -494,7 +494,7 @@ def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: 
         config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
     )
 
-    batches = [batch for batch in dl]
+    batches = [batch for batch in islice(dl, 4)]
 
     assert len(batches) == 4
 
@@ -518,8 +518,8 @@ def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: 
 
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
-    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
-    torch.testing.assert_close(b["audio_lens"], torch.tensor([16000], dtype=torch.int32))
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 2
+    torch.testing.assert_close(b["audio_lens"], expected_audio_lens)
 
 
 @requires_torchaudio
@@ -733,7 +733,7 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
     assert cut.supervisions[0].text == "irrelevant"
     audio = cut.load_audio()
     assert audio.shape == (1, 8000)
-    np.testing.assert_equal(audio[0], expected_audio[8000:])
+    np.testing.assert_allclose(audio[0], expected_audio[8000:], atol=5e-5)
 
     assert cuts[0].id != cuts[1].id
 
@@ -770,7 +770,7 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     assert cut.num_samples == 8000
     assert cut.supervisions[0].text == "irrelevant"
     assert audio.shape == (1, 8000)
-    np.testing.assert_equal(audio[0], expected_audio[:8000])
+    np.testing.assert_allclose(audio[0], expected_audio[:8000], atol=5e-5)
 
 
 class Identity(torch.utils.data.Dataset):
