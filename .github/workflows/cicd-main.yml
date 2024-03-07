@@ -2346,9 +2346,9 @@ jobs:
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
             conf_name=punctuation_capitalization_config_with_ids && \
             cp conf/punctuation_capitalization_config.yaml "${work_dir}/${conf_name}.yaml" && \
-            sed -i $\s/punct_label_ids: null/punct_label_ids: {O: 0, \\\,\\\: 1, .: 2, \\\?\\\: 3}/\ \
+            sed -i $\'s/punct_label_ids: null/punct_label_ids: {O: 0, \\\',\\\': 1, .: 2, \\\'?\\\': 3}/\' \
               "${work_dir}/${conf_name}.yaml" && \
-            sed -i $\s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\ \
+            sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
               "${work_dir}/${conf_name}.yaml" && \
             python punctuation_capitalization_train_evaluate.py \
               --config-path "${work_dir}" \
