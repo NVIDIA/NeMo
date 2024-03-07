@@ -383,8 +383,8 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
         eos_tensors = output_tensor[loss_mask, idx, :]
-        #if not self.training:
-        #    return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
+        if not self.trainer.training:
+            return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
         bs = eos_tensors.shape[0] // 3
         query_hs = eos_tensors[::3, :]  # every third tensor is a query (bs x hidden_size)
         pos_doc_hs = eos_tensors[1::3, :]  # every third tensor is a positive doc (bs x hidden_size)
