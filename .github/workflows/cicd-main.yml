@@ -2447,7 +2447,7 @@ jobs:
               model.tokenizer.tokenizer_model=/home/TestData/nlp/wikitext-2/tokenizer_bpe_v3193/tokenizer.model \
               model.mask_prob=0.15 \
               model.short_seq_prob=0.1 \
-              exp_manager.exp_dir=PretrainingBERTFromText
+              exp_manager.exp_dir=PretrainingBERTFromText \
               
             rm -f /home/TestData/nlp/wikitext-2/*.pkl
             rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
@@ -2488,7 +2488,7 @@ jobs:
               model.optim.weight_decay=0.01 \
               model.optim.sched.warmup_ratio=0.01 \
               exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
-              exp_manager.create_checkpoint_callback=False
+              exp_manager.create_checkpoint_callback=False \
               
             rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
             ls -lha examples/nlp/language_modeling
@@ -3630,23 +3630,22 @@ jobs:
                 model.fp32_residual_connection=True \
                 model.shape_file=/home/TestData/nlp/megatron_retro/o1_rel_shape_info_tiny.yaml
 
-                python -c "
-                import pandas as pd
-                import pathlib
-                from pandas.testing import assert_frame_equal
-                from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-                import torch
-                if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
-                    import sys
-                    sys.exit(0)
-                event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
-                ea = EventAccumulator(str(event_file)).Reload()
-                vals = []
-                for i in ea.Scalars('reduced_train_loss'):
-                    vals.append(i.value)
-                training_curve = pd.DataFrame({'loss': vals})
-                gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
-                assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"
+                python -c python -c "import pandas as pd
+import pathlib
+from pandas.testing import assert_frame_equal
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+import torch
+if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
+    import sys
+    sys.exit(0)
+event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
+ea = EventAccumulator(str(event_file)).Reload()
+vals = []
+for i in ea.Scalars('reduced_train_loss'):
+    vals.append(i.value)
+training_curve = pd.DataFrame({'loss': vals})
+gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
+assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"
 
                 rm -rf examples/nlp/language_modeling/retro_results
 
