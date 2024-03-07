@@ -4409,6 +4409,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             inference.outfile_path='/home/TestData/nlp/ptuning_tuning_tp2/out.jsonl'"
             sh "rm -rf /home/TestData/nlp/ptuning_tuning_tp2"
           }
+        }
         stage('L2: Mcore PEFT IA3 TP=2 O1'){
           steps {
             sh "rm -rf /home/TestData/nlp/ia3_tuning_tp2"
@@ -4452,6 +4453,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             inference.outfile_path='/home/TestData/nlp/ia3_tuning_tp2/out.jsonl'"
             sh "rm -rf /home/TestData/nlp/ia3_tuning_tp2"
           }
+        }
         stage('L2: Mcore PEFT Adapter TP=2 O2'){
           steps {
             sh "rm -rf /home/TestData/nlp/adapter_tuning_tp2"
@@ -4495,6 +4497,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             inference.outfile_path='/home/TestData/nlp/adapter_tuning_tp2/out.jsonl'"
             sh "rm -rf /home/TestData/nlp/adapter_tuning_tp2"
           }
+        }
+      }
     }
     stage('L2: Megatron GPT Eval') {
       when {
