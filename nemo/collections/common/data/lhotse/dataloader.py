@@ -91,6 +91,15 @@ class LhotseDataLoadingConfig:
     concatenate_duration_factor: float = 1.0
     concatenate_merge_supervisions: bool = True
     db_norm: Optional[float] = -25.0  # from CodeSwitchingDataset
+    #   d. On-the-fly cut truncation or window slicing
+    #       I) truncate: select one chunk of a fixed duration for each cut
+    truncate_duration: Optional[float] = None  # set this to enable
+    truncate_offset_type: str = "random"  # "random" | "start" (fixed) | "end" (fixed, counted back)
+    #       II) cut_into_windows: convert each cut to smaller cut using a sliding window (define hop for overlapping windows)
+    cut_into_windows_duration: Optional[float] = None  # set this to enable
+    cut_into_windows_hop: Optional[float] = None
+    #       III) common options
+    keep_excessive_supervisions: bool = True  # when a cut is truncated in the middle of a supervision, should we keep them.
 
     # 5. Other Lhotse options.
     text_field: str = "text"  # key to read the transcript from
@@ -127,9 +136,6 @@ def get_lhotse_dataloader_from_config(
     # Resample as a safeguard; it's a no-op when SR is already OK
     cuts = cuts.resample(config.sample_rate)
 
-    # Duration filtering, same as native NeMo dataloaders.
-    cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
-
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
     if config.noise_path is not None:
@@ -144,6 +150,24 @@ def get_lhotse_dataloader_from_config(
     #    bucket allocation.
     if config.perturb_speed:
         cuts = CutSet.mux(cuts, cuts.perturb_speed(0.9), cuts.perturb_speed(1.1),)
+
+    # 2.d: truncation/slicing
+    if config.truncate_duration is not None:
+        cuts = cuts.truncate(
+            max_duration=config.truncate_duration,
+            offset_type=config.truncate_offset_type,
+            keep_excessive_supervisions=config.keep_excessive_supervisions,
+        )
+    if config.cut_into_windows_duration is not None:
+        cuts = cuts.cut_into_windows(
+            duration=config.cut_into_windows_duration,
+            hop=config.cut_into_windows_hop,
+            keep_excessive_supervisions=config.keep_excessive_supervisions,
+        )
+
+    # Duration filtering, same as native NeMo dataloaders.
+    # We can filter after the augmentations because they are applied only when calling load_audio().
+    cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
 
     # 3. The sampler.
     if config.use_bucketing:
