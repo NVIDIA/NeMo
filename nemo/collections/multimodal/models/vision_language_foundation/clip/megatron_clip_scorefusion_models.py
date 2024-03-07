@@ -1,19 +1,23 @@
-import torch
-from torch import nn
-import torch.nn.functional as F
+import sys
+
 import clip
+import torch
 import torch.distributed.nn
+import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import nn
 from tqdm import tqdm
-import sys
+
 sys.path.insert(0, "/NeMo/nemo")
 
-from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
-from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import CLIPModel
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss, InbatchContrastiveLoss
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
+    CLIPModel,
+    MegatronCLIPModel,
+)
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_from_precision
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
@@ -39,16 +43,16 @@ except (ImportError, ModuleNotFoundError):
 
 import clip
 
+
 class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer, pre_process=True, post_process=True):
         super().__init__(cfg, trainer)
 
-    #     #TODO add support for huggingface models instead of 
+    #     #TODO add support for huggingface models instead of
     #                           conversion to .nemo
     #     model_name = "ViT-B/32"
     #     self.model, self.img_preprocess_fn = clip.load(model_name, "cuda", False, download_root=None)
     #     self.tokenizer = clip.tokenize
-
 
     # def get_tokenizer(self):
     #     def tokenizer_wrapper(txt):
@@ -57,8 +61,8 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
     #         return txt_tensor
 
     #     return tokenizer_wrapper
-    
-    # TODO add dataset support 
+
+    # TODO add dataset support
     def setup(self, stage=None):
         """ PTL hook that is executed after DDP spawns.
             We setup datasets here as megatron datasets require DDP to instantiate.
@@ -105,42 +109,41 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-    
+
     def forward(self, batch):
-    
-    
+
         txt_batched = batch["txt_batched"]
         image_batched = batch["image_batched"]
         txt_mask_batched = batch["txt_mask_batched"]
         image_mask_batched = batch["image_mask_batched"]
         index_mapping = batch["index_mapping"]
-        
+
         output_tensor = self.model(image_batched, txt_batched)
         image_features, text_features, logit_scale = output_tensor
 
         # Hugging face model directly called
         # image_features = self.model.encode_image(image_batched)
         # text_features = self.model.encode_text(txt_batched)
-        
+
         embeddings = image_features * image_mask_batched.unsqueeze(-1) + text_features * txt_mask_batched.unsqueeze(-1)
-        query_fused_embeds = embeddings[torch.tensor(index_mapping["query"]).flatten()]  
-        pos_cand_fused_embeds = embeddings[torch.tensor(index_mapping["pos_cand"]).flatten()]  
-        
+        query_fused_embeds = embeddings[torch.tensor(index_mapping["query"]).flatten()]
+        pos_cand_fused_embeds = embeddings[torch.tensor(index_mapping["pos_cand"]).flatten()]
+
         output_tensor = query_fused_embeds, pos_cand_fused_embeds
         return output_tensor
 
     def get_forward_output_and_loss_func(self):
-        loss_func = InbatchContrastiveLoss(local_loss=self.cfg.local_loss, 
-                                           gather_with_grad=self.cfg.gather_with_grad,
-                                           enable_hard_neg=False) 
+        loss_func = InbatchContrastiveLoss(
+            local_loss=self.cfg.local_loss, gather_with_grad=self.cfg.gather_with_grad, enable_hard_neg=False
+        )
 
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                
+
                 batch["txt_batched"] = batch["txt_batched"].to(device='cuda', non_blocking=True)
                 batch["image_batched"] = batch["image_batched"].to(device='cuda', non_blocking=True)
-                batch["txt_mask_batched"] =  batch["txt_mask_batched"].to(device='cuda', non_blocking=True)
+                batch["txt_mask_batched"] = batch["txt_mask_batched"].to(device='cuda', non_blocking=True)
                 batch["image_mask_batched"] = batch["image_mask_batched"].to(device='cuda', non_blocking=True)
 
             else:
@@ -149,7 +152,7 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
                     # Fist pipeline stage needs only the tokens and position_ids
                     batch["txt_batched"] = batch["txt_batched"].to(device='cuda', non_blocking=True)
                     batch["image_batched"] = batch["image_batched"].to(device='cuda', non_blocking=True)
-                    batch["txt_mask_batched"] =  batch["txt_mask_batched"].to(device='cuda', non_blocking=True)
+                    batch["txt_mask_batched"] = batch["txt_mask_batched"].to(device='cuda', non_blocking=True)
                     batch["image_mask_batched"] = batch["image_mask_batched"].to(device='cuda', non_blocking=True)
                 else:
                     # Intermediate / Last pipeline stage doesn't need any inputs

@@ -1,8 +1,9 @@
-import os
 import json
+import os
+from multiprocessing import Lock, Manager, Pool, cpu_count
+
 from PIL import Image
 from torchvision import transforms
-from multiprocessing import Pool, cpu_count, Manager, Lock
 
 # Mapping of dataset names to IDs
 DATASET_IDS = {
@@ -462,7 +463,7 @@ def get_modality_stats(data, cand_pool_dict):
                         golden_task_modality = combined_modality
                     else:
                         assert (
-                                golden_task_modality == combined_modality
+                            golden_task_modality == combined_modality
                         ), "Golden task modality does not match with the combined modality"
 
                 if cand_type == "pos_cand_list":
@@ -570,10 +571,6 @@ def save_and_print_mbeir_format_dataset_stats(data, data_file_path, cand_pool_fi
     total_entries, _data = count_entries_in_file(data_file_path)
     print(f"Saved dataset to {data_file_path}")
     print(f"Total number of entries in {data_file_path}: {total_entries}")
-    assert os.path.exists(
-        cand_pool_file_path
-    ), f"File {cand_pool_file_path} does not exist"
-    cand_pool_dict = load_mbeir_format_pool_file_as_dict(
-        cand_pool_file_path, doc_key_to_content=True, key_type="did"
-    )
+    assert os.path.exists(cand_pool_file_path), f"File {cand_pool_file_path} does not exist"
+    cand_pool_dict = load_mbeir_format_pool_file_as_dict(cand_pool_file_path, doc_key_to_content=True, key_type="did")
     print_mbeir_format_dataset_stats(_data, cand_pool_dict)

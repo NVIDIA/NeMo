@@ -4,20 +4,19 @@ import io
 import json
 import os
 import random
+from collections import defaultdict
 from enum import Enum
-from typing import Callable, List, Union, Any
+from typing import Any, Callable, List, Union
 
 # Third-party
 import numpy as np
 import torch
 from PIL import Image
-
-from collections import defaultdict
 from torch.utils.data import Dataset
 from typeguard import typechecked
 
 # Project files
-from nemo.collections.multimodal.data.clip.mbeir_utils import format_string, hash_did, hash_qid, get_mbeir_task_id
+from nemo.collections.multimodal.data.clip.mbeir_utils import format_string, get_mbeir_task_id, hash_did, hash_qid
 
 
 class Mode(Enum):
@@ -27,9 +26,7 @@ class Mode(Enum):
 
 class MBEIRDatasetBase(Dataset):
     def __init__(
-        self,
-        mbeir_data_dir,  # Root directory of the MBEIR dataset
-        img_preprocess_fn,
+        self, mbeir_data_dir, img_preprocess_fn,  # Root directory of the MBEIR dataset
     ):
         """
         Initialize the MBEIRDataset.
@@ -237,7 +234,7 @@ class MBEIRMainDataset(MBEIRDatasetBase):
 
         def _prepare_data_dict(txt, img_path):
             img = self._load_and_preprocess_image(img_path)
-#             img = img_path
+            #             img = img_path
             return {"txt": txt, "img": img}
 
         query = _prepare_data_dict(
@@ -256,17 +253,11 @@ class MBEIRMainDataset(MBEIRDatasetBase):
             if self.returns.get("hashed_p_did"):
                 instance.update({"p_did": hash_did(selected_pos_cand_did)})
 
-            pos_cand = _prepare_data_dict(
-                pos_cand_txt,
-                pos_cand.get("img_path", None),
-            )
+            pos_cand = _prepare_data_dict(pos_cand_txt, pos_cand.get("img_path", None),)
             instance.update({"pos_cand": pos_cand})
 
             neg_cand_list = [
-                _prepare_data_dict(
-                    neg_cand["txt"],
-                    neg_cand.get("img_path", None),
-                )
+                _prepare_data_dict(neg_cand["txt"], neg_cand.get("img_path", None),)
                 for neg_cand in selected_neg_cand_list
             ]
             if len(neg_cand_list) > 0:
@@ -435,7 +426,7 @@ class MBEIRMainCollator(MBEIRCollatorBase):
             if p_did_list:
                 processed_batch.update({"p_did_list": torch.tensor(p_did_list)})
 
-#         # TODO: Fix this hack for BLIP tokenizer.
+        #         # TODO: Fix this hack for BLIP tokenizer.
         if hasattr(processed_batch["txt_batched"], "input_ids"):
             bs = processed_batch["txt_batched"]["input_ids"].size(0)
         else:
