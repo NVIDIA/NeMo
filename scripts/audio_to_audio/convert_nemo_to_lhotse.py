@@ -3,12 +3,18 @@ import argparse
 import os
 
 import numpy as np
-from lhotse import AudioSource, CutSet, Recording
+from lhotse import AudioSource, CutSet, MonoCut, Recording
 from lhotse.array import Array
 from lhotse.audio import info
 from lhotse.serialization import load_jsonl
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+
+INPUT_CHANNEL_SELECTOR = "input_channel_selector"
+TARGET_CHANNEL_SELECTOR = "target_channel_selector"
+REFERENCE_CHANNEL_SELECTOR = "reference_channel_selector"
+LHOTSE_TARGET_CHANNEL_SELECTOR = "target_recording_channel_selector"
+LHOTSE_REFERENCE_CHANNEL_SELECTOR = "reference_recording_channel_selector"
 
 
 def parse_args():
@@ -29,19 +35,19 @@ def parse_args():
     parser.add_argument(
         "-t",
         "--target_key",
-        default="target_key",
+        default="target_filepath",
         help="Key of the target recording, mapped to Lhotse's 'Cut.target_recording'.",
     )
     parser.add_argument(
         "-r",
         "--reference_key",
-        default="reference_key",
+        default="reference_filepath",
         help="Key of the reference recording, mapped to Lhotse's 'Cut.reference_recording'.",
     )
     parser.add_argument(
         "-e",
         "--embedding_key",
-        default="embedding_key",
+        default="embedding_filepath",
         help="Key of the embedding, mapped to Lhotse's 'Cut.embedding_vector'.",
     )
     return parser.parse_args()
@@ -86,22 +92,51 @@ def main():
     args = parse_args()
     with CutSet.open_writer(args.output) as writer:
         for item in load_jsonl(args.input):
+
+            # Create Lhotse recording and cut object, apply offset and duration slicing if present.
             recording = create_recording(get_full_path(audio_file=item.pop(args.input_key), manifest_file=args.input))
             cut = recording.to_cut().truncate(duration=item.pop("duration"), offset=item.pop("offset", 0.0))
+
+            if (channels := item.pop(INPUT_CHANNEL_SELECTOR, None)) is not None:
+                if cut.num_channels == 1:
+                    assert (
+                        len(channels) == 1
+                    ), f"The input recording has only a single channel, but manifest specified {INPUT_CHANNEL_SELECTOR}={channels}"
+                else:
+                    cut = cut.with_channels(channels)
+
             if args.target_key in item:
                 cut.target_recording = create_recording(
                     get_full_path(audio_file=item.pop(args.target_key), manifest_file=args.input)
                 )
+                if (channels := item.pop(TARGET_CHANNEL_SELECTOR, None)) is not None:
+                    if cut.target_recording.num_channels == 1:
+                        assert (
+                            len(channels) == 1
+                        ), f"The target recording has only a single channel, but manifest specified {TARGET_CHANNEL_SELECTOR}={channels}"
+                    else:
+                        cut = cut.with_custom(LHOTSE_TARGET_CHANNEL_SELECTOR, channels)
+
             if args.reference_key in item:
                 cut.reference_recording = create_recording(
                     get_full_path(audio_file=item.pop(args.reference_key), manifest_file=args.input)
                 )
+                if (channels := item.pop(REFERENCE_CHANNEL_SELECTOR, None)) is not None:
+                    if cut.reference_recording.num_channels == 1:
+                        assert (
+                            len(channels) == 1
+                        ), f"The reference recording has only a single channel, but manifest specified {REFERENCE_CHANNEL_SELECTOR}={channels}"
+                    else:
+                        cut = cut.with_custom(LHOTSE_REFERENCE_CHANNEL_SELECTOR, channels)
+
             if args.embedding_key in item:
                 cut.embedding_vector = create_array(
                     get_full_path(audio_file=item.pop(args.embedding_key), manifest_file=args.input)
                 )
+
             if item:
-                cut.custom = item  # any field that's still left goes to custom fields
+                cut.custom.update(item)  # any field that's still left goes to custom fields
+
             writer.write(cut)
 
 
