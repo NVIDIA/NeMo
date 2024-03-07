@@ -68,7 +68,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
              cd TransformerEngine && \
-             git fetch origin da30634a6c9ccdbb6c587b6c93b1860e4b038204 && \
+             git fetch origin 770e968b073c4712f03bcc1a84eb564bf7067997 && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
              NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
