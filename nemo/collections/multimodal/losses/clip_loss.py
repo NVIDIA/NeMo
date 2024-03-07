@@ -16,6 +16,7 @@ import torch.distributed.nn
 import torch.nn as nn
 from torch import distributed as dist
 from torch.nn import functional as F
+import numpy as np
 
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
@@ -158,3 +159,52 @@ class ClipLoss(nn.Module):
         # TODO (yuya): this is not necessary; not necessary if global!
         reduced_loss = average_losses_across_data_parallel_group([total_loss])
         return total_loss, {"loss": reduced_loss}
+
+
+class InbatchContrastiveLoss(nn.Module):
+
+
+    def __init__(
+        self, local_loss=False, gather_with_grad=False, cache_labels=False,
+        enable_hard_neg=False,
+    ):
+        super().__init__()
+        self.local_loss = local_loss
+        self.gather_with_grad = gather_with_grad
+        self.cache_labels = cache_labels
+
+        # cache state
+        self.prev_num_logits = 0
+        self.labels = {}
+
+        self.world_size = parallel_state.get_data_parallel_world_size()
+        self.rank = parallel_state.get_data_parallel_rank()
+        self.enable_hard_neg = enable_hard_neg
+        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07)).exp() # From CLIP Model
+        self.loss_function = nn.CrossEntropyLoss()
+
+    def forward(self, output_tensor):
+
+        # works only for world_size = 1, current implementation for in-batch negatives
+        q_embeds, p_embeds = output_tensor
+        n_embeds = None
+        bs = q_embeds.size(0)
+
+        # Normalized features
+        q_embeds = F.normalize(q_embeds, dim=-1)
+        p_embeds = F.normalize(p_embeds, dim=-1)
+
+        if not self.enable_hard_neg and self.world_size == 1:
+            score = torch.matmul(q_embeds, p_embeds.t()) * self.logit_scale  # [bs, bs]
+            sim_targets = torch.arange(bs).to(score.device)  # [bs]
+        else:
+            loss = 0
+        
+        total_loss = self.loss_function(score, sim_targets)
+        _max_score, max_idxs = torch.max(score, 1)
+        accuracy = (max_idxs == sim_targets).sum() / bs
+        # print (accuracy)
+        reduced_loss = average_losses_across_data_parallel_group([total_loss])
+        return total_loss, {"loss": reduced_loss, "accuracy": accuracy}
+
+
