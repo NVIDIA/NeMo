@@ -3630,7 +3630,7 @@ jobs:
                 model.fp32_residual_connection=True \
                 model.shape_file=/home/TestData/nlp/megatron_retro/o1_rel_shape_info_tiny.yaml
 
-                python -c python -c "import pandas as pd
+                python -c "import pandas as pd
 import pathlib
 from pandas.testing import assert_frame_equal
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
