@@ -49,6 +49,14 @@ def save_split(split_vals, dir, key, i, split_factor):
     for j, val in enumerate(split_vals):
         save_val(val, dir, key, i * split_factor + j)
 
+def save_expert_split(split_vals, dir, key, i, split_factor):
+    for j, val in enumerate(split_vals):
+        tp_num = i * split_factor + j
+        suffix = "bin" if tp_num is None else f"{tp_num}.bin"
+
+        global weights_dict
+        weights_dict[f"model.{key}.{suffix}"] = val
+
 
 def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):
     """This function has two purposes:
@@ -346,6 +354,27 @@ def split_and_save_weight(
         or "attention.key_value.bias" in key
     ):
         pass
+    elif "mlp.router.weight" in key:
+        val = np.concatenate(vals, axis=1)
+        split_vals = np.split(val, split_factor, axis=0)
+        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+    elif "experts.linear_fc1.weight" in key:
+        cat_dim = -1
+        val = np.concatenate(vals, axis=cat_dim)
+        w1, w3 = np.split(val, 2, axis=1)
+        # w1 splits
+        split_w1s = np.split(w1, split_factor, axis=1)
+        # w3 splits
+        split_w3s = np.split(w3, split_factor, axis=1)
+
+        split_vals = [np.concatenate(item, axis=1) for item in zip(split_w3s, split_w1s)]
+        save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
+
+    elif "experts.linear_fc2.weight" in key:
+        cat_dim = -1
+        val = np.concatenate(vals, axis=cat_dim)
+        split_vals = np.split(val, split_factor, axis=cat_dim)
+        save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
     else:
         print(f"[WARNING] {key} not handled by converter")
 

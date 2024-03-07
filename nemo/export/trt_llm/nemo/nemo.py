@@ -41,8 +41,7 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
         "intermediate_size": "ffn_hidden_size",
         "num_kv_heads": "num_query_groups",
         "moe_num_experts": "num_moe_experts",
-        "moe_top_k": "num_experts_per_token",
-        "moe_tp_mode": "moe_tp_mode",
+        "moe_top_k": "moe_router_topk",
         "moe_renorm_mode": "moe_renorm_mode",
         "norm_epsilon": "layernorm_epsilon",
     }
@@ -55,6 +54,8 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
     kwargs["vocab_size"] = vocab_size
     kwargs["eos_token_id"] = eos_id
     kwargs["bos_token_id"] = eos_id if decoder_type=='falcon' else bos_id #in HF falcon eos==bos
+    if "moe_num_experts" not in kwargs:
+        kwargs["moe_num_experts"] = 0
     config_dict = {"llama": LlamaConfig, "falcon": FalconConfig}
     llm_config = config_dict[decoder_type] if decoder_type in config_dict else GPT2Config
 

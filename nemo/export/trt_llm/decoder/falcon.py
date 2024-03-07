@@ -144,6 +144,7 @@ class FALCONDecoderLayerBuilder(DecoderLayerBuilder):
         config.set_if_not_exist('parallel_attention', True)
         config.set_if_not_exist('layernorm_epsilon', 1e-5)
         config.set_if_not_exist('bias', False)
+        config.set_if_not_exist('moe_num_experts', 0)
 
         return FalconDecoderLayer(
             config=config,

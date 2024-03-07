@@ -198,6 +198,48 @@ class LinearConfig:
 
         return config
 
+@dataclass
+class MoEMLPConfig:
+    """The MLP layer config."""
+
+    fc1: LinearConfig = None
+    fc2: LinearConfig = None
+    router: LinearConfig = None
+    hidden_act: str = ""
+
+    @staticmethod
+    def from_nemo(
+        weights_dict: Dict[str, np.ndarray],
+        llm_config: PretrainedConfig,
+        layer_id: int,
+        rank: int = 0,
+        is_mcore: bool = False,
+    ):
+        """Converts the nemo weights and config to `MLPConfig`."""
+        mlp = MoEMLPConfig(hidden_act=llm_config.activation_function)
+        mlp.fc1 = LinearConfig(linear_type=LINEAR_COLUMN)
+
+        mlp.fc1.weight = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.experts.experts.linear_fc1.weight.{rank}"
+        )
+
+        mlp.fc1.bias = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.experts.experts.linear_fc1.bias.{rank}"
+        )
+
+        mlp.fc2 = LinearConfig(linear_type=LINEAR_ROW)
+        mlp.fc2.weight = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.experts.experts.linear_fc2.weight.{rank}"
+        )
+        mlp.fc2.bias = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.experts.experts.linear_fc2.bias.{rank}"
+        )
+
+        mlp.router = LinearConfig(linear_type=LINEAR_ROW)
+        mlp.router.weight = get_tensor_from_dict(
+            weights_dict, f"layers.{layer_id}.mlp.router.weight.{rank}"
+        )
+        return mlp
 
 @dataclass
 class AttentionConfig:
@@ -325,14 +367,24 @@ class DecoderLayerConfig:
     max_lora_rank: int = 64
 
     @property
+    def is_moe(self):
+        return self.moe_num_experts is not None and self.moe_num_experts > 1
+
+    @property
     def hidden_size(self):
         """Returns the hidden size of the transformer model."""
-        return self.mlp.fc.weight.shape[1]
+        if self.is_moe:
+            return self.mlp.fc2.weight.shape[1]
+        else:
+            return self.mlp.fc.weight.shape[1]
 
     @property
     def ffn_hidden_size_local(self):
         """Returns the ffn hidden size of the transformer model."""
-        return self.mlp.fc.weight.shape[0]
+        if self.is_moe:
+            return self.mlp.fc2.weight.shape[-1]
+        else:
+            return self.mlp.fc.weight.shape[0]
 
     @staticmethod
     def from_nemo(
@@ -409,7 +461,16 @@ class DecoderLayerConfig:
             layer_id,
             rank,
         )
-        layer_config.mlp = MLPConfig.from_nemo(weights_dict, llm_config, layer_id, rank, is_mcore)
+
+        moe = False
+        if llm_config.moe_num_experts is not None:
+            if llm_config.moe_num_experts > 1:
+                moe = True
+
+        if moe:
+            layer_config.mlp = MoEMLPConfig.from_nemo(weights_dict, llm_config, layer_id, rank, is_mcore)
+        else:
+            layer_config.mlp = MLPConfig.from_nemo(weights_dict, llm_config, layer_id, rank, is_mcore)
 
         return layer_config
 
