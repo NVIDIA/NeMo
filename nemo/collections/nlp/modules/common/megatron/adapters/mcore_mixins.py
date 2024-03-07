@@ -62,6 +62,10 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
+        if self.config.sequence_parallel and hasattr(self.linear_qkv, "return_layernorm_output_gathered"):
+            # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
+            # to perform the redundant gather in the adapter module.
+            self.linear_qkv.return_layernorm_output_gathered = True
 
     def _lora_attn_qkv_adapter_hook(self, hidden_states, linear_qkv_output):
         layernorm_output = None
