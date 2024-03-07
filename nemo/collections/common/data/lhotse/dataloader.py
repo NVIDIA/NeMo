@@ -137,7 +137,6 @@ def get_lhotse_dataloader_from_config(
     # Resample as a safeguard; it's a no-op when SR is already OK
     cuts = cuts.resample(config.sample_rate)
 
-
     # Expands cuts if multiple translations are provided.
     cuts = CutSet(LazyFlattener(cuts.map(_flatten_alt_text)))
 
