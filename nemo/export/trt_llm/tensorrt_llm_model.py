@@ -93,7 +93,11 @@ class ModelBuilder(Module):
 
             if model_config.positional_embedding.weight is not None:
                 self.positional_embedding = build_embedding_from_config(
-                    model_config.positional_embedding, self._dtype, use_prompt_tuning=False
+                    model_config.positional_embedding,
+                    self._dtype,
+                    use_prompt_tuning=self._use_prompt_tuning,
+                    tensor_parallel=model_config.mapping.tp_size,
+                    tensor_parallel_rank=model_config.mapping.tp_rank,
                 )
 
         self.layers = []
