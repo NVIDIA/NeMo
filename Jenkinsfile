@@ -3546,7 +3546,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
+        trainer.limit_val_batches=0.001 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
         trainer.precision=16 \
@@ -3581,7 +3581,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
+        trainer.limit_val_batches=0.001 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=6 \
         trainer.precision=16 \
@@ -3617,7 +3617,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
     // @chcui: model.cpu_offloading_num_layers=7 # temp workaround before m-lm !1124 is merged
-    // @athitten: Revert limit_val_batches to 2 until limit_val_batches 1.0 leading to no validation is fixed for non DictConfig data_prefix
     stage('L2: Megatron GPT Pretraining and Resume Training TP=2') {
       when {
         anyOf {
@@ -3660,6 +3659,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_granularity='full' \
         model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix={"train":[1.0, /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], "validation":[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], "test":[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]} \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
@@ -3696,7 +3696,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_granularity='full' \
         model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.data_prefix=={"train":[1.0, /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], "validation":[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], "test":[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]} \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
