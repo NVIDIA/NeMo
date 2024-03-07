@@ -4203,7 +4203,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_sft_results"
       }
     }
-    stage('L2: Megatron GPT PEFT Lora PP=2') {
+    stage('L2: Mcore PEFT Lora PP=2 O2') {
       when {
         anyOf {
           branch 'main'
@@ -4212,7 +4212,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
       failFast true
       steps {
-        sh "rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2"
+        sh "rm -rf /home/TestData/nlp/lora_tuning_pp2"
         sh "python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
@@ -4221,10 +4221,11 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.val_check_interval=3 \
         ++trainer.limit_val_batches=2 \
         trainer.precision=16 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_peft_lora_results_pp2 \
+        exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_pp2 \
         model.pipeline_model_parallel_size=2 \
         model.tensor_model_parallel_size=1 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+        model.megatron_amp_O2=True \
         model.peft.peft_scheme='lora' \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
@@ -4235,10 +4236,25 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.validation_ds.num_workers=0 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]"
-        sh "rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2"
+        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_pp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
+        model.tensor_model_parallel_size=2 \
+        trainer.devices=2 \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+        model.data.test_ds.names=['quarel4'] \
+        model.global_batch_size=2 \
+        model.micro_batch_size=1 \
+        model.data.test_ds.tokens_to_generate=10 \
+        model.data.test_ds.write_predictions_to_file=True \
+        model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/lora_tuning_pp2/out' \
+        inference.greedy=True \
+        inference.repetition_penalty=1.0 \
+        inference.outfile_path='/home/TestData/nlp/lora_tuning_pp2/out.jsonl'"
+        sh "rm -rf /home/TestData/nlp/lora_tuning_pp2"
       }
     }
-    stage('L2: Megatron GPT PEFT Lora TP=2') {
+    stage('L2: Mcore PEFT Lora TP=2 O1') {
       when {
         anyOf {
           branch 'main'
@@ -4259,7 +4275,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         exp_manager.exp_dir=/home/TestData/nlp/lora_tuning_tp2 \
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         model.peft.peft_scheme='lora' \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
@@ -4271,7 +4287,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]"
         sh "python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
         model.tensor_model_parallel_size=2 \
         trainer.devices=2 \
@@ -4288,7 +4304,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf /home/TestData/nlp/lora_tuning_tp2"
       }
     }
-    stage('L2: Megatron GPT PEFT Lora TP=2 SP') {
+    stage('L2: Mcore PEFT Lora TP=2 SP O2') {
       when {
         anyOf {
           branch 'main'
@@ -4310,7 +4326,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
         model.sequence_parallel=true \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+        model.megatron_amp_O2=True \
         model.peft.peft_scheme='lora' \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
@@ -4321,8 +4338,163 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.validation_ds.num_workers=0 \
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]"
+        sh "python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+        model.peft.restore_from_path=/home/TestData/nlp/lora_tuning_tp2_sp/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
+        model.tensor_model_parallel_size=2 \
+        trainer.devices=2 \
+        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+        model.data.test_ds.names=['quarel4'] \
+        model.global_batch_size=2 \
+        model.micro_batch_size=1 \
+        model.data.test_ds.tokens_to_generate=10 \
+        model.data.test_ds.write_predictions_to_file=True \
+        model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/lora_tuning_tp2_sp/out' \
+        inference.greedy=True \
+        inference.repetition_penalty=1.0 \
+        inference.outfile_path='/home/TestData/nlp/lora_tuning_tp2_sp/out.jsonl'"
         sh "rm -rf /home/TestData/nlp/lora_tuning_tp2_sp"
       }
+    }
+
+    stage('L2: Mcore PEFT P-Tuning, IA3, Adapter') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: Mcore PEFT P-Tuning TP=2 O2'){
+          steps {
+            sh "rm -rf /home/TestData/nlp/ptuning_tuning_tp2"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+            trainer.devices=2 \
+            trainer.log_every_n_steps=1 \
+            trainer.max_epochs=9999 \
+            trainer.max_steps=3 \
+            trainer.val_check_interval=3 \
+            ++trainer.limit_val_batches=2 \
+            trainer.precision=16 \
+            exp_manager.exp_dir=/home/TestData/nlp/ptuning_tuning_tp2 \
+            model.pipeline_model_parallel_size=1 \
+            model.tensor_model_parallel_size=2 \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+            model.megatron_amp_O2=True \
+            model.peft.peft_scheme='ptuning' \
+            model.answer_only_loss=True \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
+            model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.train_ds.concat_sampling_probabilities=[1.0] \
+            model.data.train_ds.num_workers=0 \
+            model.data.validation_ds.num_workers=0 \
+            model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.validation_ds.names=[quarel]"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+            model.peft.restore_from_path=/home/TestData/nlp/ptuning_tuning_tp2/megatron_gpt_peft_ptuning_tuning/checkpoints/megatron_gpt_peft_ptuning_tuning.nemo \
+            model.tensor_model_parallel_size=2 \
+            trainer.devices=2 \
+            model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+            model.data.test_ds.names=['quarel4'] \
+            model.global_batch_size=2 \
+            model.micro_batch_size=1 \
+            model.data.test_ds.tokens_to_generate=10 \
+            model.data.test_ds.write_predictions_to_file=True \
+            model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/ptuning_tuning_tp2/out' \
+            inference.greedy=True \
+            inference.repetition_penalty=1.0 \
+            inference.outfile_path='/home/TestData/nlp/ptuning_tuning_tp2/out.jsonl'"
+            sh "rm -rf /home/TestData/nlp/ptuning_tuning_tp2"
+          }
+        stage('L2: Mcore PEFT IA3 TP=2 O1'){
+          steps {
+            sh "rm -rf /home/TestData/nlp/ia3_tuning_tp2"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+            trainer.devices=2 \
+            trainer.log_every_n_steps=1 \
+            trainer.max_epochs=9999 \
+            trainer.max_steps=3 \
+            trainer.val_check_interval=3 \
+            ++trainer.limit_val_batches=2 \
+            trainer.precision=16 \
+            exp_manager.exp_dir=/home/TestData/nlp/ia3_tuning_tp2 \
+            model.pipeline_model_parallel_size=1 \
+            model.tensor_model_parallel_size=2 \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+            model.megatron_amp_O2=False \
+            model.peft.peft_scheme='ia3' \
+            model.answer_only_loss=True \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
+            model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.train_ds.concat_sampling_probabilities=[1.0] \
+            model.data.train_ds.num_workers=0 \
+            model.data.validation_ds.num_workers=0 \
+            model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.validation_ds.names=[quarel]"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+            model.peft.restore_from_path=/home/TestData/nlp/ia3_tuning_tp2/megatron_gpt_peft_ia3_tuning/checkpoints/megatron_gpt_peft_ia3_tuning.nemo \
+            model.tensor_model_parallel_size=2 \
+            trainer.devices=2 \
+            model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+            model.data.test_ds.names=['quarel4'] \
+            model.global_batch_size=2 \
+            model.micro_batch_size=1 \
+            model.data.test_ds.tokens_to_generate=10 \
+            model.data.test_ds.write_predictions_to_file=True \
+            model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/ia3_tuning_tp2/out' \
+            inference.greedy=True \
+            inference.repetition_penalty=1.0 \
+            inference.outfile_path='/home/TestData/nlp/ia3_tuning_tp2/out.jsonl'"
+            sh "rm -rf /home/TestData/nlp/ia3_tuning_tp2"
+          }
+        stage('L2: Mcore PEFT Adapter TP=2 O2'){
+          steps {
+            sh "rm -rf /home/TestData/nlp/adapter_tuning_tp2"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+            trainer.devices=2 \
+            trainer.log_every_n_steps=1 \
+            trainer.max_epochs=9999 \
+            trainer.max_steps=3 \
+            trainer.val_check_interval=3 \
+            ++trainer.limit_val_batches=2 \
+            trainer.precision=16 \
+            exp_manager.exp_dir=/home/TestData/nlp/adapter_tuning_tp2 \
+            model.pipeline_model_parallel_size=1 \
+            model.tensor_model_parallel_size=2 \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+            model.megatron_amp_O2=True \
+            model.peft.peft_scheme='adapter' \
+            model.answer_only_loss=True \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
+            model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.train_ds.concat_sampling_probabilities=[1.0] \
+            model.data.train_ds.num_workers=0 \
+            model.data.validation_ds.num_workers=0 \
+            model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.validation_ds.names=[quarel]"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
+            model.peft.restore_from_path=/home/TestData/nlp/adapter_tuning_tp2/megatron_gpt_peft_adapter_tuning/checkpoints/megatron_gpt_peft_adapter_tuning.nemo \
+            model.tensor_model_parallel_size=2 \
+            trainer.devices=2 \
+            model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
+            model.data.test_ds.names=['quarel4'] \
+            model.global_batch_size=2 \
+            model.micro_batch_size=1 \
+            model.data.test_ds.tokens_to_generate=10 \
+            model.data.test_ds.write_predictions_to_file=True \
+            model.data.test_ds.output_file_path_prefix='/home/TestData/nlp/adapter_tuning_tp2/out' \
+            inference.greedy=True \
+            inference.repetition_penalty=1.0 \
+            inference.outfile_path='/home/TestData/nlp/adapter_tuning_tp2/out.jsonl'"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning_tp2"
+          }
     }
     stage('L2: Megatron GPT Eval') {
       when {
