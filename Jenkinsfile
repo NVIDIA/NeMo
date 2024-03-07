@@ -3378,7 +3378,7 @@ pipeline {
       }
       failFast true
       steps {
-            sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain_legacy.py \
+            sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
                 trainer.devices=2 \
                 trainer.num_nodes=1 \
                 trainer.accelerator=gpu \
