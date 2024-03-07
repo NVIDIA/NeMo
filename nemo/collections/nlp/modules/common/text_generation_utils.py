@@ -181,7 +181,7 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
 
         clean_response = clean_text
 
-        if conv_template == "nvgpt":
+        if conv_template in ["nvgpt", "nv_steerlm"]:
             labels_str_regexp = re.compile(f"<extra_id_2>quality:.*\n")
             last_match_end_position = None
             for match in re.finditer(labels_str_regexp, clean_response):
@@ -189,6 +189,8 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             if last_match_end_position is not None:
                 clean_response = clean_response[last_match_end_position:]
             clean_response = clean_response.strip("<extra_id_1>")
+        elif conv_template == 'nv_dpo':
+            clean_response = clean_response.split("<extra_id_1>")[-2][10:]  # [10:] for removing "Assistant\n"
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
         elif conv_template == "v1":
@@ -585,8 +587,10 @@ def generate(
             the behavior of generation will depend on whether the seed was set earlier or not.
         strategy_args, the extra arguments are treated as inference strategy arguments
         end_strings, a list of strings to stop generation when they are encountered in the output.
+
     Returns:
         OutputType: It generates the output in a dictionary type. It has the following keys:
+
             sentences: List[str], output sentences
             tokens: List[List[str]], output sentences borken into tokens
             logprob: List[Tensor], log prob of generated tokens
