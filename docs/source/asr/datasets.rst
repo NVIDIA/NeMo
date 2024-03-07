@@ -751,14 +751,16 @@ input_cfg:
       lang: en
       prompt: "Given the following recording, transcribe what the person is saying:"
   - type: txt_pair
-    source_path: /path/to/en.txt
-    target_path: /path/to/pl.txt
+    source_path: /path/to/en__OP_0..512_CL_.txt
+    target_path: /path/to/pl__OP_0..512_CL_.txt
     source_language: en
     target_language: pl
     weight: 0.5
     tags:
       prompt: "Translate the following text to Polish:"
 ```
+
+.. caution:: We strongly recommend to use multiple shards for text files as well so that different nodes and dataloading workers are able to randomize the order of text iteration. Otherwise, multi-GPU training has a high risk of duplication of text examples.
 
 Pre-computing bucket duration bins
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
