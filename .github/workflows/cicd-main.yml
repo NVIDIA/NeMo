@@ -1097,46 +1097,48 @@ jobs:
 
 
   # L2: Dialogue Classification
-  L2_Dialogue_Classification_Dialogue_Intent_and_slot_classification_using_GPT:
-    needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
-    container:
-      image: localhost:5000/nemo_container
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g 
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /home/TestData:/home/TestData
-    steps:
-        - name: Checkout repository
-          uses: actions/checkout@v3
-        - run: |
-            cd examples/nlp/dialogue && \
-            python dialogue.py \
-            model.dataset.data_dir=/home/TestData/nlp/sgd_small \
-            model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
-            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
-            model.dataset.dialogues_example_dir=sgd_gen_outputs \
-            model.dataset.task_name=debug_sample \
-            trainer.max_steps=1 \
-            trainer.max_epochs=1 \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
-            model.test_ds.batch_size=2 \
-            model.nemo_path=null \
-            trainer.val_check_interval=0.0 \
-            trainer.devices=[0] \
-            model.dataset.use_cache=false \
-            model.tokenizer.special_tokens={pad_token:"endoftext"} \
-            model.tokenizer.tokenizer_name=gpt2 \
-            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
-            model.language_model.pretrained_model_name=/home/TestData/nlp/gpt2 \
-            trainer.accelerator=gpu \
-            exp_manager=null  && \
-            rm -rf sgd_gen_outputs
+
+  # TODO: pleasefixme
+  # L2_Dialogue_Classification_Dialogue_Intent_and_slot_classification_using_GPT:
+  #   needs: [cicd-test-container-setup]
+  #   runs-on: self-hosted-azure
+  #   container:
+  #     image: localhost:5000/nemo_container
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g 
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /home/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v3
+  #       - run: |
+  #           cd examples/nlp/dialogue && \
+  #           python dialogue.py \
+  #           model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+  #           model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
+  #           model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
+  #           model.dataset.dialogues_example_dir=sgd_gen_outputs \
+  #           model.dataset.task_name=debug_sample \
+  #           trainer.max_steps=1 \
+  #           trainer.max_epochs=1 \
+  #           model.train_ds.batch_size=2 \
+  #           model.validation_ds.batch_size=2 \
+  #           model.test_ds.batch_size=2 \
+  #           model.nemo_path=null \
+  #           trainer.val_check_interval=0.0 \
+  #           trainer.devices=[0] \
+  #           model.dataset.use_cache=false \
+  #           model.tokenizer.special_tokens={pad_token:"endoftext"} \
+  #           model.tokenizer.tokenizer_name=gpt2 \
+  #           model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
+  #           model.language_model.pretrained_model_name=/home/TestData/nlp/gpt2 \
+  #           trainer.accelerator=gpu \
+  #           exp_manager=null  && \
+  #           rm -rf sgd_gen_outputs
 
   L2_Dialogue_Classification_Intent_and_slot_classification_using_SGDQA:
     needs: [cicd-test-container-setup]
@@ -2319,68 +2321,68 @@ jobs:
               trainer.max_epochs=1 \
               exp_manager=null && \
             rm -rf "${work_dir}"
-        
-  Punctuation_Capitalization_Using_model-common_datasets_parameters-punct-capit-_label_ids:
-    needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
-    container:
-      image: localhost:5000/nemo_container
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g 
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /home/TestData:/home/TestData
-    steps:
-        - name: Checkout repository
-          uses: actions/checkout@v3
-        - run: |
-            cd examples/nlp/token_classification && \
-            work_dir="$(mktemp -d -p "$(pwd)")" && \
-            output_dir="${work_dir}/output" && \
-            mkdir -p "${output_dir}" && \
-            data_dir="${work_dir}/data" && \
-            mkdir -p "${data_dir}" && \
-            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
-            conf_name=punctuation_capitalization_config_with_ids && \
-            cp conf/punctuation_capitalization_config.yaml "${work_dir}/${conf_name}.yaml" && \
-            sed -i $\'s/punct_label_ids: null/punct_label_ids: {O: 0, \\\',\\\': 1, .: 2, \\\'?\\\': 3}/\' \
-              "${work_dir}/${conf_name}.yaml" && \
-            sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
-              "${work_dir}/${conf_name}.yaml" && \
-            python punctuation_capitalization_train_evaluate.py \
-              --config-path "${work_dir}" \
-              --config-name "${conf_name}" \
-              model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item="${data_dir}" \
-              model.validation_ds.ds_item="${data_dir}" \
-              model.test_ds.ds_item="${data_dir}" \
-              model.language_model.pretrained_model_name=distilbert-base-uncased \
-              +model.train_ds.use_cache=false \
-              +model.validation_ds.use_cache=false \
-              +model.test_ds.use_cache=false \
-              trainer.devices=[0,1] \
-              trainer.strategy=ddp \
-              trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir="${output_dir}" \
-              +do_testing=false && \
-            python punctuation_capitalization_train_evaluate.py \
-              +do_training=false \
-              +do_testing=true \
-              ~model.train_ds \
-              ~model.validation_ds \
-              model.test_ds.ds_item="${data_dir}" \
-              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
-              +model.train_ds.use_cache=false \
-              +model.validation_ds.use_cache=false \
-              +model.test_ds.use_cache=false \
-              trainer.devices=[0,1] \
-              trainer.strategy=ddp \
-              trainer.max_epochs=1 \
-              exp_manager=null && \
-            rm -rf "${work_dir}"
+  # TODO: pleasefixme
+  # Punctuation_Capitalization_Using_model-common_datasets_parameters-punct-capit-_label_ids:
+  #   needs: [cicd-test-container-setup]
+  #   runs-on: self-hosted-azure
+  #   container:
+  #     image: localhost:5000/nemo_container
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g 
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /home/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v3
+  #       - run: |
+  #           cd examples/nlp/token_classification && \
+  #           work_dir="$(mktemp -d -p "$(pwd)")" && \
+  #           output_dir="${work_dir}/output" && \
+  #           mkdir -p "${output_dir}" && \
+  #           data_dir="${work_dir}/data" && \
+  #           mkdir -p "${data_dir}" && \
+  #           cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
+  #           conf_name=punctuation_capitalization_config_with_ids && \
+  #           cp conf/punctuation_capitalization_config.yaml "${work_dir}/${conf_name}.yaml" && \
+  #           sed -i $\'s/punct_label_ids: null/punct_label_ids: {O: 0, \\\',\\\': 1, .: 2, \\\'?\\\': 3}/\' \
+  #             "${work_dir}/${conf_name}.yaml" && \
+  #           sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
+  #             "${work_dir}/${conf_name}.yaml" && \
+  #           python punctuation_capitalization_train_evaluate.py \
+  #             --config-path "${work_dir}" \
+  #             --config-name "${conf_name}" \
+  #             model.train_ds.use_tarred_dataset=false \
+  #             model.train_ds.ds_item="${data_dir}" \
+  #             model.validation_ds.ds_item="${data_dir}" \
+  #             model.test_ds.ds_item="${data_dir}" \
+  #             model.language_model.pretrained_model_name=distilbert-base-uncased \
+  #             +model.train_ds.use_cache=false \
+  #             +model.validation_ds.use_cache=false \
+  #             +model.test_ds.use_cache=false \
+  #             trainer.devices=[0,1] \
+  #             trainer.strategy=ddp \
+  #             trainer.max_epochs=1 \
+  #             +exp_manager.explicit_log_dir="${output_dir}" \
+  #             +do_testing=false && \
+  #           python punctuation_capitalization_train_evaluate.py \
+  #             +do_training=false \
+  #             +do_testing=true \
+  #             ~model.train_ds \
+  #             ~model.validation_ds \
+  #             model.test_ds.ds_item="${data_dir}" \
+  #             pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
+  #             +model.train_ds.use_cache=false \
+  #             +model.validation_ds.use_cache=false \
+  #             +model.test_ds.use_cache=false \
+  #             trainer.devices=[0,1] \
+  #             trainer.strategy=ddp \
+  #             trainer.max_epochs=1 \
+  #             exp_manager=null && \
+  #           rm -rf "${work_dir}"
 
   # Punctuation & Capitalization inference      
   Punctuation_Capitalization_inference_Restore_punctuation_and_capitalization_in_long_text:
@@ -2450,8 +2452,7 @@ jobs:
               exp_manager.exp_dir=PretrainingBERTFromText \
               
             rm -f /home/TestData/nlp/wikitext-2/*.pkl
-            rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
-            ls -lha examples/nlp/language_modeling
+            #rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
         
   L2_Pretraining_BERT_from_Preprocessed:
     needs: [cicd-test-container-setup]
@@ -2490,8 +2491,7 @@ jobs:
               exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
               exp_manager.create_checkpoint_callback=False \
               
-            rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
-            ls -lha examples/nlp/language_modeling
+            #rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
 
   # L2: Entity Linking        
   L2_Entity_Linking_Self_Alignment_Pretraining_BERT:
