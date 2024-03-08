@@ -61,12 +61,11 @@ GRAPHEME_CHARACTER_SETS = {
         'U', 'V', 'W', 'X', 'Y', 'Z', 'À', 'È', 'É', 'Ì',
         'Ò', 'Ù'
     ),
-    """
-        # ref: https://vi.wikipedia.org/wiki/Ch%E1%BB%AF_c%C3%A1i
-        https://en.wikipedia.org/wiki/Vietnamese_phonology
-        https://en.wikipedia.org/wiki/Vietnamese_alphabet
-        https://en.wikipedia.org/wiki/Help:IPA/Vietnamese
-    """
+    # ref: https://vi.wikipedia.org/wiki/Ch%E1%BB%AF_c%C3%A1i
+    # https://en.wikipedia.org/wiki/Vietnamese_phonology
+    # https://en.wikipedia.org/wiki/Vietnamese_alphabet
+    # https://en.wikipedia.org/wiki/Help:IPA/Vietnamese
+
     "vi-VN": (
         'A', 'Ă', 'Â', 'B', 'C', 'D', 'Đ', 'E', 'Ê', 'G',
         'H', 'I', 'K', 'L', 'M', 'N', 'O', 'Ô', 'Ơ', 'P',
