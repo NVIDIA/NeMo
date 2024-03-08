@@ -427,12 +427,16 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
 
             output = self.predict_step(batch, batch_idx, dataloader_idx)
-            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-            preds_text = [
-                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-                for t, l in zip(output['token_ids'], batch['context_lengths'])
-            ]
+            if output:
+                inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+                labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+                preds_text = [
+                    self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+                    for t, l in zip(output['token_ids'], batch['context_lengths'])
+                ]
+            else:
+                # Ignore middle stages of pipeline parallel for lora inference
+                inputs_text, labels_text, preds_text = [], [], []
         else:
             inputs_text, labels_text, preds_text = [], [], []
 
@@ -647,6 +651,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             else:
                 # peft_eval.py
                 inference_config['inputs'] = (batch['contexts'].cuda(), batch['context_lengths'].cuda())
+
             response = generate(self, **inference_config)
 
         app_state = AppState()
