@@ -15,7 +15,7 @@
 
 # fmt: off
 
-SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES", "it-IT", "fr-FR"]
+SUPPORTED_LOCALES = ["en-US", "de-DE", "es-ES", "it-IT", "fr-FR", "vi-VN"]
 
 DEFAULT_PUNCTUATION = (
     ',', '.', '!', '?', '-',
@@ -61,6 +61,22 @@ GRAPHEME_CHARACTER_SETS = {
         'U', 'V', 'W', 'X', 'Y', 'Z', 'À', 'È', 'É', 'Ì',
         'Ò', 'Ù'
     ),
+    # ref: https://vi.wikipedia.org/wiki/Ch%E1%BB%AF_c%C3%A1i
+    # https://en.wikipedia.org/wiki/Vietnamese_phonology
+    # https://en.wikipedia.org/wiki/Vietnamese_alphabet
+    # https://en.wikipedia.org/wiki/Help:IPA/Vietnamese
+    "vi-VN": (
+        'A', 'Ă', 'Â', 'B', 'C', 'D', 'Đ', 'E', 'Ê', 'G',
+        'H', 'I', 'K', 'L', 'M', 'N', 'O', 'Ô', 'Ơ', 'P',
+        'Q', 'R', 'S', 'T', 'U', 'Ư', 'V', 'X', 'Y', 'F',
+        'J', 'W', 'Z', 'Á', 'À', 'Ả', 'Ã', 'Ạ', 'Ắ', 'Ằ',
+        'Ẳ', 'Ẵ', 'Ặ', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ', 'É', 'È',
+        'Ẻ', 'Ẽ', 'Ẹ', 'Ế', 'Ề', 'Ể', 'Ễ', 'Ệ', 'Í', 'Ì',
+        'Ỉ', 'Ĩ', 'Ị', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ', 'Ớ', 'Ờ',
+        'Ở', 'Ỡ', 'Ợ', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ', 'Ú', 'Ù',
+        'Ủ', 'Ũ', 'Ụ', 'Ứ', 'Ừ', 'Ử', 'Ữ', 'Ự', 'Ý', 'Ỳ',
+        'Ỷ', 'Ỹ', 'Ỵ',
+    ),
 }
 
 IPA_CHARACTER_SETS = {
@@ -103,6 +119,18 @@ IPA_CHARACTER_SETS = {
         'ɱ','ɯ','ɰ','ɳ','ɵ','ɸ','œ','ɶ','ʘ','ɺ','ɻ','ʀ','ʁ',
         'ɽ','ʂ','ʈ','ʧ','ʉ','ʋ','ⱱ','ɤ','ʍ','χ','ʏ','ʑ','ʐ',
         'ʔ','ʡ','ʕ','ʢ','ǀ','ǁ','ǂ','ᵻ', 'ʃ','ː',
+    ),
+    "vi-VN": (
+        'a', 'ə', 'ɛ', 'e', 'i', 'o', 'ɔ', 'u', 'ɨ',
+        'b', 'c', 'z', 'j', 'd', 'g', 'h', 'x', 'l',
+        'm', 'n', 'ŋ', 'ɲ', 'p', 'f', 'w', 'r', 's',
+        'ʃ', 't', 'ʈ', 'ʂ', 'v', 'ʔ', 'ɓ', 'ɗ', 'ɣ',
+        'k', 'ʰ', 'ʷ', 'ɕ', 'ʑ', 'ʝ', '̚', '̟', 't͡',
+        '˧', 'ː', 'ɯ', '̀', '̄', '̌', '̂', 'ˀ', '͡', '˥',
+        '˩', '̤', '˨', 'ɹ', 'ʲ', '̯', 'ă', 'ə̆', 'ǐ',
+        '˦', 'æ', 'ɐ',
+        'ɜ', 'ɡ', 'ɪ', 'ɬ' 'ɾ', 'ʊ', 'ʌ', 'ʒ', '̃',
+        '̩', 'θ', 'ᵻ',
     ),
 }
 
@@ -157,7 +185,7 @@ def get_ipa_punctuation_list(locale):
     punct_set = set(DEFAULT_PUNCTUATION)
     # TODO @xueyang: verify potential mismatches with locale-specific punctuation sets used
     #  in nemo_text_processing.text_normalization.en.taggers.punctuation.py
-    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR"]:
+    if locale in ["de-DE", "es-ES", "it-IT", "fr-FR", "vi-VN"]:
         # ref: https://en.wikipedia.org/wiki/Guillemet#Uses
         punct_set.update(['«', '»', '‹', '›'])
     if locale == "de-DE":
@@ -218,6 +246,24 @@ def get_ipa_punctuation_list(locale):
                 '̧',  # combining cedilla, U+0327, decimal 807
             ]
         )
-
+    elif locale == "vi-VN":
+        punct_set.update(
+            [
+                '„',  # double low-9 quotation mark, U+201E, decimal 8222
+                '“',  # left double quotation mark, U+201C, decimal 8220
+                '”',  # right double quotation mark, U+201D, decimal 8221
+                '‚',  # single low-9 quotation mark, U+201A, decimal 8218
+                '‘',  # left single quotation mark, U+2018, decimal 8216
+                '‒',  # figure dash, U+2012, decimal 8210
+                '–',  # en dash, U+2013, decimal 8211
+                '—',  # em dash, U+2014, decimal 8212
+                '…',  # horizontal ellipsis, U+2026, decimal 8230
+                '̀',  # combining grave accent, U+0300, decimal 768
+                '́',  # combining acute accent, U+0301, decimal 769
+                '̂',  # combining hook accent, U+0309, decimal 770
+                '̃',  # combining tilde, U+0303, decimal 771
+                '̣',  # combining dot below, U+0323, decimal 803
+            ]
+        )
     punct_list = sorted(list(punct_set))
     return punct_list
