@@ -435,7 +435,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                     for t, l in zip(output['token_ids'], batch['context_lengths'])
                 ]
             else:
-                # Ignore middle stages of pipeline parallel for lora inference
                 inputs_text, labels_text, preds_text = [], [], []
         else:
             inputs_text, labels_text, preds_text = [], [], []
