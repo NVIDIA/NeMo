@@ -16,9 +16,7 @@ import copy
 import tarfile
 from typing import List, Optional
 
-import ammo.torch.quantization as atq
 import torch.distributed as dist
-from ammo.torch.export import export_model_config
 from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import DictConfig, open_dict
@@ -32,15 +30,14 @@ from nemo.utils.distributed import temporary_directory
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import load_config, save_artifacts
 
-QUANT_CFG_CHOICES = {
-    "int8": atq.INT8_DEFAULT_CFG,
-    "int8_sq": atq.INT8_SMOOTHQUANT_CFG,
-    "fp8": atq.FP8_DEFAULT_CFG,
-    "int4_awq": atq.INT4_AWQ_CFG,
-    "w4a8_awq": atq.W4A8_AWQ_BETA_CFG,
-}
+try:
+    import ammo.torch.quantization as atq
+    from ammo.torch.export import export_model_config
+    HAVE_AMMO = True
 
-SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
+except (ImportError, ModuleNotFoundError) as e:
+    HAVE_AMMO = False
+    HAVE_AMMO_ERROR = e
 
 
 class Quantizer:
@@ -63,7 +60,7 @@ class Quantizer:
     the quantization command with decoder_type parameter on exporting (see below). Quantizing other
     model families is experimental and might not be fully supported.
 
-    Available quantization methods are listed in QUANT_CFG_CHOICES dictionary on top of this file.
+    Available quantization methods are listed in QUANT_CFG_CHOICES dictionary below.
     Please consult AMMO documentation for details. You can also inspect different choices in
     examples/nlp/language_modeling/conf/megatron_llama_quantization.yaml for quantization algorithms and
     calibration data as well as recommended settings.
@@ -76,6 +73,16 @@ class Quantizer:
         export_config: DictConfig,
         trainer_config: DictConfig,
     ):
+        if not HAVE_AMMO:
+            raise RuntimeError("nvidia-ammo>=0.7 is needed to use Quantizer") from HAVE_AMMO_ERROR
+        QUANT_CFG_CHOICES = {
+            "int8": atq.INT8_DEFAULT_CFG,
+            "int8_sq": atq.INT8_SMOOTHQUANT_CFG,
+            "fp8": atq.FP8_DEFAULT_CFG,
+            "int4_awq": atq.INT4_AWQ_CFG,
+            "w4a8_awq": atq.W4A8_AWQ_BETA_CFG,
+        }
+        SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
         assert export_config.dtype in SUPPORTED_DTYPE
         assert quantization_config.algorithm in QUANT_CFG_CHOICES
         self.quantization_config = quantization_config
