@@ -29,6 +29,7 @@ from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -142,6 +143,22 @@ def get_specs(spec_name, num_experts=None):
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
+
+
+class EmbeddingScalingMixin(torch.nn.Module):
+    """
+    A mixin class for scaling embeddings in Megatron GPT.
+    The scaling is applied only if the configuration (accessible via `self.config`)
+    includes `apply_embedding_scaling` set to True.
+    """
+
+    def forward(self, **kwargs):
+        """
+        Forward pass that scales the output embeddings from the `forward` method of
+        the superclass by the square root of the hidden size specified in the configuration.
+        """
+        embeddings = super().forward(**kwargs)
+        return embeddings * (self.config.hidden_size ** 0.5)
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -365,6 +382,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
@@ -433,6 +452,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
     def setup_optimizer_param_groups(self):
@@ -939,7 +960,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         val.shape[seq_dim] // (2 * cp_size),
                         *val.shape[(seq_dim + 1) :],
                     )
-                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device=val.device)
+                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
+                        non_blocking=True
+                    )
                     val = val.index_select(seq_dim, index)
                     val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
                     batch[key] = val
@@ -1083,6 +1106,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            # Currently for all MCore transformer layer specs causal attention mask
+            # is used so we can delegate creating it to MCore/TE and pass None below
+            if isinstance(model, MCoreGPTModel):
+                attention_mask = None
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
@@ -1190,19 +1217,29 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = self.trainer.limit_test_batches
 
-        # Add extra FIM tokens to tokenizer
-        if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
-            fim_tokens = self.cfg.data.fim.extra_tokens
-            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
-            self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
+        # TODO: @athitten make num of eval and test samples 1 always, after it works with non DictConfig data_prefix.
+        train_valid_test_num_samples = [
+            max_train_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
 
         # The line below exploits a quirk in mcore dataset construction, to make number of epochs for validation and test equal to 1
         # The mcore dataset implementation uses the number N we provide via train_valid_test_num_samples to derive parameter E such that
         # E = argmin_e e * N_d >= N, or equivalently E = ceildiv(N, N_d)
         # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
         # Setting N = 1 we force E to be 1 as well
-        train_valid_test_num_samples = [max_train_steps * global_batch_size, 1, 1]
+        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            train_valid_test_num_samples[1] = 1
+
+        # Add extra FIM tokens to tokenizer
+        if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
+            fim_tokens = self.cfg.data.fim.extra_tokens
+            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
+            self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
 
         mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {

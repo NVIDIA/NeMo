@@ -161,7 +161,11 @@ class MegatronBaseModel(NLPModel):
         # Overrides used when converting checkpoints
         if os.environ.get(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, "false").lower() == "true":
             app_state = AppState()
-            init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+            init_world_size = (
+                app_state.tensor_model_parallel_size
+                * app_state.pipeline_model_parallel_size
+                * (app_state.expert_model_parallel_size or 1)
+            )
             init_global_rank = app_state.global_rank
             init_local_rank = app_state.local_rank
         else:
@@ -186,6 +190,7 @@ class MegatronBaseModel(NLPModel):
             global_rank=init_global_rank,
             local_rank=init_local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            expert_model_parallel_size=cfg.get('expert_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
@@ -328,8 +333,8 @@ class MegatronBaseModel(NLPModel):
             self.trainer.limit_val_batches *= get_num_microbatches()
         else:
             assert isinstance(self.trainer.limit_val_batches, float)
-            # Don't reconfigure if limit_val_batches is 0.0
-            if self.trainer.limit_val_batches == 0.0:
+            # Don't reconfigure if limit_val_batches is 0.0 or if there's no val dataloader
+            if self.trainer.limit_val_batches == 0.0 or self._validation_dl is None:
                 return
             # len(self._validation_dl) returns len as num of microbatches
             val_len_in_micro_batches = len(self._validation_dl)
@@ -495,7 +500,8 @@ class MegatronBaseModel(NLPModel):
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
 
-        apply_rope_fusion = self.cfg.get('apply_rope_fusion', True)
+        # @chcui default rope fusion to false until #8590 is closed.
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', False)
 
         # TODO: need to check if recompute APIs are matching up properly
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
