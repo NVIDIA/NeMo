@@ -33,6 +33,7 @@ from nemo.utils.model_utils import load_config, save_artifacts
 try:
     import ammo.torch.quantization as atq
     from ammo.torch.export import export_model_config
+
     HAVE_AMMO = True
 
 except (ImportError, ModuleNotFoundError) as e:
