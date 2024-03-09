@@ -19,6 +19,7 @@ from builtins import str as unicode
 from typing import List, Tuple
 
 __all__ = [
+    "vietnamese_text_preprocessing",
     "french_text_preprocessing",
     "chinese_text_preprocessing",
     "english_text_preprocessing",
@@ -200,4 +201,8 @@ def chinese_text_preprocessing(text: str) -> str:
 
 
 def french_text_preprocessing(text: str) -> str:
+    return text.lower()
+
+
+def vietnamese_text_preprocessing(text: str) -> str:
     return text.lower()
