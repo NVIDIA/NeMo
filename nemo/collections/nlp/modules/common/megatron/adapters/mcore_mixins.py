@@ -68,6 +68,10 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
+        if self.config.sequence_parallel and hasattr(self.linear_qkv, "return_layernorm_output_gathered"):
+            # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
+            # to perform the redundant gather in the adapter module.
+            self.linear_qkv.return_layernorm_output_gathered = True
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
         """
@@ -276,6 +280,10 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
                 intermediate_parallel = glu(intermediate_parallel)
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
+
+        infused_adapter = self.get_adapter_module(AdapterName.MLP_INFUSED)
+        if infused_adapter:
+            intermediate_parallel = infused_adapter(intermediate_parallel)
 
         # [s, b, h]
         output, output_bias = self.linear_fc2(intermediate_parallel)
