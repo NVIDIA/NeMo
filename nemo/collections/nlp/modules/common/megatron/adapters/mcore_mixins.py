@@ -69,9 +69,9 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
         if self.config.sequence_parallel and hasattr(self.linear_qkv, "return_layernorm_output_gathered"):
-                # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
-                # to perform the redundant gather in the adapter module.
-                self.linear_qkv.return_layernorm_output_gathered = True
+            # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
+            # to perform the redundant gather in the adapter module.
+            self.linear_qkv.return_layernorm_output_gathered = True
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
         """
@@ -250,9 +250,9 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         )  # only self attn (packed qkv) for now
         self.linear_fc1.return_layernorm_output = True  # need layernorm output for lora mlp
         if self.config.sequence_parallel and hasattr(self.linear_fc1, "return_layernorm_output_gathered"):
-                # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
-                # to perform the redundant gather in the adapter module.
-                self.linear_fc1.return_layernorm_output_gathered = True
+            # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
+            # to perform the redundant gather in the adapter module.
+            self.linear_fc1.return_layernorm_output_gathered = True
 
     def forward(self, hidden_states):
         # [s, b, 4 * h/p]
