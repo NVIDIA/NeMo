@@ -18,6 +18,7 @@ from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
+from megatron.core.tensor_parallel.mappings import scatter_to_sequence_parallel_region
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.custom_layers.transformer_engine import (
     SplitAlongDim,
@@ -68,10 +69,14 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
-        if self.config.sequence_parallel and hasattr(self.linear_qkv, "return_layernorm_output_gathered"):
-            # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
-            # to perform the redundant gather in the adapter module.
-            self.linear_qkv.return_layernorm_output_gathered = True
+        if self.config.sequence_parallel:
+            # skip reduce-scatter in the linear layer;
+            # do it once after adding lora weights to prevent communicating twice
+            self.linear_proj.sequence_parallel = False
+            if hasattr(self.linear_qkv, "return_layernorm_output_gathered"):
+                # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
+                # to perform the redundant gather in the adapter module.
+                self.linear_qkv.return_layernorm_output_gathered = True
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
         """
@@ -236,6 +241,9 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             if lora_linear_proj_adapter and self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']:
                 lora_output = lora_linear_proj_adapter(core_attn_out)
                 output = output + lora_output
+        if self.config.sequence_parallel:
+            # scatter(output + lora) instead of scatter(output) + scatter(lora) to save on comm
+            output = scatter_to_sequence_parallel_region(output)
 
         return output, bias
 
@@ -248,16 +256,27 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         self.set_accepted_adapter_types(
             [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
         )  # only self attn (packed qkv) for now
+        self.linear_fc1.return_layernorm_output = True  # need layernorm output for lora mlp
+        if self.config.sequence_parallel:
+            # skip reduce-scatter in the linear layer;
+            # do it once after adding lora weights to prevent communicating twice
+            self.linear_fc2.sequence_parallel = False
+            if hasattr(self.linear_fc1, "return_layernorm_output_gathered"):
+                # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
+                # to perform the redundant gather in the adapter module.
+                self.linear_fc1.return_layernorm_output_gathered = True
 
     def forward(self, hidden_states):
         # [s, b, 4 * h/p]
-        intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+        linear_fc1_output, bias_parallel = self.linear_fc1(hidden_states)
+
+        intermediate_parallel, layernorm_output = linear_fc1_output
 
         # LoRA logic
         if self.is_adapter_available():
             lora_linear_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
             if lora_linear_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
-                lora_output = lora_linear_fc1_adapter(hidden_states)
+                lora_output = lora_linear_fc1_adapter(layernorm_output)
                 intermediate_parallel = intermediate_parallel + lora_output
 
         if self.config.bias_activation_fusion:
@@ -294,6 +313,10 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
             if lora_linear_fc2_adapter and self.adapter_cfg[AdapterName.LORA_4HtoH_ADAPTER]['enabled']:
                 lora_output = lora_linear_fc2_adapter(intermediate_parallel)
                 output = output + lora_output
+        if self.config.sequence_parallel:
+            # scatter(output + lora) instead of scatter(output) + scatter(lora) to save on comm
+            output = scatter_to_sequence_parallel_region(output)
+
         return output, output_bias
 
 
