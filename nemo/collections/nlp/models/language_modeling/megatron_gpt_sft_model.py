@@ -164,7 +164,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
     def maybe_setup_test(self):
         if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
-        return 
+        return
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
@@ -189,7 +189,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self, '_validation_ds'):
             self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
         self.maybe_setup_test()
-        
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         self.initialize_last_rank_embeddings()
@@ -787,7 +786,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
             logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
-        return 
+        return
 
     def build_train_valid_test_datasets(self, stage):
         if stage != 'test':
