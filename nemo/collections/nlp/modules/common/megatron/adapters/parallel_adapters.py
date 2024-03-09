@@ -50,6 +50,7 @@ try:
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
     from megatron.core.tensor_parallel.mappings import (
         gather_from_sequence_parallel_region,
+        scatter_to_sequence_parallel_region,
     )
 
     HAVE_MEGATRON_CORE = True
@@ -236,7 +237,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # revert config change in case it is read elsewhere
         model_parallel_config.sequence_parallel = self._sequence_parallel
-        if self._sequence_parallel:
+        if self._sequence_parallel and not input_is_parallel:
             from importlib.metadata import version
 
             from pkg_resources import packaging
@@ -282,6 +283,13 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x)
+
+        if self._sequence_parallel and self.input_is_parallel:
+            # for attention_dense and linear_fc2
+            # layernorm after lora is impacted by sequence parallel,
+            # hence seq dim need to be scattered right after lora linear layers
+            # this function also handles the backward pass correctly
+            x = scatter_to_sequence_parallel_region(x)
 
         if self.norm_position == 'post':
             x = self.layer_norm(x)
