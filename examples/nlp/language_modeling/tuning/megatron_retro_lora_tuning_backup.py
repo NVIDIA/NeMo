@@ -14,7 +14,6 @@
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
-# from pytorch_lightning import Trainer
 from apex.transformer import parallel_state
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment

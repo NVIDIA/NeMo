@@ -111,7 +111,7 @@ class MegatronFusedRetrievalAdapterModel(MegatronRetrievalModel):
             frozen_model_cfg.megatron_amp_O2 = False
             frozen_model_cfg.optim.name = "fused_adam"
             frozen_model_cfg.micro_batch_size = cfg.micro_batch_size
-            # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+            frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
             frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
             frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
@@ -382,7 +382,7 @@ class MegatronFusedRetrievalLoraModel(MegatronRetrievalModel):
             frozen_model_cfg.megatron_amp_O2 = False
             frozen_model_cfg.optim.name = "fused_adam"
             frozen_model_cfg.micro_batch_size = cfg.micro_batch_size
-            # frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
+            frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
             frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
             frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(

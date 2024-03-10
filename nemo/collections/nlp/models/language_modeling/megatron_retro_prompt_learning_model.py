@@ -16,6 +16,7 @@ import os
 import re
 from functools import partial
 from typing import Any, List, Optional, Union
+import itertools
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -42,7 +43,6 @@ from nemo.collections.nlp.modules.common import (
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
     get_default_sampling_params,
@@ -54,19 +54,35 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalLoraModel
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_iterator_k_split,
+)
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_micro_batch_size
+    # from apex.transformer import parallel_state, tensor_parallel
+    # from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+    # from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+    #     forward_backward_pipelining_without_interleaving,
+    # )
+    # from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_micro_batch_size
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.enums import ModelType
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 __all__ = ['MegatronRetroPromptLearningModel']
@@ -137,39 +153,6 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         print(frozen_model_cfg)
         self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
 
-        # # Need to overwrite some params in frozen model's config before restoring
-        # with open_dict(frozen_model_cfg):
-        #     frozen_model_cfg.megatron_amp_O2 = False
-        #     frozen_model_cfg.optim.name = "fused_adam"
-        #     frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
-        #     frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
-        #     frozen_model_cfg.precision = trainer.precision
-        #     frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
-        #     frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
-        #         "activations_checkpoint_granularity", None
-        #     )
-        #     frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
-        #         "activations_checkpoint_num_layers", None
-        #     )
-        #     frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
-
-        # if self.trainer.precision == 'bf16':
-        #     self.autocast_dtype = torch.bfloat16
-        # elif int(self.trainer.precision) == 32:
-        #     self.autocast_dtype = torch.float
-        # elif int(self.trainer.precision) == 16:
-        #     self.autocast_dtype = torch.half
-        # else:
-        #     raise ValueError('precision must be in [32, 16, "bf16"]')
-
-        # if cfg.get('language_model_path', None):
-        #     self.frozen_model = MegatronRetrievalModel.restore_from(
-        #         cfg.get('language_model_path'),
-        #         trainer=trainer,
-        #         save_restore_connector=save_restore_connector,
-        #         override_config_path=frozen_model_cfg,
-        #     ).to(dtype=self.autocast_dtype)
-
         self.word_embeddings = self.frozen_model.model.model.encoder_embedding.word_embeddings
         if hasattr(self.frozen_model.model.model.encoder_embedding, "position_embeddings"):
             self.pos_embeddings = self.frozen_model.model.model.encoder_embedding.position_embeddings
@@ -188,6 +171,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             )  # TODO: for backward compatibility (@adithyare) in general these tasks lists should be depricated
 
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
+        self.model_type = ModelType.encoder_or_decoder
 
         if self.pipeline_parallel:
             assert (
@@ -234,13 +218,6 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
     def forward(
         self,
-        # input_ids,
-        # position_ids,
-        # attention_mask,
-        # labels=None,
-        # inference=True,
-        # set_inference_key_value_memory=False,
-        # inference_max_sequence_len=None,
         input_ids,
         input_attn_mask,
         retrieved_ids,
@@ -259,21 +236,22 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         GPT style models. Bypasses the vocab token preprocessing done
         in the MegatronGPT class.
         """
-        # Get embeddings for text tokens and insert virtual token embeddings
-        if self.first_stage_of_pipeline() and not (set_inference_key_value_memory==False and inference_max_sequence_len is not None): # for inference, only when predicting the first token should we add virtual embeddings
-            # pad strategy 3
-            encoder_input = self.make_encoder_input(input_ids, position_ids, inference)
-            encoder_input = encoder_input.transpose(0, 1).contiguous()
-            if self.cfg.get("sequence_parallel", False):
-                encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
-        else:
-            encoder_input = None
+        # # Get embeddings for text tokens and insert virtual token embeddings
+        # if self.first_stage_of_pipeline() and not (set_inference_key_value_memory==False and inference_max_sequence_len is not None): # for inference, only when predicting the first token should we add virtual embeddings
+        #     # pad strategy 3
+        #     encoder_input = self.make_encoder_input(input_ids, position_ids, inference)
+        #     encoder_input = encoder_input.transpose(0, 1).contiguous()
+        #     if self.cfg.get("sequence_parallel", False):
+        #         encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
+        # else:
+        #     encoder_input = None
+        encoder_input = None
 
         if encoder_input is not None:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
         
         if self.autocast_dtype == torch.float32:
-            output = self.frozen_model.model(
+            output = self.frozen_model(
                 input_ids=input_ids,
                 input_attn_mask=input_attn_mask,
                 retrieved_ids=retrieved_ids,
@@ -286,7 +264,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            output = self.frozen_model.model(
+            output = self.frozen_model(
                 input_ids=input_ids,
                 input_attn_mask=input_attn_mask,
                 retrieved_ids=retrieved_ids,
@@ -335,38 +313,31 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
         
     
-    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # Get seq length of batch
+        batch = next(dataloader_iter)
         _, seq_length = batch[0].shape
         tensor_shape = [seq_length, get_micro_batch_size(), self.hidden_size]
 
-        if self.pipeline_parallel:
-            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch,
-                model=self,
-                forward_only=forward_only,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
-                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
-            )
-        else:
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch,
-                model=self,
-                forward_only=forward_only,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
-            )
+        data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=data_iter,
+            model=[self],
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=None, # may need to revert self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
+        )
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
@@ -380,10 +351,10 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
         return loss_mean
 
-    def training_step(self, batch, batch_idx):
-        # we zero grads here because we also call backward in the apex fwd/bwd functions
+    def training_step(self, dataloader_iter, batch_idx):
         self._optimizer.zero_grad()
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        batch = next(dataloader_iter)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
         self.allreduce_gradients()
 
         ## logging
@@ -394,12 +365,12 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale)
+                self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        self.log('lr', lr, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
         return loss_mean
 
     def backward(self, *args, **kwargs):
@@ -415,37 +386,15 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         """
         return
 
-    def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
-        # This should happen only on the last batch of the dataset.
-        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
-            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
-            app_state = AppState()
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, dataloader_iter, batch_idx):
+        batch = next(dataloader_iter)
         gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 
         return loss_mean
-
-    def _reconfigure_batch_sizes(self, gbs: int, mbs: int):
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=gbs,
-            micro_batch_size=mbs,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
 
     def on_train_epoch_start(self) -> None:
         gbs = self.cfg.global_batch_size
@@ -476,8 +425,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         mbs = self.cfg.micro_batch_size
         self._reconfigure_batch_sizes(gbs, mbs)
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter, batch_idx):
+        return self.validation_step(dataloader_iter, batch_idx)
 
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
@@ -637,7 +586,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         self.frozen_model.model.set_input_tensor(input_tensor)
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
+        def fwd_output_and_loss_func(dataloader_iter, model):
+            batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
 
             # for pad strategy 3: input_tokens_id = variable paddings + virtual tokens ids + real tokens + batch padding
@@ -666,7 +616,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             if self.cfg.precision == 16:
                 loss_scale = self.trainer.precision_plugin.scaler._scale
                 if loss_scale is not None:
-                    self.log('loss_scale', loss_scale)
+                    self.log('loss_scale', loss_scale, batch_size=1)
 
             def loss_func(output_tensor):
                 # loss_mask = loss_mask.float()
@@ -728,91 +678,6 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             return output_tensor, id_func
 
         return fwd_output_only_func
-
-    # def generate(
-    #     self,
-    #     inputs: Union[List[str], torch.Tensor, List[dict]],
-    #     length_params: LengthParam,
-    #     sampling_params: SamplingParam = None,
-    #     batch_size: Optional[int] = 1,
-    # ):
-
-    #     # check whether the DDP is initialized
-    #     if parallel_state.is_unitialized():
-
-    #         def dummy():
-    #             return
-
-    #         if self.trainer.strategy.launcher is not None:
-    #             self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
-    #         self.trainer.strategy.setup_environment()
-
-    #     # set the default sampling params if it is None.
-    #     # default do greedy sampling
-    #     if sampling_params is None:
-    #         sampling_params = get_default_sampling_params()
-    #         sampling_params["add_BOS"] = self.cfg.data.get("add_bos", False)
-
-    #     if length_params is None:
-    #         length_params = get_default_length_params()
-
-    #     max_input_length = self.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
-
-    #     # input dicts are either dataset paths or already loaded example dicts
-    #     if "taskname" not in inputs[0].keys():
-    #         data = [path["data_path"] for path in inputs]
-    #     else:
-    #         data = inputs
-
-    #     dataset = self.build_virtual_prompt_dataset(
-    #         data=data,
-    #         batch_size=batch_size,
-    #         max_seq_length=max_input_length,
-    #         min_seq_length=self.cfg.data.get('min_seq_length', 1),
-    #         add_bos=sampling_params["add_BOS"],
-    #         add_eos=False,
-    #         for_train=False,
-    #         tokens_to_generate=length_params["max_length"],
-    #         get_dataset_only=True,
-    #     )
-
-    #     full_dataset = [dataset[i] for i in range(len(dataset))]
-    #     task_ids, processed_inputs = dataset.inference_collate_fn(full_dataset)
-    #     self.frozen_model.model.parallel_output = False
-
-    #     # Call same generate code as in MegatronGPT
-    #     return megatron_gpt_generate(
-    #         self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
-    #     )
-
-    # def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-    #     inference_config = self.get_inference_config()
-    #     if inference_config is None:
-    #         return None
-    #     else:
-    #         length_params: LengthParam = {
-    #             "max_length": inference_config["tokens_to_generate"],
-    #             "min_length": inference_config["min_tokens_to_generate"],
-    #         }
-
-    #         sampling_params: SamplingParam = {
-    #             "use_greedy": inference_config["greedy"],
-    #             "temperature": inference_config["temperature"],
-    #             "top_k": inference_config["top_k"],
-    #             "top_p": inference_config["top_p"],
-    #             "repetition_penalty": inference_config["repetition_penalty"],
-    #             "add_BOS": inference_config["add_BOS"],
-    #             "all_probs": inference_config["all_probs"],
-    #             "compute_logprob": inference_config["compute_logprob"],
-    #         }
-
-    #         task_ids, processed_inputs = batch
-    #         self.frozen_model.model.parallel_output = False
-
-    #         # Call same generate code as in MegatronGPT
-    #         return megatron_gpt_generate(
-    #             self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
-    #         )
 
     def set_inference_config(self, inference_config, retrieval_config):
         self._inference_config = inference_config

@@ -149,14 +149,14 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
             self.task_template = {
-                self.cfg["task_templates"]["taskname"]: {
-                    "prompt_template": self.cfg["task_templates"]["prompt_template"],
-                    "prompt_template_fields": self.cfg["task_templates"]["prompt_template_fields"],
-                    "total_virtual_tokens": self.cfg["task_templates"]["total_virtual_tokens"],
-                    "virtual_token_splits": self.cfg["task_templates"]["virtual_token_splits"],
-                    "truncate_field": self.cfg["task_templates"]["truncate_field"],
-                    "answer_only_loss": self.cfg["task_templates"]["answer_only_loss"],
-                    "answer_field":self.cfg["task_templates"]["answer_field"],
+                self.cfg["task_templates"][0]["taskname"]: {
+                    "prompt_template": self.cfg["task_templates"][0]["prompt_template"],
+                    "prompt_template_fields": self.cfg["task_templates"][0]["prompt_template_fields"],
+                    "total_virtual_tokens": self.cfg["task_templates"][0]["total_virtual_tokens"],
+                    "virtual_token_splits": self.cfg["task_templates"][0]["virtual_token_splits"],
+                    "truncate_field": self.cfg["task_templates"][0]["truncate_field"],
+                    "answer_only_loss": self.cfg["task_templates"][0]["answer_only_loss"],
+                    "answer_field":self.cfg["task_templates"][0]["answer_field"],
             }}
 
             if self.megatron_amp_o2:
