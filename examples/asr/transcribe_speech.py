@@ -327,14 +327,14 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if cfg.audio_dir is not None and not cfg.append_pred:
             filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
         else:
-            assert cfg.dataset_manifest is not None
+            assert cfg.input_manifest is not None
             if cfg.presort_manifest:
                 with NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-                    for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=True):
+                    for item in read_and_maybe_sort_manifest(cfg.input_manifest, try_sort=True):
                         print(json.dumps(item), file=f)
-                    cfg.dataset_manifest = f.name
+                    cfg.input_manifest = f.name
                     remove_path_after_done = f.name
-            filepaths = cfg.dataset_manifest
+            filepaths = cfg.input_manifest
     else:
         # prepare audio filepaths and decide wether it's partial audio
         filepaths, partial_audio = prepare_audio_data(cfg)
@@ -390,15 +390,25 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
-                transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
+                if isinstance(asr_model, EncDecHybridRNNTCTCModel) and cfg.decoder_type == "ctc":
+                    transcriptions = asr_model.transcribe(
+                        audio=filepaths,
+                        batch_size=cfg.batch_size,
+                        num_workers=cfg.num_workers,
+                        return_hypotheses=cfg.return_hypotheses,
+                        channel_selector=cfg.channel_selector,
+                        augmentor=augmentor,
+                    )
+                else:
+                    transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
 
-    if cfg.dataset_manifest is not None:
-        logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
+    if cfg.input_manifest is not None:
+        logging.info(f"Finished transcribing from manifest file: {cfg.input_manifest}")
         if cfg.presort_manifest:
-            transcriptions = restore_transcription_order(cfg.dataset_manifest, transcriptions)
+            transcriptions = restore_transcription_order(cfg.input_manifest, transcriptions)
     else:
         logging.info(f"Finished transcribing {len(filepaths)} files !")
-    logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
+    logging.info(f"Writing transcriptions into file: {cfg.output_manifest}")
 
     # if transcriptions form a tuple of (best_hypotheses, all_hypotheses), extract just best hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:

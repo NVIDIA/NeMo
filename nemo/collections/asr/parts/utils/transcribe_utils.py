@@ -283,11 +283,11 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             return None
 
         all_entries_have_offset_and_duration = True
-        for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
+        for item in read_and_maybe_sort_manifest(cfg.input_manifest, try_sort=cfg.presort_manifest):
             if not ("offset" in item and "duration" in item):
                 all_entries_have_offset_and_duration = False
             audio_key = cfg.get('audio_key', 'audio_filepath')
-            audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+            audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.input_manifest)
             filepaths.append(audio_file)
         partial_audio = all_entries_have_offset_and_duration
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
