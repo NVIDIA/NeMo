@@ -390,7 +390,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
-                if isinstance(asr_model, EncDecHybridRNNTCTCModel) and cfg.decoder_type == "ctc":
+                if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     transcriptions = asr_model.transcribe(
                         audio=filepaths,
                         batch_size=cfg.batch_size,

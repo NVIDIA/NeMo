@@ -186,7 +186,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self,
         blank_id: int,
         beam_size: int,
-        search_type: str = "default",
+        search_type: str = "beam",
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
@@ -208,14 +208,31 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
 
+        # PyCTCDecode params
+        if pyctcdecode_cfg is None:
+            pyctcdecode_cfg = PyCTCDecodeConfig()
+        self.pyctcdecode_cfg = pyctcdecode_cfg  # type: PyCTCDecodeConfig
+
+        if flashlight_cfg is None:
+            flashlight_cfg = FlashlightConfig()
+        self.flashlight_cfg = flashlight_cfg
+
         if search_type == "beam" or search_type == "pyctcdecode":
             self.search_algorithm = self._pyctcdecode_beam_search
+        elif search_type == "subword_pyctcdecode":
+            self.search_algorithm = self._pyctcdecode_beam_search
         elif search_type == "flashlight":
+            if self.flashlight_cfg.lexicon_path:
+                raise ValueError("flashlight works only without lexicon")
+            self.search_algorithm = self.flashlight_beam_search
+        elif search_type == "subword_flashlight":
+            if not self.flashlight_cfg.lexicon_path:
+                raise ValueError("subword_flashlight works only with lexicon")
             self.search_algorithm = self.flashlight_beam_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
-                f"Please use one of : (beam, pyctcdecode, flashlight)"
+                f"Please use one of : (beam, pyctcdecode, subword_pyctcdecode, flashlight, subword_flashlight)"
             )
 
         # Log the beam search algorithm
@@ -226,15 +243,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         # Default beam search args
         self.kenlm_path = kenlm_path
-
-        # PyCTCDecode params
-        if pyctcdecode_cfg is None:
-            pyctcdecode_cfg = PyCTCDecodeConfig()
-        self.pyctcdecode_cfg = pyctcdecode_cfg  # type: PyCTCDecodeConfig
-
-        if flashlight_cfg is None:
-            flashlight_cfg = FlashlightConfig()
-        self.flashlight_cfg = flashlight_cfg
 
         # Default beam search scorer functions
         self.default_beam_scorer = None
@@ -401,7 +409,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 )
 
             # perform token offset for subword models
-            if self.decoding_type == 'subword':
+            if self.decoding_type == 'subword' and (
+                self.search_type == 'subword_pyctcdecode' or self.search_type == 'subword_flashlight'
+            ):
                 vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
             else:
                 # char models

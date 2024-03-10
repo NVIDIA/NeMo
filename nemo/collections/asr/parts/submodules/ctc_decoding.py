@@ -209,7 +209,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
-        possible_strategies = ['greedy', 'beam', 'pyctcdecode', 'flashlight']
+        possible_strategies = [
+            'greedy',
+            'beam',
+            'pyctcdecode',
+            'subword_pyctcdecode',
+            'flashlight',
+            'subword_flashlight',
+        ]
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}. Given {self.cfg.strategy}")
 
@@ -243,7 +250,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.compute_timestamps |= self.preserve_frame_confidence
 
         if self.cfg.strategy == 'greedy':
-
+            if self.cfg.get('beam', None):
+                logging.warning('beam in not None, but greedy decoding is used')
             self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,
@@ -252,7 +260,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 confidence_method_cfg=self.confidence_method_cfg,
             )
 
-        elif self.cfg.strategy == 'beam' or self.cfg.strategy == 'pyctcdecode' or self.cfg.strategy == 'flashlight':
+        elif (
+            self.cfg.strategy == 'beam'
+            or self.cfg.strategy == 'pyctcdecode'
+            or self.cfg.strategy == 'flashlight'
+            or self.cfg.strategy == 'subword_pyctcdecode'
+            or self.cfg.strategy == 'subword_flashlight'
+        ):
 
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
@@ -1238,7 +1252,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
 @dataclass
 class CTCDecodingConfig:
-    strategy: str = "greedy"  # greedy, beam = pyctcdecode, flashlight
+    strategy: str = "greedy"  # greedy, pyctcdecode, beam = pyctcdecode, flashlight, subword_flashlight, subword_pyctcdecode
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
