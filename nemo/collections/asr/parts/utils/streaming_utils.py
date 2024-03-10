@@ -493,12 +493,12 @@ class AudioFeatureIterator(IterableDataset):
             frame = self._features[:, self._start : last].cpu()
             self._start = last
         else:
-            samp_len = self._features_len[0] - self._start
             if not self.pad_to_frame_len:
-                frame = np.zeros([self._features.shape[0], samp_len], dtype='float32')
+                frame = self._features[:, self._start : self._features_len[0]].cpu()
             else:
                 frame = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
-            frame[:, 0:samp_len] = self._features[:, self._start : self._features_len[0]].cpu()
+                segment = self._features[:, self._start : self._features_len[0]].cpu()
+                frame[:, : segment.shape[1]] = segment
             self.output = False
         self.count += 1
         return frame
@@ -1590,8 +1590,8 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                 )
             tokens = canary_prompt(
                 tokenizer=self.asr_model.tokenizer,
-                text="none",
-                language=sample['target_lang'],
+                text=None,
+                language=None,
                 source_language=sample['source_lang'],
                 target_language=sample['target_lang'],
                 taskname=sample['taskname'],
@@ -1619,7 +1619,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             tokens = self.input_tokens.to(device).repeat(feat_signal.size(0), 1)
             tokens_len = torch.tensor([tokens.size(1)] * tokens.size(0), device=device).long()
 
-            batch_input = (feat_signal, feat_signal_len, tokens, tokens_len)
+            batch_input = (feat_signal, feat_signal_len, None, None, tokens, tokens_len)
             predictions = self.asr_model.predict_step(batch_input, has_processed_signal=True)
             self.all_preds.extend(predictions)
             del predictions

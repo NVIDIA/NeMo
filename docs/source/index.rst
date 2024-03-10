@@ -1,5 +1,11 @@
-NVIDIA NeMo User Guide
-======================
+NVIDIA NeMo Framework Developer Docs
+====================================
+
+.. include:: starthere/intro.rst
+
+
+Index of NeMo Framework Developer Docs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
    :maxdepth: 2
@@ -9,7 +15,7 @@ NVIDIA NeMo User Guide
    starthere/intro
    starthere/tutorials
    starthere/best-practices
-   starthere/migration-guide
+
 
 .. toctree::
    :maxdepth: 2
@@ -25,9 +31,21 @@ NVIDIA NeMo User Guide
 
 
 .. toctree::
+   :maxdepth: 3
+   :caption: Large Language Models (LLMs)
+   :name: Large Language Models
+
+   nlp/nemo_megatron/intro
+   nlp/models
+   nlp/machine_translation/machine_translation
+   nlp/megatron_onnx_export
+   nlp/api
+
+
+.. toctree::
    :maxdepth: 2
-   :caption: Speech Processing
-   :name: Speech Processing
+   :caption: Speech AI
+   :name: Speech AI
 
    asr/intro
    asr/speech_classification/intro
@@ -36,40 +54,6 @@ NVIDIA NeMo User Guide
    asr/ssl/intro
    asr/speech_intent_slot/intro
 
-.. toctree::
-   :maxdepth: 3
-   :caption: Natural Language Processing
-   :name: Natural Language Processing
-
-   nlp/nemo_megatron/intro
-   nlp/machine_translation/machine_translation
-   nlp/text_normalization/intro
-   nlp/api
-   nlp/megatron_onnx_export
-   nlp/models
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Text To Speech (TTS)
-   :name: Text To Speech
-
-   tts/intro
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Common
-   :name: Common
-
-   text_processing/intro
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Text Processing
-   :name: Text Processing
-
-   text_processing/g2p/g2p
-   common/intro
 
 .. toctree::
    :maxdepth: 3
@@ -82,16 +66,39 @@ NVIDIA NeMo User Guide
    multimodal/nerf/intro
    multimodal/api
 
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Text To Speech (TTS)
+   :name: Text To Speech
+
+   tts/intro
+
 .. toctree::
    :maxdepth: 2
-   :caption: Vision
+   :caption: Vision (CV)
    :name: vision
 
    vision/intro
 
 .. toctree::
+   :maxdepth: 2
+   :caption: Common
+   :name: Common
+
+   common/intro
+
+
+.. toctree::
    :maxdepth: 3
-   :caption: Tools
-   :name: Tools
+   :caption: Speech Tools
+   :name: Speech Tools
 
    tools/intro
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Upgrade Guide
+   :name: Upgrade Guide
+
+   starthere/migration-guide

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List, Optional
+import queue
+from typing import Any, Dict, Iterator, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -209,7 +210,7 @@ class MegatronBertModel(MegatronBaseModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch = next(dataloader_iter)
+                batch, batch_idx, dataloader_idx = next(dataloader_iter)
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
                     batch['text'].cuda(non_blocking=True),
                     batch['types'].cuda(non_blocking=True),
@@ -219,7 +220,7 @@ class MegatronBertModel(MegatronBaseModel):
                     batch['padding_mask'].cuda(non_blocking=True),
                 )
             else:
-                batch = next(dataloader_iter)
+                batch, batch_idx, dataloader_idx = next(dataloader_iter)
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
@@ -236,6 +237,9 @@ class MegatronBertModel(MegatronBaseModel):
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
                     sentence_order = batch['is_random'].cuda(non_blocking=True)
                     tokens, types, loss_mask, lm_labels = None, None, None, None
+
+            dataloader_iter._dataloader_idx = dataloader_idx
+            dataloader_iter._batch_idx = batch_idx
 
             if not self.cfg.bert_binary_head:
                 types = None
@@ -308,7 +312,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         return output_tensor
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
 
         self._optimizer.zero_grad()
 
@@ -343,8 +347,8 @@ class MegatronBertModel(MegatronBaseModel):
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
+            data_iterator=self._make_data_iterator_list(dataloader_iter),
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=False,
             seq_length=seq_length,
@@ -390,7 +394,7 @@ class MegatronBertModel(MegatronBaseModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
+        if (dataloader_iter._batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             self.log('reduced_train_loss', loss_mean[0], prog_bar=True, batch_size=1)
             if len(loss_mean) > 2:
@@ -405,6 +409,65 @@ class MegatronBertModel(MegatronBaseModel):
 
         return loss_mean[0]
 
+    def _make_data_iterator_list(self, data_iterator: Iterator) -> List[Iterator]:
+        """ Convert data iterator into form expected by Megatron
+            With interleaved pipeline parallelism, Megatron expects a
+            list of one data iterator per model chunk. Each model
+            chunk independently gets data from its data iterator, so
+            we need to interact with the data iterator multiple times
+            for each microbatch step. Instead of incorporating this
+            logic into the data loader, we cache the iterator's output
+            to the first model chunk and reuse it in the other model
+            chunks.
+        """
+
+        if not isinstance(self.model, list) or len(self.model) == 1:
+            return data_iterator  # TODO @tmoon: Remove
+            # TODO @tmoon: Use once available in Megatron-LM
+            # return DataIteratorList([data_iterator])
+
+        class CachingIterator:
+            """Iterator wrapper that caches values"""
+
+            class Proxy:
+                """Returns values from caching iterator wrapper
+                Assumed to never advance past the caching iterator.
+                """
+
+                def __init__(self):
+                    self.cache = queue.Queue()
+
+                def __iter__(self):
+                    return self
+
+                def __next__(self):
+                    return self.cache.get_nowait()
+
+            def __init__(self, iterator: Iterator):
+                self.iterator = iterator
+                self.proxies = []
+
+            def make_proxy(self):
+                self.proxies.append(CachingIterator.Proxy())
+                return self.proxies[-1]
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                val = next(self.iterator)
+                for proxy in self.proxies:
+                    proxy.cache.put(val)
+                return val
+
+        # Make list of iterator wrappers
+        iters = [CachingIterator(data_iterator)]
+        while len(iters) < len(self.model):
+            iters.append(iters[0].make_proxy())
+        return iters  # TODO @tmoon: Remove
+        # TODO @tmoon: Use once available in Megatron-LM
+        # return DataIteratorList(iters)
+
     def allreduce_first_last_embeddings(self):
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
@@ -416,17 +479,16 @@ class MegatronBertModel(MegatronBaseModel):
             parallel_state.is_pipeline_first_stage(ignore_virtual=True)
             or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
+            module_list = self.get_model_module_list()
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[0]  # only the first virtual rank has the embeddings
-                else:
-                    module = self.model
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[-1]  # only the last virtual rank has the embeddings
-                else:
-                    module = self.model
-            if module.share_token_embeddings:
+                module = module_list[0]
+            elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                module = module_list[-1]
+
+            share_embeddings = (
+                module.share_embeddings_and_output_weights if self.mcore_bert else module.share_token_embeddings
+            )
+            if share_embeddings:
                 word_embeddings_weight = (
                     module.shared_embedding_or_output_weight() if self.mcore_bert else module.word_embeddings_weight()
                 )
@@ -438,11 +500,7 @@ class MegatronBertModel(MegatronBaseModel):
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
-    def validation_step(self, dataloader_iter, batch_idx):
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
+    def validation_step(self, dataloader_iter):
         prefix = "test" if self.trainer.testing else "val"
         if self.cfg.data.dataloader_type == "LDDL":
             seq_length = dataloader_iter.iterator.get_seqlen()
@@ -453,8 +511,8 @@ class MegatronBertModel(MegatronBaseModel):
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
-            data_iterator=dataloader_iter,
-            model=[self.model],
+            data_iterator=self._make_data_iterator_list(dataloader_iter),
+            model=self.model,
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             seq_length=seq_length,
@@ -483,8 +541,8 @@ class MegatronBertModel(MegatronBaseModel):
         self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter):
+        return self.validation_step(dataloader_iter)
 
     def on_test_epoch_end(self):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
@@ -727,23 +785,17 @@ class MegatronBertModel(MegatronBaseModel):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if isinstance(self.model, list):
-                for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+            for index, module in enumerate(self.get_model_module_list()):
+                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                     sync_embeddings = (
                         module.initialize_last_stage_with_word_embeddings
                         if self.mcore_bert
                         else module.sync_initial_word_embeddings
                     )
                     sync_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-            else:
-                sync_embeddings = (
-                    self.model.initialize_last_stage_with_word_embeddings
-                    if self.mcore_bert
-                    else self.model.sync_initial_word_embeddings
-                )
-                sync_embeddings()
+                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_bert', False):
             self.setup_transformer_engine_tp_groups()
@@ -917,22 +969,28 @@ class MegatronBertModel(MegatronBaseModel):
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                modules = self.get_model_module_list()
                 if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[0]  # only the first virtual rank has the embeddings
-                    else:
-                        module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
+                    module = modules[0]  # only the first virtual rank has the embeddings
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        param = (
+                            module.shared_embedding_or_output_weight()
+                            if self.mcore_bert
+                            else module.word_embeddings_weight()
+                        )
                         param._disable_greedy_grad_copy = not self.megatron_amp_O2
                         param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[-1]  # only the last virtual rank has the embeddings
+                    if len(modules) > 1:
+                        module = modules[-1]  # only the last virtual rank has the embeddings
                     else:
-                        module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
+                        module = modules[0]
+                    if self.cfg.get('share_embeddings_and_output_weights', True):
+                        param = (
+                            module.shared_embedding_or_output_weight()
+                            if self.mcore_bert
+                            else module.word_embeddings_weight()
+                        )
                         param._disable_greedy_grad_copy = not self.megatron_amp_O2
                         param._disable_overlap_grad_sync = True
 
