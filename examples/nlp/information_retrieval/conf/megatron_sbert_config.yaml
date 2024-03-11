@@ -41,7 +41,7 @@ exp_manager:
 
 model:
   # model parallelism 
-  mcore_bert: False
+  mcore_bert: True
   micro_batch_size: 4
   global_batch_size: 8
   tensor_model_parallel_size: 1
@@ -125,14 +125,9 @@ model:
   
   data:
     # Path to data must be specified by the user.
-    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
-    # Or see example below: 
-    # data_prefix: 
-    #   - .5
-    #   - /raid/data/pile/my-gpt3_00_text_document
-    #   - .5
-    #   - /raid/data/pile/my-gpt3_01_text_document
-    data_prefix: [1.0, /path/to/data]
+    data_train: null
+    data_validation: null
+    hard_negatives_to_train: 4
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50

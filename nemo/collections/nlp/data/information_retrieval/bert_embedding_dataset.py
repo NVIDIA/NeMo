@@ -12,107 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
-from typing import Dict, List
-from typing import Dict, List, Tuple, Union
 from torch.utils.data import Dataset
-
-__all__ = ['BertEmbeddingDataset']
-
-class BertEmbeddingDataset(Dataset):
-    """SentenceTransformer tokenizer and MultipleNegativesRankingLoss expects
-        a single positive and a single hard-negative (optional) per example.
-        This Dataset manages the case where there is more than one positive or negative
-        available, in form of a list.
-        It uses the list of positives/negatives as a queue, where for each epoch the 
-        first positive/negative of the queue is used for training, after which the
-        item is moved to the end of the queue.
-        If num_hard_negs > 1, multiple negatives will be sampled for each example.
-
-        Args:
-            data (List[Dict[str, str]]): A list of Dict whose 
-            keys are "question", "pos_doc", "neg_doc"
-            num_hard_negs (int): Number of hard-negatives for each query to sample
-            shuffled_negs (bool, optional): Whether the negatives per example
-            needs to be shuffled in the initialization. Defaults to False.
-    """
-
-    def __init__(
-        self,
-        data: List[Dict[str, str]],
-        shuffled_negs: bool = False,
-        num_hard_negs: int = 1,
-        query_prefix: str = "",
-        passage_prefix: str = "",
-    ):
-        self.data = data
-        self.num_hard_negs = num_hard_negs
-        self.query_prefix = query_prefix
-        self.passage_prefix = passage_prefix
-
-        if shuffled_negs:
-            for example in self.data:
-                random.shuffle(example["neg_doc"])
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, item):
-
-        example = self.data[item]
-        question = f'{self.query_prefix} {example["question"]}'.strip()
-        texts = [question]
-
-        positive = example["pos_doc"]
-        if isinstance(positive, list):
-
-            positive = example["pos_doc"][0]
-
-        positive = f"{self.passage_prefix} {positive}".strip()
-        texts.append(positive)
-
-        negative = []
-        if "neg_doc" in example:
-            negative = example["neg_doc"]
-            selected_negs = []
-            if isinstance(negative, list):
-                for counter in range(self.num_hard_negs):
-                    if len(example["neg_doc"]) > 0:
-
-                        negative = example["neg_doc"][counter]
-                        selected_negs.append(negative)
-                    else:
-                        # Providing empty hard-negative, for this example,
-                        # so that it matches the number of hard negatives
-                        # of the other examples
-                        selected_negs.append("")
-
-            else:
-                selected_negs = [negative]
-            selected_negs = [f"{self.passage_prefix} {neg}".strip() for neg in selected_negs]
-            texts.extend(selected_negs)
-        return texts
-
-
 from typing import Mapping, Optional
-
 import datasets
 import numpy as np
 import torch
-
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
-
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-__all__ = ['GPTEmbeddingDataset']
+__all__ = ['BertEmbeddingDataset']
 
 
-class GPTEmbeddingDataset(Dataset):
+class BertEmbeddingDataset(Dataset):
     def __init__(
         self,
         file_path: str,
@@ -128,8 +44,7 @@ class GPTEmbeddingDataset(Dataset):
         memmap_workers: Optional[int] = None,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
-        data_type: str = 'train',  # train, validation, query or doc
-        train_val_split: float = 0.95,
+        data_type: str = 'train',  # train, query or doc
         num_hard_negatives: int = 4
     ):
         """
@@ -168,7 +83,6 @@ class GPTEmbeddingDataset(Dataset):
         else:
             self.special_tokens = special_tokens
         self.data_type = data_type
-        self.train_val_split = train_val_split
         self.num_hard_negatives = num_hard_negatives
 
         self.indexed_dataset = JSONLMemMapDataset(
@@ -178,11 +92,6 @@ class GPTEmbeddingDataset(Dataset):
             index_mapping_dir=index_mapping_dir,
             workers=memmap_workers,
         )
-        if self.data_type == "train":
-            self.indexed_dataset = self.indexed_dataset[0][:int(len(self.indexed_dataset[0]) * self.train_val_split)]
-        elif self.data_type == "validation":
-            self.indexed_dataset = self.indexed_dataset[0][int(len(self.indexed_dataset[0]) * self.train_val_split):]
-        
         # Will be None after this call if `max_num_samples` is None
         self.samples_mapping = None
         self._build_samples_mapping()
@@ -245,11 +154,11 @@ class GPTEmbeddingDataset(Dataset):
         """
 
         metadata = {k: v for k, v in example.items()}
-        if self.data_type == 'train' or self.data_type == 'validation':
+        if self.data_type == 'train':
             q = self.tokenizer.text_to_ids("query: " + example['question'].strip())
             d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'][0].strip())
             nd = [self.tokenizer.text_to_ids("passage: " + example['neg_doc'][i].strip()) for i in range(self.num_hard_negatives)]
-
+            
         elif self.data_type == 'query':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d, nd = None, None
@@ -342,7 +251,7 @@ class GPTEmbeddingDataset(Dataset):
         max_length = -1
         for item in batch:
             metadata.append(item['metadata'])
-            if self.data_type == 'train' or self.data_type == 'validation':
+            if self.data_type == 'train':
                 input_ids.append(item['query'])
                 lengths.append(len(item['query']))
                 input_ids.append(item['pos_doc'])
@@ -350,7 +259,6 @@ class GPTEmbeddingDataset(Dataset):
                 for nd in item['neg_doc']:
                     input_ids.append(nd)
                     lengths.append(len(nd))
-                # max_length = max(max_length, len(item['query']), len(item['pos_doc']), len(item['neg_doc']))
                 max_length = max(max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc']))
             elif self.data_type == 'query':
                 input_ids.append(item['query'])
@@ -375,14 +283,6 @@ class GPTEmbeddingDataset(Dataset):
         )
         lengths = torch.LongTensor(lengths) - 1  # subtract 1 to account for the eos token
 
-        # processed_batch = {
-        #     'tokens': input_ids,
-        #     'attention_mask': attention_mask,
-        #     'loss_mask': lengths,
-        #     'position_ids': position_ids,
-        #     'metadata': metadata,
-        # }
-        
         processed_batch = {'input_ids':input_ids, 
                             'token_type_ids':torch.zeros_like(input_ids),
                             'attention_mask':attention_mask}

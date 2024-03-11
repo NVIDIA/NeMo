@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,31 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-import os
-import random
-from typing import Dict, List, Tuple, Union
-
-import numpy as np
 import torch
-import torch.nn.functional as F
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from torch import Tensor, nn
-
-from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset, GPTEmbeddingDataset
+from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel, bert_extended_attention_mask
+from nemo.collections.nlp.models.information_retrieval.sbert_model import MCoreSBertModel, SBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
-    build_position_ids,
 )
 from nemo.utils import logging
 
@@ -52,331 +43,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-def set_seed(seed: int = 42) -> None:
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    # When running on the CuDNN backend, two further options must be set
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    # Set a fixed value for the hash seed
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    print(f"Random seed set as {seed}")
-
-
-##########################
-# Below class is copied from SentenceTransformer library: https://github.com/UKPLab/sentence-transformers/blob/08a57b4a19ddaf7cccda51cd0c2c8af7bbc339a3/sentence_transformers/models/Normalize.py
-##########################
-
-
-class Normalize(nn.Module):
-    """
-    This layer normalizes embeddings to unit length
-    """
-
-    def __init__(self):
-        super(Normalize, self).__init__()
-
-    def forward(self, features: Dict[str, Tensor]):
-        features.update({"sentence_embedding": F.normalize(features["sentence_embedding"], p=2, dim=1)})
-        return features
-
-
-##########################
-# Below class is copied from SentenceTransformer library: https://github.com/UKPLab/sentence-transformers/blob/08a57b4a19ddaf7cccda51cd0c2c8af7bbc339a3/sentence_transformers/models/Pooling.py
-##########################
-
-
-class Pooling(nn.Module):
-    """Performs pooling (max or mean) on the token embeddings.
-
-    Using pooling, it generates from a variable sized sentence a fixed sized sentence embedding. This layer also allows to use the CLS token if it is returned by the underlying word embedding model.
-    You can concatenate multiple poolings together.
-
-    :param word_embedding_dimension: Dimensions for the word embeddings
-    :param pooling_mode: Can be a string: mean/max/cls. If set, overwrites the other pooling_mode_* settings
-    :param pooling_mode_cls_token: Use the first token (CLS token) as text representations
-    :param pooling_mode_max_tokens: Use max in each dimension over all tokens.
-    :param pooling_mode_mean_tokens: Perform mean-pooling
-    :param pooling_mode_mean_sqrt_len_tokens: Perform mean-pooling, but divide by sqrt(input_length).
-    :param pooling_mode_weightedmean_tokens: Perform (position) weighted mean pooling, see https://arxiv.org/abs/2202.08904
-    :param pooling_mode_lasttoken: Perform last token pooling, see https://arxiv.org/abs/2202.08904 & https://arxiv.org/abs/2201.10005
-    """
-
-    def __init__(
-        self,
-        word_embedding_dimension: int,
-        pooling_mode: str = None,
-        pooling_mode_cls_token: bool = False,
-        pooling_mode_max_tokens: bool = False,
-        pooling_mode_mean_tokens: bool = True,
-        pooling_mode_mean_sqrt_len_tokens: bool = False,
-        pooling_mode_weightedmean_tokens: bool = False,
-        pooling_mode_lasttoken: bool = False,
-    ):
-        super(Pooling, self).__init__()
-
-        self.config_keys = [
-            "word_embedding_dimension",
-            "pooling_mode_cls_token",
-            "pooling_mode_mean_tokens",
-            "pooling_mode_max_tokens",
-            "pooling_mode_mean_sqrt_len_tokens",
-            "pooling_mode_weightedmean_tokens",
-            "pooling_mode_lasttoken",
-        ]
-
-        if pooling_mode is not None:  # Set pooling mode by string
-            pooling_mode = pooling_mode.lower()
-            assert pooling_mode in ["mean", "max", "cls", "weightedmean", "lasttoken"]
-            pooling_mode_cls_token = pooling_mode == "cls"
-            pooling_mode_max_tokens = pooling_mode == "max"
-            pooling_mode_mean_tokens = pooling_mode == "mean"
-            pooling_mode_weightedmean_tokens = pooling_mode == "weightedmean"
-            pooling_mode_lasttoken = pooling_mode == "lasttoken"
-
-        self.word_embedding_dimension = word_embedding_dimension
-        self.pooling_mode_cls_token = pooling_mode_cls_token
-        self.pooling_mode_mean_tokens = pooling_mode_mean_tokens
-        self.pooling_mode_max_tokens = pooling_mode_max_tokens
-        self.pooling_mode_mean_sqrt_len_tokens = pooling_mode_mean_sqrt_len_tokens
-        self.pooling_mode_weightedmean_tokens = pooling_mode_weightedmean_tokens
-        self.pooling_mode_lasttoken = pooling_mode_lasttoken
-
-        pooling_mode_multiplier = sum(
-            [
-                pooling_mode_cls_token,
-                pooling_mode_max_tokens,
-                pooling_mode_mean_tokens,
-                pooling_mode_mean_sqrt_len_tokens,
-                pooling_mode_weightedmean_tokens,
-                pooling_mode_lasttoken,
-            ]
-        )
-        self.pooling_output_dimension = pooling_mode_multiplier * word_embedding_dimension
-
-    def __repr__(self):
-        return "Pooling({})".format(self.get_config_dict())
-
-    def forward(self, features: Dict[str, Tensor]):
-        token_embeddings = features["token_embeddings"]
-        attention_mask = features["attention_mask"]
-
-        ## Pooling strategy
-        output_vectors = []
-        if self.pooling_mode_cls_token:
-            cls_token = features.get("cls_token_embeddings", token_embeddings[:, 0])  # Take first token by default
-            output_vectors.append(cls_token)
-        if self.pooling_mode_max_tokens:
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            token_embeddings[input_mask_expanded == 0] = -1e9  # Set padding tokens to large negative value
-            max_over_time = torch.max(token_embeddings, 1)[0]
-            output_vectors.append(max_over_time)
-        if self.pooling_mode_mean_tokens or self.pooling_mode_mean_sqrt_len_tokens:
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-
-            # If tokens are weighted (by WordWeights layer), feature 'token_weights_sum' will be present
-            if "token_weights_sum" in features:
-                sum_mask = features["token_weights_sum"].unsqueeze(-1).expand(sum_embeddings.size())
-            else:
-                sum_mask = input_mask_expanded.sum(1)
-
-            sum_mask = torch.clamp(sum_mask, min=1e-9)
-
-            if self.pooling_mode_mean_tokens:
-                output_vectors.append(sum_embeddings / sum_mask)
-            if self.pooling_mode_mean_sqrt_len_tokens:
-                output_vectors.append(sum_embeddings / torch.sqrt(sum_mask))
-        if self.pooling_mode_weightedmean_tokens:
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            # token_embeddings shape: bs, seq, hidden_dim
-            weights = (
-                torch.arange(start=1, end=token_embeddings.shape[1] + 1)
-                .unsqueeze(0)
-                .unsqueeze(-1)
-                .expand(token_embeddings.size())
-                .float()
-                .to(token_embeddings.device)
-            )
-            assert weights.shape == token_embeddings.shape == input_mask_expanded.shape
-            input_mask_expanded = input_mask_expanded * weights
-
-            sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
-
-            # If tokens are weighted (by WordWeights layer), feature 'token_weights_sum' will be present
-            if "token_weights_sum" in features:
-                sum_mask = features["token_weights_sum"].unsqueeze(-1).expand(sum_embeddings.size())
-            else:
-                sum_mask = input_mask_expanded.sum(1)
-
-            sum_mask = torch.clamp(sum_mask, min=1e-9)
-            output_vectors.append(sum_embeddings / sum_mask)
-        if self.pooling_mode_lasttoken:
-            bs, seq_len, hidden_dim = token_embeddings.shape
-            # attention_mask shape: (bs, seq_len)
-            # Get shape [bs] indices of the last token (i.e. the last token for each batch item)
-            # argmin gives us the index of the first 0 in the attention mask; We get the last 1 index by subtracting 1
-            # Any sequence where min == 1, we use the entire sequence length since argmin = 0
-            values, indices = torch.min(attention_mask, 1, keepdim=False)
-            gather_indices = torch.where(values == 0, indices, seq_len) - 1  # Shape [bs]
-
-            # There are empty sequences, where the index would become -1 which will crash
-            gather_indices = torch.clamp(gather_indices, min=0)
-
-            # Turn indices from shape [bs] --> [bs, 1, hidden_dim]
-            gather_indices = gather_indices.unsqueeze(-1).repeat(1, hidden_dim)
-            gather_indices = gather_indices.unsqueeze(1)
-            assert gather_indices.shape == (bs, 1, hidden_dim)
-
-            # Gather along the 1st dim (seq_len) (bs, seq_len, hidden_dim -> bs, hidden_dim)
-            # Actually no need for the attention mask as we gather the last token where attn_mask = 1
-            # but as we set some indices (which shouldn't be attended to) to 0 with clamp, we
-            # use the attention mask to ignore them again
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            embedding = torch.gather(token_embeddings * input_mask_expanded, 1, gather_indices).squeeze(dim=1)
-            output_vectors.append(embedding)
-
-        output_vector = torch.cat(output_vectors, 1)
-        features.update({"sentence_embedding": output_vector})
-        return features
-
-    def get_sentence_embedding_dimension(self):
-        return self.pooling_output_dimension
-
-    def get_config_dict(self):
-        return {key: self.__dict__[key] for key in self.config_keys}
-
-
-class SBertModel(BertModel):
-    """
-    Bert Language model.
-    Model returns [seq, batch, hidden] shape
-    """
-
-    def __init__(
-        self,
-        config: ModelParallelConfig,
-        vocab_size,
-        hidden_size,
-        max_position_embeddings,
-        num_layers,
-        num_attention_heads,
-        ffn_hidden_size,
-        apply_query_key_layer_scaling=True,
-        kv_channels=None,
-        num_tokentypes=0,
-        parallel_output=True,
-        pre_process=True,
-        post_process=True,
-        init_method_std=0.02,
-        fp16_lm_cross_entropy=False,
-        hidden_dropout=0.1,
-        precision=16,
-        fp32_residual_connection=False,
-        activations_checkpoint_granularity=None,
-        activations_checkpoint_method=None,
-        activations_checkpoint_num_layers=1,
-        activations_checkpoint_layers_per_pipeline=None,
-        layernorm_epsilon=1e-5,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
-        masked_softmax_fusion=False,
-        bias_gelu_fusion=True,
-        bias_dropout_add_fusion=True,
-        openai_gelu=False,
-        onnx_safe=False,
-        add_binary_head=True,
-        skip_head=False,
-        megatron_legacy=False,
-        sequence_parallel=False,
-        position_embedding_type='learned_absolute',
-    ):
-        super().__init__(
-            config,
-            vocab_size,
-            hidden_size,
-            max_position_embeddings,
-            num_layers,
-            num_attention_heads,
-            ffn_hidden_size,
-            apply_query_key_layer_scaling,
-            kv_channels,
-            num_tokentypes,
-            parallel_output,
-            pre_process,
-            post_process,
-            init_method_std,
-            fp16_lm_cross_entropy,
-            hidden_dropout,
-            precision,
-            fp32_residual_connection,
-            activations_checkpoint_granularity,
-            activations_checkpoint_method,
-            activations_checkpoint_num_layers,
-            activations_checkpoint_layers_per_pipeline,
-            layernorm_epsilon,
-            normalization,
-            transformer_block_type,
-            masked_softmax_fusion,
-            bias_gelu_fusion,
-            bias_dropout_add_fusion,
-            openai_gelu,
-            onnx_safe,
-            add_binary_head,
-            skip_head,
-            megatron_legacy,
-            sequence_parallel,
-            position_embedding_type,
-        )
-
-        self.pooling_add_on = Pooling(
-            word_embedding_dimension=1024,
-            pooling_mode_cls_token=False,
-            pooling_mode_mean_tokens=True,
-            pooling_mode_max_tokens=False,
-            pooling_mode_mean_sqrt_len_tokens=False,
-        )
-
-        self.normalize_add_on = Normalize()
-
-    def forward(
-        self,
-        bert_model_input,
-        attention_mask,
-        token_type_ids=None,
-        lm_labels=None,
-        checkpoint_activations_all_layers=None,
-    ):
-
-        extended_attention_mask = bert_extended_attention_mask(attention_mask)
-
-        if parallel_state.is_pipeline_first_stage():
-            input_ids = bert_model_input
-            position_ids = build_position_ids(input_ids)
-        else:
-            position_ids = None
-            input_ids = None
-
-        lm_output = self.language_model(
-            input_ids,
-            position_ids,
-            extended_attention_mask,
-            token_type_ids=token_type_ids,
-            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-        )
-
-        if self.post_process and self.add_binary_head:
-
-            lm_output, _ = lm_output
-
-        add_on_inputs = {"token_embeddings": lm_output[0].permute(1, 0, 2), "attention_mask": attention_mask}
-        lm_output = self.pooling_add_on(add_on_inputs)
-        lm_output = self.normalize_add_on(lm_output)
-
-        return lm_output['sentence_embedding']
-
 
 class MegatronSBertModel(MegatronBertModel):
     """
@@ -387,26 +53,67 @@ class MegatronSBertModel(MegatronBertModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
 
         super().__init__(cfg, trainer=trainer)
-
         self.cross_entropy_loss = torch.nn.CrossEntropyLoss(label_smoothing=cfg.get('label_smoothing', 0.0))
         softmax_temp = cfg.get('softmax_temp', 0.05)
         self.scale = 1.0 / softmax_temp
-        train_file_path = self.cfg.data.data_prefix
-        with open(train_file_path) as f:
-            train_data = json.load(f)
-
-        # random_seed = 42
-        # set_seed(random_seed)
-        # random.shuffle(train_data)
-
-        self.train_data = train_data
 
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
 
         if self.mcore_bert:
-            raise ValueError("mcore not supported for SBERT")
+            #TODO @ataghibakhsh: move to a proper script
+            from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+            from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+            from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
+            from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+            from megatron.core.transformer.dot_product_attention import DotProductAttention
+            from megatron.core.transformer.enums import AttnMaskType
+            from megatron.core.transformer.mlp import MLP, MLPSubmodules
+            from megatron.core.transformer.spec_utils import ModuleSpec
+            # Use this spec for an implementation using only modules in megatron core
+            from nemo.collections.nlp.models.language_modeling.megatron.bert_model import TransformerLayerPostLNSupport, TransformerLayerSubmodulesPostLNSupport
+            bert_layer_local_spec = ModuleSpec(
+                module=TransformerLayerPostLNSupport,
+                submodules=TransformerLayerSubmodulesPostLNSupport(
+                    # input_layernorm=FusedLayerNorm,
+                    self_attention=ModuleSpec(
+                        module=SelfAttention,
+                        params={"attn_mask_type": AttnMaskType.padding},
+                        submodules=SelfAttentionSubmodules(
+                            linear_qkv=ColumnParallelLinear,
+                            core_attention=DotProductAttention,
+                            linear_proj=RowParallelLinear,
+                        ),
+                    ),
+                    self_attn_bda=get_bias_dropout_add,
+                    post_att_layernorm=FusedLayerNorm,
+                    # pre_mlp_layernorm=FusedLayerNorm,
+                    mlp=ModuleSpec(
+                        module=MLP,
+                        submodules=MLPSubmodules(
+                            linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,
+                        ),
+                    ),
+                    mlp_bda=get_bias_dropout_add,
+                    post_mlp_layernorm=FusedLayerNorm,
+                ),
+            )
+            model = MCoreSBertModel(
+                config=self.transformer_config,
+                transformer_layer_spec=bert_layer_local_spec, 
+                vocab_size=self.padded_vocab_size,
+                max_sequence_length=cfg.max_position_embeddings,
+                num_tokentypes=num_tokentypes,
+                add_binary_head=cfg.bert_binary_head,
+                share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
+                parallel_output=True,
+                pre_process=pre_process,
+                post_process=post_process,
+                postLN=True, 
+                add_pooler=True, 
+                add_embedding_head=True
+            )
 
         else:
             model = SBertModel(
@@ -442,7 +149,6 @@ class MegatronSBertModel(MegatronBertModel):
                 bias_dropout_add_fusion=cfg.get("bias_dropout_add_fusion", True),
                 onnx_safe=cfg.get('onnx_safe', False),
                 add_binary_head=cfg.bert_binary_head,
-                skip_head=cfg.get('skip_head', False),
                 megatron_legacy=cfg.get('megatron_legacy', False),
                 position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
             )
@@ -451,53 +157,19 @@ class MegatronSBertModel(MegatronBertModel):
 
     def build_train_valid_test_datasets(self):
 
-        train_file_path = self.cfg.data.data_prefix
-
-        train_data = self.train_data
-
-        query_prefix = "query:"
-        passage_prefix = "passage:"
-        evaluation_sample_size = self.cfg.data.get("evaluation_sample_size", 100)
-        num_hard_negatives = self.cfg.data.get("hard_negatives_to_train", 4)
-        evaluation_steps = self.cfg.data.get("evaluation_steps", 100)
-
-        # TODO @ataghibakhsh: Handle valid and test datasets better
-
         self._train_ds = None
         self._validation_ds = None
         self._test_ds = None
 
-        # if train_file_path:  # we don't support calculating validation loss for multiple train files
-        #     valid_data = None
-        #     if evaluation_sample_size:
-        #         if evaluation_steps == 0:
-        #             raise ValueError(
-        #                 "The --evaluation_steps should be greater than 0 " "when --evaluation_sample_size is set"
-        #             )
-
-        #         if evaluation_sample_size >= len(train_data):
-        #             raise ValueError("The --evaluation_sample_size cannot be greater " "than train set size.")
-
-        #         valid_data = train_data[-evaluation_sample_size:]
-        #         train_data = train_data[:-evaluation_sample_size]
-
-        #     if evaluation_sample_size:
-        #         self._validation_ds = BertEmbeddingDataset(
-        #             valid_data,
-        #             num_hard_negs=hard_negatives_to_train,
-        #             query_prefix=query_prefix,
-        #             passage_prefix=passage_prefix,
-        #         )
-
-        # self._train_ds2 = BertEmbeddingDataset(
-        #     train_data, num_hard_negs=hard_negatives_to_train, query_prefix=query_prefix, passage_prefix=passage_prefix
-        # )
-        self._train_ds = GPTEmbeddingDataset(
-            train_file_path, tokenizer=self.tokenizer, add_bos=True, num_hard_negatives=num_hard_negatives
+        self._train_ds = BertEmbeddingDataset(
+            self.cfg.data.data_train, tokenizer=self.tokenizer, add_bos=True, num_hard_negatives=self.cfg.data.get("hard_negatives_to_train", 4), 
+            max_seq_length=self.cfg.encoder_seq_length
         )
-        self._validation_ds = GPTEmbeddingDataset(
-            train_file_path, tokenizer=self.tokenizer, add_bos=True, data_type="validation", num_hard_negatives=num_hard_negatives
-        )
+        if self.cfg.data.data_validation:
+            self._validation_ds = BertEmbeddingDataset(
+                self.cfg.data.data_validation, tokenizer=self.tokenizer, add_bos=True, num_hard_negatives=self.cfg.data.get("hard_negatives_to_train", 4),
+                max_seq_length=self.cfg.encoder_seq_length
+            )
 
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
@@ -656,118 +328,21 @@ class MegatronSBertModel(MegatronBertModel):
             persistent_workers=True if self.cfg.data.num_workers > 0 else False,
             collate_fn=dataset.collate_fn
         )
-
-        # dataloader2 = torch.utils.data.DataLoader(
-        #     self._train_ds2,
-        #     shuffle=False,
-        #     batch_sampler=batch_sampler,
-        #     num_workers=self.cfg.data.num_workers,
-        #     pin_memory=True,
-        #     persistent_workers=True if self.cfg.data.num_workers > 0 else False,
-        # )
-
-        # print("$$$$$$$$$")
-        # dataloader2.collate_fn  = self.batching_collate
-
         return dataloader
-
-    def tokenize(self, texts: Union[List[str], List[Dict], List[Tuple[str, str]]]):
-
-        max_seq_length = self.cfg.encoder_seq_length
-        do_lower_case = self.cfg.tokenizer.get("do_lower_case", False)
-        """
-        Tokenizes a text and maps tokens to token-ids
-        """
-        output = {}
-        if isinstance(texts[0], str):
-            to_tokenize = [texts]
-        elif isinstance(texts[0], dict):
-            to_tokenize = []
-            output["text_keys"] = []
-            for lookup in texts:
-                text_key, text = next(iter(lookup.items()))
-                to_tokenize.append(text)
-                output["text_keys"].append(text_key)
-            to_tokenize = [to_tokenize]
-        else:
-            batch1, batch2 = [], []
-            for text_tuple in texts:
-                batch1.append(text_tuple[0])
-                batch2.append(text_tuple[1])
-            to_tokenize = [batch1, batch2]
-
-        # strip
-        to_tokenize = [[str(s).strip() for s in col] for col in to_tokenize]
-
-        # Lowercase
-        if do_lower_case:
-            to_tokenize = [[s.lower() for s in col] for col in to_tokenize]
-
-        output.update(
-            self.tokenizer.tokenizer(
-                *to_tokenize, padding=True, truncation="longest_first", return_tensors="pt", max_length=max_seq_length,
-            )
-        )
-        return output
-
-    def batching_collate(self, batch):
-        """
-            Transforms a batch from a SmartBatchingDataset to a batch of tensors for the model
-            Here, batch is a list of InputExample instances: [InputExample(...), ...]
-
-            :param batch:
-                a batch from a SmartBatchingDataset
-            :return:
-                a batch of tensors for the model
-            """
-
-        sentence_features = [self.tokenize(sentence) for sentence in zip(*batch)]
-        # print(f"sentence_features = {sentence_features}")
-
-        return sentence_features
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
-            batch = next(dataloader_iter)
-            batch = {k:v.cuda(non_blocking=True) for k,v in batch.items()}
-            '''(
-                tokens_batch,
-                types_batch,
-                sentence_order_batch,
-                loss_mask_batch,
-                lm_labels_batch,
-                padding_mask_batch,
-            ) = ([], [], [], [], [], [])
-            for batch in batches:
-                tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
-                    batch['input_ids'].cuda(non_blocking=True),
-                    batch['token_type_ids'].cuda(non_blocking=True),
-                    None,
-                    None,
-                    None,
-                    batch['attention_mask'].cuda(non_blocking=True),
-                )
-                tokens_batch.append(tokens)
-                types_batch.append(types)
-                sentence_order_batch.append(sentence_order)
-                loss_mask_batch.append(loss_mask)
-                lm_labels_batch.append(lm_labels)
-                padding_mask_batch.append(padding_mask)
-
-            if not self.cfg.bert_binary_head:
-                types = None
-
-            forward_args = [
-                {"input_ids": tokens, "token_type_ids": types, "attention_mask": padding_mask}
-                for tokens, padding_mask, types in zip(tokens_batch, padding_mask_batch, types_batch)
-            ]'''
-            # self.model.eval()
+            batches = next(dataloader_iter)
+            batches = {k:v.cuda(non_blocking=True) for k,v in batches.items()}
+            self.model.eval()
             
             if self.mcore_bert:
-                raise Exception("mcore not supported at the moment. It will be added in the near future")
+
+                batches["tokentype_ids"] = batches.pop("token_type_ids")
+                output_tensor = model(**batches)
             else:
-                output_tensor = self.forward(**batch).permute(1, 0) #output_tensor = [self.forward(**forward_arg).permute(1, 0) for forward_arg in forward_args]
+                output_tensor = self.forward(**batches).permute(1, 0) 
 
             def loss_func(output_tensor):
 
@@ -790,8 +365,6 @@ class MegatronSBertModel(MegatronBertModel):
         return fwd_output_and_loss_func
 
     def loss_func(self, output_tensor):
-        # queries = output_tensor[0]  # shape (bs, embedding_dim)
-        # positives = output_tensor[1]  # shape (bs, embedding_dim)
 
         chunks = output_tensor.chunk(self.cfg.micro_batch_size)
         queries = torch.stack([item[0] for item in chunks])  # shape (bs, embedding_dim)
@@ -801,7 +374,6 @@ class MegatronSBertModel(MegatronBertModel):
             queries, positives.transpose(0, 1)
         )  # shape (bs, bs); each positive is negative for other queries.
 
-        # hard_negs = output_tensor[2:]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
         hard_negs = [torch.stack([item[i+2] for item in chunks]) for i in range(self.cfg.data.get("hard_negatives_to_train", 4))]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         hard_negs_scores = (

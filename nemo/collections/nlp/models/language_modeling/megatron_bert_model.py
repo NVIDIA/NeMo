@@ -142,7 +142,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         if self.mcore_bert:
             from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-            from megatron.core.models.bert.bert_model import BertModel as MCoreBertModel
+            from nemo.collections.nlp.models.language_modeling.megatron.bert_model import MCoreBertModel
 
             model = MCoreBertModel(
                 config=self.transformer_config,
@@ -155,6 +155,8 @@ class MegatronBertModel(MegatronBaseModel):
                 parallel_output=True,
                 pre_process=pre_process,
                 post_process=post_process,
+                postLN=True, 
+                add_pooler=True,
             )
         else:
             model = BertModel(
@@ -190,9 +192,10 @@ class MegatronBertModel(MegatronBaseModel):
                 bias_dropout_add_fusion=cfg.get("bias_dropout_add_fusion", True),
                 onnx_safe=cfg.get('onnx_safe', False),
                 add_binary_head=cfg.bert_binary_head,
-                skip_head=cfg.get('skip_head', False),
                 megatron_legacy=cfg.get('megatron_legacy', False),
                 position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
+                add_pooler=True,
+                add_lm_head=False,
             )
 
         return model
@@ -287,13 +290,21 @@ class MegatronBertModel(MegatronBaseModel):
     ):
         if model is None:
             model = self.model
-        output_tensor = model(
+
+        if self.mcore_bert:
+            output_tensor = model(
+                input_ids,
+                attention_mask,
+                tokentype_ids=token_type_ids,
+            )
+        else:
+            output_tensor = model(
             input_ids,
             attention_mask,
             token_type_ids=token_type_ids,
             lm_labels=lm_labels,
             checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-        )
+            )
         if parallel_state.is_pipeline_last_stage():
             # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
             if torch.is_tensor(output_tensor):
