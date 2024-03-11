@@ -23,7 +23,6 @@ import pytorch_lightning
 import torch
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities import rank_zero_info
-from torch import Tensor
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
@@ -224,29 +223,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
         return output
 
-    # Comment format_checkpoint_name as PTL 2.2 disables symbolic links
-    # def format_checkpoint_name(
-    #     self, metrics: Dict[str, Tensor], filename: Optional[str] = None, ver: Optional[int] = None
-    # ) -> str:
-    #     """Generate a filename according to the defined template."""
-    #     filename = filename or self.filename
-    #     filename = self._format_checkpoint_name(
-    #         filename, metrics, auto_insert_metric_name=self.auto_insert_metric_name
-    #     )
-
-    #     if ver is not None:
-    #         filename = self.CHECKPOINT_JOIN_CHAR.join((filename, f"v{ver}"))
-
-    #     ckpt_name = f"{filename}{self.FILE_EXTENSION}"
-    #     # if self._last_checkpoint_saved and ckpt_to_dir(self._last_checkpoint_saved).is_dir():# is dist ckpt
-    #     filename_wo_last = filename.replace('-last', '')
-    #     if 'last' in filename and Path(os.path.join(self.dirpath, filename_wo_last)).is_dir():  # if is dist ckpt
-    #         # update last checkpoint saved path with dist ckpt dir and return ckpt dir
-    #         self._last_checkpoint_saved = ckpt_to_dir(self._last_checkpoint_saved)
-    #         return os.path.join(self.dirpath, filename) if self.dirpath else filename
-    #     else:
-    #         return os.path.join(self.dirpath, ckpt_name) if self.dirpath else ckpt_name
-
     def on_train_end(self, trainer, pl_module):
         if trainer.fast_dev_run:
             return None
@@ -408,37 +384,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
         # we don't want to remove the marker until all checkpointing is done.
         self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
-
-    # Comment the following 2 funcs as PTL is disabling symbolic links in PTL 2.2
-    # def link_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, linkpath: str) -> None:
-    #     if os.path.islink(linkpath) or os.path.isfile(linkpath):
-    #         os.remove(linkpath)
-    #     elif os.path.isdir(linkpath):
-    #         shutil.rmtree(linkpath)
-    #     try:
-    #         os.symlink(filepath, linkpath)
-    #     except OSError:
-    #         # on Windows, special permissions are required to create symbolic links as a regular user
-    #         # fall back to copying the file
-    #         shutil.copy(filepath, linkpath)
-    #     trainer.strategy.barrier()
-
-    # def _link_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, linkpath: str) -> None:
-    #     # if not using distributed checkpointing, inject model parallel rank
-    #     if not (
-    #         hasattr(trainer.lightning_module, 'sharded_state_dict')
-    #         and trainer.lightning_module.sharded_state_dict() is not None
-    #     ):
-    #         filepath = inject_model_parallel_rank(filepath)
-    #         linkpath = inject_model_parallel_rank(linkpath)
-
-    #     if self._is_ema_filepath(filepath):
-    #         self.link_checkpoint(trainer, filepath, self._ema_format_filepath(linkpath))
-    #         self.link_checkpoint(
-    #             trainer, filepath.replace(f'-EMA{self.FILE_EXTENSION}', self.FILE_EXTENSION), linkpath
-    #         )
-    #     else:
-    #         self.link_checkpoint(trainer, filepath, linkpath)
 
     def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
