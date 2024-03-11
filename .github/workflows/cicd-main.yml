@@ -112,6 +112,8 @@ jobs:
             python -c "import nemo.collections.nlp as nemo_nlp"
             python -c "import nemo.collections.tts as nemo_tts"
 
+            # set permission
+            chmod 777 -R /workspace
             '
             ### \'\'
 
