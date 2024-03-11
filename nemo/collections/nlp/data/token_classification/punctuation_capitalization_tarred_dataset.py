@@ -608,10 +608,10 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                 fragment_idx=match.group(1), num_batches=num_batches_per_tarfile, file_idx=match.group(3)
             )
             new_file_sink = wds.TarWriter(str(new_file))
-            append_ds_to_rewrite = (
-                wds.WebDataset(urls=[str(append_file)])
-                .decode(wds.handle_extension('.pyd', decode_pyd))
-                .to_tuple('__key__', 'batch.pyd')
+            append_ds_to_rewrite = wds.DataPipeline(
+                wds.SimpleShardList(urls=[str(append_file)]),
+                wds.decode(wds.handle_extension('.pyd', decode_pyd)),
+                wds.to_tuple('__key__', 'batch.pyd'),
             )
             for key, batch in iter(append_ds_to_rewrite):
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
@@ -625,10 +625,10 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             append_file.unlink()
         if files_to_repack_with_matches and pop_file_ds is None:
             pop_file, _ = files_to_repack_with_matches.pop()
-            pop_file_ds = (
-                wds.WebDataset(urls=[str(pop_file)])
-                .decode(wds.handle_extension('.pyd', decode_pyd))
-                .to_tuple('__key__', 'batch.pyd')
+            pop_file_ds = wds.DataPipeline(
+                wds.SimpleShardList([str(pop_file)]),
+                wds.decode(wds.handle_extension('.pyd', decode_pyd)),
+                wds.to_tuple('__key__', 'batch.pyd'),
             )
             pop_file_ds = iter(pop_file_ds)
         if pop_file_ds is not None and new_file_sink is not None:
