@@ -112,13 +112,16 @@ def get_rank_info(texts: list, rank_key: str) -> int:
 
 @rank_zero_only
 def check_model_ranks(model: ExampleModel):
-    basedir = os.path.join('./ddp_check/', 'default', 'version_0')
+    basedir = os.path.join('./ddp_check/', 'default')
+    to_add = ""
     file_template = "nemo_log_globalrank-{rank}_localrank-{rank}.txt"
 
     world_size = torch.cuda.device_count()
     for rank in range(world_size):
+        to_add = "version_0" if rank == 0 else ""
+
         filename = file_template.format(rank=rank)
-        filepath = os.path.join(basedir, filename)
+        filepath = os.path.join(basedir, to_add, filename)
 
         with open(filepath, 'r', encoding='utf-8') as f:
             texts = f.readlines()
