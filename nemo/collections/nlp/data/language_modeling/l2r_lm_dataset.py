@@ -200,12 +200,13 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         self.tarpath = text_tar_filepaths
 
         # Put together WebDataset
-        self._dataset = (
-            wds.WebDataset(urls=text_tar_filepaths)
-            .shuffle(shuffle_n)
-            .rename(npy='npy', key='__key__')
-            .to_tuple('npy', 'key')
-            .map(self._build_sample)
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(text_tar_filepaths),
+            wds.shuffle(shuffle_n),
+            wds.tarfile_to_samples(),
+            wds.rename(npy='npy', key='__key__'),
+            wds.to_tuple('npy', 'key'),
+            wds.map(self._build_sample),
         )
 
     def _build_sample(self, tup):
