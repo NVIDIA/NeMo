@@ -388,11 +388,15 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         hs = torch.nn.functional.normalize(hs, dim=1)
         _blank = torch.zeros(1, device=hs.device, dtype=hs.dtype)[0]
         return _blank, hs, hs, _blank, _blank, _blank
-    
+
     def _gather_global_inbatch_representations(self, local_eos_tensor):
         local_eos_tensor = local_eos_tensor.contiguous()
-        global_eos_tensors = [torch.zeros_like(local_eos_tensor) for _ in range(parallel_state.get_data_parallel_world_size())]
-        torch.distributed.all_gather(global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group())
+        global_eos_tensors = [
+            torch.zeros_like(local_eos_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
+        ]
+        torch.distributed.all_gather(
+            global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group()
+        )
         global_eos_tensors[parallel_state.get_data_parallel_rank()] = local_eos_tensor
         global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
         return global_eos_tensors
