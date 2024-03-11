@@ -1050,12 +1050,12 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         else:
             raise ValueError(f"Invalid shard strategy! Allowed values are: {valid_shard_strategies}")
 
-        self._dataset = (
-            wds.WebDataset(urls=self.tar_files, nodesplitter=None)
-            .decode(wds.handle_extension('.pyd', decode_pyd))
-            .shuffle(shuffle_n)
-            .to_tuple('__key__', 'batch.pyd')
-            .map(self._build_sample)
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(self.tar_files),
+            wds.decode(wds.handle_extension('.pyd', decode_pyd)),
+            wds.shuffle(shuffle_n),
+            wds.to_tuple('__key__', 'batch.pyd'),
+            wds.map(self._build_sample),
         )
 
         self.use_audio = use_audio
