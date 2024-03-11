@@ -176,7 +176,7 @@ class ExpManagerConfig:
     # Wall clock time limit
     max_time_per_run: Optional[str] = None
     # time to sleep non 0 ranks during initialization
-    seconds_to_sleep: float = 1
+    seconds_to_sleep: float = 5
 
 
 class TimingCallback(Callback):
