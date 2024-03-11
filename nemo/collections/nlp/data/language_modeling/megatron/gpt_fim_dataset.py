@@ -18,7 +18,6 @@ import numpy as np
 from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
 from megatron.core.datasets.indexed_dataset import MMapIndexedDataset
 from megatron.core.datasets.utils import Split
-from nemo.utils import logging
 
 
 # is_dataset_built_on_rank function is needed for mcore GPTDatasetConfig
