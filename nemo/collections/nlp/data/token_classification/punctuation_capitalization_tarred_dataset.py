@@ -610,6 +610,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             new_file_sink = wds.TarWriter(str(new_file))
             append_ds_to_rewrite = wds.DataPipeline(
                 wds.SimpleShardList(urls=[str(append_file)]),
+                wds.tarfile_to_samples(),
                 wds.decode(wds.handle_extension('.pyd', decode_pyd)),
                 wds.to_tuple('__key__', 'batch.pyd'),
             )
@@ -627,6 +628,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             pop_file, _ = files_to_repack_with_matches.pop()
             pop_file_ds = wds.DataPipeline(
                 wds.SimpleShardList([str(pop_file)]),
+                wds.tarfile_to_samples(),
                 wds.decode(wds.handle_extension('.pyd', decode_pyd)),
                 wds.to_tuple('__key__', 'batch.pyd'),
             )
@@ -1052,6 +1054,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(self.tar_files),
+            wds.tarfile_to_samples(),
             wds.decode(wds.handle_extension('.pyd', decode_pyd)),
             wds.shuffle(shuffle_n),
             wds.to_tuple('__key__', 'batch.pyd'),
