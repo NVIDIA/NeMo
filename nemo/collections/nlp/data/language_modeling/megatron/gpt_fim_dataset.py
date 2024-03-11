@@ -36,8 +36,6 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
     def __init__(self, fim, **kwargs):
         super().__init__(**kwargs)
         self.fim = fim
-        self.np_rng = np.random.RandomState(seed=self.random_seed)
-        logging.info(f'GPTFIMDataset np_rng initialized with seed={self.random_seed}.')
 
 
 class GPTFIMDataset(GPTDataset):
@@ -59,12 +57,15 @@ class GPTFIMDataset(GPTDataset):
     def __init__(
         self,
         indexed_dataset: MMapIndexedDataset,
+        dataset_path: str,
         indexed_indices: np.ndarray,
         num_samples: int,
         index_split: Split,
         config: GPTFIMDatasetConfig,
     ) -> None:
-        super().__init__(indexed_dataset, indexed_indices, num_samples, index_split, config)
+        super().__init__(indexed_dataset, dataset_path, indexed_indices, num_samples, index_split, config)
+
+        self.indexed_dataset = indexed_dataset
 
     def _query_document_sample_shuffle_indices(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
         """Get the text (token ids) and document ids for a given index
@@ -134,7 +135,7 @@ class GPTFIMDataset(GPTDataset):
 
         sample_len = sample.shape[0]
         segment_breaks = np.argwhere(sample == self.eod_tok_id)
-        np_rng = self.rng
+        np_rng = np.random.RandomState(seed=self.config.random_seed)
 
         if segment_breaks.shape != (0, 1):  # then there is an EOD token in this example
             curr_start_position = 0
