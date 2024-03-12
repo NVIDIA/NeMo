@@ -494,20 +494,6 @@ pipeline {
             sh 'rm -f /home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
           }
         }
-        stage('Llama2 - INT4 AWQ') {
-          steps {
-            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
-            tensor_model_parallel_size=2 \
-            trainer.devices=2 \
-            quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
-            quantization.algorithm=int4_awq \
-            quantization.num_calib_size=8 \
-            inference.batch_size=2 \
-            model_save=/home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci_int4_awq.qnemo'
-          }
-        }
       }
     }
 
