@@ -1,15 +1,16 @@
 """Script to query Mixtral-8x7B as a judge via NGC API for evaluation"""
 import argparse
-import torch
-import os
 import json
-import requests
-from tqdm import tqdm
-import shortuuid
-from PIL import Image
 import math
-import numpy as np
+import os
 from collections import defaultdict
+
+import numpy as np
+import requests
+import shortuuid
+import torch
+from PIL import Image
+from tqdm import tqdm
 
 """Usage: (for image inference)
 API_TOKEN=xxx python3 --model-name-list name-of-model-1 name-of-model-2
@@ -60,18 +61,15 @@ def get_eval(content: str, max_tokens: int):
         "messages": [
             {
                 'role': 'system',
-                'content': 'You are a helpful and precise assistant for checking the quality of the answer.'
+                'content': 'You are a helpful and precise assistant for checking the quality of the answer.',
             },
-            {
-                'role': 'user',
-                'content': content,
-            }
+            {'role': 'user', 'content': content,},
         ],
         "temperature": 0.2,
         "top_p": 0.7,
         "max_tokens": max_tokens,
         "seed": 42,
-        "stream": True
+        "stream": True,
     }
     response = requests.post(invoke_url, headers=headers, json=payload, stream=True)
     output = ""
@@ -140,17 +138,19 @@ def generate_prompt(args, answer_list):
             assert False, f"Visual QA category not found in rule file: {category}."
         prompt = rule['prompt']
         role = rule['role']
-        content = (f'[Context]\n{cap_str}\n\n'
-                   f'[Question]\n{ques["text"]}\n\n'
-                   f'[{role} 1]\n{ans1["text"]}\n\n[End of {role} 1]\n\n'
-                   f'[{role} 2]\n{ans2["text"]}\n\n[End of {role} 2]\n\n'
-                   f'[System]\n{prompt}\n\n')
+        content = (
+            f'[Context]\n{cap_str}\n\n'
+            f'[Question]\n{ques["text"]}\n\n'
+            f'[{role} 1]\n{ans1["text"]}\n\n[End of {role} 1]\n\n'
+            f'[{role} 2]\n{ans2["text"]}\n\n[End of {role} 2]\n\n'
+            f'[System]\n{prompt}\n\n'
+        )
         cur_js = {
             'id': idx + 1,
             'question_id': ques['question_id'],
             'answer1_id': ans1.get('answer_id', ans1['question_id']),
             'answer2_id': ans2.get('answer_id', ans2['answer_id']),
-            'category': category
+            'category': category,
         }
         if idx >= len(cur_reviews):
             print(content)
@@ -172,7 +172,7 @@ def generate_prompt(args, answer_list):
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -200,12 +200,19 @@ def preprocess(args, response_file, model_name):
             cur_prompt = qs
             outputs = resp["response"]
             ans_id = shortuuid.uuid()
-            ans_file.write(json.dumps({"question_id": idx,
-                                       "prompt": cur_prompt,
-                                       "text": outputs,
-                                       "answer_id": ans_id,
-                                       "model_id": model_name,
-                                       "metadata": {}}) + "\n")
+            ans_file.write(
+                json.dumps(
+                    {
+                        "question_id": idx,
+                        "prompt": cur_prompt,
+                        "text": outputs,
+                        "answer_id": ans_id,
+                        "model_id": model_name,
+                        "metadata": {},
+                    }
+                )
+                + "\n"
+            )
             ans_file.flush()
     ans_file.close()
 
