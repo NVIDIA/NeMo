@@ -11,11 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import numpy as np
 import torch
-from lhotse import CutSet
+from lhotse import AudioSource, CutSet, Recording
+from lhotse.array import Array
+from lhotse.audio import info
 from lhotse.cut import MixedCut
 from lhotse.dataset.collation import collate_audio, collate_custom_field
+from lhotse.serialization import load_jsonl
+
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+
+INPUT_CHANNEL_SELECTOR = "input_channel_selector"
+TARGET_CHANNEL_SELECTOR = "target_channel_selector"
+REFERENCE_CHANNEL_SELECTOR = "reference_channel_selector"
+LHOTSE_TARGET_CHANNEL_SELECTOR = "target_recording_channel_selector"
+LHOTSE_REFERENCE_CHANNEL_SELECTOR = "reference_recording_channel_selector"
 
 
 class LhotseAudioToTargetDataset(torch.utils.data.Dataset):
@@ -32,13 +43,13 @@ class LhotseAudioToTargetDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, cuts: CutSet) -> dict[str, torch.Tensor]:
         src_audio, src_audio_lens = collate_audio(cuts)
-        tgt_audio, tgt_audio_lens = collate_audio(cuts, recording_field=self.TARGET_KEY)
         ans = {
             "input_signal": src_audio,
             "input_length": src_audio_lens,
-            "target_signal": tgt_audio,
-            "target_length": tgt_audio_lens,
         }
+        if _key_available(cuts, self.TARGET_KEY):
+            tgt_audio, tgt_audio_lens = collate_audio(cuts, recording_field=self.TARGET_KEY)
+            ans.update(target_signal=tgt_audio, target_length=tgt_audio_lens)
         if _key_available(cuts, self.REFERENCE_KEY):
             ref_audio, ref_audio_lens = collate_audio(cuts, recording_field=self.REFERENCE_KEY)
             ans.update(reference_signal=ref_audio, reference_length=ref_audio_lens)
@@ -57,3 +68,96 @@ def _key_available(cuts: CutSet, key: str) -> bool:
         else:
             return False
     return True
+
+
+def create_recording(path_or_paths: str | list[str]) -> Recording:
+    if isinstance(path_or_paths, list):
+        cur_channel_idx = 0
+        sources = []
+        infos = []
+        for p in path_or_paths:
+            i = info(p)
+            infos.append(i)
+            sources.append(
+                AudioSource(type="file", channels=list(range(cur_channel_idx, cur_channel_idx + i.channels)), source=p)
+            )
+            cur_channel_idx += i.channels
+        assert all(
+            i.samplerate == infos[0].samplerate for i in infos[1:]
+        ), f"Mismatched sampling rates for individual audio files in: {path_or_paths}"
+        recording = Recording(
+            id=p[0],
+            sources=sources,
+            sampling_rate=infos[0].samplerate,
+            num_samples=infos[0].frames,
+            duration=infos[0].duration,
+            channel_ids=list(range(0, cur_channel_idx)),
+        )
+    else:
+        recording = Recording.from_file(path_or_paths)
+    return recording
+
+
+def create_array(path: str) -> Array:
+    assert path.endswith(".npy"), f"Currently only conversion of numpy files is supported (got: {path})"
+    arr = np.load(path)
+    parent, path = os.path.split(path)
+    return Array(storage_type="numpy_files", storage_path=parent, storage_key=path, shape=list(arr.shape),)
+
+
+def convert_manifest_nemo_to_lhotse(
+    input_manifest: str,
+    output_manifest: str,
+    input_key: str = 'input_filepath',
+    target_key: str = 'target_filepath',
+    reference_key: str = 'reference_filepath',
+    embedding_key: str = 'embedding_filepath',
+):
+    with CutSet.open_writer(output_manifest) as writer:
+        for item in load_jsonl(input_manifest):
+
+            # Create Lhotse recording and cut object, apply offset and duration slicing if present.
+            recording = create_recording(get_full_path(audio_file=item.pop(input_key), manifest_file=input_manifest))
+            cut = recording.to_cut().truncate(duration=item.pop("duration"), offset=item.pop("offset", 0.0))
+
+            if (channels := item.pop(INPUT_CHANNEL_SELECTOR, None)) is not None:
+                if cut.num_channels == 1:
+                    assert (
+                        len(channels) == 1 and channels[0] == 0
+                    ), f"The input recording has only a single channel, but manifest specified {INPUT_CHANNEL_SELECTOR}={channels}"
+                else:
+                    cut = cut.with_channels(channels)
+
+            if target_key in item:
+                cut.target_recording = create_recording(
+                    get_full_path(audio_file=item.pop(target_key), manifest_file=input_manifest)
+                )
+                if (channels := item.pop(TARGET_CHANNEL_SELECTOR, None)) is not None:
+                    if cut.target_recording.num_channels == 1:
+                        assert (
+                            len(channels) == 1 and channels[0] == 0
+                        ), f"The target recording has only a single channel, but manifest specified {TARGET_CHANNEL_SELECTOR}={channels}"
+                    else:
+                        cut = cut.with_custom(LHOTSE_TARGET_CHANNEL_SELECTOR, channels)
+
+            if reference_key in item:
+                cut.reference_recording = create_recording(
+                    get_full_path(audio_file=item.pop(reference_key), manifest_file=input_manifest)
+                )
+                if (channels := item.pop(REFERENCE_CHANNEL_SELECTOR, None)) is not None:
+                    if cut.reference_recording.num_channels == 1:
+                        assert (
+                            len(channels) == 1 and channels[0] == 0
+                        ), f"The reference recording has only a single channel, but manifest specified {REFERENCE_CHANNEL_SELECTOR}={channels}"
+                    else:
+                        cut = cut.with_custom(LHOTSE_REFERENCE_CHANNEL_SELECTOR, channels)
+
+            if embedding_key in item:
+                cut.embedding_vector = create_array(
+                    get_full_path(audio_file=item.pop(embedding_key), manifest_file=input_manifest)
+                )
+
+            if item:
+                cut.custom.update(item)  # any field that's still left goes to custom fields
+
+            writer.write(cut)
