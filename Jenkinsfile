@@ -490,6 +490,7 @@ pipeline {
             quantization.algorithm=fp8 \
             quantization.num_calib_size=8 \
             inference.batch_size=2 \
+            export.inference_tensor_parallel=2 \
             model_save=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
             sh 'rm -f /home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
           }
