@@ -34,9 +34,9 @@ create_sample_jsonl(
 )
 
 create_hf_model(
-    model_name_or_path="/home/TestData/nlp/megatron_llama/llama-ci-hf",  # FIXME: change to "meta-llama/Llama-2-7b-hf"
-    output_dir=os.path.join(args.save_dir, "tiny_llama2_hf"),
-    config_updates={"hidden_size": 128, "num_attention_heads": 4, "num_hidden_layers": 2, "num_key_value_heads": 4},
+    model_name_or_path="/home/TestData/nlp/meta-llama/Llama-2-7b-hf",
+    output_dir=os.path.join(args.save_dir, "megatron_llama/llama-ci-hf"),
+    config_updates={"hidden_size": 256, "num_attention_heads": 4, "num_hidden_layers": 2, "num_key_value_heads": 4},
     overwrite=args.overwrite,
 )
 print("Setup done.")
