@@ -216,8 +216,8 @@ def get_optimizer_step(state):
 
 
 def get_training_step(state):
-    def training_step(self, batch, batch_idx):
-        results = self.__orig_training_step__(batch, batch_idx)
+    def training_step(self, batch):
+        results = self.__orig_training_step__(batch)
         if state.output is None:
             state.output = struct_copy_one(results)
 
@@ -343,6 +343,8 @@ class CUDAGraphCallback(Callback):
         combined_loader = CombinedLoader(static_loader, mode=_mode)
         trainer.fit_loop.__orig_combined_loader__ = trainer.fit_loop._combined_loader
         trainer.fit_loop._combined_loader = combined_loader
+        trainer.fit_loop._data_fetcher.setup(trainer.fit_loop._combined_loader)
+        iter(trainer.fit_loop._data_fetcher)
 
         # Warn if `optimizer.zero_grad()` invoked during graph capturing
         for optimizer in trainer.optimizers:
@@ -384,6 +386,8 @@ class CUDAGraphCallback(Callback):
             return
 
         trainer.fit_loop._combined_loader = trainer.fit_loop.__orig_combined_loader__
+        trainer.fit_loop._data_fetcher.setup(trainer.fit_loop._combined_loader)
+        iter(trainer.fit_loop._data_fetcher)
         del trainer.fit_loop.__orig_combined_loader__
 
         for optimizer in trainer.optimizers:
