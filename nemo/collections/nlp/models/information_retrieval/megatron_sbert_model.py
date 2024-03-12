@@ -392,20 +392,22 @@ class MegatronSBertModel(MegatronBertModel):
         softmax_temp = cfg.get('softmax_temp', 0.05)
         self.scale = 1.0 / softmax_temp
         try:
-          train_file_path = self.cfg.data.data_prefix
-          with open(train_file_path) as f:
-              train_data = json.load(f)
+            train_file_path = self.cfg.data.data_prefix
+            with open(train_file_path) as f:
+                train_data = json.load(f)
 
-          random_seed = 42
-          set_seed(random_seed)
-          random.shuffle(train_data)
+            random_seed = 42
+            set_seed(random_seed)
+            random.shuffle(train_data)
 
-          self.train_data = train_data
-          logging.warning("Model is running in training mode")
+            self.train_data = train_data
+            logging.warning("Model is running in training mode")
         except:
-          logging.warning("Model is running inference mode as training data is not specified, or could not be loaded")
-          random_seed = 42
-          set_seed(random_seed)
+            logging.warning(
+                "Model is running inference mode as training data is not specified, or could not be loaded"
+            )
+            random_seed = 42
+            set_seed(random_seed)
 
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
