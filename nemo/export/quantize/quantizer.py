@@ -207,6 +207,7 @@ class Quantizer:
                 dtype=torch_dtype,
                 export_dir=export_dir,
                 inference_tensor_parallel=self.export_config.inference_tensor_parallel,
+                export_tensorrt_llm_config=self.export_config.export_tensorrt_llm_config,
             )
             dist.barrier()  # Wait until all ranks complete export_model_config step
             if is_global_rank_zero():
