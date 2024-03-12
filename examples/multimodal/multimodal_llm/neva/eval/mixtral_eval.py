@@ -1,19 +1,30 @@
+"""Script to query Mixtral-8x7B as a judge via NGC API for evaluation"""
 import argparse
-import json
-import math
+import torch
 import os
+import json
+import requests
+from tqdm import tqdm
+import shortuuid
+from PIL import Image
+import math
+import numpy as np
 from collections import defaultdict
 
-import numpy as np
-import requests
-import shortuuid
-import torch
-from PIL import Image
-from tqdm import tqdm
+"""Usage: (for image inference)
+API_TOKEN=xxx python3 --model-name-list name-of-model-1 name-of-model-2
+                      --media-type image
+                      --question-file path/to/prompts.jsonl
+                      --responses-list path/to/responses-1.jsonl path/to/responses-2.jsonl
+                      --answers-dir path/to/desired/preprocessed/answers/dir
+                      --context-file path/to/context.jsonl
+                      --rule-file path/to/rule.json
+                      --output path/to/desired/output.json
+"""
 
 invoke_url = "https://api.nvcf.nvidia.com/v2/nvcf/pexec/functions/8f4118ba-60a8-4e6b-8574-e38a4067a4a3"
 
-API_TOKEN = ""  # ADD NGC API TOKEN HERE
+API_TOKEN = os.getenv("API_TOKEN", "")  # ADD NGC API TOKEN HERE
 
 headers = {
     "Authorization": f"Bearer {API_TOKEN}",
@@ -22,7 +33,7 @@ headers = {
 }
 
 
-def summarize(args, review_files):
+def summarize(review_files):
     for review_file in sorted(review_files):
         scores = defaultdict(list)
         with open(review_file) as f:
@@ -49,15 +60,18 @@ def get_eval(content: str, max_tokens: int):
         "messages": [
             {
                 'role': 'system',
-                'content': 'You are a helpful and precise assistant for checking the quality of the answer.',
+                'content': 'You are a helpful and precise assistant for checking the quality of the answer.'
             },
-            {'role': 'user', 'content': content,},
+            {
+                'role': 'user',
+                'content': content,
+            }
         ],
         "temperature": 0.2,
         "top_p": 0.7,
         "max_tokens": max_tokens,
         "seed": 42,
-        "stream": True,
+        "stream": True
     }
     response = requests.post(invoke_url, headers=headers, json=payload, stream=True)
     output = ""
@@ -126,19 +140,17 @@ def generate_prompt(args, answer_list):
             assert False, f"Visual QA category not found in rule file: {category}."
         prompt = rule['prompt']
         role = rule['role']
-        content = (
-            f'[Context]\n{cap_str}\n\n'
-            f'[Question]\n{ques["text"]}\n\n'
-            f'[{role} 1]\n{ans1["text"]}\n\n[End of {role} 1]\n\n'
-            f'[{role} 2]\n{ans2["text"]}\n\n[End of {role} 2]\n\n'
-            f'[System]\n{prompt}\n\n'
-        )
+        content = (f'[Context]\n{cap_str}\n\n'
+                   f'[Question]\n{ques["text"]}\n\n'
+                   f'[{role} 1]\n{ans1["text"]}\n\n[End of {role} 1]\n\n'
+                   f'[{role} 2]\n{ans2["text"]}\n\n[End of {role} 2]\n\n'
+                   f'[System]\n{prompt}\n\n')
         cur_js = {
             'id': idx + 1,
             'question_id': ques['question_id'],
             'answer1_id': ans1.get('answer_id', ans1['question_id']),
             'answer2_id': ans2.get('answer_id', ans2['answer_id']),
-            'category': category,
+            'category': category
         }
         if idx >= len(cur_reviews):
             print(content)
@@ -160,7 +172,7 @@ def generate_prompt(args, answer_list):
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -168,7 +180,7 @@ def get_chunk(lst, n, k):
     return chunks[k]
 
 
-def preprocess(args, response_file):
+def preprocess(args, response_file, model_name):
     questions = [json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")]
     responses = [json.loads(r) for r in open(os.path.expanduser(response_file), "r")]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
@@ -188,19 +200,12 @@ def preprocess(args, response_file):
             cur_prompt = qs
             outputs = resp["response"]
             ans_id = shortuuid.uuid()
-            ans_file.write(
-                json.dumps(
-                    {
-                        "question_id": idx,
-                        "prompt": cur_prompt,
-                        "text": outputs,
-                        "answer_id": ans_id,
-                        "model_id": args.model_name,
-                        "metadata": {},
-                    }
-                )
-                + "\n"
-            )
+            ans_file.write(json.dumps({"question_id": idx,
+                                       "prompt": cur_prompt,
+                                       "text": outputs,
+                                       "answer_id": ans_id,
+                                       "model_id": model_name,
+                                       "metadata": {}}) + "\n")
             ans_file.flush()
     ans_file.close()
 
@@ -209,7 +214,7 @@ def preprocess(args, response_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-name", type=str, default="vneva")
+    parser.add_argument("--model-name-list", nargs='+', default=[])
     parser.add_argument("--media-type", type=str, default="image")
     parser.add_argument("--question-file", type=str, default="question.jsonl")
     parser.add_argument('--responses-list', nargs='+', default=[])
@@ -223,10 +228,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     answer_list = []
-    for response in args.responses_list:
-        answer = preprocess(args, response)
+    for response, model_name in zip(args.responses_list, args.model_name_list):
+        answer = preprocess(args, response, model_name)
         answer_list.append(answer)
 
     review = generate_prompt(args, answer_list)
 
-    summarize(args, [review])
+    summarize([review])
