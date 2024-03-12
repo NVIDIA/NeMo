@@ -391,7 +391,8 @@ def write_transcription(
             if not cfg.decoding.beam.return_best_hypothesis:
                 beam = []
                 for hyp in hyps:
-                    beam.append((hyp.text, hyp.score))
+                    score = hyp.score.numpy().tolist() if isinstance(hyp.score, torch.Tensor) else hyp.score
+                    beam.append((hyp.text, score))
                 beams.append(beam)
     else:
         raise TypeError
