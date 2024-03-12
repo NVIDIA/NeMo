@@ -220,7 +220,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         if search_type == "beam" or search_type == "pyctcdecode":
             self.search_algorithm = self._pyctcdecode_beam_search
         elif search_type == "subword_pyctcdecode":
-            self.search_algorithm = self._pyctcdecode_beam_search
+            raise NotImplementedError(search_type + " decoding is not implemented")
         elif search_type == "flashlight":
             if self.flashlight_cfg.lexicon_path:
                 raise ValueError("flashlight works only without lexicon")
@@ -409,9 +409,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 )
 
             # perform token offset for subword models
-            if self.decoding_type == 'subword' and (
-                self.search_type == 'subword_pyctcdecode' or self.search_type == 'subword_flashlight'
-            ):
+            if self.decoding_type == 'subword' and self.search_type == 'flashlight':
+                vocab = self.vocab
+            elif self.decoding_type == 'subword' and self.search_type == 'subword_flashlight':
                 vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
             else:
                 # char models
