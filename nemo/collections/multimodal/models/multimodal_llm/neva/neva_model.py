@@ -24,6 +24,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
+from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
@@ -33,7 +34,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPVisionTransformer,
     MegatronCLIPModel,
 )
-from nemo.collections.multimodal.parts.utils import extend_instance, load_nemo_model_weights
+from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, get_specs
@@ -612,16 +613,16 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         output_tensor = self.model(**forward_args)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
-        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step)
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step)
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
             in the micro-batch fwd function.
         """
-        return MegatronGPTModel.training_step(self, dataloader_iter, batch_idx)
+        return MegatronGPTModel.training_step(self, dataloader_iter)
 
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def loss_func(output_tensor, loss_mask):
@@ -633,7 +634,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return loss_for_ub, dict(avg=reduced_loss[0].unsqueeze(0))
 
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            batch = next(dataloader_iter)
+            batch, _, _ = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 for k in batch.keys():
                     if self.get_attention_mask_from_fusion:
@@ -689,7 +690,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            batch, _, _ = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,
@@ -743,8 +744,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
-        return MegatronGPTModel.validation_step(self, dataloader_iter, batch_idx)
+    def validation_step(self, dataloader_iter):
+        return MegatronGPTModel.validation_step(self, dataloader_iter)
 
     def on_validation_epoch_end(self):
         if not self.validation_step_outputs:
@@ -774,7 +775,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         pass
 
     def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+        return self.validation_step(batch)
 
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)

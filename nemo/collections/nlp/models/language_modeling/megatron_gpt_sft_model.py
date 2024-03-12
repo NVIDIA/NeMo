@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
@@ -184,13 +185,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
 
-        # Raise error if using multiple dataloaders
-        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
-        if type(self._test_dl) == list and len(self._test_dl) > 1:
-            raise NotImplementedError('Lightning 2.0 does not support multiple dataloaders with dataloader_iter')
-
         # when using pipeline model parallel the final stage need to initialize word embeddings
         self.initialize_last_rank_embeddings()
 
@@ -327,8 +321,13 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         else:
             return base_key + f"dataloader{dataloader_idx}"
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
-        batch = next(dataloader_iter)
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+        # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
+        # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        else:
+            batch = next(dataloader_iter)
 
         log_token_counts = self.cfg.get('log_token_counts', False)
         if log_token_counts:
@@ -399,24 +398,21 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         return loss_mean
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
+    def validation_step(self, dataloader_iter):
+        return self.inference_step(dataloader_iter, 'validation')
 
-    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
+    def test_step(self, dataloader_iter):
+        return self.inference_step(dataloader_iter, 'test')
 
-    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
-        batch = next(dataloader_iter)
+    def inference_step(self, dataloader_iter, mode):
+        batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super().validation_step(itertools.chain([batch]), batch_idx)
+        # Pass dataloader_idx, as it's needed in val_step of GPTModel to append the loss correctly to self.val/test_step_outputs
+        # in case of multi dataloaders
+        loss = super().validation_step(itertools.chain([batch]), dataloader_idx)
 
         if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
             # We need _inference_config to get generation params
@@ -427,12 +423,15 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
 
             output = self.predict_step(batch, batch_idx, dataloader_idx)
-            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-            preds_text = [
-                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-                for t, l in zip(output['token_ids'], batch['context_lengths'])
-            ]
+            if output:
+                inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
+                labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+                preds_text = [
+                    self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
+                    for t, l in zip(output['token_ids'], batch['context_lengths'])
+                ]
+            else:
+                inputs_text, labels_text, preds_text = [], [], []
         else:
             inputs_text, labels_text, preds_text = [], [], []
 
@@ -460,7 +459,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
-        if not outputs:
+        if not outputs or not outputs[0]:
             return
 
         if isinstance(outputs[0], dict):
@@ -488,11 +487,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             # we can only log on one rank if it is rank zero so we broadcast from last rank
             torch.distributed.broadcast(loss, get_last_rank())
 
-            self.log('val_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+            if mode != 'test':
+                self.log('val_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1)
 
-            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
-            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
-            self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
 
             # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.

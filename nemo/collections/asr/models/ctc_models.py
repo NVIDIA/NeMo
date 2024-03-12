@@ -497,11 +497,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         # Reset access registry
-        if AccessMixin.is_access_enabled():
+        if AccessMixin.is_access_enabled(self.model_guid):
             AccessMixin.reset_registry(self)
 
         if self.is_interctc_enabled():
-            AccessMixin.set_access_enabled(access_enabled=True)
+            AccessMixin.set_access_enabled(access_enabled=True, guid=self.model_guid)
 
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
@@ -528,7 +528,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         )
 
         # Reset access registry
-        if AccessMixin.is_access_enabled():
+        if AccessMixin.is_access_enabled(self.model_guid):
             AccessMixin.reset_registry(self)
 
         tensorboard_logs.update(
@@ -570,7 +570,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
         if self.is_interctc_enabled():
-            AccessMixin.set_access_enabled(access_enabled=True)
+            AccessMixin.set_access_enabled(access_enabled=True, guid=self.model_guid)
 
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
@@ -597,7 +597,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         # Reset access registry
-        if AccessMixin.is_access_enabled():
+        if AccessMixin.is_access_enabled(self.model_guid):
             AccessMixin.reset_registry(self)
 
         return metrics
@@ -662,14 +662,22 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
             logits, decoder_lengths=logits_len, return_hypotheses=trcfg.return_hypotheses,
         )
-        logits = logits.cpu()
-
         if trcfg.return_hypotheses:
+            if logits.is_cuda:
+                # See comment in
+                # ctc_greedy_decoding.py::GreedyCTCInfer::forward() to
+                # understand this idiom.
+                logits_cpu = torch.empty(logits.shape, dtype=logits.dtype, device=torch.device("cpu"), pin_memory=True)
+                logits_cpu.copy_(logits, non_blocking=True)
+            else:
+                logits_cpu = logits
+            logits_len = logits_len.cpu()
             # dump log probs per file
-            for idx in range(logits.shape[0]):
-                current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+            for idx in range(logits_cpu.shape[0]):
+                current_hypotheses[idx].y_sequence = logits_cpu[idx][: logits_len[idx]]
                 if current_hypotheses[idx].alignments is None:
                     current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
+            del logits_cpu
 
         # cleanup memory
         del logits, logits_len

@@ -27,8 +27,10 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -142,6 +144,22 @@ def get_specs(spec_name, num_experts=None):
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
+
+
+class EmbeddingScalingMixin(torch.nn.Module):
+    """
+    A mixin class for scaling embeddings in Megatron GPT.
+    The scaling is applied only if the configuration (accessible via `self.config`)
+    includes `apply_embedding_scaling` set to True.
+    """
+
+    def forward(self, **kwargs):
+        """
+        Forward pass that scales the output embeddings from the `forward` method of
+        the superclass by the square root of the hidden size specified in the configuration.
+        """
+        embeddings = super().forward(**kwargs)
+        return embeddings * (self.config.hidden_size ** 0.5)
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -365,6 +383,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
                 'num_query_groups', None
@@ -433,6 +453,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
+            if self.cfg.get("apply_embedding_scaling", False):
+                extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
     def setup_optimizer_param_groups(self):
@@ -529,7 +551,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -613,7 +635,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
@@ -652,7 +674,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        loss_mean = self.fwd_bwd_step(dataloader_iter, False)
 
         if self.cfg.get('fp8', False):
             self.prev_step_training = self.training
@@ -904,7 +926,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Broadcast data.
         if data_iterator is not None:
-            data = next(data_iterator)
+            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
+            # from the data_iterator
+            if isinstance(data_iterator, _DataFetcherWrapper):
+                data, _, _ = next(data_iterator)
+            else:
+                data = next(data_iterator)
         else:
             data = None
 
@@ -939,7 +967,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         val.shape[seq_dim] // (2 * cp_size),
                         *val.shape[(seq_dim + 1) :],
                     )
-                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device=val.device)
+                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
+                        non_blocking=True
+                    )
                     val = val.index_select(seq_dim, index)
                     val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
                     batch[key] = val
@@ -1054,7 +1084,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
+            # from the data_iterator
+            if isinstance(dataloader_iter, _DataFetcherWrapper):
+                batch, _, _ = next(dataloader_iter)
+            else:
+                batch = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -1083,6 +1119,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            # Currently for all MCore transformer layer specs causal attention mask
+            # is used so we can delegate creating it to MCore/TE and pass None below
+            if isinstance(model, MCoreGPTModel):
+                attention_mask = None
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
@@ -1100,17 +1140,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter, dataloader_idx=0):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -1126,12 +1162,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             first_val_step = None
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
+        loss = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+
+        if mode == 'val':
+            # Append with the correct dataloader_idx in case of multiple dataloaders
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
+
         return loss
 
     def on_validation_epoch_end(self):
@@ -1167,8 +1215,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return averaged_loss
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter):
+        return self.validation_step(dataloader_iter)
 
     def on_test_epoch_end(self):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
@@ -1190,19 +1238,29 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = self.trainer.limit_test_batches
 
-        # Add extra FIM tokens to tokenizer
-        if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
-            fim_tokens = self.cfg.data.fim.extra_tokens
-            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
-            self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
+        # TODO: @athitten make num of eval and test samples 1 always, after it works with non DictConfig data_prefix.
+        train_valid_test_num_samples = [
+            max_train_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
 
         # The line below exploits a quirk in mcore dataset construction, to make number of epochs for validation and test equal to 1
         # The mcore dataset implementation uses the number N we provide via train_valid_test_num_samples to derive parameter E such that
         # E = argmin_e e * N_d >= N, or equivalently E = ceildiv(N, N_d)
         # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
         # Setting N = 1 we force E to be 1 as well
-        train_valid_test_num_samples = [max_train_steps * global_batch_size, 1, 1]
+        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            train_valid_test_num_samples[1] = 1
+
+        # Add extra FIM tokens to tokenizer
+        if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
+            fim_tokens = self.cfg.data.fim.extra_tokens
+            fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
+            self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
 
         mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {

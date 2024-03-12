@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import enum
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -27,7 +27,12 @@ import torch.nn.init as init
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    init_method_const,
+    init_method_kaiming_uniform,
+    init_method_normal,
+)
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
@@ -140,6 +145,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
+        dropout_position: str = 'post',
         **kwargs,
     ):
         super().__init__()
@@ -154,6 +160,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.dim = dim
         self.alpha = alpha if alpha is not None else self.dim
         self.input_is_parallel = input_is_parallel
+        self.dropout_position = dropout_position
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -230,16 +237,28 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # revert config change in case it is read elsewhere
         model_parallel_config.sequence_parallel = self._sequence_parallel
+        if self._sequence_parallel and not input_is_parallel:
+            from importlib.metadata import version
+
+            from pkg_resources import packaging
+
+            te_version = packaging.version.Version(version("transformer-engine"))
+            if te_version >= packaging.version.Version("1.5.0dev"):
+                # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
+                # in the forward method is not needed, so set self._sequence_parallel to False
+                self._sequence_parallel = False
 
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
             init_fn = init.xavier_normal_
         elif init_method == 'normal':
             init_fn = init_method_normal(0.2)
+        elif init_method == 'kaiming':
+            init_fn = init_method_kaiming_uniform(math.sqrt(5))
         elif init_method == "zero":
             init_fn = init_method_const(0.0)
         else:
-            raise NotImplementedError("out_init_method should be zero, normal or xavier")
+            raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
         return init_fn
 
     def adapter_unfreeze(self,):
@@ -249,6 +268,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         super().adapter_unfreeze()
 
     def forward(self, x):
+        if self.dropout is not None and self.dropout_position == 'pre':
+            x = self.dropout(x)
 
         if self.norm_position == 'pre':
             x = self.layer_norm(x)
@@ -274,7 +295,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             x = self.layer_norm(x)
 
         # Add dropout if available
-        if self.dropout is not None:
+        if self.dropout is not None and self.dropout_position == 'post':
             x = self.dropout(x)
 
         x = x * (self.alpha / self.dim)
@@ -295,6 +316,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     gather_output: bool = True
     input_is_parallel: bool = False
     dropout: float = 0.0
+    dropout_position: str = 'post'
     alpha: float | None = None
     network_alpha: int | None = None
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
