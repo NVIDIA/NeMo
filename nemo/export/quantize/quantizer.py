@@ -14,6 +14,7 @@
 
 import copy
 import tarfile
+from contextlib import nullcontext
 from typing import List, Optional
 
 import torch.distributed as dist
@@ -51,11 +52,11 @@ class Quantizer:
 
         1. Loading a Nemo model from disk using appropriate parallelism strategy
         2. Calibrating the model to obtain appropriate algorithm-specific scaling factors
-        3. Producing .qnemo tarball with model config (JSON), quantized weights (safetensors)
-           and tokenizer config (yaml).
+        3. Producing output directory or .qnemo tarball with model config (json),
+           quantized weights (safetensors) and tokenizer config (yaml).
 
-    The .qnemo file produced is intended consumed by TensorRT-LLM toolbox for inference.
-    This can be achieved using Nemo inference containers.
+    The output directory (or .qnemo file) produced is intended to be consumed by TensorRT-LLM toolbox
+    for efficient inference. This can be achieved using Nemo inference containers.
 
     Currently supported and tested model family is Llama2. Model type needs to be specified in
     the quantization command with decoder_type parameter on exporting (see below). Quantizing other
@@ -191,17 +192,26 @@ class Quantizer:
         """Export model to '.qnemo' format for TensorRT-LLM engine build."""
         torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
 
-        with temporary_directory() as tmp_dir:
+        # Setup model export handling: temporary directory for
+        # '.qnemo' tarball or directly write to model_save
+        save_qnemo = model_save.endswith(".qnemo")
+        if save_qnemo:
+            export_handler = temporary_directory()
+        else:
+            export_handler = nullcontext(enter_result=model_save)
+
+        with export_handler as export_dir:
             export_model_config(
                 model=model,
                 decoder_type=self.export_config.decoder_type,
                 dtype=torch_dtype,
-                export_dir=tmp_dir,
+                export_dir=export_dir,
                 inference_tensor_parallel=self.export_config.inference_tensor_parallel,
             )
             dist.barrier()  # Wait until all ranks complete export_model_config step
             if is_global_rank_zero():
                 logging.info(f"Exporting quantized weights, model artifacts, and tokenizer config to {model_save}...")
-                with tarfile.open(model_save, "w:gz") as tar:
-                    save_artifacts(model, tmp_dir)
-                    tar.add(tmp_dir, arcname="./")
+                save_artifacts(model, export_dir)
+                if save_qnemo:
+                    with tarfile.open(model_save, "w:gz") as tar:
+                        tar.add(export_dir, arcname="./")

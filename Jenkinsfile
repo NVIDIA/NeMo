@@ -464,8 +464,8 @@ pipeline {
             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
             quantization.algorithm=null \
-            model_save=/home/TestData/nlp/megatron_llama/ci_baseline.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci_baseline.qnemo'
+            model_save=/home/TestData/nlp/megatron_llama/ci_baseline'
+            sh 'rm -rf /home/TestData/nlp/megatron_llama/ci_baseline'
           }
         }
         stage('Llama2 - INT8 SQ') {
