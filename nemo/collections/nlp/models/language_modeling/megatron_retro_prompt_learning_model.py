@@ -153,11 +153,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         print(frozen_model_cfg)
         self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
 
-        self.word_embeddings = self.frozen_model.model.model.encoder_embedding.word_embeddings
-        if hasattr(self.frozen_model.model.model.encoder_embedding, "position_embeddings"):
-            self.pos_embeddings = self.frozen_model.model.model.encoder_embedding.position_embeddings
-        else:
-            self.pos_embeddings = None
+        self.pos_embeddings = self.cfg.get('add_position_embedding')
 
         self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
@@ -277,40 +273,6 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
 
         return output
-
-    def make_encoder_input(self, input_ids, position_ids, inference):
-        batch_size, _ = input_ids.shape
-        virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=inference)
-
-        # if pad strategy 3 for retro, need to find out virtual_token_locations:
-        # actually this works for pad strategy 1 & 2 as well?
-
-        discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
-        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
-
-        # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
-
-        # Create index template specifying where virtual token embeddings should be placed
-        _, _, embedding_size = discrete_token_embeds.shape
-        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_index = virtual_token_index.expand(
-            batch_size, self.prompt_encoder.total_virtual_tokens, embedding_size
-        )
-
-        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
-        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
-
-        if self.pos_embeddings:
-            position_embeddings = self.pos_embeddings(position_ids)
-            discrete_token_embeds = discrete_token_embeds + position_embeddings
-
-        # Insert virtual token embeddings where they belong amoung the discrete token embeddings
-        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
-
-        return discrete_token_embeds
-
         
     
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
@@ -446,7 +408,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
                 drop_last=True,
-                shuffle=True,
+                shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),

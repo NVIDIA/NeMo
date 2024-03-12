@@ -330,7 +330,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def setup(self, stage=None):
         if stage == 'predict' and self.first_stage_of_pipeline():
-            self.freeze_existing_word_embeddings()
+            # self.freeze_existing_word_embeddings()
             return
 
         self.setup_test_data()
@@ -341,7 +341,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 if self.prompt_encoder is None:
                     self.init_prompt_encoder()
-            self.freeze_existing_word_embeddings()
+            # self.freeze_existing_word_embeddings()
 
         self.setup_training_data()
         self.setup_validation_data()
