@@ -292,6 +292,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
+        if not self.megatron_amp_O2 and self.cfg.get('expert_model_parallel_size', 1) > 1:
+            raise ValueError('Expert parallelism is only supported when using megatron_amp_O2')
+
+        # TODO(akoumparouli): this is temporary and will be removed in the future.
+        if self.cfg.get('expert_model_parallel_size', 1) > 1 and self.with_distributed_adam:
+            raise ValueError('Expert parallelism is currently not supporting distributed optimizer')
+
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
             self.model = build_model(
@@ -1781,6 +1788,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_z_loss_coeff': self.cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
+            'moe_pad_sequences': self.cfg.get('expert_model_parallel_size', 1) > 1,
         }
         if model_specific_configs['num_moe_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
