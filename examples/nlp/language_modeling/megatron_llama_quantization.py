@@ -69,13 +69,18 @@ def main(cfg) -> None:
 
     quantizer = Quantizer(cfg.quantization, cfg.inference, cfg.export, cfg.trainer)
 
-    dataloader = get_calib_dataloader(
-        cfg.quantization.calib_dataset,
-        cfg.inference.batch_size,
-        cfg.quantization.num_calib_size,
-        cfg.inference.max_context_length,
-    )
-    dataloader = [data for data in dataloader]
+    # Quantization algorithm can be set to None. This is useful for baseline precision
+    # accuracy validation. In this case only weights export step will be performed:
+    if cfg.quantization.algorithm is not None:
+        dataloader = get_calib_dataloader(
+            cfg.quantization.calib_dataset,
+            cfg.inference.batch_size,
+            cfg.quantization.num_calib_size,
+            cfg.inference.max_context_length,
+        )
+        dataloader = [data for data in dataloader]
+    else:
+        dataloader = None
 
     model = quantizer.quantize(
         cfg.model_file, dataloader, cfg.tensor_model_parallel_size, cfg.pipeline_model_parallel_size

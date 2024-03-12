@@ -459,6 +459,15 @@ pipeline {
       }
       failFast true
       parallel {
+        stage('Llama2 - Export Only') {
+          steps {
+            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
+            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+            quantization.algorithm=null \
+            model_save=/home/TestData/nlp/megatron_llama/ci_baseline.qnemo'
+            sh 'rm -f /home/TestData/nlp/megatron_llama/ci_baseline.qnemo'
+          }
+        }
         stage('Llama2 - INT8 SQ') {
           steps {
             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
@@ -485,7 +494,7 @@ pipeline {
             sh 'rm -f /home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
           }
         }
-        stage('Llama2 - AWQ') {
+        stage('Llama2 - INT4 AWQ') {
           steps {
             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \

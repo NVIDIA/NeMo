@@ -65,6 +65,9 @@ class Quantizer:
     Please consult AMMO documentation for details. You can also inspect different choices in
     examples/nlp/language_modeling/conf/megatron_llama_quantization.yaml for quantization algorithms and
     calibration data as well as recommended settings.
+
+    Quantization algorithm can also be conveniently set to 'null' to perform only weights export step
+    for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
     """
 
     def __init__(
@@ -85,17 +88,20 @@ class Quantizer:
         }
         SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
         assert export_config.dtype in SUPPORTED_DTYPE
-        assert quantization_config.algorithm in QUANT_CFG_CHOICES
+        assert quantization_config.algorithm is None or quantization_config.algorithm in QUANT_CFG_CHOICES
         self.quantization_config = quantization_config
         self.inference_config = inference_config
         self.export_config = export_config
         self.trainer_config = trainer_config
-        atq_config = QUANT_CFG_CHOICES[quantization_config.algorithm]
-        if quantization_config.algorithm != "fp8":
-            # disable quantization for the last output layer
-            atq_config = copy.deepcopy(atq_config)
-            atq_config["quant_cfg"]["*.output_layer.*"] = {"enable": False}
-        self.atq_config = atq_config
+        if quantization_config.algorithm is not None:
+            atq_config = QUANT_CFG_CHOICES[quantization_config.algorithm]
+            if quantization_config.algorithm != "fp8":
+                # disable quantization for the last output layer
+                atq_config = copy.deepcopy(atq_config)
+                atq_config["quant_cfg"]["*.output_layer.*"] = {"enable": False}
+            self.atq_config = atq_config
+        else:
+            self.atq_config = None
 
     def _load_model(
         self,
@@ -160,12 +166,16 @@ class Quantizer:
     def quantize(
         self,
         model_file: str,
-        dataloader: List[List[str]],
+        dataloader: Optional[List[List[str]]],
         tensor_model_parallel_size: Optional[int] = None,
         pipeline_model_parallel_size: Optional[int] = None,
     ):
         """Quantize model checkpoint using given dataloader and optional custom parallelism settings."""
         model = self._load_model(model_file, tensor_model_parallel_size, pipeline_model_parallel_size)
+
+        if self.quantization_config.algorithm is None:
+            return model
+
         model.set_inference_config(OmegaConf.to_container(self.inference_config))
 
         def forward_loop():
@@ -174,7 +184,7 @@ class Quantizer:
                     print(f"Calibrating batch {i}")
                 model.predict_step(batch, i)
 
-        atq.quantize(model, self.atq_config, forward_loop)
+        model = atq.quantize(model, self.atq_config, forward_loop)
         return model
 
     def export(self, model, model_save: str):

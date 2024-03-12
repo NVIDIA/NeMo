@@ -22,7 +22,7 @@ trainer:
 
 quantization:
   quantize_bmm1: false
-  algorithm: fp8 # int8_sq, fp8, int8, int4_awq
+  algorithm: fp8 # int8_sq, fp8, int8, int4_awq, null
   calib_dataset: cnn_dailymail # pileval, wikitext, cnn_dailymail
   num_calib_size: 512 # number of samples used for calibration
 
