@@ -132,6 +132,45 @@
             background: linear-gradient(to bottom, var(--md-primary-fg-color), #02162f 100%, #fff 99%);
         }
 
+        .tx-hero__content-3 {
+            margin-left: 50px;
+            justify-content: left;
+            color: #FFFFFF;
+            font-weight: 300;
+            padding: 0 0px;
+            padding-bottom: 40px;
+            word-break: break-word;
+            float: right;
+        }
+
+        .tx-hero__content-3 h1 {
+            margin-top: 50px;
+            color: #FFFFFF;
+            font-weight: 600;
+            font-size: 36px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: normal;
+            /*font-family: inherit;*/
+        }
+
+        .tx-hero__content-3 p {
+            font-size: 17px;
+            line-height: 1.8em;
+            text-rendering: optimizeLegibility;
+            color: white;
+            display: block;
+        }
+
+        .tx-hero__content-3 a:link {
+            color: #9fbce9; /* chosen randomly, open to alternatives */
+        }
+
+        .tx-hero__content-3 a:visited {
+            color: #9fbce9; /* chosen randomly, open to alternatives */
+        }
+
         .tx-container-4 {
             height: auto;
             background: linear-gradient(to bottom, #0D47A1, #02162f 99%, #fff 99%);
@@ -338,23 +377,11 @@
                         Tutorials
                     </a>
 
-                    <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/intro.html"
+                    <a href="https://docs.nvidia.com/nemo-framework/index.html"
                         class="md-button md-button--primary">
                         Documentation
                     </a>
                     
-                    <a
-                    href="https://developer.nvidia.com/riva" 
-                    class="md-button md-button--primary">
-                        NVIDIA RIVA
-                    </a>
-
-                    <a
-                    href="https://github.com/NVIDIA/NeMo-Aligner"
-                    class="md-button md-button--primary">
-                        NeMo Aligner
-                    </a>
-
                     <a
                     href="https://github.com/NVIDIA/GenerativeAIExamples"
                     class="md-button md-button--primary">
@@ -368,36 +395,31 @@
 
     <!-- Main site box descriptions -->
     <!-- 2nd Section -->
-    <!-- WHAT IS NEMO ? -->
+    <!-- WHAT IS NEMO FRAMEWORK ? -->
     <section class="tx-container-2">
         <div class="md-grid md-typeset">
-            <div class="tx-hero__image-2" style="margin-top: 15%">
-                <img
-                        src="assets/images/state-of-the-art-convai-models-2c50-d@2x.png"
-                        alt=""
-                        width="600"
-                        draggable="false"
-                        align="left"
-                >
-            </div>
             <div class="tx-hero">
                 <!-- Hero content -->
                 <div class="tx-hero__content-2">
-                    <h1 id="what-is-nemo">What is NeMo?</h1><br>
-
+                    <h1>What is NeMo Framework?</h1><br>
                     <p>
-                        NVIDIA NeMo™ framework is an end-to-end platform for development of  multimodal generative AI models at scale
-                        anywhere —on any cloud or on-premises.<br><br>
+                        <a href="https://github.com/NVIDIA/NeMo">NVIDIA NeMo</a> framework, part of 
+                        <a href="https://www.nvidia.com/en-us/data-center/products/ai-enterprise/">NVIDIA AI Enterprise</a>, 
+                        is an end-to-end toolkit for building, customizing, and
+                        deploying state-of-the-art AI models at scale anywhere — on any cloud or on-premises. It includes data curation tools and
+                        pretrained models, training, customization and inference frameworks, and guardrail toolkit.<br><br>
 
-                        The NeMo framework  supports large language models (LLMs) and models for  automatic speech recognition (ASR),
-                        text-to-speech (TTS), neural machine translation (NMT), natural language processing (NLP) and computer vision (CV).
-                        It also supports many  text LM architectures  ( Transformer, T5, GPT, BERT , MoE, RETRO etc)  and various
-                        multimodal models.<br><br>
-
-                        The NeMo framework offers an array of customization techniques to refine pretrained LLMs for specialized use
-                        cases including p-tuning, LoRA, Supervised fine-tuning (SFT), Reinforcement learning from human feedback (RLHF),
-                        SteerLM, and more. Through these diverse customization options, NeMo offers wide-ranging flexibility that is
-                        crucial in meeting varying business requirements.<br><br>
+                        NeMo collections include <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/nemo_megatron/intro.html">Large Language Models (LLM)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/multimodal/mllm/intro.html">Multimodal Models (MM)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/vision/intro.html">Computer Vision (CV)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html">Automatic Speech Recognition (ASR)</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html">Text-To-Speech (TTS)</a>
+                        and <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/machine_translation/machine_translation.html">Neural Machine Translation (NMT)</a>. 
+                        Collections consist of modules that let
+                        users build new models and to train them on your data. Every module can be customized, extended, and composed to create
+                        new AI models. NeMo supports language and multimodal models based on Transformer architectures (GPT, T5, BERT, MoE,
+                        RETRO, etc.) as well as Diffusion architecture (Stable Diffusion etc.) including a rich community model support with
+                        Llama 2, Falcon, CLIP, Stable Diffusion, Imagen, LLAVA, Canary and others.
                     </p><br>
                 </div>
             </div>
@@ -405,115 +427,63 @@
     </section>
 
     <!-- 3rd Section -->
-    <!-- LLM with NeMo -->
-<!--    <section class="tx-container-3">-->
-<!--        <div class="md-grid md-typeset">-->
-<!--            <div class="tx-hero">-->
-
-<!--                &lt;!&ndash; Hero image &ndash;&gt;-->
-<!--                <div class="tx-hero__image-3">-->
-<!--                    <img-->
-<!--                            src="assets/images/convai-nemo-megatron.svg"-->
-<!--                            alt=""-->
-<!--                            width="2800"-->
-<!--                            draggable="false"-->
-<!--                    >-->
-<!--                </div>-->
-
-<!--                &lt;!&ndash; Hero content &ndash;&gt;-->
-<!--                <div class="tx-hero__content">-->
-<!--                    <br>-->
-<!--                    <h1 id="nemo-megatron">Large-Scale Language Modeling with NeMo Megatron</h1><br>-->
-
-<!--                    <p>-->
-<!--                        NeMo Megatron is an end-to-end platform that delivers high training efficiency across -->
-<!--                        thousands of GPUs and makes it practical for enterprises to deploy large-scale NLP. -->
-<!--                        It provides capabilities to curate training data, train large-scale models up to trillions -->
-<!--                        of parameters and deploy them in inference.<br><br>-->
-
-<!--                        It performs data curation tasks such as formatting, filtering, deduplication, and blending -->
-<!--                        that can otherwise take months. It includes state-of-the-art parallelization techniques such -->
-<!--                        as tensor parallelism, pipeline parallelism, sequence parallelism, and selective activation -->
-<!--                        recomputation, to scale models efficiently.<br><br>-->
-
-<!--                        These models can be exported to the NVIDIA Triton™ Inference Server to run large-scale NLP -->
-<!--                        models on multiple GPUs and multiple nodes.<br><br>-->
-
-<!--                        NeMo Megaton is optimized to run on DGX system on-prem as well as in the cloud.-->
-<!--                        -->
-<!--                    </p><br>-->
-<!--                </div>-->
-<!--            </div>-->
-<!--        </div>-->
-<!--    </section>-->
-
-    <!-- 4th Section -->
-    <!-- OSS -->
+    <!-- MODEL TRAINING AND ALIGNMENT -->
     <section class="tx-container-3">
         <div class="md-grid md-typeset">
 
             <div class="tx-hero">
                 <!-- Hero content -->
-                <div class="tx-hero__content">
-                    <h1 id="nemo-oss">Flexible, Open-Source, <br>Rapidly Expanding Ecosystem</h1><br>
+                <div class="tx-hero__content-3">
+                    <h1>Model Training and Alignment</h1><br>
 
                     <p>
-                        NeMo is built on top of PyTorch and PyTorch Lightning, providing an easy path for researchers 
-                        to develop and integrate with modules with which they are already comfortable. PyTorch and 
-                        PyTorch lightning are open-source python libraries that provide modules to compose models.<br><br>
-
-                        To provide the researcher's flexibility to customize the models/modules easily, NeMo integrated 
-                        with the Hydra framework. Hydra is a popular framework that simplifies the development of complex 
-                        conversational AI models.<br><br>
-
-                        NeMo is available as an open-source so that researchers can contribute to and build on it.
-
+                        Transformer-based LLM and multimodal models can leverage <a href="https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core">NVIDIA Megatron Core</a> 
+                        for scaling training for models with
+                        billions of parameters across thousands of GPUs. Megatron Core includes state-of-the-art parallelization techniques such
+                        as tensor, pipeline and sequence parallelism, and selective activation recomputation for optimal performance.
+                        <br><br>
+                        The NeMo framework offers customization techniques to refine pretrained LLMs including p-tuning, LoRA, and supervised
+                        fine-tuning (SFT). NeMo LLMs can be aligned with state-of-the-art methods such as SteerLM, direct preference
+                        optimization (DPO) and reinforcement learning from human feedback (RLHF) through <a href="https://github.com/NVIDIA/NeMo-Aligner">NVIDIA NeMo Aligner</a>.
+                        <br><br>
+                        NeMo framework supports training and customizing of speech AI models (ASR, Speech Classification, Speaker Recognition,
+                        Speaker Diarization, and TTS) in a reproducible manner. It also comes with a large set of speech AI tools including
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/nemo_forced_aligner.html">NeMo Forced Aligner</a>, 
+                        <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_processor.html">Speech Data Processor</a> 
+                        and <a href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html">Speech Data Explorer</a>.
+                        <br><br>
+                        NVIDIA Framework Launcher is a tool for launching end-to-end training jobs on Slurm-based public or private clouds.
                     </p><br>
                 </div>
 
-                <div class="tx-hero__image-2" style="max-width: 40%; margin-top: 0%; margin-left: 5%;">
-                <!-- style="max-width: 50%; margin-top: 10%; margin-right: 5%;"-->
-                <img
-                        src="assets/images/deep-learning-nemo-integration.png"
-                        alt=""
-                        draggable="false"
-                        align="right"
-                >
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- 5th Section -->
-    <!-- RIVA -->
+    <!-- 4th Section -->
+    <!-- DEPLOYMENT AND NVIDIA AI ENTERPRISE -->
     <section class="tx-container-2">
         <div class="md-grid md-typeset">
             <div class="tx-hero">
-
-                <!-- Hero image -->
-                <div class="tx-hero__image-2">
-                    <img
-                            src="assets/images/deploy-to-production-2c50-d@2x.png"
-                            alt=""
-                            width="2800"
-                            draggable="false"
-                    >
-                </div>
-
                 <!-- Hero content -->
                 <div class="tx-hero__content-2">
                     <br>
-                    <h1 id="deploy-riva">Deploy to Production using NVIDIA AI </h1><br>
+                    <h1>Deployment and NVIDIA AI Enterprise</h1><br>
 
                     <p>
-                        
-                        To leverage the NVIDIA AI platform and deploy NeMo speech models in production with <a href="https://developer.nvidia.com/riva">
-                        NVIDIA Riva</a>, developers should export NeMo models to a format compatible with Riva and then execute Riva build 
-                        and deploy commands for creating an optimized skill that can run in real-time.<br><br>
 
-                        The <a href="https://docs.nvidia.com/deeplearning/riva/user-guide/docs/model-overview.html?#nemo2riva-export-for-nemo">
-                        documentation</a> includes detailed instructions for exporting and deploying NeMo models to Riva.
-                        
+                    NeMo LLM and multimodal models can be deployed and optimized with <a href="https://developer.nvidia.com/nemo-microservices-early-access">NIM (Early Access)</a>.
+                    NeMo ASR and TTS models are
+                    optimized for inference and deployment with <a href="https://developer.nvidia.com/riva">NVIDIA Riva</a>. <br><br>
+
+                    NeMo framework is open-source, distributed through <a href="https://github.com/NVIDIA/NeMo">GitHub</a>. Researchers can contribute and build on top of it. It is also
+                    available as a docker container on the <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo">NGC catalog</a> 
+                    and through an <a href="https://www.nvidia.com/en-us/data-center/products/ai-enterprise/">NVIDIA AI Enterprise</a> subscription. <br><br>
+
+                    NVIDIA AI Enterprise is a secure, enterprise-grade end-to-end software platform with automated distributed data
+                    processing, large-scale training and deployment on premises or in the cloud.
+
                     </p><br>
                 </div>
             </div>
