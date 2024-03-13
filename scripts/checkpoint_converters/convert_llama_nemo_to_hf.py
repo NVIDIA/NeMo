@@ -75,7 +75,10 @@ def get_args():
         help="Path to tokenizer used for the input nemo model. (need to extract the .nemo file first)",
     )
     parser.add_argument(
-        "--hf_output_tokenizer", type=str, default=None, help="Path to save the tokenizer used for the output HF model.",
+        "--hf_output_tokenizer",
+        type=str,
+        default=None,
+        help="Path to save the tokenizer used for the output HF model.",
     )
     parser.add_argument(
         "--precision",
@@ -252,7 +255,12 @@ if __name__ == '__main__':
     dtype = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
     if args.hf_input_path and args.hf_output_path:
         replace_hf_weights_and_tokenizer(
-            args.output_path, dtype, args.hf_input_path, args.hf_output_path, args.input_tokenizer, args.hf_output_tokenizer,
+            args.output_path,
+            dtype,
+            args.hf_input_path,
+            args.hf_output_path,
+            args.input_tokenizer,
+            args.hf_output_tokenizer,
         )
     else:
         logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
