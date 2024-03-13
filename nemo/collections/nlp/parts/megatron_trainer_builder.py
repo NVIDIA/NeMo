@@ -70,6 +70,7 @@ class MegatronTrainerBuilder:
                 precision=self.cfg.trainer.precision,
                 nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
                 sharp=self.cfg.model.get('sharp', False),
+                use_orig_params=self.cfg.model.get('fsdp_use_orig_params', False),
             )
 
         return NLPDDPStrategy(
@@ -113,6 +114,7 @@ class MegatronTrainerBuilder:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
                 plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+            self.cfg.trainer.precision = None
 
         if self.cfg.get('cluster_type', None) == 'BCP':
             plugins.append(TorchElasticEnvironment())
