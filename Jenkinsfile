@@ -5263,7 +5263,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         ++model.data.fim.extra_tokens.middle='fim_middle' \
         ++model.data.fim.extra_tokens.suffix='fim_suffix' \
         ++model.data.fim.extra_tokens.pad='fim_pad' \
-        ++model.data.fim.extra_tokens.eod='endoftext' "
+        ++model.data.fim.extra_tokens.eod='endoftext'"
+        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
       }
     }
     
