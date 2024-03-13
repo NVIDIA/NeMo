@@ -3659,7 +3659,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_granularity='full' \
         model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix={'train':[1.0, /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], 'validation':[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], 'test':[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]} \
+        model.data.data_prefix={train:[1.0, /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], validation:[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], test:[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]} \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
         trainer.devices=2 \
@@ -3695,7 +3695,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_granularity='full' \
         model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=={'train':[1.0, /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], 'validation':[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], 'test':[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]} \
+        model.data.data_prefix=={train:[1.0, /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], validation:[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], test:[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]} \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
