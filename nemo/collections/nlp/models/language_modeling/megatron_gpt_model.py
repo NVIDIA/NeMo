@@ -929,10 +929,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
             # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
             # from the data_iterator
-            if isinstance(data_iterator, _DataFetcherWrapper):
-                data, _, _ = next(data_iterator)
-            else:
-                data = next(data_iterator)
+            #if isinstance(data_iterator, _DataFetcherWrapper):
+            #    data, _, _ = next(data_iterator)
+            #else:
+            #    data = next(data_iterator)
+
+            #TODO: the solution above is wrong. The WAR below is more general than the one above, but the root cause has to be remedied!
+            data = next(data_iterator)
+            if isinstance(data, tuple):
+                data = data[0]
         else:
             data = None
 
