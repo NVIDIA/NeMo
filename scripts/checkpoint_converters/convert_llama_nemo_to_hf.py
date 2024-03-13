@@ -251,7 +251,7 @@ if __name__ == '__main__':
         args.hf_output_tokenizer = args.hf_output_path
     dtype = convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
     if args.hf_input_path and args.hf_output_path:
-        replace_hf_weights(
+        replace_hf_weights_and_tokenizer(
             args.output_path, dtype, args.hf_input_path, args.hf_output_path, args.input_tokenizer, args.hf_output_tokenizer,
         )
     else:
