@@ -16,6 +16,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -23,9 +24,11 @@ from omegaconf import DictConfig
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchMultiTaskAED
+from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, model_utils
 
@@ -169,6 +172,65 @@ def get_buffered_pred_feat(
     return wrapped_hyps
 
 
+def get_buffered_pred_feat_multitaskAED(
+    asr: FrameBatchMultiTaskAED,
+    preprocessor_cfg: DictConfig,
+    model_stride_in_secs: int,
+    device: Union[List[int], int],
+    manifest: str = None,
+    filepaths: List[list] = None,
+    delay: float = 0.0,
+) -> List[rnnt_utils.Hypothesis]:
+    # Create a preprocessor to convert audio samples into raw features,
+    # Normalization will be done per buffer in frame_bufferer
+    # Do not normalize whatever the model's preprocessor setting is
+    preprocessor_cfg.normalize = "None"
+    preprocessor = EncDecMultiTaskModel.from_config_dict(preprocessor_cfg)
+    preprocessor.to(device)
+    hyps = []
+    refs = []
+
+    if filepaths and manifest:
+        raise ValueError("Please select either filepaths or manifest")
+    if filepaths is None and manifest is None:
+        raise ValueError("Either filepaths or manifest shoud not be None")
+
+    if filepaths:
+        logging.info(
+            "Deteced audio files as input, default to English ASR with Punctuation and Capitalization output. Please use manifest input for other options."
+        )
+        for audio_file in tqdm(filepaths, desc="Transcribing:", total=len(filepaths), ncols=80):
+            meta = {
+                'audio_filepath': audio_file,
+                'duration': 100000,
+                'source_lang': 'en',
+                'taskname': 'asr',
+                'target_lang': 'en',
+                'pnc': 'yes',
+                'answer': 'nothing',
+            }
+            asr.reset()
+            asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=meta)
+            hyp = asr.transcribe()
+            hyps.append(hyp)
+    else:
+        with open(manifest, "r", encoding='utf_8') as fin:
+            lines = list(fin.readlines())
+            for line in tqdm(lines, desc="Transcribing:", total=len(lines), ncols=80):
+                asr.reset()
+                sample = json.loads(line.strip())
+                if 'text' in sample:
+                    refs.append(sample['text'])
+                audio_file = get_full_path(audio_file=sample['audio_filepath'], manifest_file=manifest)
+                # do not support partial audio
+                asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=sample)
+                hyp = asr.transcribe()
+                hyps.append(hyp)
+
+    wrapped_hyps = wrap_transcription(hyps)
+    return wrapped_hyps
+
+
 def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     """ Wrap transcription to the expected format in func write_transcription """
     wrapped_hyps = []
@@ -197,7 +259,7 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    if hasattr(cfg, "model_change"):
+    if hasattr(cfg, "model_change") and hasattr(asr_model, "change_attention_model"):
         asr_model.change_attention_model(
             self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
             att_context_size=cfg.model_change.conformer.get("att_context_size", None),
@@ -220,21 +282,44 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
 
-        with open(cfg.dataset_manifest, 'r', encoding='utf_8') as f:
-            has_two_fields = []
-            for line in f:
-                item = json.loads(line)
-                if "offset" in item and "duration" in item:
-                    has_two_fields.append(True)
-                else:
-                    has_two_fields.append(False)
-                audio_key = cfg.get('audio_key', 'audio_filepath')
-                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
-                filepaths.append(audio_file)
-        partial_audio = all(has_two_fields)
+        all_entries_have_offset_and_duration = True
+        for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
+            if not ("offset" in item and "duration" in item):
+                all_entries_have_offset_and_duration = False
+            audio_key = cfg.get('audio_key', 'audio_filepath')
+            audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+            filepaths.append(audio_file)
+        partial_audio = all_entries_have_offset_and_duration
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
     return filepaths, partial_audio
+
+
+def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> list[dict]:
+    """Sorts the manifest if duration key is available for every utterance."""
+    with open(path) as f:
+        items = [json.loads(l) for l in f]
+    if try_sort and all("duration" in item for item in items):
+        items = sorted(items, reverse=True, key=lambda item: item["duration"])
+    return items
+
+
+def restore_transcription_order(manifest_path: str, transcriptions: list) -> list:
+    with open(manifest_path) as f:
+        items = [(idx, json.loads(l)) for idx, l in enumerate(f)]
+    if not all("duration" in item[1] for item in items):
+        return transcriptions
+    new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]
+    del items  # free up some memory
+    is_list = isinstance(transcriptions[0], list)
+    if is_list:
+        transcriptions = list(zip(*transcriptions))
+    reordered = [None] * len(transcriptions)
+    for new, old in enumerate(new2old):
+        reordered[old] = transcriptions[new]
+    if is_list:
+        reordered = tuple(map(list, zip(*reordered)))
+    return reordered
 
 
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
@@ -272,7 +357,7 @@ def normalize_timestamp_output(timestamps: dict):
 
 
 def write_transcription(
-    transcriptions: Union[List[rnnt_utils.Hypothesis], List[List[rnnt_utils.Hypothesis]]],
+    transcriptions: Union[List[rnnt_utils.Hypothesis], List[List[rnnt_utils.Hypothesis]], List[str]],
     cfg: DictConfig,
     model_name: str,
     filepaths: List[str] = None,
@@ -290,7 +375,11 @@ def write_transcription(
     else:
         pred_text_attr_name = 'pred_text'
 
-    if isinstance(transcriptions[0], rnnt_utils.Hypothesis):  # List[rnnt_utils.Hypothesis]
+    return_hypotheses = True
+    if isinstance(transcriptions[0], str):  # List[str]:
+        best_hyps = transcriptions
+        return_hypotheses = False
+    elif isinstance(transcriptions[0], rnnt_utils.Hypothesis):  # List[rnnt_utils.Hypothesis]
         best_hyps = transcriptions
         assert cfg.decoding.beam.return_best_hypothesis, "Works only with return_best_hypothesis=true"
     elif isinstance(transcriptions[0], list) and isinstance(
@@ -307,33 +396,18 @@ def write_transcription(
     else:
         raise TypeError
 
+    # create output dir if not exists
+    Path(cfg.output_filename).parent.mkdir(parents=True, exist_ok=True)
     with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
-            for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis
-                item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
-
-                if compute_timestamps:
-                    timestamps = transcription.timestep
-                    if timestamps is not None and isinstance(timestamps, dict):
-                        timestamps.pop('timestep', None)  # Pytorch tensor calculating index of each token, not needed.
-                        for key in timestamps.keys():
-                            values = normalize_timestamp_output(timestamps[key])
-                            item[f'timestamps_{key}'] = values
-
-                if compute_langs:
-                    item['pred_lang'] = transcription.langs
-                    item['pred_lang_chars'] = transcription.langs_chars
-                if not cfg.decoding.beam.return_best_hypothesis:
-                    item['beams'] = beams[idx]
-                f.write(json.dumps(item) + "\n")
-        else:
-            with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
-                for idx, line in enumerate(fr):
-                    item = json.loads(line)
-                    item[pred_text_attr_name] = best_hyps[idx].text
+            for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
+                if not return_hypotheses:  # transcription is str
+                    item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription}
+                else:  # transcription is Hypothesis
+                    item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
 
                     if compute_timestamps:
-                        timestamps = best_hyps[idx].timestep
+                        timestamps = transcription.timestep
                         if timestamps is not None and isinstance(timestamps, dict):
                             timestamps.pop(
                                 'timestep', None
@@ -343,11 +417,36 @@ def write_transcription(
                                 item[f'timestamps_{key}'] = values
 
                     if compute_langs:
-                        item['pred_lang'] = best_hyps[idx].langs
-                        item['pred_lang_chars'] = best_hyps[idx].langs_chars
-
+                        item['pred_lang'] = transcription.langs
+                        item['pred_lang_chars'] = transcription.langs_chars
                     if not cfg.decoding.beam.return_best_hypothesis:
                         item['beams'] = beams[idx]
+                f.write(json.dumps(item) + "\n")
+        else:
+            with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
+                for idx, line in enumerate(fr):
+                    item = json.loads(line)
+                    if not return_hypotheses:  # transcription is str
+                        item[pred_text_attr_name] = best_hyps[idx]
+                    else:  # transcription is Hypothesis
+                        item[pred_text_attr_name] = best_hyps[idx].text
+
+                        if compute_timestamps:
+                            timestamps = best_hyps[idx].timestep
+                            if timestamps is not None and isinstance(timestamps, dict):
+                                timestamps.pop(
+                                    'timestep', None
+                                )  # Pytorch tensor calculating index of each token, not needed.
+                                for key in timestamps.keys():
+                                    values = normalize_timestamp_output(timestamps[key])
+                                    item[f'timestamps_{key}'] = values
+
+                        if compute_langs:
+                            item['pred_lang'] = best_hyps[idx].langs
+                            item['pred_lang_chars'] = best_hyps[idx].langs_chars
+
+                        if not cfg.decoding.beam.return_best_hypothesis:
+                            item['beams'] = beams[idx]
                     f.write(json.dumps(item) + "\n")
 
     return cfg.output_filename, pred_text_attr_name
@@ -421,18 +520,20 @@ def transcribe_partial_audio(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
             logits, logits_len = outputs[0], outputs[1]
+
             if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
                 logits = asr_model.ctc_decoder(encoder_output=logits)
+
+            logits = logits.cpu()
+
             if logprobs:
+                logits = logits.numpy()
                 # dump log probs per file
                 for idx in range(logits.shape[0]):
                     lg = logits[idx][: logits_len[idx]]
-                    hypotheses.append(lg.cpu().numpy())
+                    hypotheses.append(lg)
             else:
-                current_hypotheses, all_hyp = decode_function(logits, logits_len, return_hypotheses=return_hypotheses,)
-
-                if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
-                    current_hypotheses = current_hypotheses[0]
+                current_hypotheses, _ = decode_function(logits, logits_len, return_hypotheses=return_hypotheses,)
 
                 if return_hypotheses:
                     # dump log probs per file
@@ -456,6 +557,96 @@ def transcribe_partial_audio(
             asr_model.decoder.unfreeze()
         logging.set_verbosity(logging_level)
     return hypotheses
+
+
+def compute_metrics_per_sample(
+    manifest_path: str,
+    reference_field: str = "text",
+    hypothesis_field: str = "pred_text",
+    metrics: list[str] = ["wer"],
+    punctuation_marks: list[str] = [".", ",", "?"],
+    output_manifest_path: str = None,
+) -> dict:
+
+    '''
+    Computes metrics per sample for given manifest
+    
+    Args:
+        manifest_path: str, Required - path to dataset JSON manifest file (in NeMo format)
+        reference_field: str, Optional - name of field in .json manifest with the reference text ("text" by default).
+        hypothesis_field: str, Optional - name of field in .json manifest with the hypothesis text ("pred_text" by default).
+        metrics: list[str], Optional - list of metrics to be computed (currently supported "wer", "cer", "punct_er")
+        punctuation_marks: list[str], Optional - list of punctuation marks for computing punctuation error rate ([".", ",", "?"] by default).
+        output_manifest_path: str, Optional - path where .json manifest with calculated metrics will be saved.
+    
+    Returns:
+        samples: dict - Dict of samples with calculated metrics
+    '''
+
+    supported_metrics = ["wer", "cer", "punct_er"]
+
+    if len(metrics) == 0:
+        raise AssertionError(
+            f"'metrics' list is empty. \
+            Select the metrics from the supported: {supported_metrics}."
+        )
+
+    for metric in metrics:
+        if metric not in supported_metrics:
+            raise AssertionError(
+                f"'{metric}' metric is not supported. \
+                Currently supported metrics are {supported_metrics}."
+            )
+
+    if "punct_er" in metrics:
+        if len(punctuation_marks) == 0:
+            raise AssertionError("punctuation_marks list can't be empty when 'punct_er' metric is enabled.")
+        else:
+            oper_obj = OccurancePunctuationErrorRate(punctuation_marks=punctuation_marks)
+
+    use_wer = "wer" in metrics
+    use_cer = "cer" in metrics
+    use_punct_er = "punct_er" in metrics
+
+    with open(manifest_path, 'r') as manifest:
+        lines = manifest.readlines()
+        samples = [json.loads(line) for line in lines]
+        samples_with_metrics = []
+
+        logging.info(f"Computing {', '.join(metrics)} per sample")
+
+        for sample in tqdm(samples):
+            reference = sample[reference_field]
+            hypothesis = sample[hypothesis_field]
+
+            if use_wer:
+                sample_wer = word_error_rate(hypotheses=[hypothesis], references=[reference], use_cer=False)
+                sample["wer"] = round(100 * sample_wer, 2)
+
+            if use_cer:
+                sample_cer = word_error_rate(hypotheses=[hypothesis], references=[reference], use_cer=True)
+                sample["cer"] = round(100 * sample_cer, 2)
+
+            if use_punct_er:
+                operation_amounts, substitution_amounts, punctuation_rates = oper_obj.compute(
+                    reference=reference, hypothesis=hypothesis
+                )
+                sample["punct_correct_rate"] = round(100 * punctuation_rates.correct_rate, 2)
+                sample["punct_deletions_rate"] = round(100 * punctuation_rates.deletions_rate, 2)
+                sample["punct_insertions_rate"] = round(100 * punctuation_rates.insertions_rate, 2)
+                sample["punct_substitutions_rate"] = round(100 * punctuation_rates.substitutions_rate, 2)
+                sample["punct_error_rate"] = round(100 * punctuation_rates.punct_er, 2)
+
+            samples_with_metrics.append(sample)
+
+    if output_manifest_path is not None:
+        with open(output_manifest_path, 'w') as output:
+            for sample in samples_with_metrics:
+                line = json.dumps(sample)
+                output.writelines(f'{line}\n')
+        logging.info(f'Output manifest saved: {output_manifest_path}')
+
+    return samples_with_metrics
 
 
 class PunctuationCapitalization:

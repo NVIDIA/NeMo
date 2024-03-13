@@ -35,10 +35,10 @@ def export_test(model, suffix):
 
 def get_cfg():
     cfg = AAYNBaseConfig()
-    cfg.encoder_tokenizer.tokenizer_name = 'yttm'
-    cfg.encoder_tokenizer.tokenizer_model = 'tests/.data/yttm.4096.en-de.model'
-    cfg.decoder_tokenizer.tokenizer_name = 'yttm'
-    cfg.decoder_tokenizer.tokenizer_model = 'tests/.data/yttm.4096.en-de.model'
+    cfg.encoder_tokenizer.tokenizer_name = 'sentencepiece'
+    cfg.encoder_tokenizer.tokenizer_model = 'tests/.data/nlp/spm_tok_ende_4k/tokenizer.model'
+    cfg.decoder_tokenizer.tokenizer_name = 'sentencepiece'
+    cfg.decoder_tokenizer.tokenizer_model = 'tests/.data/nlp/spm_tok_ende_4k/tokenizer.model'
     cfg.train_ds = None
     cfg.validation_ds = None
     cfg.test_ds = None
@@ -110,7 +110,7 @@ class TestMTEncDecModel:
         eval_loss = model.eval_loss_fn(log_probs=log_probs, labels=tgt_ids)
         assert torch.allclose(train_loss, eval_loss)
 
-    @pytest.mark.skipif(not os.path.exists('/home/TestData/nlp'), reason='Not a Jenkins machine')
+    @pytest.mark.skipif(not os.path.exists('/home/TestData'), reason='Not a Jenkins machine')
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_gpu_export_ts(self):

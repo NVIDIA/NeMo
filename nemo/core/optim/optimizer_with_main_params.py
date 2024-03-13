@@ -107,8 +107,8 @@ class GradBucket(object):
 
     def allreduce_buffer(self):
         """Synchronous buffer data allreduce """
-        self.data.div_(get_data_parallel_world_size())
-        torch.distributed.all_reduce(self.data, group=get_data_parallel_group())
+        self.data.div_(get_data_parallel_world_size(with_context_parallel=True))
+        torch.distributed.all_reduce(self.data, group=get_data_parallel_group(with_context_parallel=True))
 
     def get(self, shape, start_index):
         """Return a tensor with the input `shape` as a view into the
@@ -205,8 +205,10 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         # used with tensor parallel only (no pipeline parallelism)
         # be careful, weight update cannot start until all async grad AR works are done
-        self._async_grad_allreduce = async_grad_allreduce and get_data_parallel_world_size() > 1
-        self._grad_divisor = 1 / get_data_parallel_world_size()
+        self._async_grad_allreduce = (
+            async_grad_allreduce and get_data_parallel_world_size(with_context_parallel=True) > 1
+        )
+        self._grad_divisor = 1 / get_data_parallel_world_size(with_context_parallel=True)
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
@@ -254,6 +256,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             fp32_from_float16_params_this_group = []
             # For all the parameters in this group:
             for j, param in enumerate(param_group['params']):
+                main_param = None
                 if param.requires_grad:
                     # float16 params:
                     if param.type() in ['torch.cuda.HalfTensor', 'torch.cuda.BFloat16Tensor']:
@@ -297,7 +300,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         )
 
                 # Add gradient accumulation hook for fp32 grad accumulation
-                if self._fp32_grad_accum and param.requires_grad:
+                if main_param is not None and self._fp32_grad_accum and param.requires_grad:
                     # Expand so we get access to grad_fn
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator function.
@@ -337,27 +340,29 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         if self._grad_div_ar_fusion:
                             torch.distributed.all_reduce(
                                 allreduce_tensor,
-                                group=get_data_parallel_group(),
+                                group=get_data_parallel_group(with_context_parallel=True),
                                 async_op=True,
                                 op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                             )
                         else:
-                            allreduce_tensor.div_(get_data_parallel_world_size())
+                            allreduce_tensor.div_(get_data_parallel_world_size(with_context_parallel=True))
                             torch.distributed.all_reduce(
-                                allreduce_tensor, group=get_data_parallel_group(), async_op=True,
+                                allreduce_tensor,
+                                group=get_data_parallel_group(with_context_parallel=True),
+                                async_op=True,
                             )
                 else:
                     if self._grad_div_ar_fusion:
                         torch.distributed.all_reduce(
                             main_param.grad,
-                            group=get_data_parallel_group(),
+                            group=get_data_parallel_group(with_context_parallel=True),
                             async_op=True,
                             op=torch.distributed._make_nccl_premul_sum(self._grad_divisor),
                         )
                     else:
-                        main_param.grad.div_(get_data_parallel_world_size())
+                        main_param.grad.div_(get_data_parallel_world_size(with_context_parallel=True))
                         torch.distributed.all_reduce(
-                            main_param.grad, group=get_data_parallel_group(), async_op=True,
+                            main_param.grad, group=get_data_parallel_group(with_context_parallel=True), async_op=True,
                         )
 
         return param_hook

@@ -29,7 +29,7 @@ class SentencePieceTokenizer(TokenizerSpec):
     """
     Sentencepiecetokenizer https://github.com/google/sentencepiece.
     
-        Args:
+    Args:
         model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
         special_tokens: either list of special tokens or dictionary of token name to token value
         legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored,
@@ -55,6 +55,7 @@ class SentencePieceTokenizer(TokenizerSpec):
                     "Special tokens must be None when legacy is set to False. Provide special tokens at train time."
                 )
             self.add_special_tokens(special_tokens)
+        self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
 
     def text_to_tokens(self, text):
         if self.legacy:
@@ -277,6 +278,7 @@ def create_spt_model(
 ):
     """
     Creates sentence piece tokenizer model from data file.
+
     Args:
         data_file: data file
         vocab_size: vocabulary size

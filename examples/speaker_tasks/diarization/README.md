@@ -114,7 +114,7 @@ Mandatory fields are `audio_filepath`, `offset`, `duration`, `label:"infer"` and
 
 Some of important options in config file: 
 
-- **`diarizer.vad.model_path`: voice activity detection modle name or path to the model**
+- **`diarizer.vad.model_path`: voice activity detection model name or path to the model**
 
 Specify the name of VAD model, then the script will download the model from NGC. Currently, we have 'vad_multilingual_marblenet', 'vad_marblenet' and  'vad_telephony_marblenet' as options for VAD models.
 
@@ -136,7 +136,7 @@ You could also download *.nemo files from [this link](https://ngc.nvidia.com/cat
 `diarizer.speaker_embeddings.model_path='path/to/titanet_large.nemo'` 
  
 
-- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization **
+- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization**
 
 Multiscale diarization system employs multiple scales at the same time to obtain a finer temporal resolution. To use multiscale feature, at least two scales and scale weights should be provided. The scales should be provided in descending order, from the longest scale to the base scale (the shortest). If multiple scales are provided, multiscale_weights must be provided in list format. The following example shows how multiscale parameters are specified and the recommended parameters.
 

@@ -47,6 +47,7 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
+from nemo.utils import logging
 
 __all__ = ['ConformerEncoder']
 
@@ -64,7 +65,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         d_model (int): the hidden size of the model
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
-        subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
+        subsampling (str): the method of subsampling, choices=['vggnet', 'striding', 'dw-striding', 'stacking', 'stacking_norm']
             Defaults to striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
@@ -81,10 +82,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         ff_expansion_factor (int): the expansion factor in feed forward layers
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
-            'rel_pos': relative positional embedding and Transformer-XL
-            'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+
+            'rel_pos':
+                relative positional embedding and Transformer-XL
+
+            'rel_pos_local_attn':
+                relative positional embedding and Transformer-XL with local attention using
                 overlapping chunks. Attention context is determined by att_context_size parameter.
-            'abs_pos': absolute positional embedding and Transformer
+
+            'abs_pos':
+                absolute positional embedding and Transformer
+
             Default is rel_pos.
         pos_emb_max_len (int): the maximum length of positional embeddings
             Defaults to 5000
@@ -609,7 +617,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 )
 
             # saving tensors if required for interctc loss
-            if self.is_access_enabled():
+            if self.is_access_enabled(getattr(self, "model_guid", None)):
                 if self.interctc_capture_at_layers is None:
                     self.interctc_capture_at_layers = self.access_cfg.get('interctc', {}).get('capture_layers', [])
                 if lth in self.interctc_capture_at_layers:
@@ -778,7 +786,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         return att_context_size_all, att_context_size_all[0], att_context_probs, conv_context_size
 
     def set_default_att_context_size(self, att_context_size):
-        self.att_context_size = att_context_size
+        if att_context_size not in self.att_context_size_all:
+            logging.warning(
+                f"att_context_size={att_context_size} is not among the list of the supported look-aheads: {self.att_context_size_all}"
+            )
+        if att_context_size is not None:
+            self.att_context_size = att_context_size
+
+        self.setup_streaming_params()
 
     def setup_streaming_params(
         self,
@@ -791,6 +806,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
             The streaming configuration is needed to simulate streaming inference.
+
             Args:
                 chunk_size (int): overrides the chunk size
                 shift_size (int): overrides the shift size for chunks
@@ -924,10 +940,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         Args:
             self_attention_model (str): type of the attention layer and positional encoding
-                'rel_pos': relative positional embedding and Transformer-XL
-                'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+
+                'rel_pos':
+                    relative positional embedding and Transformer-XL
+
+                'rel_pos_local_attn':
+                    relative positional embedding and Transformer-XL with local attention using
                     overlapping windows. Attention context is determined by att_context_size parameter.
-                'abs_pos': absolute positional embedding and Transformer
+
+                'abs_pos':
+                    absolute positional embedding and Transformer
+
                 If None is provided, the self_attention_model isn't changed. Defaults to None.
             att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes,
                 or None to keep as it is. Defaults to None.

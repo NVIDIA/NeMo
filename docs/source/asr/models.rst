@@ -98,7 +98,7 @@ Here is the overall architecture of the encoder of Conformer-CTC:
         :scale: 50%
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
-Conformer-CTC models at `Conformer-CTC <./configs.html#conformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
+Conformer-CTC models in the `Conformer-CTC configuration documentation <./configs.html#conformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
 character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
 
@@ -118,7 +118,7 @@ Most of the config file for Conformer-Transducer models are similar to Conformer
 You may take a look at our `tutorials page <../starthere/tutorials.html>`_ on Transducer models to become familiar with their configs:
 `Introduction to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>`_ and
 `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`_
-You can find more details on the config files for the Conformer-Transducer models at `Conformer-CTC <./configs.html#conformer-ctc>`_.
+You can find more details on the config files for the Conformer-Transducer models in the `Conformer-CTC configuration documentation <./configs.html#conformer-ctc>`_.
 
 This model supports both the sub-word level and character level encodings. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class, while the
@@ -159,66 +159,88 @@ You may find more examples under ``<NeMo_git_root>/examples/asr/conf/fastconform
 Cache-aware Streaming Conformer
 -------------------------------
 
-Buffered streaming uses overlapping chunks to make an offline ASR model to be used for streaming with reasonable accuracy. However, it uses significant amount of duplication in computations due to the overlapping chunks.
-Also there is a accuracy gep between the offline model and the streaming one as there is inconsistency between how we train the model and how we perform inference for streaming.
-The Cache-aware Streaming Conformer models would tackle and address these disadvantages. These streaming Conformers are trained with limited right context that it would make it possible to match how the model is being used in both the training and inference.
-They also uses caching to store intermediate activations to avoid any duplication in compute.
+Try real-time ASR with the `Cache-aware Streaming Conformer tutorial notebook <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_.
+
+Buffered streaming uses overlapping chunks to make an offline ASR model usable for streaming with reasonable accuracy. However, it causes significant amount of duplication in computation due to the overlapping chunks.
+Also, there is an accuracy gap between the offline model and the streaming one, as there is inconsistency between how we train the model and how we perform inference for streaming.
+The Cache-aware Streaming Conformer models tackle and address these disadvantages. These streaming Conformers are trained with limited right context, making it possible to match how the model is being used in both training and inference.
+They also use caching to store intermediate activations to avoid any duplication in compute.
 The cache-aware approach is supported for both the Conformer-CTC and Conformer-Transducer and enables the model to be used very efficiently for streaming.
 
-Three categories of layers in Conformer have access to right tokens: 1-depthwise convolutions 2-self-attention, and 3-convolutions in the downsampling layers.
-Streaming Conformer models uses causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
+Three categories of layers in Conformer have access to right tokens:
+#. depthwise convolutions
+#. self-attention
+#. convolutions in the downsampling layers.
+
+Streaming Conformer models use causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
 The model trained with such limitations can be used in streaming mode and give the exact same outputs and accuracy as when the whole audio is given to the model in offline mode.
 These model can use caching mechanism to store and reuse the activations during streaming inference to avoid any duplications in the computations as much as possible.
 
-We support the following three right context modeling:
+We support the following three right context modeling techniques:
 
-*  fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention.
+* | Fully causal model with zero look-ahead: tokens do not see any future tokens. Convolution layers are all causal and right tokens are masked for self-attention.
+  |
+  | It gives zero latency but with limited accuracy.
+  | To train such a model, you need to set `model.encoder.att_context_size=[left_context,0]` and `model.encoder.conv_context_size=causal` in the config.
 
-It gives zero latency but with limited accuracy.
-To train such a model, you need to set `encoder.att_context_size=[left_context, 0]` and `encoder.conv_context_size=causal` in the config.
+* | Regular look-ahead: convolutions are able to see few future frames, and self-attention also sees the same number of future tokens.
+  |
+  | In this approach the activations for the look-ahead part are not cached, and are recalculated in the next chunks. The right context in each layer should be a small number as multiple layers would increase the effective context size and then increase the look-ahead size and latency.
+  | For example for a model of 17 layers with 4x downsampling and 10ms window shift, then even 2 right context in each layer means 17*2*10*4=1360ms look-ahead. Each step after the downsampling corresponds to 4*10=40ms.
 
-*  regular look-ahead: convolutions would be able to see few future frames, and self-attention would also see the same number of future tokens.
+* | Chunk-aware look-ahead: input is split into equal chunks. Convolutions are fully causal while self-attention layers are able to see all the tokens in their corresponding chunk.
+  |
+  | For example, in a model with chunk size of 20 tokens, tokens at the first position of each chunk would see all the next 19 tokens while the last token would see zero future tokens.
+  | This approach is more efficient than regular look-ahead in terms of computations as the activations for most of the look-ahead part would be cached and there is close to zero duplications in the calculations.
+  | In terms of accuracy, this approach gives similar or even better results in term of accuracy than regular look-ahead as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming. Therefore we recommend to use the chunk-aware for cache-aware models.
 
-In this approach the activations for the look-ahead part is not cached and recalculated in the next chunks. The right context in each layer should be a small number as multiple layers would increase the effective context size and then increase the look-ahead size and latency.
-For example for a model of 17 layers with 4x downsampling and 10ms window shift, then even 2 right context in each layer means 17*2*10*4=1360ms look-ahead. Each step after the downsampling corresponds to 4*10=40ms.
+.. note:: Latencies are based on the assumption that the forward time of the network is zero and it just estimates the time needed after a frame would be available until it is passed through the model.
 
-*  chunk-aware look-ahead: input is split into equal chunks. Convolutions are fully causal while self-attention layers would be able to see all the tokens in their corresponding chunk.
+Approaches with non-zero look-ahead can give significantly better accuracy by sacrificing latency. The latency can get controlled by the left context size. Increasing the right context would help the accuracy to a limit but would increase the computation time.
 
-For example, in a model which chunk size of 20 tokens, tokens at the first position of each chunk would see all the next 19 tokens while the last token would see zero future tokens.
-This approach is more efficient than regular look-ahead in terms of computations as the activations for most of the look-ahead part would be cached and there is close to zero duplications in the calculations.
-In terms of accuracy, this approach gives similar or even better results in term of accuracy than regular look-ahead as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming.
-
-
-** Note: Latencies are based on the assumption that the forward time of the network is zero and it just estimates the time needed after a frame would be available until it is passed through the model.
-
-Approaches with non-zero look-ahead can give significantly better accuracy by sacrificing latency. The latency can get controlled by the left context size. Increasing the right context would help the accuracy to a limit but would increase the compuation time.
-
-
-In all modes, left context can be controlled by the number of tokens to be visible in the self-attention and the kernel size of the convolutions.
-For example, if left context of self-attention in each layer is set to 20 tokens and there are 10 layers of Conformer, then effective left context is 20*10=200 tokens.
-Left context of self-attention for regular look-ahead can be set as any number while it should be set as a multiplication of the right context in chunk-aware look-ahead.
-For convolutions, if we use a left context of 30 in such model, then there would be 30*10=300 effective left context.
-Left context of convolutions is dependent to the their kernel size while it can be any number for self-attention layers. Higher left context for self-attention means larger cache and more computations for the self-attention.
-Self-attention left context of around 6 secs would give close result to have unlimited left context. For a model with 4x downsampling and shift window of 10ms in the preprocessor, each token corresponds to 4*10=40ms.
+In all modes, left context can be controlled by the number of tokens visible in self-attention and the kernel size of the convolutions.
+For example, if the left context of self-attention in each layer is set to 20 tokens and there are 10 layers of Conformer, then the effective left context is 20*10=200 tokens.
+Left context of self-attention for regular look-ahead can be set as any number, while it should be set as a multiple of the right context in chunk-aware look-ahead.
+For convolutions, if we use a left context of 30, then there would be 30*10=300 effective left context.
+Left context of convolutions is dependent on their kernel size while it can be any number for self-attention layers. Higher left context for self-attention means larger cache and more computations for the self-attention.
+A self-attention left context of around 6 secs would give close results to unlimited left context. For a model with 4x downsampling and shift window of 10ms in the preprocessor, each token corresponds to 4*10=40ms.
 
 If striding approach is used for downsampling, all the convolutions in downsampling would be fully causal and don't see future tokens.
-You may use stacking for downsampling in the streaming models which is significantly faster and uses less memory.
-It also does not some of the the limitations with striding and vggnet and you may use any downsampling rate.
 
-You may find the example config files of cache-aware streaming Conformer models at
-``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
-at ``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_ctc_bpe.yaml`` for CTC variant.
+Multiple Look-aheads
+~~~~~~~~~~~~~~~~~~~~
+
+We support multiple look-aheads for cahce-aware models. You may specify a list of context sizes for att_context_size.
+During the training, different context sizes would be used randomly with the distribution specified by att_context_probs.
+For example you may enable multiple look-aheads by setting `model.encoder.att_context_size=[[70,13],[70,6],[70,1],[70,0]]` for the training.
+The first item in the list would be the default during test/validation/inference. To switch between different look-aheads, you may use the method `asr_model.encoder.set_default_att_context_size(att_context_size)` or set the att_context_size like the following when using the script `speech_transcribe.py`:
+
+.. code-block:: bash
+
+    python [NEMO_GIT_FOLDER]/examples/asr/transcribe_speech.py \
+    pretrained_name="stt_en_fastconformer_hybrid_large_streaming_multi" \
+    audio_dir="<DIRECTORY CONTAINING AUDIO FILES>" \
+    att_context_size=[70,0]
+
+..
+
+You may find the example config files for cache-aware streaming FastConformer models at
+``<NeMo_git_root>/examples/asr/conf/fastconformer/cache_aware_streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
+at ``<NeMo_git_root>/examples/asr/conf/conformer/cache_aware_streaming/conformer_ctc_bpe.yaml`` for CTC variant. It is recommended to use FastConformer as they are more than 2X faster in both training and inference than regular Conformer.
+The hybrid versions of FastConformer can be found here: ``<NeMo_git_root>/examples/asr/conf/conformer/hybrid_cache_aware_streaming/``
+
+Examples for regular Conformer can be found at
+``<NeMo_git_root>/examples/asr/conf/conformer/cache_aware_streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
+at ``<NeMo_git_root>/examples/asr/conf/conformer/cache_aware_streaming/conformer_ctc_bpe.yaml`` for CTC variant.
 
 To simulate cache-aware streaming, you may use the script at ``<NeMo_git_root>/examples/asr/asr_cache_aware_streaming/speech_to_text_cache_aware_streaming_infer.py``. It can simulate streaming in single stream or multi-stream mode (in batches) for an ASR model.
 This script can be used for models trained offline with full-context but the accuracy would not be great unless the chunk size is large enough which would result in high latency.
 It is recommended to train a model in streaming model with limited context for this script. More info can be found in the script.
 
-You may find FastConformer variants of cache-aware streaming models under ``<NeMo_git_root>/examples/asr/conf/fastconformer/``.
-
 Note cache-aware streaming models are being exported without caching support by default.
 To include caching support, `model.set_export_config({'cache_support' : 'True'})` should be called before export.
 Or, if ``<NeMo_git_root>/scripts/export.py`` is being used:
-`python export.py cache_aware_conformer.nemo cache_aware_conformer.onnx --config cache_support=True`
+`python export.py cache_aware_conformer.nemo cache_aware_conformer.onnx --export-config cache_support=True`
 
 .. _LSTM-Transducer_model:
 
@@ -299,7 +321,7 @@ Similar example configs for FastConformer variants of Hybrid models can be found
 Note Hybrid models are being exported as RNNT (encoder and decoder+joint parts) by default.
 To export as CTC (single encoder+decoder graph), `model.set_export_config({'decoder_type' : 'ctc'})` should be called before export.
 Or, if ``<NeMo_git_root>/scripts/export.py`` is being used:
-`python export.py hybrid_transducer.nemo hybrid_transducer.onnx --config decoder_type=ctc`
+`python export.py hybrid_transducer.nemo hybrid_transducer.onnx --export-config decoder_type=ctc`
 
 .. _Conformer-HAT_model:
 
@@ -361,7 +383,7 @@ Confidence-based Ensembles
 Confidence-based ensemble is a simple way to combine multiple models into a single system by only retaining the
 output of the most confident model. Below is a schematic illustration of how such ensembles work.
 
-    .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.19.0/conf-ensembles-overview.png
+    .. image:: images/conf-ensembles-overview.png
         :align: center
         :alt: confidence-based ensembles
         :scale: 50%

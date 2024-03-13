@@ -28,6 +28,8 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
     english_text_preprocessing,
+    french_text_preprocessing,
+    italian_text_preprocessing,
     spanish_text_preprocessing,
 )
 from nemo.utils import logging
@@ -267,6 +269,63 @@ class SpanishCharsTokenizer(BaseCharsTokenizer):
         )
 
 
+class FrenchCharsTokenizer(BaseCharsTokenizer):
+
+    PUNCT_LIST = get_ipa_punctuation_list("fr-FR")
+
+    def __init__(
+        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
+    ):
+        """French grapheme tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+            if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+        """
+
+        fr_alphabet = get_grapheme_character_set(locale="fr-FR", case="lower")
+        super().__init__(
+            chars=fr_alphabet,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=french_text_preprocessing,
+        )
+
+
+class ItalianCharsTokenizer(BaseCharsTokenizer):
+    PUNCT_LIST = get_ipa_punctuation_list("it-IT")
+
+    def __init__(
+        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None
+    ):
+        """Italian grapheme tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+            if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+        """
+
+        it_alphabet = "abcdefghijklmnopqrstuvwxyzàèéìòùó"
+        super().__init__(
+            chars=it_alphabet,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=italian_text_preprocessing,
+        )
+
+
 class GermanPhonemesTokenizer(BaseCharsTokenizer):
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
@@ -301,6 +360,77 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
         de_suprasegmentals = "12"
         super().__init__(
             chars=de_ipa + de_suprasegmentals,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=text_preprocessing_func,
+        )
+
+    def encode(self, text):
+        """See base class."""
+        cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
+
+        text = self.text_preprocessing_func(text)
+        for c in text:
+            # Add space if last one isn't one
+            if c == space and len(cs) > 0 and cs[-1] != space:
+                cs.append(c)
+            # Add next char
+            elif (c.isalnum() or c == "'" or c == "\u0303") and c in tokens:
+                cs.append(c)
+            # Add punct
+            elif (c in self.PUNCT_LIST) and self.punct:
+                cs.append(c)
+            # Warn about unknown char
+            elif c != space:
+                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
+
+        # Remove trailing spaces
+        while cs[-1] == space:
+            cs.pop()
+
+        if self.pad_with_space:
+            cs = [space] + cs + [space]
+
+        return [self._token2id[p] for p in cs]
+
+
+class ItalianPhonemesTokenizer(BaseCharsTokenizer):
+    # fmt: off
+    PUNCT_LIST = (
+        ',', '.', '!', '?', '-',
+        ':', ';', '/', '"', '(',
+        ')', '[', ']', '{', '}',
+        '„', '“', '”', '‘', '’', '‒', '—', '«', '»', '‹', '›', '_',
+    )
+    # fmt: on
+
+    def __init__(
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
+        text_preprocessing_func=italian_text_preprocessing,
+    ):
+        """Italian phoneme-based tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Currently, it only applies lower() function.
+        """
+
+        it_ipa = "abcdefghijklmnopqrstuvwxyzàèéìòùóæɐɑɔəɚɜɬɹʌʔᵻðŋɛɡɣɪɲɾʃʊʎʒʝβθd͡'t͡'øɒɕɓçɖɘɝɞɟʄɡɠɢʛɦɧħɥʜɨɬɫɮʟɱɯɰɳɵɸœɶʘɺɻʀʁɽʂʈʧʉʋⱱɤʍχʏʑʐʔʡʕʢǀǁǂᵻʃ'ː"
+        super().__init__(
+            chars=it_ipa,
             punct=punct,
             apostrophe=apostrophe,
             add_blank_at=add_blank_at,
@@ -519,7 +649,7 @@ class IPATokenizer(BaseTokenizer):
         Args:
             g2p: Grapheme to phoneme module, should be IpaG2p or some subclass thereof.
             locale: Locale used to determine default text processing logic and punctuation.
-                Supports ["en-US", "de-DE", "es-ES"]. Defaults to "en-US".
+                Supports ["en-US", "de-DE", "es-ES", "fr-FR"]. Defaults to "en-US".
                 Specify None if implementing custom logic for a new locale.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default, if any.
@@ -695,6 +825,8 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
         text_preprocessing_func=chinese_text_preprocessing,
     ):
         """Chinese phoneme-based tokenizer.
+        Note: This tokenizer for now covers Chinese phonemes/tones and English letters because our dataset contains
+              both Chinese and English graphemes.
         Args:
             g2p: Grapheme to phoneme module.
             punct: Whether to reserve grapheme for basic punctuation or not.

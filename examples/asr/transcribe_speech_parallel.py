@@ -80,10 +80,10 @@ import torch
 from omegaconf import MISSING, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.core.config import TrainerConfig, hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -102,8 +102,10 @@ class ParallelTranscriptionConfig:
     # decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
-    # decoder for hybrid models, must be one of 'ctc', 'rnnt' if not None
+    # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
+    # att_context_size can be set for cache-aware streaming models with multiple look-aheads
+    att_context_size: Optional[list] = None
 
     trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
 

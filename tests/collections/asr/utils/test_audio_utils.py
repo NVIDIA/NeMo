@@ -94,7 +94,28 @@ class TestAudioSegment:
                     audio_segment.samples, ref_samples, rtol=rtol, atol=atol
                 ), f'channel_selector {channel_selector}, samples not matching'
 
-                # 2) Load a random segment
+                # 2) Load a with duration=None and offset=None, should load the whole audio
+
+                # UUT
+                audio_segment = AudioSegment.from_file(
+                    audio_file, offset=None, duration=None, channel_selector=channel_selector
+                )
+
+                # Test
+                assert (
+                    audio_segment.sample_rate == sample_rate
+                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, sample rate not matching: {audio_segment.sample_rate} != {sample_rate}'
+                assert (
+                    audio_segment.num_channels == ref_channels
+                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, num channels not matching: {audio_segment.num_channels} != {ref_channels}'
+                assert audio_segment.num_samples == len(
+                    ref_samples
+                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, num samples not matching: {audio_segment.num_samples} != {len(ref_samples)}'
+                assert np.allclose(
+                    audio_segment.samples, ref_samples, rtol=rtol, atol=atol
+                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, samples not matching'
+
+                # 3) Load a random segment
                 offset = 0.45 * np.random.rand() * signal_len_sec
                 duration = 0.45 * np.random.rand() * signal_len_sec
 
@@ -384,18 +405,19 @@ class TestGenerateApproximateNoiseField:
         mic_positions[:, 0] = mic_spacing * np.arange(num_mics)
 
         # UUT
-        noise_field = generate_approximate_noise_field(mic_positions, noise_signal, sample_rate, fft_length=fft_length)
+        noise_field = generate_approximate_noise_field(
+            mic_positions, noise_signal, sample_rate=sample_rate, field=field, fft_length=fft_length
+        )
 
         # Compare the estimated coherence with the theoretical coherence
-        analysis_fft_length = 256
 
         # reference
         golden_coherence = theoretical_coherence(
-            mic_positions, sample_rate=sample_rate, fft_length=analysis_fft_length
+            mic_positions, sample_rate=sample_rate, field=field, fft_length=fft_length
         )
 
         # estimated
-        N = librosa.stft(noise_field.transpose(), n_fft=analysis_fft_length)
+        N = librosa.stft(noise_field.transpose(), n_fft=fft_length)
         # (channel, subband, frame) -> (subband, frame, channel)
         N = N.transpose(1, 2, 0)
         uut_coherence = estimated_coherence(N)
@@ -412,7 +434,7 @@ class TestGenerateApproximateNoiseField:
             if not os.path.exists(figure_dir):
                 os.mkdir(figure_dir)
 
-            freq = librosa.fft_frequencies(sr=sample_rate, n_fft=analysis_fft_length)
+            freq = librosa.fft_frequencies(sr=sample_rate, n_fft=fft_length)
             freq = freq / 1e3  # kHz
 
             plt.figure(figsize=(7, 10))

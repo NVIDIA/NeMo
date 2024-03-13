@@ -18,11 +18,12 @@ import tempfile
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from pytorch_lightning.trainer.connectors.checkpoint_connector import _CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    CustomProgressBar,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -60,6 +61,9 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.max_position_embeddings = cfg.model.max_position_embeddings
         gpt_cfg.seq_len_interpolation_factor = cfg.model.seq_len_interpolation_factor
         gpt_cfg.use_flash_attention = cfg.model.use_flash_attention
+        gpt_cfg.tensor_model_parallel_size = cfg.model.get('tensor_model_parallel_size', 1)
+        gpt_cfg.pipeline_model_parallel_size = cfg.model.get('pipeline_model_parallel_size', 1)
+        gpt_cfg.pipeline_model_parallel_split_rank = cfg.model.get('pipeline_model_parallel_split_rank', 0)
 
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
@@ -129,7 +133,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
     with_distributed_adam = cfg.model.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
     plugins = []
     strategy = NLPDDPStrategy(
@@ -137,34 +141,34 @@ def main(cfg) -> None:
         gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         find_unused_parameters=False,
     )
-    if cfg.trainer.precision in [16, 'bf16']:
+    if cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
         scaler = None
-        if cfg.trainer.precision == 16:
+        if cfg.trainer.precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
                 init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 hysteresis=cfg.model.get('hysteresis', 2),
             )
-        if megatron_amp_o2 and not with_distributed_adam:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugin_precision = '16-mixed'
         else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugin_precision = 'bf16-mixed'
+        if megatron_amp_O2 and not with_distributed_adam:
+            plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
 
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
     if cfg.model.resume_from_checkpoint is not None:
-        resume_from_checkpoint = cfg.model.resume_from_checkpoint
-    else:
-        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+        trainer.ckpt_path = cfg.model.resume_from_checkpoint
 
-    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
     if cfg.restore_from_path:
         save_restore_connector = NLPSaveRestoreConnector()
@@ -179,12 +183,9 @@ def main(cfg) -> None:
         model = load_from_nemo(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
     elif cfg.model.get("pretrained_checkpoint", None) is not None:
         validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-        model = load_from_checkpoint_dir(MegatronGPTModel, cfg, trainer, gpt_cfg, modify_confg_fn=_modify_config)
+        model = load_from_checkpoint_dir(MegatronGPTModel, cfg, trainer, modify_confg_fn=_modify_config)
     else:
         print(' > WARNING: No checkpoint provided. Starting from scratch.')
-        # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-        with open_dict(cfg):
-            cfg.model.precision = cfg.trainer.precision
         model = MegatronGPTModel(cfg.model, trainer)
     trainer.fit(model)
 

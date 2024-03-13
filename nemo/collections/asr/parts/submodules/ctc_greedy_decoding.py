@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureConfig, ConfidenceMeasureMixin
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
@@ -55,7 +55,7 @@ def _states_to_device(dec_state, device='cpu'):
     return dec_state
 
 
-class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
+class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
     """A greedy CTC decoder.
 
     Provides a common abstraction for sample level and batch level greedy decoding.
@@ -71,15 +71,15 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
         preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
             generated during decoding. When set to true, the Hypothesis will contain
             the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
-        confidence_measure_cfg: A dict-like object which contains the measure name and settings to compute per-frame
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
 
-            name: The measure name (str).
+            name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
                     - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
-            entropy_type: Which type of entropy to use (str). Used if confidence_measure_cfg.name is set to `entropy`.
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
                     - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
                         the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
@@ -130,7 +130,7 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
         preserve_frame_confidence: bool = False,
-        confidence_measure_cfg: Optional[DictConfig] = None,
+        confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__()
 
@@ -140,8 +140,8 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
         self.compute_timestamps = compute_timestamps | preserve_frame_confidence
         self.preserve_frame_confidence = preserve_frame_confidence
 
-        # set confidence calculation measure
-        self._init_confidence_measure(confidence_measure_cfg)
+        # set confidence calculation method
+        self._init_confidence_method(confidence_method_cfg)
 
     @typecheck()
     def forward(
@@ -161,7 +161,25 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
         with torch.inference_mode():
             hypotheses = []
             # Process each sequence independently
-            prediction_cpu_tensor = decoder_output.cpu()
+
+            if decoder_output.is_cuda:
+                # This two-liner is around twenty times faster than:
+                # `prediction_cpu_tensor = decoder_output.cpu()`
+                # cpu() does not use pinned memory, meaning that a slow pageable
+                # copy must be done instead.
+                prediction_cpu_tensor = torch.empty(
+                    decoder_output.shape, dtype=decoder_output.dtype, device=torch.device("cpu"), pin_memory=True
+                )
+                prediction_cpu_tensor.copy_(decoder_output, non_blocking=True)
+            else:
+                prediction_cpu_tensor = decoder_output
+
+            if decoder_lengths is not None and isinstance(decoder_lengths, torch.Tensor):
+                # Before this change, self._greedy_decode_labels would copy
+                # each scalar from GPU to CPU one at a time, in the line:
+                # prediction = prediction[:out_len]
+                # Doing one GPU to CPU copy ahead of time amortizes that overhead.
+                decoder_lengths = decoder_lengths.cpu()
 
             if prediction_cpu_tensor.ndim < 2 or prediction_cpu_tensor.ndim > 3:
                 raise ValueError(
@@ -192,7 +210,7 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
 
         # Initialize blank state and empty label set in Hypothesis
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
-        prediction = x.detach().cpu()
+        prediction = x.cpu()
 
         if out_len is not None:
             prediction = prediction[:out_len]
@@ -200,7 +218,7 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
         prediction_logprobs, prediction_labels = prediction.max(dim=-1)
 
         non_blank_ids = prediction_labels != self.blank_id
-        hypothesis.y_sequence = prediction_labels.numpy().tolist()
+        hypothesis.y_sequence = prediction_labels.tolist()
         hypothesis.score = (prediction_logprobs[non_blank_ids]).sum()
 
         if self.preserve_alignments:
@@ -208,7 +226,7 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
             hypothesis.alignments = (prediction.clone(), prediction_labels.clone())
 
         if self.compute_timestamps:
-            hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
+            hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].tolist()
 
         if self.preserve_frame_confidence:
             hypothesis.frame_confidence = self._get_confidence(prediction)
@@ -222,20 +240,20 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
 
         # Initialize blank state and empty label set in Hypothesis
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
-        prediction_labels = x.detach().cpu()
+        prediction_labels = x.cpu()
 
         if out_len is not None:
             prediction_labels = prediction_labels[:out_len]
 
         non_blank_ids = prediction_labels != self.blank_id
-        hypothesis.y_sequence = prediction_labels.numpy().tolist()
+        hypothesis.y_sequence = prediction_labels.tolist()
         hypothesis.score = -1.0
 
         if self.preserve_alignments:
             raise ValueError("Requested for alignments, but predictions provided were labels, not log probabilities.")
 
         if self.compute_timestamps:
-            hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
+            hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].tolist()
 
         if self.preserve_frame_confidence:
             raise ValueError(
@@ -253,27 +271,12 @@ class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
-    confidence_measure_cfg: Optional[ConfidenceMeasureConfig] = ConfidenceMeasureConfig()
-    confidence_method_cfg: str = "DEPRECATED"
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
-        self.confidence_measure_cfg = OmegaConf.structured(
-            self.confidence_measure_cfg
-            if isinstance(self.confidence_measure_cfg, ConfidenceMeasureConfig)
-            else ConfidenceMeasureConfig(**self.confidence_measure_cfg)
+        self.confidence_method_cfg = OmegaConf.structured(
+            self.confidence_method_cfg
+            if isinstance(self.confidence_method_cfg, ConfidenceMethodConfig)
+            else ConfidenceMethodConfig(**self.confidence_method_cfg)
         )
-        if self.confidence_method_cfg != "DEPRECATED":
-            logging.warning(
-                "`confidence_method_cfg` is deprecated and will be removed in the future. "
-                "Please use `confidence_measure_cfg` instead."
-            )
-
-            # TODO (alaptev): delete the following two lines sometime in the future
-            logging.warning("Re-writing `confidence_measure_cfg` with the value of `confidence_method_cfg`.")
-            # OmegaConf.structured ensures that post_init check is always executed
-            self.confidence_measure_cfg = OmegaConf.structured(
-                self.confidence_method_cfg
-                if isinstance(self.confidence_method_cfg, ConfidenceMeasureConfig)
-                else ConfidenceMeasureConfig(**self.confidence_method_cfg)
-            )

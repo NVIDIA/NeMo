@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import datetime
 import os
 import threading
 from functools import partial
@@ -27,7 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_init
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -167,31 +168,40 @@ def remove_padded_prompts(response, nb_paddings):
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+    trainer = Trainer(
+        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
+        **cfg.trainer,
+        callbacks=[CustomProgressBar()],
+    )
 
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-    ):
-        save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.gpt_model_file):
-            save_restore_connector.model_extracted_dir = cfg.gpt_model_file
-        model_config = MegatronGPTModel.restore_from(
-            restore_path=cfg.gpt_model_file,
-            trainer=trainer,
-            return_config=True,
-            save_restore_connector=save_restore_connector,
-        )
+    if cfg.gpt_model_file is not None:
+        if (
+            cfg.tensor_model_parallel_size < 0
+            or cfg.pipeline_model_parallel_size < 0
+            or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+        ):
+            save_restore_connector = NLPSaveRestoreConnector()
+            if os.path.isdir(cfg.gpt_model_file):
+                save_restore_connector.model_extracted_dir = cfg.gpt_model_file
+            model_config = MegatronGPTModel.restore_from(
+                restore_path=cfg.gpt_model_file,
+                trainer=trainer,
+                return_config=True,
+                save_restore_connector=save_restore_connector,
+            )
 
-        with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+            # with dist checkpointing we don't need to set this
+            if not model_config.get('mcore_gpt', False):
+                with open_dict(cfg):
+                    cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
+                    cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
+                    cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        == cfg.tensor_model_parallel_size
+        * cfg.pipeline_model_parallel_size
+        * max(1, cfg.get('expert_model_parallel_size', 1))
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     if cfg.gpt_model_file:
@@ -211,8 +221,18 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
+            pretrained_cfg["use_flash_attention"] = cfg.inference.get("use_flash_attention", False)
+            pretrained_cfg["apply_rope_fusion"] = False
+            if pretrained_cfg.get('mcore_gpt', False):
+                # with dist checkpointing we can use the model parallel config specified by the user
+                pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
+                pretrained_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
+                pretrained_cfg.expert_model_parallel_size = cfg.get('expert_model_parallel_size', 1)
+                pretrained_cfg.micro_batch_size = 1
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
+            elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
+                pretrained_cfg.megatron_amp_O2 = True
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
@@ -222,13 +242,23 @@ def main(cfg) -> None:
         )
     elif cfg.checkpoint_dir:
         app_state = AppState()
-        if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        if (
+            cfg.tensor_model_parallel_size > 1
+            or cfg.pipeline_model_parallel_size > 1
+            or cfg.get('expert_model_parallel_size', 1) > 1
+        ):
+            app_state.model_parallel_size = (
+                cfg.tensor_model_parallel_size
+                * cfg.pipeline_model_parallel_size
+                * cfg.get('expert_model_parallel_size', 1)
+            )
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
+            app_state.expert_model_parallel_size = cfg.get('expert_model_parallel_size', 1)
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
+                app_state.expert_model_parallel_rank,
                 app_state.model_parallel_size,
                 app_state.data_parallel_size,
                 app_state.pipeline_model_parallel_split_rank,
@@ -239,8 +269,13 @@ def main(cfg) -> None:
                 tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
+                expert_model_parallel_size_=cfg.get('expert_model_parallel_size', 1),
             )
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+        checkpoint_path = os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+        # checkpoint_path is a dir in case of distributed checkpointing
+        if not os.path.isdir(checkpoint_path):
+            # legacy checkpoint needs model parallel rank injection
+            checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
@@ -314,7 +349,12 @@ def main(cfg) -> None:
                         'assistant': cfg.chatbot_config.assistant,
                         'system': cfg.chatbot_config.system,
                     }
-                    web_ui = partial(get_chatbot_demo, defaults=defaults, value=cfg.chatbot_config.value)
+                    web_ui = partial(
+                        get_chatbot_demo,
+                        defaults=defaults,
+                        value=cfg.chatbot_config.value,
+                        attributes=cfg.chatbot_config.attributes,
+                    )
                 else:
                     web_ui = get_demo
                 loop = asyncio.new_event_loop()

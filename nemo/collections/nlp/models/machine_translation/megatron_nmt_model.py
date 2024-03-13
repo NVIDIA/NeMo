@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
@@ -91,8 +92,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         # All of the lines below need to be set when the parent class calls self._build_tokenizer()
-        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
-        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
+        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'sentencepiece')
+        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'sentencepiece')
         self.multilingual_lang_tokens = {}
         self.src_language = cfg.get("src_language", None)
         self.tgt_language = cfg.get("tgt_language", None)
@@ -151,7 +152,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
-        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
@@ -286,12 +287,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        batch = next(dataloader_iter)
+        # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+        # from the dataloader_iter are already extracted in the child class or previous functions. In that case extact only the batch
+        # from the data_iterator
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        else:
+            batch = next(dataloader_iter)
         if isinstance(batch, dict):
             # convert to list if not already converted.
             batch = self._process_batch(batch)
@@ -303,37 +310,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(),
+        return self._execute_fwd_bwd_function(
             data_iterator=data_iter,
-            model=[self.enc_dec_model],
-            num_microbatches=get_num_microbatches(),
             forward_only=forward_only,
             tensor_shape=tensor_shape,
             decoder_seq_length=decoder_seq_length,
-            dtype=self.autocast_dtype,
-            grad_scaler=self.trainer.precision_plugin.scaler.scale if self.cfg.precision == 16 else None,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
-            enable_autocast=self.enable_autocast,
         )
 
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_mean = torch.tensor(0.0).cuda()
-
-        return loss_mean
-
-    def eval_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def eval_step(self, dataloader_iter):
         # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = next(dataloader_iter)
+        batch, _, dataloader_idx = next(dataloader_iter)
         batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
         batch = self.process_global_batch_for_text_translation_datasets(batch)
 
@@ -347,7 +333,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # This returns the averaged loss across data-parallel groups.
-        reduced_loss = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, True)
+        reduced_loss = self.fwd_bwd_step(itertools.chain([batch]), True)
 
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
@@ -377,12 +363,22 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
         )
 
-        return {
+        loss_dict = {
             'inputs': encoder_inputs,
             'translations': preds,
             'ground_truths': labels,
-            'loss': reduced_loss,
         }
+        if isinstance(reduced_loss, dict):
+            loss_dict.update(reduced_loss)
+        else:
+            loss_dict['loss'] = reduced_loss
+
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(loss_dict)
+        else:
+            self.validation_step_outputs.append(loss_dict)
+
+        return loss_dict
 
     def postprocess_outputs(self, outputs, tokenizer, processor):
         # Convert ids to lists.
@@ -407,12 +403,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         return results
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def validation_step(self, dataloader_iter):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(dataloader_iter, batch_idx, dataloader_idx)
+        return self.eval_step(dataloader_iter)
 
     def _setup_eval_dataloader_from_config(self, cfg: DictConfig, dataset):
         rank = parallel_state.get_data_parallel_rank()
@@ -437,11 +433,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
         return dataloaders
 
-    def validation_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'val')
+    def on_validation_epoch_end(self):
+        return self.eval_epoch_end(self.validation_step_outputs, 'val')
 
-    def test_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'test')
+    def on_test_epoch_end(self):
+        return self.eval_epoch_end(self.test_step_outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):
         if not outputs:
@@ -536,10 +532,21 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 else:
                     self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, batch_size=1)
                     self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False, batch_size=1)
+            outputs[dataloader_idx].clear()  # free memory
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), batch_size=1)
+
+        app_state = AppState()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self._cfg.train_ds.global_batch_size,
+                micro_batch_size=self._cfg.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
 
     def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """
@@ -801,17 +808,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def list_available_models(self):
         pass
-
-    def on_validation_epoch_end(self):
-        app_state = AppState()
-        if hasattr(self, "_train_ds"):
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=self._cfg.train_ds.global_batch_size,
-                micro_batch_size=self._cfg.train_ds.micro_batch_size,
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
 
     def on_validation_epoch_start(self):
         app_state = AppState()

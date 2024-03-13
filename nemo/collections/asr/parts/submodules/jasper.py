@@ -375,7 +375,7 @@ class MaskedConv1d(nn.Module):
             self.lens = self.lens.to(device)
         else:
             self.lens = seq_range
-            self.max_len = max_len
+            self.max_len = torch.tensor(max_len)
 
     def mask_input(self, x, lens):
         max_len = x.size(2)
@@ -1046,7 +1046,7 @@ class JasperBlock(nn.Module, AdapterModuleMixin, AccessMixin):
 
                 out = out.transpose(1, 2)  # (B, C, T)
 
-        if self.is_access_enabled():
+        if self.is_access_enabled(getattr(self, "model_guid", None)):
             # for adapters
             if self.access_cfg.get('save_encoder_tensors', False):
                 self.register_accessible_tensor(name='encoder', tensor=out)

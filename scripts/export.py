@@ -30,6 +30,7 @@ import argparse
 import sys
 
 import torch
+from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 import nemo
@@ -63,7 +64,7 @@ def get_args(argv):
     parser.add_argument("--device", default="cuda", help="Device to export for")
     parser.add_argument("--check-tolerance", type=float, default=0.01, help="tolerance for verification")
     parser.add_argument(
-        "--config",
+        "--export-config",
         metavar="KEY=VALUE",
         nargs='+',
         help="Set a number of key-value pairs to model.export_config dictionary "
@@ -103,7 +104,8 @@ def nemo_export(argv):
         logger=False,
         enable_checkpointing=False,
     )
-    trainer = Trainer(cfg_trainer)
+    cfg_trainer = OmegaConf.to_container(OmegaConf.create(cfg_trainer))
+    trainer = Trainer(**cfg_trainer)
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
@@ -142,8 +144,14 @@ def nemo_export(argv):
     if args.cache_support:
         model.set_export_config({"cache_support": "True"})
 
-    if args.config:
-        kv = dict(map(lambda s: s.split('='), args.config))
+    if args.export_config:
+        kv = {}
+        for key_value in args.export_config:
+            lst = key_value.split("=")
+            if len(lst) != 2:
+                raise Exception("Use correct format for --export_config: k=v")
+            k, v = lst
+            kv[k] = v
         model.set_export_config(kv)
 
     autocast = nullcontext

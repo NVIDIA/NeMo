@@ -1330,7 +1330,7 @@ def get_samples_mapping(
         )
     torch.distributed.barrier()
     counts = torch.cuda.LongTensor([1])
-    torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
+    torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group(with_context_parallel=True))
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
     assert counts[0].item() == (
         torch.distributed.get_world_size()
@@ -1344,8 +1344,8 @@ def get_samples_mapping(
         logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
         logging.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
 
-        # Deallocate temporary numpy arrays that were created for `get_samples_mapping()` when needed
-        if hasattr(indexed_dataset, 'doc_idx') and hasattr(indexed_dataset, 'sizes'):
-            deallocate_indexed_dataset_memory(indexed_dataset)
+    # Deallocate temporary numpy arrays that were created for `get_samples_mapping()` when needed
+    if hasattr(indexed_dataset, 'doc_idx') and hasattr(indexed_dataset, 'sizes'):
+        deallocate_indexed_dataset_memory(indexed_dataset)
 
     return samples_mapping

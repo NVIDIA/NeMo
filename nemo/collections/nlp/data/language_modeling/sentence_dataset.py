@@ -68,7 +68,7 @@ class SentenceDataset(Dataset):
 
         batches = []
         for batch_elem_len, batch_sent_ids in zip(self.batch_elem_lengths, self.batch_sent_ids):
-            batch = self.tokenizer.pad_id * np.ones((len(batch_sent_ids), batch_elem_len), dtype=np.int)
+            batch = self.tokenizer.pad_id * np.ones((len(batch_sent_ids), batch_elem_len), dtype=np.int64)
             for i, sentence_idx in enumerate(batch_sent_ids):
                 batch[i][: len(ids[sentence_idx])] = ids[sentence_idx]
             batches.append(batch)
@@ -160,8 +160,8 @@ class TarredSentenceDataset(IterableDataset):
         text_tar_filepaths: Either a list of tokenized text tarball filepaths, or a
             string (can be brace-expandable).
         metadata_path (str): Path to the metadata manifest.
-        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
-        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
+        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as SentencePiece
+        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as SentencePiece
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.

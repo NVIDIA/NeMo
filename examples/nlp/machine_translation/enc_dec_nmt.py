@@ -39,7 +39,7 @@ Usage:
     c. ```./reinstall.sh```
  
  2. Train a new tokenizer (or use pre-trained one):
-    ```yttm bpe --data /mnt/D1/Data/NMT/wmt16_de_en/train.clean.en-de.shuffled.common --model tokenizer.BPE.8192.model --vocab_size 8192```
+    ```spm_train --input=<input> --model_prefix=<model_name> --vocab_size=8000 --character_coverage=1.0 --model_type=<type>```
 
 (To use WANDB, optionally, do login first)
 ``wandb login [YOUR WANDB login]``
@@ -131,7 +131,8 @@ def main(cfg: MTEncDecConfig) -> None:
 
     if cfg.do_training:
         trainer.fit(mt_model)
-
+    # Reset for PTL 2.0 as test uses the same ckpt as train via previously set self._ckpt_path
+    trainer.ckpt_path = None
     if cfg.do_testing:
         trainer.test(mt_model)
 

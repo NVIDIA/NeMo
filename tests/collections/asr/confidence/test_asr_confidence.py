@@ -22,11 +22,11 @@ import pytest
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.ctc_greedy_decoding import GreedyCTCInferConfig
-from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyRNNTInferConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
 from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import run_confidence_benchmark
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
 
@@ -106,39 +106,28 @@ class TestASRConfidenceBenchmark:
     @pytest.mark.integration
     @pytest.mark.with_downloads
     @pytest.mark.parametrize('model_name', ("ctc", "rnnt"))
-    @pytest.mark.parametrize('arg', ("method_cfg", "temperature", "all"))
-    def test_deprecated_config_args(self, model_name, arg, conformer_ctc_bpe_model, conformer_rnnt_bpe_model):
-        assert ConfidenceConfig().measure_cfg.alpha == 0.33, "default `alpha` is supposed to be 0.33"
+    def test_deprecated_config_args(self, model_name, conformer_ctc_bpe_model, conformer_rnnt_bpe_model):
+        assert ConfidenceConfig().method_cfg.alpha == 0.33, "default `alpha` is supposed to be 0.33"
         model = conformer_ctc_bpe_model if model_name == "ctc" else conformer_rnnt_bpe_model
         assert isinstance(model, ASRModel)
-        if arg == "all":
-            conf = OmegaConf.create({"temperature": 0.5})
-            test_args_main = {"method_cfg": conf}
-            test_args_greedy = {"confidence_method_cfg": conf}
-        elif arg == "method_cfg":
-            conf = OmegaConf.create({"alpha": 0.5})
-            test_args_main = {"method_cfg": conf}
-            test_args_greedy = {"confidence_method_cfg": conf}
-        elif arg == "temperature":
-            conf = OmegaConf.create({"temperature": 0.5})
-            test_args_main = {"measure_cfg": conf}
-            test_args_greedy = {"confidence_measure_cfg": conf}
-        else:
-            raise NotImplementedError(arg)
+
+        conf = OmegaConf.create({"temperature": 0.5})
+        test_args_main = {"method_cfg": conf}
+        test_args_greedy = {"confidence_method_cfg": conf}
         confidence_cfg = ConfidenceConfig(preserve_word_confidence=True, **test_args_main)
         model.change_decoding_strategy(
             RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy", confidence_cfg=confidence_cfg)
             if model_name == "rnnt"
             else CTCDecodingConfig(confidence_cfg=confidence_cfg)
         )
-        assert model.cfg.decoding.confidence_cfg.measure_cfg.alpha == 0.5
+        assert model.cfg.decoding.confidence_cfg.method_cfg.alpha == 0.5
         model.change_decoding_strategy(
             RNNTDecodingConfig(
                 fused_batch_size=-1,
                 strategy="greedy",
-                greedy=GreedyRNNTInferConfig(preserve_frame_confidence=True, **test_args_greedy),
+                greedy=GreedyBatchedRNNTInferConfig(preserve_frame_confidence=True, **test_args_greedy),
             )
             if model_name == "rnnt"
             else CTCDecodingConfig(greedy=GreedyCTCInferConfig(preserve_frame_confidence=True, **test_args_greedy))
         )
-        assert model.cfg.decoding.greedy.confidence_measure_cfg.alpha == 0.5
+        assert model.cfg.decoding.greedy.confidence_method_cfg.alpha == 0.5

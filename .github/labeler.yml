@@ -3,12 +3,21 @@ ASR:
 - examples/asr/**/*
 - tutorials/asr/**/*
 - docs/source/asr/**/*
+- tests/collections/asr/**
 
 NLP:
 - nemo/collections/nlp/**/*
 - examples/nlp/**/*
 - tutorials/nlp/**/*
 - docs/source/nlp/**/*
+- tests/collections/nlp/**
+
+Multi Modal:
+- nemo/collections/multimodal/**/*
+- examples/multimodal/**/*
+- tutorials/multimodal/**/*
+- docs/source/multimodal/**/*
+- tests/collections/multimodal/**
 
 Speaker Tasks:
 - examples/speaker_tasks/**/*
@@ -16,12 +25,18 @@ Speaker Tasks:
 
 TTS:
 - nemo/collections/tts/**/*
+- nemo/collections/common/tokenizers/text_to_speech/**
 - examples/tts/**/*
 - tutorials/tts/**/*
 - docs/source/tts/**/*
+- scripts/dataset_processing/tts/**
+- scripts/tts_dataset_files/**
+- tests/collections/tts/**
+- tests/collections/common/tokenizers/text_to_speech/**
 
 core:
 - nemo/core/**/*
+- tests/core/**
 
 common:
 - nemo/collections/common/**/*

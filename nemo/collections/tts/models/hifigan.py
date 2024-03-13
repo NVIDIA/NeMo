@@ -75,6 +75,8 @@ class HifiGanModel(Vocoder, Exportable):
         self.log_audio = cfg.get("log_audio", False)
         self.log_config = cfg.get("log_config", None)
         self.lr_schedule_interval = None
+
+        # Important: this property activates manual optimization.
         self.automatic_optimization = False
 
     @property
@@ -226,7 +228,7 @@ class HifiGanModel(Vocoder, Exportable):
         self.log_dict(metrics, on_step=True, sync_dist=True)
         self.log("g_l1_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
 
-    def training_epoch_end(self, outputs) -> None:
+    def on_train_epoch_end(self) -> None:
         self.update_lr("epoch")
 
     def validation_step(self, batch, batch_idx):
@@ -335,7 +337,7 @@ class HifiGanModel(Vocoder, Exportable):
 
     def _setup_train_dataloader(self, cfg):
         dataset = instantiate(cfg.dataset)
-        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
         )
@@ -350,7 +352,7 @@ class HifiGanModel(Vocoder, Exportable):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {name}")
         if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
-            raise ValueError(f"No dataloder_params for {name}")
+            raise ValueError(f"No dataloader_params for {name}")
         if shuffle_should_be:
             if 'shuffle' not in cfg.dataloader_params:
                 logging.warning(

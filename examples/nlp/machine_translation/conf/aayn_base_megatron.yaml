@@ -12,7 +12,7 @@ trainer:
   accelerator: gpu
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  use_distributed_sampler: False
   max_epochs: 1000 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 400000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
@@ -155,7 +155,7 @@ model:
       warmup_ratio: 0.1
 
   encoder_tokenizer:
-    library: yttm
+    library: sentencepiece
     model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
@@ -167,7 +167,7 @@ model:
     num_sentinel_tokens: 0
 
   decoder_tokenizer:
-    library: yttm
+    library: sentencepiece
     model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null

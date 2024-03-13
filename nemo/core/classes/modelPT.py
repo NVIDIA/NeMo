@@ -42,6 +42,10 @@ from nemo.utils.get_rank import get_rank, is_global_rank_zero
 __all__ = ['ModelPT']
 
 
+# multiple interpolated values in the config
+OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
+
+
 class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
@@ -177,11 +181,21 @@ class ModelPT(LightningModule, Model):
                     f"Test config : \n{OmegaConf.to_yaml(self._cfg.test_ds)}"
                 )
 
+        # Create list of lists for val and test outputs to support multiple dataloaders
+        # Initialize an empty list as sometimes self._validation_dl can be None at this stage
+        self._validation_step_outputs = None
+
+        # Initialize an empty list as sometimes self._test_dl can be None at this stage
+        self._test_step_outputs = None
+
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
         # Setup nsys profiling if it has been enabled in the model config
         self._setup_nsys_profiling()
+
+        # A flag for the profile generation
+        self._profile_complete = False
 
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
@@ -274,21 +288,22 @@ class ModelPT(LightningModule, Model):
         In the saving process, the whole parent model (self) is held as a solid model with artifacts
         from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
         This method is necessary to create a nested model, e.g.
-            .. code-block:: python
 
-                class ParentModel(ModelPT):
-                    def __init__(self, cfg, trainer=None):
-                        super().__init__(cfg=cfg, trainer=trainer)
+        .. code-block:: python
 
-                        # annotate type for autocompletion and type checking (optional)
-                        self.child_model: Optional[ChildModel] = None
-                        if cfg.get("child_model") is not None:
-                            self.register_nemo_submodule(
-                                name="child_model",
-                                config_field="child_model",
-                                model=ChildModel(self.cfg.child_model, trainer=trainer),
-                            )
-                        # ... other code
+            class ParentModel(ModelPT):
+                def __init__(self, cfg, trainer=None):
+                    super().__init__(cfg=cfg, trainer=trainer)
+
+                    # annotate type for autocompletion and type checking (optional)
+                    self.child_model: Optional[ChildModel] = None
+                    if cfg.get("child_model") is not None:
+                        self.register_nemo_submodule(
+                            name="child_model",
+                            config_field="child_model",
+                            model=ChildModel(self.cfg.child_model, trainer=trainer),
+                        )
+                    # ... other code
 
         Args:
             name: name of the attribute for the submodule
@@ -578,32 +593,20 @@ class ModelPT(LightningModule, Model):
         # Setup the optimizer parameter groups (by default use all parameters that are trainable)
         self.setup_optimizer_param_groups()
 
-        # If config was not explicitly passed to us
-        if optim_config is None:
-            # See if internal config has `optim` namespace
-            if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                optim_config = self._cfg.optim
+        # Make copy of the config so it can be modified later
+        optim_config = self._optim_config_copy(optim_config)
 
-        # If config is still None, or internal config has no Optim, return without instantiation
+        # If config is still None, return without instantiation
         if optim_config is None:
             logging.info('No optimizer config provided, therefore no optimizer was created')
             return
 
-        else:
-            # Preserve the configuration
-            if not isinstance(optim_config, DictConfig):
-                optim_config = OmegaConf.create(optim_config)
-
-            # See if internal config has `optim` namespace before preservation
-            if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                if self._cfg.optim is None:
-                    self._cfg.optim = copy.deepcopy(optim_config)
-                else:
-                    with open_dict(self._cfg.optim):
-                        self._cfg.optim = copy.deepcopy(optim_config)
+        # See if internal config has `optim` namespace before preservation
+        if self._cfg is not None and hasattr(self._cfg, 'optim'):
+            self._cfg.optim = optim_config
 
         # Setup optimizer and scheduler
-        if optim_config is not None and isinstance(optim_config, DictConfig):
+        if optim_config is not None:
             optim_config = OmegaConf.to_container(optim_config, resolve=True)
 
         if self._trainer is None:
@@ -772,7 +775,7 @@ class ModelPT(LightningModule, Model):
                     raise ValueError(f"{group} not found in model.")
                 elif hasattr(module, "parameters"):
                     known_groups.append(group)
-                    new_group = {"params": module.parameters()}
+                    new_group = {"params": list(module.parameters())}
                     for k, v in group_cfg.items():
                         new_group[k] = v
                     param_groups.append(new_group)
@@ -791,7 +794,7 @@ class ModelPT(LightningModule, Model):
             if len(other_params):
                 param_groups = [{"params": other_params}] + param_groups
         else:
-            param_groups = [{"params": self.parameters()}]
+            param_groups = [{"params": list(self.parameters())}]
 
         self._optimizer_param_groups = param_groups
 
@@ -803,6 +806,20 @@ class ModelPT(LightningModule, Model):
         else:
             return [self._optimizer], [self._scheduler]
 
+    def propagate_model_guid(self):
+        """
+        Propagates the model GUID to all submodules, recursively.
+        """
+
+        def recursively_propagate_guid(module: "NeuralModule"):
+            module.model_guid = self.model_guid
+            for child in module.children():
+                recursively_propagate_guid(child)
+
+        for _, _, module in self.named_nemo_modules():
+            module.model_guid = self.model_guid
+            recursively_propagate_guid(module)
+
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
         This is called on every process when using DDP.
@@ -810,6 +827,7 @@ class ModelPT(LightningModule, Model):
         Args:
             stage: fit, validate, test or predict
         """
+        self.propagate_model_guid()
         if stage == 'fit':
             train_deferred_setup = (
                 'train_ds' in self._cfg
@@ -842,16 +860,20 @@ class ModelPT(LightningModule, Model):
             return self._train_dl
 
     def val_dataloader(self):
-        if self._validation_dl is not None:
-            return self._validation_dl
+        if self._validation_dl is None:
+            # None dataloader no longer supported in PTL2.0
+            self._validation_dl = []
+
+        return self._validation_dl
 
     def test_dataloader(self):
-        if self._test_dl is not None:
-            return self._test_dl
+        if self._test_dl is None:
+            # None dataloader no longer supported in PTL2.0
+            self._test_dl = []
 
-    def validation_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        return self._test_dl
+
+    def on_validation_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
         Default DataLoader for Validation set which automatically supports multiple data loaders
         via `multi_validation_epoch_end`.
@@ -873,23 +895,24 @@ class ModelPT(LightningModule, Model):
             along with merged logs from all data loaders.
         """
         # Case where we dont provide data loaders
-        if outputs is not None and len(outputs) == 0:
+        if self.validation_step_outputs is not None and len(self.validation_step_outputs) == 0:
             return {}
 
         # Case where we provide exactly 1 data loader
-        if type(outputs[0]) == dict:
-            output_dict = self.multi_validation_epoch_end(outputs, dataloader_idx=0)
+        if isinstance(self.validation_step_outputs[0], dict):
+            output_dict = self.multi_validation_epoch_end(self.validation_step_outputs, dataloader_idx=0)
 
             if output_dict is not None and 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
+            self.validation_step_outputs.clear()  # free memory
             return output_dict
 
         else:  # Case where we provide more than 1 data loader
             output_dict = {'log': {}}
 
             # The output is a list of list of dicts, outer list corresponds to dataloader idx
-            for dataloader_idx, val_outputs in enumerate(outputs):
+            for dataloader_idx, val_outputs in enumerate(self.validation_step_outputs):
                 # Get prefix and dispatch call to multi epoch end
                 dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
                 dataloader_logs = self.multi_validation_epoch_end(val_outputs, dataloader_idx=dataloader_idx)
@@ -938,15 +961,15 @@ class ModelPT(LightningModule, Model):
                         new_k = dataloader_prefix + k
                         output_dict[new_k] = v
 
+                self.validation_step_outputs[dataloader_idx].clear()  # free memory
+
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
             # return everything else
             return output_dict
 
-    def test_epoch_end(
-        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+    def on_test_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
         Default DataLoader for Test set which automatically supports multiple data loaders
         via `multi_test_epoch_end`.
@@ -968,23 +991,24 @@ class ModelPT(LightningModule, Model):
             along with merged logs from all data loaders.
         """
         # Case where we dont provide data loaders
-        if outputs is not None and len(outputs) == 0:
+        if self.test_step_outputs is not None and len(self.test_step_outputs) == 0:
             return {}
 
         # Case where we provide exactly 1 data loader
-        if type(outputs[0]) == dict:
-            output_dict = self.multi_test_epoch_end(outputs, dataloader_idx=0)
+        if isinstance(self.test_step_outputs[0], dict):
+            output_dict = self.multi_test_epoch_end(self.test_step_outputs, dataloader_idx=0)
 
             if output_dict is not None and 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
+            self.test_step_outputs.clear()  # free memory
             return output_dict
 
         else:  # Case where we provide more than 1 data loader
             output_dict = {'log': {}}
 
             # The output is a list of list of dicts, outer list corresponds to dataloader idx
-            for dataloader_idx, test_outputs in enumerate(outputs):
+            for dataloader_idx, test_outputs in enumerate(self.test_step_outputs):
                 # Get prefix and dispatch call to multi epoch end
                 dataloader_prefix = self.get_test_dataloader_prefix(dataloader_idx)
                 dataloader_logs = self.multi_test_epoch_end(test_outputs, dataloader_idx=dataloader_idx)
@@ -1030,6 +1054,7 @@ class ModelPT(LightningModule, Model):
                         # If any values are stored outside 'log', simply prefix name and store
                         new_k = dataloader_prefix + k
                         output_dict[new_k] = v
+                self.test_step_outputs[dataloader_idx].clear()  # free memory
 
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
@@ -1045,7 +1070,7 @@ class ModelPT(LightningModule, Model):
         so as to obtain appropriate logs for each of the dataloaders.
 
         Args:
-            outputs: Same as that provided by LightningModule.validation_epoch_end()
+            outputs: Same as that provided by LightningModule.on_validation_epoch_end()
                 for a single dataloader.
             dataloader_idx: int representing the index of the dataloader.
 
@@ -1058,7 +1083,7 @@ class ModelPT(LightningModule, Model):
             "`multi_validation_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
             "If you require multi data loader support for validation sets, please override this method.\n"
             "If you do not require multi data loader support, please instead override "
-            "`validation_epoch_end(outputs)."
+            "`on_validation_epoch_end(outputs)."
         )
 
     def multi_test_epoch_end(
@@ -1069,7 +1094,7 @@ class ModelPT(LightningModule, Model):
         so as to obtain appropriate logs for each of the dataloaders.
 
         Args:
-            outputs: Same as that provided by LightningModule.validation_epoch_end()
+            outputs: Same as that provided by LightningModule.on_validation_epoch_end()
                 for a single dataloader.
             dataloader_idx: int representing the index of the dataloader.
 
@@ -1082,7 +1107,7 @@ class ModelPT(LightningModule, Model):
             "`multi_test_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
             "If you require multi data loader support for validation sets, please override this method.\n"
             "If you do not require multi data loader support, please instead override "
-            "`test_epoch_end(outputs)."
+            "`on_test_epoch_end(outputs)."
         )
 
     def get_validation_dataloader_prefix(self, dataloader_idx: int = 0) -> str:
@@ -1552,6 +1577,61 @@ class ModelPT(LightningModule, Model):
         if hasattr(self, '_hparams_initial') and 'cfg' in self._hparams_initial:
             self._hparams_initial['cfg'] = OmegaConf.to_object(self._cfg)
 
+    @property
+    def validation_step_outputs(self):
+        """
+        Cached outputs of validation_step. It can be a list of items (for single data loader) or a list of lists
+        (for multiple data loaders).
+
+        Returns:
+            List of outputs of validation_step.
+        """
+        if self._validation_step_outputs is not None:
+            return self._validation_step_outputs
+
+        # Initialize new output list
+        self._validation_step_outputs = []
+        # Check len(self._validation_dl) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>] when ds_item in
+        # config has 1 item passed in a list
+        if (
+            self._validation_dl is not None
+            and isinstance(self._validation_dl, (list, tuple))
+            and len(self._validation_dl) > 1
+        ):
+            for _ in range(len(self._validation_dl)):
+                self._validation_step_outputs.append([])
+
+        return self._validation_step_outputs
+
+    @validation_step_outputs.setter
+    def validation_step_outputs(self, value):
+        self._validation_step_outputs = value
+
+    @property
+    def test_step_outputs(self):
+        """
+        Cached outputs of test_step. It can be a list of items (for single data loader) or a list of lists (for multiple data loaders).
+
+        Returns:
+            List of outputs of test_step.
+        """
+        if self._test_step_outputs is not None:
+            return self._test_step_outputs
+
+        # Initialize new output list
+        self._test_step_outputs = []
+        # Check len(self._test_dl) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>] when ds_item in
+        # config has 1 item passed in a list
+        if self._test_dl is not None and isinstance(self._test_dl, (list, tuple)) and len(self._test_dl) > 1:
+            for _ in range(len(self._test_dl)):
+                self._test_step_outputs.append([])
+
+        return self._test_step_outputs
+
+    @test_step_outputs.setter
+    def test_step_outputs(self, value):
+        self._test_step_outputs = value
+
     @staticmethod
     def _is_model_being_restored() -> bool:
         app_state = AppState()
@@ -1651,7 +1731,7 @@ class ModelPT(LightningModule, Model):
         # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
-                if self._nsys_profile_enabled:
+                if self._nsys_profile_enabled and not self._profile_complete:
                     if batch_idx == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== Start nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStart()
@@ -1688,10 +1768,24 @@ class ModelPT(LightningModule, Model):
 
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
-                if self._nsys_profile_enabled:
+                if self._nsys_profile_enabled and not self._profile_complete:
                     if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
+                        self._profile_complete = True
+
+    def _cleanup_on_execution_end(self):
+        """
+        Utility function to clean up the module state at the end of execution.
+        """
+
+        # dynamic freezing cleanup
+        if hasattr(self, '_freeze_cfg'):
+            delattr(self, '_freeze_cfg')
+
+        # Clear up the val and test output caches
+        self._validation_step_outputs = None
+        self._test_step_outputs = None
 
     def on_train_end(self):
         """ PyTorch Lightning hook:
@@ -1699,9 +1793,21 @@ class ModelPT(LightningModule, Model):
             We use it here to cleanup the dynamic freezing config.
         """
 
-        # dynamic freezing cleanup
-        if hasattr(self, '_freeze_cfg'):
-            delattr(self, '_freeze_cfg')
+        self._cleanup_on_execution_end()
+
+    def on_test_end(self):
+        """ PyTorch Lightning hook:
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-test-end
+        """
+
+        self._cleanup_on_execution_end()
+
+    def on_predict_end(self):
+        """ PyTorch Lightning hook:
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-test-end
+        """
+
+        self._cleanup_on_execution_end()
 
     # TODO: Remove in PTL 1.7.2
     def cuda(self, device=None):
@@ -1733,3 +1839,20 @@ class ModelPT(LightningModule, Model):
         elif isinstance(device, int):
             device = torch.device("cuda", index=device)
         return super().cuda(device=device)
+
+    def _optim_config_copy(self, optim_config: Optional[Union[DictConfig, Dict]]) -> Optional[DictConfig]:
+        """
+        Return a copy of `optim_config` if provided (and otherwise of the internal optim config, if available).
+        """
+        if optim_config is None:
+            # See if internal config has `optim` namespace
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                optim_config = self._cfg.optim
+
+        if optim_config is None:
+            return None
+
+        if isinstance(optim_config, DictConfig):
+            return copy.deepcopy(optim_config)
+        else:
+            return OmegaConf.create(optim_config)

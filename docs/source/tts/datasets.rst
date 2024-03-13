@@ -87,7 +87,7 @@ The texts of this dataset has been normalized already. So there is no extra need
 
 
 Thorsten Müller's German Neutral-TTS Datasets
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 There are two German neutral datasets released by Thorsten Müller for now, 21.02 and 22.10, respectively. Version 22.10 has been recorded with a better recording setup, such as recording chamber and better microphone. So it is advised to train models on the 22.10 version because its audio quality is better and it has a way more natural speech flow and higher character rate per second speech. The two datasets are described below and defined in `scripts/dataset_processing/tts/thorsten_neutral/get_data.py:THORSTEN_NEUTRAL <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/thorsten_neutral/get_data.py#L41-L51>`_.
 
 .. code-block:: python
@@ -172,14 +172,20 @@ SFSpeech Chinese/English Bilingual Speech
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * Dataset URL: https://catalog.ngc.nvidia.com/orgs/nvidia/resources/sf_bilingual_speech_zh_en
 * Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/sfbilingual/get_data.py
-* Command Line Instruction:
+* Command Line Instruction: please refer details in Section 1 (NGC Registry CLI installation), Section 2 (Downloading SFSpeech Dataset), and Section 3 (Creatiung Data Manifests) from https://github.com/NVIDIA/NeMo/blob/main/tutorials/tts/FastPitch_ChineseTTS_Training.ipynb. Below code block briefly describes the steps.
 
 .. code-block:: bash
 
+    # [prerequisite] Install and setup 'ngc' cli tool by following document https://docs.ngc.nvidia.com/cli/cmd.html
+
+    $ ngc registry resource download-version "nvidia/sf_bilingual_speech_zh_en:v1"
+
+    $ unzip sf_bilingual_speech_zh_en_vv1/SF_bilingual.zip -d <your_local_dataset_root>
+
     $ python scripts/dataset_processing/tts/sfbilingual/get_data.py \
-        --data-root <your_local_dataset_root> \
-        --val-size 0.1 \
-        --test-size 0.2 \
+        --data-root <your_local_dataset_root>/SF_bilingual \
+        --val-size 0.005 \
+        --test-size 0.01 \
         --seed-for-ds-split 100
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
