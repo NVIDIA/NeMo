@@ -13,7 +13,7 @@ TRAIN_IS_TARRED=True
 TRAIN_MANIFEST='/media/data3/librispeech_tarred/tarred_audio_manifest.json'
 TRAIN_FILEPATHS="/media/data3/librispeech_tarred/audio__OP_0..511_CL_.tar"
 
-CUDA_VISIBLE_DEVICES="0,1" python speech_pretrain.py \
+CUDA_VISIBLE_DEVICES="0,1" python speech_pretrain2.py \
     --config-path="configs/" \
     --config-name="conformer_large_ssl_rq" \
     model.train_ds.manifest_filepath=${TRAIN_MANIFEST} \
