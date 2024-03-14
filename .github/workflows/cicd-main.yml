@@ -117,6 +117,9 @@ jobs:
             '
             ### \'\'
 
+    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+      if: "failure()"
+
 
     - name: Push container to registry for future use
       run: |
