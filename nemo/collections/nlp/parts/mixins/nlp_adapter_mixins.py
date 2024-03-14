@@ -176,10 +176,11 @@ class NLPAdapterModelMixin:
         if self.cfg.optim.name == "distributed_fused_adam":
             raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
 
+        self.use_peft = True
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
 
-        # @chcui crucial to set self.virtual_tokens for all PP ranks
+        # @chcui crucial to set self.virtual_tokens and self.use_peft for all PP ranks
         for peft_cfg in peft_cfgs:
             if isinstance(peft_cfg, PtuningPEFTConfig):
                 self.virtual_tokens = peft_cfg.virtual_tokens
@@ -206,7 +207,6 @@ class NLPAdapterModelMixin:
 
             if hasattr(cfg, "tunable_base_param_names") and cfg.tunable_base_param_names:
                 self.set_tunable_base_params(cfg)
-        self.use_peft = True
 
     def _get_config_and_state_dict_from_nemo(self, filepath, map_location):
         cwd = os.getcwd()
