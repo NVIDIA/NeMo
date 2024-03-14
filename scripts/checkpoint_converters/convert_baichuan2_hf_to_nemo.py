@@ -316,8 +316,8 @@ def convert(args):
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
-    model.save_to(args.out_file)
-    logging.info(f'NeMo model saved to: {args.out_file}')
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':

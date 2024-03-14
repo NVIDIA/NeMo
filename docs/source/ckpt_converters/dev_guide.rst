@@ -26,7 +26,7 @@ Guideline Steps for Checkpoint Conversion
 
 11. **Add Docstrings and Comments**: Please kindly comment the expected shapes in the parameter reshaping part.
 
-12. **Upload both NeMo and HuggingFace checkpoints to JET Artifacts Registry**. For reproducibility, use an official NeMo container once your conversion script is part of a new release.
+12. **Add Jenkins Tests**: Please use `Llama Huggingface to NeMo converter test <https://github.com/NVIDIA/NeMo/blob/main/Jenkinsfile#L418>`_  as an example for development.
 
 Script Placement and Naming Conventions
 ---------------------------------------
@@ -48,7 +48,7 @@ Script Placement and Naming Conventions
 Code Template
 -------------
 
-This template tries to address the 10 steps in the guideline part.
+Below template tries to address the 11 steps in the guideline part. Please also use `Gemma Huggingface to NeMo converter <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_gemma_hf_to_nemo.py>`_  as an full example for development.
 
 .. code-block:: python
 
@@ -155,9 +155,6 @@ This template tries to address the 10 steps in the guideline part.
 
 *Notes:* This template abstracts some functions (create_rename_keys, adjust_tensor_shapes, adjust_nemo_config) which are crucial for the conversion process. These functions need to be adapted based on specific model architectures and requirements. Ensure that the NeMo model’s configuration is properly aligned with the HuggingFace model’s configuration. It is important to thoroughly test the converted model to validate the conversion process.
 
-Code Example
-------------
-Please use `Gemma Huggingface to NeMo converter <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_gemma_hf_to_nemo.py>`_  as an example for development.
 
 Development Tips
 ----------------
@@ -216,3 +213,22 @@ A Simple Guide for Model Mapping and Conversion
    a. Megatron Core uses a special QKV layout, which needs careful handling and reshaping from community models, especially when GQA or MQA is used. Refer to the `Gemma Huggingface to NeMo converter <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_gemma_hf_to_nemo.py#L144>`_ for guidance.
 
    b. GLU Variants weights could also be a common source of error. In Megatron Core, the regular feedforward projection weights and gated forward weights are fused together, requiring careful attention to the order of these two. Refer to the `Gemma Huggingface to NeMo converter <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_gemma_hf_to_nemo.py#L135>`_ for more details.
+
+3. The ``create_hf_model`` function can be used to create a model programmatically. For reproducibility, see the example provided at `GitHub <https://github.com/NVIDIA/NeMo/blob/main/tests/setup/models/create_hf_model.py>`_. This function creates a randomly initialized HuggingFace model for testing purposes. The model can be specified by name or path for creating its config and tokenizer using HuggingFace transformers AutoConfig and AutoTokenizer functions.
+
+Example usage:
+
+.. code-block:: python
+
+    create_hf_model(
+        model_name_or_path="/home/TestData/nlp/meta-llama/Llama-2-7b-hf",
+        output_dir=os.path.join(args.save_dir, "megatron_llama/llama-ci-hf"),
+        config_updates={
+            "hidden_size": 256,
+            "num_attention_heads": 4,
+            "num_hidden_layers": 2,
+            "num_key_value_heads": 4
+        },
+        overwrite=args.overwrite,
+    )
+
