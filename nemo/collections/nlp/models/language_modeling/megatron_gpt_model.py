@@ -27,6 +27,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.utils import extend_instance
@@ -90,6 +91,7 @@ try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
+    from megatron.core.deploy.gpt.model_specs import get_gpt_layer_ammo_spec
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -139,6 +141,7 @@ def get_specs(spec_name, num_experts=None):
         "": get_gpt_layer_with_transformer_engine_spec(num_experts),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
+        "ammo": get_gpt_layer_ammo_spec(),
     }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
@@ -550,7 +553,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only, first_val_step=None):
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -634,7 +637,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
             The input batch to each micro-batch is fetched using the dataloader function
@@ -673,7 +676,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        loss_mean = self.fwd_bwd_step(dataloader_iter, False)
 
         if self.cfg.get('fp8', False):
             self.prev_step_training = self.training
@@ -925,7 +928,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Broadcast data.
         if data_iterator is not None:
-            data = next(data_iterator)
+            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
+            # from the data_iterator
+            if isinstance(data_iterator, _DataFetcherWrapper):
+                data, _, _ = next(data_iterator)
+            else:
+                data = next(data_iterator)
         else:
             data = None
 
@@ -1077,7 +1086,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
+            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
+            # from the data_iterator
+            if isinstance(dataloader_iter, _DataFetcherWrapper):
+                batch, _, _ = next(dataloader_iter)
+            else:
+                batch = next(dataloader_iter)
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -1127,17 +1142,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter, dataloader_idx=0):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -1153,12 +1164,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             first_val_step = None
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
+        loss = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+
+        if mode == 'val':
+            # Append with the correct dataloader_idx in case of multiple dataloaders
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
+
         return loss
 
     def on_validation_epoch_end(self):
@@ -1194,8 +1217,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return averaged_loss
 
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+    def test_step(self, dataloader_iter):
+        return self.validation_step(dataloader_iter)
 
     def on_test_epoch_end(self):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
@@ -1263,7 +1286,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             kwargs["split"] = self.cfg.data.splits_string
 
         if self.cfg.data.get('add_fim', False):
-            dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
+            dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
 
             self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
                 GPTFIMDataset, train_valid_test_num_samples, dataset_config,
