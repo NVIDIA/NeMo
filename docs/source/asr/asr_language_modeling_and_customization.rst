@@ -590,7 +590,11 @@ Example of the context-biasing file:
     nvlink_nvlink_nv link
     ray tracing_ray tracing
 
-The main script for CTC-WS context-biasing in NeMo is: ``{NEMO_DIR_PATH}/scripts/asr_context_biasing/eval_greedy_decoding_with_context_biasing.py``
+The main script for CTC-WS context-biasing in NeMo is: 
+
+.. code-block::
+
+    {NEMO_DIR_PATH}/scripts/asr_context_biasing/eval_greedy_decoding_with_context_biasing.py
 
 Context-biasing is managed by ``apply_context_biasing`` parameter [true or false].
 Other important context-biasing parameters are:
