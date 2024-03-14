@@ -185,17 +185,16 @@ class ContextGraphCTC:
         if title is not None:
             graph_attr["label"] = title
 
-
         default_edge_attr = {
             "fontsize": "17",
         }
-        
+
         default_node_attr = {
             "shape": "circle",
             "style": "bold",
             "fontsize": "12",
         }
-        
+
         final_state_attr = {
             "shape": "doublecircle",
             "style": "bold",
