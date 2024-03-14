@@ -402,9 +402,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # if transcriptions form a tuple of (best_hypotheses, all_hypotheses)
     if type(transcriptions) == tuple and len(transcriptions) == 2:
-        if isinstance(transcriptions[1][0], list) and isinstance(
-            transcriptions[1][0][0], Hypothesis
-        ):
+        if isinstance(transcriptions[1][0], list) and isinstance(transcriptions[1][0][0], Hypothesis):
             # extract all hypotheses if exists
             transcriptions = transcriptions[1]
             with open_dict(cfg):
