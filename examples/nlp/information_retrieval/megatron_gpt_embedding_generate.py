@@ -25,11 +25,11 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
-from nemo.utils.model_utils import inject_model_parallel_rank
 from nemo.utils import logging
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import parallel_state
