@@ -150,12 +150,7 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
         # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
         if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
             callbacks.append(CustomProgressBar())
-        return Trainer(
-            plugins=plugins,
-            strategy=strategy,
-            **self.cfg.trainer,
-            callbacks=callbacks
-        )
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
 
 class MegatronLMPPTrainerBuilder(MegatronTrainerBuilder):

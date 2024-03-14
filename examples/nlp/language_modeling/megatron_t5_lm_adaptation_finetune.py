@@ -72,9 +72,7 @@ def main(cfg) -> None:
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
     if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
         callbacks.append(CustomProgressBar())
-    trainer = Trainer(
-        plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=callbacks
-    )
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=callbacks)
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
