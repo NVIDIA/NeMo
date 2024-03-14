@@ -12,7 +12,7 @@ Distributed Data parallelism
     :align: center
     :width: 800px
     :alt: Distributed Data Parallel
-    
+
 
 Tensor Parallelism
 ^^^^^^^^^^^^^^^^^^
@@ -36,7 +36,15 @@ Sequence Parallelism
 .. image:: images/sp.gif
     :align: center
     :width: 800px
-    :alt: Sqeuence Parallel
+    :alt: Sequence Parallel
+
+Expert Parallelism
+^^^^^^^^^^^^^^^^^^
+
+.. image:: images/ep.png
+    :align: center
+    :width: 800px
+    :alt: Expert Parallelism
 
 Parallelism nomenclature
 ^^^^^^^^^^^^^^^^^^^^^^^^
