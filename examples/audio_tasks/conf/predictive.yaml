@@ -14,7 +14,7 @@ model:
     target_key: clean_filepath
     audio_duration: 2.04 # 256 frames
     random_offset: true
-    normalize_input: ${model.normalize_input}
+    normalization_signal: input_signal
     batch_size: 8 # batch size may be increased based on the available memory
     shuffle: true
     num_workers: 8
@@ -24,7 +24,6 @@ model:
     manifest_filepath: ???
     input_key: noisy_filepath
     target_key: clean_filepath
-    normalize_input: ${model.normalize_input}
     batch_size: 8
     shuffle: false
     num_workers: 4
