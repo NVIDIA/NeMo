@@ -186,7 +186,7 @@ class ContextGraphCTC:
             graph_attr["label"] = title
 
         default_edge_attr = {
-            "fontsize": "17",
+            "fontsize": "12",
         }
 
         default_node_attr = {
