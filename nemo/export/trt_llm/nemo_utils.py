@@ -98,7 +98,9 @@ def _nemo_decode(
         if dist_ckpt_folder.exists():
             weights_dict, llm_config, tokenizer = convert_dist_checkpoint(unpacked_checkpoint_dir, args)
         else:
-            weights_dict, llm_config, tokenizer = convert_checkpoint(unpacked_checkpoint_dir, args)
+            raise Exception("Not a supported nemo file format. "
+                            "Only distributed mcore nemo checkpoints are support.")
+        
         LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
 
         if save_nemo_model_config:
