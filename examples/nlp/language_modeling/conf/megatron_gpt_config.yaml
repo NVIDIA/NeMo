@@ -56,7 +56,7 @@ exp_manager:
 model:
   # use GPTModel from megatron.core
   mcore_gpt: False
-  
+
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4 # limited by GPU memory
