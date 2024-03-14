@@ -268,7 +268,7 @@ class MegatronBertModel(MegatronBaseModel):
                 if 'sop loss' in loss_dict:
                     lm_loss = loss_dict['lm loss']
                     sop_loss = loss_dict['sop loss']
-                    loss = lm_loss   sop_loss
+                    loss = lm_loss + sop_loss
                     reduced_loss = average_losses_across_data_parallel_group([loss, lm_loss, sop_loss])
                 else:
                     lm_loss = loss_dict['lm loss']
