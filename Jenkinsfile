@@ -215,8 +215,38 @@ pipeline {
             model.unet_config.use_flash_attention=False \
             model.unet_config.attention_resolutions=[1] \
             model.unet_config.channel_mult=[1] \
+            model.ddp_overlap=False \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
+        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+      }
+    }
+    stage('L2: Multimodal Stable Diffusion Train') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train-cuda_graphs"
+        sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
+            trainer.max_steps=20 \
+            model.data.synthetic_data=True \
+            model.first_stage_key=images_moments \
+            model.cond_stage_key=clip_encoded \
+            model.optim.name=megatron_fused_adam \
+            +model.optim.capturable=True \
+            exp_manager.ema.enable=False \
+            model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
+            ~model.cond_stage_config.restore_from_path \
+            ~model.cond_stage_config.freeze \
+            ~model.cond_stage_config.layer \
+            model.first_stage_config.from_pretrained=null \
+            model.ddp_overlap=False \
+            model.capture_cudagraph_iters=15 \
+            "
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
       }
     }
