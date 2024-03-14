@@ -185,7 +185,6 @@ class TranscriptionConfig:
 
     # Set to False to return text instead of hypotheses from the transcribe function, so as to save memory
     return_hypotheses: bool = True
-    extract_nbest: bool = False
 
     # key for groundtruth text in manifest
     gt_text_attr_name: str = "text"
@@ -320,8 +319,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             cfg.decoding = cfg.ctc_decoding
         else:
             cfg.decoding = cfg.rnnt_decoding
-        if cfg.extract_nbest:
-            cfg.decoding.beam.return_best_hypothesis = False
 
     remove_path_after_done = None
     if isinstance(asr_model, EncDecMultiTaskModel):
@@ -403,11 +400,17 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
 
-    # if transcriptions form a tuple of (best_hypotheses, all_hypotheses), extract just best hypothesis
+    # if transcriptions form a tuple of (best_hypotheses, all_hypotheses)
     if type(transcriptions) == tuple and len(transcriptions) == 2:
-        if cfg.extract_nbest:
+        if isinstance(transcriptions[1][0], list) and isinstance(
+            transcriptions[1][0][0], Hypothesis
+        ):
+            # extract all hypotheses if exists
             transcriptions = transcriptions[1]
+            with open_dict(cfg):
+                cfg.decoding.beam.return_best_hypothesis = False
         else:
+            # extract just best hypothesis
             transcriptions = transcriptions[0]
 
     if cfg.return_transcriptions:
