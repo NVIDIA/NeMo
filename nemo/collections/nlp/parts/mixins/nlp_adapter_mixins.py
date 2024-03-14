@@ -66,7 +66,7 @@ class NLPAdapterModelMixin:
         self.tunable_base_param_names = []
         self.setup_complete = False
 
-        # for P-Tuning with PP, second stage and onward have no trainable parameters so need to be handled
+        # for P-Tuning with PP, second stage and onward have no trainable parameters so only first stage needs peft handling
         self.ptuning_only_and_non_first_stage = False
         super().__init__(*args, **kwargs)
 
@@ -300,7 +300,8 @@ class NLPAdapterModelMixin:
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
-        assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+        if not self.ptuning_only_and_non_first_stage:
+            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
         super().load_state_dict(state_dict, strict=False)
 
     def set_tunable_base_params(self, peft_cfg):
