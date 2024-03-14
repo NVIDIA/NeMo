@@ -72,8 +72,9 @@ model:
   peft:
     peft_scheme: "lora"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
-    restore_from_ckpt_name: null
-    restore_from_hparams_path: null
+    restore_from_ckpt:
+      checkpoint_dir: null
+      checkpoint_name: null
 
     # Used for adapter peft training
     adapter_tuning:
@@ -89,7 +90,9 @@ model:
       position_embedding_strategy: null # used only when weight_tying is True
 
     lora_tuning:
+      target_modules: ['attention_qkv','attention_dense','mlp_fc1','mlp_fc2'] # this can either be 'attention_qkv','attention_dense','mlp_fc1','mlp_fc2', attention (qkv & dense), mlp (fc1 & fc2)
       adapter_dim: 32
+      alpha: ${peft.lora_tuning.adapter_dim} 
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
@@ -106,12 +109,16 @@ model:
 
     ia3_tuning:
       layer_selection:  null  # selects in which layers to add ia3 adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+    
+    selective_tuning:
+      tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
 
   data:
+    return_output_tensors: True
     test_ds:
       query_file_names: ??? # Path to a list of JSONL files corresponding to the query data. Data format is identical to validation_ds.
       doc_file_names: ??? # Path to a list of JSONL files corresponding to the doc data. Data format is identical to validation_ds.
-      names: ??? # Names of the corresponding datasets used to log metrics.
+      names: ["queries", "doc"] # Names of the corresponding datasets used to log metrics.
       global_batch_size: 1
       micro_batch_size: 1
       shuffle: False
@@ -120,8 +127,8 @@ model:
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: False
-      add_eos: ${data.train_ds.add_eos}
-      add_bos: ${data.train_ds.add_bos}
+      add_eos: True
+      add_bos: False
       write_embeddings_to_file: True
       output_file_path_prefix: "test_embeddings" # Prefix of the file to write predictions to.
       index_mapping_dir: null # Path to a directory to write index mapping files.
