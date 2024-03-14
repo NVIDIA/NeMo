@@ -179,6 +179,10 @@ class NLPAdapterModelMixin:
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
 
+        # @chcui crucial to set self.virtual_tokens for all PP ranks
+        for peft_cfg in peft_cfgs:
+            if isinstance(peft_cfg, PtuningPEFTConfig):
+                self.virtual_tokens = peft_cfg.virtual_tokens
         ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
         self.ptuning_only_and_non_first_stage = ptuning_only and not self.first_stage_of_pipeline()
         if self.ptuning_only_and_non_first_stage:
@@ -190,8 +194,6 @@ class NLPAdapterModelMixin:
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
         for peft_cfg in peft_cfgs:
-            if isinstance(peft_cfg, PtuningPEFTConfig):
-                self.virtual_tokens = peft_cfg.virtual_tokens
             self._check_and_add_peft_cfg(peft_cfg)
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
