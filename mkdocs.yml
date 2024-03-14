@@ -3,7 +3,7 @@
 site_name: NVIDIA NeMo
 site_url: https://nvidia.github.io/NeMo
 site_description: >-
-  NeMo: a toolkit for conversational AI & NLP
+  NeMo: a framework for generative AI
 # Repository
 repo_name: NVIDIA/NeMo
 repo_url: https://github.com/NVIDIA/NeMo
@@ -11,7 +11,7 @@ docs_dir: docs/
 
 # Copyright
 copyright: >
-  Copyright &copy; 2019 - 2023 NVIDIA
+  Copyright &copy; 2019 - 2024 NVIDIA
 #  <a href="#__consent">Change cookie settings</a>
 
 # Configuration
@@ -165,8 +165,8 @@ markdown_extensions:
 # Page Tree
 nav:
   - Home: index.md
-  # NeMo Blog Posts
-  - Blog:
+  # NeMo Research Notes
+  - Research Notes:
       - blogs/index.md
   # NeMo Publications
   - Publications:
