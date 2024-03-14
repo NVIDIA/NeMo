@@ -124,7 +124,8 @@ class MegatronTrainerBuilder:
     def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        if callbacks is None:
+        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+        if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
             callbacks = [CustomProgressBar()]
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
@@ -145,11 +146,15 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
+        callbacks = [ModelSummary(max_depth=3)]
+        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+        if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
+            callbacks.append(CustomProgressBar())
         return Trainer(
             plugins=plugins,
             strategy=strategy,
             **self.cfg.trainer,
-            callbacks=[ModelSummary(max_depth=3), CustomProgressBar()]
+            callbacks=callbacks
         )
 
 
