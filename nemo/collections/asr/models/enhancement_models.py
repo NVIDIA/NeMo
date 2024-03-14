@@ -16,6 +16,7 @@ import os
 import tempfile
 from typing import Dict, List, Optional, Union
 
+import einops
 import hydra
 import librosa
 import soundfile as sf
@@ -146,9 +147,9 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(1)
+            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(1)
+            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
 
         # Apply channel augmentation
         if self.training and self.channel_augmentation is not None:
@@ -181,9 +182,9 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(1)
+            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(1)
+            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
 
         # Process input
         processed_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
@@ -302,9 +303,9 @@ class PredictiveAudioToAudioModel(AudioToAudioModel):
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(1)
+            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(1)
+            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
 
         # Estimate the signal
         output_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
@@ -325,9 +326,9 @@ class PredictiveAudioToAudioModel(AudioToAudioModel):
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(1)
+            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(1)
+            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
 
         # Estimate the signal
         output_signal, _ = self.forward(input_signal=input_signal, input_length=input_length)
@@ -529,9 +530,9 @@ class ScoreBasedGenerativeAudioToAudioModel(AudioToAudioModel):
 
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(1)
+            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(1)
+            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
 
         # Calculate the loss
         loss = self._step(target_signal=target_signal, input_signal=input_signal, input_length=input_length)
@@ -549,9 +550,9 @@ class ScoreBasedGenerativeAudioToAudioModel(AudioToAudioModel):
 
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
         if input_signal.ndim == 2:
-            input_signal = input_signal.unsqueeze(1)
+            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
         if target_signal.ndim == 2:
-            target_signal = target_signal.unsqueeze(1)
+            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
 
         # Calculate loss
         loss = self._step(target_signal=target_signal, input_signal=input_signal, input_length=input_length)

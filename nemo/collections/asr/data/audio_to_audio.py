@@ -130,21 +130,16 @@ class ASRAudioProcessor:
         sample_rate: sample rate used for all audio signals
         random_offset: If `True`, offset will be randomized when loading a subsegment
                        from a file.
-        normalize: 
-        normalization_signal: 
+        normalization_signal: Normalize all audio with a factor that ensures the normalization
+                    signal is in range [-1, 1]. All audio signals are scaled by the same factor.
+                    Default is `None`, corresponding to no normalization.
     """
 
     def __init__(
-        self,
-        sample_rate: float,
-        random_offset: bool,
-        normalize: bool = False,
-        normalization_signal: str = 'input_signal',
-        eps: float = 1e-8,
+        self, sample_rate: float, random_offset: bool, normalization_signal: Optional[str] = None, eps: float = 1e-8,
     ):
         self.sample_rate = sample_rate
         self.random_offset = random_offset
-        self.normalize = normalize
         self.normalization_signal = normalization_signal
         self.eps = eps
 
@@ -324,8 +319,8 @@ class ASRAudioProcessor:
         Returns:
             An ordered dictionary of signals and their tensors.
         """
-        if self.normalize:
-            # Normalize audio w.r.t. to the first signal
+        if self.normalization_signal:
+            # Normalize all audio with a factor that ensures the normalization signal is in range [-1, 1].
             norm_scale = audio[self.normalization_signal].abs().max()
 
             # Do not normalize embeddings
@@ -334,6 +329,8 @@ class ASRAudioProcessor:
             # Normalize audio signals
             for signal in audio:
                 if signal not in skip_signals:
+                    # All audio signals are scaled by the same factor.
+                    # This ensures that the relative level between signals is preserved.
                     audio[signal] = audio[signal] / (norm_scale + self.eps)
 
         return audio
@@ -833,7 +830,8 @@ class AudioToTargetDataset(BaseAudioDataset):
                                 If `None`, all channels will be loaded.
         target_channel_selector: Optional, select subset of channels from each input audio file.
                                  If `None`, all channels will be loaded.
-        normalize_input: 
+        normalization_signal: Normalize audio signals with a scale that ensures the normalization signal is in range [-1, 1].
+                              All audio signals are scaled by the same factor. No normalization if set to `None`.
     """
 
     def __init__(
@@ -849,7 +847,7 @@ class AudioToTargetDataset(BaseAudioDataset):
         max_utts: Optional[int] = None,
         input_channel_selector: Optional[int] = None,
         target_channel_selector: Optional[int] = None,
-        normalize_input: bool = False,
+        normalization_signal: Optional[str] = None,
     ):
         audio_to_manifest_key = {
             'input_signal': input_key,
@@ -865,10 +863,7 @@ class AudioToTargetDataset(BaseAudioDataset):
         )
 
         audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate,
-            random_offset=random_offset,
-            normalize=normalize_input,
-            normalization_signal='input_signal',
+            sample_rate=sample_rate, random_offset=random_offset, normalization_signal=normalization_signal,
         )
         audio_processor.sync_setup = SignalSetup(
             signals=['input_signal', 'target_signal'],
@@ -960,7 +955,8 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
                                    from input and target.
         reference_duration: Optional, can be used to set a fixed duration of the reference utterance. If `None`,
                             complete audio file will be loaded.
-        normalize_input: 
+        normalization_signal: Normalize audio signals with a scale that ensures the normalization signal is in range [-1, 1].
+                              All audio signals are scaled by the same factor.
     """
 
     def __init__(
@@ -980,7 +976,7 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         reference_channel_selector: Optional[int] = None,
         reference_is_synchronized: bool = True,
         reference_duration: Optional[float] = None,
-        normalize_input: bool = False,
+        normalization_signal: Optional[str] = None,
     ):
         audio_to_manifest_key = {
             'input_signal': input_key,
@@ -997,10 +993,7 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         )
 
         audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate,
-            random_offset=random_offset,
-            normalize=normalize_input,
-            normalization_signal='input_signal',
+            sample_rate=sample_rate, random_offset=random_offset, normalization_signal=normalization_signal,
         )
 
         if reference_is_synchronized:
@@ -1098,7 +1091,8 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
                                 If `None`, all channels will be loaded.
         target_channel_selector: Optional, select subset of channels from each input audio file.
                                  If `None`, all channels will be loaded.
-        normalize_input: 
+        normalization_signal: Normalize audio signals with a scale that ensures the normalization signal is in range [-1, 1].
+                              All audio signals are scaled by the same factor.
     """
 
     def __init__(
@@ -1115,7 +1109,7 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
         max_utts: Optional[int] = None,
         input_channel_selector: Optional[int] = None,
         target_channel_selector: Optional[int] = None,
-        normalize_input: bool = False,
+        normalization_signal: Optional[str] = None,
     ):
         audio_to_manifest_key = {
             'input_signal': input_key,
@@ -1132,10 +1126,7 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
         )
 
         audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate,
-            random_offset=random_offset,
-            normalize=normalize_input,
-            normalization_signal='input_signal',
+            sample_rate=sample_rate, random_offset=random_offset, normalization_signal=normalization_signal,
         )
         audio_processor.sync_setup = SignalSetup(
             signals=['input_signal', 'target_signal'],

@@ -553,8 +553,8 @@ class SpectrogramNoiseConditionalScoreNetworkPlusPlus(NeuralModule):
             raise RuntimeError(f'Unexpected input channel size {C_in}, expected {self.in_channels}')
 
         # Stack real and imaginary parts
-        input_real_imag = [torch.cat([input[:, [c], ...].real, input[:, [c], ...].imag], dim=1) for c in range(C_in)]
-        input = torch.cat(input_real_imag, dim=1)
+        input_real_imag = torch.stack([input.real, input.imag], dim=2)
+        input = einops.rearrange(input_real_imag, 'B C RI F T -> B (C RI) F T')
 
         # Process using NCSN++
         output, output_length = self.ncsnpp(input=input, input_length=input_length, condition=condition)
