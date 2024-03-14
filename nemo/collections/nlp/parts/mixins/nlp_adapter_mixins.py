@@ -256,7 +256,6 @@ class NLPAdapterModelMixin:
                 self._optimizer_param_groups = ({"params": opt_params},)
             else:
                 self._optimizer_param_groups = ({"params": []},)
-            print("******* self._optimizer_param_groups", type(self._optimizer_param_groups[0]['params']))
             logging.info(f"Optimizer groups set:\n{self.summarize()}")
         else:
             super().setup_optimizer_param_groups()
