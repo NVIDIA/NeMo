@@ -16,7 +16,7 @@
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.slm_models import SelfSupervisedConvMLMModel
+from nemo.collections.asr.models.ssl_models_v2 import SelfSupervisedConvMLMModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

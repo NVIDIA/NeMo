@@ -50,11 +50,10 @@ class RandomBlockMasking(NeuralModule):
                 raise ValueError("Either mask_value or feat_in must be specified")
             self.mask_embedding = nn.Parameter(torch.FloatTensor(feat_in))
             nn.init.normal_(self.mask_embedding, mean=0.0, std=0.1)
-            if freeze:
-                self.mask_embedding.requires_grad = False
         else:
             self.mask_embedding = nn.Parameter(torch.ones(feat_in) * mask_value)
-            self.mask_embedding.requires_grad = False
+        if freeze:
+            self.freeze()
 
     @property
     def input_types(self):

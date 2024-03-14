@@ -49,16 +49,16 @@ class RandomProjectionVectorQuantizer(NeuralModule):
         self.combine_time_steps = combine_time_steps
 
         # (B, T, D) -> (B, T, num_books, code_dim)
-        self.proj = nn.Linear(
-            self.feat_in * combine_time_steps, self.num_books * self.code_dim, bias=False
-        ).requires_grad_(not freeze)
+        self.proj = nn.Linear(self.feat_in * combine_time_steps, self.num_books * self.code_dim, bias=False)
         torch.nn.init.xavier_normal_(self.proj.weight)
 
         # (num_books, num_classes, hid_dim)
         codebooks = torch.randn(self.num_books, self.num_classes, self.code_dim).double()
         torch.nn.init.normal_(codebooks, mean=0, std=1)
         codebooks = F.normalize(codebooks, dim=-1)
-        self.codebooks = nn.Parameter(codebooks, requires_grad=not freeze)
+        self.codebooks = nn.Parameter(codebooks)
+        if freeze:
+            self.freeze()
 
     @property
     def input_types(self):

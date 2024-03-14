@@ -16,7 +16,7 @@
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.slm_models2 import SelfSupervisedRandomQuantizationModel
+from nemo.collections.asr.models.slm_models2 import EncDecSpeechSSLModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -56,7 +56,7 @@ def main(cfg):
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    asr_model = SelfSupervisedRandomQuantizationModel(cfg=cfg.model, trainer=trainer)
+    asr_model = EncDecSpeechSSLModel(cfg=cfg.model, trainer=trainer)
 
     # Initialize the weights of the model from another model, if provided via config
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)

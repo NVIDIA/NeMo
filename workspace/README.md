@@ -17,5 +17,5 @@
   - `nemo.collections.asr.models.slm_models.SelfSupervisedConvMLMModel`
   - `./speech_pretrain_mac.py`
 - Speech MLM Model with Masking log-mel spectrogram (as in [BEST-RQ](https://arxiv.org/abs/2202.01855))
-  - `nemo.collections.asr.models.slm_models.SelfSupervisedRandomQuantizationModel`
+  - `nemo.collections.asr.models.slm_models.EncDecSpeechSSLModel`
   - `./speech_pretrain.py`

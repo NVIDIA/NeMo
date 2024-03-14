@@ -2,10 +2,10 @@
 NEMO_BASEPATH="/home/heh/codes/nemo-ssl"
 export PYTHONPATH=$NEMO_BASEPATH:$PYTHONPATH
 
-data_dir="/media/data/datasets/LibriSpeech"
+data_dir="/media/data3/datasets/librispeech_origin"
 train_manifests="[${data_dir}/train_clean_360_cleaned.json,${data_dir}/train_clean_100_cleaned.json,${data_dir}/train_other_500_cleaned.json]"
 # train_manifests="[${data_dir}/test_clean.json]"
-dev_manifests="${data_dir}/dev_clean_cleaned.json"
+dev_manifests="[${data_dir}/dev_clean_cleaned.json,${data_dir}/dev_other.json]"
 batch_size=16
 num_workers=8
 

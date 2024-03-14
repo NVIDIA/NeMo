@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from math import ceil
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -26,6 +26,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpe
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -45,6 +46,15 @@ __all__ = ['SpeechEncDecSelfSupervisedModel']
 
 class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
     """Base class for encoder-decoder models used for self-supervised encoder pre-training"""
+
+    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+            When using pipeline parallelism, we need the global batch to remain on the CPU,
+            since the memory overhead will be too high when using a large number of microbatches.
+            Microbatches are transferred from CPU to GPU inside the pipeline.
+        """
+        batch = move_data_to_device(batch, device)
+        return batch
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
