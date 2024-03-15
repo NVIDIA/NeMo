@@ -192,12 +192,20 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             A tuple  (g, state) such that -
 
             If add_sos is False:
-                g: (B, U, D)
-                state: [(B, C)] storing the history context including the new words in y.
+
+                g:
+                    (B, U, D)
+
+                state:
+                    [(B, C)] storing the history context including the new words in y.
 
             If add_sos is True:
-                g: (B, U + 1, D)
-                state: [(B, C)] storing the history context including the new words in y.
+
+                g:
+                    (B, U + 1, D)
+
+                state:
+                    [(B, C)] storing the history context including the new words in y.
 
         """
         # Get device and dtype of current module
@@ -309,17 +317,17 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """
         Create batch of decoder states.
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([(B, H)])
+        Args:
+            batch_states (list): batch of decoder states
+                ([(B, H)])
 
-           decoder_states (list of list): list of decoder states
-               [B x ([(1, C)]]
+            decoder_states (list of list): list of decoder states
+                [B x ([(1, C)]]
 
-       Returns:
-           batch_states (tuple): batch of decoder states
-               ([(B, C)])
-       """
+        Returns:
+            batch_states (tuple): batch of decoder states
+                ([(B, C)])
+        """
         new_state = torch.stack([s[0] for s in decoder_states])
 
         return [new_state]
@@ -368,6 +376,21 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return state_list
 
+    @classmethod
+    def batch_replace_states_mask(
+        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+    ):
+        """Replace states in dst_states with states from src_states using the mask"""
+        # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
+        torch.where(mask.unsqueeze(-1), src_states[0], dst_states[0], out=dst_states[0])
+
+    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+        """
+        Split states into a list of states.
+        Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
+        return [sub_state.split(1, dim=0) for sub_state in batch_states]
+
     def batch_copy_states(
         self,
         old_states: List[torch.Tensor],
@@ -390,13 +413,29 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         Returns:
             batch of decoder states with partial copy at ids (or a specific value).
-                (B x C)
+            (B x C)
         """
 
         if value is None:
             old_states[0][ids, :] = new_states[0][ids, :]
 
         return old_states
+
+    def mask_select_states(
+        self, states: Optional[List[torch.Tensor]], mask: torch.Tensor
+    ) -> Optional[List[torch.Tensor]]:
+        """
+        Return states by mask selection
+        Args:
+            states: states for the batch
+            mask: boolean mask for selecting states; batch dimension should be the same as for states
+
+        Returns:
+            states filtered by mask
+        """
+        if states is None:
+            return None
+        return [states[0][mask]]
 
     def batch_score_hypothesis(
         self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
@@ -414,7 +453,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             Returns a tuple (b_y, b_states, lm_tokens) such that:
             b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
             b_state is a list of list of RNN states, each of shape [L, B, H].
-                Represented as B x List[states].
+            Represented as B x List[states].
             lm_token is a list of the final integer tokens of the hypotheses in the batch.
         """
         final_batch = len(hypotheses)
@@ -487,24 +526,38 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     Args:
         prednet: A dict-like object which contains the following key-value pairs.
-            pred_hidden: int specifying the hidden dimension of the prediction net.
-            pred_rnn_layers: int specifying the number of rnn layers.
+
+            pred_hidden:
+                int specifying the hidden dimension of the prediction net.
+
+            pred_rnn_layers:
+                int specifying the number of rnn layers.
 
             Optionally, it may also contain the following:
-            forget_gate_bias: float, set by default to 1.0, which constructs a forget gate
-                initialized to 1.0.
-                Reference:
-                [An Empirical Exploration of Recurrent Network Architectures](http://proceedings.mlr.press/v37/jozefowicz15.pdf)
-            t_max: int value, set to None by default. If an int is specified, performs Chrono Initialization
-                of the LSTM network, based on the maximum number of timesteps `t_max` expected during the course
-                of training.
-                Reference:
-                [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
-            weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
-                sometimes helps reduce variance between runs.
-            hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
-                the default behaviour.
-            dropout: float, set to 0.0 by default. Optional dropout applied at the end of the final LSTM RNN layer.
+
+                forget_gate_bias:
+                    float, set by default to 1.0, which constructs a forget gate
+                    initialized to 1.0.
+                    Reference:
+                    [An Empirical Exploration of Recurrent Network Architectures](http://proceedings.mlr.press/v37/jozefowicz15.pdf)
+
+                t_max:
+                    int value, set to None by default. If an int is specified, performs Chrono Initialization
+                    of the LSTM network, based on the maximum number of timesteps `t_max` expected during the course
+                    of training.
+                    Reference:
+                    [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
+
+                weights_init_scale:
+                    Float scale of the weights after initialization. Setting to lower than one
+                    sometimes helps reduce variance between runs.
+
+                hidden_hidden_bias_scale:
+                    Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+                    the default behaviour.
+
+                dropout:
+                    float, set to 0.0 by default. Optional dropout applied at the end of the final LSTM RNN layer.
 
         vocab_size: int, specifying the vocabulary size of the embedding layer of the Prediction network,
             excluding the RNNT blank token.
@@ -659,16 +712,27 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             A tuple  (g, hid) such that -
 
             If add_sos is False:
-                g: (B, U, H)
-                hid: (h, c) where h is the final sequence hidden state and c is the final cell state:
-                    h (tensor), shape (L, B, H)
-                    c (tensor), shape (L, B, H)
+
+                g:
+                    (B, U, H)
+
+                hid:
+                    (h, c) where h is the final sequence hidden state and c is the final cell state:
+
+                        h (tensor), shape (L, B, H)
+
+                        c (tensor), shape (L, B, H)
 
             If add_sos is True:
-                g: (B, U + 1, H)
-                hid: (h, c) where h is the final sequence hidden state and c is the final cell state:
-                    h (tensor), shape (L, B, H)
-                    c (tensor), shape (L, B, H)
+                g:
+                    (B, U + 1, H)
+
+                hid:
+                    (h, c) where h is the final sequence hidden state and c is the final cell state:
+
+                        h (tensor), shape (L, B, H)
+
+                        c (tensor), shape (L, B, H)
 
         """
         # Get device and dtype of current module
@@ -774,31 +838,35 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         )
         return layers
 
-    def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
+    def initialize_state(self, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Initialize the state of the RNN layers, with same dtype and device as input `y`.
+        Initialize the state of the LSTM layers, with same dtype and device as input `y`.
+        LSTM accepts a tuple of 2 tensors as a state.
 
         Args:
             y: A torch.Tensor whose device the generated states will be placed on.
 
         Returns:
-            List of torch.Tensor, each of shape [L, B, H], where
+            Tuple of 2 tensors, each of shape [L, B, H], where
+
                 L = Number of RNN layers
+
                 B = Batch size
+
                 H = Hidden size of RNN.
         """
         batch = y.size(0)
         if self.random_state_sampling and self.training:
-            state = [
+            state = (
                 torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
                 torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-            ]
+            )
 
         else:
-            state = [
+            state = (
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-            ]
+            )
         return state
 
     def score_hypothesis(
@@ -870,7 +938,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             Returns a tuple (b_y, b_states, lm_tokens) such that:
             b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
             b_state is a list of list of RNN states, each of shape [L, B, H].
-                Represented as B x List[states].
+            Represented as B x List[states].
             lm_token is a list of the final integer tokens of the hypotheses in the batch.
         """
         final_batch = len(hypotheses)
@@ -1014,6 +1082,29 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         return state_list
 
+    @classmethod
+    def batch_replace_states_mask(
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        dst_states: Tuple[torch.Tensor, torch.Tensor],
+        mask: torch.Tensor,
+    ):
+        """Replace states in dst_states with states from src_states using the mask"""
+        # same as `dst_states[i][mask] = src_states[i][mask]`, but non-blocking
+        # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled
+        dtype = dst_states[0].dtype
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), dst_states[0], out=dst_states[0])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), dst_states[1], out=dst_states[1])
+
+    def batch_split_states(
+        self, batch_states: Tuple[torch.Tensor, torch.Tensor]
+    ) -> list[Tuple[torch.Tensor, torch.Tensor]]:
+        """
+        Split states into a list of states.
+        Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
+        return list(zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1)))
+
     def batch_copy_states(
         self,
         old_states: List[torch.Tensor],
@@ -1047,6 +1138,21 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         return old_states
 
+    def mask_select_states(
+        self, states: Tuple[torch.Tensor, torch.Tensor], mask: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Return states by mask selection
+        Args:
+            states: states for the batch
+            mask: boolean mask for selecting states; batch dimension should be the same as for states
+
+        Returns:
+            states filtered by mask
+        """
+        # LSTM in PyTorch returns a tuple of 2 tensors as a state
+        return states[0][:, mask], states[1][:, mask]
+
     # Adapter method overrides
     def add_adapter(self, name: str, cfg: DictConfig):
         # Update the config with correct input dim
@@ -1069,7 +1175,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
             pred_hidden: int specifying the hidden dimension of the prediction net.
             joint_hidden: int specifying the hidden dimension of the joint net
             activation: Activation function used in the joint step. Can be one of
-                ['relu', 'tanh', 'sigmoid'].
+            ['relu', 'tanh', 'sigmoid'].
 
             Optionally, it may also contain the following:
             dropout: float, set to 0.0 by default. Optional dropout applied at the end of the joint net.
@@ -1104,14 +1210,21 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
             When the flag is set, the input and output signature of `forward()` of this method changes.
             Input - in addition to `encoder_outputs` (mandatory argument), the following arguments can be provided.
+
                 - decoder_outputs (optional). Required if loss computation is required.
+
                 - encoder_lengths (required)
+
                 - transcripts (optional). Required for wer calculation.
+
                 - transcript_lengths (optional). Required for wer calculation.
+
                 - compute_wer (bool, default false). Whether to compute WER or not for the fused batch.
 
             Output - instead of the usual `joint` log prob tensor, the following results can be returned.
+
                 - loss (optional). Returned if decoder_outputs, transcripts and transript_lengths are not None.
+
                 - wer_numerator + wer_denominator (optional). Returned if transcripts, transcripts_lengths are provided
                     and compute_wer is set.
 
@@ -1281,6 +1394,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                 )
 
             losses = []
+            wers, wer_nums, wer_denoms = [], [], []
             target_lengths = []
             batch_size = int(encoder_outputs.size(0))  # actual batch size
 
@@ -1357,7 +1471,19 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     sub_transcripts = sub_transcripts.detach()
 
                     # Update WER on each process without syncing
-                    self.wer.update(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+                    self.wer.update(
+                        predictions=sub_enc,
+                        predictions_lengths=sub_enc_lens,
+                        targets=sub_transcripts,
+                        targets_lengths=sub_transcript_lens,
+                    )
+                    # Sync and all_reduce on all processes, compute global WER
+                    wer, wer_num, wer_denom = self.wer.compute()
+                    self.wer.reset()
+
+                    wers.append(wer)
+                    wer_nums.append(wer_num)
+                    wer_denoms.append(wer_denom)
 
                 del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
 
@@ -1367,9 +1493,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
             # Collect sub batch wer results
             if compute_wer:
-                # Sync and all_reduce on all processes, compute global WER
-                wer, wer_num, wer_denom = self.wer.compute()
-                self.wer.reset()
+                wer = sum(wers) / len(wers)
+                wer_num = sum(wer_nums)
+                wer_denom = sum(wer_denoms)
             else:
                 wer = None
                 wer_num = None
@@ -1377,9 +1503,33 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
             return losses, wer, wer_num, wer_denom
 
-    def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+    def project_encoder(self, encoder_output: torch.Tensor) -> torch.Tensor:
         """
-        Compute the joint step of the network.
+        Project the encoder output to the joint hidden dimension.
+
+        Args:
+            encoder_output: A torch.Tensor of shape [B, T, D]
+
+        Returns:
+            A torch.Tensor of shape [B, T, H]
+        """
+        return self.enc(encoder_output)
+
+    def project_prednet(self, prednet_output: torch.Tensor) -> torch.Tensor:
+        """
+        Project the Prediction Network (Decoder) output to the joint hidden dimension.
+
+        Args:
+            prednet_output: A torch.Tensor of shape [B, U, D]
+
+        Returns:
+            A torch.Tensor of shape [B, U, H]
+        """
+        return self.pred(prednet_output)
+
+    def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the joint step of the network after projection.
 
         Here,
         B = Batch size
@@ -1407,14 +1557,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         Returns:
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
         """
-        # f = [B, T, H1]
-        f = self.enc(f)
-        f.unsqueeze_(dim=2)  # (B, T, 1, H)
-
-        # g = [B, U, H2]
-        g = self.pred(g)
-        g.unsqueeze_(dim=1)  # (B, 1, U, H)
-
+        f = f.unsqueeze(dim=2)  # (B, T, 1, H)
+        g = g.unsqueeze(dim=1)  # (B, 1, U, H)
         inp = f + g  # [B, T, U, H]
 
         del f, g
@@ -1531,7 +1675,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def fused_batch_size(self):
-        return self._fuse_loss_wer
+        return self._fused_batch_size
 
     def set_fused_batch_size(self, fused_batch_size):
         self._fused_batch_size = fused_batch_size
@@ -1624,7 +1768,7 @@ class SampledRNNTJoint(RNNTJoint):
             pred_hidden: int specifying the hidden dimension of the prediction net.
             joint_hidden: int specifying the hidden dimension of the joint net
             activation: Activation function used in the joint step. Can be one of
-                ['relu', 'tanh', 'sigmoid'].
+            ['relu', 'tanh', 'sigmoid'].
 
             Optionally, it may also contain the following:
             dropout: float, set to 0.0 by default. Optional dropout applied at the end of the joint net.
@@ -1663,14 +1807,21 @@ class SampledRNNTJoint(RNNTJoint):
 
             When the flag is set, the input and output signature of `forward()` of this method changes.
             Input - in addition to `encoder_outputs` (mandatory argument), the following arguments can be provided.
+
                 - decoder_outputs (optional). Required if loss computation is required.
+
                 - encoder_lengths (required)
+
                 - transcripts (optional). Required for wer calculation.
+
                 - transcript_lengths (optional). Required for wer calculation.
+
                 - compute_wer (bool, default false). Whether to compute WER or not for the fused batch.
 
             Output - instead of the usual `joint` log prob tensor, the following results can be returned.
+
                 - loss (optional). Returned if decoder_outputs, transcripts and transript_lengths are not None.
+
                 - wer_numerator + wer_denominator (optional). Returned if transcripts, transcripts_lengths are provided
                     and compute_wer is set.
 
@@ -1756,6 +1907,7 @@ class SampledRNNTJoint(RNNTJoint):
             )
 
         losses = []
+        wers, wer_nums, wer_denoms = [], [], []
         target_lengths = []
         batch_size = int(encoder_outputs.size(0))  # actual batch size
 
@@ -1842,7 +1994,20 @@ class SampledRNNTJoint(RNNTJoint):
                 sub_transcripts = sub_transcripts.detach()
 
                 # Update WER on each process without syncing
-                self.wer.update(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+                self.wer.update(
+                    predictions=sub_enc,
+                    predictions_lengths=sub_enc_lens,
+                    targets=sub_transcripts,
+                    targets_lengths=sub_transcript_lens,
+                )
+
+                # Sync and all_reduce on all processes, compute global WER
+                wer, wer_num, wer_denom = self.wer.compute()
+                self.wer.reset()
+
+                wers.append(wer)
+                wer_nums.append(wer_num)
+                wer_denoms.append(wer_denom)
 
             del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
 
@@ -1852,9 +2017,9 @@ class SampledRNNTJoint(RNNTJoint):
 
         # Collect sub batch wer results
         if compute_wer:
-            # Sync and all_reduce on all processes, compute global WER
-            wer, wer_num, wer_denom = self.wer.compute()
-            self.wer.reset()
+            wer = sum(wers) / len(wers)
+            wer_num = sum(wer_nums)
+            wer_denom = sum(wer_denoms)
         else:
             wer = None
             wer_num = None

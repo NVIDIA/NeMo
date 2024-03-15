@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+=======
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+>>>>>>> e848378053958a98897cdeb58c5f3a20dfe08af8
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,3 +17,4 @@
 # limitations under the License.
 
 from .tensorrt_llm import TensorRTLLM
+

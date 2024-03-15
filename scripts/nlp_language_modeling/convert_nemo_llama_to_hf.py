@@ -17,8 +17,9 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+from omegaconf import open_dict
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -39,8 +40,10 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
     python convert_nemo_llama_to_hf.py \
     --in-file /path/to/file.nemo or /path/to/extracted_folder \
     --out-file /path/to/pytorch_model.bin \
-    --hf-in-file /path/to/input_hf_folder \
-    --hf-out-file /path/to/output_hf_folder
+    --hf-in-path /path/to/input_hf_folder \
+    --hf-out-path /path/to/output_hf_folder \
+    --in-tokenizer /path/to/tokenizer \
+    --hf-out-tokenizer /path/to/output_tokenizer \
 
     Use the --cpu-only flag if the model cannot fit in the GPU (e.g. Llama2 70b). 
     However this option makes the conversion script significantly slower.
@@ -50,7 +53,7 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
+        "--in-file", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -64,6 +67,15 @@ def get_args():
         type=str,
         default=None,
         help="Output HF model path, " "with the same format as above but user's own weights",
+    )
+    parser.add_argument(
+        "--in-tokenizer",
+        type=str,
+        default=None,
+        help="Path to tokenizer used for the input nemo model. (need to extract the .nemo file first)",
+    )
+    parser.add_argument(
+        "--hf-out-tokenizer", type=str, default=None, help="Path to save the tokenizer used for the output HF model.",
     )
     parser.add_argument(
         "--precision",
@@ -87,12 +99,14 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     Convert NeMo weights to HF weights
     """
     dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
+    model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
+    model_config.tensor_model_parallel_size = 1
+    model_config.pipeline_model_parallel_size = 1
     if cpu_only:
         map_location = torch.device('cpu')
-        model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
         model_config.use_cpu_initialization = True
     else:
-        map_location, model_config = None, None
+        map_location = None
 
     if cpu_only:
         logging.info("******** Loading model on CPU. This will take a significant amount of time.")
@@ -110,10 +124,10 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     else:
         logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
         dtype = torch.float32  # fallback
+    logging.info(f"Using precision {dtype}")
 
     param_to_weights = lambda param: param.to(dtype)
     checkpoint = OrderedDict()
-    checkpoint['state_dict'] = OrderedDict()
 
     hidden_size = model.cfg.hidden_size
     head_num = model.cfg.num_attention_heads
@@ -128,7 +142,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     # Embedding
     embed_weight = model.state_dict()[f'model.embedding.word_embeddings.weight']
     embed_weights_base_name = f'model.embed_tokens.weight'
-    checkpoint['state_dict'][embed_weights_base_name] = param_to_weights(embed_weight)
+    checkpoint[embed_weights_base_name] = param_to_weights(embed_weight)
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
@@ -158,14 +172,14 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         k_weights_base_name = f'model.layers.{l}.self_attn.k_proj.weight'
         v_weights_base_name = f'model.layers.{l}.self_attn.v_proj.weight'
 
-        checkpoint['state_dict'][q_weights_base_name] = param_to_weights(qkv_weights[q_slice].reshape(-1, hidden_size))
-        checkpoint['state_dict'][k_weights_base_name] = param_to_weights(qkv_weights[k_slice].reshape(-1, hidden_size))
-        checkpoint['state_dict'][v_weights_base_name] = param_to_weights(qkv_weights[v_slice].reshape(-1, hidden_size))
+        checkpoint[q_weights_base_name] = param_to_weights(qkv_weights[q_slice].reshape(-1, hidden_size))
+        checkpoint[k_weights_base_name] = param_to_weights(qkv_weights[k_slice].reshape(-1, hidden_size))
+        checkpoint[v_weights_base_name] = param_to_weights(qkv_weights[v_slice].reshape(-1, hidden_size))
 
         # attention dense
         o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
         o_weight_base_name = f'model.layers.{l}.self_attn.o_proj.weight'
-        checkpoint['state_dict'][o_weight_base_name] = param_to_weights(o_weight)
+        checkpoint[o_weight_base_name] = param_to_weights(o_weight)
 
         # mlp
         mlp_weights = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.weight']
@@ -175,51 +189,73 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         mlp_down_proj_base_name = f'model.layers.{l}.mlp.gate_proj.weight'
         mlp_gate_proj_base_name = f'model.layers.{l}.mlp.up_proj.weight'
 
-        checkpoint['state_dict'][mlp_down_proj_base_name] = param_to_weights(mlp_down_proj_weight)
-        checkpoint['state_dict'][mlp_gate_proj_base_name] = param_to_weights(mlp_gate_proj_weight)
+        checkpoint[mlp_down_proj_base_name] = param_to_weights(mlp_down_proj_weight)
+        checkpoint[mlp_gate_proj_base_name] = param_to_weights(mlp_gate_proj_weight)
 
         mlp_up_proj_weight = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc2.weight']
         mlp_up_proj_base_name = f'model.layers.{l}.mlp.down_proj.weight'
-        checkpoint['state_dict'][mlp_up_proj_base_name] = param_to_weights(mlp_up_proj_weight)
+        checkpoint[mlp_up_proj_base_name] = param_to_weights(mlp_up_proj_weight)
 
         # layernorm
         input_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight']
         input_ln_base_name = f'model.layers.{l}.input_layernorm.weight'
-        checkpoint['state_dict'][input_ln_base_name] = param_to_weights(input_ln_weight)
+        checkpoint[input_ln_base_name] = param_to_weights(input_ln_weight)
 
         post_attn_ln_weight = model.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight']
         post_attn_ln_base_name = f'model.layers.{l}.post_attention_layernorm.weight'
-        checkpoint['state_dict'][post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
+        checkpoint[post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
 
         print(f"done layer {l}")
 
     final_ln_weight = model.state_dict()[f'model.decoder.final_layernorm.weight']
     final_ln_base_name = f'model.norm.weight'
-    checkpoint['state_dict'][final_ln_base_name] = param_to_weights(final_ln_weight)
+    checkpoint[final_ln_base_name] = param_to_weights(final_ln_weight)
 
     output_layer_weight = model.state_dict()[f'model.output_layer.weight']
     output_layer_base_name = f'lm_head.weight'
-    checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
+    checkpoint[output_layer_base_name] = param_to_weights(output_layer_weight)
 
     os.makedirs(os.path.dirname(output_hf_file), exist_ok=True)
     torch.save(checkpoint, output_hf_file)
     logging.info(f"Weights saved to {output_hf_file}")
 
+    return dtype
 
-def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
-    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True)
+
+def replace_hf_weights_and_tokenizer(
+    weights_file, dtype, input_hf_path, output_hf_path, tokenizer_path, output_hf_tokenizer,
+):
+    model = AutoModelForCausalLM.from_pretrained(input_hf_path, local_files_only=True, torch_dtype=dtype,)
     nemo_exported = torch.load(weights_file)
 
-    model.load_state_dict(nemo_exported['state_dict'])
+    if tokenizer_path:
+        tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, local_files_only=True, legacy=False,)
+        tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
+        fast_tokenizer = LlamaTokenizerFast(tokenizer_object=tmp_tokenizer)
+        tokenizer_length = len(fast_tokenizer)
+        model.resize_token_embeddings(tokenizer_length)
+
+    model.load_state_dict(nemo_exported)
     model.save_pretrained(output_hf_path)
     logging.info(f"Full HF model saved to {output_hf_path}")
+
+    if tokenizer_path:
+        fast_tokenizer.save_pretrained(output_hf_tokenizer)
+        tokenizer.save_pretrained(output_hf_tokenizer)
+        logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
 
 
 if __name__ == '__main__':
     args = get_args()
-    convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
+    if not args.hf_out_tokenizer and args.hf_out_path:
+        args.hf_out_tokenizer = args.hf_out_path
+
+    dtype = convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
+
     if args.hf_in_path and args.hf_out_path:
-        replace_hf_weights(args.out_file, args.hf_in_path, args.hf_out_path)
+        replace_hf_weights_and_tokenizer(
+            args.out_file, dtype, args.hf_in_path, args.hf_out_path, args.in_tokenizer, args.hf_out_tokenizer,
+        )
     else:
         logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
         logging.info(f".bin file is saved to {args.out_file}")

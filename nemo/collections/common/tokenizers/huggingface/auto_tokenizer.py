@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
 from typing import Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
@@ -217,30 +218,49 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def pad_id(self):
+        if getattr(self, 'pad_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'pad_token')])[0]
 
     @property
     def bos_id(self):
+        if getattr(self, 'bos_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'bos_token')])[0]
 
     @property
     def eos_id(self):
+        if getattr(self, 'eos_token') is None:
+            return None
+        return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
+
+    @property
+    def eod(self):
+        """Returns EOS token id. Exact copy of the eos_id function. Required for megatron-core."""
         return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
 
     @property
     def sep_id(self):
+        if getattr(self, 'sep_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'sep_token')])[0]
 
     @property
     def cls_id(self):
+        if getattr(self, 'cls_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'cls_token')])[0]
 
     @property
     def unk_id(self):
+        if getattr(self, 'unk_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'unk_token')])[0]
 
     @property
     def mask_id(self):
+        if getattr(self, 'mask_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'mask_token')])[0]
 
     @property

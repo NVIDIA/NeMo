@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import copy
 import importlib
 import os
+import shutil
+import tarfile
+import tempfile
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from functools import lru_cache
@@ -54,11 +58,23 @@ class ArtifactPathType(Enum):
     TAR_PATH = 1
 
 
-@dataclass(init=False)
+@dataclass
 class ArtifactItem:
-    path: str
-    path_type: ArtifactPathType
+    path: str = ""
+    path_type: ArtifactPathType = ArtifactPathType.LOCAL_PATH
     hashed_path: Optional[str] = None
+
+
+def load_config(model_file: str) -> DictConfig:
+    """Load model config from extracted directory or '.nemo' tarball."""
+    if os.path.isfile(model_file):
+        with tempfile.TemporaryDirectory() as tmp, tarfile.open(model_file, "r:") as tar:
+            tar.extract("./model_config.yaml", path=tmp)
+            model_config = OmegaConf.load(os.path.join(tmp, "model_config.yaml"))
+    else:
+        model_config = OmegaConf.load(os.path.join(model_file, "model_config.yaml"))
+
+    return model_config
 
 
 def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:
@@ -585,7 +601,7 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> Tuple[Op
 
 def uninject_model_parallel_rank(filepath):
     filepath = str(filepath)
-    if 'mp_rank' in filepath or 'tp_rank' in filepath:
+    if any([s for s in ['mp_rank', 'tp_rank', 'fsdp_shard'] if s in filepath]):
         dirname = os.path.dirname(os.path.dirname(filepath))
         basename = os.path.basename(filepath)
         filepath = os.path.join(dirname, basename)
@@ -594,7 +610,7 @@ def uninject_model_parallel_rank(filepath):
         return filepath
 
 
-def inject_model_parallel_rank(filepath):
+def inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=False):
     """
     Injects tensor/pipeline model parallel ranks into the filepath.
     Does nothing if not using model parallelism.
@@ -603,17 +619,18 @@ def inject_model_parallel_rank(filepath):
     filepath = uninject_model_parallel_rank(filepath)
 
     app_state = AppState()
+    dirname = os.path.dirname(filepath)
+    basename = os.path.basename(filepath)
     if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-        # filepath needs to be updated to include mp_rank
-        dirname = os.path.dirname(filepath)
-        basename = os.path.basename(filepath)
+        fsdp_shard = f'_fsdp_shard_{app_state.data_parallel_rank:05d}' if fsdp_sharded_ckpt else ''
         if app_state.pipeline_model_parallel_size is None or app_state.pipeline_model_parallel_size == 1:
-            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
+            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}{fsdp_shard}/{basename}'
         else:
             filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
         return filepath
     else:
-        return filepath
+        fsdp_shard = f'/fsdp_shard_{app_state.data_parallel_rank:05d}' if fsdp_sharded_ckpt else ''
+        return f'{dirname}{fsdp_shard}/{basename}'
 
 
 def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
@@ -635,3 +652,36 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     checkpoint_dir = filepath.with_name(filepath.stem)
 
     return checkpoint_dir
+
+
+def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
+    """Save all model artifacts and tokenizer config to a given output directory."""
+    app_state = AppState()
+    model_file = app_state.model_restore_path
+    model_cfg = copy.deepcopy(model.cfg)
+
+    # Setup model file handling context: directory or tarball
+    if os.path.isfile(model_file):
+        model_file_handler = tarfile.open
+        kwargs = {"name": model_file, "mode": "r:"}
+    elif os.path.isdir(model_file):
+        model_file_handler = contextlib.nullcontext
+        kwargs = {}
+    else:
+        raise FileNotFoundError(model_file)
+
+    # Copy or extract artifacts depending on the context
+    with model_file_handler(**kwargs) as maybe_tar:
+        for arti_name, arti_item in model.artifacts.items():
+            _, arti_file = arti_item.path.split("nemo:")
+            arti_path = os.path.join(output_dir, arti_name)
+            if maybe_tar is not None:
+                maybe_tar.extract(f"./{arti_file}", path=output_dir)
+                os.rename(os.path.join(output_dir, arti_file), arti_path)
+            else:
+                shutil.copy(os.path.join(model_file, arti_file), arti_path)
+            # Store artifact path as basename by default. Otherwise save absolute path but bear in mind
+            # that in this case output directory should be permanent for correct artifact recovery later
+            arti_path = os.path.abspath(arti_path) if use_abspath else os.path.basename(arti_path)
+            OmegaConf.update(model_cfg, arti_name, arti_path)
+    OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))
