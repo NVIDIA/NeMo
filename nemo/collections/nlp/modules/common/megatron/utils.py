@@ -389,6 +389,7 @@ def get_all_params_for_weight_decay_optimization(
     weight_decay_expert_params = {'params': [], 'is_expert': True}
 
     # populate with params
+    is_expert = lambda param: not getattr(param, 'allreduce', True)
     weight_decay_params['params'] = list(filter(lambda x: not is_expert(x), model.parameters()))
     weight_decay_expert_params['params'] = list(filter(is_expert, model.parameters()))
 
