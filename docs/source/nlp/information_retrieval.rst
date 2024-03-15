@@ -21,7 +21,7 @@ The dataset should be in JSON format. For instance, the dataset should have the 
     [
         {
             "query": "Query",
-            "pos_doc": ["Positive"],
+            "pos_doc": "Positive",
             "neg_doc": ["Negative_1", "Negative_2", ..., "Negative_n"]
         },
         {
