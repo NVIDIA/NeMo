@@ -1111,7 +1111,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.use_bucketing = use_bucketing
         self.preload_audios = preload_audios
 
-        master_device = is_global_rank_zero()
+        master_device = (
+            torch.distributed.get_rank() == 0 if torch.distributed.is_initialized() else is_global_rank_zero()
+        )
         self.features_pkl = self._get_path_to_pkl_features(
             self.text_file, self.labels_file, cache_dir, max_seq_length, num_samples
         )
@@ -1175,7 +1177,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if not master_device:
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        elif not master_device:
             while features is None and not os.path.exists(self.features_pkl):
                 sleep(10)
 
@@ -1265,14 +1269,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         audio_file: Optional[Union[str, os.PathLike]] = None,
         sample_rate: Optional[int] = None,
     ) -> None:
-        if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1 and not use_cache:
-            raise ValueError(
-                f"If you already created process group and the world size is greater than 1, then `use_cache` "
-                f"parameter has to be `True`. Only master process prepares features and if `use_cache=False`, then "
-                f"other processes will not be able to obtain features. Alternatively, you may set `use_cache=False` "
-                f"and set up data before spawning processes. Use `cache_dir` dataset directory with "
-                f"`text_file` and `labels_file` is read-only."
-            )
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
                 f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and '
