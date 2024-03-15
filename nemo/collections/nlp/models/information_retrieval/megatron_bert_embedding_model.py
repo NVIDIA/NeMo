@@ -49,7 +49,7 @@ from nemo.collections.nlp.models.information_retrieval.bert_embedding_model impo
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
     bert_layer_with_transformer_engine_spec,
-    bert_layer_with_transformer_engine_spec_postln
+    bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
