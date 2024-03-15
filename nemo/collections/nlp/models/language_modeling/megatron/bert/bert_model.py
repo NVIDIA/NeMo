@@ -535,7 +535,7 @@ class MCoreBertModelWrapper(MCoreBert):
         logits = self.lm_head(hidden_states=hidden_states, word_embeddings_weight=output_weight)
 
         binary_logits = None
-        if self.binary_head is not None:
+        if self.binary_head is not None and self.add_pooler:
             binary_logits = self.binary_head(pooled_output)
 
         if lm_labels is None:
