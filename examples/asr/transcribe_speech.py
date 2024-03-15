@@ -280,7 +280,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             cfg.multitask_decoding.compute_langs = cfg.compute_langs
             cfg.multitask_decoding.preserve_alignments = cfg.preserve_alignment
             if cfg.extract_nbest:
-                cfg.multitask_decoding.beam.return_best_hypothesis=False
+                cfg.multitask_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
             asr_model.change_decoding_strategy(cfg.multitask_decoding)
         elif cfg.decoder_type is not None:
@@ -291,7 +291,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
             decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
             if cfg.extract_nbest:
-                decoding_cfg.beam.return_best_hypothesis=False
+                decoding_cfg.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
             decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
             if 'preserve_alignments' in decoding_cfg:
@@ -302,11 +302,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
             else:
                 asr_model.change_decoding_strategy(decoding_cfg)
-        
+
         # Check if ctc or rnnt model
         elif hasattr(asr_model, 'joint'):  # RNNT model
             if cfg.extract_nbest:
-                cfg.rnnt_decoding.beam.return_best_hypothesis=False
+                cfg.rnnt_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
@@ -320,7 +320,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
             cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
             if cfg.extract_nbest:
-                cfg.ctc_decoding.beam.return_best_hypothesis=False
+                cfg.ctc_decoding.beam.return_best_hypothesis = False
                 cfg.return_hypotheses = True
 
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
