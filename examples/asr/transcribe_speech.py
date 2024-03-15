@@ -194,6 +194,7 @@ class TranscriptionConfig:
     # Only use transcribe_partial_audio() when the audio is too long to fit in memory
     # Your manifest input should have `offset` field to use transcribe_partial_audio()
     allow_partial_transcribe: bool = False
+    extract_nbest: bool = False  # Extract n-best hypotheses from the model
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -278,13 +279,20 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         if isinstance(asr_model.decoding, MultiTaskDecoding):
             cfg.multitask_decoding.compute_langs = cfg.compute_langs
             cfg.multitask_decoding.preserve_alignments = cfg.preserve_alignment
+            if cfg.extract_nbest:
+                cfg.multitask_decoding.beam.return_best_hypothesis=False
+                cfg.return_hypotheses = True
             asr_model.change_decoding_strategy(cfg.multitask_decoding)
         elif cfg.decoder_type is not None:
+            breakpoint()
             # TODO: Support compute_langs in CTC eventually
             if cfg.compute_langs and cfg.decoder_type == 'ctc':
                 raise ValueError("CTC models do not support `compute_langs` at the moment")
 
             decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
+            if cfg.extract_nbest:
+                decoding_cfg.beam.return_best_hypothesis=False
+                cfg.return_hypotheses = True
             decoding_cfg.compute_timestamps = cfg.compute_timestamps  # both ctc and rnnt support it
             if 'preserve_alignments' in decoding_cfg:
                 decoding_cfg.preserve_alignments = preserve_alignment
@@ -294,9 +302,12 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
             else:
                 asr_model.change_decoding_strategy(decoding_cfg)
-
+        
         # Check if ctc or rnnt model
         elif hasattr(asr_model, 'joint'):  # RNNT model
+            if cfg.extract_nbest:
+                cfg.rnnt_decoding.beam.return_best_hypothesis=False
+                cfg.return_hypotheses = True
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_timestamps = cfg.compute_timestamps
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
@@ -308,6 +319,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if cfg.compute_langs:
                 raise ValueError("CTC models do not support `compute_langs` at the moment.")
             cfg.ctc_decoding.compute_timestamps = cfg.compute_timestamps
+            if cfg.extract_nbest:
+                cfg.ctc_decoding.beam.return_best_hypothesis=False
+                cfg.return_hypotheses = True
 
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
@@ -317,6 +331,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             isinstance(asr_model, EncDecHybridRNNTCTCModel) and cfg.decoder_type == "ctc"
         ):
             cfg.decoding = cfg.ctc_decoding
+        elif isinstance(asr_model.decoding, MultiTaskDecoding):
+            cfg.decoding = cfg.multitask_decoding
         else:
             cfg.decoding = cfg.rnnt_decoding
 
@@ -402,13 +418,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     # if transcriptions form a tuple of (best_hypotheses, all_hypotheses)
     if type(transcriptions) == tuple and len(transcriptions) == 2:
-        if isinstance(transcriptions[1][0], list) and isinstance(
-            transcriptions[1][0][0], Hypothesis
-        ):
+        if isinstance(transcriptions[1][0], list):
             # extract all hypotheses if exists
             transcriptions = transcriptions[1]
-            with open_dict(cfg):
-                cfg.decoding.beam.return_best_hypothesis = False
         else:
             # extract just best hypothesis
             transcriptions = transcriptions[0]
