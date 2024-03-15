@@ -127,6 +127,10 @@ def initialize_model_parallel_for_nemo(
                 rampup_batch_size=rampup_batch_size,
             )
         else:
+            print("_GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches", _GLOBAL_NUM_MICROBATCHES_CALCULATOR.num_micro_batches)
+            print("global_batch_size", global_batch_size)
+            print("micro_batch_size", micro_batch_size)
+            print("app_state.data_parallel_size", app_state.data_parallel_size)
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatches):
                 assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.current_global_batch_size == global_batch_size
                 assert _GLOBAL_NUM_MICROBATCHES_CALCULATOR.micro_batch_size == micro_batch_size
