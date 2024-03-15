@@ -298,11 +298,11 @@ class TransformerLayerPostLNSupport(TransformerLayer):
 
 
 class TransformerBlockPostLNSupport(TransformerBlock):
-    def __init__(self, postLN=True, *args, **kwargs):
+    def __init__(self, transformer_block_type='post_ln', *args, **kwargs):
 
         super(TransformerBlockPostLNSupport, self).__init__(*args, **kwargs)
-        self.postLN = postLN
-        if self.postLN:
+        self.transformer_block_type = transformer_block_type
+        if self.transformer_block_type == 'post_ln':
             self.initial_layernorm=FusedLayerNorm(config=self.config,
                                                hidden_size=self.config.hidden_size,
                                                eps=self.config.layernorm_epsilon)
@@ -323,7 +323,7 @@ class TransformerBlockPostLNSupport(TransformerBlock):
         if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor
-        if self.postLN:
+        if self.transformer_block_type == 'post_ln':
             hidden_states = self.initial_layernorm(hidden_states)
 
         # Viewless tensor.
@@ -415,13 +415,13 @@ class TransformerBlockPostLNSupport(TransformerBlock):
 
         return hidden_states
     
-class MCoreBertModel(MCoreBert):
+class MCoreBertModelWrapper(MCoreBert):
     
-    def __init__(self, postLN=True, add_pooler=True, *args, **kwargs):
+    def __init__(self, transformer_block_type='post_ln', add_pooler=True, *args, **kwargs):
 
-        super(MCoreBertModel, self).__init__(*args, **kwargs)
+        super(MCoreBertModelWrapper, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
-        self.postLN=postLN
+        self.transformer_block_type = transformer_block_type
         
         # Transformer.
         self.encoder = TransformerBlockPostLNSupport(
@@ -429,7 +429,7 @@ class MCoreBertModel(MCoreBert):
             spec=self.transformer_layer_spec,
             pre_process=self.pre_process,
             post_process=self.post_process,
-            postLN=self.postLN
+            transformer_block_type=self.transformer_block_type
 
         )
 

@@ -34,6 +34,11 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import MCoreBertModelWrapper
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
+    bert_layer_local_spec_postln, 
+    bert_layer_with_transformer_engine_spec
+)
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
@@ -139,14 +144,16 @@ class MegatronBertModel(MegatronBaseModel):
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
-
+        transformer_block_type=cfg.get('transformer_block_type', 'pre_ln')
         if self.mcore_bert:
-            from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-            from nemo.collections.nlp.models.language_modeling.megatron.bert_model import MCoreBertModel
+            if transformer_block_type == 'pre_ln':
+                layer_spec = bert_layer_with_transformer_engine_spec
+            else:
+                layer_spec = bert_layer_local_spec_postln
 
-            model = MCoreBertModel(
+            model = MCoreBertModelWrapper(
                 config=self.transformer_config,
-                transformer_layer_spec=bert_layer_with_transformer_engine_spec,
+                transformer_layer_spec=layer_spec,
                 vocab_size=self.padded_vocab_size,
                 max_sequence_length=cfg.max_position_embeddings,
                 num_tokentypes=num_tokentypes,
@@ -155,8 +162,8 @@ class MegatronBertModel(MegatronBaseModel):
                 parallel_output=True,
                 pre_process=pre_process,
                 post_process=post_process,
-                postLN=True, 
-                add_pooler=True,
+                transformer_block_type=transformer_block_type, 
+                add_pooler=self.cfg.get('add_pooler', True), 
             )
         else:
             model = BertModel(
@@ -187,15 +194,15 @@ class MegatronBertModel(MegatronBaseModel):
                 layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
                 masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
                 normalization=cfg.get('normalization', 'layernorm'),
-                transformer_block_type=cfg.get('transformer_block_type', 'pre_ln'),
+                transformer_block_type=transformer_block_type,
                 bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
                 bias_dropout_add_fusion=cfg.get("bias_dropout_add_fusion", True),
                 onnx_safe=cfg.get('onnx_safe', False),
                 add_binary_head=cfg.bert_binary_head,
                 megatron_legacy=cfg.get('megatron_legacy', False),
                 position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
-                add_pooler=True,
-                add_lm_head=False,
+                add_pooler=cfg.get('add_pooler', True),
+                add_lm_head=cfg.get('add_lm_head', False),
             )
 
         return model

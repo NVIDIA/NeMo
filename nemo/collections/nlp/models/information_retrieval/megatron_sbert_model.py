@@ -18,18 +18,21 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.information_retrieval.sbert_model import MCoreSBertModel, SBertModel
+from nemo.collections.nlp.models.information_retrieval.sbert_model import MCoreSBertModelWrapper, SBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
 )
 from nemo.utils import logging
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
+    bert_layer_local_spec_postln, 
+    bert_layer_with_transformer_engine_spec
+)
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
@@ -60,48 +63,15 @@ class MegatronSBertModel(MegatronBertModel):
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
-
+        transformer_block_type=cfg.get('transformer_block_type', 'post_ln')
         if self.mcore_bert:
-            #TODO @ataghibakhsh: move to a proper script
-            from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-            from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-            from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-            from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-            from megatron.core.transformer.dot_product_attention import DotProductAttention
-            from megatron.core.transformer.enums import AttnMaskType
-            from megatron.core.transformer.mlp import MLP, MLPSubmodules
-            from megatron.core.transformer.spec_utils import ModuleSpec
-            # Use this spec for an implementation using only modules in megatron core
-            from nemo.collections.nlp.models.language_modeling.megatron.bert_model import TransformerLayerPostLNSupport, TransformerLayerSubmodulesPostLNSupport
-            bert_layer_local_spec = ModuleSpec(
-                module=TransformerLayerPostLNSupport,
-                submodules=TransformerLayerSubmodulesPostLNSupport(
-                    # input_layernorm=FusedLayerNorm,
-                    self_attention=ModuleSpec(
-                        module=SelfAttention,
-                        params={"attn_mask_type": AttnMaskType.padding},
-                        submodules=SelfAttentionSubmodules(
-                            linear_qkv=ColumnParallelLinear,
-                            core_attention=DotProductAttention,
-                            linear_proj=RowParallelLinear,
-                        ),
-                    ),
-                    self_attn_bda=get_bias_dropout_add,
-                    post_att_layernorm=FusedLayerNorm,
-                    # pre_mlp_layernorm=FusedLayerNorm,
-                    mlp=ModuleSpec(
-                        module=MLP,
-                        submodules=MLPSubmodules(
-                            linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,
-                        ),
-                    ),
-                    mlp_bda=get_bias_dropout_add,
-                    post_mlp_layernorm=FusedLayerNorm,
-                ),
-            )
-            model = MCoreSBertModel(
+            if transformer_block_type == 'pre_ln':
+                layer_spec = bert_layer_with_transformer_engine_spec
+            else:
+                layer_spec = bert_layer_local_spec_postln
+            model = MCoreSBertModelWrapper(
                 config=self.transformer_config,
-                transformer_layer_spec=bert_layer_local_spec, 
+                transformer_layer_spec=layer_spec, 
                 vocab_size=self.padded_vocab_size,
                 max_sequence_length=cfg.max_position_embeddings,
                 num_tokentypes=num_tokentypes,
@@ -110,9 +80,8 @@ class MegatronSBertModel(MegatronBertModel):
                 parallel_output=True,
                 pre_process=pre_process,
                 post_process=post_process,
-                postLN=True, 
-                add_pooler=True, 
-                add_embedding_head=True
+                transformer_block_type=transformer_block_type, 
+                add_pooler=self.cfg.get('add_pooler', True), 
             )
 
         else:
@@ -144,13 +113,15 @@ class MegatronSBertModel(MegatronBertModel):
                 layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
                 masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
                 normalization=cfg.get('normalization', 'layernorm'),
-                transformer_block_type=cfg.get('transformer_block_type', 'pre_ln'),
+                transformer_block_type=transformer_block_type,
                 bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
                 bias_dropout_add_fusion=cfg.get("bias_dropout_add_fusion", True),
                 onnx_safe=cfg.get('onnx_safe', False),
                 add_binary_head=cfg.bert_binary_head,
                 megatron_legacy=cfg.get('megatron_legacy', False),
                 position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
+                add_pooler=cfg.get('add_pooler', True),
+                add_lm_head=cfg.get('add_lm_head', False),
             )
 
         return model
