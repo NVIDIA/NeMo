@@ -15,14 +15,14 @@
 
 import torch
 import torch.nn.functional as F
-
 from torch import Tensor, nn
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import MCoreBertModelWrapper
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, bert_extended_attention_mask
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    build_position_ids,
+
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
+    BertModel,
+    MCoreBertModelWrapper,
+    bert_extended_attention_mask,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, build_position_ids
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
@@ -41,10 +41,7 @@ class BertEmbeddingHead(nn.Module):
     """
 
     def __init__(
-        self,
-        word_embedding_dimension: int,
-        pooling_mode_mean_tokens: bool = True,
-
+        self, word_embedding_dimension: int, pooling_mode_mean_tokens: bool = True,
     ):
         super(BertEmbeddingHead, self).__init__()
 
@@ -73,7 +70,7 @@ class BertEmbeddingHead(nn.Module):
 
     def __repr__(self):
         return "Pooling({}) and Normalize".format(self.get_config_dict())
-    
+
     def get_config_dict(self):
         return {key: self.__dict__[key] for key in self.config_keys}
 
@@ -89,9 +86,8 @@ class MCoreSBertModelWrapper(MCoreBertModelWrapper):
         self.encoder.final_layernorm = None
         self.encoder.post_process = False
         self.embedding_head = BertEmbeddingHead(
-            word_embedding_dimension=self.config.hidden_size,
-            pooling_mode_mean_tokens=True,
-            )
+            word_embedding_dimension=self.config.hidden_size, pooling_mode_mean_tokens=True,
+        )
 
     def forward(
         self,
@@ -120,9 +116,7 @@ class MCoreSBertModelWrapper(MCoreBertModelWrapper):
 
         # Encoder embedding.
         if self.pre_process:
-            encoder_input = self.embedding(
-                input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids
-            )
+            encoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids)
         else:
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
@@ -148,7 +142,6 @@ class MCoreSBertModelWrapper(MCoreBertModelWrapper):
         return embeddings_out
 
 
-
 class SBertModel(BertModel):
     """
     Bert Language model.
@@ -158,8 +151,7 @@ class SBertModel(BertModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.embedding_head = BertEmbeddingHead(
-            word_embedding_dimension=self.config.hidden_size,
-            pooling_mode_mean_tokens=True,
+            word_embedding_dimension=self.config.hidden_size, pooling_mode_mean_tokens=True,
         )
 
     def forward(

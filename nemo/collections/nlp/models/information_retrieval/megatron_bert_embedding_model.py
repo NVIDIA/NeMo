@@ -51,7 +51,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
+<<<<<<< HEAD:nemo/collections/nlp/models/information_retrieval/megatron_bert_embedding_model.py
 class MegatronBertEmbeddingModel(MegatronBertModel):
+=======
+class MegatronSBertModel(MegatronBertModel):
+>>>>>>> [pre-commit.ci] auto fixes from pre-commit.com hooks:nemo/collections/nlp/models/information_retrieval/megatron_sbert_model.py
     """
     Megatron Bert pretraining.
     Model returns [batch, seq, hidden] shape

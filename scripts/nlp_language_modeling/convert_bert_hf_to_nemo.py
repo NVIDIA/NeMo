@@ -33,6 +33,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_bert_model import Me
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.utils import logging
 
+
 def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
     model_config.tokenizer["type"] = "intfloat/e5-large-unsupervised"  # ref_config["_input_name_or_path"]
     model_config["num_layers"] = ref_config["num_hidden_layers"]
@@ -46,6 +47,7 @@ def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
     model_config["megatron_legacy"] = False
     model_config["mcore_bert"] = mcore_bert
     return model_config
+
 
 def get_args():
     parser = ArgumentParser()
@@ -130,7 +132,7 @@ def convert(args):
         else:
             dense_weight_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
             dense_bias_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.bias'
-        nemo_state_dict[dense_weight_base_name] = param_to_weights(dense_weight) 
+        nemo_state_dict[dense_weight_base_name] = param_to_weights(dense_weight)
         nemo_state_dict[dense_bias_base_name] = param_to_weights(dense_bias)
 
         # LayerNorm1
@@ -142,7 +144,7 @@ def convert(args):
         else:
             LayerNorm1_weight_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
             LayerNorm1_bias_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.bias'
-        nemo_state_dict[LayerNorm1_weight_base_name] = param_to_weights(LayerNorm1_weight) 
+        nemo_state_dict[LayerNorm1_weight_base_name] = param_to_weights(LayerNorm1_weight)
         nemo_state_dict[LayerNorm1_bias_base_name] = param_to_weights(LayerNorm1_bias)
 
         # MLP 1
@@ -154,7 +156,7 @@ def convert(args):
         else:
             MLP1_weight_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.weight'
             MLP1_bias_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_h_to_4h.bias'
-        nemo_state_dict[MLP1_weight_base_name] = param_to_weights(MLP1_weight) 
+        nemo_state_dict[MLP1_weight_base_name] = param_to_weights(MLP1_weight)
         nemo_state_dict[MLP1_bias_base_name] = param_to_weights(MLP1_bias)
 
         # MLP 2
@@ -166,7 +168,7 @@ def convert(args):
         else:
             MLP2_weight_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_4h_to_h.weight'
             MLP2_bias_base_name = f'model.language_model.encoder.layers.{l}.mlp.dense_4h_to_h.bias'
-        nemo_state_dict[MLP2_weight_base_name] = param_to_weights(MLP2_weight) 
+        nemo_state_dict[MLP2_weight_base_name] = param_to_weights(MLP2_weight)
         nemo_state_dict[MLP2_bias_base_name] = param_to_weights(MLP2_bias)
 
         # LayerNorm2
@@ -178,9 +180,9 @@ def convert(args):
         else:
             LayerNorm2_weight_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
             LayerNorm2_bias_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.bias'
-        nemo_state_dict[LayerNorm2_weight_base_name] = param_to_weights(LayerNorm2_weight) 
+        nemo_state_dict[LayerNorm2_weight_base_name] = param_to_weights(LayerNorm2_weight)
         nemo_state_dict[LayerNorm2_bias_base_name] = param_to_weights(LayerNorm2_bias)
-    
+
     # Non-layer dependent keys
     word_embeddings_weight = hf_model.state_dict()['embeddings.word_embeddings.weight']
     position_embeddings_weight = hf_model.state_dict()['embeddings.position_embeddings.weight']
@@ -207,13 +209,13 @@ def convert(args):
         pooler_dense_base_name = "model.language_model.pooler.dense.weight"
         pooler_bias_base_name = "model.language_model.pooler.dense.bias"
 
-    nemo_state_dict[word_embeddings_weight_base_name] = param_to_weights(word_embeddings_weight) 
+    nemo_state_dict[word_embeddings_weight_base_name] = param_to_weights(word_embeddings_weight)
     nemo_state_dict[position_embeddings_weight_base_name] = param_to_weights(position_embeddings_weight)
-    nemo_state_dict[token_type_embeddings_weight_base_name] = param_to_weights(token_type_embeddings_weight) 
+    nemo_state_dict[token_type_embeddings_weight_base_name] = param_to_weights(token_type_embeddings_weight)
     nemo_state_dict[LayerNorm_weight_base_name] = param_to_weights(LayerNorm_weight)
-    nemo_state_dict[LayerNorm_bias_base_name] = param_to_weights(LayerNorm_bias) 
+    nemo_state_dict[LayerNorm_bias_base_name] = param_to_weights(LayerNorm_bias)
     nemo_state_dict[pooler_dense_base_name] = param_to_weights(pooler_dense)
-    nemo_state_dict[pooler_bias_base_name] = param_to_weights(pooler_bias) 
+    nemo_state_dict[pooler_bias_base_name] = param_to_weights(pooler_bias)
 
     # Padding to new vocab size
     if args.mcore:

@@ -26,7 +26,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, MCoreBertModelWrapper
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
+    bert_layer_local_spec,
+    bert_layer_local_spec_postln,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -34,11 +38,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
-)
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import MCoreBertModelWrapper
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    bert_layer_local_spec,
-    bert_layer_local_spec_postln, 
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -145,7 +144,7 @@ class MegatronBertModel(MegatronBaseModel):
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
         num_tokentypes = 2 if cfg.bert_binary_head else 0
-        transformer_block_type=cfg.get('transformer_block_type', 'pre_ln')
+        transformer_block_type = cfg.get('transformer_block_type', 'pre_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
                 layer_spec = bert_layer_local_spec
@@ -163,8 +162,8 @@ class MegatronBertModel(MegatronBaseModel):
                 parallel_output=True,
                 pre_process=pre_process,
                 post_process=post_process,
-                transformer_block_type=transformer_block_type, 
-                add_pooler=self.cfg.get('add_pooler', True), 
+                transformer_block_type=transformer_block_type,
+                add_pooler=self.cfg.get('add_pooler', True),
             )
         else:
             model = BertModel(
@@ -303,18 +302,14 @@ class MegatronBertModel(MegatronBaseModel):
             model = self.model
 
         if self.mcore_bert:
+            output_tensor = model(input_ids, attention_mask, tokentype_ids=token_type_ids,)
+        else:
             output_tensor = model(
                 input_ids,
                 attention_mask,
-                tokentype_ids=token_type_ids,
-            )
-        else:
-            output_tensor = model(
-            input_ids,
-            attention_mask,
-            token_type_ids=token_type_ids,
-            lm_labels=lm_labels,
-            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                token_type_ids=token_type_ids,
+                lm_labels=lm_labels,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
         if parallel_state.is_pipeline_last_stage():
             # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
