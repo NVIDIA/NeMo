@@ -120,8 +120,7 @@ class GradBucket(object):
 
     def allreduce_buffer(self):
         """Synchronous buffer data allreduce """
-        data_group_size = torch.distributed.get_world_size(group=self._data_group)
-        self.data.div_(data_group_size)
+        self.data.div_(get_data_parallel_world_size())
         torch.distributed.all_reduce(self.data, group=self._data_group)
 
     def get(self, shape, start_index):
@@ -287,6 +286,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         copy_tensor_model_parallel_attributes(main_param, param)
                         if hasattr(param, 'shared'):
                             main_param.shared = param.shared
+                        if hasattr(param, 'allreduce'):
+                            main_param.allreduce = param.allreduce
 
                         # Assign the grad buffer offset to main parameters
                         if self._contiguous_grad_bucket:
@@ -349,39 +350,33 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                 # Deallocate grad memory.
                 param.grad = None
 
-            def allreduce_grads(tensor, data_group, use_fused_div, group_size, grad_divisor):
+            def allreduce_grads(use_fused_div, tensor, data_group, grad_mult):
                 if use_fused_div:
                     torch.distributed.all_reduce(
                         tensor,
                         group=data_group,
                         async_op=True,
-                        op=torch.distributed._make_nccl_premul_sum(grad_divisor),
+                        op=torch.distributed._make_nccl_premul_sum(1/grad_mult),
                     )
                 else:
-                    tensor.div_(group_size)
+                    tensor.div_(grad_mult)
                     torch.distributed.all_reduce(
                         tensor, group=data_group, async_op=True,
                     )
 
             # Asynchronous gradients allreduce accross data_parallel ranks
+            grad_mult = get_data_parallel_world_size()
             if self._require_backward_grad_sync:
                 data_group = _get_grad_data_group(is_expert_group)
-                data_group_size = torch.distributed.get_world_size(group=data_group)
-                grad_divisor = 1 / data_group_size
-
                 if self._grad_allreduce_chunk_size_mb > 0:
                     self._main_grad_buffers[i].update_chunk_info(grad_chunk_info)
                     while True:
                         allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
                         if allreduce_tensor is None:
                             break
-                        allreduce_grads(
-                            allreduce_tensor, data_group, self._grad_div_ar_fusion, data_group_size, grad_divisor
-                        )
+                        allreduce_grads(self._grad_div_ar_fusion, allreduce_tensor, data_group, grad_mult)
                 else:
-                    allreduce_grads(
-                        main_param.grad, data_group, self._grad_div_ar_fusion, data_group_size, grad_divisor
-                    )
+                    allreduce_grads(self._grad_div_ar_fusion, main_param.grad, data_group, grad_mult)
 
         return param_hook
 
