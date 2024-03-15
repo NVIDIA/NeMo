@@ -29,9 +29,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
 )
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (bert_layer_local_spec,
     bert_layer_local_spec_postln, 
-    bert_layer_with_transformer_engine_spec
 )
 
 try:
@@ -66,7 +65,7 @@ class MegatronSBertModel(MegatronBertModel):
         transformer_block_type=cfg.get('transformer_block_type', 'post_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
-                layer_spec = bert_layer_with_transformer_engine_spec
+                layer_spec = bert_layer_local_spec
             else:
                 layer_spec = bert_layer_local_spec_postln
             model = MCoreSBertModelWrapper(

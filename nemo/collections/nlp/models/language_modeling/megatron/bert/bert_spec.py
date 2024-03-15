@@ -12,7 +12,7 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from nemo.collections.nlp.models.language_modeling.megatron.bert_model import TransformerLayerPostLNSupport, TransformerLayerSubmodulesPostLNSupport
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import TransformerLayerPostLNSupport, TransformerLayerSubmodulesPostLNSupport
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
 bert_layer_with_transformer_engine_spec = ModuleSpec(

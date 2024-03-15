@@ -44,14 +44,14 @@ def main(cfg) -> None:
     with open_dict(model_cfg):
         model_cfg.precision = trainer.precision
 
-    model = MegatronSBertModel.restore_from(
-        restore_path=cfg.restore_from_path,
-        trainer=trainer,
-        save_restore_connector=NLPSaveRestoreConnector(),
-        override_config_path=model_cfg,
-        strict=True,
-    )
-
+    # model = MegatronSBertModel.restore_from(
+    #     restore_path=cfg.restore_from_path,
+    #     trainer=trainer,
+    #     save_restore_connector=NLPSaveRestoreConnector(),
+    #     override_config_path=model_cfg,
+    #     strict=True,
+    # )
+    model = MegatronSBertModel(model_cfg, trainer)
     trainer.fit(model)
 
 

@@ -143,45 +143,10 @@ class MCoreSBertModelWrapper(MCoreBertModelWrapper):
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb,
         )
-        if self.add_embedding_head:
 
-            embeddings_out = self.embedding_head(hidden_states, attention_mask)
-            return embeddings_out
+        embeddings_out = self.embedding_head(hidden_states, attention_mask)
+        return embeddings_out
 
-        if self.add_pooler:
-            pooled_output = self.pooler(hidden_states, 0)
-
-        if self.return_embeddings:
-            embeddings = torch.transpose(hidden_states, 0, 1)
-            masks = torch.sum(attention_mask, dim=1)
-            # Collect masked embeddings.
-            output = torch.zeros(
-                size=(embeddings.shape[0], embeddings.shape[2]),
-                dtype=torch.float32,
-                device=torch.cuda.current_device(),
-            )
-            for i, (embedding, mask) in enumerate(zip(embeddings, masks)):
-                output[i, :] = torch.mean(embedding[1 : mask - 1], dim=0)
-            return output
-
-        # logits and loss
-        output_weight = None
-        if self.share_embeddings_and_output_weights:
-            output_weight = self.shared_embedding_or_output_weight()
-
-        logits = self.lm_head(hidden_states=hidden_states, word_embeddings_weight=output_weight)
-
-        binary_logits = None
-        if self.binary_head is not None:
-            binary_logits = self.binary_head(pooled_output)
-
-        if lm_labels is None:
-            # [s b h] => [b s h]
-            return logits.transpose(0, 1).contiguous(), binary_logits
-
-        loss = self.compute_language_model_loss (lm_labels, logits)
-
-        return loss, binary_logits
 
 
 class SBertModel(BertModel):
@@ -190,14 +155,12 @@ class SBertModel(BertModel):
     Model returns [seq, batch, hidden] shape
     """
 
-    def __init__(self, add_embedding_head=True, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_embedding_head = add_embedding_head
-        if self.add_embedding_head:
-            self.embedding_head = BertEmbeddingHead(
-                word_embedding_dimension=self.config.hidden_size,
-                pooling_mode_mean_tokens=True,
-            )
+        self.embedding_head = BertEmbeddingHead(
+            word_embedding_dimension=self.config.hidden_size,
+            pooling_mode_mean_tokens=True,
+        )
 
     def forward(
         self,
@@ -229,7 +192,5 @@ class SBertModel(BertModel):
 
             lm_output, _ = lm_output
 
-        if self.add_embedding_head:
-
-            embeddings_out = self.embedding_head(lm_output[0], attention_mask)
-            return embeddings_out
+        embeddings_out = self.embedding_head(lm_output[0], attention_mask)
+        return embeddings_out
