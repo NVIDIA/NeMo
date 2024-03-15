@@ -1,29 +1,33 @@
 import logging
 import os
-import soundfile
 import tempfile
 import uuid
 
 import numpy as np
+import soundfile
 import torch  # pytype: disable=import-error
-import nemo.collections.asr as nemo_asr
-
 from pytriton.decorators import batch
 from pytriton.model_config import ModelConfig, Tensor
 from pytriton.triton import Triton, TritonConfig
 
+import nemo.collections.asr as nemo_asr
 
 MAX_BATCH_SIZE = 128
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # MODEL = nemo_asr.models.ASRModel.from_pretrained("nvidia/parakeet-rnnt-1.1b", map_location=DEVICE)
-MODEL = nemo_asr.models.ASRModel.restore_from(f"{os.environ['HOME']}/.cache/huggingface/hub/models--nvidia--parakeet-ctc-1.1b/snapshots/085a3de63c7598065b072cd8f2182e6a5fa593eb/parakeet-ctc-1.1b.nemo", map_location=DEVICE)
+MODEL = nemo_asr.models.ASRModel.restore_from(
+    f"{os.environ['HOME']}/.cache/huggingface/hub/models--nvidia--parakeet-ctc-1.1b/snapshots/085a3de63c7598065b072cd8f2182e6a5fa593eb/parakeet-ctc-1.1b.nemo",
+    map_location=DEVICE,
+)
 
 
 @batch
 def _infer_fn(**inputs):
     (input1_batch, input1_lengths) = inputs.values()
 
-    import ipdb; ipdb.set_trace()
+    import ipdb
+
+    ipdb.set_trace()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write audio files to temp disk
@@ -58,7 +62,7 @@ def _infer_fn(**inputs):
     # pack the transcriptions into a single tensor
     transcript_t_packed = np.zeros([len(transcriptions), max(transcrip_t_len_list)], dtype=np.object_)
     for i, transcript_t in enumerate(transcript_t_list):
-        transcript_t_packed[i, :transcript_t.shape[1]] = transcript_t
+        transcript_t_packed[i, : transcript_t.shape[1]] = transcript_t
 
     transcrip_t_len_list = np.array(transcrip_t_len_list, dtype=np.int64).reshape([-1, 1])
 
@@ -68,9 +72,7 @@ def _infer_fn(**inputs):
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s: %(message)s")
 logger = logging.getLogger("examples.nemo_asr.server")
 
-triton_config = TritonConfig(
-    http_port=5000
-)
+triton_config = TritonConfig(http_port=5000)
 
 with Triton(config=triton_config) as triton:
     logger.info("Loading ASR model.")
@@ -80,14 +82,8 @@ with Triton(config=triton_config) as triton:
     triton.bind(
         model_name="NeMoASR",
         infer_func=_infer_fn,
-        inputs=[
-            Tensor(dtype=np.float32, shape=(-1,)),
-            Tensor(dtype=np.int64, shape=(-1,)),
-        ],
-        outputs=[
-            Tensor(dtype=np.object_, shape=(-1,)),
-            Tensor(dtype=np.int64, shape=(-1,)),
-        ],
+        inputs=[Tensor(dtype=np.float32, shape=(-1,)), Tensor(dtype=np.int64, shape=(-1,)),],
+        outputs=[Tensor(dtype=np.object_, shape=(-1,)), Tensor(dtype=np.int64, shape=(-1,)),],
         config=ModelConfig(max_batch_size=MAX_BATCH_SIZE),
         strict=True,
     )

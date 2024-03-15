@@ -1,23 +1,20 @@
-from collections import namedtuple
 import json
+import multiprocessing
 import sys
 import time
+from collections import namedtuple
 
 import numpy as np
-
 import torch
-from torch.utils.dlpack import from_dlpack
-
-import multiprocessing
-
+import triton_python_backend_utils as pb_utils
 from riva.asrlib.decoder.python_decoder import (
     BatchedMappedDecoderCuda,
     BatchedMappedDecoderCudaConfig,
     BatchedMappedOnlineDecoderCuda,
     BatchedMappedOnlineDecoderCudaConfig,
 )
+from torch.utils.dlpack import from_dlpack
 
-import triton_python_backend_utils as pb_utils
 
 class TritonPythonModel:
     """Your Python model must use the same class name. Every Python model
@@ -104,7 +101,7 @@ class TritonPythonModel:
 
         # auto_complete_model_config.set_max_batch_size(0)
 
-        # It would be interesting if 
+        # It would be interesting if
 
         # To enable a dynamic batcher with default settings, you can use
         # auto_complete_model_config set_dynamic_batching() function. It is
@@ -142,7 +139,6 @@ class TritonPythonModel:
         self.model.to(dtype)
 
         torch.cuda.cudart().cudaProfilerStart()
-
 
     def execute(self, requests):
         """`execute` must be implemented in every Python model. `execute`
