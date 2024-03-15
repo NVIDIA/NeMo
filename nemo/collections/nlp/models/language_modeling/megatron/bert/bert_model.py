@@ -14,17 +14,25 @@
 
 """BERT model."""
 
+from contextlib import nullcontext
+from dataclasses import dataclass
+
 import torch
-from torch import Tensor, nn
 import torch.nn.functional as F
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
+from megatron.core.models.bert.bert_model import BertModel as MCoreBert
+from megatron.core.models.bert.pooler import Pooler
+from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.transformer.transformer_block import TransformerBlock
+from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
+from megatron.core.utils import make_viewless_tensor
+from torch import Tensor, nn
+
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
-from megatron.core.transformer.transformer_block import TransformerBlock
-from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-from megatron.core.packed_seq_params import PackedSeqParams
-from contextlib import nullcontext
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -35,12 +43,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
-from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
-from dataclasses import dataclass
-from megatron.core.utils import make_viewless_tensor
-from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
-from megatron.core.models.bert.pooler import Pooler
-from megatron.core.models.bert.bert_model import BertModel as MCoreBert
+
 try:
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
@@ -63,11 +66,13 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
-from megatron.core.transformer.transformer_layer import TransformerLayer
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.identity_op import IdentityOp, IdentityFuncOp
 from dataclasses import dataclass, field
 from typing import Dict, Union
+
+from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
+from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.transformer_layer import TransformerLayer
+
 
 def bert_extended_attention_mask(attention_mask):
     # We create a 3D attention mask from a 2D tensor mask.
@@ -188,21 +193,24 @@ class TransformerLayerSubmodulesPostLNSupport:
     # Mapping for sharded tensor keys to be applied in `sharded_state_dict` method
     sharded_state_dict_keys_map: Dict[str, str] = field(default_factory=dict)
 
+
 class TransformerLayerPostLNSupport(TransformerLayer):
     def __init__(self, *args, **kwargs):
         super(TransformerLayerPostLNSupport, self).__init__(*args, **kwargs)
         ## [Module add: Post attention LN]
-        self.post_att_layernorm = build_module(self.submodules_config.post_att_layernorm,
-                                            config=self.config,
-                                            hidden_size=self.config.hidden_size,
-                                            eps=self.config.layernorm_epsilon,
-                                            )
+        self.post_att_layernorm = build_module(
+            self.submodules_config.post_att_layernorm,
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
         ## [Module add: Post MLP LN]
-        self.post_mlp_layernorm = build_module(self.submodules_config.post_mlp_layernorm,
-                                            config=self.config,
-                                            hidden_size=self.config.hidden_size,
-                                            eps=self.config.layernorm_epsilon,
-                                            )
+        self.post_mlp_layernorm = build_module(
+            self.submodules_config.post_mlp_layernorm,
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
 
     def forward(
         self,
@@ -241,7 +249,7 @@ class TransformerLayerPostLNSupport(TransformerLayer):
         # Residual connection.
         residual = hidden_states
 
-        #Post-LN after Self Attention
+        # Post-LN after Self Attention
         hidden_states = self.post_att_layernorm(hidden_states)
 
         # Optional Layer norm after self-attention
@@ -281,7 +289,7 @@ class TransformerLayerPostLNSupport(TransformerLayer):
                 mlp_output_with_bias, residual, self.hidden_dropout
             )
 
-        #Post-LN after MLP
+        # Post-LN after MLP
         hidden_states = self.post_mlp_layernorm(hidden_states)
 
         # Jit compiled function creates 'view' tensor. This tensor
@@ -290,9 +298,7 @@ class TransformerLayerPostLNSupport(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(
-            inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
-        )
+        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return output, context
 
@@ -303,10 +309,10 @@ class TransformerBlockPostLNSupport(TransformerBlock):
         super(TransformerBlockPostLNSupport, self).__init__(*args, **kwargs)
         self.transformer_block_type = transformer_block_type
         if self.transformer_block_type == 'post_ln':
-            self.initial_layernorm=FusedLayerNorm(config=self.config,
-                                               hidden_size=self.config.hidden_size,
-                                               eps=self.config.layernorm_epsilon)
-            
+            self.initial_layernorm = FusedLayerNorm(
+                config=self.config, hidden_size=self.config.hidden_size, eps=self.config.layernorm_epsilon
+            )
+
     def forward(
         self,
         hidden_states: Tensor,
@@ -341,9 +347,7 @@ class TransformerBlockPostLNSupport(TransformerBlock):
         #   likely redundant, since p2p_communication.py (likely originator)
         #   already creates viewless tensors. That said, make_viewless_tensor()
         #   is called here to be future-proof and corner-case-proof.
-        hidden_states = make_viewless_tensor(
-            inp=hidden_states, requires_grad=True, keep_graph=True,
-        )
+        hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True,)
 
         if self.config.sequence_parallel:
             rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
@@ -409,28 +413,27 @@ class TransformerBlockPostLNSupport(TransformerBlock):
                         hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
 
         # Final layer norm.
-        
+
         if self.post_process and self.post_layer_norm:
             hidden_states = self.final_layernorm(hidden_states)
 
         return hidden_states
-    
+
+
 class MCoreBertModelWrapper(MCoreBert):
-    
     def __init__(self, transformer_block_type='post_ln', add_pooler=True, *args, **kwargs):
 
         super(MCoreBertModelWrapper, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
         self.transformer_block_type = transformer_block_type
-        
+
         # Transformer.
         self.encoder = TransformerBlockPostLNSupport(
             config=self.config,
             spec=self.transformer_layer_spec,
             pre_process=self.pre_process,
             post_process=self.post_process,
-            transformer_block_type=self.transformer_block_type
-
+            transformer_block_type=self.transformer_block_type,
         )
 
         if self.add_pooler:
@@ -486,9 +489,7 @@ class MCoreBertModelWrapper(MCoreBert):
 
         # Encoder embedding.
         if self.pre_process:
-            encoder_input = self.embedding(
-                input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids
-            )
+            encoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids)
         else:
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
@@ -544,7 +545,6 @@ class MCoreBertModelWrapper(MCoreBert):
         loss = self.compute_language_model_loss(lm_labels, logits)
 
         return loss, binary_logits
-
 
 
 class BertModel(MegatronModule):
@@ -645,7 +645,7 @@ class BertModel(MegatronModule):
         self.initialize_word_embeddings(
             init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
         )
-        
+
         if self.post_process and self.add_lm_head:
             self.lm_head = BertLMHead(
                 config,
@@ -743,4 +743,3 @@ class BertModel(MegatronModule):
         # Load word_embeddings.
         if self.post_process and not self.pre_process:
             self.word_embeddings.load_state_dict(state_dict[self._word_embeddings_for_head_key], strict=strict)
-

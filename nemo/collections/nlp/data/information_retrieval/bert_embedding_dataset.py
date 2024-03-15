@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.utils.data import Dataset
 from typing import Mapping, Optional
+
 import datasets
 import numpy as np
 import torch
+from torch.utils.data import Dataset
+
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -45,7 +47,7 @@ class BertEmbeddingDataset(Dataset):
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         data_type: str = 'train',  # train, query or doc
-        num_hard_negatives: int = 4
+        num_hard_negatives: int = 4,
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
@@ -157,8 +159,11 @@ class BertEmbeddingDataset(Dataset):
         if self.data_type == 'train':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
-            nd = [self.tokenizer.text_to_ids("passage: " + example['neg_doc'][i].strip()) for i in range(self.num_hard_negatives)]
-            
+            nd = [
+                self.tokenizer.text_to_ids("passage: " + example['neg_doc'][i].strip())
+                for i in range(self.num_hard_negatives)
+            ]
+
         elif self.data_type == 'query':
             q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
             d, nd = None, None
@@ -180,7 +185,7 @@ class BertEmbeddingDataset(Dataset):
             # these pad/eos tokens are placeholders for virtual tokens for ptuning (if used)
             q = [self.tokenizer.eos_id] * self.virtual_tokens + q  # type: ignore
             d = [self.tokenizer.eos_id] * self.virtual_tokens + d  # type: ignore
-            nd = [[self.tokenizer.eos_id] * self.virtual_tokens + n for n in nd] # type: ignore
+            nd = [[self.tokenizer.eos_id] * self.virtual_tokens + n for n in nd]  # type: ignore
 
         if self.add_bos:
             q = [self.tokenizer.bos_id] + q  # type: ignore
@@ -196,7 +201,7 @@ class BertEmbeddingDataset(Dataset):
             q = q + [self.tokenizer.eos_id]  # type: ignore
             d = d + [self.tokenizer.eos_id]  # type: ignore
             nd = [n + [self.tokenizer.eos_id] for n in nd]  # type: ignore
-        
+
         processed_example = {
             'query': q,
             'pos_doc': d,
@@ -204,7 +209,7 @@ class BertEmbeddingDataset(Dataset):
             'metadata': metadata,
         }
         return processed_example
-    
+
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
             return [item.tolist() for item in x]
@@ -243,7 +248,7 @@ class BertEmbeddingDataset(Dataset):
         attention_mask = torch.zeros(max_length)
         attention_mask[:item_lengh] = 1
         return attention_mask
-    
+
     def collate_fn(self, batch):
         input_ids = []
         metadata = []
@@ -259,7 +264,9 @@ class BertEmbeddingDataset(Dataset):
                 for nd in item['neg_doc']:
                     input_ids.append(nd)
                     lengths.append(len(nd))
-                max_length = max(max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc']))
+                max_length = max(
+                    max_length, len(item['query']), len(item['pos_doc']), *(len(nd) for nd in item['neg_doc'])
+                )
             elif self.data_type == 'query':
                 input_ids.append(item['query'])
                 lengths.append(len(item['query']))
@@ -278,13 +285,13 @@ class BertEmbeddingDataset(Dataset):
         attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
-        input_ids = torch.LongTensor(
-            self._collate_item(input_ids, max_length=max_length, pad_id=0)
-        )
+        input_ids = torch.LongTensor(self._collate_item(input_ids, max_length=max_length, pad_id=0))
         lengths = torch.LongTensor(lengths) - 1  # subtract 1 to account for the eos token
 
-        processed_batch = {'input_ids':input_ids, 
-                            'token_type_ids':torch.zeros_like(input_ids),
-                            'attention_mask':attention_mask}
+        processed_batch = {
+            'input_ids': input_ids,
+            'token_type_ids': torch.zeros_like(input_ids),
+            'attention_mask': attention_mask,
+        }
 
         return processed_batch

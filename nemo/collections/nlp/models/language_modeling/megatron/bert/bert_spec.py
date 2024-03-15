@@ -12,7 +12,11 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import TransformerLayerPostLNSupport, TransformerLayerSubmodulesPostLNSupport
+
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
+    TransformerLayerPostLNSupport,
+    TransformerLayerSubmodulesPostLNSupport,
+)
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
 bert_layer_with_transformer_engine_spec = ModuleSpec(
@@ -30,9 +34,7 @@ bert_layer_with_transformer_engine_spec = ModuleSpec(
         self_attn_bda=get_bias_dropout_add,
         mlp=ModuleSpec(
             module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,
-            ),
+            submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,),
         ),
         mlp_bda=get_bias_dropout_add,
     ),
@@ -47,18 +49,13 @@ bert_layer_local_spec = ModuleSpec(
             module=SelfAttention,
             params={"attn_mask_type": AttnMaskType.padding},
             submodules=SelfAttentionSubmodules(
-                linear_qkv=ColumnParallelLinear,
-                core_attention=DotProductAttention,
-                linear_proj=RowParallelLinear,
+                linear_qkv=ColumnParallelLinear, core_attention=DotProductAttention, linear_proj=RowParallelLinear,
             ),
         ),
         self_attn_bda=get_bias_dropout_add,
         pre_mlp_layernorm=FusedLayerNorm,
         mlp=ModuleSpec(
-            module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,
-            ),
+            module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
         ),
         mlp_bda=get_bias_dropout_add,
     ),
@@ -71,18 +68,13 @@ bert_layer_local_spec_postln = ModuleSpec(
             module=SelfAttention,
             params={"attn_mask_type": AttnMaskType.padding},
             submodules=SelfAttentionSubmodules(
-                linear_qkv=ColumnParallelLinear,
-                core_attention=DotProductAttention,
-                linear_proj=RowParallelLinear,
+                linear_qkv=ColumnParallelLinear, core_attention=DotProductAttention, linear_proj=RowParallelLinear,
             ),
         ),
         self_attn_bda=get_bias_dropout_add,
         post_att_layernorm=FusedLayerNorm,
         mlp=ModuleSpec(
-            module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,
-            ),
+            module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
         ),
         mlp_bda=get_bias_dropout_add,
         post_mlp_layernorm=FusedLayerNorm,
