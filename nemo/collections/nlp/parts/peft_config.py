@@ -220,7 +220,11 @@ class IA3PEFTConfig(PEFTConfig):
         mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
             in_features=cfg.ffn_hidden_size // cfg.tensor_model_parallel_size
         )
-        infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
+        if cfg.kv_channels is None:
+            in_features = cfg.hidden_size
+        else:
+            in_features = cfg.num_attention_heads * cfg.kv_channels
+        infused_adapter_cfg = InfusedAdapterConfig(in_features=in_features // cfg.tensor_model_parallel_size)
 
         name_key_to_cfg = {
             AdapterName.KEY_INFUSED: infused_adapter_cfg,
