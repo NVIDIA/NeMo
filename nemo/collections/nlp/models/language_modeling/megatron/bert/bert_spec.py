@@ -6,6 +6,8 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TEDotProductAttention,
     TELayerNormColumnParallelLinear,
     TERowParallelLinear,
+    TEColumnParallelLinear,
+    TENorm
 )
 from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
@@ -37,6 +39,29 @@ bert_layer_with_transformer_engine_spec = ModuleSpec(
             submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,),
         ),
         mlp_bda=get_bias_dropout_add,
+    ),
+)
+
+bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
+    module=TransformerLayerPostLNSupport,
+    submodules=TransformerLayerSubmodulesPostLNSupport(
+        self_attention=ModuleSpec(
+            module=SelfAttention,
+            params={"attn_mask_type": AttnMaskType.padding},
+            submodules=SelfAttentionSubmodules(
+                linear_qkv=TEColumnParallelLinear,
+                core_attention=TEDotProductAttention,
+                linear_proj=TERowParallelLinear,
+            ),
+        ),
+        self_attn_bda=get_bias_dropout_add,
+        post_att_layernorm=TENorm,
+        mlp=ModuleSpec(
+            module=MLP,
+            submodules=MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=TERowParallelLinear,),
+        ),
+        mlp_bda=get_bias_dropout_add,
+        post_mlp_layernorm=TENorm,
     ),
 )
 

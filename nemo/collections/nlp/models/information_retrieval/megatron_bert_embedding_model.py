@@ -48,9 +48,8 @@ from nemo.collections.nlp.models.information_retrieval.bert_embedding_model impo
     MCoreBertEmbeddingModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    bert_layer_local_spec,
-    bert_layer_local_spec_postln,
     bert_layer_with_transformer_engine_spec,
+    bert_layer_with_transformer_engine_spec_postln
 )
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -91,9 +90,9 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         transformer_block_type = cfg.get('transformer_block_type', 'post_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
-                layer_spec = bert_layer_local_spec
+                layer_spec = bert_layer_with_transformer_engine_spec
             else:
-                layer_spec = bert_layer_local_spec_postln
+                layer_spec = bert_layer_with_transformer_engine_spec_postln
             model = MCoreBertEmbeddingModel(
                 config=self.transformer_config,
                 transformer_layer_spec=layer_spec,
@@ -429,6 +428,16 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
+        self.log('reduced_train_loss', loss_mean[0], prog_bar=True, batch_size=1)
+        if len(loss_mean) > 2:
+            self.log('reduced_lm_train_loss', loss_mean[1], prog_bar=True, batch_size=1)
+            self.log('reduced_sop_train_loss', loss_mean[2], prog_bar=True, batch_size=1)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, batch_size=1)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
+        self.log(
+            'consumed_samples', self._compute_consumed_samples_after_training_step(), prog_bar=True, batch_size=1,
+        )
         return loss_mean[0]
 
     def get_forward_output_and_loss_func(self):

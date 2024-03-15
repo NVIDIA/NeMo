@@ -71,6 +71,8 @@ Then you can fine-tune the sentence-BERT model using the following script:
     SAVE_DIR= # where the checkpoint and logs are saved
     mkdir -p $SAVE_DIR
     export NVTE_FLASH_ATTN=0
+    export NVTE_ALLOW_NONDETERMINISTIC_ALGO=0
+    export NVTE_FUSED_ATTN=0
     
     python NeMo/examples/nlp/information_retrieval/megatron_bert_embedding_finetuning.py \
     --config-path=${CONFIG_PATH} \

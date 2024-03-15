@@ -28,8 +28,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, MCoreBertModelWrapper
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    bert_layer_local_spec,
-    bert_layer_local_spec_postln,
+    bert_layer_with_transformer_engine_spec,
+    bert_layer_with_transformer_engine_spec_postln
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -147,9 +147,9 @@ class MegatronBertModel(MegatronBaseModel):
         transformer_block_type = cfg.get('transformer_block_type', 'pre_ln')
         if self.mcore_bert:
             if transformer_block_type == 'pre_ln':
-                layer_spec = bert_layer_local_spec
+                layer_spec = bert_layer_with_transformer_engine_spec
             else:
-                layer_spec = bert_layer_local_spec_postln
+                layer_spec = bert_layer_with_transformer_engine_spec_postln
 
             model = MCoreBertModelWrapper(
                 config=self.transformer_config,
