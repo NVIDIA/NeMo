@@ -17,8 +17,8 @@ import torch
 import torch.nn.functional as F
 
 from torch import Tensor, nn
-from nemo.collections.nlp.models.language_modeling.megatron.bert_model import MCoreBertModel
-from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel, bert_extended_attention_mask
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import MCoreBertModelWrapper
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, bert_extended_attention_mask
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -78,24 +78,19 @@ class BertEmbeddingHead(nn.Module):
         return {key: self.__dict__[key] for key in self.config_keys}
 
 
-class MCoreSBertModel(MCoreBertModel):
-    def __init__(self, add_embedding_head=True, *args, **kwargs):
+class MCoreSBertModelWrapper(MCoreBertModelWrapper):
+    def __init__(self, *args, **kwargs):
 
-        super(MCoreSBertModel, self).__init__(*args, **kwargs)
-        self.add_embedding_head = add_embedding_head
-        
-        if self.add_embedding_head:
-            self.post_process = False
-            self.binary_head = None
-            self.lm_head = None
-            self.output_layer = None
-            self.encoder.final_layernorm = None
-            self.encoder.post_process = False
-
-        if self.add_embedding_head:
-            self.embedding_head = BertEmbeddingHead(
-                word_embedding_dimension=self.config.hidden_size,
-                pooling_mode_mean_tokens=True,
+        super(MCoreSBertModelWrapper, self).__init__(*args, **kwargs)
+        self.post_process = False
+        self.binary_head = None
+        self.lm_head = None
+        self.output_layer = None
+        self.encoder.final_layernorm = None
+        self.encoder.post_process = False
+        self.embedding_head = BertEmbeddingHead(
+            word_embedding_dimension=self.config.hidden_size,
+            pooling_mode_mean_tokens=True,
             )
 
     def forward(
