@@ -157,8 +157,8 @@ class BertEmbeddingDataset(Dataset):
 
         metadata = {k: v for k, v in example.items()}
         if self.data_type == 'train':
-            q = self.tokenizer.text_to_ids("query: " + example['question'].strip())
-            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'][0].strip())
+            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
             nd = [
                 self.tokenizer.text_to_ids("passage: " + example['neg_doc'][i].strip())
                 for i in range(self.num_hard_negatives)

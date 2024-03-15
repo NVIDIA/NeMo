@@ -13,8 +13,27 @@
 # limitations under the License.
 
 import logging
+try:
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
+    HAVE_MEGATRON_CORE = True
+except (ImportError, ModuleNotFoundError):
+    TransformerConfig = ApexGuardDefaults
+    HAVE_MEGATRON_CORE = False
 import torch
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -31,6 +50,7 @@ from nemo.collections.nlp.models.information_retrieval.bert_embedding_model impo
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
     bert_layer_local_spec,
     bert_layer_local_spec_postln,
+    bert_layer_with_transformer_engine_spec
 )
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -326,6 +346,90 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
             )
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
 
+    def training_step(self, dataloader_iter):
+
+        self._optimizer.zero_grad()
+
+        if self.with_distributed_adam:
+            # hack to enable overlapping param sync and forward compute
+            # note: the distributed optimizer monkey-patches each
+            # parameter's __getattribute__ function so that it can
+            # launch parameter all-gathers the first time the
+            # parameter is accessed after the optimizer step. However,
+            # PyTorch directly passes embedding parameters into a C++,
+            # bypassing this process. A quick-and-dirty hack is to
+            # manually interact with the parameter.
+            modules = self.model if isinstance(self.model, list) else [self.model]
+            for module in modules:
+                if isinstance(module, (Float16Module, MCoreFloat16Module)):
+                    module = module.module
+                if not self.mcore_bert:
+                    module = module.language_model
+                if hasattr(module, 'embedding'):
+                    for param in module.embedding.parameters():
+                        param.data_ptr()
+
+        if self.cfg.data.dataloader_type == "LDDL":
+            # this is of type bert dataset
+            seq_length = dataloader_iter.iterator.loaders.get_seqlen()
+        else:
+            seq_length = self.cfg.encoder_seq_length
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            data_iterator=self._make_data_iterator_list(dataloader_iter),
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=False,
+            seq_length=seq_length,
+            micro_batch_size=self.cfg.micro_batch_size,
+        )
+
+        if losses_reduced_per_micro_batch:
+            loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.vstack(loss_tensors_list)
+            loss_mean = loss_tensor.mean(axis=0)
+        else:
+            if self.cfg.bert_binary_head == True:
+                loss_mean = torch.tensor([0.0, 0.0, 0.0]).cuda()
+            else:
+                loss_mean = torch.tensor([0.0, 0.0]).cuda()
+
+        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
+        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+            self.allreduce_sequence_parallel_gradients()
+
+        if self.with_distributed_adam:
+            # synchronize asynchronous grad reductions
+            # note: not necessary, but reduces performance degradation
+            # from multiple simultaneous NCCL calls
+            self._optimizer._finish_bucket_grad_sync()
+        elif self.megatron_amp_O2:
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+                # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+                self._optimizer.allreduce_main_grads()
+        else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we all-reduce gradients after the pipeline
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # when using pipeline parallelism the first and last stage must keep embeddings in sync
+            self.allreduce_first_last_embeddings()
+
+        torch.distributed.broadcast(loss_mean, get_last_rank())
+
+        if self.torch_dtype == torch.float16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale, batch_size=1)
+
+        return loss_mean[0]
+    
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 

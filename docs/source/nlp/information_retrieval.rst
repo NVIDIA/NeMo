@@ -77,6 +77,7 @@ Then you can fine-tune the sentence-BERT model using the following script:
     --config-name=${CONFIG_NAME} \
     restore_from_path=${PATH_TO_NEMO_MODEL} \
     trainer.devices=${NUM_DEVICES} \
+    trainer.max_steps=10000 \
     trainer.val_check_interval=100 \
     trainer.max_epochs=1 \
     +trainer.num_sanity_val_steps=0 \
