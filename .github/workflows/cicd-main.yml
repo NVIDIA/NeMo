@@ -117,7 +117,7 @@ jobs:
             '
             ### \'\'
 
-    - uses: "./.github/actions/cancel-workflow"
+    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
       if: "failure()"
 
 
