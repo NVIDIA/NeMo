@@ -408,7 +408,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
                 drop_last=True,
-                shuffle=True,
+                shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),
