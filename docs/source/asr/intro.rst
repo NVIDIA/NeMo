@@ -148,11 +148,15 @@ There is also more information about the ASR model architectures available in Ne
 
 Try out NeMo ASR transcription in your browser
 ----------------------------------------------
-You can try out transcription with NeMo ASR models without leaving your browser, by using the HuggingFace Space embedded below.
+You can try out transcription with a NeMo ASR model without leaving your browser, by using the HuggingFace Space embedded below.
+
+This HuggingFace Space uses `Canary-1B <https://huggingface.co/nvidia/canary-1b>`__, the latest ASR model from NVIDIA NeMo. It sits at the top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of publishing.
+
+Canary-1B is a multi-lingual, multi-task model, supporting automatic speech-to-text recognition (ASR) in 4 languages (English, German, French, Spanish) as well as translation between English and the 3 other supported languages.
 
 .. raw:: html
 
-    <iframe src="https://hf.space/embed/smajumdar/nemo_multilingual_language_id/+"
+    <iframe src="https://hf.space/embed/nvidia/canary-1b/+"
     width="100%" class="gradio-asr" allow="microphone *"></iframe>
 
     <script type="text/javascript" language="javascript">
@@ -184,7 +188,7 @@ For more information, see additional sections in the ASR docs on the left-hand-s
 
    models
    datasets
-   asr_language_modeling_and_customization
+   asr_language_modeling
    results
    scores
    configs
