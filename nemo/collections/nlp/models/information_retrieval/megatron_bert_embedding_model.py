@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
@@ -33,7 +34,6 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 import torch
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -50,13 +50,14 @@ from nemo.collections.nlp.models.information_retrieval.bert_embedding_model impo
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
     bert_layer_local_spec,
     bert_layer_local_spec_postln,
-    bert_layer_with_transformer_engine_spec
+    bert_layer_with_transformer_engine_spec,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
 )
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
 try:
@@ -429,13 +430,13 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
                 self.log('loss_scale', loss_scale, batch_size=1)
 
         return loss_mean[0]
-    
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             batches = next(dataloader_iter)[0]
             batches = {k: v.cuda(non_blocking=True) for k, v in batches.items()}
-            
+
             if self.mcore_bert:
 
                 batches["tokentype_ids"] = batches.pop("token_type_ids")
