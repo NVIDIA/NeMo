@@ -225,28 +225,28 @@ model:
     name: adam
     lr: 1e-5
 
-data_config:
-    image_size: 224, 224
-    hard_neg_num: 0
-    in_batch_neg_num: 0  # TODO: Move this to model config
-    shuffle_cand: True
-    
-    returns: null
+  data_config:
+      image_size: 224, 224
+      hard_neg_num: 0
+      in_batch_neg_num: 0  # TODO: Move this to model config
+      shuffle_cand: True
+      
+      returns: null
 
-    # Relative to mbeir_data_dir
-    mbeir_data_dir: "/UniIR/M-BEIR"
-    enable_query_instruct: True
-    query_instruct_path: "instructions/query_instructions.tsv"
+      # Relative to mbeir_data_dir
+      mbeir_data_dir: "/UniIR/M-BEIR"
+      enable_query_instruct: True
+      query_instruct_path: "instructions/query_instructions.tsv"
 
-    train_query_data_path: "/UniIR/M-BEIR/query/union_train/mbeir_union_up_train.jsonl"
-    train_cand_pool_path: "/UniIR/M-BEIR/cand_pool/global/mbeir_union_train_cand_pool.jsonl"
+      train_query_data_path: "/UniIR/M-BEIR/query/union_train/mbeir_union_up_train.jsonl"
+      train_cand_pool_path: "/UniIR/M-BEIR/cand_pool/global/mbeir_union_train_cand_pool.jsonl"
 
-    val_query_data_path: "/UniIR/M-BEIR/query/union_val/mbeir_union_val.jsonl"
-    val_cand_pool_path: "/UnIR/M-BEIR/cand_pool/global/mbeir_union_val_cand_pool.jsonl"
-    
-    
-# DataLoader settings
-dataloader_config:
-    num_workers: 5 
-    train_batch_size: 105  # 78597MiB / 81559MiB
-    valid_batch_size: 2048
+      val_query_data_path: "/UniIR/M-BEIR/query/union_val/mbeir_union_val.jsonl"
+      val_cand_pool_path: "/UnIR/M-BEIR/cand_pool/global/mbeir_union_val_cand_pool.jsonl"
+      
+      
+  # DataLoader settings
+  dataloader_config:
+      num_workers: 5 
+      train_batch_size: 105  # 78597MiB / 81559MiB
+      valid_batch_size: 2048

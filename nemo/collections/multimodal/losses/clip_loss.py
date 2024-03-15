@@ -180,7 +180,7 @@ class InbatchContrastiveLoss(nn.Module):
         self.world_size = parallel_state.get_data_parallel_world_size()
         self.rank = parallel_state.get_data_parallel_rank()
         self.enable_hard_neg = enable_hard_neg
-        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07)).exp() # From CLIP Model
+        self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.01)).exp() # From CLIP Model
         self.loss_function = nn.CrossEntropyLoss()
 
     def forward(self, output_tensor):

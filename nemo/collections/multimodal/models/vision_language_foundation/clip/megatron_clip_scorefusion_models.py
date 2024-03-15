@@ -18,6 +18,15 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_fr
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.collections.multimodal.data.clip.mbeir_dataset import (
+    MBEIRMainDataset,
+    MBEIRCandidatePoolDataset,
+    MBEIRMainCollator,
+    MBEIRCandidatePoolCollator,
+    Mode,
+)
+from torch.utils.data import DataLoader
+from torch.utils.data import DistributedSampler
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -45,18 +54,18 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
 
     #     #TODO add support for huggingface models instead of 
     #                           conversion to .nemo
-    #     model_name = "ViT-B/32"
-    #     self.model, self.img_preprocess_fn = clip.load(model_name, "cuda", False, download_root=None)
-    #     self.tokenizer = clip.tokenize
+       
+        self.tokenizer = clip.tokenize
 
+        # self.logit_scale = 
 
-    # def get_tokenizer(self):
-    #     def tokenizer_wrapper(txt):
-    #         tokenizer = self.tokenizer
-    #         txt_tensor = tokenizer(txt, context_length=77, truncate=True)
-    #         return txt_tensor
+    def get_tokenizer(self):
+        def tokenizer_wrapper(txt):
+            tokenizer = self.tokenizer
+            txt_tensor = tokenizer(txt, context_length=77, truncate=True)
+            return txt_tensor
 
-    #     return tokenizer_wrapper
+        return tokenizer_wrapper
     
     # TODO add dataset support 
     def setup(self, stage=None):
@@ -98,6 +107,7 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
         # Batch size need to be provided for dataset
         self._num_micro_batches = get_num_microbatches()
         self._micro_batch_size = self.cfg.micro_batch_size
+        self.setup_training_data()
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -107,7 +117,6 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     
     def forward(self, batch):
-    
     
         txt_batched = batch["txt_batched"]
         image_batched = batch["image_batched"]
@@ -158,3 +167,43 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
             return outputs, loss_func
 
         return fwd_output_and_loss_func
+
+    def setup_training_data(self):
+
+        val_image_transform, text_transform = get_preprocess_fns(self.cfg, self.tokenizer, is_train=False,)
+    
+        #data loaders
+        self._train_ds = MBEIRMainDataset(
+                        mbeir_data_dir=self.cfg.data_config.mbeir_data_dir,
+                        query_data_path=self.cfg.data_config.train_query_data_path,
+                        cand_pool_path=self.cfg.data_config.train_cand_pool_path,
+                        query_instruct_path=self.cfg.data_config.query_instruct_path,
+                        img_preprocess_fn=val_image_transform,
+                        mode=Mode.TRAIN,
+                        enable_query_instruct=self.cfg.data_config.enable_query_instruct,
+                        shuffle_cand=self.cfg.data_config.shuffle_cand,
+                        hard_neg_num=0, # TODO 
+                        returns=self.cfg.data_config.returns,
+                        ) 
+        train_collector = MBEIRMainCollator(
+                        tokenizer=self.get_tokenizer(),
+                        image_size=tuple(map(int, self.cfg.data_config.image_size.split(','))),
+                        mode=Mode.TRAIN,
+                        )
+        train_sampler = DistributedSampler(
+                        dataset=self._train_ds,
+                        num_replicas=1,
+                        rank=0,
+                        shuffle=True,
+                        )
+        self._train_dl = DataLoader(
+                    dataset=self._train_ds,
+                    batch_size=self.cfg.dataloader_config.train_batch_size,
+                    num_workers=self.cfg.dataloader_config.num_workers,
+                    pin_memory=True,
+                    sampler=train_sampler,
+                    shuffle=False,  # Note: since we use sampler, shuffle should be False
+                    collate_fn=train_collector,
+                    drop_last=True,
+                    )
+        
