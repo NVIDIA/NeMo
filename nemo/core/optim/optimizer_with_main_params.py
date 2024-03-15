@@ -356,7 +356,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         tensor,
                         group=data_group,
                         async_op=True,
-                        op=torch.distributed._make_nccl_premul_sum(1/grad_mult),
+                        op=torch.distributed._make_nccl_premul_sum(1 / grad_mult),
                     )
                 else:
                     tensor.div_(grad_mult)
