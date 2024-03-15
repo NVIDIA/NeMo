@@ -85,9 +85,7 @@ class LayernormConfig:
         """Converts an nn.Module to an LayernormConfig."""
         layernorm_type = LAYERNORM_RMS if type(module) == LlamaRMSNorm else LAYERNORM_DEFAULT
 
-        config = LayernormConfig(
-            weight=torch_to_numpy_with_dtype(module.weight, dtype), layernorm_type=layernorm_type
-        )
+        config = LayernormConfig(weight=torch_to_numpy_with_dtype(module.weight, dtype), layernorm_type=layernorm_type)
         if layernorm_type == LAYERNORM_DEFAULT:
             config.bias = torch_to_numpy_with_dtype(module.bias, dtype)
 
@@ -107,9 +105,7 @@ class LinearConfig:
     layer_type: str = LAYER_DEFAULT
 
     @staticmethod
-    def from_nn_module(
-        module: nn.Module, linear_type: str, rank=0, tensor_parallel=1, dtype=trt.float16
-    ):
+    def from_nn_module(module: nn.Module, linear_type: str, rank=0, tensor_parallel=1, dtype=trt.float16):
         """Converts an nn.Module to an LinearConfig."""
         weight = torch_to_numpy_with_dtype(module.weight, dtype)
         if "Conv1D" in type(module).__name__:
@@ -126,11 +122,7 @@ class LinearConfig:
         if hasattr(module, "bias") and module.bias is not None:
             if linear_type == LINEAR_COLUMN:
                 config.bias = np.ascontiguousarray(
-                    split(
-                        torch_to_numpy_with_dtype(module.bias, dtype),
-                        tensor_parallel,
-                        rank,
-                    )
+                    split(torch_to_numpy_with_dtype(module.bias, dtype), tensor_parallel, rank,)
                 )
             else:
                 config.bias = torch_to_numpy_with_dtype(module.bias, dtype)
@@ -138,9 +130,7 @@ class LinearConfig:
         return config
 
     @staticmethod
-    def from_qkv_nn_modules(
-        qkv_modules: List[nn.Module], rank=0, tensor_parallel=1, dtype=trt.float16
-    ):
+    def from_qkv_nn_modules(qkv_modules: List[nn.Module], rank=0, tensor_parallel=1, dtype=trt.float16):
         """Converts the qkv modules to an LinearConfig."""
         config = LinearConfig()
         config.linear_type = LINEAR_COLUMN
@@ -166,9 +156,7 @@ class LinearConfig:
             )
             config.bias = np.ascontiguousarray(
                 split(
-                    torch_to_numpy_with_dtype(qkv_module.bias, dtype=dtype).reshape(
-                        3, qkv_shape[-1] // 3
-                    ),
+                    torch_to_numpy_with_dtype(qkv_module.bias, dtype=dtype).reshape(3, qkv_shape[-1] // 3),
                     tensor_parallel,
                     rank,
                     dim=-1,
@@ -181,15 +169,9 @@ class LinearConfig:
                 assert type(m) == nn.Linear
                 assert not (hasattr(m, "bias") and m.bias is not None)
 
-            q_weight = split(
-                torch_to_numpy_with_dtype(qkv_modules[0].weight), tensor_parallel, rank
-            )
-            k_weight = split(
-                torch_to_numpy_with_dtype(qkv_modules[1].weight), tensor_parallel, rank
-            )
-            v_weight = split(
-                torch_to_numpy_with_dtype(qkv_modules[2].weight), tensor_parallel, rank
-            )
+            q_weight = split(torch_to_numpy_with_dtype(qkv_modules[0].weight), tensor_parallel, rank)
+            k_weight = split(torch_to_numpy_with_dtype(qkv_modules[1].weight), tensor_parallel, rank)
+            v_weight = split(torch_to_numpy_with_dtype(qkv_modules[2].weight), tensor_parallel, rank)
             split_v = np.concatenate((q_weight, k_weight, v_weight))
             config.weight = np.ascontiguousarray(split_v)
 
@@ -197,6 +179,7 @@ class LinearConfig:
             assert False, f"QKV modules format {qkv_modules} not supported"
 
         return config
+
 
 @dataclass
 class MoEMLPConfig:
@@ -236,10 +219,9 @@ class MoEMLPConfig:
         )
 
         mlp.router = LinearConfig(linear_type=LINEAR_ROW)
-        mlp.router.weight = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.mlp.router.weight.{rank}"
-        )
+        mlp.router.weight = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.router.weight.{rank}")
         return mlp
+
 
 @dataclass
 class AttentionConfig:
@@ -252,9 +234,7 @@ class AttentionConfig:
 
     @staticmethod
     def from_nemo(
-        weights_dict: Dict[str, np.ndarray],
-        layer_id: int,
-        rank: int = 0,
+        weights_dict: Dict[str, np.ndarray], layer_id: int, rank: int = 0,
     ):
         """Converts the nemo weights and config to `AttentionConfig`."""
         attention = AttentionConfig()
@@ -263,18 +243,12 @@ class AttentionConfig:
             weights_dict, f"layers.{layer_id}.attention.query_key_value.weight.{rank}"
         )
         attention.qkv.bias = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.attention.query_key_value.bias.{rank}",
+            weights_dict, f"layers.{layer_id}.attention.query_key_value.bias.{rank}",
         )
 
         attention.dense = LinearConfig(linear_type=LINEAR_ROW)
-        attention.dense.weight = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.attention.dense.weight.{rank}"
-        )
-        attention.dense.bias = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.attention.dense.bias",
-        )
+        attention.dense.weight = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.attention.dense.weight.{rank}")
+        attention.dense.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.attention.dense.bias",)
         return attention
 
 
@@ -298,16 +272,11 @@ class MLPConfig:
         """Converts the nemo weights and config to `MLPConfig`."""
         mlp = MLPConfig(hidden_act=llm_config.activation_function)
         mlp.fc = LinearConfig(linear_type=LINEAR_COLUMN)
-        mlp.fc.weight = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.weight.{rank}"
-        )
+        mlp.fc.weight = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.weight.{rank}")
 
         # print("********** mlp.fc.weight : ", mlp.fc.weight )
 
-        mlp.fc.bias = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}",
-        )
+        mlp.fc.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}",)
 
         gated = is_gated_activation(mlp.hidden_act)
         is_fast_glu = mlp.hidden_act in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
@@ -318,22 +287,14 @@ class MLPConfig:
                 if isinstance(llm_config, LlamaConfig) and not is_mcore and not is_fast_glu
                 else f"layers.{layer_id}.mlp.dense_h_to_4h.gate.weight.{rank}"
             )
-            mlp.gate.weight = get_tensor_from_dict(
-                weights_dict,
-                layer_name,
-            )
+            mlp.gate.weight = get_tensor_from_dict(weights_dict, layer_name,)
             mlp.gate.bias = get_tensor_from_dict(
-                weights_dict,
-                f"layers.{layer_id}.mlp.dense_h_to_4h.gate.bias.{rank}",
+                weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.gate.bias.{rank}",
             )
 
         mlp.proj = LinearConfig(linear_type=LINEAR_ROW)
-        mlp.proj.weight = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.mlp.dense_4h_to_h.weight.{rank}"
-        )
-        mlp.proj.bias = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.mlp.dense_4h_to_h.bias"
-        )
+        mlp.proj.weight = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.dense_4h_to_h.weight.{rank}")
+        mlp.proj.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.dense_4h_to_h.bias")
         return mlp
 
 
@@ -343,7 +304,7 @@ class DecoderLayerConfig:
 
     decoder_type: str = ""
     input_layernorm: LayernormConfig = None
-    mlp_layernorm: LayernormConfig = None #Falcon 40B/180B has mlp_layernorm
+    mlp_layernorm: LayernormConfig = None  # Falcon 40B/180B has mlp_layernorm
     attention: AttentionConfig = None
     post_layernorm: LayernormConfig = None
     mlp: MLPConfig = None
@@ -403,7 +364,9 @@ class DecoderLayerConfig:
             rotary_pct=llm_config.rotary_pct if hasattr(llm_config, "rotary_pct") else 1.0,
             rotary_base=(llm_config.rotary_base if hasattr(llm_config, "rotary_base") else 10000),
             rotary_scaling=(llm_config.rotary_scaling if hasattr(llm_config, "rotary_scaling") else None),
-            position_embedding_type=(llm_config.position_embedding_type if hasattr(llm_config, "position_embedding_type") else None),
+            position_embedding_type=(
+                llm_config.position_embedding_type if hasattr(llm_config, "position_embedding_type") else None
+            ),
             num_kv_heads=(llm_config.num_kv_heads if hasattr(llm_config, "num_kv_heads") else 0),
             moe_num_experts=(llm_config.moe_num_experts if hasattr(llm_config, "moe_num_experts") else None),
             moe_top_k=(llm_config.moe_top_k if hasattr(llm_config, "moe_top_k") else None),
@@ -417,23 +380,19 @@ class DecoderLayerConfig:
             LAYERNORM_RMS if isinstance(llm_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
         layer_config.input_layernorm.weight = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.input_layernorm.weight",
+            weights_dict, f"layers.{layer_id}.input_layernorm.weight",
         )
         layer_config.input_layernorm.bias = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.input_layernorm.bias",
+            weights_dict, f"layers.{layer_id}.input_layernorm.bias",
         )
 
         layer_config.mlp_layernorm = LayernormConfig()
-        layer_config.mlp_layernorm.layernorm_type = LAYERNORM_DEFAULT #Falcon uses default layernorm
+        layer_config.mlp_layernorm.layernorm_type = LAYERNORM_DEFAULT  # Falcon uses default layernorm
         layer_config.mlp_layernorm.weight = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.pre_mlp_layernorm.weight",
+            weights_dict, f"layers.{layer_id}.pre_mlp_layernorm.weight",
         )
         layer_config.mlp_layernorm.bias = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.pre_mlp_layernorm.bias",
+            weights_dict, f"layers.{layer_id}.pre_mlp_layernorm.bias",
         )
 
         layer_config.post_layernorm = LayernormConfig()
@@ -442,25 +401,19 @@ class DecoderLayerConfig:
         )
 
         layer_config.post_layernorm.weight = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.post_attention_layernorm.weight",
+            weights_dict, f"layers.{layer_id}.post_attention_layernorm.weight",
         )
         layer_config.post_layernorm.bias = get_tensor_from_dict(
-            weights_dict,
-            f"layers.{layer_id}.post_attention_layernorm.bias",
+            weights_dict, f"layers.{layer_id}.post_attention_layernorm.bias",
         )
 
-        if layer_config.post_layernorm.weight is None: #Falcon doesn't have post layernorm
+        if layer_config.post_layernorm.weight is None:  # Falcon doesn't have post layernorm
             layer_config.post_layernorm = None
 
         if layer_config.mlp_layernorm.weight is None:
             layer_config.mlp_layernorm = None
 
-        layer_config.attention = AttentionConfig.from_nemo(
-            weights_dict,
-            layer_id,
-            rank,
-        )
+        layer_config.attention = AttentionConfig.from_nemo(weights_dict, layer_id, rank,)
 
         moe = False
         if llm_config.moe_num_experts is not None:
@@ -504,7 +457,6 @@ class ModelConfig:
     quantization: str = QUANTIZATION_NONE
     dtype: str = "float16"
 
-
     # Model structure and weights
     vocab_embedding: EmbeddingConfig = None
     positional_embedding: EmbeddingConfig = None
@@ -514,11 +466,11 @@ class ModelConfig:
 
     # Ptuning metadata
     use_prompt_tuning: bool = False
-    use_parallel_embedding:bool = False
+    use_parallel_embedding: bool = False
     max_lora_rank: int = 64
 
     # Parallel metadata
-    mapping = None 
+    mapping = None
 
     def to_dict(self) -> dict:
         """Converts the instance to a python dict."""
@@ -561,11 +513,7 @@ class ModelConfig:
     @property
     def num_kv_heads(self):
         """Returns the num_key_value_heads of the model."""
-        return (
-            self.layers[0].num_kv_heads
-            if self.layers[0].num_kv_heads > 0
-            else self.num_attention_heads
-        )
+        return self.layers[0].num_kv_heads if self.layers[0].num_kv_heads > 0 else self.num_attention_heads
 
     @property
     def hidden_act(self):

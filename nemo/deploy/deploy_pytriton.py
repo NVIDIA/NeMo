@@ -114,7 +114,7 @@ class DeployPyTriton(DeployBase):
                     log_verbose=self.pytriton_log_verbose,
                     allow_grpc=self.allow_grpc,
                     allow_http=self.allow_http,
-                    grpc_address=self.address
+                    grpc_address=self.address,
                 )
                 self.triton = Triton(config=triton_config)
                 self.triton.bind(

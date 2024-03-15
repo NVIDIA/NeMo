@@ -1,11 +1,11 @@
 """This module contains the code to statup triton inference servers."""
 import logging
 import os
+import shutil
 import subprocess
 import typing
 
 from jinja2 import Environment, FileSystemLoader
-import shutil
 
 _ENSEMBLE_MODEL_CONFIGS = "/opt/NeMo/nemo/deploy/tensorrt_llm_backend/configs/"
 _DEFAULT_MODEL_DIR = "/opt/ensemble"
@@ -39,7 +39,6 @@ class ModelServer:
     def _allow_grpc(self) -> str:
         """Inidicate if Triton should allow grpc connections."""
         return "true" if not self._http else "false"
-
 
     @property
     def _gpt_model_type(self) -> str:
@@ -92,9 +91,7 @@ class ModelServer:
 
     def _render_tensorrt_llm_template(self, env):
         template_path = os.path.join("tensorrt_llm", "config.pbtxt.j2")
-        output_path = os.path.join(
-            self.model_repository, "tensorrt_llm", "config.pbtxt"
-        )
+        output_path = os.path.join(self.model_repository, "tensorrt_llm", "config.pbtxt")
 
         template = env.get_template(template_path)
 
@@ -109,9 +106,7 @@ class ModelServer:
 
     def _render_ensemble_template(self, env):
         template_path = os.path.join("ensemble", "config.pbtxt.j2")
-        output_path = os.path.join(
-            self.model_repository, "ensemble", "config.pbtxt"
-        )
+        output_path = os.path.join(self.model_repository, "ensemble", "config.pbtxt")
 
         template = env.get_template(template_path)
 
@@ -123,9 +118,7 @@ class ModelServer:
 
     def _render_postprocessing_template(self, env):
         template_path = os.path.join("postprocessing", "config.pbtxt.j2")
-        output_path = os.path.join(
-            self.model_repository, "postprocessing", "config.pbtxt"
-        )
+        output_path = os.path.join(self.model_repository, "postprocessing", "config.pbtxt")
 
         template = env.get_template(template_path)
 
@@ -137,9 +130,7 @@ class ModelServer:
 
     def _render_preprocessing_template(self, env):
         template_path = os.path.join("preprocessing", "config.pbtxt.j2")
-        output_path = os.path.join(
-            self.model_repository, "preprocessing", "config.pbtxt"
-        )
+        output_path = os.path.join(self.model_repository, "preprocessing", "config.pbtxt")
 
         template = env.get_template(template_path)
 
@@ -161,8 +152,7 @@ class ModelServer:
             print(f"Error: {e}")
 
         env = Environment(
-            loader=FileSystemLoader(searchpath=self.model_repository),
-            autoescape=False,
+            loader=FileSystemLoader(searchpath=self.model_repository), autoescape=False,
         )  # nosec; all the provided values are from code, not the user
 
         self._render_ensemble_template(env)
@@ -182,8 +172,6 @@ class ModelServer:
         except subporcess.CalledProcessError as e:
             _LOGGER.error("Error:", e)
 
-
     def stop(self) -> None:
         if self.proc != None:
             self.proc.terminate()
-

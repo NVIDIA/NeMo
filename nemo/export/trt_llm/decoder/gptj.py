@@ -15,14 +15,7 @@ from typing import Optional
 from tensorrt_llm.models.gptj.model import GPTJDecoderLayer
 from typing_extensions import override
 
-from ..model_config import (
-    LINEAR_COLUMN,
-    LINEAR_ROW,
-    AttentionConfig,
-    LayernormConfig,
-    LinearConfig,
-    MLPConfig,
-)
+from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
 
@@ -57,11 +50,7 @@ class GPTJDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
         )
 
         config.dense = LinearConfig.from_nn_module(
-            layer.attn.out_proj,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.attn.out_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         config.rotary_dim = layer.attn.rotary_dim
@@ -72,18 +61,10 @@ class GPTJDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_mlp(self, layer) -> MLPConfig:
         config = MLPConfig()
         config.fc = LinearConfig.from_nn_module(
-            layer.mlp.fc_in,
-            LINEAR_COLUMN,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.fc_in, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
         config.proj = LinearConfig.from_nn_module(
-            layer.mlp.fc_out,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.fc_out, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         return config

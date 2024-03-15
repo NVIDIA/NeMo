@@ -32,9 +32,7 @@ RANDOM_SEED = 0
 class StreamingResponseGenerator(queue.Queue[Optional[str]]):
     """A Generator that provides the inference results from an LLM."""
 
-    def __init__(
-        self, client: "GrpcTritonClient", request_id: str, force_batch: bool
-    ) -> None:
+    def __init__(self, client: "GrpcTritonClient", request_id: str, force_batch: bool) -> None:
         """Instantiate the generator class."""
         super().__init__()
         self._client = client
@@ -55,9 +53,7 @@ class StreamingResponseGenerator(queue.Queue[Optional[str]]):
 
     def _stop_stream(self) -> None:
         """Drain and shutdown the Triton stream."""
-        self._client.stop_stream(
-            "tensorrt_llm", self.request_id, signal=not self._batch
-        )
+        self._client.stop_stream("tensorrt_llm", self.request_id, signal=not self._batch)
 
 
 class _BaseTritonClient(abc.ABC):
@@ -72,25 +68,17 @@ class _BaseTritonClient(abc.ABC):
     @abc.abstractmethod
     def _inference_server_client(
         self,
-    ) -> Union[
-        Type[grpcclient.InferenceServerClient], Type[httpclient.InferenceServerClient]
-    ]:
+    ) -> Union[Type[grpcclient.InferenceServerClient], Type[httpclient.InferenceServerClient]]:
         """Return the prefered InferenceServerClient class."""
 
     @property
     @abc.abstractmethod
-    def _infer_input(
-        self,
-    ) -> Union[Type[grpcclient.InferInput], Type[httpclient.InferInput]]:
+    def _infer_input(self,) -> Union[Type[grpcclient.InferInput], Type[httpclient.InferInput]]:
         """Return the preferred InferInput."""
 
     @property
     @abc.abstractmethod
-    def _infer_output(
-        self,
-    ) -> Union[
-        Type[grpcclient.InferRequestedOutput], Type[httpclient.InferRequestedOutput]
-    ]:
+    def _infer_output(self,) -> Union[Type[grpcclient.InferRequestedOutput], Type[httpclient.InferRequestedOutput]]:
         """Return the preferred InferRequestedOutput."""
 
     def load_model(self, model_name: str, timeout: int = 1000) -> None:
@@ -115,14 +103,10 @@ class _BaseTritonClient(abc.ABC):
     def get_model_concurrency(self, model_name: str, timeout: int = 1000) -> int:
         """Get the modle concurrency."""
         self.load_model(model_name, timeout)
-        instances = self._client.get_model_config(model_name, as_json=True)["config"][
-            "instance_group"
-        ]
+        instances = self._client.get_model_config(model_name, as_json=True)["config"]["instance_group"]
         return sum(instance["count"] * len(instance["gpus"]) for instance in instances)
 
-    def _generate_stop_signals(
-        self,
-    ) -> List[Union[grpcclient.InferInput, httpclient.InferInput]]:
+    def _generate_stop_signals(self,) -> List[Union[grpcclient.InferInput, httpclient.InferInput]]:
         """Generate the signal to stop the stream."""
         inputs = [
             self._infer_input("input_ids", [1, 1], "INT32"),
@@ -136,19 +120,13 @@ class _BaseTritonClient(abc.ABC):
         inputs[3].set_data_from_numpy(np.array([[True]], dtype="bool"))
         return inputs
 
-    def _generate_outputs(
-        self,
-    ) -> List[Union[grpcclient.InferRequestedOutput, httpclient.InferRequestedOutput]]:
+    def _generate_outputs(self,) -> List[Union[grpcclient.InferRequestedOutput, httpclient.InferRequestedOutput]]:
         """Generate the expected output structure."""
         return [self._infer_output("text_output")]
 
-    def _prepare_tensor(
-        self, name: str, input_data: Any
-    ) -> Union[grpcclient.InferInput, httpclient.InferInput]:
+    def _prepare_tensor(self, name: str, input_data: Any) -> Union[grpcclient.InferInput, httpclient.InferInput]:
         """Prepare an input data structure."""
-        t = self._infer_input(
-            name, input_data.shape, np_to_triton_dtype(input_data.dtype)
-        )
+        t = self._infer_input(name, input_data.shape, np_to_triton_dtype(input_data.dtype))
         t.set_data_from_numpy(input_data)
         return t
 
@@ -171,9 +149,7 @@ class _BaseTritonClient(abc.ABC):
         runtime_top_p = np.array([top_p]).astype(np.float32).reshape((1, -1))
         temperature_array = np.array([temperature]).astype(np.float32).reshape((1, -1))
         len_penalty = np.array([length_penalty]).astype(np.float32).reshape((1, -1))
-        repetition_penalty_array = (
-            np.array([repetition_penalty]).astype(np.float32).reshape((1, -1))
-        )
+        repetition_penalty_array = np.array([repetition_penalty]).astype(np.float32).reshape((1, -1))
         random_seed = np.array([RANDOM_SEED]).astype(np.uint64).reshape((1, -1))
         beam_width_array = np.array([beam_width]).astype(np.uint32).reshape((1, -1))
         streaming_data = np.array([[stream]], dtype=bool)
@@ -208,9 +184,7 @@ class GrpcTritonClient(_BaseTritonClient):
     """GRPC connection to a triton inference server."""
 
     @property
-    def _inference_server_client(
-        self,
-    ) -> Type[grpcclient.InferenceServerClient]:
+    def _inference_server_client(self,) -> Type[grpcclient.InferenceServerClient]:
         """Return the prefered InferenceServerClient class."""
         return grpcclient.InferenceServerClient  # type: ignore
 
@@ -220,9 +194,7 @@ class GrpcTritonClient(_BaseTritonClient):
         return grpcclient.InferInput  # type: ignore
 
     @property
-    def _infer_output(
-        self,
-    ) -> Type[grpcclient.InferRequestedOutput]:
+    def _infer_output(self,) -> Type[grpcclient.InferRequestedOutput]:
         """Return the preferred InferRequestedOutput."""
         return grpcclient.InferRequestedOutput  # type: ignore
 
@@ -230,10 +202,7 @@ class GrpcTritonClient(_BaseTritonClient):
         """Send the stop signal to the Triton Inference server."""
         stop_inputs = self._generate_stop_signals()
         self._client.async_stream_infer(
-            model_name,
-            stop_inputs,
-            request_id=request_id,
-            parameters={"Streaming": True},
+            model_name, stop_inputs, request_id=request_id, parameters={"Streaming": True},
         )
 
     @staticmethod
@@ -289,22 +258,13 @@ class GrpcTritonClient(_BaseTritonClient):
         force_batch: bool = False,
     ) -> None:
         """Send the prompt and start streaming the result."""
-        self._client.start_stream(
-            callback=partial(self._stream_callback, result_queue, force_batch)
-        )
+        self._client.start_stream(callback=partial(self._stream_callback, result_queue, force_batch))
         self._client.async_stream_infer(
-            model_name=model_name,
-            inputs=request_inputs,
-            outputs=request_outputs,
-            request_id=request_id,
+            model_name=model_name, inputs=request_inputs, outputs=request_outputs, request_id=request_id,
         )
 
     def request_streaming(
-        self,
-        model_name: str,
-        request_id: Optional[str] = None,
-        force_batch: bool = False,
-        **params: Any,
+        self, model_name: str, request_id: Optional[str] = None, force_batch: bool = False, **params: Any,
     ) -> StreamingResponseGenerator:
         """Request a streaming connection."""
         if not self._client.is_model_ready(model_name):
@@ -317,18 +277,11 @@ class GrpcTritonClient(_BaseTritonClient):
         inputs = self._generate_inputs(stream=not force_batch, **params)
         outputs = self._generate_outputs()
         self._send_prompt_streaming(
-            model_name,
-            inputs,
-            outputs,
-            request_id,
-            result_queue,
-            force_batch,
+            model_name, inputs, outputs, request_id, result_queue, force_batch,
         )
         return result_queue
 
-    def stop_stream(
-        self, model_name: str, request_id: str, signal: bool = True
-    ) -> None:
+    def stop_stream(self, model_name: str, request_id: str, signal: bool = True) -> None:
         """Close the streaming connection."""
         if signal:
             self._send_stop_signals(model_name, request_id)
@@ -339,9 +292,7 @@ class HttpTritonClient(_BaseTritonClient):
     """HTTP connection to a triton inference server."""
 
     @property
-    def _inference_server_client(
-        self,
-    ) -> Type[httpclient.InferenceServerClient]:
+    def _inference_server_client(self,) -> Type[httpclient.InferenceServerClient]:
         """Return the prefered InferenceServerClient class."""
         return httpclient.InferenceServerClient  # type: ignore
 
@@ -351,17 +302,11 @@ class HttpTritonClient(_BaseTritonClient):
         return httpclient.InferInput  # type: ignore
 
     @property
-    def _infer_output(
-        self,
-    ) -> Type[httpclient.InferRequestedOutput]:
+    def _infer_output(self,) -> Type[httpclient.InferRequestedOutput]:
         """Return the preferred InferRequestedOutput."""
         return httpclient.InferRequestedOutput  # type: ignore
 
-    def request(
-        self,
-        model_name: str,
-        **params: Any,
-    ) -> str:
+    def request(self, model_name: str, **params: Any,) -> str:
         """Request inferencing from the triton server."""
         if not self._client.is_model_ready(model_name):
             raise RuntimeError("Cannot request streaming, model is not loaded")
@@ -372,9 +317,7 @@ class HttpTritonClient(_BaseTritonClient):
 
         # call the model for inference
         result = self._client.infer(model_name, inputs=inputs, outputs=outputs)
-        result_str = "".join(
-            [val.decode("utf-8") for val in result.as_numpy("text_output").tolist()]
-        )
+        result_str = "".join([val.decode("utf-8") for val in result.as_numpy("text_output").tolist()])
         # extract the generated part of the prompt
         # return(result_str)
         return self._trim_batch_response(result_str)

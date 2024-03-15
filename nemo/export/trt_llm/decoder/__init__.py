@@ -14,18 +14,18 @@ from typing import Dict, Type
 import tensorrt as trt
 
 from ..model_config import (
+    DECODER_FALCON,
     DECODER_GPT2,
     DECODER_GPTJ,
     DECODER_GPTNEXT,
     DECODER_LLAMA,
-    DECODER_FALCON,
     QUANTIZATION_NONE,
 )
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
+from .falcon import FALCONDecoderLayerBuilder, FALCONDecoderLayerConfigBuilder
 from .gpt import GPTDecoderLayerBuilder, GPTDecoderLayerConfigBuilder
 from .gptj import GPTJDecoderLayerBuilder, GPTJDecoderLayerConfigBuilder
 from .llama import LLAMADecoderLayerBuilder, LLAMADecoderLayerConfigBuilder
-from .falcon import FALCONDecoderLayerBuilder, FALCONDecoderLayerConfigBuilder
 
 DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
     DECODER_GPT2: GPTDecoderLayerConfigBuilder,
@@ -38,9 +38,7 @@ DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
 def build_decoder_layer_config(layer, decoder: str, dtype=trt.float16, rank=0, tensor_parallel=1):
     """Builds the decoder layer config with the input torch module."""
     assert decoder in DECODER_CONFIG_REGISTRY, f"{decoder} not supported"
-    return DECODER_CONFIG_REGISTRY[decoder](decoder, dtype, rank, tensor_parallel).build_layer(
-        layer
-    )
+    return DECODER_CONFIG_REGISTRY[decoder](decoder, dtype, rank, tensor_parallel).build_layer(layer)
 
 
 DECODER_REGISTRY: Dict[str, Type[DecoderLayerBuilder]] = {
@@ -60,12 +58,10 @@ def build_decoder_layer(
     quantization=QUANTIZATION_NONE,
     rank=0,
     tensor_parallel=1,
-    tp_group=None
+    tp_group=None,
 ):
     """Builds the tensorrt llm decoder layer module with the layer config as the input."""
     assert layer.decoder_type in DECODER_REGISTRY, f"{layer.decoder_type} not supported"
     builder = DECODER_REGISTRY[layer.decoder_type]
-    decoder_builder = builder(
-        layer, layer_id, num_layers, dtype, quantization, rank, tensor_parallel, tp_group
-    )
+    decoder_builder = builder(layer, layer_id, num_layers, dtype, quantization, rank, tensor_parallel, tp_group)
     return decoder_builder.decoder

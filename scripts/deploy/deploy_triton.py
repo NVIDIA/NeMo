@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import argparse
-import sys, os
+import logging
+import os
+import sys
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
-import logging
 
 try:
     from contextlib import nullcontext
@@ -32,30 +33,19 @@ LOGGER = logging.getLogger("NeMo")
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description=f"Deploy nemo models to Triton",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Deploy nemo models to Triton",
     )
-    parser.add_argument(
-        "-nc",
-        "--nemo_checkpoint",
-        type=str,
-        help="Source .nemo file"
-    )
+    parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
     parser.add_argument(
         "-pnc",
         "--ptuning_nemo_checkpoint",
         nargs='+',
         type=str,
         required=False,
-        help="Source .nemo file for prompt embeddings table"
+        help="Source .nemo file for prompt embeddings table",
     )
     parser.add_argument(
-        '-ti',
-        '--task_ids',
-        nargs='+',
-        type=str,
-        required=False,
-        help='Unique task names for the prompt embedding.'
+        '-ti', '--task_ids', nargs='+', type=str, required=False, help='Unique task names for the prompt embedding.'
     )
     parser.add_argument(
         "-mt",
@@ -64,62 +54,22 @@ def get_args(argv):
         required=False,
         choices=["gptnext", "gpt", "llama", "falcon", "starcoder", "mixtral"],
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
-             " gptnext and gpt are the same and keeping it for backward compatibility"
+        " gptnext and gpt are the same and keeping it for backward compatibility",
+    )
+    parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
+    parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
+    parser.add_argument(
+        "-tp", "--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
     )
     parser.add_argument(
-        "-tmn",
-        "--triton_model_name",
-        required=True,
-        type=str,
-        help="Name for the service"
+        "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
     )
     parser.add_argument(
-        "-tmv",
-        "--triton_model_version",
-        default=1,
-        type=int,
-        help="Version for the service"
+        "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
-    parser.add_argument(
-        "-tp",
-        "--triton_port",
-        default=8000,
-        type=int,
-        help="Port for the Triton server to listen for requests"
-    )
-    parser.add_argument(
-        "-tha",
-        "--triton_http_address",
-        default="0.0.0.0",
-        type=str,
-        help="HTTP address for the Triton server"
-    )
-    parser.add_argument(
-        "-tmr",
-        "--triton_model_repository",
-        default=None,
-        type=str,
-        help="Folder for the trt-llm conversion"
-    )
-    parser.add_argument(
-        "-ng",
-        "--num_gpus",
-        default=1,
-        type=int,
-        help="Number of GPUs for the deployment"
-    )
-    parser.add_argument(
-        "-tps",
-        "--tensor_parallelism_size",
-        type=int,
-        help="Tensor parallelism size"
-    )
-    parser.add_argument(
-        "-pps",
-        "--pipeline_parallelism_size",
-        type=int,
-        help="Pipeline parallelism size"
-    )
+    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -128,103 +78,56 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
+    parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
+    parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
+    parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument(
-        "-mil",
-        "--max_input_len",
-        default=256,
-        type=int,
-        help="Max input length of the model"
+        "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
     parser.add_argument(
-        "-mol",
-        "--max_output_len",
-        default=256,
-        type=int,
-        help="Max output length of the model"
-    )
-    parser.add_argument(
-        "-mbs",
-        "--max_batch_size",
-        default=8,
-        type=int,
-        help="Max batch size of the model"
-    )
-    parser.add_argument(
-        "-mpet",
-        "--max_prompt_embedding_table_size",
-        default=None,
-        type=int,
-        help="Max prompt embedding table size"
-    )
-    parser.add_argument(
-        "-upkc",
-        "--use_paged_kv_cache",
-        default=False,
-        action='store_true',
-        help="Enable paged kv cache."
+        "-upkc", "--use_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
     )
     parser.add_argument(
         "-dcf",
         "--disable_context_fmha",
         default=False,
         action='store_true',
-        help="Disable fused Context MultiHeadedAttention (required for V100 support)."
+        help="Disable fused Context MultiHeadedAttention (required for V100 support).",
     )
     parser.add_argument(
         "-mbm",
         '--multi_block_mode',
         default=False,
         action='store_true',
-        help=
-        'Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
-                        It is beneifical when batchxnum_heads cannot fully utilize GPU.'
+        help='Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU.',
     )
     parser.add_argument(
-        "-es",
-        '--enable_streaming',
-        default=False,
-        action='store_true',
-        help="Enables streaming sentences."
+        "-es", '--enable_streaming', default=False, action='store_true', help="Enables streaming sentences."
     )
-    parser.add_argument(    
+    parser.add_argument(
         '--use_lora_plugin',
         nargs='?',
         const=None,
         default=False,
         choices=['float16', 'float32', 'bfloat16'],
-        help="Activates the lora plugin which enables embedding sharing."
+        help="Activates the lora plugin which enables embedding sharing.",
     )
     parser.add_argument(
         '--lora_target_modules',
         nargs='+',
         default=None,
-        choices=[
-            "attn_qkv",
-            "attn_q",
-            "attn_k",
-            "attn_v",
-            "attn_dense",
-            "mlp_h_to_4h",
-            "mlp_gate",
-            "mlp_4h_to_h",
-        ],
-        help=
-        "Add lora in which modules. Only be activated when use_lora_plugin is enabled."
+        choices=["attn_qkv", "attn_q", "attn_k", "attn_v", "attn_dense", "mlp_h_to_4h", "mlp_gate", "mlp_4h_to_h",],
+        help="Add lora in which modules. Only be activated when use_lora_plugin is enabled.",
     )
     parser.add_argument(
         '--max_lora_rank',
         type=int,
         default=64,
         help='maximum lora rank for different lora modules. '
-             'It is used to compute the workspace size of lora plugin.'
+        'It is used to compute the workspace size of lora plugin.',
     )
-    parser.add_argument(
-        "-dm",
-        "--debug_mode",
-        default=False,
-        action='store_true',
-        help="Enable debug mode"
-    )
+    parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
 
     args = parser.parse_args(argv)
     return args
@@ -268,17 +171,13 @@ def nemo_deploy(argv):
         return
 
     if args.nemo_checkpoint is not None and args.model_type is None:
-        LOGGER.error(
-            "Model type is required to be defined if a nemo checkpoint is provided."
-        )
+        LOGGER.error("Model type is required to be defined if a nemo checkpoint is provided.")
         return
 
     ptuning_tables_files = []
     if not args.ptuning_nemo_checkpoint is None:
         if args.max_prompt_embedding_table_size is None:
-            LOGGER.error(
-                "max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s)."
-            )
+            LOGGER.error("max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s).")
             return
 
         for pt_checkpoint in args.ptuning_nemo_checkpoint:
@@ -287,14 +186,10 @@ def nemo_deploy(argv):
                 if ptuning_nemo_checkpoint_path.is_file():
                     ptuning_tables_files.append(pt_checkpoint)
                 else:
-                    LOGGER.error(
-                        "Could not read the prompt tuning tables from {0}".format(pt_checkpoint)
-                    )
+                    LOGGER.error("Could not read the prompt tuning tables from {0}".format(pt_checkpoint))
                     return
             else:
-                LOGGER.error(
-                    "File or directory {0} does not exist.".format(pt_checkpoint)
-                )
+                LOGGER.error("File or directory {0} does not exist.".format(pt_checkpoint))
                 return
 
         if args.task_ids is not None:
@@ -340,10 +235,13 @@ def nemo_deploy(argv):
             else:
                 task_id = i
 
-            LOGGER.info("Adding prompt embedding table: {0} with task id: {1}.".format(prompt_embeddings_checkpoint_path, task_id))
+            LOGGER.info(
+                "Adding prompt embedding table: {0} with task id: {1}.".format(
+                    prompt_embeddings_checkpoint_path, task_id
+                )
+            )
             trt_llm_exporter.add_prompt_table(
-                task_name=str(task_id),
-                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                task_name=str(task_id), prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
         LOGGER.error("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
@@ -357,7 +255,7 @@ def nemo_deploy(argv):
             max_batch_size=args.max_batch_size,
             port=args.triton_port,
             address=args.triton_http_address,
-            streaming=args.enable_streaming
+            streaming=args.enable_streaming,
         )
 
         LOGGER.info("Triton deploy function will be called.")

@@ -21,6 +21,7 @@ try:
 except:
     use_trtllm_backend = False
 
+
 class DeployTensorRTLLM(DeployBase):
 
     """
@@ -94,7 +95,7 @@ class DeployTensorRTLLM(DeployBase):
             address=http_address,
         )
 
-        self.model_repo_dir=model_repo_dir
+        self.model_repo_dir = model_repo_dir
 
     def deploy(self):
 
@@ -102,11 +103,12 @@ class DeployTensorRTLLM(DeployBase):
         Deploys any models to Triton Inference Server.
         """
 
-
         ## create config here
 
         try:
-            self.triton=ModelServer(self.model, http=True, max_batch_size=self.max_batch_size, model_repo_dir=self.model_repo_dir)
+            self.triton = ModelServer(
+                self.model, http=True, max_batch_size=self.max_batch_size, model_repo_dir=self.model_repo_dir
+            )
         except Exception as e:
             self.triton = None
             print(e)

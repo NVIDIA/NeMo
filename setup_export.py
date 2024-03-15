@@ -5,7 +5,7 @@ import setuptools
 
 
 def setup_export():
-    
+
     setuptools.setup(
         name="NeMo Export",
         # Versions should comply with PEP440.  For a discussion on single-sourcing
@@ -18,9 +18,9 @@ def setup_export():
         author="NVIDIA",
         license='Apache2',
         packages=[
-            "nemo", 
-            "nemo.export", 
-            "nemo.export.trt_llm", 
+            "nemo",
+            "nemo.export",
+            "nemo.export.trt_llm",
             "nemo.export.trt_llm.decoder",
             "nemo.export.trt_llm.nemo",
             "nemo.deploy",
