@@ -9,11 +9,7 @@ Sentence-BERT utilizes a BERT-based architecture, but it is trained using a siam
 Sentence-BERT is commonly used to generate high-quality sentence embeddings for various downstream natural language processing tasks, such as semantic textual similarity, clustering, and information retrieval
 
 Data Input for the Sentence-BERT model
-<<<<<<< HEAD
 --------------------------------------
-=======
----------------------------------------
->>>>>>> fix typo in doc
 
 The fine-tuning data for the Sentence-BERT (SBERT) model should consist of data instances, 
 each comprising a query, a positive document, and a list of negative documents. Negative mining is 
