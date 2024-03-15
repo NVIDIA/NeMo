@@ -18,6 +18,7 @@ Example to run this conversion script:
     python convert_bert_hf_to_nemo.py \
      --input_name_or_path "thenlper/gte-large" \
      --output_path /path/to/output/nemo/file.nemo \
+     --mcore True \
      --precision 32
 ```
 """
@@ -26,7 +27,6 @@ import os
 from argparse import ArgumentParser
 
 import torch
-import torch.nn.functional as F
 from omegaconf import OmegaConf
 from transformers import AutoModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -50,7 +50,7 @@ def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("--input_name_or_path", type=str, default="thenlper/gte-large")
-    parser.add_argument("--mcore", type=bool, default=False)
+    parser.add_argument("--mcore", type=bool, default=True)
     parser.add_argument(
         "--hparams_file",
         type=str,

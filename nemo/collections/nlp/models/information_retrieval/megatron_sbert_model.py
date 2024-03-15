@@ -147,7 +147,7 @@ class MegatronSBertModel(MegatronBertModel):
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building Bert datasets.')
+        logging.info(f'Finished building SBert datasets.')
 
         return self._train_ds, self._validation_ds, self._test_ds
 
@@ -189,8 +189,7 @@ class MegatronSBertModel(MegatronBertModel):
             else:
                 self.build_train_valid_test_datasets()
                 self.setup_training_data(self.cfg.data)
-                # self.setup_validation_data(self.cfg.data)
-                # self.setup_test_data(self.cfg.data)
+                self.setup_validation_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -299,6 +298,22 @@ class MegatronSBertModel(MegatronBertModel):
             collate_fn=dataset.collate_fn
         )
         return dataloader
+
+    def setup_training_data(self, cfg):
+        if self._train_ds:
+            consumed_samples = self.compute_consumed_samples(0)
+            logging.info(
+                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+            )
+            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+
+    def setup_validation_data(self, cfg):
+        if self._validation_ds:
+            consumed_samples = 0
+            logging.info(
+                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+            )
+            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
