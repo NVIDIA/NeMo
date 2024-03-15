@@ -166,11 +166,12 @@ def parse_weights(
 ):
     for key in weight_dict:
         if key.endswith('_extra_state'):
-            if weight_dict[key].read() == b'':
+            if weight_dict[key] is None:
+                continue
+            elif weight_dict[key].read() == b'':
                 continue
             else:
                 raise RuntimeError("encountered _extra_state that is non empty. I don't know what to do!!")
-
         new_key = key
         name_translate = translator
 
@@ -311,7 +312,7 @@ def load_from_checkpoint(
         checkpoint['state_dict'] = OrderedDict()
         parse_weights(
             old_checkpoint['model'],
-            "",
+            ".module",
             total_params,
             checkpoint['state_dict'],
             translator=kwargs['translator'],
@@ -559,3 +560,4 @@ if __name__ == '__main__':
     torch.distributed.barrier()
     convert(local_rank, rank, world_size, args)
     torch.distributed.barrier()
+
