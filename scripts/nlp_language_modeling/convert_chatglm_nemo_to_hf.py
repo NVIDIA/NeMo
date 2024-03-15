@@ -30,17 +30,17 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 
 1) Generate only HF weights from a nemo file:
 
-    python convert_nemo_chatglm_to_hf.py \
-    --in-file /path/to/file.nemo or /path/to/extracted_folder \
-    --out-file /path/to/pytorch_model.bin
+    python convert_chatglm_nemo_to_hf.py \
+    --input_name_or_path /path/to/file.nemo or /path/to/extracted_folder \
+    --output_path /path/to/pytorch_model.bin
     
 2) Generate the full HF model folder
 
-    python convert_nemo_chatglm_to_hf.py \
-    --in-file /path/to/file.nemo or /path/to/extracted_folder \
-    --out-file /path/to/pytorch_model.bin \
-    --hf-in-file /path/to/input_hf_folder \
-    --hf-out-file /path/to/output_hf_folder
+    python convert_chatglm_nemo_to_hf.py \
+    --input_name_or_path /path/to/file.nemo or /path/to/extracted_folder \
+    --output_path /path/to/pytorch_model.bin \
+    --hf_input_path /path/to/input_hf_folder \
+    --hf_output_path /path/to/output_hf_folder
 
     Use the --cpu-only flag if the model cannot fit in the GPU. 
     However this option makes the conversion script significantly slower.
@@ -50,17 +50,18 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to .nemo file",
+        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file",
     )
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to HF .bin file")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
-        "--hf-in-path",
+        "--hf_input_path",
         type=str,
         default=None,
-        help="A HF model path, " "e.g. a folder containing https://huggingface.co/THUDM/chatglm3-6b/blob/main",
+        help="A HF model path, "
+        "e.g. a folder containing https://huggingface.co/baichuan-inc/Baichuan2-7B-Base/tree/main",
     )
     parser.add_argument(
-        "--hf-out-path",
+        "--hf_output_path",
         type=str,
         default=None,
         help="Output HF model path, " "with the same format as above but user's own weights",
@@ -222,9 +223,9 @@ def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
 
 if __name__ == '__main__':
     args = get_args()
-    convert(args.in_file, args.out_file, precision=args.precision, cpu_only=args.cpu_only)
-    if args.hf_in_path and args.hf_out_path:
-        replace_hf_weights(args.out_file, args.hf_in_path, args.hf_out_path)
+    convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
+    if args.hf_input_path and args.hf_output_path:
+        replace_hf_weights(args.output_path, args.hf_input_path, args.hf_output_path)
     else:
-        logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
-        logging.info(f".bin file is saved to {args.out_file}")
+        logging.info("`hf_input_path` and/or `hf_output_path` not provided, not generating full HF model.")
+        logging.info(f".bin file is saved to {args.output_path}")
