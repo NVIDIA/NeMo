@@ -15,6 +15,7 @@ You can learn more about aspects of the NeMo "core" by following the links below
    :titlesonly:
 
    core
+   neural_modules
    exp_manager
    neural_types
    export
