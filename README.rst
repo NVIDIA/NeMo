@@ -163,7 +163,8 @@ The NeMo Framework can be installed in a variety of ways, depending on your need
 
 * Docker - Refer to the `Docker containers <#Docker-containers>`_ section for installation instructions.
   * This is recommended for Large Language Models (LLM), Multimodal and Vision domains.
-  * TODO: @Eric Add link to unified NeMo container here.
+  * NeMo LLM & Multimodal Container - `nvcr.io/nvidia/nemo:24.01.01.framework`
+  * NeMo Speech Container - `nvcr.io/nvidia/nemo:24.01.speech`
 
 Conda
 ~~~~~
