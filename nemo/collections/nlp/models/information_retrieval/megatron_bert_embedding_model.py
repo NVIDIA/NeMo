@@ -329,10 +329,9 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
-            batches = next(dataloader_iter)
+            batches = next(dataloader_iter)[0]
             batches = {k: v.cuda(non_blocking=True) for k, v in batches.items()}
-            self.model.eval()
-
+            
             if self.mcore_bert:
 
                 batches["tokentype_ids"] = batches.pop("token_type_ids")
