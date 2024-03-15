@@ -147,7 +147,7 @@ class EncDecSpeechSSLModel(SpeechEncDecSelfSupervisedModel):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def inference_pass(self, batch, batch_idx, dataloader_idx=0, mode='val'):
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
@@ -160,12 +160,33 @@ class EncDecSpeechSSLModel(SpeechEncDecSelfSupervisedModel):
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
 
-        return {'val_loss': loss_value}
+        return {f'{mode}_loss': loss_value}
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        metrics = self.inference_pass(batch, batch_idx, dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
-        return test_logs
+        metrics = self.inference_pass(batch, batch_idx, dataloader_idx, eval_mode="test")
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': val_loss_mean}
+        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'test_loss': test_loss_mean}
+        return {'test_loss': test_loss_mean, 'log': tensorboard_logs}
 
 
 class SelfSupervisedConvMLMModel(SpeechEncDecSelfSupervisedModel):
@@ -285,7 +306,7 @@ class SelfSupervisedConvMLMModel(SpeechEncDecSelfSupervisedModel):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def inference_pass(self, batch, batch_idx, dataloader_idx=0, mode='val'):
         input_signal, input_signal_length, _, _ = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, masks, tokens = self.forward(
@@ -298,9 +319,30 @@ class SelfSupervisedConvMLMModel(SpeechEncDecSelfSupervisedModel):
 
         loss_value = self.loss(masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len)
 
-        return {'val_loss': loss_value}
+        return {f'{mode}_loss': loss_value}
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        metrics = self.inference_pass(batch, batch_idx, dataloader_idx)
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
-        return test_logs
+        metrics = self.inference_pass(batch, batch_idx, dataloader_idx, eval_mode="test")
+        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+            self.validation_step_outputs[dataloader_idx].append(metrics)
+        else:
+            self.validation_step_outputs.append(metrics)
+        return metrics
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': val_loss_mean}
+        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'test_loss': test_loss_mean}
+        return {'test_loss': test_loss_mean, 'log': tensorboard_logs}
