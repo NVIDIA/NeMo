@@ -81,7 +81,6 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         self.ctc_wer = WER(
             decoding=self.ctc_decoding,
             use_cer=self.cfg.aux_ctc.get('use_cer', False),
-            dist_sync_on_step=True,
             log_prediction=self.cfg.get("log_prediction", False),
         )
 
@@ -273,7 +272,6 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                     decoding=self.ctc_decoding,
                     use_cer=self.ctc_wer.use_cer,
                     log_prediction=self.ctc_wer.log_prediction,
-                    dist_sync_on_step=True,
                 )
 
                 # Update config
@@ -320,10 +318,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         self.ctc_decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=self.ctc_decoder.vocabulary)
 
         self.ctc_wer = WER(
-            decoding=self.ctc_decoding,
-            use_cer=self.ctc_wer.use_cer,
-            log_prediction=self.ctc_wer.log_prediction,
-            dist_sync_on_step=True,
+            decoding=self.ctc_decoding, use_cer=self.ctc_wer.use_cer, log_prediction=self.ctc_wer.log_prediction,
         )
 
         # Update config

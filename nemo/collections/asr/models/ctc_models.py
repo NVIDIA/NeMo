@@ -102,7 +102,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         self.wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
-            dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
         )
 
@@ -214,7 +213,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             self.wer = WER(
                 decoding=self.decoding,
                 use_cer=self._cfg.get('use_cer', False),
-                dist_sync_on_step=True,
                 log_prediction=self._cfg.get("log_prediction", False),
             )
 
@@ -255,12 +253,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             decoding_cfg=decoding_cfg, vocabulary=OmegaConf.to_container(self.decoder.vocabulary)
         )
 
-        self.wer = WER(
-            decoding=self.decoding,
-            use_cer=self.wer.use_cer,
-            log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
-        )
+        self.wer = WER(decoding=self.decoding, use_cer=self.wer.use_cer, log_prediction=self.wer.log_prediction,)
 
         self.decoder.temperature = decoding_cfg.get('temperature', 1.0)
 

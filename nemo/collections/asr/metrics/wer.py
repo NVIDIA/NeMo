@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple, Union
 import editdistance
 import jiwer
 import torch
+
 from torchmetrics import Metric
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
@@ -253,9 +254,8 @@ class WER(Metric):
         log_prediction=True,
         fold_consecutive=True,
         batch_dim_index=0,
-        dist_sync_on_step=False,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        super().__init__(sync_on_compute=False, dist_sync_on_step=False)
 
         self.decoding = decoding
         self.use_cer = use_cer

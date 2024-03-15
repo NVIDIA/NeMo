@@ -59,20 +59,14 @@ class WERBPE_TS(WER):
     """
 
     def __init__(
-        self,
-        tokenizer: TokenizerSpec,
-        batch_dim_index=0,
-        use_cer=False,
-        ctc_decode=None,
-        log_prediction=True,
-        dist_sync_on_step=False,
+        self, tokenizer: TokenizerSpec, batch_dim_index=0, use_cer=False, ctc_decode=None, log_prediction=True,
     ):
         if ctc_decode is not None:
             logging.warning(f'`ctc_decode` was set to {ctc_decode}. Note that this is ignored.')
 
         decoding_cfg = CTCBPEDecodingConfig(batch_dim_index=batch_dim_index)
         decoding = CTCBPEDecoding(decoding_cfg, tokenizer=tokenizer)
-        super().__init__(decoding, use_cer, log_prediction, dist_sync_on_step)
+        super().__init__(decoding, use_cer, log_prediction)
 
     def ctc_decoder_predictions_tensor_with_ts(
         self, time_stride, predictions: torch.Tensor, predictions_len: torch.Tensor = None
@@ -164,20 +158,14 @@ class WER_TS(WER):
     """
 
     def __init__(
-        self,
-        vocabulary,
-        batch_dim_index=0,
-        use_cer=False,
-        ctc_decode=None,
-        log_prediction=True,
-        dist_sync_on_step=False,
+        self, vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=None, log_prediction=True,
     ):
         if ctc_decode is not None:
             logging.warning(f'`ctc_decode` was set to {ctc_decode}. Note that this is ignored.')
 
         decoding_cfg = CTCDecodingConfig(batch_dim_index=batch_dim_index)
         decoding = CTCDecoding(decoding_cfg, vocabulary=vocabulary)
-        super().__init__(decoding, use_cer, log_prediction, dist_sync_on_step)
+        super().__init__(decoding, use_cer, log_prediction)
 
     def decode_tokens_to_str_with_ts(self, tokens: List[int], timestamps: List[int]) -> str:
         """
@@ -430,7 +418,6 @@ class ASRDecoderTimeStamps:
             batch_dim_index=0,
             use_cer=asr_model._cfg.get('use_cer', False),
             ctc_decode=True,
-            dist_sync_on_step=True,
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
@@ -558,7 +545,6 @@ class ASRDecoderTimeStamps:
             batch_dim_index=0,
             use_cer=asr_model._cfg.get('use_cer', False),
             ctc_decode=True,
-            dist_sync_on_step=True,
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
@@ -642,7 +628,6 @@ class ASRDecoderTimeStamps:
             batch_dim_index=0,
             use_cer=asr_model._cfg.get('use_cer', False),
             ctc_decode=True,
-            dist_sync_on_step=True,
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
