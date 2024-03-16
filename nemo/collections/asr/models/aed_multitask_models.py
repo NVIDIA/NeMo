@@ -107,7 +107,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     lang_field: str = "target_lang"
 
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
-        default_factory=MultiTaskTranscriptionInternalConfig
+        default_factory=lambda: MultiTaskTranscriptionInternalConfig()
     )
 
 
