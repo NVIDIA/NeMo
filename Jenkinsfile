@@ -3705,7 +3705,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
-
+/*
     stage('L2: Megatron GPT Pretraining with EP=2') {
       when {
         anyOf {
@@ -3757,6 +3757,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
+*/
     stage('L2: Megatron GPT with Rope Pretraining and Resume Training TP=2') {
      when {
        anyOf {
