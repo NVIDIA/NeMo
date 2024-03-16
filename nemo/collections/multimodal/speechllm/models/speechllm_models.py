@@ -911,7 +911,10 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
     ):
         # keep the tokenizer
         # TODO: decide a way to load tokenizer for inference
-        model.perception.tokenizer = audio_model.tokenizer
+        if not hasattr(cfg.model, "pretrained_canary_model"):
+            # the tokenizer comes from canary if pretrained encoder and canary
+            # has different tokenizers
+            model.perception.tokenizer = audio_model.tokenizer
         use_multi_encoder = cfg.model.perception.get("encoders", None) is not None
         strict = 'overwrite_cfgs' not in cfg.model.perception and 'adapter' not in cfg.model.perception
         if not use_multi_encoder:
