@@ -114,6 +114,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
             if not hasattr(self, field):
                 raise ValueError(f"`{field}` must be present in the transcription config: {self}")
 
+
 class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTranscriptionMixin):
     """Base class for AED multi-task models"""
 
