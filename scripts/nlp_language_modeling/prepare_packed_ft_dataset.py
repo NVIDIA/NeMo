@@ -18,12 +18,15 @@ from dataclasses import dataclass
 from typing import Tuple
 
 import numpy as np
-from tqdm import tqdm
+from nemo.utils import logging
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
+
 from nemo.utils.exp_manager import exp_manager
+from tqdm import tqdm
+
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 
 """ 
 Script to prepare packed dataset from a SFT/PEFT dataset in the jsonl format.
@@ -57,13 +60,11 @@ Note:
 
 PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle']
 
-
 def find_first_bin_that_fits(bins, s, bin_size):
     for i, abin in enumerate(bins):
         if sum(abin) + s <= bin_size:
             return i
     return -1
-
 
 def first_fit(seqlens, pack_size):
     res = []
@@ -75,17 +76,14 @@ def first_fit(seqlens, pack_size):
             res[first_bin].append(s)
     return res
 
-
 def first_fit_decreasing(seqlens, pack_size):
     sorted_seqlens = sorted(seqlens, reverse=True)
     return first_fit(sorted_seqlens, pack_size)
-
 
 def first_fit_shuffle(seqlens, pack_size):
     shuffled_seqlens = seqlens[:]
     np.random.shuffle(shuffled_seqlens)
     return first_fit(shuffled_seqlens, pack_size)
-
 
 def create_assignment(output_path, assignments, ifile_handles):
     n_samples_in_this_shard = len(assignments)
@@ -105,17 +103,20 @@ def create_assignment(output_path, assignments, ifile_handles):
 
     output_data = []
     for i in range(len(input_ids)):
-        item_dict = {'input_ids': input_ids[i], 'loss_mask': loss_mask[i], 'seq_start_id': seq_start_id[i]}
+        item_dict = {
+            'input_ids':input_ids[i],
+            'loss_mask':loss_mask[i],
+            'seq_start_id':seq_start_id[i]
+        }
         output_data.append(item_dict)
 
     assert all(not seq[0] for seq in ifile_handles.values()), "Error: There are items left over from the assignment"
     assert all(not seq[1] for seq in ifile_handles.values()), "Error: There are items left over from the assignment"
     np.save(output_path, output_data)
-    print("Done, output written to", output_path)
-
+    logging.info(f"Done, output written to {output_path}")
 
 def tokenize_dataset(cfg):
-    print("Tokenizing dataset...")
+    logging.info("Tokenizing dataset...")
     # using the same template as SFT/PEFT script. This may be overkill but guarantees the preprocess settings
     # are identical to normal SFT training
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
@@ -128,9 +129,8 @@ def tokenize_dataset(cfg):
     train_ds = model._build_dataset(cfg.model.data.train_ds, is_train=False)[0]
     return np.array([train_ds[i] for i in range(len(train_ds))])
 
-
 def create_hist(dataset, truncate_seq_len):
-    print("Creating histogram from tokenized dataset...")
+    logging.info("Creating histogram from tokenized dataset...")
 
     sequences = collections.defaultdict(list)
     counts = [0] * truncate_seq_len
@@ -140,40 +140,37 @@ def create_hist(dataset, truncate_seq_len):
         sequences[seq_len].append(item_dict)
         counts[seq_len] += 1
 
-    print("Histogram of sequence lengths")
-    print(counts)
+    logging.info("Histogram of sequence lengths")
+    logging.info(counts)
 
     histogram = []
     for seq_len in range(truncate_seq_len):
         histogram.append(len(sequences[seq_len]))
 
     return sequences, histogram
-
-
+    
 def run_packing(sequences, histogram, output_dir, pack_size, packing_algorithm, seed=0):
-    print(f"Packing sequences to length {pack_size}...")
+    logging.info(f"Packing sequences to length {pack_size}...")
 
     all_seq_lens = []
     for i, count in enumerate(histogram):
-        all_seq_lens.extend([i] * count)
+        all_seq_lens.extend([i]*count)
 
     packing_fn = globals()[packing_algorithm]
     assignments = packing_fn(all_seq_lens, pack_size)
     packed_seq_lens = [sum(x) for x in assignments]
     packing_factor = len(all_seq_lens) / len(packed_seq_lens)
 
-    print("Packed sequence lengths:")
-    print(packed_seq_lens)
-    print(f">>>>> For pack size {pack_size}, average number of sequences per pack is n = {packing_factor} <<<<<")
+    logging.info("Packed sequence lengths:")
+    logging.info(packed_seq_lens)
+    logging.info(f">>>>> For pack size {pack_size}, average number of sequences per pack is n = {packing_factor} <<<<<")
 
     ifile_handles = {}
-    for seq_len in tqdm(range(pack_size + 1)):
+    for seq_len in tqdm(range(pack_size+1)):
         per_seq_data = sequences[seq_len]
         if len(per_seq_data) > 0:
             input_ids = np.array([x['input_ids'] for x in per_seq_data])
-            loss_mask = np.array(
-                [[idx >= x['answer_start_idx'] for idx in range(len(x['input_ids']))] for x in per_seq_data]
-            )
+            loss_mask = np.array([[idx >= x['answer_start_idx'] for idx in range(len(x['input_ids']))] for x in per_seq_data])
             perm = np.random.permutation(len(input_ids))
             ifile_handles[seq_len] = (input_ids[perm].tolist(), loss_mask[perm].tolist())
         else:
@@ -201,17 +198,15 @@ class PackingArgs:
         return self
 
 
-@hydra_runner(
-    config_path="../../examples/nlp/language_modeling/tuning/conf", config_name="megatron_gpt_finetuning_config"
-)
+@hydra_runner(config_path="../../examples/nlp/language_modeling/tuning/conf",
+              config_name="megatron_gpt_finetuning_config")
 def main(cfg) -> None:
     args = PackingArgs().from_config(cfg)
     dataset = tokenize_dataset(cfg)
     sequences, histogram = create_hist(dataset, cfg.model.data.train_ds.max_seq_length)
     for pack_size in args.pack_sizes:
         run_packing(sequences, histogram, args.output_dir, pack_size, args.packing_algorithm, args.seed)
-    print(
-        f"""
+    logging.info(f"""
 ✅ Packed datasets with pack sizes {args.pack_sizes} are prepared successfully.
 To train with packed sequences, you need to change three things in the SFT/PEFT config file
 1. Turn on the packed_sequence flag 
@@ -228,8 +223,7 @@ To train with packed sequences, you need to change three things in the SFT/PEFT 
    > model.micro_batch_size=1
    > model.global_batch_size=<previous GBS divided by n>
 """
-    )
-
+)
 
 if __name__ == '__main__':
     main()
