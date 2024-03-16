@@ -106,7 +106,9 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     text_field: str = "answer"
     lang_field: str = "target_lang"
 
-    _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(default_factory=MultiTaskTranscriptionInternalConfig)
+    _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
+        default_factory=MultiTaskTranscriptionInternalConfig
+    )
 
 
 class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTranscriptionMixin):
