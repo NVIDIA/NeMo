@@ -29,7 +29,18 @@ jobs:
         whoami
         nvidia-smi
 
+  checkout-repository:
+    runs-on: self-hosted-azure
+    container:
+      image: nvcr.io/nvidia/pytorch:24.01-py3
+      volumes:
+        - ${{ github.workspace }}:/workspace
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
   cicd-test-container-setup:
+    needs: [checkout-repository]
     runs-on: self-hosted-azure
     # uses: actions/cache@v2
     #container:
@@ -42,14 +53,11 @@ jobs:
 #        --env TRANSFORMERS_OFFLINE=0 
 #        --env HYDRA_FULL_ERROR=1
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-
     - name: Container setup
       run: |
         # Pull base PyTorch container
         docker pull nvcr.io/nvidia/pytorch:24.01-py3
-        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume $(pwd):/workspace --volume /home/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
+        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}:/workspace --volume /home/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
             set -x
 
             # PyTorch version
