@@ -3729,7 +3729,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.expert_model_parallel_size=2 \
         ++model.num_moe_experts=2 \
         ++model.moe_router_topk=1 \
-        ++model.megatron_amp_O2=False \
+        ++model.megatron_amp_O2=True \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=1 \
