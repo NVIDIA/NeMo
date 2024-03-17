@@ -141,10 +141,23 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
         # self.unfreeze()
         known_groups = []
         freeze_llm = self.cfg.get('freeze_llm', True)
+        unfreeze_emb = self.cfg.get('unfreeze_emb', False)
         if freeze_llm:
-            known_groups.append('model.')
+            if unfreeze_emb:
+                known_groups.append('model.decoder.')
+            else:
+                known_groups.append('model.')
+
         for param in self.model.parameters():
             param.requires_grad = not freeze_llm
+        if freeze_llm and unfreeze_emb:
+            for param in self.model.embedding.parameters():
+                param.requires_grad = True
+            for param in self.model.output_layer.parameters():
+                param.requires_grad = True
+            for param in self.model.rotary_pos_emb.parameters():
+                param.requires_grad = True
+
 
         if self.cfg.get('freeze_audio_encoder', False):
             if self.cfg.perception.get("speaker_model", None) is not None:
@@ -791,6 +804,7 @@ class ModularAudioGPTLoRAModel(MegatronGPTLoRAModel):
                 
             gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
+            gpt_cfg.unfreeze_emb = cfg.model.get('unfreeze_emb', False)
             gpt_cfg.text_loss_weight = cfg.model.get('text_loss_weight', 1.0)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
             gpt_cfg.load_audio_encoder = cfg.model.get('load_audio_encoder', True)
