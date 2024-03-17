@@ -103,7 +103,7 @@ After :ref:`training <train-ngram-lm>` an N-gram LM, you can use it for transcri
         decoding_mode=beamsearch_ngram \
         decoding_strategy="<Beam library such as beam, pyctcdecode or flashlight>"
 
-See more information about LM decoding :doc:`here <./asr_language_modeling>`.
+See more information about LM decoding :doc:`here <./asr_language_modeling_and_customization>`.
 
 Use real-time transcription
 ---------------------------
