@@ -267,8 +267,12 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 dataset_cls = GPTSFTDataset
 
             # TODO(akoumparouli): MCore assumes/requires equal length input sequences.
-            if not data_cfg.get('pad_to_max_length', False) and self.cfg.get('expert_model_parallel_size', 1) > 1:
-                raise ValueError('Expert parallelism requires pad_to_max_length')
+            if (
+                not data_cfg.get('pad_to_max_length', False)
+                and self.cfg.get('expert_model_parallel_size', 1) > 1
+                and self.cfg.get('moe_token_dispatcher_type', '') != 'alltoall'
+            ):
+                raise ValueError('Expert parallelism requires pad_to_max_length when not using alltoall dispatcher.')
 
             dataset = dataset_cls(
                 file_path=file_path,
