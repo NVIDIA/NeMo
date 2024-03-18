@@ -1151,16 +1151,20 @@ class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin, FSDPPrecision):
 
     def __init__(
         self,
-        precision: Literal["16-mixed", "bf16-mixed"],
+        precision: Literal["16-mixed", "bf16-mixed", '16', 'bf16', 16],
         device: str,
         scaler: Optional[torch.cuda.amp.GradScaler] = None,
     ) -> None:
-        super().__init__(precision, device, scaler=scaler)
-        dtype = None
         # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
-        if precision == '16-mixed':
+        if precision in ['16-mixed', '16', 16]:
+            plugin_precision = '16-mixed'
+        if precision in ['bf16-mixed', 'bf16']:
+            plugin_precision = 'bf16-mixed'
+        super().__init__(plugin_precision, device, scaler=scaler)
+        dtype = None
+        if precision in ['16-mixed', '16', 16]:
             dtype = torch.float16
-        elif precision == 'bf16-mixed':
+        elif precision in ['bf16-mixed', 'bf16']:
             dtype = torch.bfloat16
 
         torch.set_autocast_gpu_dtype(dtype)

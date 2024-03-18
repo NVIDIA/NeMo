@@ -1674,18 +1674,21 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # megatron_amp_O2 is not yet supported in diffusion models
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
+        if self.cfg.precision in ['16', 16, 'bf16']:
+            self.model_parallel_config.enable_autocast = False
+
         self.model = self.model_provider_func()
 
         self.conditioning_keys = []
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
+        if self.model.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
+        elif self.model.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
+        elif self.model.precision in ['16-mixed', '16', 16]:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+            raise ValueError('precision must be in [32, "32", "32-true", "16-mixed", "16", 16, "bf16-mixed", "bf16"]')
 
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.loss_broadcast_src_rank = None
