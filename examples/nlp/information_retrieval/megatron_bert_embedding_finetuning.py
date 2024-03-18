@@ -23,7 +23,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="megatron_sbert_config")
+@hydra_runner(config_path="conf", config_name="megatron_bert_embedding_config")
 def main(cfg) -> None:
     if cfg.model.data.dataloader_type != "LDDL":
         mp.set_start_method("spawn", force=True)
@@ -34,23 +34,30 @@ def main(cfg) -> None:
     trainer = MegatronBertTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = MegatronBertEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
+    if cfg.restore_from_path:
 
-    assert (
-        model_cfg.micro_batch_size * cfg.trainer.devices == model_cfg.global_batch_size
-    ), "Gradiant accumulation is not supported for contrastive learning yet"
+        model_cfg = MegatronBertEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
 
-    OmegaConf.set_struct(model_cfg, True)
-    with open_dict(model_cfg):
-        model_cfg.precision = trainer.precision
+        assert (
+            model_cfg.micro_batch_size * cfg.trainer.devices == model_cfg.global_batch_size
+        ), "Gradiant accumulation is not supported for contrastive learning yet"
 
-    model = MegatronBertEmbeddingModel.restore_from(
-        restore_path=cfg.restore_from_path,
-        trainer=trainer,
-        save_restore_connector=NLPSaveRestoreConnector(),
-        override_config_path=model_cfg,
-        strict=True,
-    )
+        OmegaConf.set_struct(model_cfg, True)
+        with open_dict(model_cfg):
+            model_cfg.precision = trainer.precision
+
+        logging.info(f"Loading model from {cfg.restore_from_path}")
+        model = MegatronBertEmbeddingModel.restore_from(
+            restore_path=cfg.restore_from_path,
+            trainer=trainer,
+            save_restore_connector=NLPSaveRestoreConnector(),
+            override_config_path=model_cfg,
+            strict=True,
+        )
+    else:
+        logging.info("Training model from scratch")
+        model = MegatronBertEmbeddingModel(cfg=cfg.model, trainer=trainer)
+
     trainer.fit(model)
 
 
