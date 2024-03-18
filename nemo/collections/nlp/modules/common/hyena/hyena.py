@@ -29,6 +29,8 @@ try:
 except ImportError:
     FusedDense = None
 
+from megatron.core.transformer.custom_layers.transformer_engine import TEColumnParallelLinear, TERowParallelLinear
+
 from nemo.collections.common.parts.utils import activation_registry
 from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -259,6 +261,7 @@ class HyenaOperator(nn.Module):
             jit_filter=False,
             short_filter_order=3,
             activation="identity",
+            config: TransformerConfig = None,
             **filter_args,
     ):
         r"""
@@ -290,7 +293,7 @@ class HyenaOperator(nn.Module):
             self, d_model=d_model, order=order, l_max=l_max, num_heads=num_heads, inner_factor=inner_factor,
             block_dim=block_dim, head_dim=head_dim, filter_order=filter_order, post_order_ffn=post_order_ffn,
             short_filter_order=short_filter_order, num_blocks=num_blocks, filter_dropout=filter_dropout,
-            jit_filter=jit_filter, outer_mixing=outer_mixing, activation=activation,
+            jit_filter=jit_filter, outer_mixing=outer_mixing, activation=activation, mcore_config=config
         )
         self.activation = activation_registry[activation]()
         self.dropout = nn.Dropout(dropout)
@@ -302,9 +305,33 @@ class HyenaOperator(nn.Module):
         "Initializes input and output projections (over the width dimension)"
         if fused_bias_fc and FusedDense is None:
             raise ImportError('fused_dense is not installed')
-        linear_cls = nn.Linear if not fused_bias_fc else FusedDense
-        self.out_proj = linear_cls(self.d_model * inner_factor, self.d_model)
-        self.in_proj = linear_cls(self.d_model, (self.order + 1) * self.d_model)
+        # linear_cls = nn.Linear if not fused_bias_fc else FusedDense
+        # self.out_proj = linear_cls(self.d_model * inner_factor, self.d_model)
+        self.out_proj = TERowParallelLinear(
+            self.d_model * inner_factor,
+            self.d_model,
+            config=self.mcore_config,
+            init_method=self.mcore_config.output_layer_init_method,
+            bias=True,
+            input_is_parallel=True,
+            skip_bias_add=True,
+            is_expert=False,
+            tp_comm_buffer_name='out_proj',
+        )
+
+        # self.in_proj = linear_cls(self.d_model, (self.order + 1) * self.d_model)
+        self.in_proj = TEColumnParallelLinear(
+            self.d_model,
+            (self.order + 1) * self.d_model,
+            config=self.mcore_config,
+            init_method=self.mcore_config.init_method,
+            gather_output=False,
+            bias=True,
+            skip_bias_add=False,
+            is_expert=False,
+            tp_comm_buffer_name='in_proj',
+        )
+
         if self.post_order_ffn:
             self.ord_proj_w = nn.Parameter(
                 torch.randn(self.order, self.num_heads, self.num_heads) / math.sqrt(self.head_dim))
@@ -338,12 +365,13 @@ class HyenaOperator(nn.Module):
 
     def forward(self, u, *args, **kwargs):
         # In MCore the leading dimension is the sequence dimension
-        u = rearrange(u, 'l b d -> b l d')
+        # u = rearrange(u, 'l b d -> b l d')
 
-        l = u.size(-2)
+        l = u.size(0)
         l_filter = min(l, self.l_max)
         u = self.in_proj(u)
-        u = rearrange(u, 'b l d -> b d l')
+        u = u[0] if isinstance(u, tuple) else u
+        u = rearrange(u, 'l b d -> b d l')
 
         uc = self.short_filter(u)[..., :l_filter]
 
@@ -388,12 +416,16 @@ class HyenaOperator(nn.Module):
         # y = self.activation(rearrange(v * x[0], 'b h v z l -> b (z l) (h v)', z=self.num_blocks, h=self.num_heads))
         y = self.activation((v * x[0]).transpose(-2, -1))
         y = self.out_proj(y)
+        if isinstance(y, tuple):
+            y, bias = y
+        else:
+            bias = None
 
         # Convert back to sequence-first for MCore
         y = rearrange(y, 'b l h -> l b h')
 
         # MCore TransformerLayer expects tuple where 2nd element represents the bias, it can be None
-        return y, None
+        return y, bias
 
     @property
     def d_output(self):
