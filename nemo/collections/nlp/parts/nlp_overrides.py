@@ -35,7 +35,7 @@ from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin, FSDPPrecision
 from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
@@ -1121,7 +1121,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
-class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
+class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin, FSDPPrecision):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
         We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
