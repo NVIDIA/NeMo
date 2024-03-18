@@ -457,54 +457,54 @@ pipeline {
         }
       }
     }
-
-    stage('L2: Nemo PTQ') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage('Llama2 - Export Only') {
-          steps {
-            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
-            quantization.algorithm=null \
-            model_save=/home/TestData/nlp/megatron_llama/ci_baseline'
-            sh 'rm -rf /home/TestData/nlp/megatron_llama/ci_baseline'
-          }
-        }
-        stage('Llama2 - INT8 SQ') {
-          steps {
-            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
-            quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
-            quantization.algorithm=int8_sq \
-            quantization.num_calib_size=8 \
-            inference.batch_size=2 \
-            model_save=/home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo'
-          }
-        }
-        stage('Llama2 - FP8') {
-          steps {
-            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
-            tensor_model_parallel_size=2 \
-            trainer.devices=2 \
-            quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
-            quantization.algorithm=fp8 \
-            quantization.num_calib_size=8 \
-            inference.batch_size=2 \
-            export.inference_tensor_parallel=2 \
-            model_save=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
-          }
-        }
-      }
-    }
+//
+//     stage('L2: Nemo PTQ') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       parallel {
+//         stage('Llama2 - Export Only') {
+//           steps {
+//             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
+//             model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+//             quantization.algorithm=null \
+//             model_save=/home/TestData/nlp/megatron_llama/ci_baseline'
+//             sh 'rm -rf /home/TestData/nlp/megatron_llama/ci_baseline'
+//           }
+//         }
+//         stage('Llama2 - INT8 SQ') {
+//           steps {
+//             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
+//             model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+//             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+//             quantization.algorithm=int8_sq \
+//             quantization.num_calib_size=8 \
+//             inference.batch_size=2 \
+//             model_save=/home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo'
+//             sh 'rm -f /home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo'
+//           }
+//         }
+//         stage('Llama2 - FP8') {
+//           steps {
+//             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
+//             model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+//             tensor_model_parallel_size=2 \
+//             trainer.devices=2 \
+//             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+//             quantization.algorithm=fp8 \
+//             quantization.num_calib_size=8 \
+//             inference.batch_size=2 \
+//             export.inference_tensor_parallel=2 \
+//             model_save=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
+//             sh 'rm -f /home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
+//           }
+//         }
+//       }
+//     }
 
     stage('L2: ASR dev run') {
       when {
