@@ -9,7 +9,7 @@ Introduction
 .. _dummy_header:
 
 NVIDIA NeMo Framework is an end-to-end, cloud-native framework to build, customize, and deploy generative AI models anywhere. 
-To learn more about using NeMo in generative AI workflows, please refer to the `NeMo Framework User Guide! <https://docs.nvidia.com/nemo-framework/user-guide/latest/index.html>`_
+To learn more about using NeMo in generative AI workflows, please refer to the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/index.html>`_.
 
 `NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for Large Language Models (LLMs), 
 Multimodal (MM), Computer Vision (CV), Automatic Speech Recognition (ASR), 
@@ -96,14 +96,6 @@ See the two introductory videos below for a high level overview of NeMo.
 
     <div style="position: relative; padding-bottom: 3%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
         <iframe width="560" height="315" src="https://www.youtube.com/embed/wBgpMf_KQVw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-    </div>
-
-**NVIDIA NeMo: Toolkit for Conversational AI at PyData Yerevan 2022**
-
-.. raw:: html
-
-    <div style="position: relative; padding-bottom: 3%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
-        <iframe width="560" height="315" src="https://www.youtube.com/embed/J-P6Sczmas8?mute=0&start=14&autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
     </div>
 
 .. _installation:

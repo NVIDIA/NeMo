@@ -40,6 +40,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     transcribe_partial_audio,
     write_transcription,
 )
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -331,6 +332,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if cfg.presort_manifest:
                 with NamedTemporaryFile("w", suffix=".json", delete=False) as f:
                     for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=True):
+                        item["audio_filepath"] = get_full_path(item["audio_filepath"], cfg.dataset_manifest)
                         print(json.dumps(item), file=f)
                     cfg.dataset_manifest = f.name
                     remove_path_after_done = f.name
@@ -396,8 +398,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
         if cfg.presort_manifest:
             transcriptions = restore_transcription_order(cfg.dataset_manifest, transcriptions)
-            if remove_path_after_done is not None:
-                os.unlink(remove_path_after_done)
     else:
         logging.info(f"Finished transcribing {len(filepaths)} files !")
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
@@ -419,6 +419,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         compute_timestamps=compute_timestamps,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
+
+    # clean-up
+    if cfg.presort_manifest is not None:
+        if remove_path_after_done is not None:
+            os.unlink(remove_path_after_done)
 
     if cfg.calculate_wer:
         output_manifest_w_wer, total_res, _ = cal_write_wer(

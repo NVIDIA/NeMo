@@ -333,8 +333,8 @@ class MegatronBaseModel(NLPModel):
             self.trainer.limit_val_batches *= get_num_microbatches()
         else:
             assert isinstance(self.trainer.limit_val_batches, float)
-            # Don't reconfigure if limit_val_batches is 0.0
-            if self.trainer.limit_val_batches == 0.0:
+            # Don't reconfigure if limit_val_batches is 0.0 or if there's no val dataloader
+            if self.trainer.limit_val_batches == 0.0 or self._validation_dl is None:
                 return
             # len(self._validation_dl) returns len as num of microbatches
             val_len_in_micro_batches = len(self._validation_dl)
@@ -895,6 +895,8 @@ class MegatronBaseModel(NLPModel):
 
     def _compute_consumed_samples_after_training_step(self):
         # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        if not hasattr(self, 'init_global_step'):
+            self.init_global_step = 0  # in case this method is called before training starts.
         return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
