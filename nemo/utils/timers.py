@@ -16,6 +16,7 @@ This module support timing of code blocks.
 # limitations under the License.
 
 import time
+from typing import Optional
 
 import numpy as np
 import torch
@@ -161,24 +162,53 @@ class NamedTimer(object):
 
 
 class SimpleTimer:
-    def __init__(self):
+    """
+    Simple Timer with maximum possible resolution, uses `time.perf_counter_ns`.
+    """
+
+    def __init__(self, sync_cuda=True):
+        """
+
+        Args:
+            sync_cuda: synchronize CUDA device.
+                The synchronization is done only if the device for start/stop is None or CUDA device.
+        """
         self.total_time = 0
-        self._start_time = None
+        self._start_time: Optional[int] = None
+        self.sync_cuda = sync_cuda
 
     def reset(self):
+        """Reset timer"""
         self.total_time = 0
         self._start_time = None
 
-    def start(self, device=None):
-        if torch.cuda.is_available():
+    def start(self, device: Optional[torch.device] = None):
+        """
+        Start timer.
+
+        Args:
+            device: CUDA device to synchronize (optional).
+        """
+        if self.sync_cuda and torch.cuda.is_initialized() and (device is None or device.type == "cuda"):
             torch.cuda.synchronize(device=device)
+        if self._start_time is not None:
+            raise RuntimeError("Timer already started")
         self._start_time = time.perf_counter_ns()
 
-    def stop(self, device=None):
-        if torch.cuda.is_available():
+    def stop(self, device: Optional[torch.device] = None):
+        """
+        Stop device.
+
+        Args:
+            device: CUDA device to synchronize (optional).
+        """
+        if self.sync_cuda and torch.cuda.is_initialized() and (device is None or device.type == "cuda"):
             torch.cuda.synchronize(device=device)
+        if self._start_time is None:
+            raise RuntimeError("Timer not started")
         self.total_time += time.perf_counter_ns() - self._start_time
         self._start_time = None
 
-    def total(self):
+    def total_sec(self) -> float:
+        """Return total time in seconds"""
         return self.total_time / 1e9
