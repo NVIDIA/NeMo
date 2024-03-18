@@ -572,6 +572,8 @@ def batched_hyps_to_hypotheses(
     Args:
         batched_hyps: BatchedHyps object
         alignments: BatchedAlignments object, optional; must correspond to BatchedHyps if present
+        batch_size: Batch Size to retrieve hypotheses. When working with CUDA graphs the batch size for all tensors
+            is constant, thus we need here the real batch size to return only necessary hypotheses
 
     Returns:
         list of Hypothesis objects
