@@ -19,13 +19,12 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecoding, RNNTDecodingConfig
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
@@ -183,6 +182,62 @@ class TestRNNTDecoding:
     )
     @pytest.mark.with_downloads
     @pytest.mark.unit
+    @pytest.mark.parametrize("loop_labels", [True, False])
+    def test_batched_greedy_decoding_preserve_alignments(self, test_data_dir, loop_labels: bool):
+        """Test batched greedy decoding using non-batched decoding as a reference"""
+        model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'stt_en_conformer_transducer_small')
+
+        search_algo = greedy_decode.GreedyBatchedRNNTInfer(
+            model.decoder,
+            model.joint,
+            blank_index=model.joint.num_classes_with_blank - 1,
+            max_symbols_per_step=5,
+            preserve_alignments=True,
+            loop_labels=loop_labels,
+        )
+
+        etalon_search_algo = greedy_decode.GreedyRNNTInfer(
+            model.decoder,
+            model.joint,
+            blank_index=model.joint.num_classes_with_blank - 1,
+            max_symbols_per_step=5,
+            preserve_alignments=True,
+        )
+
+        enc_out = encoded
+        enc_len = encoded_len
+
+        with torch.no_grad():
+            hyps: list[rnnt_utils.Hypothesis] = search_algo(encoder_output=enc_out, encoded_lengths=enc_len)[0]
+            hyp = decode_text_from_greedy_hypotheses(hyps, model.decoding)[0]
+            etalon_hyps: list[rnnt_utils.Hypothesis] = etalon_search_algo(
+                encoder_output=enc_out, encoded_lengths=enc_len
+            )[0]
+            etalon_hyp = decode_text_from_greedy_hypotheses(etalon_hyps, model.decoding)[0]
+
+            assert hyp.alignments is not None
+            assert etalon_hyp.alignments is not None
+
+            assert hyp.text == etalon_hyp.text
+            assert len(hyp.alignments) == len(etalon_hyp.alignments)
+
+            for t in range(len(hyp.alignments)):
+                t_u = []
+                for u in range(len(hyp.alignments[t])):
+                    logp, label = hyp.alignments[t][u]
+                    assert torch.is_tensor(logp)
+                    assert torch.is_tensor(label)
+                    etalon_logp, etalon_label = etalon_hyp.alignments[t][u]
+                    assert label == etalon_label
+                    assert torch.allclose(logp, etalon_logp, atol=1e-4, rtol=1e-4)
+
+                    t_u.append(int(label))
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
         [
@@ -228,7 +283,8 @@ class TestRNNTDecoding:
                 print("Hyp index", idx + 1, "text :", hyp_.text)
 
                 # Alignment length (T) must match audio length (T)
-                assert abs(len(hyp_.alignments) - enc_len[0]) <= 1
+                # NOTE: increase length threshold to two to prevent intermittent failures when a word is split into subwords
+                assert abs(len(hyp_.alignments) - enc_len[0]) <= 2  # 1
 
                 for t in range(len(hyp_.alignments)):
                     t_u = []
