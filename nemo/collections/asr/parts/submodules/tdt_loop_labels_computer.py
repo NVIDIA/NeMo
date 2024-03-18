@@ -554,9 +554,11 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         # to avoid recalculation of joint projection, store decoder output in state
         self.state.decoder_output = self.joint.project_prednet(decoder_output)
 
+        # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
+        stream_for_graph = torch.cuda.Stream(self.state.device)
         self.graph = torch.cuda.CUDAGraph()
-        with torch.cuda.stream(torch.cuda.Stream(device=self.state.device)), torch.inference_mode(), torch.cuda.graph(
-            self.graph
+        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
+            self.graph, stream=stream_for_graph
         ):
             self._before_outer_loop()
 
