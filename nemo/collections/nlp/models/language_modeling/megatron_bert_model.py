@@ -29,7 +29,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, MCoreBertModelWrapper
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
     bert_layer_with_transformer_engine_spec,
-    bert_layer_with_transformer_engine_spec_postln
+    bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
