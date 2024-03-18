@@ -21,8 +21,9 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
 from nemo.collections.multimodal.speech_cv.models.av_ctc_models import AudioVisualEncDecCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
@@ -81,7 +82,7 @@ class AudioVisualEncDecCTCModelBPE(AudioVisualEncDecCTCModel, ASRBPEMixin):
         self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
 
         # Setup metric with decoding strategy
-        self._wer = WERBPE(
+        self._wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
             dist_sync_on_step=True,
@@ -258,7 +259,7 @@ class AudioVisualEncDecCTCModelBPE(AudioVisualEncDecCTCModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
 
-        self._wer = WERBPE(
+        self._wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
             log_prediction=self._cfg.get("log_prediction", False),
@@ -294,7 +295,7 @@ class AudioVisualEncDecCTCModelBPE(AudioVisualEncDecCTCModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer,)
 
-        self._wer = WERBPE(
+        self._wer = WER(
             decoding=self.decoding,
             use_cer=self._wer.use_cer,
             log_prediction=self._wer.log_prediction,

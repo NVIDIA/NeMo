@@ -563,7 +563,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             self.wer.update(
                 predictions=log_probs,
                 targets=transcript,
-                target_lengths=transcript_len,
+                targets_lengths=transcript_len,
                 predictions_lengths=encoded_len,
             )
             wer, _, _ = self.wer.compute()
@@ -602,7 +602,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         )
 
         self.wer.update(
-            predictions=log_probs, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
+            predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len
         )
         wer, wer_num, wer_denom = self.wer.compute()
         self.wer.reset()

@@ -27,9 +27,10 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
 from nemo.collections.multimodal.speech_cv.parts.mixins import InterCTCMixin
@@ -692,7 +693,7 @@ class AudioVisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin,
             self._wer.update(
                 predictions=log_probs,
                 targets=transcript,
-                target_lengths=transcript_len,
+                targets_lengths=transcript_len,
                 predictions_lengths=encoded_len,
             )
             wer, _, _ = self._wer.compute()
@@ -753,7 +754,7 @@ class AudioVisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin,
         )
 
         self._wer.update(
-            predictions=log_probs, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
+            predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len
         )
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()

@@ -23,9 +23,10 @@ from pytorch_lightning import Trainer
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
-from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.multimodal.speech_cv.data import audio_and_video_to_text_dataset
 from nemo.collections.multimodal.speech_cv.models.av_hybrid_rnnt_ctc_models import AudioVisualEncDecHybridRNNTCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
@@ -96,7 +97,7 @@ class AudioVisualEncDecHybridRNNTCTCBPEModel(AudioVisualEncDecHybridRNNTCTCModel
         )
 
         # Setup wer object
-        self.wer = RNNTBPEWER(
+        self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=0,
             use_cer=self.cfg.get('use_cer', False),
@@ -118,7 +119,7 @@ class AudioVisualEncDecHybridRNNTCTCBPEModel(AudioVisualEncDecHybridRNNTCTCModel
         self.ctc_decoding = CTCBPEDecoding(self.cfg.aux_ctc.decoding, tokenizer=self.tokenizer)
 
         # Setup CTC WER
-        self.ctc_wer = WERBPE(
+        self.ctc_wer = WER(
             decoding=self.ctc_decoding,
             use_cer=self.cfg.aux_ctc.get('use_cer', False),
             dist_sync_on_step=True,
@@ -292,7 +293,7 @@ class AudioVisualEncDecHybridRNNTCTCBPEModel(AudioVisualEncDecHybridRNNTCTCModel
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
 
-        self.wer = RNNTBPEWER(
+        self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=self.wer.batch_dim_index,
             use_cer=self.wer.use_cer,
@@ -357,7 +358,7 @@ class AudioVisualEncDecHybridRNNTCTCBPEModel(AudioVisualEncDecHybridRNNTCTCModel
 
             self.ctc_decoding = CTCBPEDecoding(decoding_cfg=ctc_decoding_cfg, tokenizer=self.tokenizer)
 
-            self.ctc_wer = WERBPE(
+            self.ctc_wer = WER(
                 decoding=self.ctc_decoding,
                 use_cer=self.cfg.aux_ctc.get('use_cer', False),
                 log_prediction=self.cfg.get("log_prediction", False),
@@ -398,7 +399,7 @@ class AudioVisualEncDecHybridRNNTCTCBPEModel(AudioVisualEncDecHybridRNNTCTCModel
                 decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
             )
 
-            self.wer = RNNTBPEWER(
+            self.wer = WER(
                 decoding=self.decoding,
                 batch_dim_index=self.wer.batch_dim_index,
                 use_cer=self.wer.use_cer,
@@ -433,7 +434,7 @@ class AudioVisualEncDecHybridRNNTCTCBPEModel(AudioVisualEncDecHybridRNNTCTCModel
 
             self.ctc_decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
 
-            self.ctc_wer = WERBPE(
+            self.ctc_wer = WER(
                 decoding=self.ctc_decoding,
                 use_cer=self.ctc_wer.use_cer,
                 log_prediction=self.ctc_wer.log_prediction,
