@@ -185,6 +185,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
     During decoding all active hypotheses ("texts") have the same lengths.
     """
 
+    INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
+
     def __init__(
         self,
         decoder,
@@ -441,18 +443,22 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         if torch.is_autocast_enabled():
             encoder_output = encoder_output.to(torch.get_autocast_gpu_dtype())
 
+        # init or reinit graph
         if self.state is None or self.state.need_reinit(encoder_output):
             self._graph_reinitialize(encoder_output, encoder_output_length)
 
+        # copy (projected) encoder output and lenghts
         self.state.encoder_output_projected[:current_batch_size, :current_max_time, ...].copy_(encoder_output)
         self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(encoder_output_length)
+        # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
         self.graph.replay()
 
-        # manual loop
+        # example manual loop (can be used instead of graph.replay()
         # self._before_outer_loop()
         # while self.state.active_mask_any.item():
-        #     self._before_inner_loop()
+        #     self._before_inner_loop_get_decoder_output()
+        #     self._before_inner_loop_get_joint_output()
         #     while self.state.advance_mask_any.item():
         #         self._inner_loop_code()
         #     self._after_inner_loop()
@@ -508,7 +514,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
 
         self.state = LoopLabelsState(
             batch_size=batch_size,
-            max_time=max(max_time, 375),
+            max_time=max(max_time, self.INITIAL_MAX_TIME),
             encoder_dim=encoder_dim,
             max_symbols=self.max_symbols,
             device=encoder_output_projected.device,
@@ -565,7 +571,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 self._after_inner_loop()
 
     def _before_outer_loop(self):
-        """Clear state"""
+        """Clear state and compute initial active mask"""
         self.state.batched_hyps.clear_()
         if self.state.alignments is not None:
             self.state.alignments.clear_()
@@ -594,7 +600,6 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
 
     def _before_inner_loop_get_decoder_output(self):
         """Get decoder output"""
-        self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
         # stage 1: get decoder (prediction network) output
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
@@ -609,6 +614,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
         # stage 2: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
+        self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
         logits = (
             self.joint.joint_after_projection(
                 self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
