@@ -284,7 +284,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 cfg.return_hypotheses = True
             asr_model.change_decoding_strategy(cfg.multitask_decoding)
         elif cfg.decoder_type is not None:
-            breakpoint()
             # TODO: Support compute_langs in CTC eventually
             if cfg.compute_langs and cfg.decoder_type == 'ctc':
                 raise ValueError("CTC models do not support `compute_langs` at the moment")
