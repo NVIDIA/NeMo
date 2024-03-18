@@ -349,6 +349,3 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
             states filtered by mask (same type as `states`)
         """
         raise NotImplementedError()
-
-    def batch_copy_states_all(self) -> Any:
-        raise NotImplementedError
