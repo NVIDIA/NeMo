@@ -626,6 +626,9 @@ class ALMAudioTextCollection(ALMAudioText):
             question = np.random.choice(self.random_questions).strip()
             if self.random_context_prob is not None and self.random_context_prob > 0:
                 current_words = item['answer'].strip().split()
+                if len(current_words) == 0:
+                    logging.warning(f"Empty answer for sample: {item}, in manifest file: {manifest_file}")
+                    current_words = ["empty"]
                 if np.random.random() < self.random_context_prob and self.random_context:
                     positive_num = int(self.random_context_num * self.random_context_positive_percent)
                     positives = np.random.choice(current_words, positive_num)
