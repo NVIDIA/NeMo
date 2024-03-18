@@ -1,6 +1,5 @@
 defaults:
-  - nemo_fw_gpt3_pretrain_126m
-  - _self_
+  - nemo_fw_gpt3_pretrain_400m_improved
 
 model:
   spec_overrides:

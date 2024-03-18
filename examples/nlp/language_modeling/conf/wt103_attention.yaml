@@ -1,5 +1,6 @@
 defaults:
   - nemo_fw_gpt3_pretrain_126m
+  - _self_
 
 run:
   name: attention-125m
@@ -30,7 +31,7 @@ model:
 
 #  micro_batch_size: 32 # limited by GPU memory
 #  global_batch_size: 512 # will use more micro batches to reach global batch size
-  micro_batch_size: 16 # limited by GPU memory
+  micro_batch_size: 8 # limited by GPU memory
   global_batch_size: 16 # will use more micro batches to reach global batch size
 
   # model architecture

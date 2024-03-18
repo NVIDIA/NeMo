@@ -72,8 +72,8 @@ model:
   ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
   num_attention_heads: 12
   init_method_std: 0.023  # Standard deviation of the zero mean normal distribution used for weight initialization.')
-  hidden_dropout: 0.0  # Dropout probability for hidden state transformer.
-  attention_dropout: 0.0 # Dropout probability for attention
+  hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
+  attention_dropout: 0.1 # Dropout probability for attention
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
@@ -89,6 +89,12 @@ model:
   bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
   bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+
+  # FSDP
+  fsdp: False # Enable training with torch FSDP.
+  fsdp_sharding_strategy: 'full' # Method to shard model states. Available options are 'full', 'hybrid', and 'grad'.
+  fsdp_grad_reduce_dtype: 32 # Gradient reduction data type.
+  fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
 
   ## Activation Checkpointing
   activations_checkpoint_granularity: null # 'selective' or 'full'
@@ -122,6 +128,9 @@ model:
   # Megatron O2-style half-precision
   megatron_amp_O2: True # Enable O2-level automatic mixed precision using master parameters
   grad_allreduce_chunk_size_mb: 125
+
+  ## Network
+  sharp: False # Enable the use of SHARP for NCCL data-parallel communications. This is going to be ignored if the network doesn't support SHARP.
 
   ## Using Megatron Core
   mcore_gpt: True

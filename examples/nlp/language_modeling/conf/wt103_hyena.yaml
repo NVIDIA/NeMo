@@ -1,5 +1,6 @@
 defaults:
   - nemo_fw_gpt3_pretrain_126m_hyena
+  - _self_
 
 run:
   name: hyena-125m
