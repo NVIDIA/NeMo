@@ -42,6 +42,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
 
 try:
+    import megatron
     from megatron.core import parallel_state
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
@@ -96,11 +97,12 @@ class NLPAdapterModelMixin:
     def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
         if name_key_to_mcore_mixins is not None:
             for mcore_target, mcore_mixin in name_key_to_mcore_mixins[peft_name]:
-                if name in [
-                    mcore_target,
-                    f'model.{mcore_target}',
-                    f'model.module.{mcore_target}',
-                ]:  # simple string match for now
+                is_ep_mlp = (
+                    name.startswith('mlp.experts.local_experts.')
+                    and mcore_target.startswith('mlp')
+                    and type(module) is megatron.core.transformer.mlp.MLP
+                )
+                if name in [mcore_target, f'model.{mcore_target}', f'model.module.{mcore_target}',] or is_ep_mlp:
                     swap_mcore_mixin(module, mcore_mixin)
                     if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
@@ -148,6 +150,8 @@ class NLPAdapterModelMixin:
                 for layer in layers:
                     if layer.layer_number in (layer_selection or list(range(1, self.cfg.num_layers + 1))):
                         for name, module in layer.named_modules():
+                            if type(module) is megatron.core.transformer.moe.moe_layer.MoELayer:
+                                continue
                             self._check_and_add_adapter(
                                 name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
                             )
