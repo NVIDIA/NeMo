@@ -80,7 +80,7 @@ jobs:
             # Transformer Engine installation
             git clone https://github.com/NVIDIA/TransformerEngine.git && \
                 pushd TransformerEngine && \
-                git fetch origin 8c9abbb80dba196f086b8b602a7cf1bce0040a6a && \
+                git fetch origin 9b2fed514ea419141146f843ab2c84b22b86bfd7 && \
                 git checkout FETCH_HEAD && \
                 git submodule init && git submodule update && \
                 NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .  && \
@@ -99,7 +99,7 @@ jobs:
             # Megatron Core installation
             git clone https://github.com/NVIDIA/Megatron-LM.git && \
                 pushd Megatron-LM && \
-                git checkout a5415fcfacef2a37416259bd38b7c4b673583675 && \
+                git checkout be5a3d360d44b1a04b1836bb046cd6133f10594e && \
                 pip install . && \
                 popd
 
