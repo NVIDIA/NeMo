@@ -14,22 +14,22 @@ import argparse
 import ast
 import configparser
 import copy
+import csv
 import datetime
 import logging
 import os
-import sys
 import shutil
+import sys
 import tempfile
-from pathlib import Path
 import typing
+from pathlib import Path
 from typing import Dict, List, Tuple
 
-import csv
-import torch
 import numpy as np
 import tensorrt_llm
+import torch
 from tensorrt_llm import str_dtype_to_trt
-from transformers import GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer, AutoTokenizer
+from transformers import AutoTokenizer, GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
 from .model_config import (
     LAYERNORM_DEFAULT,
@@ -43,7 +43,7 @@ from .model_config import (
 )
 from .nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
 from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint, convert_dist_checkpoint, convert_nemo_model
-from .tensor_utils import get_tensor_from_dict, split, get_tensor_parallel_group
+from .tensor_utils import get_tensor_from_dict, get_tensor_parallel_group, split
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -84,9 +84,7 @@ def _nemo_decode(
             start_time = datetime.datetime.now()
             checkpoint_dir_path = temp_dir / "unpacked"
             nemo_dir = unpack_nemo_ckpt(args.in_file, checkpoint_dir_path)
-            LOGGER.info(
-                "Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time
-            )
+            LOGGER.info("Spent %s (h:m:s) to unpack NeMo archive", datetime.datetime.now() - start_time)
 
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(
             nemo_dir, load_checkpoints_to_cpu=not args.load_checkpoints_on_gpu
@@ -98,13 +96,16 @@ def _nemo_decode(
         if dist_ckpt_folder.exists():
             weights_dict, llm_config, tokenizer = convert_dist_checkpoint(unpacked_checkpoint_dir, args)
         else:
-            raise Exception("Not a supported nemo file format. "
-                            "Only distributed mcore nemo checkpoints are support.")
-        
+            raise Exception(
+                "Not a supported nemo file format. " "Only distributed mcore nemo checkpoints are support."
+            )
+
         LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
 
         if save_nemo_model_config:
-            shutil.copyfile(unpacked_checkpoint_dir._checkpoints_dir / "model_config.yaml", args.out_dir / "model_config.yaml")
+            shutil.copyfile(
+                unpacked_checkpoint_dir._checkpoints_dir / "model_config.yaml", args.out_dir / "model_config.yaml"
+            )
 
         return weights_dict, llm_config, tokenizer
 
@@ -130,18 +131,15 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
         return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
 
-    model_path = (
-        tokenizer_dir_or_path / "tokenizer.model"
-        if tokenizer_dir_or_path.is_dir()
-        else tokenizer_dir_or_path
-    )
+    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
     tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
     return build_tokenizer(tokenizer_config)
 
+
 def nemo_to_model_config(
-    in_file: str, 
-    decoder_type: str, 
-    nemo_export_dir: typing.Union[str, Path], 
+    in_file: str,
+    decoder_type: str,
+    nemo_export_dir: typing.Union[str, Path],
     dtype: str = "bfloat16",
     tensor_parallel_size: int = 1,
     pipeline_parallel_size: int = 1,
@@ -161,7 +159,7 @@ def nemo_to_model_config(
         save_nemo_model_config=save_nemo_model_config,
     )
 
-    world_size = tensor_parallel_size*pipeline_parallel_size
+    world_size = tensor_parallel_size * pipeline_parallel_size
     model_config_template = ModelConfig()
     model_config_template.dtype = dtype_str
 
@@ -169,16 +167,12 @@ def nemo_to_model_config(
 
     model_configs = []
     for i in range(world_size):
-        
+
         model_configs.append(copy.deepcopy(model_config_template))
 
-        model_configs[i].vocab_embedding = EmbeddingConfig(
-            weight=get_tensor_from_dict(weights_dict, "wte")
-        )
+        model_configs[i].vocab_embedding = EmbeddingConfig(weight=get_tensor_from_dict(weights_dict, "wte"))
 
-        model_configs[i].positional_embedding = EmbeddingConfig(
-            weight=get_tensor_from_dict(weights_dict, "wpe")
-        )
+        model_configs[i].positional_embedding = EmbeddingConfig(weight=get_tensor_from_dict(weights_dict, "wpe"))
 
         model_configs[i].final_layernorm = LayernormConfig(
             weight=get_tensor_from_dict(weights_dict, "final_layernorm.weight"),
@@ -188,10 +182,8 @@ def nemo_to_model_config(
             LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
         model_configs[i].mapping = tensorrt_llm.Mapping(
-            world_size=world_size, 
-            rank=i, 
-            tp_size=tensor_parallel_size, 
-            pp_size=pipeline_parallel_size)
+            world_size=world_size, rank=i, tp_size=tensor_parallel_size, pp_size=pipeline_parallel_size
+        )
 
     for i in range(llm_model_config.n_layer):
         for j in range(world_size):
@@ -210,9 +202,7 @@ def nemo_to_model_config(
 
     if model_configs[0].vocab_size_padded != model_configs[0].vocab_size:
         pad_width = model_configs[0].vocab_size_padded - model_configs[0].vocab_size
-        lm_head_weight = np.pad(
-            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
-        )
+        lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
     for i in range(world_size):
         model_configs[i].lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
@@ -222,8 +212,8 @@ def nemo_to_model_config(
 
     return model_configs, tokenizer
 
-def to_word_list_format(word_dict: List[List[str]],
-                        tokenizer=None):
+
+def to_word_list_format(word_dict: List[List[str]], tokenizer=None):
     '''
     format of word_dict
         len(word_dict) should be same to batch_size
@@ -251,9 +241,9 @@ def to_word_list_format(word_dict: List[List[str]],
         words = list(csv.reader(word_dict_item))[0]
         for word in words:
             ids = tokenizer.encode(f"<extra_id_1>{word}")
-            if ids[0:len(ids_ref)] == ids_ref:
+            if ids[0 : len(ids_ref)] == ids_ref:
                 # It worked! We can obtain the token(s) associated to `word` by stripping the prefix tokens.
-                ids = ids[len(ids_ref):]
+                ids = ids[len(ids_ref) :]
             else:
                 # Unfortunately the prefix was merged with `word`. We could try with a different prefix, but
                 # for now we just use the basic encoding since this should be a very rare edge case.
@@ -277,18 +267,16 @@ def to_word_list_format(word_dict: List[List[str]],
 
     return np.array([flat_ids, offsets], dtype="int32").transpose((1, 0, 2))
 
+
 def nemo_model_to_model_config(
-    nemo_model: str, 
-    decoder_type: str, 
-    nemo_model_config: str, 
-    dtype_str: str = "float32",
+    nemo_model: str, decoder_type: str, nemo_model_config: str, dtype_str: str = "float32",
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO model object and construct the `ModelConfig` before tensorrt_llm deployment."""
     from megatron.core import parallel_state
+
     assert nemo_model_config is not None, "gpt_model_config must be provided when in is a nemo model"
 
-    weights_dict, llm_model_config = convert_nemo_model(
-        nemo_model, nemo_model_config, dtype_str, decoder_type)
+    weights_dict, llm_model_config = convert_nemo_model(nemo_model, nemo_model_config, dtype_str, decoder_type)
     is_mcore = nemo_model_config.get("mcore_gpt", False)
     llm_model_config.is_mcore = is_mcore
 
@@ -298,9 +286,7 @@ def nemo_model_to_model_config(
     model_config.use_parallel_embedding = True
     str_dtype_to_trt(dtype_str)
 
-    model_config.vocab_embedding = EmbeddingConfig(
-        weight=get_tensor_from_dict(weights_dict, "wte"), is_local=True
-    )
+    model_config.vocab_embedding = EmbeddingConfig(weight=get_tensor_from_dict(weights_dict, "wte"), is_local=True)
 
     model_config.positional_embedding = EmbeddingConfig(
         weight=get_tensor_from_dict(weights_dict, "wpe"), is_local=True
@@ -316,18 +302,20 @@ def nemo_model_to_model_config(
 
     tensor_parallel_size = nemo_model_config.tensor_model_parallel_size
     pipeline_parallel_size = 1
-    world_size = tensor_parallel_size*pipeline_parallel_size
+    world_size = tensor_parallel_size * pipeline_parallel_size
 
-    #hack since tensorrt_llm doesnt support DP natively so init all ranks with DP=1  
+    # hack since tensorrt_llm doesnt support DP natively so init all ranks with DP=1
     model_config.mapping = tensorrt_llm.Mapping(
-        world_size=tensor_parallel_size*pipeline_parallel_size, 
+        world_size=tensor_parallel_size * pipeline_parallel_size,
         rank=tensorrt_llm.mpi_rank() % world_size,
-        tp_size=tensor_parallel_size, 
-        pp_size=pipeline_parallel_size)
+        tp_size=tensor_parallel_size,
+        pp_size=pipeline_parallel_size,
+    )
     model_config.mapping.rank = tensorrt_llm.mpi_rank()
     model_config.mapping.tp_group = get_tensor_parallel_group(tensor_parallel_size)
 
-    LOGGER.info(f'''Resharing: Rank {tensorrt_llm.mpi_rank()} mapping:
+    LOGGER.info(
+        f'''Resharing: Rank {tensorrt_llm.mpi_rank()} mapping:
         tp_rank  {parallel_state.get_tensor_model_parallel_rank()} -> {model_config.mapping.tp_rank}, 
         pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {model_config.mapping.pp_rank}, 
         tp_group {model_config.mapping.tp_group}'''
@@ -350,5 +338,5 @@ def nemo_model_to_model_config(
 
     model_config.lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
     model_config.lm_head.weight = lm_head_weight
-    
+
     return [model_config]

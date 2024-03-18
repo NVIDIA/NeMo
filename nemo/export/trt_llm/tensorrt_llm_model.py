@@ -21,38 +21,24 @@ import numpy as np
 import tensorrt as trt
 import torch
 from tensorrt_llm import default_net, str_dtype_to_trt
-from tensorrt_llm.functional import (
-    Tensor,
-    expand_mask,
-    gather_last_token_logits,
-    shape,
-    send,
-    recv
-)
-from tensorrt_llm.layers import ColumnLinear, KeyValueCacheParams, AttentionParams, LoraParams
+from tensorrt_llm.functional import Tensor, expand_mask, gather_last_token_logits, recv, send, shape
+from tensorrt_llm.layers import AttentionParams, ColumnLinear, KeyValueCacheParams, LoraParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
 from tensorrt_llm.module import Module, ModuleList
 
 from .decoder import build_decoder_layer
 from .model_config import ModelConfig
 from .quantization_utils import quantize_linear
-from .tensor_utils import (
-    get_tensor_parallel_group,
-    trt_dtype_to_str,
-)
+from .tensor_utils import get_tensor_parallel_group, trt_dtype_to_str
 from .tensorrt_llm_build import build
-from .tensorrt_llm_utils import (
-    build_embedding_from_config,
-    build_layernorm_from_config,
-    print_tensorrt_llm,
-)
+from .tensorrt_llm_utils import build_embedding_from_config, build_layernorm_from_config, print_tensorrt_llm
 
 
 def get_transformer_layers(mapping, num_layers):
     layers_per_pipeline_stage = num_layers // mapping.pp_size
     layers_range = list(
-        range(mapping.pp_rank * layers_per_pipeline_stage,
-                (mapping.pp_rank + 1) * layers_per_pipeline_stage, 1))
+        range(mapping.pp_rank * layers_per_pipeline_stage, (mapping.pp_rank + 1) * layers_per_pipeline_stage, 1)
+    )
     return layers_range
 
 
@@ -84,8 +70,8 @@ class ModelBuilder(Module):
 
         if self._mapping.is_first_pp_rank():
             self.vocab_embedding = build_embedding_from_config(
-                model_config.vocab_embedding, 
-                self._dtype, 
+                model_config.vocab_embedding,
+                self._dtype,
                 use_prompt_tuning=self._use_prompt_tuning,
                 tensor_parallel=model_config.mapping.tp_size,
                 tensor_parallel_rank=model_config.mapping.tp_rank,
@@ -111,7 +97,7 @@ class ModelBuilder(Module):
                     quantization=model_config.quantization,
                     rank=self.rank,
                     tensor_parallel=self._tensor_parallel,
-                    tp_group=model_config.mapping.tp_group
+                    tp_group=model_config.mapping.tp_group,
                 )
             )
 
@@ -139,7 +125,7 @@ class ModelBuilder(Module):
         ptuning_args = []
         if self._use_prompt_tuning:
             ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
-            
+
         if self._mapping.is_first_pp_rank():
             x = self.vocab_embedding(input_ids, *ptuning_args)
             if hasattr(self, "positional_embedding") and self.positional_embedding:
@@ -157,13 +143,15 @@ class ModelBuilder(Module):
         if attention_mask is not None:
             attention_mask = expand_mask(attention_mask, shape(input_ids, -1))
 
-        for layer_idx, (
-                layer, past, pointer, host_pointer,
-                max_attention_window_size) in enumerate(
-            zip(self.layers, kv_cache_params.past_key_value,
+        for layer_idx, (layer, past, pointer, host_pointer, max_attention_window_size) in enumerate(
+            zip(
+                self.layers,
+                kv_cache_params.past_key_value,
                 kv_cache_params.kv_cache_block_pointers,
                 kv_cache_params.host_kv_cache_block_pointers,
-                kv_cache_params.host_max_attention_window_sizes)):
+                kv_cache_params.host_max_attention_window_sizes,
+            )
+        ):
 
             decoder_params = {
                 "hidden_states": hidden_states,
@@ -226,9 +214,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             )
             self.lm_head.weight.value = model_config.lm_head.weight
             if model_config.quantization:
-                self.lm_head = quantize_linear(
-                    self.lm_head, model_config.quantization, model_config.lm_head
-                )
+                self.lm_head = quantize_linear(self.lm_head, model_config.quantization, model_config.lm_head)
 
     def forward(
         self,
@@ -269,8 +255,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         if self._mapping.is_last_pp_rank():
             assert last_token_ids is not None, "Expecting last token ids to be not None"
             hidden_states = gather_last_token_logits(
-                hidden_states, last_token_ids,
-                default_net().plugin_config.remove_input_padding)
+                hidden_states, last_token_ids, default_net().plugin_config.remove_input_padding
+            )
 
             # [batch_size, hidden_size] -> [batch_size, vocab_size]
             lm_logits = self.lm_head(hidden_states)
@@ -280,8 +266,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
 
         if use_cache:
             if not default_net().plugin_config.paged_kv_cache:
-                for i, present in zip(
-                        self._mapping.pp_layers(self._num_layers), presents):
+                for i, present in zip(self._mapping.pp_layers(self._num_layers), presents):
                     present.mark_output(f'present_key_value_{i}', self._kv_dtype)
             if self._mapping.is_last_pp_rank():
                 return (lm_logits, presents)
@@ -317,8 +302,8 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
         use_gemm_plugin = default_net().plugin_config.gemm_plugin
-        #paged_kv_cache = default_net().plugin_config.paged_kv_cache
-        #tokens_per_block = default_net().plugin_config.tokens_per_block
+        # paged_kv_cache = default_net().plugin_config.paged_kv_cache
+        # tokens_per_block = default_net().plugin_config.tokens_per_block
         use_custom_all_reduce = default_net().plugin_config.use_custom_all_reduce
         use_lora_plugin = default_net().plugin_config.lora_plugin
 
@@ -361,14 +346,10 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             model_inputs["attention_mask"],
             KeyValueCacheParams(
                 past_key_value=model_inputs['past_key_value'],
-                host_past_key_value_lengths=model_inputs[
-                    'host_past_key_value_lengths'],
-                host_max_attention_window_sizes=model_inputs[
-                    'host_max_attention_window_sizes'],
-                kv_cache_block_pointers=model_inputs[
-                    'kv_cache_block_pointers_list'],
-                host_kv_cache_block_pointers=model_inputs[
-                    'host_kv_cache_block_pointers_list'],
+                host_past_key_value_lengths=model_inputs['host_past_key_value_lengths'],
+                host_max_attention_window_sizes=model_inputs['host_max_attention_window_sizes'],
+                kv_cache_block_pointers=model_inputs['kv_cache_block_pointers_list'],
+                host_kv_cache_block_pointers=model_inputs['host_kv_cache_block_pointers_list'],
                 cache_indirection=model_inputs['cache_indirection'],
                 host_sink_token_length=model_inputs['host_sink_token_length'],
             ),
@@ -377,7 +358,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 context_lengths=model_inputs['context_lengths'],
                 host_context_lengths=model_inputs['host_context_lengths'],
                 max_context_length=max_input_len,
-                host_request_types=model_inputs['host_request_types']
+                host_request_types=model_inputs['host_request_types'],
             ),
             model_inputs['prompt_embedding_table'],
             model_inputs['tasks'],
@@ -389,7 +370,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 model_inputs['lora_weights_pointers'],
                 host_context_lengths=model_inputs['host_context_lengths'],
                 max_context_length=max_input_len,
-                host_request_types=model_inputs['host_request_types']
+                host_request_types=model_inputs['host_request_types'],
             ),
         )
 

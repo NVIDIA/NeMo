@@ -21,22 +21,16 @@ from pathlib import Path
 from types import MethodType
 
 import numpy as np
-import torch
-from tensorrt_llm._utils import str_dtype_to_torch, torch_to_numpy, np_bfloat16
-from tqdm import tqdm
-from transformers import GPT2Tokenizer, LlamaConfig, T5Tokenizer, AutoTokenizer
-from .sentencepiece_tokenizer import SentencePieceTokenizer
-
 import tensorstore  # this is important even though not used
+import torch
 import zarr
+from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
+from tqdm import tqdm
+from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig, T5Tokenizer
 
-from .convert import (
-    cpu_map_location,
-    gpu_map_location,
-    split_and_save_weight,
-    save_weight_torch
-)
+from .convert import cpu_map_location, gpu_map_location, save_weight_torch, split_and_save_weight
 from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
+from .sentencepiece_tokenizer import SentencePieceTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -45,8 +39,9 @@ layer_names = {
     "word_embedding": "embedding.word_embeddings.weight",
     "output_layer": "output_layer.weight",
     "final_layernorm.weight": "final_layernorm.weight",
-    "final_layernorm.bias": "final_layernorm.bias"
+    "final_layernorm.bias": "final_layernorm.bias",
 }
+
 
 def get_layer_name(layer_type: str, prefix: str):
     layer_dict = layer_names
@@ -54,11 +49,12 @@ def get_layer_name(layer_type: str, prefix: str):
         return prefix + layer_dict[layer_type]
     else:
         raise ValueError(f"Unknown layer type {layer_type}")
-    
+
+
 def get_layer_prefix(layer_names, is_mcore):
     transformer_layer_prefix = None
     model_prefix = None
-    
+
     for layer_name in layer_names:
         if 'self_attention' in layer_name:
             transformer_layer_prefix = layer_name.split('layers')[0]
@@ -69,8 +65,9 @@ def get_layer_prefix(layer_names, is_mcore):
     else:
         model_prefix = transformer_layer_prefix.split('encoder')[0]
     assert model_prefix is not None, "Cannot extract model prefix from {layer_name}"
-    
+
     return model_prefix, transformer_layer_prefix
+
 
 def get_layer_index(split_key):
     index = 0
@@ -78,6 +75,7 @@ def get_layer_index(split_key):
         if key == "layers":
             return index + 1
         index += 1
+
 
 def rename_key(old_key: str, pp_rank: int, num_layers: int, pp_size: int):
     new_key = old_key
@@ -161,9 +159,8 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
-        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu") and (
-            args.decoder_type == "gptnext" or is_mcore or is_fast_glu
-        ),
+        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu")
+        and (args.decoder_type == "gptnext" or is_mcore or is_fast_glu),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
         "use_attention_nemo_shape": True,
@@ -205,7 +202,7 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
                 rank_weights = checkpoints_paths[tp_rank * merge_factor + k][pp_rank]
                 model = torch.load(rank_weights, map_location=map_location_fn)
                 handle_model_level_weights(model, tp_rank * merge_factor + k, pp_rank)
-                
+
                 layers = extract_layers_with_prefix(model, transformer_layer_prefix)
                 models.append(layers)
 
@@ -247,19 +244,13 @@ def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args
         weights_dict[key] = model_level_weights[key]
     vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
-    tokenizer_config = update_tokenizer_paths(
-        nemo_model_config["tokenizer"], unpacked_checkpoints_dir
-    )
+    tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
     copy_tokenizer_files(tokenizer_config, out_dir)
     # AMMO modification.
     tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
     tokenizer = build_tokenizer(tokenizer_config)
     llm_config = nemo_to_llm_config(
-        nemo_model_config,
-        vocab_size,
-        tokenizer.eos_token_id,
-        tokenizer.bos_token_id,
-        args.decoder_type,
+        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id, args.decoder_type,
     )
 
     llm_config.is_mcore = is_mcore
@@ -332,9 +323,8 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
-        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu") and (
-                args.decoder_type == "gptnext" or is_mcore
-        ),
+        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu")
+        and (args.decoder_type == "gptnext" or is_mcore),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
         "use_attention_nemo_shape": True,
@@ -430,29 +420,25 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         weights_dict[key] = model_level_weights[key]
     vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
-    if nemo_model_config["tokenizer"].get("library", None)=="huggingface":
-        tokenizer = AutoTokenizer.from_pretrained(nemo_model_config["tokenizer"]["type"], use_fast=nemo_model_config["tokenizer"].get("use_fast", False))
-    else:
-        tokenizer_config = update_tokenizer_paths(
-            nemo_model_config["tokenizer"], unpacked_checkpoints_dir
+    if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
+        tokenizer = AutoTokenizer.from_pretrained(
+            nemo_model_config["tokenizer"]["type"], use_fast=nemo_model_config["tokenizer"].get("use_fast", False)
         )
+    else:
+        tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
         copy_tokenizer_files(tokenizer_config, out_dir)
         # AMMO modification.
         tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
         tokenizer = build_tokenizer(tokenizer_config)
 
     llm_config = nemo_to_llm_config(
-        nemo_model_config,
-        vocab_size,
-        tokenizer.eos_token_id,
-        tokenizer.bos_token_id,
-        args.decoder_type,
+        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id, args.decoder_type,
     )
 
     llm_config.is_mcore = is_mcore
 
     config = configparser.ConfigParser()
-    decoder_name_dict = {"llama": "llama", "falcon":"falcon"}
+    decoder_name_dict = {"llama": "llama", "falcon": "falcon"}
     model_name = decoder_name_dict[args.decoder_type] if args.decoder_type in decoder_name_dict else "gpt"
 
     config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
@@ -465,8 +451,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
 
 @torch.no_grad()
-def convert_nemo_model(
-    nemo_model, nemo_model_config, storage_type_str, decoder_type=None):
+def convert_nemo_model(nemo_model, nemo_model_config, storage_type_str, decoder_type=None):
     from megatron.core import parallel_state
 
     is_mcore = nemo_model_config.get("mcore_gpt", False)
@@ -493,11 +478,11 @@ def convert_nemo_model(
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
 
-    #pp currently unsupported so reshard away PP
+    # pp currently unsupported so reshard away PP
     is_pp_resharding = False
     if pp_size > 1:
         is_pp_resharding = True
-        
+
     if num_kv_heads == 0:
         if multi_query_mode:
             num_kv_heads = 1
@@ -507,9 +492,8 @@ def convert_nemo_model(
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": training_tp_size,
-        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu") and (
-            decoder_type == "gptnext" or is_mcore
-        ),
+        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu")
+        and (decoder_type == "gptnext" or is_mcore),
         "num_attention_heads": nemo_model_config["num_attention_heads"],
         "num_kv_heads": num_kv_heads,
         "use_attention_nemo_shape": True,
@@ -533,7 +517,7 @@ def convert_nemo_model(
         src_rank = torch.distributed.get_global_rank(pp_group, pp_size - 1)
         torch.distributed.broadcast(has_final_layer_bias, src_rank, group=pp_group)
         has_final_layer_bias = has_final_layer_bias.item()
-    
+
     trt_inflight_weights = {}
     starmap_args = []
 
@@ -564,27 +548,37 @@ def convert_nemo_model(
                         "split_factor": 1,
                         "key": dst_key,
                         "vals": [gathered_tensor],
-                        "storage_type" :storage_type,
+                        "storage_type": storage_type,
                         "act_range": None,
                         "config": export_config,
                     }
                 )
-       
+
         if has_lm_head:
             _handle_weights(get_layer_name("output_layer", prefix), "model.lm_head.weight.bin", pp_size - 1, 2)
         if has_position_embedding:
             _handle_weights(get_layer_name("position_embedding", prefix), "model.wpe.bin", 0, 2)
 
         _handle_weights(get_layer_name("word_embedding", prefix), "model.wte.bin", 0, 2)
-        _handle_weights(get_layer_name("final_layernorm.weight", transformer_layer_prefix), "final_layernorm.weight", pp_size - 1, 1)
+        _handle_weights(
+            get_layer_name("final_layernorm.weight", transformer_layer_prefix),
+            "final_layernorm.weight",
+            pp_size - 1,
+            1,
+        )
 
         if has_final_layer_bias:
-            _handle_weights(get_layer_name("final_layernorm.bias", transformer_layer_prefix), "final_layernorm.bias", pp_size - 1, 1)
-                
+            _handle_weights(
+                get_layer_name("final_layernorm.bias", transformer_layer_prefix),
+                "final_layernorm.bias",
+                pp_size - 1,
+                1,
+            )
+
         torch.cuda.empty_cache()
 
     models = []
-    
+
     handle_model_level_weights(nemo_model_state_dict, tp_rank, pp_rank)
     layers = extract_layers_with_prefix(nemo_model_state_dict, transformer_layer_prefix)
     models.append(layers)
@@ -601,7 +595,7 @@ def convert_nemo_model(
                     "split_factor": 1,
                     "key": rename_key(key, pp_rank, num_layers, training_pp_size),
                     "vals": [model[key] for model in models],
-                    "storage_type" :storage_type,
+                    "storage_type": storage_type,
                     "act_range": None,
                     "config": export_config,
                 }
@@ -609,7 +603,7 @@ def convert_nemo_model(
     starmap_args = tqdm(starmap_args, desc="saving weights")
     for starmap_arg in starmap_args:
         save_weight_torch(**starmap_arg)
-    
+
     # Collect weights from different pp stages
     # Assume each rank has the same number of layers
     if is_pp_resharding:
@@ -626,7 +620,7 @@ def convert_nemo_model(
                 curr_weight = torch.tensor(curr_weight.view(np.int16)).view(torch.bfloat16).cuda()
             weight_list = [torch.zeros_like(curr_weight) for _ in range(pp_size)]
             torch.distributed.all_gather(weight_list, curr_weight, group=pp_group)
-            # Collect weights name 
+            # Collect weights name
             for rank in range(pp_size):
                 split_key = key.split(".")
                 layer_index = get_layer_index(split_key)
@@ -639,11 +633,11 @@ def convert_nemo_model(
     vocab_size = trt_inflight_weights["model.wte.bin"].shape[0] * tp_size
 
     llm_config = nemo_to_llm_config(
-        nemo_model_config, 
-        vocab_size, 
+        nemo_model_config,
+        vocab_size,
         None,
         None,
-        decoder_type=decoder_type # how to get eos_id and bos_id from different tokenizer?
+        decoder_type=decoder_type,  # how to get eos_id and bos_id from different tokenizer?
     )
     llm_config.is_mcore = is_mcore
 
@@ -720,13 +714,16 @@ def build_tokenizer(tokenizer):
             tokenizer.add_special_tokens({"eos_token": "</s>"})
     else:
         try:
-            #If NeMo tokenizer, monkey patch interface
+            # If NeMo tokenizer, monkey patch interface
             from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
             if isinstance(tokenizer, TokenizerSpec):
+
                 def batch_encode_patch(self, ids):
                     if torch.is_tensor(ids):
                         ids = ids.cpu().numpy()
                     return self.ids_to_text(ids)
+
                 tokenizer.bos_token_id = tokenizer.bos_id
                 tokenizer.eos_token_id = tokenizer.eos_id
                 tokenizer.encode = tokenizer.text_to_ids
@@ -735,4 +732,3 @@ def build_tokenizer(tokenizer):
             raise TypeError(f'Unsupported tokenizer build input: {type(tokenizer)}')
 
     return tokenizer
-
