@@ -787,10 +787,10 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(
-                    predictions=encoded, 
-                    predictions_lengths=encoded_len, 
-                    targets=transcript, 
-                    targets_lengths=transcript_len
+                    predictions=encoded,
+                    predictions_lengths=encoded_len,
+                    targets=transcript,
+                    targets_lengths=transcript_len,
                 )
                 _, scores, words = self.wer.compute()
                 self.wer.reset()
@@ -902,10 +902,10 @@ class AudioVisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 tensorboard_logs['val_loss'] = loss_value
 
             self.wer.update(
-                predictions=encoded, 
-                predictions_lengths=encoded_len, 
-                targets=transcript, 
-                targets_lengths=transcript_len
+                predictions=encoded,
+                predictions_lengths=encoded_len,
+                targets=transcript,
+                targets_lengths=transcript_len,
             )
             wer, wer_num, wer_denom = self.wer.compute()
             self.wer.reset()
