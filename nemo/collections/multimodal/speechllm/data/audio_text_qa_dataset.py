@@ -538,7 +538,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             # accomodates normalize_batch
             output["audio_length"] = torch.tensor(8000)
 
-        text_data = self._process_example(context=sample.question, output=sample.answer)
+        text_data = self._process_example(context=str(sample.question), output=str(sample.answer))
 
         output.update(text_data)
         output['metadata'] = {

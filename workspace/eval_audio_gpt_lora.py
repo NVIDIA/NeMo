@@ -15,10 +15,10 @@
 
 import json
 import os
+from pathlib import Path
 
 import torch.multiprocessing as mp
-from omegaconf.omegaconf import OmegaConf, open_dict
-from torch.utils.data import DataLoader
+from omegaconf.omegaconf import ListConfig, OmegaConf, open_dict
 
 from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTLoRAModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_peft_models import MegatronGPTPEFTModel
@@ -111,12 +111,25 @@ def main(cfg) -> None:
     if os.path.isdir(cfg.model.restore_from_path):
         save_restore_connector.model_extracted_dir = cfg.model.restore_from_path
 
+    if isinstance(peft_model_cfg.data.end_string, ListConfig) and len(peft_model_cfg.data.end_string) == 1:
+        # ugly fix for the error caused by overwriting the end_string in the bash script using hydra overrides
+        with open_dict(peft_model_cfg):
+            end_string = "[end_string]"
+            peft_model_cfg.data.end_string = end_string
+            peft_model_cfg.data.test_ds.end_string = end_string
+
     model = ModularAudioGPTLoRAModel.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
         override_config_path=peft_model_cfg,
         save_restore_connector=save_restore_connector,
     )
+
+    if cfg.get("save_as_nemo", None):
+        model.save_to(cfg.save_as_nemo)
+        logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}")
+        exit(0)
+
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
     model.freeze()
