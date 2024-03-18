@@ -10,7 +10,7 @@ trainer:
   use_distributed_sampler: False
   max_epochs: 9999
   max_steps: 20000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10 # frequency with which training steps are logged 
+  log_every_n_steps: 10 # frequency with which training steps are logged
   val_check_interval: 200 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
 
@@ -28,12 +28,12 @@ exp_manager:
   checkpoint_callback_params:
     monitor: validation_${model.data.test_ds.metric.name}
     save_top_k: 1
-    mode: max
+    mode: min
     save_nemo_on_train_end: True
     filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     always_save_nemo: True
-    save_best_model: False
+    save_best_model: True
 
 model:
   seed: 1234
@@ -61,15 +61,16 @@ model:
   # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
   activations_checkpoint_num_layers: null # not used with 'selective'
   activations_checkpoint_layers_per_pipeline: null
-  answer_only_loss: True
   gradient_as_bucket_view: False
 
   hidden_dropout: 0.0
   attention_dropout: 0.0
   ffn_dropout: 0.0
+  temperature: 0.8
+  num_soft_negatives: 0 # Number of soft negatives to use for contrastive loss,it should be max(batch_size - 1), 0 means use hard negatives only
 
   peft:
-    peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
+    peft_scheme: "lora"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
     restore_from_ckpt:
       checkpoint_dir: null
@@ -89,8 +90,9 @@ model:
       position_embedding_strategy: null # used only when weight_tying is True
 
     lora_tuning:
-      target_modules: ['attention_qkv'] # this can either be 'attention_qkv','attention_dense','mlp_fc1','mlp_fc2', attention (qkv & dense), mlp (fc1 & fc2)
+      target_modules: ['attention_qkv','attention_dense','mlp_fc1','mlp_fc2'] # this can either be 'attention_qkv','attention_dense','mlp_fc1','mlp_fc2', attention (qkv & dense), mlp (fc1 & fc2)
       adapter_dim: 32
+      alpha: ${peft.lora_tuning.adapter_dim} 
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
@@ -107,11 +109,16 @@ model:
 
     ia3_tuning:
       layer_selection:  null  # selects in which layers to add ia3 adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+    
+    selective_tuning:
+      tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
 
   data:
+    return_output_tensors: True
     test_ds:
-      file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-      names: ??? # Names of the corresponding datasets used to log metrics.
+      query_file_names: ??? # Path to a list of JSONL files corresponding to the query data. Data format is identical to validation_ds.
+      doc_file_names: ??? # Path to a list of JSONL files corresponding to the doc data. Data format is identical to validation_ds.
+      names: ["queries", "doc"] # Names of the corresponding datasets used to log metrics.
       global_batch_size: 1
       micro_batch_size: 1
       shuffle: False
@@ -120,17 +127,11 @@ model:
       max_seq_length: 2048
       min_seq_length: 1
       drop_last: False
-      context_key: 'input'
-      label_key: ${data.train_ds.label_key}
-      add_eos: ${data.train_ds.add_eos}
-      add_sep: ${data.train_ds.add_sep}
-      add_bos: ${data.train_ds.add_bos}
-      write_predictions_to_file: False
-      output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: ${data.train_ds.truncation_field} # Options: keys in prompt_template
+      add_eos: True
+      add_bos: False
+      write_embeddings_to_file: True
+      output_file_path_prefix: "test_embeddings" # Prefix of the file to write predictions to.
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: ${data.train_ds.prompt_template}
-      tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
 
       metric:
