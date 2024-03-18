@@ -357,6 +357,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
             torch.less(time_indices, encoder_output_length, out=active_mask)
             torch.logical_and(active_mask, blank_mask, out=advance_mask)
+
             # inner loop: find next non-blank labels (if exist)
             while advance_mask.any():
                 # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
@@ -467,18 +468,13 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         self.state.encoder_output_length[current_batch_size:].fill_(0)
         self.graph.replay()
 
-        # logging.warning(f"manual loop")
+        # manual loop
         # self._before_outer_loop()
         # while self.state.active_mask_any.item():
         #     self._before_inner_loop()
         #     while self.state.advance_mask_any.item():
         #         self._inner_loop_code()
         #     self._after_inner_loop()
-
-        # logging.warning(f"Ref: {etalon_hyps.transcript[:, :20].tolist()}")
-        # logging.warning(f"Cur: {self.state.batched_hyps.transcript[:, :20].tolist()}")
-        # logging.warning(f"Ref: {etalon_hyps.timesteps[:, :20].tolist()}")
-        # logging.warning(f"Cur: {self.state.batched_hyps.timesteps[:, :20].tolist()}")
 
         return (
             self.state.batched_hyps,

@@ -448,6 +448,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self.state.encoder_output_length[current_batch_size:].fill_(0)
         self.graph.replay()
 
+        # manual loop
+        # self._before_outer_loop()
+        # while self.state.active_mask_any.item():
+        #     self._before_inner_loop()
+        #     while self.state.advance_mask_any.item():
+        #         self._inner_loop_code()
+        #     self._after_inner_loop()
+
         return (
             self.state.batched_hyps,
             self.state.alignments,
@@ -522,33 +530,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         with torch.cuda.stream(torch.cuda.Stream(device=self.state.device)), torch.inference_mode(), torch.cuda.graph(
             self.graph
         ):
-            self.state.batched_hyps.clear_()
-            if self.state.alignments is not None:
-                self.state.alignments.clear_()
-
-            # initial state, needed for torch.jit to compile (cannot handle None)
-            self.state.decoder_state[0].fill_(0.0)
-            self.state.decoder_state[1].fill_(0.0)
-            # last found labels - initially <SOS> (<blank>) symbol
-            self.state.labels.fill_(self._SOS)
-            self.state.scores.fill_(0.0)
-
-            # time indices
-            # time_indices = torch.zeros_like(batch_indices)
-            # safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < encoder_output_length
-            self.state.time_indices.fill_(0)
-            self.state.safe_time_indices.fill_(0)
-            self.state.time_indices_current_labels.fill_(0)
-            torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
-
-            # masks for utterances in batch
-            # active_mask: torch.Tensor = self.encoder_output_length > 0
-            # advance_mask = torch.empty_like(active_mask)
-            torch.greater(self.state.encoder_output_length, 0, out=self.state.active_mask)
-
-            # for storing the last state we need to know what elements became "inactive" on this step
-            # self.active_mask_any = active_mask.any()
-            torch.any(self.state.active_mask, out=self.state.active_mask_any)
+            self._before_outer_loop()
 
             capture_status, _, graph, _, _ = cu_call(
                 cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.state.device).cuda_stream)
@@ -581,6 +563,35 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 ):
                     self._inner_loop_code()
                 self._after_inner_loop()
+
+    def _before_outer_loop(self):
+        self.state.batched_hyps.clear_()
+        if self.state.alignments is not None:
+            self.state.alignments.clear_()
+
+        # initial state, needed for torch.jit to compile (cannot handle None)
+        self.state.decoder_state[0].fill_(0.0)
+        self.state.decoder_state[1].fill_(0.0)
+        # last found labels - initially <SOS> (<blank>) symbol
+        self.state.labels.fill_(self._SOS)
+        self.state.scores.fill_(0.0)
+
+        # time indices
+        # time_indices = torch.zeros_like(batch_indices)
+        # safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < encoder_output_length
+        self.state.time_indices.fill_(0)
+        self.state.safe_time_indices.fill_(0)
+        self.state.time_indices_current_labels.fill_(0)
+        torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
+
+        # masks for utterances in batch
+        # active_mask: torch.Tensor = self.encoder_output_length > 0
+        # advance_mask = torch.empty_like(active_mask)
+        torch.greater(self.state.encoder_output_length, 0, out=self.state.active_mask)
+
+        # for storing the last state we need to know what elements became "inactive" on this step
+        # self.active_mask_any = active_mask.any()
+        torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
     def _before_inner_loop(self):
         self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
