@@ -167,6 +167,10 @@ def main(cfg) -> None:
     model.set_inference_config(config)
     model.freeze()
 
+    if cfg.get("save_as_nemo", None):
+        model.save_to(cfg.save_as_nemo)
+        logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}")
+
     if cfg.evaluate_metric:
         trainer.test(model)
         exit(0)
