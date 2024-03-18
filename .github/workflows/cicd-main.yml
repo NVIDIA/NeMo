@@ -80,7 +80,7 @@ jobs:
             # Transformer Engine installation
             git clone https://github.com/NVIDIA/TransformerEngine.git && \
                 pushd TransformerEngine && \
-                git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
+                git fetch origin 8c9abbb80dba196f086b8b602a7cf1bce0040a6a && \
                 git checkout FETCH_HEAD && \
                 git submodule init && git submodule update && \
                 NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .  && \
