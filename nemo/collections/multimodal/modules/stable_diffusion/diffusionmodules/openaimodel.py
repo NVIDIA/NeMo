@@ -20,9 +20,11 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
+from apex.contrib.group_norm import GroupNorm
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     avg_pool_nd,
+    build_timestep_embedding,
     checkpoint,
     conv_nd,
     linear,
@@ -32,18 +34,26 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 )
 from nemo.utils import logging
 
-
-def convert_module_to_dtype(module, dtype):
+def convert_module_to_dtype(module, dtype, enable_norm_layers=False):
     # Convert module parameters to dtype
     if isinstance(module, (torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Linear)):
         module.weight.data = module.weight.data.to(dtype)
         if module.bias is not None:
             module.bias.data = module.bias.data.to(dtype)
 
+    if enable_norm_layers:
+        if isinstance(module, (nn.LayerNorm, nn.GroupNorm, GroupNorm)):
+            module.weight.data = module.weight.data.to(dtype)
+            if module.bias is not None:
+                module.bias.data = module.bias.data.to(dtype)
 
-def convert_module_to_fp16(module):
-    convert_module_to_dtype(module, torch.float16)
 
+def convert_module_to_fp16(module, enable_norm_layers=False):
+    convert_module_to_dtype(module, torch.float16, enable_norm_layers)
+
+
+def convert_module_to_fp32(module, enable_norm_layers=False):
+    convert_module_to_dtype(module, torch.float32, enable_norm_layers)
 
 class AttentionPool2d(nn.Module):
     """
@@ -471,6 +481,7 @@ class UNetModel(nn.Module):
         use_flash_attention: bool = False,
         unet_precision: str = "fp32",
         lora_network_alpha=None,
+        timesteps=1000,
     ):
         super().__init__()
         if use_spatial_transformer:
@@ -515,6 +526,10 @@ class UNetModel(nn.Module):
         self.time_embed = nn.Sequential(
             linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
         )
+
+        self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps)).to('cuda')
+        if unet_precision == 'fp16-mixed' or unet_precision == 'fp16':
+            self.time_embeddings = self.time_embeddings.to(torch.float16)
 
         if self.num_classes is not None:
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
@@ -744,8 +759,12 @@ class UNetModel(nn.Module):
                 print(f"Missing keys: {missing_key}")
                 print(f"Unexpected keys: {unexpected_keys}")
 
-        if unet_precision == "fp16":  # AMP O2
+        if unet_precision == "fp16-mixed":  # AMP O2
             self.convert_to_fp16()
+        elif unet_precision == 'fp16':
+            self.convert_to_fp16(enable_norm_layers=True)
+
+        self.unet_precision = unet_precision
 
     def _input_blocks_mapping(self, input_dict):
         res_dict = {}
@@ -955,11 +974,11 @@ class UNetModel(nn.Module):
 
         return error_msgs
 
-    def convert_to_fp16(self):
+    def convert_to_fp16(self, enable_norm_layers=False):
         """
         Convert the torso of the model to float16.
         """
-        self.apply(convert_module_to_fp16)
+        self.apply(lambda module: convert_module_to_fp16(module=module, enable_norm_layers=enable_norm_layers))
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         """
@@ -980,7 +999,13 @@ class UNetModel(nn.Module):
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
         hs = []
-        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+
+        if self.unet_precision == "fp16-mixed" or self.unet_precision == "fp16":
+            x = x.type(torch.float16)
+            if context is not None:
+                context = context.type(torch.float16)
+
+        t_emb = timestep_embedding(timesteps, self.model_channels, cached_embedding=self.time_embeddings)
         emb = self.time_embed(t_emb)
 
         if self.num_classes is not None:
