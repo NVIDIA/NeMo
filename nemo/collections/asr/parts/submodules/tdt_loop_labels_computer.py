@@ -103,8 +103,8 @@ class LoopLabelsState:
     active_mask_any: torch.Tensor
     advance_mask_any: torch.Tensor
 
-    last_decoder_state: torch.Tensor
-    decoder_state: torch.Tensor
+    last_decoder_state: Any
+    decoder_state: Any
     decoder_output: torch.Tensor
 
     batched_hyps: rnnt_utils.BatchedHyps
@@ -543,7 +543,6 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             preserve_alignments=self.preserve_alignments,
             preserve_frame_confidence=self.preserve_frame_confidence,
         )
-        logging.warning(f"Reinit, max time: {self.state.max_time}, batch size: {self.state.batch_size}")
         self.state.all_durations = self.durations.to(self.state.device)
 
         self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
@@ -602,9 +601,10 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             self.state.alignments.clear_()
 
         # initial state
-        # TODO: fix non-lstm
-        self.state.decoder_state[0].fill_(0.0)
-        self.state.decoder_state[1].fill_(0.0)
+        self.decoder.batch_replace_states_all(
+            src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
+            dst_states=self.state.decoder_state,
+        )
         # last found labels - initially <SOS> (<blank>) symbol
         self.state.labels.fill_(self._SOS)
         self.state.scores.fill_(0.0)
@@ -629,9 +629,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
-        # TODO: fix non-lstm
-        self.state.decoder_state[0].copy_(new_state[0])
-        self.state.decoder_state[1].copy_(new_state[1])
+        self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
         decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         self.state.decoder_output.copy_(decoder_output_projected)
 

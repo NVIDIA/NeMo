@@ -285,6 +285,13 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """Replace states in dst_states with states from src_states using the mask, in a way that does not synchronize with the CPU"""
         raise NotImplementedError()
 
+    @classmethod
+    def batch_replace_states_all(
+        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+    ):
+        """Replace states in dst_states with states from src_states"""
+        raise NotImplementedError()
+
     def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
         """
         Split states into a list of states.
@@ -342,3 +349,6 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
             states filtered by mask (same type as `states`)
         """
         raise NotImplementedError()
+
+    def batch_copy_states_all(self) -> Any:
+        raise NotImplementedError
