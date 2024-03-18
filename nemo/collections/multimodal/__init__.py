@@ -11,15 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from nemo.collections.multimodal import data, losses, models, modules, speech_cv
-from nemo.package_info import __version__
-
-# Set collection version equal to NeMo version.
-__version = __version__
-
-# Authorship.
-__author__ = "NVIDIA Corporation"
-
-# Set collection name.
-__description__ = "Multimodal collection"
