@@ -163,15 +163,16 @@ def main():
     # Example shape: {'tokens': torch.Size([1, 344]), 'labels': torch.Size([1, 344]), 'image': torch.Size([1, 1, 3, 224, 224])}
     seq_bins = collections.defaultdict(list)
     prefix_path = "abcabc"
-    builder = MMapIndexedDatasetBuilder(get_bin_path(prefix_path), dtype=np.int32)
+    builder = MMapIndexedDatasetBuilder(get_bin_path(prefix_path), dtype=np.int32, multimodal=True)
     for item_dict in tqdm.tqdm(train_dl):
         item_dict = {k: v[0] for k, v in item_dict.items()}
         builder.add_item(item_dict['tokens'])
         builder.add_item(item_dict['labels'])
+        builder.add_item(item_dict['image'], 1)
         builder.end_document()
         del item_dict
     builder.finalize(get_idx_path(prefix_path))
-    dataset = MMapIndexedDataset(prefix_path)
+    dataset = MMapIndexedDataset(prefix_path, multimodal=True)
     import pdb; pdb.set_trace()
     # seq_lens = []
     # for seq_len in seq_bins:
