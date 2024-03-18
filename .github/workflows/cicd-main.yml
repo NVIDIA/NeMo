@@ -90,7 +90,7 @@ jobs:
             # Apex installation
             git clone https://github.com/NVIDIA/apex.git && \
                 pushd apex && \
-                git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
+                git checkout b496d85fb88a801d8e680872a12822de310951fd && \
                 cp -R apex /usr/local/lib/python3.10/dist-packages && \
                 popd
 
