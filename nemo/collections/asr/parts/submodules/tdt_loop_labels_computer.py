@@ -170,6 +170,7 @@ class LoopLabelsState:
             )
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
+        """Check if need to reinit state: larger batch_size/max_time, or new device"""
         return (
             self.batch_size < encoder_output_projected.shape[0]
             or self.max_time < encoder_output_projected.shape[1]
@@ -570,7 +571,8 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             with with_conditional_node(
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
-                self._before_inner_loop()
+                self._before_inner_loop_get_decoder_output()
+                self._before_inner_loop_get_joint_output()
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
@@ -586,11 +588,13 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                 self._after_inner_loop()
 
     def _before_outer_loop(self):
+        """Clear state"""
         self.state.batched_hyps.clear_()
         if self.state.alignments is not None:
             self.state.alignments.clear_()
 
-        # initial state, needed for torch.jit to compile (cannot handle None)
+        # initial state
+        # TODO: fix non-lstm
         self.state.decoder_state[0].fill_(0.0)
         self.state.decoder_state[1].fill_(0.0)
         # last found labels - initially <SOS> (<blank>) symbol
@@ -598,33 +602,34 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         self.state.scores.fill_(0.0)
 
         # time indices
-        # time_indices = torch.zeros_like(batch_indices)
-        # safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < encoder_output_length
         self.state.time_indices.fill_(0)
-        self.state.safe_time_indices.fill_(0)
+        self.state.safe_time_indices.fill_(0)  # safe time indices: guaranteed to be < encoder_output_length
         self.state.time_indices_current_labels.fill_(0)
         torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
 
         # masks for utterances in batch
-        # active_mask: torch.Tensor = self.encoder_output_length > 0
-        # advance_mask = torch.empty_like(active_mask)
+        # same as: active_mask = self.encoder_output_length > 0
         torch.greater(self.state.encoder_output_length, 0, out=self.state.active_mask)
 
         # for storing the last state we need to know what elements became "inactive" on this step
-        # self.active_mask_any = active_mask.any()
+        # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
-    def _before_inner_loop(self):
+    def _before_inner_loop_get_decoder_output(self):
+        """Get decoder output"""
         self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
         # stage 1: get decoder (prediction network) output
         decoder_output, new_state, *_ = self.decoder.predict(
             self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
         )
+        # TODO: fix non-lstm
         self.state.decoder_state[0].copy_(new_state[0])
         self.state.decoder_state[1].copy_(new_state[1])
         decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         self.state.decoder_output.copy_(decoder_output_projected)
 
+    def _before_inner_loop_get_joint_output(self):
+        """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
         # stage 2: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
         logits = (
@@ -637,7 +642,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             .squeeze(1)
             .squeeze(1)
         )
-        # scores, labels = logits.max(-1)
+        # same as: scores, labels = logits[:, : -self.state.all_durations.shape[0]].max(-1)
         torch.max(logits[:, : -self.state.all_durations.shape[0]], dim=-1, out=(self.state.scores, self.state.labels))
         jump_durations_indices = logits[:, -self.state.all_durations.shape[0] :].argmax(dim=-1)
         durations = self.state.all_durations[jump_durations_indices]
@@ -664,19 +669,17 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
 
         # advance_mask is a mask for current batch for searching non-blank labels;
         # each element is True if non-blank symbol is not yet found AND we can increase the time index
-        # self.time_indices += self.blank_mask
-        # self.time_indices = self.time_indices + self.blank_mask
         self.state.time_indices.add_(durations)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
         torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
 
         # inner loop: find next non-blank labels (if exist)
-
-        # self.advance_mask_any = advance_mask.any()
+        # same as: self.advance_mask_any = advance_mask.any()
         torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
     def _inner_loop_code(self):
+        """Find next non-blank labels - one iteration"""
         # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
         # store current time indices to use further for storing the results
         torch.where(
@@ -736,6 +739,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
     def _after_inner_loop(self):
+        """Store hypotheses, state for finished hypotheses, avoid looping"""
         # stage 3: filter labels and state, store hypotheses
         # select states for hyps that became inactive (is it necessary?)
         # this seems to be redundant, but used in the `loop_frames` output
