@@ -149,15 +149,16 @@ class ConvFeatureMaksingWrapper(NeuralModule):
         self.pre_encode = pre_encode_module
         self.masking = masking_module
         self.curr_mask = None
+        self.curr_feat = None
         self.apply_mask = False
 
     def forward(self, x, lengths):
         feats, lengths = self.pre_encode(x=x, lengths=lengths)
-
+        self.curr_feat = feats.detach()
         if self.apply_mask:
             feats = feats.transpose(1, 2)
             masked_feats, self.curr_mask = self.masking(input_feats=feats, input_lengths=lengths)
-            masked_feats = masked_feats.transpose(1, 2)
+            masked_feats = masked_feats.transpose(1, 2).detach()
         else:
             masked_feats = feats
             self.curr_mask = torch.zeros_like(feats)
@@ -168,3 +169,6 @@ class ConvFeatureMaksingWrapper(NeuralModule):
 
     def get_current_mask(self):
         return self.curr_mask
+
+    def get_current_feat(self):
+        return self.curr_feat

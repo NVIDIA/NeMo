@@ -20,7 +20,7 @@
 # with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
 # With weight_decay=0.0, learning rate may need to get reduced to 2.0.
 
-name: "Conformer-SSL-RQ"
+name: "Conformer-SSL-MLM"
 
 model:
   sample_rate: 16000
@@ -28,6 +28,7 @@ model:
   num_books: 1
   code_dim: 16
   squeeze_single: false
+  mask_position: pre_conv  # position to apply masking, before or after conv subsampling, choices in ['pre_conv', 'post_conv']
   
   train_ds:
     manifest_filepath: ???
@@ -83,8 +84,8 @@ model:
 
   masking:
     _target_: nemo.collections.asr.modules.RandomBlockMasking
-    block_size: 40  # 10ms per frame, 400ms per block with block_size=40
-    mask_prob: 0.01  # for allow_overlap=True, this means the mask prob for each frame, otherwise it means the overall masked proportion
+    block_size: 40  # for pre_conv masking, 10ms per frame, 400ms per block with block_size=40
+    mask_prob: 0.01  # for allow_overlap=True, this means the mask prob for each frame; otherwise it means the overall masked proportion
     feat_in: ${model.preprocessor.features}
     freeze: true
     allow_overlap: true
@@ -144,7 +145,7 @@ model:
 
   loss:
     _target_: nemo.collections.asr.losses.MultiMLMLoss
-    combine_time_steps: ${model.encoder.subsampling_factor}  # conformer sub-sampling ratio
+    combine_time_steps: ${model.encoder.subsampling_factor}  # conformer sub-sampling ratio for 'pre_conv', 1 for 'post_conv'
     mask_threshold: 0.8
     num_decoders: ${model.num_books}
     squeeze_single: ${model.squeeze_single}

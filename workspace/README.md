@@ -1,5 +1,5 @@
 
-# Speech SSL and SpeechLM
+# Speech SSL
 
 
 ## Key Components
@@ -19,3 +19,11 @@
 - Speech MLM Model with Masking log-mel spectrogram (as in [BEST-RQ](https://arxiv.org/abs/2202.01855))
   - `nemo.collections.asr.models.slm_models.EncDecSpeechSSLModel`
   - `./speech_pretrain.py`
+
+## Choices of quantization
+- RandomProjectionQuantizer (RQ)
+- KMeansQuantizer
+
+## Choices of masking postion
+- Before convolutional subsampling (`model.mask_position = 'pre_conv'`)
+- After convolutional subsampling (`model.mask_position = 'post_conv'`)
