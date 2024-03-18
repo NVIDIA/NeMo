@@ -260,13 +260,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 confidence_method_cfg=self.confidence_method_cfg,
             )
 
-        elif (
-            self.cfg.strategy == 'beam'
-            or self.cfg.strategy == 'pyctcdecode'
-            or self.cfg.strategy == 'flashlight'
-            or self.cfg.strategy == 'subword_pyctcdecode'
-            or self.cfg.strategy == 'subword_flashlight'
-        ):
+        elif self.cfg.strategy == 'beam' or self.cfg.strategy == 'pyctcdecode' or self.cfg.strategy == 'flashlight':
 
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
@@ -277,7 +271,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 compute_timestamps=self.compute_timestamps,
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                word_kenlm_path=self.cfg.beam.get('word_kenlm_path', None),
+                subword_kenlm_path=self.cfg.beam.get('subword_kenlm_path', None),
                 flashlight_cfg=self.cfg.beam.get('flashlight_cfg', None),
                 pyctcdecode_cfg=self.cfg.beam.get('pyctcdecode_cfg', None),
             )

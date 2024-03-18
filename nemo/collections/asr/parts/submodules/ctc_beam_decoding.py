@@ -192,7 +192,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         compute_timestamps: bool = False,
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
-        kenlm_path: str = None,
+        word_kenlm_path: str = None,
+        subword_kenlm_path: str = None,
         flashlight_cfg: Optional['FlashlightConfig'] = None,
         pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
     ):
@@ -217,17 +218,17 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             flashlight_cfg = FlashlightConfig()
         self.flashlight_cfg = flashlight_cfg
 
-        if search_type == "beam" or search_type == "pyctcdecode":
+        # Default beam search args
+        if self.search_type == "beam":
+            self.search_type = "pyctcdecode"
+
+        self.word_kenlm_path = word_kenlm_path
+        self.subword_kenlm_path = subword_kenlm_path
+        self.kenlm_path = None
+
+        if search_type == "pyctcdecode":
             self.search_algorithm = self._pyctcdecode_beam_search
-        elif search_type == "subword_pyctcdecode":
-            raise NotImplementedError(search_type + " decoding is not implemented")
         elif search_type == "flashlight":
-            if self.flashlight_cfg.lexicon_path:
-                raise ValueError("flashlight works only without lexicon")
-            self.search_algorithm = self.flashlight_beam_search
-        elif search_type == "subword_flashlight":
-            if not self.flashlight_cfg.lexicon_path:
-                raise ValueError("subword_flashlight works only with lexicon")
             self.search_algorithm = self.flashlight_beam_search
         else:
             raise NotImplementedError(
@@ -240,9 +241,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         self.beam_alpha = beam_alpha
         self.beam_beta = beam_beta
-
-        # Default beam search args
-        self.kenlm_path = kenlm_path
 
         # Default beam search scorer functions
         self.default_beam_scorer = None
@@ -477,6 +475,56 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         if self.decoding_type == 'subword':
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
+        if self.decoding_type == 'subword':
+            if self.search_type == "flashlight":
+                if not self.flashlight_cfg.lexicon_path:  # ether subword_kenlm or word_kenlm
+                    raise NotImplementedError(
+                        self.search_type
+                        + " decoding with "
+                        + self.decoding_type
+                        + " acoustic model works only with lexicon_path"
+                    )
+                elif self.subword_kenlm_path:
+                    self.kenlm_path = self.subword_kenlm_path
+                    return  # 13.28%/6.17%
+                elif self.word_kenlm_path:
+                    self.kenlm_path = self.word_kenlm_path
+                    return  # 13.95%/9.38%
+            if self.search_type == "pyctcdecode":
+                if self.subword_kenlm_path:
+                    raise NotImplementedError(
+                        self.search_type
+                        + " decoding with "
+                        + self.decoding_type
+                        + " acoustic model is not implemented with subword_kenlm_path "
+                        + self.subword_kenlm_path
+                    )  # 23.49%/12.40%
+                elif self.word_kenlm_path:
+                    self.kenlm_path = self.word_kenlm_path
+                    return  # 13.05%/6.82%
+
+        elif self.decoding_type == 'char':
+            if self.flashlight_cfg.lexicon_path:  # ether subword_kenlm or word_kenlm
+                raise NotImplementedError(
+                    self.decoding_type
+                    + " acoustic model is not implemented with lexicon_path "
+                    + self.flashlight_cfg.lexicon_path
+                )
+            if self.search_type == "flashlight":
+                if self.subword_kenlm_path:
+                    self.kenlm_path = self.subword_kenlm_path
+                    # raise NotImplementedError(self.search_type + " decoding with " + self.decoding_type + " acoustic model is not implemented with subword_kenlm_path " + self.subword_kenlm_path)
+                    return  # 17.61%/6.37%
+                elif self.word_kenlm_path:
+                    self.kenlm_path = self.word_kenlm_path
+                    return  # WER/CER 18.93%/7.05%
+            if self.search_type == "pyctcdecode":
+                if self.subword_kenlm_path:
+                    self.kenlm_path = self.subword_kenlm_path
+                    return
+
+        NotImplementedError("wrong parameters")
+
 
 @dataclass
 class PyCTCDecodeConfig:
@@ -510,7 +558,8 @@ class BeamCTCInferConfig:
 
     beam_alpha: float = 1.0
     beam_beta: float = 0.0
-    kenlm_path: Optional[str] = None
+    word_kenlm_path: Optional[str] = None
+    subword_kenlm_path: Optional[str] = None
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
