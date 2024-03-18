@@ -46,7 +46,9 @@ def run_nvrtc(kernel_string, kernel_name):
     # https://stackoverflow.com/questions/48283009/nvcc-get-device-compute-capability-in-runtime
     opts = []
     (err,) = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
+    assert_drv(err)
     err, size = nvrtc.nvrtcGetProgramLogSize(prog)
+    assert_drv(err)
     buf = b" " * size
     (err,) = nvrtc.nvrtcGetProgramLog(prog, buf)
     assert_drv(err)
@@ -67,47 +69,11 @@ def run_nvrtc(kernel_string, kernel_name):
     return kernel
 
 
-def create_outer_while_loop_kernel():
-    """
-    Creates a kernel that evaluates whether or not to enter the for loop body.
-    Effectively substitutes for `for time_idx in range(trip_count)`
-    such that that for loop can run on a GPU.
-    """
-    kernel_string = r"""\
-    typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
-
-    extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
-
-    extern "C" __global__
-    void outer_loop_labels_conditional(cudaGraphConditionalHandle handle, const bool *active_mask_any)
-    {
-     cudaGraphSetConditional(handle, *active_mask_any);
-    }
-    """
-    return run_nvrtc(kernel_string, b"outer_loop_labels_conditional")
-
-
-def create_inner_while_loop_kernel():
-    """
-    Evaluates whether or not to keep evaluating the inner while loop body.
-    Continue until all elements of the batch output blank or the while loop
-    has run max_symbols times.
-    """
-    kernel_string = r"""\
-    typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
-
-    extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
-
-    extern "C" __global__
-    void inner_find_non_blank_conditional(cudaGraphConditionalHandle handle, const bool *advance_mask_any)
-    {
-     cudaGraphSetConditional(handle, *advance_mask_any);
-    }
-    """
-    return run_nvrtc(kernel_string, b"inner_find_non_blank_conditional")
-
-
 class LoopLabelsState:
+    """
+    State for Loop Labels algorithm. Used only with CUDA graphs
+    """
+
     max_time: int
     batch_size: int
     device: torch.device
@@ -264,7 +230,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self.state: Optional[LoopLabelsState] = None
 
     def loop_labels_torch(
-        self, x: torch.Tensor, out_len: torch.Tensor,
+        self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Optimized batched greedy decoding.
@@ -278,18 +244,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             x: output from the encoder
             out_len: lengths of the utterances in `x`
         """
-        batch_size, max_time, _unused = x.shape
-        device = x.device
+        batch_size, max_time, _unused = encoder_output.shape
+        device = encoder_output.device
 
-        x = self.joint.project_encoder(x)  # do not recalculate joint projection, project only once
+        # do not recalculate joint projection, project only once
+        encoder_output_projected = self.joint.project_encoder(encoder_output)
 
         # init output structures: BatchedHyps (for results), BatchedAlignments + last decoder state
         # init empty batched hypotheses
         batched_hyps = rnnt_utils.BatchedHyps(
             batch_size=batch_size,
             init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
-            device=x.device,
-            float_dtype=x.dtype,
+            device=device,
+            float_dtype=encoder_output_projected.dtype,
         )
         # sample state, will be replaced further when the decoding for hypothesis is done
         last_decoder_state = self.decoder.initialize_state(x)
@@ -300,14 +267,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             batch_size=batch_size,
             logits_dim=self.joint.num_classes_with_blank,
             init_length=max_time * 2 if use_alignments else 1,  # blank for each timestep + text tokens
-            device=x.device,
-            float_dtype=x.dtype,
+            device=device,
+            float_dtype=encoder_output_projected.dtype,
             store_alignments=self.preserve_alignments,
             store_frame_confidence=self.preserve_frame_confidence,
         )
 
         # initial state, needed for torch.jit to compile (cannot handle None)
-        state = self.decoder.initialize_state(x)
+        state = self.decoder.initialize_state(encoder_output_projected)
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol
@@ -317,10 +284,10 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
         time_indices_current_labels = torch.zeros_like(time_indices)
-        last_timesteps = out_len - 1
+        last_timesteps = encoder_output_length - 1
 
         # masks for utterances in batch
-        active_mask: torch.Tensor = out_len > 0
+        active_mask: torch.Tensor = encoder_output_length > 0
         advance_mask = torch.empty_like(active_mask)
 
         # for storing the last state we need to know what elements became "inactive" on this step
@@ -373,7 +340,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             # each element is True if non-blank symbol is not yet found AND we can increase the time index
             time_indices += blank_mask
             torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
-            torch.less(time_indices, out_len, out=active_mask)
+            torch.less(time_indices, encoder_output_length, out=active_mask)
             torch.logical_and(active_mask, blank_mask, out=advance_mask)
 
             # inner loop: find next non-blank labels (if exist)
@@ -410,7 +377,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 blank_mask = labels == self._blank_index
                 time_indices += blank_mask
                 torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
-                torch.less(time_indices, out_len, out=active_mask)
+                torch.less(time_indices, encoder_output_length, out=active_mask)
                 torch.logical_and(active_mask, blank_mask, out=advance_mask)
 
             # stage 3: filter labels and state, store hypotheses
@@ -449,8 +416,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 time_indices += force_blank_mask  # emit blank => advance time indices
                 # update safe_time_indices, non-blocking
                 torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
-                # same as: active_mask = time_indices < out_len
-                torch.less(time_indices, out_len, out=active_mask)
+                # same as: active_mask = time_indices < encoder_output_length
+                torch.less(time_indices, encoder_output_length, out=active_mask)
         if use_alignments:
             return batched_hyps, alignments, last_decoder_state
         return batched_hyps, None, last_decoder_state
@@ -479,6 +446,44 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             self.state.alignments,
             self.state.last_decoder_state,
         )
+
+    @classmethod
+    def _create_outer_while_loop_kernel(cls):
+        """
+        Creates a kernel that evaluates whether to enter the outer loop body (not all hypotheses are decoded).
+        Condition: while(active_mask_any).
+        """
+        kernel_string = r"""\
+        typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
+    
+        extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
+    
+        extern "C" __global__
+        void outer_loop_labels_conditional(cudaGraphConditionalHandle handle, const bool *active_mask_any)
+        {
+         cudaGraphSetConditional(handle, *active_mask_any);
+        }
+        """
+        return run_nvrtc(kernel_string, b"outer_loop_labels_conditional")
+
+    @classmethod
+    def _create_inner_while_loop_kernel(cls):
+        """
+        Creates a kernel that evaluates whether to enter the inner loop body (not all non-blank labels found).
+        Condition: while(advance_mask_any).
+        """
+        kernel_string = r"""\
+        typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
+    
+        extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
+    
+        extern "C" __global__
+        void inner_find_non_blank_conditional(cudaGraphConditionalHandle handle, const bool *advance_mask_any)
+        {
+         cudaGraphSetConditional(handle, *advance_mask_any);
+        }
+        """
+        return run_nvrtc(kernel_string, b"inner_find_non_blank_conditional")
 
     def _graph_reinitialize(
         self, encoder_output_projected: torch.Tensor, encoder_output_length: torch.Tensor,
@@ -523,7 +528,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
 
             # time indices
             # time_indices = torch.zeros_like(batch_indices)
-            # safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
+            # safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < encoder_output_length
             self.state.time_indices.fill_(0)
             self.state.safe_time_indices.fill_(0)
             self.state.time_indices_current_labels.fill_(0)
@@ -544,7 +549,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
             (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-            outer_loop_kernel = create_outer_while_loop_kernel()
+            outer_loop_kernel = self._create_outer_while_loop_kernel()
             active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
             outer_loop_args = np.array(
                 [outer_loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data], dtype=np.uint64,
@@ -556,7 +561,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
                 self._before_inner_loop()
-                inner_while_loop_kernel = create_inner_while_loop_kernel()
+                inner_while_loop_kernel = self._create_inner_while_loop_kernel()
                 (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
                 inner_loop_args = np.array(
@@ -705,14 +710,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self.state.time_indices.add_(force_blank_mask)  # emit blank => advance time indices
         # update safe_time_indices, non-blocking
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
-        # same as: active_mask = time_indices < out_len
+        # same as: active_mask = time_indices < encoder_output_length
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
     def __call__(
         self, x: torch.Tensor, out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        if not self.use_cuda_graphs or x.device.type != "cuda":
-            return self.loop_labels_torch(x=x, out_len=out_len)
+        if self.use_cuda_graphs and x.device.type == "cuda":
+            return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
-        return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
+        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
