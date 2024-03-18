@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
@@ -21,6 +22,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+mp.set_start_method("spawn", force=True)
 
 @hydra_runner(config_path="conf", config_name="megatron_clip_config")
 def main(cfg) -> None:
