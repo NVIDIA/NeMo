@@ -131,7 +131,11 @@ class GPTSFTDataset(Dataset):
     def _load_dataset(self):
         if self.hf_dataset:
             self.indexed_dataset = load_dataset(
-                'json', data_files=self.file_path, cache_dir=self.index_mapping_dir, num_proc=self.memmap_workers, split='train'
+                'json',
+                data_files=self.file_path,
+                cache_dir=self.index_mapping_dir,
+                num_proc=self.memmap_workers,
+                split='train',
             )
         else:
             self.indexed_dataset = JSONLMemMapDataset(
@@ -577,7 +581,6 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         loss_mask = self._collate_item(loss_mask, max_length=max_length, pad_id=0)
         position_ids = self._collate_item(position_ids, max_length=max_length, pad_id=0)
 
-
         processed_batch = {
             'tokens': torch.LongTensor(input_ids),
             'labels': torch.LongTensor(labels),
@@ -595,16 +598,20 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
             max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
 
-            processed_batch.update({
-                'attention_mask': torch.LongTensor([1] * len(input_ids)),  # no attention mask is needed for packed seq
-                'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
-                'cu_seqlens_argmin': cu_seqlens_argmin,  # only required for perf
-                'max_seqlen': max_seqlen,  # only required for perf
-            })
+            processed_batch.update(
+                {
+                    'attention_mask': torch.LongTensor(
+                        [1] * len(input_ids)
+                    ),  # no attention mask is needed for packed seq
+                    'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
+                    'cu_seqlens_argmin': cu_seqlens_argmin,  # only required for perf
+                    'max_seqlen': max_seqlen,  # only required for perf
+                }
+            )
         else:
             attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-            processed_batch.update({
-                'attention_mask': torch.stack(attention_mask),
-            })
+            processed_batch.update(
+                {'attention_mask': torch.stack(attention_mask),}
+            )
 
         return processed_batch
