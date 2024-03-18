@@ -179,7 +179,12 @@ class LoopLabelsState:
 
 class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
     """
-    Loop Labels algorithm implementation. Callable.
+    Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
+    Iterates over labels, on each step finding the next non-blank label
+    (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
+    to prediction network (with maximum possible batch size),
+    which makes it especially useful for scaling the prediction network.
+    During decoding all active hypotheses ("texts") have the same lengths.
     """
 
     def __init__(
@@ -238,16 +243,11 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
-        Optimized batched greedy decoding.
-        Iterates over labels, on each step finding the next non-blank label
-        (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
-        to prediction network (with maximum possible batch size),
-        which makes it especially useful for scaling the prediction network.
-        During decoding all active hypotheses ("texts") have the same lengths.
+        Pure PyTorch implementation
 
         Args:
             encoder_output: output from the encoder
-            encoder_output_length: lengths of the utterances in `x`
+            encoder_output_length: lengths of the utterances in `encoder_output`
         """
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
@@ -264,7 +264,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             float_dtype=encoder_output_projected.dtype,
         )
         # sample state, will be replaced further when the decoding for hypothesis is done
-        last_decoder_state = self.decoder.initialize_state(x)
+        last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         # init alignments if necessary
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
         # always use alignments variable - for torch.jit adaptation, but keep it as minimal as possible
@@ -283,7 +283,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         num_durations = all_durations.shape[0]
 
         # initial state, needed for torch.jit to compile (cannot handle None)
-        state = self.decoder.initialize_state(x)
+        state = self.decoder.initialize_state(encoder_output_projected)
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol
@@ -444,6 +444,13 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
     def loop_labels_cuda_graphs(
         self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        """
+        Implementation with CUDA graphs.
+
+        Args:
+            encoder_output: output from the encoder
+            encoder_output_length: lengths of the utterances in `encoder_output`
+        """
         # do not recalculate joint projection, project only once
         encoder_output = self.joint.project_encoder(encoder_output)
         current_batch_size = encoder_output.shape[0]

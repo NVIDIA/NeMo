@@ -78,8 +78,6 @@ class LoopLabelsState:
     batch_size: int
     device: torch.device
 
-    graph: None
-
     encoder_output_projected: torch.Tensor
     encoder_output_length: torch.Tensor
 
@@ -178,7 +176,12 @@ class LoopLabelsState:
 
 class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
     """
-    Loop Labels algorithm implementation. Callable.
+    Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
+    Iterates over labels, on each step finding the next non-blank label
+    (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
+    to prediction network (with maximum possible batch size),
+    which makes it especially useful for scaling the prediction network.
+    During decoding all active hypotheses ("texts") have the same lengths.
     """
 
     def __init__(
@@ -233,16 +236,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
-        Optimized batched greedy decoding.
-        Iterates over labels, on each step finding the next non-blank label
-        (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
-        to prediction network (with maximum possible batch size),
-        which makes it especially useful for scaling the prediction network.
-        During decoding all active hypotheses ("texts") have the same lengths.
+        Pure PyTorch implementation
 
         Args:
-            x: output from the encoder
-            out_len: lengths of the utterances in `x`
+            encoder_output: output from the encoder
+            encoder_output_length: lengths of the utterances in `encoder_output`
         """
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
@@ -259,7 +257,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             float_dtype=encoder_output_projected.dtype,
         )
         # sample state, will be replaced further when the decoding for hypothesis is done
-        last_decoder_state = self.decoder.initialize_state(x)
+        last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         # init alignments if necessary
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
         # always use alignments variable - for torch.jit adaptation, but keep it as minimal as possible
@@ -315,7 +313,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             # stage 2: get joint output, iteratively seeking for non-blank labels
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
             logits = (
-                self.joint.joint_after_projection(x[batch_indices, safe_time_indices].unsqueeze(1), decoder_output,)
+                self.joint.joint_after_projection(
+                    encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1), decoder_output,
+                )
                 .squeeze(1)
                 .squeeze(1)
             )
@@ -326,14 +326,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             blank_mask = labels == self._blank_index
             time_indices_current_labels.copy_(time_indices, non_blocking=True)
             if use_alignments:
-                if self.preserve_frame_confidence:
-                    logits = F.log_softmax(logits, dim=-1)
                 alignments.add_results_masked_(
                     active_mask=active_mask,
                     time_indices=time_indices_current_labels,
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
-                    confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
+                    confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                    if self.preserve_frame_confidence
+                    else None,
                 )
 
             # advance_mask is a mask for current batch for searching non-blank labels;
@@ -350,7 +350,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
                 logits = (
                     self.joint.joint_after_projection(
-                        x[batch_indices, safe_time_indices].unsqueeze(1), decoder_output,
+                        encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1), decoder_output,
                     )
                     .squeeze(1)
                     .squeeze(1)
@@ -364,14 +364,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                 torch.where(advance_mask, more_scores, scores, out=scores)
 
                 if use_alignments:
-                    if self.preserve_frame_confidence:
-                        logits = F.log_softmax(logits, dim=-1)
                     alignments.add_results_masked_(
                         active_mask=advance_mask,
                         time_indices=time_indices_current_labels,
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
-                        confidence=self._get_confidence_tensor(logits) if self.preserve_frame_confidence else None,
+                        confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                        if self.preserve_frame_confidence
+                        else None,
                     )
 
                 blank_mask = labels == self._blank_index
@@ -425,6 +425,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
     def loop_labels_cuda_graphs(
         self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+        """
+        Implementation with CUDA graphs.
+
+        Args:
+            encoder_output: output from the encoder
+            encoder_output_length: lengths of the utterances in `encoder_output`
+        """
         # do not recalculate joint projection, project only once
         encoder_output = self.joint.project_encoder(encoder_output)
         current_batch_size = encoder_output.shape[0]
@@ -607,7 +614,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         # blank_mask = self.labels == self._blank_index
         self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
         if self.state.alignments is not None:
-            self.state.alignments.add_results_masked_(
+            self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.active_mask,
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
