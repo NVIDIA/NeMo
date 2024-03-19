@@ -126,7 +126,7 @@ def get_concat_char_dataset(
     return dataset
 
 
-def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None) -> audio_to_text.AudioToCharDataset:
+def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None, do_caching: bool = True) -> audio_to_text.AudioToCharDataset:
     """
     Instantiates a Character Encoding based AudioToCharDataset.
 
@@ -156,6 +156,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         parser=config.get('parser', 'en'),
         return_sample_id=config.get('return_sample_id', False),
         channel_selector=config.get('channel_selector', None),
+        do_caching = do_caching,
     )
     return dataset
 
@@ -210,7 +211,7 @@ def get_concat_bpe_dataset(
 
 
 def get_bpe_dataset(
-    config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['AudioAugmentor'] = None
+    config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['AudioAugmentor'] = None, do_caching = True
 ) -> audio_to_text.AudioToBPEDataset:
     """
     Instantiates a Byte Pair Encoding / Word Piece Encoding based AudioToBPEDataset.
@@ -236,6 +237,7 @@ def get_bpe_dataset(
         use_start_end_token=config.get('use_start_end_token', True),
         return_sample_id=config.get('return_sample_id', False),
         channel_selector=config.get('channel_selector', None),
+        do_caching = do_caching,
     )
     return dataset
 
@@ -583,7 +585,7 @@ def get_dali_bpe_dataset(
 
 
 def get_audio_to_text_char_dataset_from_config(
-    config, local_rank: int, global_rank: int, world_size: int, preprocessor_cfg: Optional[DictConfig] = None
+    config, local_rank: int, global_rank: int, world_size: int, preprocessor_cfg: Optional[DictConfig] = None, do_caching: bool = True,
 ):
     """
     Construct Audio-To-Text Char dataset from a config.
@@ -701,7 +703,7 @@ def get_audio_to_text_char_dataset_from_config(
                 config=config, global_rank=global_rank, world_size=world_size, augmentor=augmentor
             )
         else:
-            dataset = get_char_dataset(config=config, augmentor=augmentor)
+            dataset = get_char_dataset(config=config, augmentor=augmentor, do_caching=do_caching)
     return dataset
 
 
@@ -712,6 +714,7 @@ def get_audio_to_text_bpe_dataset_from_config(
     world_size: int,
     tokenizer,
     preprocessor_cfg: Optional[DictConfig] = None,
+    do_caching: bool = True,
 ):
     """
     Construct Audio-To-Text BPE dataset from a config.
@@ -838,7 +841,7 @@ def get_audio_to_text_bpe_dataset_from_config(
                 augmentor=augmentor,
             )
         else:
-            dataset = get_bpe_dataset(config=config, tokenizer=tokenizer, augmentor=augmentor)
+            dataset = get_bpe_dataset(config=config, tokenizer=tokenizer, augmentor=augmentor, do_caching=do_caching)
     return dataset
 
 
