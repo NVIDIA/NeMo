@@ -162,7 +162,6 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         if "shape_file" in frozen_model_cfg:
             frozen_model_cfg.pop("shape_file")
 
-
         print(frozen_model_cfg)
         if cfg.get('peft', False):
             self.frozen_model = MegatronRetrievalModel.restore_from(
