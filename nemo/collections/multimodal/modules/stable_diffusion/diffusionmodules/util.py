@@ -175,6 +175,7 @@ class CheckpointFunction(torch.autograd.Function):
 def get_idx(end, device):
     return torch.arange(start=0, end=end, dtype=torch.float32, device=device)
 
+
 def build_timestep_embedding(dim, max_timesteps, max_period=10000):
     timesteps = np.arange(start=0, stop=max_timesteps, dtype=np.float32)
     half = dim // 2
@@ -185,6 +186,7 @@ def build_timestep_embedding(dim, max_timesteps, max_period=10000):
     if dim % 2:
         embedding = np.concatenate([embedding, np.zeros_like(embedding[:, :1])], axis=-1)
     return embedding
+
 
 def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False, cached_embedding=None):
     """

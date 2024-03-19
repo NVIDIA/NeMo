@@ -34,6 +34,7 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 )
 from nemo.utils import logging
 
+
 def convert_module_to_dtype(module, dtype, enable_norm_layers=False):
     # Convert module parameters to dtype
     if isinstance(module, (torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Linear)):
@@ -54,6 +55,7 @@ def convert_module_to_fp16(module, enable_norm_layers=False):
 
 def convert_module_to_fp32(module, enable_norm_layers=False):
     convert_module_to_dtype(module, torch.float32, enable_norm_layers)
+
 
 class AttentionPool2d(nn.Module):
     """
