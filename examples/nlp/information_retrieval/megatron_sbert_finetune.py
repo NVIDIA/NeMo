@@ -51,7 +51,6 @@ def main(cfg) -> None:
         override_config_path=model_cfg,
         strict=True,
     )
-
     trainer.fit(model)
 
 
