@@ -53,7 +53,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalLoraModel
+from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalLoraModel, MegatronFusedRetrievalAdapterModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
@@ -124,10 +124,15 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         #     save_restore_connector=save_restore_connector,
         # )
 
-        frozen_model_cfg = MegatronFusedRetrievalLoraModel.restore_from(
-            cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
-        )
-
+        if not cfg.adapter_tuning.get("adapter_key"):
+            frozen_model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
+                cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
+            )
+        else:
+            frozen_model_cfg = MegatronFusedRetrievalLoraModel.restore_from(
+                cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
+            )
+ 
         # frozen_model_cfg.tokenizer = cfg.model.tokenizer
         frozen_model_cfg.data = cfg.data
         frozen_model_cfg.adapter_tuning = cfg.adapter_tuning
@@ -151,7 +156,12 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             frozen_model_cfg.pop("shape_file")
 
         print(frozen_model_cfg)
-        self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
+        # self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
+
+        if not cfg.adapter_tuning.get("adapter_key"):
+            self.frozen_model = MegatronFusedRetrievalAdapterModel(frozen_model_cfg, trainer)
+        else:
+            self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
 
         self.pos_embeddings = self.cfg.get('add_position_embedding')
 
