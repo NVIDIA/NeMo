@@ -16,8 +16,8 @@ r"""
 Conversion script to convert NeMo starcoder2 checkpoints into HuggingFace checkpoint.
   Example to run this conversion script:
     python3 convert_nemo_starcoder2to_hf.py \
-     --in-file <path_to_nemo_checkpoints_folder> \
-     --out-file <path_to_output_hf_file>
+     --input_name_or_path <path_to_nemo_checkpoints_folder> \
+     --output_path <path_to_output_hf_file>
 """
 
 from argparse import ArgumentParser
@@ -35,14 +35,14 @@ from nemo.utils import logging
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--in-file", type=str, default=None, required=True, help="Path to NeMo Starcoder2 checkpoint")
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output HF checkpoint.")
+    parser.add_argument("--input_name_or_path", type=str, default=None, required=True, help="Path to NeMo Starcoder2 checkpoint")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument(
         '--hf-model-name',
         type=str,
         default=None,
         required=True,
-        help="Name of HF checkpoint. e.g. a folder containing https://huggingface.co/bigcode/starcoder2-7b_base/tree/main",
+        help="Name of HF checkpoint. e.g. a folder containing https://huggingface.co/bigcode/starcoder2-15b/tree/main",
     )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     parser.add_argument(
@@ -259,12 +259,12 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
 
 if __name__ == '__main__':
     args = get_args()
-    hf_state_dict, nemo_config = convert(args.in_file, args.precision, args.cpu_only)
+    hf_state_dict, nemo_config = convert(args.input_name_or_path, args.precision, args.cpu_only)
 
     config = load_config(args.hf_model_name, nemo_config)
     model = AutoModelForCausalLM.from_config(config)
     model.load_state_dict(hf_state_dict, strict=True)
     model.save_pretrained(args.out_file)
     hf_tokenizer = AutoTokenizer.from_pretrained('bigcode/starcoder2-tokenizer')
-    hf_tokenizer.save_pretrained(args.out_file)
-    logging.info(f'HF checkpoint saved to: {args.out_file}')
+    hf_tokenizer.save_pretrained(args.output_path)
+    logging.info(f'HF checkpoint saved to: {args.output_path}')

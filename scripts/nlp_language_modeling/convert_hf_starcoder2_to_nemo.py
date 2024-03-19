@@ -16,8 +16,8 @@ r"""
 Conversion script to convert HuggingFace Starcoder2 checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python convert_hf_starcoder2_to_nemo.py \
-     --in-file <path_to_sc2_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file>
+     --input_name_or_path <path_to_sc2_checkpoints_folder> \
+     --output_path <path_to_output_nemo_file>
 """
 
 
@@ -48,9 +48,9 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to Huggingface StarCoder2 checkpoints"
+        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface StarCoder2 checkpoints"
     )
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
     return args
@@ -142,11 +142,11 @@ def load_sc2_ckpt(in_dir):
 
 
 def convert(args):
-    logging.info(f"loading checkpoint {args.in_file}")
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
 
-    model_args, ckpt, tokenizer = load_sc2_ckpt(args.in_file)
-    nemo_config = load_config(model_args, os.path.join(args.in_file, 'tokenizer.model'))
-    logging.info(f"loaded checkpoint {args.in_file}")
+    model_args, ckpt, tokenizer = load_sc2_ckpt(args.input_name_or_path)
+    nemo_config = load_config(model_args, os.path.join(args.input_name_or_path, 'tokenizer.model'))
+    logging.info(f"loaded checkpoint {args.input_name_or_path}")
 
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
@@ -359,8 +359,8 @@ def convert(args):
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
-    model.save_to(args.out_file)
-    logging.info(f'NeMo model saved to: {args.out_file}')
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
