@@ -310,7 +310,7 @@ class CUDAGraphCallback(Callback):
         if self.state.capture_iteration < 0:
             return
 
-        if is_param_in_hook_signature(pl_module, "dataloader_iter", explicit=True):
+        if is_param_in_hook_signature(pl_module.training_step, "dataloader_iter", explicit=True):
             raise Exception(
                 "Found `dataloader_iter` argument in the `training_step`. This is "
                 "not supported by full iteration CUDA graph capturing yet since "
