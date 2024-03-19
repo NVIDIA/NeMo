@@ -53,7 +53,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalLoraModel
+from nemo.collections.nlp.models.language_modeling.megatron_fused_retro import MegatronFusedRetrievalLoraModel, MegatronFusedRetrievalAdapterModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_iterator_k_split,
@@ -117,17 +117,29 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('language_model_path')):
             save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
-        # frozen_model_cfg = MegatronRetrievalModel.restore_from(
-        #     cfg.get('language_model_path'),
-        #     trainer=trainer,
-        #     return_config=True,
-        #     save_restore_connector=save_restore_connector,
-        # )
 
-        frozen_model_cfg = MegatronFusedRetrievalLoraModel.restore_from(
-            cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
-        )
+        if cfg.get('peft', False):
+            cfg.task_templates[0].prompt_template='<|VIRTUAL_PROMPT_0|> {question} {answer}'
+            frozen_model_cfg = MegatronRetrievalModel.restore_from(
+                cfg.get('language_model_path'),
+                trainer=trainer,
+                return_config=True,
+                save_restore_connector=save_restore_connector,
+                strict=False
+            )
 
+            
+        else:
+            if not cfg.adapter_tuning.get("adapter_key"):
+                frozen_model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
+                    cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
+                )
+            else:
+                frozen_model_cfg = MegatronFusedRetrievalLoraModel.restore_from(
+                    cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
+                )
+
+        # cfg.restore_from_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted2/mp_rank_00'
         # frozen_model_cfg.tokenizer = cfg.model.tokenizer
         frozen_model_cfg.data = cfg.data
         frozen_model_cfg.adapter_tuning = cfg.adapter_tuning
@@ -150,10 +162,29 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         if "shape_file" in frozen_model_cfg:
             frozen_model_cfg.pop("shape_file")
 
-        print(frozen_model_cfg)
-        self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
 
-        self.pos_embeddings = self.cfg.get('add_position_embedding')
+        print(frozen_model_cfg)
+        if cfg.get('peft', False):
+            self.frozen_model = MegatronRetrievalModel.restore_from(
+                cfg.get('language_model_path'),
+                trainer=trainer,
+                save_restore_connector=save_restore_connector,
+                override_config_path=frozen_model_cfg,
+                strict=False,
+            ).to(dtype=self.autocast_dtype)
+
+
+            self.word_embeddings = self.frozen_model.model.encoder_embedding.word_embeddings
+            if hasattr(self.frozen_model.model.encoder_embedding, "position_embeddings"):
+                self.pos_embeddings = self.frozen_model.model.encoder_embedding.position_embeddings
+            else:
+                self.pos_embeddings = None
+        else:
+            if not cfg.adapter_tuning.get("adapter_key"):
+                self.frozen_model = MegatronFusedRetrievalAdapterModel(frozen_model_cfg, trainer)
+            else:
+                self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
+            self.pos_embeddings = self.cfg.get('add_position_embedding')
 
         self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
@@ -210,7 +241,10 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         self.prompt_encoder = None
 
     def first_stage_of_pipeline(self):
-        return self.frozen_model.model.model.pre_process
+        if self.cfg.get('peft', False):
+            return self.frozen_model.model.pre_process
+        else:
+            return self.frozen_model.model.model.pre_process
 
     def forward(
         self,
@@ -232,16 +266,15 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         GPT style models. Bypasses the vocab token preprocessing done
         in the MegatronGPT class.
         """
-        # # Get embeddings for text tokens and insert virtual token embeddings
-        # if self.first_stage_of_pipeline() and not (set_inference_key_value_memory==False and inference_max_sequence_len is not None): # for inference, only when predicting the first token should we add virtual embeddings
-        #     # pad strategy 3
-        #     encoder_input = self.make_encoder_input(input_ids, position_ids, inference)
-        #     encoder_input = encoder_input.transpose(0, 1).contiguous()
-        #     if self.cfg.get("sequence_parallel", False):
-        #         encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
-        # else:
-        #     encoder_input = None
-        encoder_input = None
+        # Get embeddings for text tokens and insert virtual token embeddings
+        if self.cfg.get('peft', False) and self.first_stage_of_pipeline() and not (set_inference_key_value_memory==False and inference_max_sequence_len is not None): # for inference, only when predicting the first token should we add virtual embeddings
+            # pad strategy 3
+            encoder_input = self.make_encoder_input(input_ids, position_ids, inference)
+            encoder_input = encoder_input.transpose(0, 1).contiguous()
+            if self.cfg.get("sequence_parallel", False):
+                encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
+        else:
+            encoder_input = None
 
         if encoder_input is not None:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
@@ -274,6 +307,30 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
         return output
         
+    def make_encoder_input(self, input_ids, position_ids, inference):
+        batch_size, _ = input_ids.shape
+        virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=inference)
+        # if pad strategy 3 for retro, need to find out virtual_token_locations:
+        # actually this works for pad strategy 1 & 2 as well?
+        discrete_token_ids = input_ids.clone()
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+        # Find the indicies where virtual tokens should be inserted
+        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+        # Create index template specifying where virtual token embeddings should be placed
+        _, _, embedding_size = discrete_token_embeds.shape
+        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
+        virtual_token_index = virtual_token_index.expand(
+            batch_size, self.prompt_encoder.total_virtual_tokens, embedding_size
+        )
+        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
+        if self.pos_embeddings:
+            position_embeddings = self.pos_embeddings(position_ids)
+            discrete_token_embeds = discrete_token_embeds + position_embeddings
+        # Insert virtual token embeddings where they belong amoung the discrete token embeddings
+        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
+        return discrete_token_embeds
     
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         """
@@ -408,7 +465,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
                 drop_last=True,
-                shuffle=False,
+                shuffle=True,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),

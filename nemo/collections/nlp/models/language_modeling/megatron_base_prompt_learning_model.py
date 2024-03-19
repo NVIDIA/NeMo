@@ -104,12 +104,13 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
-            VirtualPromptStyle.P_TUNING,
-        ]:
 
-            # TODO: Handle this when moving GPT prompt learning to the base class.
-            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+        if cfg.get('peft', False) is False:
+            if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
+                VirtualPromptStyle.P_TUNING,
+            ]:
+                # TODO: Handle this when moving GPT prompt learning to the base class.
+                self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
@@ -159,6 +160,19 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.validation_metric = BLEUScore()
             elif validation_metric == 'rouge':
                 self.validation_metric = ROUGEScores()
+
+    def make_encoder_input(self, input_ids, position_ids, inference):
+        batch_size, _ = input_ids.shape
+        virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=inference)
+        input_embeds = self.word_embeddings(input_ids).clone()
+        # TODO: This check needs to be revisited with PP support.
+        if self.pos_embeddings:
+            position_embeddings = self.pos_embeddings(position_ids)
+            encoder_input = input_embeds + position_embeddings
+        else:
+            encoder_input = input_embeds
+        encoder_input = torch.cat([virtual_token_embeds, encoder_input], dim=1)
+        return encoder_input
 
     def load_task_templates(self, task_templates):
         """
@@ -341,7 +355,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 if self.prompt_encoder is None:
                     self.init_prompt_encoder()
-            # self.freeze_existing_word_embeddings()
+            if hasattr(self, 'word_embeddings'):
+                self.freeze_existing_word_embeddings()
 
         self.setup_training_data()
         self.setup_validation_data()
