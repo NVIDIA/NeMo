@@ -245,6 +245,13 @@ def cache_datastore_manifests(
     """
     if isinstance(manifest_filepaths, str):
         manifest_filepaths = manifest_filepaths.split(',')
+    # added supportt for chaching manifests for pseudo labeling
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        torch.distributed.barrier()
+        if torch.distributed.get_world_size() > 1:
+            all_manifests = [None] * torch.distributed.get_world_size()
+            torch.distributed.all_gather_object(all_manifests, manifest_filepaths)
+            manifest_filepaths = set([file for manifests in all_manifests for file in manifests])
 
     num_datastore_manifests = sum([is_datastore_path(f) for f in manifest_filepaths])
 
@@ -277,7 +284,10 @@ def cache_datastore_manifests(
                         with open(cached_manifest_file, 'r') as f:
                             for line in f:
                                 item = json.loads(line)
-                                store_path = os.path.join(manifest_dir, item['audio_filepath'])
+                                if not is_datastore_path(item['audio_filepath']):
+                                    store_path = os.path.join(manifest_dir, item['audio_filepath'])
+                                else:
+                                    store_path = item['audio_filepath']
                                 audio_objects.append(DataStoreObject(store_path=store_path))
 
                         if num_workers is not None and num_workers > 1:
@@ -442,13 +452,14 @@ class _AudioTextDataset(Dataset):
         pad_id: int = 0,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        do_caching: bool = True,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
 
         # If necessary, cache manifests and audio from object store
-        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
-
+        if do_caching:
+            cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,
@@ -565,6 +576,7 @@ class AudioToCharDataset(_AudioTextDataset):
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        do_caching: bool = True,
     ):
         self.labels = labels
 
@@ -587,6 +599,7 @@ class AudioToCharDataset(_AudioTextDataset):
             pad_id=pad_id,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            do_caching=do_caching,
         )
 
 
@@ -653,6 +666,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        do_caching: bool = True,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -702,6 +716,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             trim=trim,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            do_caching=do_caching,
         )
 
 
