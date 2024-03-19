@@ -14,10 +14,7 @@
 name: "CICD NeMo"
 
 on:
-  push:
-    branches: [ "pagaray/nemo_cicd_2" ]
   pull_request:
-    # The branches below must be a subset of the branches above
     branches: [ "main" ]
 
 jobs:
