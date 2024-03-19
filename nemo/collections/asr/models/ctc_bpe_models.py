@@ -107,7 +107,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             world_size=self.world_size,
             tokenizer=self.tokenizer,
             preprocessor_cfg=self.cfg.get("preprocessor", None),
-            do_caching=do_caching
+            do_caching=do_caching,
         )
 
         if dataset is None:
@@ -141,7 +141,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         )
 
     def _setup_pseudo_label_dataloader(self, cache_manifest: str):
-    
+
         dl_config = {
             'manifest_filepath': cache_manifest,
             'sample_rate': self.preprocessor._sample_rate,
@@ -152,7 +152,9 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             'channel_selector': None,
             'use_start_end_token': False,
         }
-        dataset = audio_to_text_dataset.get_bpe_dataset(config=dl_config, tokenizer=self.tokenizer, augmentor=None, do_caching=False)
+        dataset = audio_to_text_dataset.get_bpe_dataset(
+            config=dl_config, tokenizer=self.tokenizer, augmentor=None, do_caching=False
+        )
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):
@@ -161,7 +163,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         else:
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
-        
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=dl_config['batch_size'],

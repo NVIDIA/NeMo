@@ -145,7 +145,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             world_size=self.world_size,
             tokenizer=self.tokenizer,
             preprocessor_cfg=self.cfg.get("preprocessor", None),
-            do_caching = do_caching
+            do_caching=do_caching,
         )
 
         if dataset is None:
@@ -179,7 +179,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         )
 
     def _setup_pseudo_label_dataloader(self, cache_manifest: str):
-    
+
         dl_config = {
             'manifest_filepath': cache_manifest,
             'sample_rate': self.preprocessor._sample_rate,
@@ -190,7 +190,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             'channel_selector': None,
             'use_start_end_token': False,
         }
-        dataset = audio_to_text_dataset.get_bpe_dataset(config=dl_config, tokenizer=self.tokenizer, augmentor=None, do_caching=False)
+        dataset = audio_to_text_dataset.get_bpe_dataset(
+            config=dl_config, tokenizer=self.tokenizer, augmentor=None, do_caching=False
+        )
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):
@@ -199,7 +201,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         else:
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
-        
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=dl_config['batch_size'],
@@ -209,6 +211,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             num_workers=dl_config['num_workers'],
             pin_memory=True,
         )
+
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.

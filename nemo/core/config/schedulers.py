@@ -26,6 +26,7 @@ class SchedulerParams:
 
     last_epoch: int = -1
 
+
 @dataclass
 class DoubleCosineAnnealingParams(SchedulerParams):
     max_steps: int = 0
@@ -33,7 +34,7 @@ class DoubleCosineAnnealingParams(SchedulerParams):
     min_lr2: float = 0.0
     max_lr2: float = 0.0
     max_lr2: float = 0.0
-    milestone: int = -1 
+    milestone: int = -1
     warmup_steps1: Optional[float] = None
     warmup_ratio1: Optional[float] = None
     warmup_steps2: Optional[float] = None

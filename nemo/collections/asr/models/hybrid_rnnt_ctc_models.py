@@ -17,15 +17,15 @@ import json
 import os
 import tempfile
 from typing import List, Optional
-import editdistance
 
+import editdistance
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
-import tempfile
-from nemo.collections.asr.data import audio_to_text_dataset
 
+from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
@@ -33,11 +33,10 @@ from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.utils.ipl_utils import *
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
-from nemo.collections.asr.parts.utils.ipl_utils import *
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests
 
 
 class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
@@ -54,7 +53,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 )
                 if not cfg.ipl.get("cache_manifest", None):
                     cfg.ipl.cache_manifest = str(Path.cwd() / "manifest_pseudo_labeled.json")
-                
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         if 'aux_ctc' not in self.cfg:
@@ -105,6 +104,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
         # setting up interCTC loss (from InterCTCMixin)
         self.setup_interctc(decoder_name='ctc_decoder', loss_name='ctc_loss', wer_name='ctc_wer')
+
     def on_fit_start(self):
         if self.cfg.get("ipl"):
             cache_datastore_manifests(self.cfg.ipl.get("manifest_filepath"), cache_audio=True)
@@ -124,12 +124,12 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             return
         needs_update = True
         if self.cfg.ipl.m_updates == 0:
-             
+
             data, hypotheses = self.update_cache_hypotheses()
             torch.distributed.barrier()
 
-            gathered_hypotheses = [None]  * torch.distributed.get_world_size()
-            gathered_data = [None]  * torch.distributed.get_world_size()
+            gathered_hypotheses = [None] * torch.distributed.get_world_size()
+            gathered_data = [None] * torch.distributed.get_world_size()
             torch.distributed.all_gather_object(gathered_data, data)
             torch.distributed.all_gather_object(gathered_hypotheses, hypotheses)
 
@@ -137,12 +137,12 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 write_cache_manifest(self.cfg.ipl.cache_manifest, gathered_hypotheses, gathered_data)
             torch.distributed.barrier()
 
-            self.encoder.set_dropout(self.cfg.ipl.dropout)            
+            self.encoder.set_dropout(self.cfg.ipl.dropout)
             self.cfg.ipl.m_updates -= 1
             needs_update = False
         if self.cfg.ipl.m_updates == -1 and self.cfg.ipl.n_l_updates > 0:
             self.cfg.ipl.n_l_updates -= 1
-        else: 
+        else:
             if needs_update:
                 data, hypotheses = self.update_cache_hypotheses(False)
                 torch.distributed.barrier()
@@ -154,18 +154,18 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 if torch.distributed.get_rank() == 0:
                     write_cache_manifest(self.cfg.ipl.cache_manifest, gathered_hypotheses, all_random_samples, False)
                 torch.distributed.barrier()
-            
+
             if self.cfg.ipl.n_l_updates == 0:
                 if isinstance(self.cfg.train_ds.manifest_filepath, str):
                     self.cfg.train_ds.manifest_filepath = [self.cfg.train_ds.manifest_filepath]
                     self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
                 else:
                     self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
-           
+
                 self.cfg.ipl.n_l_updates -= 1
                 self.trainer.reload_dataloaders_every_n_epochs = 1
-   
-            self.setup_training_data(self.cfg.train_ds, do_caching = False)
+
+            self.setup_training_data(self.cfg.train_ds, do_caching=False)
 
     def update_cache_hypotheses(self, update_whole_cache=True):
         """
@@ -182,9 +182,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         whole_pseudo_data = []
         update_data = []
 
-        manifest_paths =  [self.cfg.ipl.manifest_filepath] if isinstance(self.cfg.ipl.manifest_filepath, str) else self.cfg.ipl.manifest_filepath 
+        manifest_paths = (
+            [self.cfg.ipl.manifest_filepath]
+            if isinstance(self.cfg.ipl.manifest_filepath, str)
+            else self.cfg.ipl.manifest_filepath
+        )
         dataset_weights = self.cfg.ipl.get("dataset_weights", [1] * len(manifest_paths))
-        if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List) :
+        if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List):
             dataset_weights = [float(dataset_weights)]
 
         for idx, manifest_path in enumerate(manifest_paths):
@@ -201,17 +205,14 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                     json.dump(data_entry, temp_manifest, ensure_ascii=False)
                     temp_manifest.write('\n')
 
-            hypotheses = self.generate_pseudo_labels(temporary_manifest,
-                                                    target_transcripts=transcriptions, 
-                                                    restore_pc=self.cfg.ipl.restore_pc,
-                                                    )
+            hypotheses = self.generate_pseudo_labels(
+                temporary_manifest, target_transcripts=transcriptions, restore_pc=self.cfg.ipl.restore_pc,
+            )
             return update_data, hypotheses
-    
+
     def generate_pseudo_labels(
-        self,
-        cache_manifest: str,
-        restore_pc: bool = True,
-        target_transcripts: List[str] = None):
+        self, cache_manifest: str, restore_pc: bool = True, target_transcripts: List[str] = None
+    ):
         """
         Generates pseudo labels for unlabeled data.
         Args:
@@ -234,32 +235,31 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         self.ctc_decoder.freeze()
         hypotheses = []
 
-        
         dataloader = self._setup_pseudo_label_dataloader(cache_manifest)
 
         self.preprocessor.featurizer.dither = 0.0
         self.preprocessor.featurizer.pad_to = 0
         sample_idx = 0
-        
+
         for test_batch in tqdm(dataloader, desc="Transcribing"):
             encoded, encoded_len = self.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
-            
+
             logits = self.ctc_decoder(encoder_output=encoded)
             logits = logits.cpu()
             if self.cfg.aux_ctc.decoding.strategy == "beam":
                 best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-                logits, encoded_len, return_hypotheses=True,
+                    logits, encoded_len, return_hypotheses=True,
                 )
                 if all_hyp:
                     for beams_idx, beams in enumerate(all_hyp):
-                        target = target_transcripts[sample_idx + beams_idx ]
+                        target = target_transcripts[sample_idx + beams_idx]
                         if target and restore_pc:
                             target_split_w = target.split()
                             wer_dist_min = 1000
                             min_pred_text = ""
-                            for _, candidate in enumerate(beams): 
+                            for _, candidate in enumerate(beams):
                                 pred_text = candidate.text
                                 compare_text = pred_text
                                 compare_text = compare_text.lower()
@@ -268,7 +268,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                                 if wer_dist < wer_dist_min:
                                     min_pred_text = pred_text
-                                    wer_dist_min =  wer_dist
+                                    wer_dist_min = wer_dist
                             hypotheses.append(min_pred_text)
                         else:
                             hypotheses.append(best_hyp[beams_idx].text)
@@ -277,7 +277,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                     hypotheses += [hyp.text for hyp in best_hyp]
             else:
                 best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-                logits, encoded_len, return_hypotheses=False,)
+                    logits, encoded_len, return_hypotheses=False,
+                )
                 hypotheses += best_hyp
             del logits
             del encoded
@@ -290,10 +291,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         self.encoder.unfreeze()
         self.decoder.unfreeze()
         self.joint.unfreeze()
-  
+
         self.ctc_decoder.unfreeze()
         return hypotheses
-    
+
     def _setup_pseudo_label_dataloader(self, cache_manifest: str):
 
         dl_config = {
@@ -306,7 +307,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             'num_workers': self.cfg.train_ds.num_workers,
             'pin_memory': True,
         }
-    
+
         dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None, do_caching=False)
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
@@ -326,7 +327,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             num_workers=dl_config['num_workers'],
             pin_memory=True,
         )
-    
+
     @torch.no_grad()
     def transcribe(
         self,
