@@ -474,7 +474,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         self.state.encoder_output_length[current_batch_size:].fill_(0)
         self.graph.replay()
 
-        # example manual loop (can be used instead of graph.replay()
+        # example manual loop (can be used instead of graph.replay())
         # self._before_outer_loop()
         # while self.state.active_mask_any.item():
         #     self._before_inner_loop_get_decoder_output()
