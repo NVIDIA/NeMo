@@ -34,8 +34,9 @@ class SDSyntheticDataset(NeMoDataset):
         self.txt_key = txt_key
         img_precached = image_key.endswith('encoded') or image_key.endswith('moments')
         txt_precached = txt_key.endswith('encoded')
-        assert img_precached == txt_precached, \
-            'First and second stage keys should enable/disable precache at the same time.'
+        assert (
+            img_precached == txt_precached
+        ), 'First and second stage keys should enable/disable precache at the same time.'
         self.seq_len = seq_len
         self.context_dim = context_dim
 

@@ -1845,8 +1845,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     def non_cuda_graph_capturable(self):
         # Moving CUDA metrics to CPU leads to sync, do not show on progress bar
         # if CUDA graph is enabled.
-        show_metric =self.cfg.get("show_prog_bar_metric", True) and \
-            (self.cfg.get("capture_cudagraph_iters", -1) < 0)
+        show_metric = self.cfg.get("show_prog_bar_metric", True) and (self.cfg.get("capture_cudagraph_iters", -1) < 0)
 
         if self.log_train_loss:
             self.log('reduced_train_loss', self.loss_mean, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
@@ -1856,7 +1855,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log_dict(self.loss_dict, prog_bar=show_metric, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
+        self.log_dict(
+            self.loss_dict, prog_bar=show_metric, logger=True, on_step=True, rank_zero_only=True, batch_size=1
+        )
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
         self.log('global_step', self.trainer.global_step + 1, prog_bar=show_metric, rank_zero_only=True, batch_size=1)

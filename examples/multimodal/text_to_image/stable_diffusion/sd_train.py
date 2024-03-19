@@ -23,8 +23,9 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
 from nemo.utils.callbacks import CUDAGraphCallback
+from nemo.utils.exp_manager import exp_manager
+
 
 class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
     """Builder for SD model Trainer with overrides."""
@@ -58,8 +59,8 @@ def main(cfg) -> None:
 
     callbacks = (
         None
-        if cfg.model.capture_cudagraph_iters < 0 else
-        [CUDAGraphCallback(capture_iteration=cfg.model.capture_cudagraph_iters)]
+        if cfg.model.capture_cudagraph_iters < 0
+        else [CUDAGraphCallback(capture_iteration=cfg.model.capture_cudagraph_iters)]
     )
     trainer = MegatronStableDiffusionTrainerBuilder(cfg).create_trainer(callbacks)
 
@@ -72,11 +73,7 @@ def main(cfg) -> None:
         n, c, h = cfg.model.micro_batch_size, cfg.model.channels, cfg.model.image_size
         x = torch.randn((n, c, h, h), dtype=torch.float32, device="cuda")
         t = torch.randint(77, (n,), device="cuda")
-        cc = torch.randn(
-            (n, 77, cfg.model.unet_config.context_dim),
-            dtype=torch.float32,
-            device="cuda",
-        )
+        cc = torch.randn((n, 77, cfg.model.unet_config.context_dim), dtype=torch.float32, device="cuda",)
         if cfg.model.precision in [16, '16']:
             x = x.type(torch.float16)
             cc = cc.type(torch.float16)

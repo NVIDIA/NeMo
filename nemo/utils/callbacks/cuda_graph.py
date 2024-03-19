@@ -40,18 +40,12 @@ from typing import Any, Dict
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import LightningModule
-from pytorch_lightning.trainer.connectors.logger_connector.result import(
-    _ResultMetric,
-    _ResultCollection,
-)
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.loops.optimization.automatic import ClosureResult
+from pytorch_lightning.trainer.connectors.logger_connector.result import _ResultCollection, _ResultMetric
+from pytorch_lightning.utilities import CombinedLoader, rank_zero_info
 from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-from pytorch_lightning.utilities import (
-    rank_zero_info,
-    CombinedLoader,
-)
 from torch.nn.parallel import DistributedDataParallel
 
 __all__ = ["CUDAGraphCallback"]
@@ -135,11 +129,7 @@ def to_tensor(self, value, name):
     # Log metrics in PyTorch Lightning often invokes CPU & GPU synchronizations. Here
     # we implement smart metrics to avoid those synchronizations.
     # Refer to: https://github.com/Lightning-AI/pytorch-lightning/blob/2.0.7/src/lightning/pytorch/core/module.py#L615
-    value = (
-        value.clone().detach()
-        if isinstance(value, torch.Tensor)
-        else torch.tensor(value)
-    )
+    value = value.clone().detach() if isinstance(value, torch.Tensor) else torch.tensor(value)
     if not torch.numel(value) == 1:
         raise ValueError(
             f"`self.log({name}, {value})` was called, but the tensor must have a single element."
