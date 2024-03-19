@@ -24,7 +24,7 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
+from nemo.utils.callbacks import CUDAGraphCallback
 
 class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
     """Builder for SD model Trainer with overrides."""
@@ -56,7 +56,12 @@ def main(cfg) -> None:
 
     torch.backends.cuda.matmul.allow_tf32 = True
 
-    trainer = MegatronStableDiffusionTrainerBuilder(cfg).create_trainer()
+    callbacks = (
+        None
+        if cfg.model.capture_cudagraph_iters < 0 else
+        [CUDAGraphCallback(capture_iteration=cfg.model.capture_cudagraph_iters)]
+    )
+    trainer = MegatronStableDiffusionTrainerBuilder(cfg).create_trainer(callbacks)
 
     exp_manager(trainer, cfg.exp_manager)
 
