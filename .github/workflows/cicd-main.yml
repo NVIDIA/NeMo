@@ -14,8 +14,6 @@
 name: "CICD NeMo"
 
 on:
-  push:
-    branches: [ "main", "pagaray/nemo_cicd" ]
   pull_request:
     # The branches below must be a subset of the branches above
     branches: [ "main" ]
@@ -171,7 +169,7 @@ jobs:
     - name: "L0: Unit Tests GPU"
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
-    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
       if: "failure()"
       
 
