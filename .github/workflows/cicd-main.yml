@@ -15,7 +15,6 @@ name: "CICD NeMo"
 
 on:
   pull_request:
-    # The branches below must be a subset of the branches above
     branches: [ "main" ]
 
 jobs:
@@ -192,7 +191,7 @@ jobs:
     - name: "L0: Unit Tests CPU"
       run: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
-    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
       if: "failure()"
 
 
@@ -222,7 +221,7 @@ jobs:
             --out-file=/home/TestData/nlp/megatron_llama/ci.nemo \
             --precision=16
             rm -f /home/TestData/nlp/megatron_llama/ci.nemo
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Community_LLM_Checkpoints_tests_StarCoder:
@@ -247,7 +246,7 @@ jobs:
             --input /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
             --output /home/TestData/nlp/megatron_gpt/starcoder-ci-hf
             rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Community_LLM_Checkpoints_tests_Falcon:
@@ -272,7 +271,7 @@ jobs:
             --input /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
             --output /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo
             rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: ASR dev run
@@ -301,7 +300,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_results
             rm -rf examples/asr/speech_to_text_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   ASR_dev_run_Speech_to_Text_WPE_-_CitriNet:
@@ -332,7 +331,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results
             rm -rf examples/asr/speech_to_text_wpe_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
@@ -361,7 +360,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_pre_training_results
             rm -rf examples/asr/speech_pre_training_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   ASR_dev_run_Speech_To_Text_Finetuning:
@@ -392,7 +391,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_finetuning_results
             rm -rf examples/asr/speech_finetuning_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   ASR_dev_run_Speech_To_Text_HF_Finetuning:
@@ -439,7 +438,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_finetuning_results
             rm -rf examples/asr/speech_finetuning_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
@@ -472,7 +471,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results
             rm -rf examples/asr/speech_to_text_wpe_conformer_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: ASR dev run - part two
@@ -507,7 +506,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_squeezeformer_results
             rm -rf examples/asr/speech_to_text_wpe_squeezeformer_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Speech_to_Text_EMA:
@@ -536,7 +535,7 @@ jobs:
             +exp_manager.ema.enable=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_results
             rm -rf examples/asr/speech_to_text_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2_Speech_to_Text_AED:
@@ -618,7 +617,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results
             rm -rf examples/speaker_tasks/recognition/speaker_recognition_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Speaker_dev_run_Speaker_Diarization:
@@ -651,7 +650,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results
             rm -rf examples/speaker_tasks/diarization/speaker_diarization_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Speaker_dev_run_Speech_to_Label:
@@ -687,7 +686,7 @@ jobs:
             ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results
             rm -rf examples/asr/speech_to_label_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
@@ -718,7 +717,7 @@ jobs:
             diarizer.asr.parameters.asr_based_vad=True \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results
             rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Speaker_dev_run_Clustering_Diarizer_Inference:
@@ -748,7 +747,7 @@ jobs:
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
             diarizer.out_dir=examples/speaker_tasks/diarization/clustering_diarizer_results
             rm -rf examples/speaker_tasks/diarization/clustering_diarizer_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 
@@ -776,7 +775,7 @@ jobs:
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
             diarizer.out_dir=examples/speaker_tasks/diarization/neural_diarizer_results
             rm -rf examples/speaker_tasks/diarization/neural_diarizer_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
@@ -804,7 +803,7 @@ jobs:
             data_simulator.session_config.num_sessions=2 \
             data_simulator.session_config.session_length=60
             rm -rf ./test_simulator
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 
@@ -836,7 +835,7 @@ jobs:
             +trainer.num_sanity_val_steps=1 \
             exp_manager.exp_dir=examples/asr/speech_to_text_results
             rm -rf examples/asr/speech_to_text_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
@@ -873,7 +872,7 @@ jobs:
             ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results
             rm -rf examples/asr/speech_to_label_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 
@@ -907,7 +906,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_adapters_results
             rm -rf examples/asr/speech_to_text_adapters_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_ASR_Adapters_RelPos_MHA_Adapters:
@@ -940,7 +939,7 @@ jobs:
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_adapters_mha_results
             rm -rf examples/asr/speech_to_text_adapters_mha_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 
@@ -968,7 +967,7 @@ jobs:
             output_filename="stt_test_res.json" \
             amp=true
             rm -rf stt_test_res.json
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Transducer alignment
@@ -990,7 +989,7 @@ jobs:
           uses: actions/checkout@v2
         - run: |
             pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Segmentation Tool
@@ -1023,7 +1022,7 @@ jobs:
             -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
             -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt && \
             rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
@@ -1055,7 +1054,7 @@ jobs:
             -r /home/TestData/ctc_segmentation/ru/valid_ru_segments_1.7.txt \
             -g /home/TestData/ctc_segmentation/ru/output${TIME}/verified_segments/ru_segments.txt && \
             rm -rf /home/TestData/ctc_segmentation/ru/output${TIME}
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 
@@ -1097,7 +1096,7 @@ jobs:
                     pretrained_model=${OUTPUT_DIR_CONFORMER}/G2P-Conformer-CTC/test/checkpoints/G2P-Conformer-CTC.nemo \
                     manifest_filepath=/home/TestData/g2p/g2p.json \
                     phoneme_field=text
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
     # TODO: pleasefixme @redoctopus
@@ -1123,7 +1122,7 @@ jobs:
     #             phoneme_field=text
     #   }
     # }
-    # - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+    # - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
     # if: "failure()"
 
   L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference:
@@ -1161,7 +1160,7 @@ jobs:
                     manifest=/home/TestData/g2p/manifest.json \
                     pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
                     output_manifest=preds.json
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 
@@ -1245,7 +1244,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf sgd_gen_bert_outputs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Dialogue_Classification_Intent_and_slot_classification_using_IntentSlotClassificationModel:
@@ -1283,7 +1282,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf sgd_gen_bert_intent_classification_outputs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Dialogue_Classification_Intent_classification_using_ZeroShotIntentModel:
@@ -1324,7 +1323,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf sgd_gen_zero_shot_intent_classification_outputs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel:
@@ -1366,7 +1365,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf design_zero_shot_intent_classification_outputs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel_BART_Classifier:
@@ -1401,7 +1400,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf design_zero_shot_intent_classification_bart_outputs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Dialogue_Classification_Design_Intent_classification_using_DialogueNearestNeighbourModel:
@@ -1435,7 +1434,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf design_dialogue_nearest_neighbour_classification_outputs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Dialogue Generation
@@ -1477,7 +1476,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf answer_extender_s2s
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Dialogue_Generation_Dialogue_SGD_Based_Answer_Extender_using_DialogueS2SGenerationModel:
@@ -1523,7 +1522,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf sgd_answer_extender_s2s
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 #     - name: L2: Dialogue Generation Part 2
@@ -1590,7 +1589,7 @@ jobs:
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf answer_extender
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Duplex Text Normalization
@@ -1632,7 +1631,7 @@ jobs:
             data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json \
             data.test_ds.use_cache=false \
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 # Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
@@ -1694,7 +1693,7 @@ jobs:
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Parallel BERT Question-Answering SQUAD v1.1 & v2.0
@@ -1736,7 +1735,7 @@ jobs:
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
             exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Parallel_BERT_Question-Answering_SQUAD_v2_0:
@@ -1774,7 +1773,7 @@ jobs:
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
             exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Parallel BART Question-Answering SQUAD v1.1 & v2.0
@@ -1816,7 +1815,7 @@ jobs:
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
             exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Parallel_BART_Question-Answering_SQUAD_v2_0:
@@ -1854,7 +1853,7 @@ jobs:
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
             exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Parallel GPT2 Question-Answering SQUAD v1.1 & v2.0
@@ -1896,7 +1895,7 @@ jobs:
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
             exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Parallel_GPT2_Question-Answering_SQUAD_v2_0:
@@ -1934,7 +1933,7 @@ jobs:
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
             exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Intent and Slot Classification Tasks
@@ -1965,7 +1964,7 @@ jobs:
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=checkpoints
             rm -rf checkpoints
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Intent_and_Slot_Classification_Tasks_Multi-Label_Intent_and_Slot_Classification:
@@ -1994,7 +1993,7 @@ jobs:
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=checkpoints2
             rm -rf checkpoints2
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
     # TODO: add when megatron-bert is supported again
@@ -2132,7 +2131,7 @@ jobs:
             +trainer.fast_dev_run=true \
             model.dataset.class_balancing="weighted_loss" \
             exp_manager.exp_dir=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Parallel_NLP_Examples2_Punctuation_and_capitalization_finetuning_from_pretrained_test:
@@ -2168,7 +2167,7 @@ jobs:
               +trainer.fast_dev_run=true \
               exp_manager.exp_dir=null && \
             rm -rf "${data_dir}"
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Parallel_NLP_Examples2_NER_with_TurkuNLP__bert-base-finnish-cased-v1:
@@ -2197,7 +2196,7 @@ jobs:
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name="TurkuNLP/bert-base-finnish-cased-v1" \
             exp_manager.exp_dir=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
         
   L2_Parallel_NLP_Examples2_Evaluation_script_for_Token_Classification:
@@ -2221,7 +2220,7 @@ jobs:
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.dataset.use_cache=false \
             pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Parallel_NLP_Examples2_Evaluation_script_for_Punctuation:
@@ -2252,7 +2251,7 @@ jobs:
               +model.test_ds.use_cache=false \
               pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
             rm -rf "${data_dir}"
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Parallel_NLP_Examples2_Punctuation_Capitalization_2GPUs_with_DistilBERT_Finetuning_on_other_data:
@@ -2311,7 +2310,7 @@ jobs:
             rm -rf /workspace/NeMo/examples/nlp/token_classification/nemo_experiments \
               "${tmp_data_dir_2}" \
               "${output_dir}"
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # Punctuation & Capitalization tarred dataset:
@@ -2376,7 +2375,7 @@ jobs:
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir=${output_dir}/output && \
             rm -rf "${output_dir}" "${data_dir}"
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # Punctuation_Capitalization_Different_ways_of_passing_labels_to_model
@@ -2533,7 +2532,7 @@ jobs:
               --pretrained_name punctuation_en_bert \
               --batch_size 32 && \
             rm -rf "${output_dir}"
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
   
   # L2: Parallel Pretraining BERT pretraining from Text/Preprocessed
@@ -2576,7 +2575,7 @@ jobs:
               
             rm -f /home/TestData/nlp/wikitext-2/*.pkl
             #rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Pretraining_BERT_from_Preprocessed:
@@ -2617,7 +2616,7 @@ jobs:
               exp_manager.create_checkpoint_callback=False \
               
             #rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Entity Linking        
@@ -2648,7 +2647,7 @@ jobs:
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             exp_manager.exp_dir=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
 
@@ -2730,7 +2729,7 @@ jobs:
               +exp_manager.resume_if_exists=True
               
             rm -rf examples/nlp/machine_translation/nmt_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN:
@@ -2770,7 +2769,7 @@ jobs:
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
               exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation:
@@ -2808,7 +2807,7 @@ jobs:
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
               exp_manager=null
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: NMT Attention is All You Need Inference
@@ -2836,7 +2835,7 @@ jobs:
             --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
             --target_lang en \
             --source_lang de
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: NMT Attention is All You Need Finetuning
@@ -2879,7 +2878,7 @@ jobs:
             +exp_manager.checkpoint_callback_params.save_best_model=true
         
             rm -rf examples/nlp/machine_translation/nmt_finetune
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: NMT Tarred Dataset Creation
@@ -2921,7 +2920,7 @@ jobs:
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             exp_manager=null \
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation:
@@ -2952,7 +2951,7 @@ jobs:
             --lines_per_dataset_fragment=500 \
             --num_batches_per_tarfile=10 \
             --n_preproc_jobs=2 \
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_NMT_Training_TP2:
@@ -3061,7 +3060,7 @@ jobs:
             model.decoder_tokenizer.library=sentencepiece \
             model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model
             rm -rf examples/nlp/machine_translation/megatron_nmt_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_BART_Perceiver_MIM_Training_TP2:
@@ -3170,7 +3169,7 @@ jobs:
             ++model.hiddens.loss.mim.cls_name=a_mim \
             ++model.hiddens.loss.mim.loss_weight=0.5
             rm -rf examples/nlp/language_modeling/megatron_mim_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
     # stage('L2: NMT Bottleneck Fallback') {
@@ -3460,7 +3459,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/bert_pretrain_results
             rm -rf examples/nlp/language_modeling/bert_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
  
   L2_Megatron_Bert_Pretraining_and_Resume_Training:
@@ -3542,7 +3541,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/bert_pretrain_results
             rm -rf examples/nlp/language_modeling/bert_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_Core_Bert_Pretraining_and_Resume_Training:
@@ -3626,7 +3625,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/bert_pretrain_results
             rm -rf examples/nlp/language_modeling/bert_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_RETRO_Pretraining_and_Resume_Training:
@@ -3709,7 +3708,7 @@ jobs:
             +model.data.mock=True
 
             rm -rf examples/nlp/language_modeling/retro_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2_Megatron_RETRO_muTransfer_Pretraining_Performance:
@@ -3803,7 +3802,7 @@ jobs:
   #               assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"
 
   #               rm -rf examples/nlp/language_modeling/retro_results
-  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
   #         if: "failure()"
 
   L2_BioMegatron_Bert_NER_Task:
@@ -3830,7 +3829,7 @@ jobs:
             model.language_model.pretrained_model_name=biomegatron345m_biovocab_30k_cased \
             model.tokenizer.tokenizer_name=null
             rm -rf examples/nlp/language_modeling/token_classification_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2:
@@ -3923,7 +3922,7 @@ jobs:
         
             rm -rf examples/nlp/language_modeling/gpt_pretrain_results
             rm -rf examples/nlp/language_modeling/gpt_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2:
@@ -4021,7 +4020,7 @@ jobs:
 
            rm -rf examples/nlp/language_modeling/gpt_pretrain_results
            rm -rf examples/nlp/language_modeling/gpt_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
     #  This test requires Ampere but some of the test GPUs are Volta
@@ -4209,7 +4208,7 @@ jobs:
         
             rm -rf examples/nlp/language_modeling/gpt_pretrain_results
             rm -rf examples/nlp/language_modeling/gpt_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2:
@@ -4305,7 +4304,7 @@ jobs:
             
             rm -rf examples/nlp/language_modeling/gpt_pretrain_results
             rm -rf examples/nlp/language_modeling/gpt_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2:
@@ -4404,7 +4403,7 @@ jobs:
         
             rm -rf examples/nlp/language_modeling/gpt_pretrain_results
             rm -rf examples/nlp/language_modeling/gpt_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   #@athitten Remove /home/TestData/nlp/megatron_sft/trec.jsonl for validation and test file until we have support for multiple dataloaders in lightning 2.0
@@ -4486,7 +4485,7 @@ jobs:
             model.data.validation_ds.names=[quarel]
 
             rm -rf examples/nlp/language_modeling/gpt_sft_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_Finetuning_StarCoder_PP1:
@@ -4530,7 +4529,7 @@ jobs:
             model.data.train_ds.concat_sampling_probabilities=[1.0]
         
             rm -rf examples/nlp/language_modeling/gpt_sft_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_PEFT_Lora_PP2:
@@ -4576,7 +4575,7 @@ jobs:
             model.data.validation_ds.names=[quarel]
 
             rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_PEFT_Lora_TP2:
@@ -4638,7 +4637,7 @@ jobs:
             inference.outfile_path='/home/TestData/nlp/lora_tuning_tp2/out.jsonl'
 
             rm -rf /home/TestData/nlp/lora_tuning_tp2
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_Eval:
@@ -4664,7 +4663,7 @@ jobs:
                 tensor_model_parallel_size=1 \
                 inference.tokens_to_generate=32 \
                 trainer.precision=32
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_Eval_PP2:
@@ -4692,7 +4691,7 @@ jobs:
                 trainer.devices=2 \
                 trainer.num_nodes=1 \
                 trainer.precision=32
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len:
@@ -4727,7 +4726,7 @@ jobs:
                 inference.repetition_penalty=1.0 \
                 inference.outfile_path=examples/nlp/language_modeling/out.jsonl && \
                 rm -rf examples/nlp/language_modeling/out.jsonl
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
     # TODO: Add this test back. Test was failing on CI machines due to HW error
@@ -4784,7 +4783,7 @@ jobs:
                 --target_pipeline_model_parallel_size 2
 
              rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2:
@@ -4813,7 +4812,7 @@ jobs:
                 --target_pipeline_model_parallel_size 1
 
             rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_T5_Pretraining_and_Resume_Training_TP2:
@@ -4920,7 +4919,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/t5_pretrain_results
             rm -rf examples/nlp/language_modeling/t5_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2:
@@ -5027,7 +5026,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/t5_pretrain_results
             rm -rf examples/nlp/language_modeling/t5_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2:
@@ -5134,7 +5133,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/t5_pretrain_results
             rm -rf examples/nlp/language_modeling/t5_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_T5_Pretraining_and_Resume_Training_PP2:
@@ -5215,7 +5214,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/t5_pretrain_results
             rm -rf examples/nlp/language_modeling/t5_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_T5_w_Mixture_of_Expert_Pretraining:
@@ -5269,7 +5268,7 @@ jobs:
 
             rm -rf examples/nlp/language_modeling/t5_pretrain_results
             rm -rf examples/nlp/language_modeling/t5_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2:
@@ -5360,7 +5359,7 @@ jobs:
         
             rm -rf examples/nlp/language_modeling/t5_pretrain_results
             rm -rf examples/nlp/language_modeling/t5_index_mappings
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_T5_Eval:
@@ -5384,7 +5383,7 @@ jobs:
                 --model_file /home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo \
                 --prompt 'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
                 --tensor_model_parallel_size 1
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_BART_Pretraining_and_Resume_Training_TP2:
@@ -5464,7 +5463,7 @@ jobs:
             model.data.data_prefix='{train:[1.0,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document],test:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document], validation:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]}'
         
             rm -rf examples/nlp/language_modeling/bart_pretrain_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_Megatron_BART_Pretraining_and_Resume_Training_PP2:
@@ -5548,7 +5547,7 @@ jobs:
             model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]
         
             rm -rf examples/nlp/language_modeling/bart_pretrain_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Megatron T5 GLUE/XNLI Finetuning 
@@ -5594,7 +5593,7 @@ jobs:
             model.data.validation_ds.file_path=/home/TestData/nlp/megatron_t5/data/dev_ci.tsv
             
             rm -rf examples/nlp/language_modeling/t5_glue_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
   
   L2_Megatron_T5_GLUE_XNLI:
@@ -5643,7 +5642,7 @@ jobs:
             model.data.test_ds.file_path=/home/TestData/nlp/megatron_t5/data/xnli_dev_ci.tsv
             
             rm -rf examples/nlp/language_modeling/t5_xnli_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
  
   L2_Megatron_T5_PEFT_Lora_TP2:
@@ -5707,7 +5706,7 @@ jobs:
             inference.outfile_path=/home/TestData/nlp/t5_lora_tuning_tp2/out.jsonl
 
             rm -rf /home/TestData/nlp/t5_lora_tuning_tp2
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: Megatron Mock Data Generation                
@@ -5735,7 +5734,7 @@ jobs:
                 exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
                 model.data.data_impl=mock \
                 model.data.data_prefix=[]
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
  
   L2_Megatron_Mock_Data_Generation_MockT5Dataset:
@@ -5764,7 +5763,7 @@ jobs:
             model.data.data_prefix=[]
 
             rm -rf examples/nlp/language_modeling/t5_pretrain_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: TTS Fast dev runs 1
@@ -5803,7 +5802,7 @@ jobs:
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs \
             ~trainer.check_val_every_n_epoch
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_TTS_Fast_dev_runs_1_WaveGlow:
@@ -5837,7 +5836,7 @@ jobs:
             model.waveglow.n_wn_layers=2 \
             model.waveglow.n_wn_channels=32 \
             ~trainer.check_val_every_n_epoch
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_TTS_Fast_dev_runs_1_FastPitch:
@@ -5881,7 +5880,7 @@ jobs:
             ~trainer.check_val_every_n_epoch \
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_TTS_Fast_dev_runs_1_RADTTS:
@@ -5922,7 +5921,7 @@ jobs:
             ~trainer.check_val_every_n_epoch \
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_TTS_Fast_dev_runs_1_Mixer-TTS:
@@ -5960,7 +5959,7 @@ jobs:
             ~trainer.check_val_every_n_epoch \
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   L2_TTS_Fast_dev_runs_1_Hifigan:
@@ -5995,7 +5994,7 @@ jobs:
             model.generator.upsample_initial_channel=64 \
             +model.debug=true \
             ~trainer.check_val_every_n_epoch
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
   # L2: NeRF
@@ -6024,7 +6023,7 @@ jobs:
   #           exp_manager.exp_dir=examples/multimodal/text_to_image/nerf/dreamfusion_results
   #
   #           rm -rf examples/multimodal/text_to_image/nerf/dreamfusion_results
-  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
   #         if: "failure()"
 
   Speech_Checkpoints_tests:
@@ -6050,6 +6049,6 @@ jobs:
                 batch_size=64 \
                 tolerance=0.1012
             rm -f examples/asr/evaluation_transcripts.json
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@pagaray/nemo_cicd"
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow"
           if: "failure()"
 
