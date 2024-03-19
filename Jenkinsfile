@@ -428,7 +428,6 @@ pipeline {
             --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
             --output_path=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
             --precision=16'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo'
           }
         }
         stage('StarCoder') {
