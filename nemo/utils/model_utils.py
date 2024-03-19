@@ -659,6 +659,9 @@ def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
     app_state = AppState()
     model_file = app_state.model_restore_path
     model_cfg = copy.deepcopy(model.cfg)
+    if not hasattr(model, "artifacts"):
+        OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))
+        return
 
     # Setup model file handling context: directory or tarball
     if os.path.isfile(model_file):
