@@ -20,6 +20,7 @@ from typing import Any, Optional
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from pkg_resources import packaging
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
@@ -27,6 +28,7 @@ from transformers import CLIPVisionModel
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 from nemo.collections.multimodal.data.neva.neva_dataset import (
+    NevaPackedSeqDatatset,
     DataCollatorForSupervisedDataset,
     make_supervised_data_module,
 )
@@ -681,6 +683,29 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 if self.use_loss_mask:
                     forward_args['loss_mask'] = batch['loss_mask']
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
+            else:
+                if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
+                    # these args are passed eventually into TEDotProductAttention.forward()
+                    cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+                    max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
+
+                    try:
+                        from megatron.core.packed_seq_params import PackedSeqParams
+                    except (ImportError, ModuleNotFoundError) as e:
+                        mcore_version = packaging.version.Version(version('megatron-core'))
+                        logging.error(
+                            f"megatron-core v{mcore_version} does not support training with packed sequence. "
+                            "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
+                        )
+                        raise e
+                    forward_args['packed_seq_params'] = PackedSeqParams(
+                        cu_seqlens_q=cu_seqlens,
+                        cu_seqlens_kv=cu_seqlens,
+                        max_seqlen_q=max_seqlen,
+                        max_seqlen_kv=max_seqlen,
+                        qkv_format='thd',
+                    )
+
 
             output_tensor = model(**forward_args)
 
@@ -864,9 +889,13 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
-        ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
-        self._train_ds = ds_dict["train_dataset"]
-        self._validation_ds = ds_dict["eval_dataset"]
+        if self.cfg.data.get("packed_sequence", False):
+            self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix)
+            self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix)
+        else:
+            ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
+            self._train_ds = ds_dict["train_dataset"]
+            self._validation_ds = ds_dict["eval_dataset"]
 
         return self._train_ds, self._validation_ds
 
@@ -961,14 +990,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def on_load_checkpoint(self, checkpoint) -> None:
         pass
-        # if self.mcore_gpt:
-        #     state_dict = checkpoint["state_dict"]
-        #     self.load_state_dict(state_dict)
 
     def sharded_state_dict(self, prefix: str = ''):
         return None
-        # sharded_state_dict = MegatronGPTModel.sharded_state_dict(self, prefix)
-        # return sharded_state_dict
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()

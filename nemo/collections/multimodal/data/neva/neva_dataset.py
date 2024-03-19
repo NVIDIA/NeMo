@@ -18,7 +18,7 @@ import os
 import re
 import tarfile
 from dataclasses import dataclass
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Tuple, Dict, List, Sequence, Union
 
 import torch
 import torch.nn.functional as F
@@ -48,6 +48,15 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_an
 
 MAX_NUM_IMAGES = 1
 IGNORE_INDEX = -1
+
+try:
+    from megatron.core.datasets.indexed_dataset import IndexedDataset
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 class TarOrFolderImageLoader:
@@ -781,8 +790,9 @@ class DataCollatorForSupervisedDataset(object):
     tokenizer: transformers.PreTrainedTokenizer
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        packed_sequence = "cu_seqlens" in instances[0]
         max_len = max(instance['tokens'].shape[0] for instance in instances)
-        max_len = (max_len - 1) // 4 * 4 + 4
+        max_len = (max_len - 1) // 64 * 64 + 64
         for instance in instances:
             pad_len = max_len - instance['tokens'].shape[0]
             instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
@@ -796,13 +806,26 @@ class DataCollatorForSupervisedDataset(object):
         labels = batch['labels']
         media = batch.get('image')
 
-        attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-            data=tokens,
-            eod_token=tokenizer.eos_id,
-            eod_mask_loss=model_cfg.data.get("eod_mask_loss", False),
-            reset_attention_mask=False,
-            reset_position_ids=False,
-        )
+        if packed_sequence:
+            cu_seqlens = instances[0]["cu_seqlens"]
+            assert len(instances) == 1, "Micro batch size must be 1 if using packed sequence"
+            if cu_seqlens[-1] != max_len:
+                cu_seqlens = torch.cat((cu_seqlens, torch.IntTensor([max_len])), 0)  # Concatenate along a specific dimension
+            position_ids = []
+            for ind in range(0, len(cu_seqlens) - 1):
+                seqlen = cu_seqlens[ind + 1] - cu_seqlens[ind]
+                position_ids.extend(list(range(seqlen)))
+            position_ids = torch.LongTensor(position_ids).unsqueeze(0)
+            loss_mask = torch.ones(tokens.size(), dtype=torch.float, device=tokens.device)
+            attention_mask = torch.ones(tokens.size(), dtype=torch.long, device=tokens.device)
+        else:
+            attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+                data=tokens,
+                eod_token=tokenizer.eos_id,
+                eod_mask_loss=model_cfg.data.get("eod_mask_loss", False),
+                reset_attention_mask=False,
+                reset_position_ids=True,
+            )
 
         loss_mask[labels == -1] = 0.0
         tokens[tokens == -1] = 0
@@ -821,6 +844,8 @@ class DataCollatorForSupervisedDataset(object):
             'position_ids': position_ids,
             'media': media,
         }
+        if packed_sequence:
+            batch["cu_seqlens"] = cu_seqlens
         return batch
 
 
@@ -859,3 +884,23 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
     )
 
     return dict(train_dataset=train_dataset, eval_dataset=train_dataset)
+
+
+class NevaPackedSeqDatatset(Dataset):
+    def __init__(self, data_path: str, crop_size: Tuple[int, int] = (224, 224)):
+        self.ds = IndexedDataset(data_path)
+        self.crop_size = crop_size
+
+    def __len__(self):
+        return len(self.ds.document_indices) - 1
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        doc_start = self.ds.document_indices[i]
+        batch = {
+            "cu_seqlens": torch.IntTensor(self.ds[doc_start]),
+            "tokens": torch.LongTensor(self.ds[doc_start + 1]),
+            "labels": torch.LongTensor(self.ds[doc_start + 2]),
+            "image": torch.FloatTensor(self.ds[doc_start + 3]).reshape(-1, 3, *self.crop_size),
+        }
+
+        return batch
