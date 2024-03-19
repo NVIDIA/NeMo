@@ -1536,6 +1536,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         for key in list(checkpoint_state_dict.keys())
                     }
                     module.load_state_dict(checkpoint_state_dict, strict=True)
+
+                    # temp load noise_scheduler from sharded_state_dict, base model does not have noise_scheduler
+                    if 'sharded_state_dict' in checkpoint and checkpoint['sharded_state_dict']:
+                        if hasattr(module, 'embedding') and hasattr(module.embedding, 'noise_scheduler'):
+                            print('Loading noise_scheduler from sharded_state_dict')
+                            tmp_state_dict = {k.split('.')[-1]:v for k,v in checkpoint['sharded_state_dict'].items()}
+                            module.embedding.noise_scheduler.load_state_dict(tmp_state_dict)
+                            print(f'noise_scheduler loaded with parameters: {tmp_state_dict}')
             else:
                 # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
                 # see NLPModel.on_load_checkpoint
