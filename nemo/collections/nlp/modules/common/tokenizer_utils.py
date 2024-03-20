@@ -206,7 +206,7 @@ def get_nmt_tokenizer(
             logging.info(tokenizer_model)
             return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
                 model_path=tokenizer_model, legacy=legacy
-            )                    
+            )
 
         if model_name in megatron_tokenizer_model_map:
             model_name = megatron_tokenizer_model_map[model_name]
