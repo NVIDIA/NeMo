@@ -1015,7 +1015,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         return state_dict
 
-    def _load_state_dict_from_disk(self, model_weights, map_location=None, security_level=CheckpointSecurityLevel.COMPAT):
+    def _load_state_dict_from_disk(
+        self, model_weights, map_location=None, security_level=CheckpointSecurityLevel.COMPAT
+    ):
         # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
         # we need to defer loading the state dict so we return None
         uninject_model_weights = uninject_model_parallel_rank(model_weights)
