@@ -57,7 +57,7 @@ from torch.nn.parallel import DistributedDataParallel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+from nemo.core.connectors.save_restore_connector import CheckpointSecurityLevel, SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
@@ -1015,14 +1015,14 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         return state_dict
 
-    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+    def _load_state_dict_from_disk(self, model_weights, map_location=None, security_level=CheckpointSecurityLevel.COMPAT):
         # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
         # we need to defer loading the state dict so we return None
         uninject_model_weights = uninject_model_parallel_rank(model_weights)
 
         # legacy model_weights will have mp rank injected
         if os.path.isfile(model_weights):
-            return super()._load_state_dict_from_disk(model_weights, map_location, self.ckpt_security_level)
+            return super()._load_state_dict_from_disk(model_weights, map_location, security_level)
 
         # dist checkpoint will be a dir
         elif os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
