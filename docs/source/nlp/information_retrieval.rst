@@ -5,7 +5,7 @@ BERT Embedding Models
 
 Sentence-BERT (SBERT) is a modification of the BERT model that is specifically trained to generate semantically meaningful sentence embeddings. 
 The model architecture and pre-training process are detailed in the `Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks <https://aclanthology.org/D19-1410.pdf>`__ paper. Similar to BERT, 
-Sentence-BERT utilizes a BERT-based architecture, but it is trained using a siamese and triplet network structure to derive fixed-sized sentence embeddings that capture semantic information. 
+Sentence-BERT utilizes a BERT-based architecture, but it is trained using a Siamese and triplet network structure to derive fixed-sized sentence embeddings that capture semantic information. 
 Sentence-BERT is commonly used to generate high-quality sentence embeddings for various downstream natural language processing tasks, such as semantic textual similarity, clustering, and information retrieval
 
 Data Input for the Sentence-BERT model
@@ -39,7 +39,7 @@ This format ensures that the fine-tuning data is appropriately structured for tr
 Fine-tuning the Sentence-BERT model
 -----------------------------------
 
-For fine-tuning Sentence-BERT model, you need to initialze the Sentence-BERT model with BERT model
+For fine-tuning Sentence-BERT model, you need to initialize the Sentence-BERT model with BERT model
 checkpoint. To do so, you should either have a ``.nemo`` checkpoint or need to convert a HuggingFace
 BERT checkpoint to NeMo (mcore) using the following:
 
@@ -98,7 +98,7 @@ Then you can fine-tune the sentence-BERT model using the following script:
     model.data.hard_negatives_to_train=4 \
     exp_manager.explicit_log_dir=${SAVE_DIR} \
     exp_manager.create_wandb_logger=True \
-    exp_manager.resume_if_exists=False \
+    exp_manager.resume_if_exists=True \
     exp_manager.wandb_logger_kwargs.name=${NAME} \
     exp_manager.wandb_logger_kwargs.project=${PROJECT}
     
