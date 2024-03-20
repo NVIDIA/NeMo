@@ -14,8 +14,6 @@
 name: "CICD NeMo"
 
 on:
-  push:
-    branches: [ "pagaray/nemo_cicd_part3" ]
   pull_request:
     branches: [ "main" ]
 
