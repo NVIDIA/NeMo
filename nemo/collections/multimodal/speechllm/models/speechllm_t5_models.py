@@ -122,7 +122,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
         self.setup_perception_modules(cfg)
         self.setup_optimizer_param_groups()
-        self.configure_optimizers()
+        # self.configure_optimizers()
         self.summarize(max_depth=3)
         # follow gpt
         self.setup_complete = False
