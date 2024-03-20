@@ -14,8 +14,9 @@
 
 """BERT model."""
 
-from dataclasses import dataclass
 import warnings
+from dataclasses import dataclass
+
 import torch
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
@@ -27,6 +28,7 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor
+
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
@@ -64,6 +66,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 from dataclasses import dataclass
+
 from megatron.core.transformer.spec_utils import build_module
 from megatron.core.transformer.transformer_layer import TransformerLayer
 
@@ -321,7 +324,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         )
 
 
-# This class is used for working with HF Bert Checkpoints. These checkpoints 
+# This class is used for working with HF Bert Checkpoints. These checkpoints
 # by default have post layer norm, while the vanilla mcore bert model does not support it.
 class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     def __init__(self, transformer_block_type='pre-ln', add_pooler=False, *args, **kwargs):
@@ -468,7 +471,10 @@ class NeMoBertModel(MegatronModule):
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
     ):
-        warnings.warn("NeMoBertModel will be deprecated mid 2024. Use MCoreBertModelWrapperWithPostLNSupport instead.", DeprecationWarning)
+        warnings.warn(
+            "NeMoBertModel will be deprecated mid 2024. Use MCoreBertModelWrapperWithPostLNSupport instead.",
+            DeprecationWarning,
+        )
         super(NeMoBertModel, self).__init__(config=config)
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.add_binary_head = add_binary_head

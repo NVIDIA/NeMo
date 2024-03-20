@@ -13,18 +13,21 @@
 # limitations under the License.
 
 
+import warnings
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
+
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
-    NeMoBertModel,
     MCoreBertModelWrapperWithPostLNSupport,
+    NeMoBertModel,
 )
-import warnings
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -118,7 +121,9 @@ class NeMoBertEmbeddingModel(NeMoBertModel):
     """
 
     def __init__(self, *args, **kwargs):
-        warnings.warn("NeMoBertModel will be deprecated mid 2024. Use MCoreBertEmbeddingModel instead.", DeprecationWarning)
+        warnings.warn(
+            "NeMoBertModel will be deprecated mid 2024. Use MCoreBertEmbeddingModel instead.", DeprecationWarning
+        )
         super().__init__(*args, **kwargs)
         self.embedding_head = BertEmbeddingHead(
             word_embedding_dimension=self.config.hidden_size, pooling_mode_mean_tokens=True,
