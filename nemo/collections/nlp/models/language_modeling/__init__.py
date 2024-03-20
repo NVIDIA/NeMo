@@ -16,5 +16,6 @@ from nemo.collections.nlp.models.language_modeling.bert_lm_model import BERTLMMo
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
-# from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
 from nemo.collections.nlp.models.language_modeling.transformer_lm_model import TransformerLMModel
