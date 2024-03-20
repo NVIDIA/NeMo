@@ -143,7 +143,7 @@ pipeline {
       }
       failFast true
       steps {
-        def data_prefix_dict =['train':[1.0, /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], 'validation':[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document], 'test':[/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]]
+        def data_prefix_dict = ['train':[1.0, '/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document'], 'validation':['/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document'], 'test':['/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document']]
         // Serialize the dictionary to JSON
         def data_prefix_jsonString = new groovy.json.JsonBuilder(myDict).toPrettyString()
         sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
