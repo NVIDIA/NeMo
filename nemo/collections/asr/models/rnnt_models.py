@@ -56,6 +56,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.world_size
+        
+        print("world_size: ", self.world_size)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -503,6 +505,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
+        print("limit batches before: ", self._trainer.limit_train_batches, "world_size: ", self.world_size, "len: ", len(self._train_dl.dataset), "batch_size: ", train_data_config['batch_size'])
         if (
             self._train_dl is not None
             and hasattr(self._train_dl, 'dataset')
@@ -521,6 +524,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                     "Model Trainer was not set before constructing the dataset, incorrect number of "
                     "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
+        print("limit batches after: ", self._trainer.limit_train_batches, "world_size: ", self.world_size, "len: ", len(self._train_dl.dataset), "batch_size: ", train_data_config['batch_size'])
+        
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         """

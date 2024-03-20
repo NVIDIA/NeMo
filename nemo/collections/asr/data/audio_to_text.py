@@ -863,9 +863,26 @@ class _TarredAudioToTextDataset(IterableDataset):
             global_rank=global_rank,
         )
 
+        def update_workers(src):
+            group = torch.distributed.group.WORLD
+            rank = torch.distributed.get_rank(group=group)
+            world_size = torch.distributed.get_world_size(group=group)
+            
+            worker_info = torch.utils.data.get_worker_info()
+            worker = worker_info.id
+            num_workers = worker_info.num_workers
+            print(src)
+            if num_workers > 1:
+                yield from list(src)[worker :: num_workers]
+            else:
+                yield from src
+            
         # Put together WebDataset pipeline
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),
+            # wds.split_by_node,
+            # wds.split_by_worker,
+            update_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
@@ -874,6 +891,20 @@ class _TarredAudioToTextDataset(IterableDataset):
             self._loop_offsets,
             wds.map(self._build_sample),
         )
+
+        # self._dataset = (
+        #     wds.WebDataset(audio_tar_filepaths, nodesplitter=None)
+        #     .shuffle(shuffle_n)
+        # )
+        # # self._dataset.append(wds.tarfile_to_samples())
+        # self._dataset.append(wds.rename(audio=VALID_FILE_FORMATS, key='__key__'))
+        # self._dataset.append(wds.to_tuple('audio', 'key'))
+        # self._dataset.append(self._filter)
+        # self._dataset.append(self._loop_offsets)
+        # self._dataset.map(self._build_sample)
+
+        
+
 
     def _filter(self, iterator):
         """This function is used to remove samples that have been filtered out by ASRAudioText already.
@@ -941,6 +972,8 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         # Grab manifest entry from self.manifest_preprocessor.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+        # print(file_id)
+
         manifest_idx = self.manifest_processor.collection.mapping[file_id][offset_id]
         manifest_entry = self.manifest_processor.collection[manifest_idx]
 
@@ -993,6 +1026,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             logging.info(f'Sharded manifests: Total length: {my_len}')
         else:
             my_len = len(self.manifest_processor.collection)
+            print("len: ", my_len)
 
         return my_len
 
