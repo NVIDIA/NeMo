@@ -7,7 +7,7 @@ from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import EncodedRepresentation, LabelsType, LossType, NeuralType, SpectrogramType
 
 
-class RandomProjectionVectorQuantizer(NeuralModule):
+class RandomProjectionVectorQuantizer(NeuralModule, Exportable):
     DIST_FN_LIST = ["l2", "cosine"]
 
     def __init__(
@@ -151,3 +151,10 @@ class RandomProjectionVectorQuantizer(NeuralModule):
             xid = xid.squeeze(-1)
 
         return xq, xid
+
+
+class KMeansQuantizer(NeuralModule, Exportable):
+    def __init__(
+        self, num_clusters: int, max_iter: int = 300, tol: float = 1e-4,
+    ):
+        super().__init__()
