@@ -282,7 +282,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 add_eos=data_cfg.get('add_eos', True),
                 add_sep=data_cfg.get('add_sep', False),
                 sep_id=self.sep_id,
-                max_num_samples=num_samples[0] if not packed_sequence else None,
+                max_num_samples=num_samples[0],
                 seed=data_cfg.get('seed', 1234),
                 label_key=data_cfg.get('label_key', 'answer'),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),

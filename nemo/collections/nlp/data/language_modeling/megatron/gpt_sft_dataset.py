@@ -493,13 +493,14 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         self.return_cu_seqlen = return_cu_seqlen
 
     def __getitem__(self, idx):
+        if self.samples_mapping is not None:
+            # assert idx < len(self.samples_mapping)
+            idx = self.samples_mapping[idx]
+
         input_ids = self.indexed_dataset[idx]['input_ids']
         seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
         loss_mask = self.indexed_dataset[idx]['loss_mask']
         return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries, 'loss_mask': loss_mask}
-
-    def __len__(self):
-        return len(self.indexed_dataset)
 
     def _load_dataset(self):
         try:
@@ -510,6 +511,19 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 f"Please check if the packed dataset was prepared correctly. The original error was:\n {e}",
             )
             exit(1)
+
+    def _build_samples_mapping(self):
+        if self.max_num_samples is not None:
+            # custom samples mapping logic, following the format for unpacked sft dataset
+            # Note: this is epoch-level shuffling, i.e. sampling without replacement until end of epoch, then repeat.
+            # Unpacked dataset shuffles by sampling with replacement indefinitely.
+            dataset_len = len(self.indexed_dataset)
+            max_num_epochs = np.ceil(self.max_num_samples / dataset_len)
+            indices = np.arange(dataset_len)[None, :].repeat(max_num_epochs, axis=0)
+            [np.random.shuffle(x) for x in indices]
+            self.samples_mapping = indices.reshape(1, -1).squeeze()[:self.max_num_samples]
+        else:
+            self.samples_mapping = None
 
     def _build_loss_mask(self, processed_example):
         if self.answer_only_loss:
