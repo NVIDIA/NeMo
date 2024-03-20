@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, MCoreBertModelWrapper
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import NeMoBertModel, MCoreBertModelWrapperWithPostLNSupport
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
     bert_layer_with_transformer_engine_spec_postln,
 )
@@ -39,11 +39,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -151,7 +150,7 @@ class MegatronBertModel(MegatronBaseModel):
             else:
                 layer_spec = bert_layer_with_transformer_engine_spec_postln
 
-            model = MCoreBertModelWrapper(
+            model = MCoreBertModelWrapperWithPostLNSupport(
                 config=self.transformer_config,
                 transformer_layer_spec=layer_spec,
                 vocab_size=self.padded_vocab_size,
@@ -166,7 +165,7 @@ class MegatronBertModel(MegatronBaseModel):
                 add_pooler=self.cfg.get('add_pooler', False),
             )
         else:
-            model = BertModel(
+            model = NeMoBertModel(
                 config=self.model_parallel_config,
                 vocab_size=self.padded_vocab_size,
                 hidden_size=cfg.hidden_size,

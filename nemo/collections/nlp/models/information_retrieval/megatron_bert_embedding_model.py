@@ -27,7 +27,6 @@ try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.transformer.transformer_config import TransformerConfig
 
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
@@ -45,7 +44,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.information_retrieval.bert_embedding_model import (
-    BertEmbeddingModel,
+    NeMoBertEmbeddingModel,
     MCoreBertEmbeddingModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
@@ -109,7 +108,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
             )
 
         else:
-            model = BertEmbeddingModel(
+            model = NeMoBertEmbeddingModel(
                 config=self.model_parallel_config,
                 vocab_size=self.padded_vocab_size,
                 hidden_size=cfg.hidden_size,

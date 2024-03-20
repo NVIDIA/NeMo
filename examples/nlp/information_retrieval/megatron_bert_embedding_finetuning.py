@@ -34,29 +34,24 @@ def main(cfg) -> None:
     trainer = MegatronBertTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    if cfg.restore_from_path:
+    model_cfg = MegatronBertEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
 
-        model_cfg = MegatronBertEmbeddingModel.merge_cfg_with(cfg.restore_from_path, cfg)
+    assert (
+        model_cfg.micro_batch_size * cfg.trainer.devices == model_cfg.global_batch_size
+    ), "Gradiant accumulation is not supported for contrastive learning yet"
 
-        assert (
-            model_cfg.micro_batch_size * cfg.trainer.devices == model_cfg.global_batch_size
-        ), "Gradiant accumulation is not supported for contrastive learning yet"
+    OmegaConf.set_struct(model_cfg, True)
+    with open_dict(model_cfg):
+        model_cfg.precision = trainer.precision
 
-        OmegaConf.set_struct(model_cfg, True)
-        with open_dict(model_cfg):
-            model_cfg.precision = trainer.precision
-
-        logging.info(f"Loading model from {cfg.restore_from_path}")
-        model = MegatronBertEmbeddingModel.restore_from(
-            restore_path=cfg.restore_from_path,
-            trainer=trainer,
-            save_restore_connector=NLPSaveRestoreConnector(),
-            override_config_path=model_cfg,
-            strict=True,
-        )
-    else:
-        logging.info("Training model from scratch")
-        model = MegatronBertEmbeddingModel(cfg=cfg.model, trainer=trainer)
+    logging.info(f"Loading model from {cfg.restore_from_path}")
+    model = MegatronBertEmbeddingModel.restore_from(
+        restore_path=cfg.restore_from_path,
+        trainer=trainer,
+        save_restore_connector=NLPSaveRestoreConnector(),
+        override_config_path=model_cfg,
+        strict=True,
+    )
 
     trainer.fit(model)
 

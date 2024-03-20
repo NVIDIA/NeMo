@@ -14,11 +14,9 @@
 
 """BERT model."""
 
-from contextlib import nullcontext
 from dataclasses import dataclass
-
+import warnings
 import torch
-import torch.nn.functional as F
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
@@ -28,8 +26,7 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
 from megatron.core.utils import make_viewless_tensor
-from torch import Tensor, nn
-
+from torch import Tensor
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
@@ -66,11 +63,8 @@ except (ImportError, ModuleNotFoundError):
     ModelParallelConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
-from dataclasses import dataclass, field
-from typing import Dict, Union
-
-from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from dataclasses import dataclass
+from megatron.core.transformer.spec_utils import build_module
 from megatron.core.transformer.transformer_layer import TransformerLayer
 
 
@@ -178,16 +172,16 @@ from megatron.core.transformer.transformer_layer import TransformerLayerSubmodul
 
 
 @dataclass
-class TransformerLayerSubmodulesPostLNSupport(TransformerLayerSubmodules):
+class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
     def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
-        super(TransformerLayerSubmodulesPostLNSupport, self).__init__(**kwargs)
+        super(TransformerLayerSubmodulesWithPostLNSupport, self).__init__(**kwargs)
         self.post_att_layernorm = post_att_layernorm
         self.post_mlp_layernorm = post_mlp_layernorm
 
 
-class TransformerLayerPostLNSupport(TransformerLayer):
+class TransformerLayerWithPostLNSupport(TransformerLayer):
     def __init__(self, *args, **kwargs):
-        super(TransformerLayerPostLNSupport, self).__init__(*args, **kwargs)
+        super(TransformerLayerWithPostLNSupport, self).__init__(*args, **kwargs)
         ## [Module add: Post attention LN]
         self.post_att_layernorm = build_module(
             self.submodules_config.post_att_layernorm,
@@ -327,11 +321,12 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         )
 
 
-# For converting HF Bert checkpoints, we are adding this wrapper to support post layernorm
-class MCoreBertModelWrapper(MCoreBert):
-    def __init__(self, transformer_block_type='post_ln', add_pooler=True, *args, **kwargs):
+# This class is used for working with HF Bert Checkpoints. These checkpoints 
+# by default have post layer norm, while the vanilla mcore bert model does not support it.
+class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
+    def __init__(self, transformer_block_type='pre-ln', add_pooler=False, *args, **kwargs):
 
-        super(MCoreBertModelWrapper, self).__init__(*args, **kwargs)
+        super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
         self.transformer_block_type = transformer_block_type
 
@@ -386,7 +381,7 @@ class MCoreBertModelWrapper(MCoreBert):
 
         It either returns the Loss values if labels are given  or the final hidden units
         """
-        hidden_states = super(MCoreBertModelWrapper, self).forward(
+        hidden_states = super(MCoreBertModelWrapperWithPostLNSupport, self).forward(
             input_ids, attention_mask, tokentype_ids, lm_labels, inference_params
         )
         if not self.post_process:
@@ -428,7 +423,7 @@ class MCoreBertModelWrapper(MCoreBert):
         return loss, binary_logits
 
 
-class BertModel(MegatronModule):
+class NeMoBertModel(MegatronModule):
     """
     Bert Language model.
     Model returns [seq, batch, hidden] shape
@@ -467,13 +462,14 @@ class BertModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         add_binary_head=True,
-        add_pooler=True,
-        add_lm_head=False,
+        add_pooler=False,
+        add_lm_head=True,
         megatron_legacy=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
     ):
-        super(BertModel, self).__init__(config=config)
+        warnings.warn("NeMoBertModel will be deprecated mid 2024. Use MCoreBertModelWrapperWithPostLNSupport instead.", DeprecationWarning)
+        super(NeMoBertModel, self).__init__(config=config)
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.add_binary_head = add_binary_head
         self.parallel_output = parallel_output

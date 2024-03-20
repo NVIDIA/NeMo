@@ -3371,10 +3371,15 @@ pipeline {
         sh "NVTE_FLASH_ATTN=0 NVTE_ALLOW_NONDETERMINISTIC_ALGO=0 NVTE_FUSED_ATTN=0 python examples/nlp/information_retrieval/megatron_bert_embedding_finetuning.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
-        trainer.max_steps=4 \
+        trainer.max_steps=12 \
         trainer.val_check_interval=4 \
         trainer.max_epochs=1 \
         +trainer.num_sanity_val_steps=0 \
+        restore_from_path=/home/TestData/nlp/bert_embedding/bert_embedding_nemo_tiny.nemo \
+        model.num_layers=2 \
+        model.hidden_size=64 \
+        model.ffn_hidden_size=256 \
+        model.num_attention_heads=2 \
         model.megatron_legacy=False \
         model.mcore_bert=False \
         model.global_batch_size=2 \
@@ -3391,10 +3396,15 @@ pipeline {
         sh "NVTE_FLASH_ATTN=0 NVTE_ALLOW_NONDETERMINISTIC_ALGO=0 NVTE_FUSED_ATTN=0 python examples/nlp/information_retrieval/megatron_bert_embedding_finetuning.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
-        trainer.max_steps=16 \
+        trainer.max_steps=36 \
         trainer.val_check_interval=4 \
         trainer.max_epochs=1 \
         +trainer.num_sanity_val_steps=0 \
+        restore_from_path=/home/TestData/nlp/bert_embedding/bert_embedding_nemo_tiny.nemo \
+        model.num_layers=2 \
+        model.hidden_size=64 \
+        model.ffn_hidden_size=256 \
+        model.num_attention_heads=2 \
         model.megatron_legacy=False \
         model.mcore_bert=False \
         model.global_batch_size=2 \
@@ -3423,10 +3433,15 @@ pipeline {
         sh "NVTE_FLASH_ATTN=0 NVTE_ALLOW_NONDETERMINISTIC_ALGO=0 NVTE_FUSED_ATTN=0 python examples/nlp/information_retrieval/megatron_bert_embedding_finetuning.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
-        trainer.max_steps=4 \
+        trainer.max_steps=12 \
         trainer.val_check_interval=4 \
-        trainer.max_epochs=1 \
+        trainer.max_epochs=36 \
         +trainer.num_sanity_val_steps=0 \
+        restore_from_path=/home/TestData/nlp/bert_embedding/bert_embedding_mcore_tiny.nemo \
+        model.num_layers=2 \
+        model.hidden_size=64 \
+        model.ffn_hidden_size=256 \
+        model.num_attention_heads=2 \
         model.megatron_legacy=False \
         model.mcore_bert=True \
         model.global_batch_size=2 \
@@ -3447,8 +3462,13 @@ pipeline {
         trainer.val_check_interval=4 \
         trainer.max_epochs=1 \
         +trainer.num_sanity_val_steps=0 \
+        restore_from_path=/home/TestData/nlp/bert_embedding/bert_embedding_mcore_tiny.nemo \
+        model.num_layers=2 \
+        model.hidden_size=64 \
+        model.ffn_hidden_size=256 \
+        model.num_attention_heads=2 \
         model.megatron_legacy=False \
-        model.mcore_bert=False \
+        model.mcore_bert=True \
         model.global_batch_size=2 \
         model.micro_batch_size=1 \
         model.optim.lr=0.000005 \

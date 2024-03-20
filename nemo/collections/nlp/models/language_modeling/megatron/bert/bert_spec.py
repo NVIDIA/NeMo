@@ -5,7 +5,6 @@ from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubm
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
-    TELayerNormColumnParallelLinear,
     TENorm,
     TERowParallelLinear,
 )
@@ -13,17 +12,15 @@ from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
-    TransformerLayerPostLNSupport,
-    TransformerLayerSubmodulesPostLNSupport,
+    TransformerLayerWithPostLNSupport,
+    TransformerLayerSubmodulesWithPostLNSupport,
 )
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
 bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
-    module=TransformerLayerPostLNSupport,
-    submodules=TransformerLayerSubmodulesPostLNSupport(
+    module=TransformerLayerWithPostLNSupport,
+    submodules=TransformerLayerSubmodulesWithPostLNSupport(
         self_attention=ModuleSpec(
             module=SelfAttention,
             params={"attn_mask_type": AttnMaskType.padding},
@@ -45,8 +42,8 @@ bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
 
 # Use this spec for an implementation using only modules in megatron core
 bert_layer_local_spec_postln = ModuleSpec(
-    module=TransformerLayerPostLNSupport,
-    submodules=TransformerLayerSubmodulesPostLNSupport(
+    module=TransformerLayerWithPostLNSupport,
+    submodules=TransformerLayerSubmodulesWithPostLNSupport(
         self_attention=ModuleSpec(
             module=SelfAttention,
             params={"attn_mask_type": AttnMaskType.padding},

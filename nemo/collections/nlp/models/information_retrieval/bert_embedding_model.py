@@ -16,17 +16,15 @@
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
-
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
-    BertModel,
-    MCoreBertModelWrapper,
-    bert_extended_attention_mask,
+    NeMoBertModel,
+    MCoreBertModelWrapperWithPostLNSupport,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, build_position_ids
+import warnings
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
-
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
@@ -75,7 +73,7 @@ class BertEmbeddingHead(nn.Module):
         return {key: self.__dict__[key] for key in self.config_keys}
 
 
-class MCoreBertEmbeddingModel(MCoreBertModelWrapper):
+class MCoreBertEmbeddingModel(MCoreBertModelWrapperWithPostLNSupport):
     def __init__(self, *args, **kwargs):
 
         super(MCoreBertEmbeddingModel, self).__init__(*args, **kwargs)
@@ -113,13 +111,14 @@ class MCoreBertEmbeddingModel(MCoreBertModelWrapper):
         return embeddings_out
 
 
-class BertEmbeddingModel(BertModel):
+class NeMoBertEmbeddingModel(NeMoBertModel):
     """
     Bert Language model.
     Model returns [seq, batch, hidden] shape
     """
 
     def __init__(self, *args, **kwargs):
+        warnings.warn("NeMoBertModel will be deprecated mid 2024. Use MCoreBertEmbeddingModel instead.", DeprecationWarning)
         super().__init__(*args, **kwargs)
         self.embedding_head = BertEmbeddingHead(
             word_embedding_dimension=self.config.hidden_size, pooling_mode_mean_tokens=True,
@@ -134,7 +133,7 @@ class BertEmbeddingModel(BertModel):
         checkpoint_activations_all_layers=None,
     ):
 
-        lm_output = super(BertEmbeddingModel, self).forward(
+        lm_output = super(NeMoBertEmbeddingModel, self).forward(
             bert_model_input, attention_mask, token_type_ids, lm_labels, checkpoint_activations_all_layers
         )
         embeddings_out = self.embedding_head(lm_output[0], attention_mask)
