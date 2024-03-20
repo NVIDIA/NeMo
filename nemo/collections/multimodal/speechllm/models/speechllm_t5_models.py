@@ -264,7 +264,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         # [b, t, c]
         lm_embedding = self.frozen_model.enc_dec_model.encoder_embedding
         input_embeds = lm_embedding.word_embeddings(input_ids)
-        encoder_input, encoder_length = _concat_embs(encoded, encoded_len, input_embeds, input_length)
+        if self.cfg.audio_prompt_first:
+            encoder_input, encoder_length = _concat_embs(encoded, encoded_len, input_embeds, input_length)
+        else:  # more streaming friendly
+            encoder_input, encoder_length = _concat_embs(input_embeds, input_length, encoded, encoded_len)
 
         b = encoder_input.shape[0]
         max_len = encoder_input.shape[1]
@@ -366,7 +369,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             output_enc_hidden_only=False,
             enc_input=encoder_input,
         )
-        breakpoint()
         loss_mask = dec_mask
         return output, loss_mask
 
@@ -656,6 +658,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         with open_dict(gpt_cfg):
             if 'vocab_file' in cfg.model:
                 gpt_cfg.tokenizer.vocab_file = cfg.model.vocab_file
+            gpt_cfg.audio_prompt_first = cfg.model.get('audio_prompt_first', True)
             gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
             gpt_cfg.text_loss_weight = cfg.model.get('text_loss_weight', 1.0)
@@ -1386,6 +1389,18 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 class CrossAttendModularizedAudioT5Model(ModularizedAudioT5Model):
     """Modularized speech GPT model."""
 
+    def _create_attention_mask(self, encoder_input: torch.Tensor):
+        batch_size = encoder_input.shape[0]
+        max_len = encoder_input.shape[1]
+        # TODO(zhehuai): use prefixlm instead for the audio embeddings
+        # Using causal attention mask for whole input
+        attention_mask = torch.tril(torch.ones((batch_size, max_len, max_len), device=encoder_input.device)).view(
+            batch_size, 1, max_len, max_len
+        )
+        # Convert attention mask from float to bool
+        attention_mask = attention_mask < 0.5
+        return attention_mask
+    
     def prepare_llm_input(self, audio_batch):
 
         input_signal = audio_batch['audio_signal']
@@ -1407,7 +1422,7 @@ class CrossAttendModularizedAudioT5Model(ModularizedAudioT5Model):
         else:
             base_module = self.model
         lm_embedding = (
-            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
+           base_module.encoder_embedding
         )
         # [b, t, c]
         encoded, encoded_len, aux_loss = self.perception(
@@ -1418,7 +1433,7 @@ class CrossAttendModularizedAudioT5Model(ModularizedAudioT5Model):
             lm_embedding=lm_embedding,
             canary_tokens=audio_batch.get('canary_tokens', None),
         )
-        input_embeds = self._get_text_embeddings(input_ids, None).transpose(0, 1)
+        input_embeds = self._get_text_embeddings(input_ids, None)
         encoder_input, extra_outputs = self.perception_cross_attn(encoded, encoded_len, input_embeds, input_lengths=input_length, return_mems=True)
         if 'audio_ratio' in audio_batch:
             audio_ratio = audio_batch['audio_ratio'][..., None, None]
