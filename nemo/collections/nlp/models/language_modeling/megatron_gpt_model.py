@@ -1285,7 +1285,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if isinstance(self.trainer.limit_val_batches, float):
             # Set eval samples to 1 only when the data_prefix contains single prefix.
-            if (isinstance(self.cfg.data.data_prefix, DictConfig) and len(self.cfg.data.data_prefix['validation']) == 1) or len(self.cfg.data.data_prefix) == 1:
+            if (
+                isinstance(self.cfg.data.data_prefix, DictConfig) and len(self.cfg.data.data_prefix['validation']) == 1
+            ) or len(self.cfg.data.data_prefix) == 1:
                 train_valid_test_num_samples[1] = 1
 
         # Add extra FIM tokens to tokenizer
