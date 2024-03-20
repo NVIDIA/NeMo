@@ -521,7 +521,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             max_num_epochs = np.ceil(self.max_num_samples / dataset_len)
             indices = np.arange(dataset_len)[None, :].repeat(max_num_epochs, axis=0)
             [np.random.shuffle(x) for x in indices]
-            self.samples_mapping = indices.reshape(1, -1).squeeze()[:self.max_num_samples]
+            self.samples_mapping = indices.reshape(1, -1).squeeze()[: self.max_num_samples]
         else:
             self.samples_mapping = None
 
