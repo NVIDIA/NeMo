@@ -154,6 +154,7 @@ class Quantizer:
         with open_dict(model_cfg):
             model_cfg.activations_checkpoint_method = None
             model_cfg.activations_checkpoint_granularity = None
+            model_cfg.sequence_parallel = False
             if tensor_model_parallel_size is not None:
                 model_cfg.tensor_model_parallel_size = tensor_model_parallel_size
             if pipeline_model_parallel_size is not None:
