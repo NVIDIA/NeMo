@@ -93,8 +93,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             if "encoders" not in cfg.perception
             else MultiAudioPerceptionModel(cfg=cfg.perception)
         )
-        self.setup_optimizer_param_groups()
-        self.configure_optimizers()
+        # print out params in more details
         self.summarize(max_depth=2)
 
     def parameters(self):
