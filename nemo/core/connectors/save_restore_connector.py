@@ -22,7 +22,6 @@ import tempfile
 import uuid
 from typing import Optional, Set, Union
 
-import safetensors
 import safetensors.torch as safetensors_torch
 import torch
 from omegaconf import DictConfig, OmegaConf
