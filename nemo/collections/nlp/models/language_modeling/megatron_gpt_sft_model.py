@@ -265,6 +265,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             else:
                 dataset_cls = GPTSFTDataset
+
+            # TODO(akoumparouli): MCore assumes/requires equal length input sequences.
+            if not data_cfg.get('pad_to_max_length', False) and self.cfg.get('expert_model_parallel_size', 1) > 1:
+                raise ValueError('Expert parallelism requires pad_to_max_length')
+
             dataset = dataset_cls(
                 file_path=file_path,
                 tokenizer=self.tokenizer,
@@ -478,7 +483,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         }
         return outputs
 
-    def gather_and_maybe_write_predictions(self, output, data_cfg, mode, dataloader_idx=0):
+    def gather_and_maybe_write_predictions(self, output, data_cfg, mode, averaged_metric, dataloader_idx=0):
         # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
         gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
         torch.distributed.all_gather_object(
@@ -596,7 +601,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
             self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
-            self.gather_and_maybe_write_predictions(output, data_cfg, mode, dataloader_idx)
+            self.gather_and_maybe_write_predictions(output, data_cfg, mode, averaged_metric, dataloader_idx)
 
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
             outputs[dataloader_idx].clear()  # free memory

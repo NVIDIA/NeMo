@@ -169,6 +169,7 @@ pipeline {
         trainer.devices=1 \
         ++exp_manager.max_time_per_run=00:00:03:00 \
         trainer.max_steps=20 \
+        model.conditioning.embed_dim=64 \
         model.micro_batch_size=1 \
         model.global_batch_size=1 \
         model.data.synthetic_data=True \
@@ -212,79 +213,81 @@ pipeline {
             model.unet_config.from_pretrained=null \
             model.first_stage_config.from_pretrained=null \
             model.unet_config.use_flash_attention=False \
+            model.unet_config.attention_resolutions=[1] \
+            model.unet_config.channel_mult=[1] \
             "
         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
       }
     }
-    stage('L2: Multimodal ControlNet Train') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "rm -rf /home/TestData/multimodal/controlnet_train"
-        sh "pip install webdataset==0.2.48"
-        sh "python examples/multimodal/text_to_image/controlnet/controlnet_train.py \
-            trainer.precision=16 \
-            trainer.num_nodes=1 \
-            trainer.devices=1 \
-            ++exp_manager.max_time_per_run=00:00:03:00 \
-            trainer.max_steps=20 \
-            model.micro_batch_size=1 \
-            model.global_batch_size=1 \
-            model.data.synthetic_data=True \
-            exp_manager.exp_dir=/home/TestData/multimodal/controlnet_train \
-            model.inductor=False \
-            model.image_logger.max_images=0 \
-            model.control_stage_config.params.from_pretrained_unet=null \
-            model.unet_config.from_pretrained=null \
-            model.first_stage_config.from_pretrained=null \
-            model.unet_config.use_flash_attention=False \
-            "
-        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
-        sh "rm -rf /home/TestData/multimodal/controlnet_train"
-      }
-    }
-    stage('L2: Multimodal DreamBooth Train') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "rm -rf /home/TestData/multimodal/dreambooth_train"
-        sh "pip install webdataset==0.2.48"
-        sh "python examples/multimodal/text_to_image/dreambooth/dreambooth.py \
-            trainer.precision=16 \
-            trainer.num_nodes=1 \
-            trainer.devices=1 \
-            ++exp_manager.max_time_per_run=00:00:03:00 \
-            trainer.max_steps=20 \
-            model.micro_batch_size=1 \
-            model.global_batch_size=1 \
-            exp_manager.exp_dir=/home/TestData/multimodal/dreambooth_train \
-            model.inductor=False \
-            model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
-            ++model.cond_stage_config.version=openai/clip-vit-large-patch14 \
-            ++model.cond_stage_config.max_length=77 \
-            ~model.cond_stage_config.restore_from_path \
-            ~model.cond_stage_config.freeze \
-            ~model.cond_stage_config.layer \
-            model.unet_config.from_pretrained=null \
-            model.first_stage_config.from_pretrained=null \
-            model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth \
-            model.unet_config.use_flash_attention=False \
-            "
-        sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
-        sh "rm -rf /home/TestData/multimodal/dreambooth_train"
-      }
-    }
+//     stage('L2: Multimodal ControlNet Train') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       steps {
+//         sh "rm -rf /home/TestData/multimodal/controlnet_train"
+//         sh "pip install webdataset==0.2.48"
+//         sh "python examples/multimodal/text_to_image/controlnet/controlnet_train.py \
+//             trainer.precision=16 \
+//             trainer.num_nodes=1 \
+//             trainer.devices=1 \
+//             ++exp_manager.max_time_per_run=00:00:03:00 \
+//             trainer.max_steps=20 \
+//             model.micro_batch_size=1 \
+//             model.global_batch_size=1 \
+//             model.data.synthetic_data=True \
+//             exp_manager.exp_dir=/home/TestData/multimodal/controlnet_train \
+//             model.inductor=False \
+//             model.image_logger.max_images=0 \
+//             model.control_stage_config.params.from_pretrained_unet=null \
+//             model.unet_config.from_pretrained=null \
+//             model.first_stage_config.from_pretrained=null \
+//             model.unet_config.use_flash_attention=False \
+//             "
+//         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
+//         sh "rm -rf /home/TestData/multimodal/controlnet_train"
+//       }
+//     }
+//     stage('L2: Multimodal DreamBooth Train') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       steps {
+//         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
+//         sh "pip install webdataset==0.2.48"
+//         sh "python examples/multimodal/text_to_image/dreambooth/dreambooth.py \
+//             trainer.precision=16 \
+//             trainer.num_nodes=1 \
+//             trainer.devices=1 \
+//             ++exp_manager.max_time_per_run=00:00:03:00 \
+//             trainer.max_steps=20 \
+//             model.micro_batch_size=1 \
+//             model.global_batch_size=1 \
+//             exp_manager.exp_dir=/home/TestData/multimodal/dreambooth_train \
+//             model.inductor=False \
+//             model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
+//             ++model.cond_stage_config.version=openai/clip-vit-large-patch14 \
+//             ++model.cond_stage_config.max_length=77 \
+//             ~model.cond_stage_config.restore_from_path \
+//             ~model.cond_stage_config.freeze \
+//             ~model.cond_stage_config.layer \
+//             model.unet_config.from_pretrained=null \
+//             model.first_stage_config.from_pretrained=null \
+//             model.data.instance_dir=/home/TestData/multimodal/tiny-dreambooth \
+//             model.unet_config.use_flash_attention=False \
+//             "
+//         sh "pip install 'webdataset>=0.1.48,<=0.1.62'"
+//         sh "rm -rf /home/TestData/multimodal/dreambooth_train"
+//       }
+//     }
     stage('L2: Vision ViT Pretrain TP=1') {
       when {
         anyOf {
@@ -421,35 +424,33 @@ pipeline {
       parallel {
         stage('Llama') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
-            --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-            --out-file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+            sh 'CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
+            --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
+            --output_path=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
             --precision=16'
           }
         }
         stage('StarCoder') {
           steps {
-            sh 'python scripts/nlp_language_modeling/convert_starcoder_hf_to_nemo.py \
-            --config examples/nlp/language_modeling/conf/megatron_gpt_config.yaml \
-            --input /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
-            --output /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
+            sh 'python scripts/checkpoint_converters/convert_starcoder_hf_to_nemo.py \
+            --input_name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
+            --output_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo'
           }
         }
         stage('Falcon') {
           steps {
-            sh 'python scripts/nlp_language_modeling/convert_hf_falcon_to_nemo.py \
-            --config examples/nlp/language_modeling/conf/megatron_falcon_config.yaml \
-            --input /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
-            --output /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
+            sh 'python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
+            --input_name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
+            --output_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
           }
         }
         stage('Baichuan2') {
           steps {
-            sh 'python scripts/nlp_language_modeling/convert_hf_baichuan2_to_nemo.py \
-            --in-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
-            --out-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
+            sh 'python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
+            --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
+            --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
           }
         }
@@ -3806,6 +3807,59 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
+/*
+    stage('L2: Megatron GPT Pretraining with EP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=3 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        model.expert_model_parallel_size=2 \
+        ++model.num_moe_experts=2 \
+        ++model.moe_router_topk=1 \
+        ++model.megatron_amp_O2=True \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=1 \
+        model.optim.sched.constant_steps=1 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.normalization=rmsnorm \
+        model.bias=False \
+        model.bias_activation_fusion=False \
+        model.bias_dropout_add_fusion=False \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_granularity='full' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+      }
+    }
+*/
     stage('L2: Megatron GPT with Rope Pretraining and Resume Training TP=2') {
      when {
        anyOf {
