@@ -106,11 +106,9 @@ class MCoreBertEmbeddingModel(MCoreBertModelWrapper):
 
         It either returns the Loss values if labels are given  or the final hidden units
         """
-        hidden_states = super(MCoreBertEmbeddingModel, self).forward(input_ids,
-                                                                    attention_mask,
-                                                                    tokentype_ids,
-                                                                    lm_labels,
-                                                                    inference_params)
+        hidden_states = super(MCoreBertEmbeddingModel, self).forward(
+            input_ids, attention_mask, tokentype_ids, lm_labels, inference_params
+        )
         embeddings_out = self.embedding_head(hidden_states, attention_mask)
         return embeddings_out
 
@@ -136,11 +134,8 @@ class BertEmbeddingModel(BertModel):
         checkpoint_activations_all_layers=None,
     ):
 
-
-        lm_output = super(BertEmbeddingModel, self).forward(bert_model_input,
-                                    attention_mask,
-                                    token_type_ids,
-                                    lm_labels,
-                                    checkpoint_activations_all_layers)
+        lm_output = super(BertEmbeddingModel, self).forward(
+            bert_model_input, attention_mask, token_type_ids, lm_labels, checkpoint_activations_all_layers
+        )
         embeddings_out = self.embedding_head(lm_output[0], attention_mask)
         return embeddings_out

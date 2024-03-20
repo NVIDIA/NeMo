@@ -18,6 +18,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 import torch
 import torch.nn.functional as F
+from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -27,9 +28,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, MCoreBertModelWrapper
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import bert_layer_with_transformer_engine_spec_postln
-from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
+    bert_layer_with_transformer_engine_spec_postln,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module

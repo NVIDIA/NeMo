@@ -34,6 +34,7 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 import torch
+from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -47,8 +48,9 @@ from nemo.collections.nlp.models.information_retrieval.bert_embedding_model impo
     BertEmbeddingModel,
     MCoreBertEmbeddingModel,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import bert_layer_with_transformer_engine_spec_postln
-from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
+    bert_layer_with_transformer_engine_spec_postln,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,

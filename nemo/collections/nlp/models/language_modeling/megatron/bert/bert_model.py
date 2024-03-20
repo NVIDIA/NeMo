@@ -173,14 +173,16 @@ def post_language_model_processing(
         # lm_loss: [s, b]
         return lm_loss, binary_logits
 
+
 from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
+
+
 @dataclass
 class TransformerLayerSubmodulesPostLNSupport(TransformerLayerSubmodules):
     def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
         super(TransformerLayerSubmodulesPostLNSupport, self).__init__(**kwargs)
         self.post_att_layernorm = post_att_layernorm
         self.post_mlp_layernorm = post_mlp_layernorm
-
 
 
 class TransformerLayerPostLNSupport(TransformerLayer):
@@ -320,13 +322,10 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
             hidden_states = self.input_tensor
         if self.transformer_block_type == 'post_ln':
             hidden_states = self.initial_layernorm(hidden_states)
-        return super(TransformerBlockWithPostLNSupport, self).forward(hidden_states, 
-                                                           attention_mask, 
-                                                           context, 
-                                                           context_mask, 
-                                                           rotary_pos_emb, 
-                                                           inference_params, 
-                                                           packed_seq_params)
+        return super(TransformerBlockWithPostLNSupport, self).forward(
+            hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params
+        )
+
 
 # For converting HF Bert checkpoints, we are adding this wrapper to support post layernorm
 class MCoreBertModelWrapper(MCoreBert):
@@ -387,14 +386,12 @@ class MCoreBertModelWrapper(MCoreBert):
 
         It either returns the Loss values if labels are given  or the final hidden units
         """
-        hidden_states = super(MCoreBertModelWrapper, self).forward(input_ids,
-                                                                    attention_mask,
-                                                                    tokentype_ids,
-                                                                    lm_labels,
-                                                                    inference_params)
+        hidden_states = super(MCoreBertModelWrapper, self).forward(
+            input_ids, attention_mask, tokentype_ids, lm_labels, inference_params
+        )
         if not self.post_process:
             return hidden_states
-        
+
         if self.add_pooler:
             pooled_output = self.pooler(hidden_states, 0)
 
