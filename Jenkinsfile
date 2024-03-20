@@ -426,7 +426,7 @@ pipeline {
           steps {
             sh 'CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
             --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-            --output_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo
+            --output_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo'
           }
         }
         stage('StarCoder') {
