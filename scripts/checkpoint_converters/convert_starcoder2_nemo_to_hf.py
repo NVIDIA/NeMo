@@ -35,7 +35,9 @@ from nemo.utils import logging
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--input_name_or_path", type=str, default=None, required=True, help="Path to NeMo Starcoder2 checkpoint")
+    parser.add_argument(
+        "--input_name_or_path", type=str, default=None, required=True, help="Path to NeMo Starcoder2 checkpoint"
+    )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument(
         '--hf-model-name',
