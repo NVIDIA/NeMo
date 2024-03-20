@@ -136,6 +136,16 @@ model:
   perception:
     target: nemo.collections.multimodal.speechllm.modules.speechllm_perception.AudioPerceptionModel
     use_multi_layer_feat: false
+    xattn:
+      target: nemo.collections.multimodal.speechllm.modules.speechllm_perception.GatedCrossAttentionDense
+      num_attention_heads: 8
+      attn_score_dropout: 0.1
+      attn_layer_dropout: 0.1
+      ffn_dropout: 0.1
+      hidden_act: "relu"
+      pre_ln: true
+      pre_ln_final_layer_norm: true
+
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
       feat_in: 1024
