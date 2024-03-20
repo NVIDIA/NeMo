@@ -217,6 +217,13 @@ class MockModelIncorrectWithNemoArtifact(MockModel):
         self.child_model = ModelPT.restore_from(child_model_path)
 
 
+class MockModelWithSharedTensors(MockModel):
+
+    def __init__(self, cfg, trainer=None):
+        super().__init__(cfg=cfg, trainer=trainer)
+        self.shared_tensor = self.w
+
+
 def _mock_model_config():
     conf = {'temp_file': None, 'target': classpath(MockModel), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
@@ -268,6 +275,12 @@ def _mock_model_with_child_custom_config_path_config():
 
 def _mock_model_incorrect_with_nemo_artifact_config(child_model_path: str):
     conf = {'temp_file': None, 'child_model_path': child_model_path, 'stub_number': 1}
+    conf = OmegaConf.create({'model': conf})
+    OmegaConf.set_struct(conf, True)
+    return conf
+
+def _mock_model_with_shared_tensors_config():
+    conf = {'temp_file': None, 'target': classpath(MockModelWithSharedTensors), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -523,6 +536,34 @@ class TestSaveRestore:
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
         assert isinstance(model_copy, MockModel)
+        assert model_copy.temp_data == ["*****\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_from_shared_tensors(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+
+            # Update config
+            cfg = _mock_model_with_shared_tensors_config()
+            cfg.model.temp_file = empty_file.name
+
+            # Create model
+            model = MockModelWithSharedTensors(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+
+            assert model.temp_file == empty_file.name
+
+            # Save test
+            model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
+
+        # Restore test
+        diff = model.w.weight - model_copy.w.weight
+        # because of caching - cache gets prepended
+        assert os.path.basename(model_copy.temp_file).endswith(os.path.basename(model.temp_file))
+        assert diff.mean() <= 1e-9
+        # assert os.path.basename(model.temp_file) == model_copy.temp_file
         assert model_copy.temp_data == ["*****\n"]
 
     @pytest.mark.unit
