@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from omegaconf import ListConfig
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
@@ -90,12 +91,15 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
     return output
 
 
-def load_noise_manifest(noise_manifest: str | None):
+def load_noise_manifest(noise_manifest: str | ListConfig | None):
     if noise_manifest is None:
         return []
-    noise_manifest_list = noise_manifest.split(',')
+
+    if isinstance(noise_manifest, str):
+        noise_manifest = noise_manifest.split(',')
+
     noise_data = []
-    for manifest in noise_manifest_list:
+    for manifest in noise_manifest:
         curr_data = read_manifest(manifest)
         for i in range(len(curr_data)):
             curr_data[i]['audio_filepath'] = get_full_path(curr_data[i]['audio_filepath'], manifest)
