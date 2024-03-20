@@ -175,6 +175,7 @@ class GPTModel(MegatronModule):
         noise_positonal_embedding=False,
         adversarial_training=False,
         adversarial_training_epsilon=0.01,
+        neft_reimplement=False,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -264,6 +265,7 @@ class GPTModel(MegatronModule):
             noise_positonal_embedding=noise_positonal_embedding,
             adversarial_training=adversarial_training,
             adversarial_training_epsilon=adversarial_training_epsilon,
+            neft_reimplement=neft_reimplement,
         )
 
         if self.share_embeddings_and_output_weights:

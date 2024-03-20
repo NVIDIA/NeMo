@@ -375,6 +375,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 creat_lambda=self.cfg.get('creat_lambda', 0.5),
                 creat_lr=self.cfg.get('creat_lr', 0.1),
                 creat_max_norm=self.cfg.get('creat_max_norm', 0.1),
+                neft_reimplement=self.cfg.get('neft_reimplement', False),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -460,6 +461,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 creat_lambda=self.cfg.get('cre_lambda', 0.5),
                 creat_adv_lr=self.cfg.get('cre_adv_lr', 0.1),
                 creat_adv_max_norm=self.cfg.get('cre_adv_max_norm', 0.1),
+                neft_reimplement=self.cfg.get('neft_reimplement', False),
             )
         return model
 
@@ -939,6 +941,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'loss_mask': data["loss_mask"],
             'attention_mask': data["attention_mask"],
             'position_ids': data["position_ids"],
+            'input_lengths': torch.LongTensor([(data['loss_mask'][i] == 1).nonzero(as_tuple=True)[0][-1].item() + 1  for i in range(len(data['loss_mask']))]).cuda(),
         }
 
         return batch
@@ -983,6 +986,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
+                required_keys.add('input_lengths')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
                 if parallel_state.is_pipeline_first_stage():
@@ -1003,6 +1007,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                 'labels': batch['labels'],
                 'loss_mask': batch['loss_mask'],
+                'input_lengths': batch['input_lengths'],
             }
 
             if not self.mcore_gpt:
