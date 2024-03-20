@@ -44,8 +44,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.information_retrieval.bert_embedding_model import (
-    NeMoBertEmbeddingModel,
     MCoreBertEmbeddingModel,
+    NeMoBertEmbeddingModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
     bert_layer_with_transformer_engine_spec_postln,

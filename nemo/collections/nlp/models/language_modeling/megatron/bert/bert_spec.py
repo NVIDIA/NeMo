@@ -12,9 +12,10 @@ from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
+
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
-    TransformerLayerWithPostLNSupport,
     TransformerLayerSubmodulesWithPostLNSupport,
+    TransformerLayerWithPostLNSupport,
 )
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)

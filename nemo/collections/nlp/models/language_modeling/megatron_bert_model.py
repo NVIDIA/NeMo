@@ -27,7 +27,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import NeMoBertModel, MCoreBertModelWrapperWithPostLNSupport
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
+    MCoreBertModelWrapperWithPostLNSupport,
+    NeMoBertModel,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
     bert_layer_with_transformer_engine_spec_postln,
 )
