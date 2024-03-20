@@ -59,7 +59,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core import parallel_state
 
     HAVE_MEGATRON_CORE = True
 

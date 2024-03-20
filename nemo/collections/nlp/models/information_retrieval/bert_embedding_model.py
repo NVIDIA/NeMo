@@ -24,7 +24,6 @@ import warnings
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
