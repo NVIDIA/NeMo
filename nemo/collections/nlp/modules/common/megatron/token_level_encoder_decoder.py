@@ -883,13 +883,12 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                 attn_prior_end_step = self.attn_prior_end_step
                 attn_prior_scaledown_start_step = self.attn_prior_scaledown_start_step
                 num_attention_heads = self.num_cross_attention_heads
-                assert attn_prior_scaledown_start_step < attn_prior_end_step
+                assert attn_prior_scaledown_start_step <= attn_prior_end_step
                 logging.debug(
                     f"attn_prior_scaledown_start_step: {attn_prior_scaledown_start_step}, attn_prior_scaledown_start_step: {attn_prior_end_step}"
                 )
                 if global_step >= attn_prior_end_step:
                     decoder_cross_attention_relative_position_bias = None
-                    # self.return_all_crossattention_probs = False
                 elif global_step > attn_prior_scaledown_start_step and global_step < attn_prior_end_step:
                     total_annealing_steps = attn_prior_end_step - attn_prior_scaledown_start_step
                     curr_annealing_step = global_step - attn_prior_scaledown_start_step
@@ -899,14 +898,12 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                     decoder_cross_attention_relative_position_bias = curr_cross_attention_prior.unsqueeze(1).repeat(
                         1, num_attention_heads, 1, 1
                     )
+                    decoder_cross_attention_relative_position_bias = torch.log(decoder_cross_attention_relative_position_bias + 1e-8)
                 else:
                     decoder_cross_attention_relative_position_bias = cross_attention_prior.unsqueeze(1).repeat(
                         1, num_attention_heads, 1, 1
                     )
-                    logging.debug(
-                        f"global_step: {global_step}, prior_scaling_factor: 1, "
-                        f"decoder_cross_attention_relative_position_bias: {decoder_cross_attention_relative_position_bias.shape}",
-                    )
+                    decoder_cross_attention_relative_position_bias = torch.log(decoder_cross_attention_relative_position_bias + 1e-8)
                 return_all_crossattention_probs = return_all_crossattention_probs or self.logging_step
 
             output = self.enc_dec_model(
@@ -950,14 +947,15 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                         # align_every_n_head: eg if set to 2, will skip every other head
                         # if set to 12, will select 1 head from every layer
                         align_every_n_head = self.align_every_n_head
+                        dec_start_idx = self.decoder_context_len + 1 # +1 to remove bos
                         attention_scores_sliced = attention_scores_combined[
-                            :, ::align_every_n_head, :, text_start_idx : -(2 + end_offset)
-                        ]  # -2 to remove eos and pad
+                            :,::align_every_n_head,dec_start_idx:,text_start_idx:-(2 + end_offset)
+                        ] # -2 to remove eos and pad
                         attention_logprobs = (
                             attention_scores_sliced  # not taking log_softmax, since we will do that in loss function
                         )
                         attention_logprobs = torch.mean(attention_logprobs, dim=1, keepdim=True)
-                        dec_len = torch.sum(dec_attn_mask, dim=1)
+                        dec_len = torch.sum(dec_attn_mask, dim=1) - dec_start_idx
                         enc_len = text_limits[:, 1] - text_limits[:, 0] - end_offset
                         alignment_loss = self.forward_sum_loss(
                             attn_logprob=attention_logprobs, in_lens=enc_len, out_lens=dec_len

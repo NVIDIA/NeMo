@@ -1064,9 +1064,7 @@ class CoreAttention(MegatronModule):
 
         if attention_bias is not None:
             # attention_bias is not None only for cross attention layers right now in T5
-            eps = 1e-8
-            attention_bias_log = torch.log(attention_bias + eps)
-            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias_log
+            attention_scores = torch.log_softmax(attention_scores, dim=-1) + attention_bias
 
         _attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
         # This is actually dropping out entire tokens to attend to, which might
