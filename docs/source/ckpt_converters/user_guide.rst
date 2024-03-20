@@ -27,7 +27,7 @@ Support Matrix
 +----------------------+------------------+---------------------+--------------------------------------------------------------------------------------------------------------------+
 | Gemma                | PyTorch          | NeMo                | `Link <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_gemma_pyt_to_nemo.py>`_      |
 +----------------------+------------------+---------------------+--------------------------------------------------------------------------------------------------------------------+
-| GPT/Llama            | NeMo (Legacy)    | NeMo (Megatron-Core)| `Link <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_gpt_nemo_to_mcore.py>`_      |
+| GPT/LLaMA            | NeMo (Legacy)    | NeMo (Megatron-Core)| `Link <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_gpt_nemo_to_mcore.py>`_      |
 +----------------------+------------------+---------------------+--------------------------------------------------------------------------------------------------------------------+
 | LLaMA                | Hugging Face     | NeMo                | `Link <https://github.com/NVIDIA/NeMo/tree/main/scripts/checkpoint_converters/convert_llama_hf_to_nemo.py>`_       |
 +----------------------+------------------+---------------------+--------------------------------------------------------------------------------------------------------------------+
