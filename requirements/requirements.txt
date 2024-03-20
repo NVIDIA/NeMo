@@ -1,4 +1,5 @@
 huggingface_hub>=0.20.3
+safetensors>=0.4.2
 numba
 numpy>=1.22
 onnx>=1.7.0

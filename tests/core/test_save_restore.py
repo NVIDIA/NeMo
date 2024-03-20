@@ -19,13 +19,13 @@ from typing import Dict, Optional, Set, Union
 
 import pytest
 import torch
-from huggingface_hub.hf_api import ModelFilter
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 from nemo.core.connectors import save_restore_connector
+from nemo.core.classes.mixins.hf_io_mixin import ModelFilter
 from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
 
@@ -808,6 +808,53 @@ class TestSaveRestore:
             assert type(restored_model._save_restore_connector) == MySaveRestoreConnector
 
     @pytest.mark.unit
+    def test_save_restore_connector_security_mode_standard(self):
+        class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
+            def save_to(self, model, save_path: str):
+                save_path = save_path.replace(".nemo", "_XYZ.nemo")
+                super().save_to(model, save_path)
+
+        class MockModelV2(MockModel):
+            pass
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Update config
+            cfg = _mock_model_config()
+
+            # Create model
+            save_path = os.path.join(tmpdir, 'save_custom.nemo')
+            model_with_custom_connector = MockModel(cfg=cfg.model, trainer=None)
+            model_with_custom_connector._save_restore_connector = MySaveRestoreConnector()
+
+            # Change security mode to standard
+            model_with_custom_connector._save_restore_connector.ckpt_security_level = "standard"
+            model_with_custom_connector.save_to(save_path)
+
+            assert os.path.exists(os.path.join(tmpdir, 'save_custom_XYZ.nemo'))
+
+            # Restore with security mode set to standard
+            save_restore_connector_v2 = MySaveRestoreConnector()
+            save_restore_connector_v2.ckpt_security_level = "standard"
+            restored_model = MockModelV2.restore_from(
+                save_path.replace(".nemo", "_XYZ.nemo"), save_restore_connector=save_restore_connector_v2
+            )
+            assert type(restored_model) == MockModelV2
+            assert type(restored_model._save_restore_connector) == MySaveRestoreConnector
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_legacy_EncDecCTCModel_with_security_mode_standard(self):
+        connector = save_restore_connector.SaveRestoreConnector()
+        connector.ckpt_security_level = "standard"
+
+        with pytest.raises(ValueError):
+            _ = EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En", save_restore_connector=connector)
+
+        connector.ckpt_security_level = "compat"
+        qn = EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En", save_restore_connector=connector)
+        assert qn is not None
+
+    @pytest.mark.unit
     def test_mock_model_model_collision(self):
         # The usual pipeline is working just fine.
         cfg = _mock_model_config()
@@ -1303,7 +1350,8 @@ class TestSaveRestore:
     def test_hf_model_filter(self):
         filt = ModelPT.get_hf_model_filter()
         assert isinstance(filt, ModelFilter)
-        assert filt.library == 'nemo'
+        assert filt.library[0] == 'nemo'
+        assert filt.library[1] == 'NeMo'
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -1318,16 +1366,16 @@ class TestSaveRestore:
         default_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) == len(default_model_infos)
 
-    @pytest.mark.pleasefixme()
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_hf_model_info_with_card_data(self):
         filt = ModelPT.get_hf_model_filter()
+        filt.limit_results = 3
 
         # check no override results
         model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) > 0
-        assert not hasattr(model_infos[0], 'cardData')
+        assert hasattr(model_infos[0], 'card_data') and model_infos[0].card_data is None
 
         # check overriden defaults
         filt.resolve_card_info = True
@@ -1335,7 +1383,7 @@ class TestSaveRestore:
         assert len(model_infos) > 0
 
         for info in model_infos:
-            if hasattr(info, 'cardData'):
+            if hasattr(info, 'card_data'):
                 assert info.cardData is not None
                 break
 

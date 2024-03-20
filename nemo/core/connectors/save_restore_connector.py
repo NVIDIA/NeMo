@@ -15,6 +15,7 @@
 from __future__ import annotations  # necessary for lazy types evaluation
 
 import os
+import enum
 import shutil
 import tarfile
 import tempfile
@@ -25,6 +26,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+import safetensors
+import safetensors.torch as safetensors_torch
 
 from nemo.core import classes as nemo_classes  # to avoid circular import do not import ModelPT directly
 from nemo.utils import logging, model_utils
@@ -33,12 +36,22 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 
+class CheckpointSecurityLevel(str, enum.Enum):
+    """
+    Enum to define the security level of checkpoint save/restore operations.
+    """
+
+    COMPAT = "compat"  # Compatible with older versions of NeMo
+    STANDARD = "standard"  # Standard security level; only safetensors are allowed
+
+
 class SaveRestoreConnector:
     def __init__(self) -> None:
         self._model_config_yaml = "model_config.yaml"
-        self._model_weights_ckpt = "model_weights.ckpt"
+        self._model_weights_ckpt = "model_weights.safetensors"
         self._model_extracted_dir = None
         self._pack_nemo_file = True
+        self._ckpt_security_level = CheckpointSecurityLevel.COMPAT
 
     def save_to(self, model: "nemo_classes.ModelPT", save_path: str):
         """
@@ -180,7 +193,9 @@ class SaveRestoreConnector:
                 # add load_state_dict override
                 if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                     model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
-                state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+                state_dict = self._load_state_dict_from_disk(
+                    model_weights, map_location=map_location, security_level=self.ckpt_security_level
+                )
             finally:
                 os.chdir(cwd)
 
@@ -315,7 +330,7 @@ class SaveRestoreConnector:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
-                state_dict = self._load_state_dict_from_disk(model_weights)
+                state_dict = self._load_state_dict_from_disk(model_weights, security_level=self.ckpt_security_level)
 
                 if not split_by_module:
                     filepath = os.path.join(save_dir, self.model_weights_ckpt)
@@ -578,11 +593,69 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _save_state_dict_to_disk(state_dict, filepath):
-        torch.save(state_dict, filepath)
+        # NeMo 2.0+ only saves fils in safetensors format
+        if filepath.endswith('.ckpt'):
+            logging.warning(
+                f"NeMo 2.0+ only supports saving model weights in safetensors format. Renaming the file "
+                f"from {filepath} to {filepath.replace('.ckpt', '.safetensors')}"
+            )
+
+            filepath = filepath.replace(".ckpt", ".safetensors")
+        safetensors_torch.save_file(state_dict, filepath)
 
     @staticmethod
-    def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu')
+    def _load_state_dict_from_disk(model_weights, map_location=None, security_level=CheckpointSecurityLevel.COMPAT):
+        # resolve potential filepaths
+        if '.ckpt' in model_weights:
+            ckpt_model_weights = model_weights
+            safetensors_model_weights = model_weights.replace(".ckpt", ".safetensors")
+        elif '.safetensors' in model_weights:
+            ckpt_model_weights = model_weights.replace(".safetensors", ".ckpt")
+            safetensors_model_weights = model_weights
+        else:
+            # Cannot resolve, assume the file is of the expected type (safetensors)
+            ckpt_model_weights = model_weights
+            safetensors_model_weights = model_weights
+
+        print("ckpt_model_weights", ckpt_model_weights, "safetensors_model_weights", safetensors_model_weights,
+              "cwd", list(os.listdir(os.path.dirname(ckpt_model_weights))))
+
+        # Check if filepath exists, and determine which exists
+        if os.path.exists(safetensors_model_weights):
+            model_weights = safetensors_model_weights
+            filetype = "safetensors"
+        elif os.path.exists(ckpt_model_weights):
+            model_weights = ckpt_model_weights
+            filetype = "ckpt"
+        else:
+            raise FileNotFoundError(f"Model weights file {model_weights} not found")
+
+        # Raise security error if the file is not of the expected type for the security level
+        # Early exit here to avoid loading the file if it's not of the expected type
+        if security_level == CheckpointSecurityLevel.STANDARD and filetype == 'ckpt':
+            raise ValueError(
+                f"Security level is set to `{security_level}`, but the model weights file is of type `{filetype}`. "
+                f"This filetype is not supported for `{security_level}` security level.\n"
+                f"Please ensure that the model weights file is of type `safetensors` or "
+                f"change the security level to `compat`."
+            )
+
+        # Attempt to load the checkpoint via safetensors first
+        data = None
+        try:
+            if filetype == 'safetensors':
+                data = safetensors_torch.load_file(model_weights, device='cpu')
+        except Exception as e:
+            logging.debug(f"Failed to load model weights from {safetensors_model_weights} with error: {e}")
+            logging.debug(f"Attempting to load model weights from {ckpt_model_weights} instead")
+            data = None
+
+        # If the safetensors load fails, attempt to load the checkpoint via torch as fallback
+        if data is None:
+            # print(list(os.listdir(os.path.dirname(ckpt_model_weights))))
+            data = torch.load(ckpt_model_weights, map_location=map_location)
+
+        return data
 
     @property
     def model_config_yaml(self) -> str:
@@ -615,3 +688,13 @@ class SaveRestoreConnector:
     @pack_nemo_file.setter
     def pack_nemo_file(self, save_nemo_file: bool):
         self._pack_nemo_file = save_nemo_file
+
+    @property
+    def ckpt_security_level(self) -> CheckpointSecurityLevel:
+        return self._ckpt_security_level
+
+    @ckpt_security_level.setter
+    def ckpt_security_level(self, level: Union[str, CheckpointSecurityLevel]):
+        if isinstance(level, str):
+            level = CheckpointSecurityLevel(level)
+        self._ckpt_security_level = level

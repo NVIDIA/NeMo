@@ -15,13 +15,28 @@
 from abc import ABC
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
+from dataclasses import dataclass, field
 
-from huggingface_hub import HfApi, ModelCard, ModelCardData, ModelFilter
+from huggingface_hub import HfApi, ModelCard, ModelCardData
 from huggingface_hub import get_token as get_hf_token
 from huggingface_hub.hf_api import ModelInfo
 from huggingface_hub.utils import SoftTemporaryDirectory
 
 from nemo.utils import logging
+
+
+@dataclass
+class ModelFilter:
+    library: Union[str, List[str]] = field(default_factory=lambda: ['nemo', 'NeMo'])
+    author: Optional[str] = None
+    task: Optional[str] = None
+    model_name: Optional[Union[str, List[str]]] = None
+    language: Optional[Union[str, List[str]]] = None
+    tags: Optional[Union[str, List[str]]] = None
+
+    # Additional metadata
+    resolve_card_info: Optional[bool] = False
+    limit_results: Optional[int] = None
 
 
 class HuggingFaceFileIO(ABC):
@@ -48,7 +63,7 @@ class HuggingFaceFileIO(ABC):
         Returns:
             A Hugging Face Hub ModelFilter object.
         """
-        model_filter = ModelFilter(library='nemo')
+        model_filter = ModelFilter()
 
         # Attach some additional info
         model_filter.resolve_card_info = False
@@ -114,16 +129,16 @@ class HuggingFaceFileIO(ABC):
 
         # Inject `nemo` library filter
         for mfilter in model_filter:
-            if isinstance(mfilter.library, str) and mfilter.library != 'nemo':
+            if isinstance(mfilter.library, str) and mfilter.library != 'NeMo':
                 logging.warning(f"Model filter's `library` tag updated be `nemo`. Original value: {mfilter.library}")
-                mfilter.library = "nemo"
+                mfilter.library = "NeMo"
 
-            elif isinstance(mfilter, Iterable) and 'nemo' not in mfilter.library:
+            elif isinstance(mfilter.library, Iterable) and 'NeMo' not in mfilter.library:
                 logging.warning(
                     f"Model filter's `library` list updated to include `nemo`. Original value: {mfilter.library}"
                 )
-                mfilter.library = list(mfilter)
-                mfilter.library.append('nemo')
+                mfilter.library = list(mfilter.library)
+                mfilter.library.append('NeMo')
 
         # Check if api token exists, use if it does
         hf_token = get_hf_token()
@@ -145,7 +160,9 @@ class HuggingFaceFileIO(ABC):
                 limit = mfilter.limit_results
 
             results = api.list_models(
-                filter=mfilter, token=hf_token, sort="lastModified", direction=-1, cardData=cardData, limit=limit,
+                author=mfilter.author, language=mfilter.language, tags=mfilter.tags, task=mfilter.task,
+                model_name=mfilter.model_name, library=mfilter.library,
+                token=hf_token, sort="lastModified", direction=-1, cardData=cardData, limit=limit,
             )  # type: Iterable[ModelInfo]
 
             for result in results:

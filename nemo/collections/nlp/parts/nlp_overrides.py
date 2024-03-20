@@ -1022,7 +1022,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         # legacy model_weights will have mp rank injected
         if os.path.isfile(model_weights):
-            return super()._load_state_dict_from_disk(model_weights, map_location)
+            return super()._load_state_dict_from_disk(model_weights, map_location, self.ckpt_security_level)
 
         # dist checkpoint will be a dir
         elif os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
