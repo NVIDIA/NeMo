@@ -14,20 +14,20 @@
 # limitations under the License.
 from __future__ import annotations  # necessary for lazy types evaluation
 
-import os
 import enum
+import os
 import shutil
 import tarfile
 import tempfile
 import uuid
 from typing import Optional, Set, Union
 
+import safetensors
+import safetensors.torch as safetensors_torch
 import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-import safetensors
-import safetensors.torch as safetensors_torch
 
 from nemo.core import classes as nemo_classes  # to avoid circular import do not import ModelPT directly
 from nemo.utils import logging, model_utils
@@ -617,8 +617,14 @@ class SaveRestoreConnector:
             ckpt_model_weights = model_weights
             safetensors_model_weights = model_weights
 
-        print("ckpt_model_weights", ckpt_model_weights, "safetensors_model_weights", safetensors_model_weights,
-              "cwd", list(os.listdir(os.path.dirname(ckpt_model_weights))))
+        print(
+            "ckpt_model_weights",
+            ckpt_model_weights,
+            "safetensors_model_weights",
+            safetensors_model_weights,
+            "cwd",
+            list(os.listdir(os.path.dirname(ckpt_model_weights))),
+        )
 
         # Check if filepath exists, and determine which exists
         if os.path.exists(safetensors_model_weights):

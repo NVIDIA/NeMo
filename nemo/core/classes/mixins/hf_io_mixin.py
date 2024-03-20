@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from abc import ABC
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Union
-from dataclasses import dataclass, field
 
 from huggingface_hub import HfApi, ModelCard, ModelCardData
 from huggingface_hub import get_token as get_hf_token
@@ -160,9 +160,17 @@ class HuggingFaceFileIO(ABC):
                 limit = mfilter.limit_results
 
             results = api.list_models(
-                author=mfilter.author, language=mfilter.language, tags=mfilter.tags, task=mfilter.task,
-                model_name=mfilter.model_name, library=mfilter.library,
-                token=hf_token, sort="lastModified", direction=-1, cardData=cardData, limit=limit,
+                author=mfilter.author,
+                language=mfilter.language,
+                tags=mfilter.tags,
+                task=mfilter.task,
+                model_name=mfilter.model_name,
+                library=mfilter.library,
+                token=hf_token,
+                sort="lastModified",
+                direction=-1,
+                cardData=cardData,
+                limit=limit,
             )  # type: Iterable[ModelInfo]
 
             for result in results:
