@@ -1315,3 +1315,4 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speechllm_fc_llama2_7b/versions/1.24.0/files/speechllm_fc_llama2_7b.nemo",
         )
         results.append(model)
+        return results
