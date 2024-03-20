@@ -27,10 +27,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import BertModel, MCoreBertModelWrapper
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    bert_layer_with_transformer_engine_spec,
-    bert_layer_with_transformer_engine_spec_postln,
-)
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import bert_layer_with_transformer_engine_spec_postln
+from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
+
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -163,7 +162,7 @@ class MegatronBertModel(MegatronBaseModel):
                 pre_process=pre_process,
                 post_process=post_process,
                 transformer_block_type=transformer_block_type,
-                add_pooler=self.cfg.get('add_pooler', True),
+                add_pooler=self.cfg.get('add_pooler', False),
             )
         else:
             model = BertModel(
@@ -201,8 +200,8 @@ class MegatronBertModel(MegatronBaseModel):
                 add_binary_head=cfg.bert_binary_head,
                 megatron_legacy=cfg.get('megatron_legacy', False),
                 position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
-                add_pooler=cfg.get('add_pooler', True),
-                add_lm_head=cfg.get('add_lm_head', False),
+                add_pooler=cfg.get('add_pooler', False),
+                add_lm_head=cfg.get('add_lm_head', True),
             )
 
         return model

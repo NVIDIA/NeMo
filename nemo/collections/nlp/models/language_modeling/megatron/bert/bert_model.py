@@ -173,25 +173,14 @@ def post_language_model_processing(
         # lm_loss: [s, b]
         return lm_loss, binary_logits
 
-
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 @dataclass
-class TransformerLayerSubmodulesPostLNSupport:
+class TransformerLayerSubmodulesPostLNSupport(TransformerLayerSubmodules):
+    def __init__(self, post_att_layernorm, post_mlp_layernorm, **kwargs):
+        super(TransformerLayerSubmodulesPostLNSupport, self).__init__(**kwargs)
+        self.post_att_layernorm = post_att_layernorm
+        self.post_mlp_layernorm = post_mlp_layernorm
 
-    input_layernorm: Union[ModuleSpec, type] = IdentityOp
-    self_attention: Union[ModuleSpec, type] = IdentityOp
-    self_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
-    post_att_layernorm: Union[ModuleSpec, type] = IdentityOp
-
-    pre_cross_attn_layernorm: Union[ModuleSpec, type] = IdentityOp
-    cross_attention: Union[ModuleSpec, type] = IdentityOp
-    cross_attn_bda: Union[ModuleSpec, type] = IdentityFuncOp
-
-    pre_mlp_layernorm: Union[ModuleSpec, type] = IdentityOp
-    mlp: Union[ModuleSpec, type] = IdentityOp
-    mlp_bda: Union[ModuleSpec, type] = IdentityFuncOp
-    post_mlp_layernorm: Union[ModuleSpec, type] = IdentityOp
-    # Mapping for sharded tensor keys to be applied in `sharded_state_dict` method
-    sharded_state_dict_keys_map: Dict[str, str] = field(default_factory=dict)
 
 
 class TransformerLayerPostLNSupport(TransformerLayer):
@@ -303,10 +292,10 @@ class TransformerLayerPostLNSupport(TransformerLayer):
         return output, context
 
 
-class TransformerBlockPostLNSupport(TransformerBlock):
+class TransformerBlockWithPostLNSupport(TransformerBlock):
     def __init__(self, transformer_block_type='post_ln', *args, **kwargs):
 
-        super(TransformerBlockPostLNSupport, self).__init__(*args, **kwargs)
+        super(TransformerBlockWithPostLNSupport, self).__init__(*args, **kwargs)
         self.transformer_block_type = transformer_block_type
         if self.transformer_block_type == 'post_ln':
             self.initial_layernorm = FusedLayerNorm(
@@ -331,95 +320,15 @@ class TransformerBlockPostLNSupport(TransformerBlock):
             hidden_states = self.input_tensor
         if self.transformer_block_type == 'post_ln':
             hidden_states = self.initial_layernorm(hidden_states)
+        return super(TransformerBlockWithPostLNSupport, self).forward(hidden_states, 
+                                                           attention_mask, 
+                                                           context, 
+                                                           context_mask, 
+                                                           rotary_pos_emb, 
+                                                           inference_params, 
+                                                           packed_seq_params)
 
-        # Viewless tensor.
-        # - We only need to create a viewless tensor in the case of micro batch
-        #   size (mbs) == 1, since in this case, 'hidden_states.transpose()'
-        #   above creates a view tensor, and '.contiguous()' is a pass-through.
-        #   For mbs >= 2, '.contiguous()' creates a new tensor, eliminating
-        #   the need to make it viewless.
-        #
-        #   However, we don't explicitly check mbs == 1 here because
-        #   make_viewless_tensor() has negligible overhead when its input
-        #   is already viewless.
-        #
-        # - For the 'else' case above, calling make_viewless_tensor() here is
-        #   likely redundant, since p2p_communication.py (likely originator)
-        #   already creates viewless tensors. That said, make_viewless_tensor()
-        #   is called here to be future-proof and corner-case-proof.
-        hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True,)
-
-        if self.config.sequence_parallel:
-            rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
-        else:
-            rng_context = nullcontext()
-
-        if self.config.fp8:
-            import transformer_engine  # To keep out TE dependency when not training in fp8
-
-            if self.config.fp8 == "e4m3":
-                fp8_format = transformer_engine.common.recipe.Format.E4M3
-            elif self.config.fp8 == "hybrid":
-                fp8_format = transformer_engine.common.recipe.Format.HYBRID
-            else:
-                raise ValueError("E4M3 and HYBRID are the only supported FP8 formats.")
-
-            fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
-                margin=self.config.fp8_margin,
-                interval=self.config.fp8_interval,
-                fp8_format=fp8_format,
-                amax_compute_algo=self.config.fp8_amax_compute_algo,
-                amax_history_len=self.config.fp8_amax_history_len,
-                override_linear_precision=(False, False, not self.config.fp8_wgrad),
-            )
-            fp8_group = None
-            if parallel_state.model_parallel_is_initialized():
-                fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True)
-            fp8_context = transformer_engine.pytorch.fp8_autocast(
-                enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group
-            )
-        else:
-            fp8_context = nullcontext()
-
-        with rng_context and fp8_context:
-            # Forward pass.
-            if self.config.recompute_granularity == 'full' and self.training:
-                hidden_states = self._checkpointed_forward(
-                    hidden_states=hidden_states,
-                    attention_mask=attention_mask,
-                    context=context,
-                    context_mask=context_mask,
-                    rotary_pos_emb=rotary_pos_emb,
-                    packed_seq_params=packed_seq_params,
-                )
-            else:
-                for layer in self.layers:
-                    with self.offload_context:
-                        hidden_states, context = layer(
-                            hidden_states=hidden_states,
-                            attention_mask=attention_mask,
-                            context=context,
-                            context_mask=context_mask,
-                            rotary_pos_emb=rotary_pos_emb,
-                            inference_params=inference_params,
-                            packed_seq_params=packed_seq_params,
-                        )
-
-                    if (
-                        torch.is_grad_enabled()
-                        and self.config.cpu_offloading
-                        and self.group_prefetch_offload_commit_async is not None
-                    ):
-                        hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
-
-        # Final layer norm.
-
-        if self.post_process and self.post_layer_norm:
-            hidden_states = self.final_layernorm(hidden_states)
-
-        return hidden_states
-
-
+# For converting HF Bert checkpoints, we are adding this wrapper to support post layernorm
 class MCoreBertModelWrapper(MCoreBert):
     def __init__(self, transformer_block_type='post_ln', add_pooler=True, *args, **kwargs):
 
@@ -428,7 +337,7 @@ class MCoreBertModelWrapper(MCoreBert):
         self.transformer_block_type = transformer_block_type
 
         # Transformer.
-        self.encoder = TransformerBlockPostLNSupport(
+        self.encoder = TransformerBlockWithPostLNSupport(
             config=self.config,
             spec=self.transformer_layer_spec,
             pre_process=self.pre_process,
@@ -478,39 +387,14 @@ class MCoreBertModelWrapper(MCoreBert):
 
         It either returns the Loss values if labels are given  or the final hidden units
         """
-        extended_attention_mask = self.bert_extended_attention_mask(attention_mask)
-
-        if parallel_state.is_pipeline_first_stage():
-            input_ids = input_ids
-            position_ids = self.bert_position_ids(input_ids)
-        else:
-            position_ids = None
-            input_ids = None
-
-        # Encoder embedding.
-        if self.pre_process:
-            encoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids)
-        else:
-            # intermediate stage of pipeline
-            # decoder will get hidden_states from encoder.input_tensor
-            encoder_input = None
-
-        # Rotary positional embeddings (Why not move this into BERT/GPTEmberdding ?)
-        rotary_pos_emb = None
-        if self.position_embedding_type == 'rope':
-            rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
-                inference_params, self.encoder, encoder_input, self.config
-            )
-            rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
-
-        # Run decoder.
-        hidden_states = self.encoder(
-            hidden_states=encoder_input,
-            attention_mask=extended_attention_mask,
-            inference_params=inference_params,
-            rotary_pos_emb=rotary_pos_emb,
-        )
-
+        hidden_states = super(MCoreBertModelWrapper, self).forward(input_ids,
+                                                                    attention_mask,
+                                                                    tokentype_ids,
+                                                                    lm_labels,
+                                                                    inference_params)
+        if not self.post_process:
+            return hidden_states
+        
         if self.add_pooler:
             pooled_output = self.pooler(hidden_states, 0)
 

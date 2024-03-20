@@ -21,27 +21,6 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
 )
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
-bert_layer_with_transformer_engine_spec = ModuleSpec(
-    module=TransformerLayer,
-    submodules=TransformerLayerSubmodules(
-        self_attention=ModuleSpec(
-            module=SelfAttention,
-            params={"attn_mask_type": AttnMaskType.padding},
-            submodules=SelfAttentionSubmodules(
-                linear_qkv=TELayerNormColumnParallelLinear,
-                core_attention=TEDotProductAttention,
-                linear_proj=TERowParallelLinear,
-            ),
-        ),
-        self_attn_bda=get_bias_dropout_add,
-        mlp=ModuleSpec(
-            module=MLP,
-            submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,),
-        ),
-        mlp_bda=get_bias_dropout_add,
-    ),
-)
-
 bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
     module=TransformerLayerPostLNSupport,
     submodules=TransformerLayerSubmodulesPostLNSupport(
@@ -65,26 +44,6 @@ bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
 )
 
 # Use this spec for an implementation using only modules in megatron core
-bert_layer_local_spec = ModuleSpec(
-    module=TransformerLayer,
-    submodules=TransformerLayerSubmodules(
-        input_layernorm=FusedLayerNorm,
-        self_attention=ModuleSpec(
-            module=SelfAttention,
-            params={"attn_mask_type": AttnMaskType.padding},
-            submodules=SelfAttentionSubmodules(
-                linear_qkv=ColumnParallelLinear, core_attention=DotProductAttention, linear_proj=RowParallelLinear,
-            ),
-        ),
-        self_attn_bda=get_bias_dropout_add,
-        pre_mlp_layernorm=FusedLayerNorm,
-        mlp=ModuleSpec(
-            module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
-        ),
-        mlp_bda=get_bias_dropout_add,
-    ),
-)
-
 bert_layer_local_spec_postln = ModuleSpec(
     module=TransformerLayerPostLNSupport,
     submodules=TransformerLayerSubmodulesPostLNSupport(
