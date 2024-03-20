@@ -616,15 +616,6 @@ class SaveRestoreConnector:
             ckpt_model_weights = model_weights
             safetensors_model_weights = model_weights
 
-        print(
-            "ckpt_model_weights",
-            ckpt_model_weights,
-            "safetensors_model_weights",
-            safetensors_model_weights,
-            "cwd",
-            list(os.listdir(os.path.dirname(ckpt_model_weights))),
-        )
-
         # Check if filepath exists, and determine which exists
         if os.path.exists(safetensors_model_weights):
             model_weights = safetensors_model_weights
@@ -657,7 +648,6 @@ class SaveRestoreConnector:
 
         # If the safetensors load fails, attempt to load the checkpoint via torch as fallback
         if data is None:
-            # print(list(os.listdir(os.path.dirname(ckpt_model_weights))))
             data = torch.load(ckpt_model_weights, map_location=map_location)
 
         return data
