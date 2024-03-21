@@ -14,6 +14,7 @@
 
 from .deploy_base import DeployBase
 from .deploy_pytriton import DeployPyTriton
+
 try:
     from .query import NemoQuery
 except:

@@ -123,7 +123,7 @@ class LinearConfig:
         if hasattr(module, "bias") and module.bias is not None:
             if linear_type == LINEAR_COLUMN:
                 config.bias = np.ascontiguousarray(
-                    split(torch_to_numpy_with_dtype(module.bias, dtype), tensor_parallel, rank, )
+                    split(torch_to_numpy_with_dtype(module.bias, dtype), tensor_parallel, rank,)
                 )
             else:
                 config.bias = torch_to_numpy_with_dtype(module.bias, dtype)
@@ -193,11 +193,11 @@ class MoEMLPConfig:
 
     @staticmethod
     def from_nemo(
-            weights_dict: Dict[str, np.ndarray],
-            llm_config: PretrainedConfig,
-            layer_id: int,
-            rank: int = 0,
-            is_mcore: bool = False,
+        weights_dict: Dict[str, np.ndarray],
+        llm_config: PretrainedConfig,
+        layer_id: int,
+        rank: int = 0,
+        is_mcore: bool = False,
     ):
         """Converts the nemo weights and config to `MLPConfig`."""
         mlp = MoEMLPConfig(hidden_act=llm_config.activation_function)
@@ -235,7 +235,7 @@ class AttentionConfig:
 
     @staticmethod
     def from_nemo(
-            weights_dict: Dict[str, np.ndarray], layer_id: int, rank: int = 0,
+        weights_dict: Dict[str, np.ndarray], layer_id: int, rank: int = 0,
     ):
         """Converts the nemo weights and config to `AttentionConfig`."""
         attention = AttentionConfig()
@@ -249,7 +249,7 @@ class AttentionConfig:
 
         attention.dense = LinearConfig(linear_type=LINEAR_ROW)
         attention.dense.weight = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.attention.dense.weight.{rank}")
-        attention.dense.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.attention.dense.bias", )
+        attention.dense.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.attention.dense.bias",)
         return attention
 
 
@@ -264,11 +264,11 @@ class MLPConfig:
 
     @staticmethod
     def from_nemo(
-            weights_dict: Dict[str, np.ndarray],
-            llm_config: PretrainedConfig,
-            layer_id: int,
-            rank: int = 0,
-            is_mcore: bool = False,
+        weights_dict: Dict[str, np.ndarray],
+        llm_config: PretrainedConfig,
+        layer_id: int,
+        rank: int = 0,
+        is_mcore: bool = False,
     ):
         """Converts the nemo weights and config to `MLPConfig`."""
         mlp = MLPConfig(hidden_act=llm_config.activation_function)
@@ -277,7 +277,7 @@ class MLPConfig:
 
         # print("********** mlp.fc.weight : ", mlp.fc.weight )
 
-        mlp.fc.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}", )
+        mlp.fc.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}",)
 
         gated = is_gated_activation(mlp.hidden_act)
         is_fast_glu = mlp.hidden_act in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
@@ -288,7 +288,7 @@ class MLPConfig:
                 if isinstance(llm_config, LlamaConfig) and not is_mcore and not is_fast_glu
                 else f"layers.{layer_id}.mlp.dense_h_to_4h.gate.weight.{rank}"
             )
-            mlp.gate.weight = get_tensor_from_dict(weights_dict, layer_name, )
+            mlp.gate.weight = get_tensor_from_dict(weights_dict, layer_name,)
             mlp.gate.bias = get_tensor_from_dict(
                 weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.gate.bias.{rank}",
             )
@@ -351,12 +351,12 @@ class DecoderLayerConfig:
 
     @staticmethod
     def from_nemo(
-            weights_dict: Dict[str, np.ndarray],
-            llm_config: PretrainedConfig,
-            decoder_type: str,
-            layer_id: int,
-            rank: int = 0,
-            is_mcore: bool = False,
+        weights_dict: Dict[str, np.ndarray],
+        llm_config: PretrainedConfig,
+        decoder_type: str,
+        layer_id: int,
+        rank: int = 0,
+        is_mcore: bool = False,
     ):
         """Converts the nemo weights and config to `DecoderLayerConfig`."""
         layer_config = DecoderLayerConfig(
@@ -416,7 +416,7 @@ class DecoderLayerConfig:
         if layer_config.mlp_layernorm.weight is None:
             layer_config.mlp_layernorm = None
 
-        layer_config.attention = AttentionConfig.from_nemo(weights_dict, layer_id, rank, )
+        layer_config.attention = AttentionConfig.from_nemo(weights_dict, layer_id, rank,)
 
         moe = False
         if llm_config.moe_num_experts is not None:

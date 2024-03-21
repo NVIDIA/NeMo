@@ -106,4 +106,4 @@ class DeployBase(ABC):
     @staticmethod
     def get_module_and_class(target: str):
         ln = target.rindex(".")
-        return target[0:ln], target[ln + 1: len(target)]
+        return target[0:ln], target[ln + 1 : len(target)]

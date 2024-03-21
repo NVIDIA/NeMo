@@ -15,13 +15,12 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-from .utils import str_list2numpy
 
+from .utils import str_list2numpy
 
 use_pytriton = True
 try:
-    from pytriton.client import ModelClient
-    from pytriton.client import DecoupledModelClient
+    from pytriton.client import DecoupledModelClient, ModelClient
 except:
     use_pytriton = False
 
@@ -33,19 +32,19 @@ class NemoQueryBase(ABC):
 
     @abstractmethod
     def query_llm(
-            self,
-            prompts,
-            stop_words_list=None,
-            bad_words_list=None,
-            no_repeat_ngram_size=None,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            random_seed=None,
-            task_id=None,
-            lora_uids=None,
-            init_timeout=60.0
+        self,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        lora_uids=None,
+        init_timeout=60.0,
     ):
         pass
 
@@ -72,24 +71,23 @@ class NemoQuery(NemoQueryBase):
 
     def __init__(self, url, model_name):
         super().__init__(
-            url=url,
-            model_name=model_name,
+            url=url, model_name=model_name,
         )
 
     def query_llm(
-            self,
-            prompts,
-            stop_words_list=None,
-            bad_words_list=None,
-            no_repeat_ngram_size=None,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            random_seed=None,
-            task_id=None,
-            lora_uids=None,
-            init_timeout=60.0,
+        self,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        lora_uids=None,
+        init_timeout=60.0,
     ):
         """
         Query the Triton server synchronously and return a list of responses.
@@ -153,19 +151,19 @@ class NemoQuery(NemoQueryBase):
                 return result_dict["outputs"]
 
     def query_llm_streaming(
-            self,
-            prompts,
-            stop_words_list=None,
-            bad_words_list=None,
-            no_repeat_ngram_size=None,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            random_seed=None,
-            task_id=None,
-            lora_uids=None,
-            init_timeout=60.0,
+        self,
+        prompts,
+        stop_words_list=None,
+        bad_words_list=None,
+        no_repeat_ngram_size=None,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        random_seed=None,
+        task_id=None,
+        lora_uids=None,
+        init_timeout=60.0,
     ):
         """
         Query the Triton server using streaming.

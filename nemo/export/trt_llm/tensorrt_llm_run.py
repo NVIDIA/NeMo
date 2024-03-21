@@ -556,7 +556,7 @@ def generate(
     input_lengths = [t.shape[0] for t in input_tensors]
 
     output_lines_list = [
-        tokenizer.batch_decode(output_ids[b, :, input_lengths[b]: sequence_lengths[b][0]])
+        tokenizer.batch_decode(output_ids[b, :, input_lengths[b] : sequence_lengths[b][0]])
         for b in range(output_ids.shape[0])
     ]
 

@@ -122,7 +122,7 @@ def is_nemo_file(path):
             pc = Path(path)
             if pc.exists():
                 if pc.is_file():
-                    if path[-5: len(path)] == ".nemo":
+                    if path[-5 : len(path)] == ".nemo":
                         flag = True
 
     return flag

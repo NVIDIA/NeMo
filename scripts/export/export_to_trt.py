@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import argparse
-import sys, os
+import logging
+import os
+import sys
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton, NemoQuery
 from nemo.export import TensorRTLLM
-import logging
 
 try:
     from contextlib import nullcontext
@@ -35,13 +36,7 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Exports nemo models stored in nemo checkpoints to TensorRT-LLM",
     )
-    parser.add_argument(
-        "-nc",
-        "--nemo_checkpoint",
-        required=True,
-        type=str,
-        help="Source .nemo file"
-    )
+    parser.add_argument("-nc", "--nemo_checkpoint", required=True, type=str, help="Source .nemo file")
     parser.add_argument(
         "-mt",
         "--model_type",
@@ -49,35 +44,14 @@ def get_args(argv):
         required=True,
         choices=["gptnext", "gpt", "llama", "falcon", "starcoder", "gemma"],
         help="Type of the model. gptnext, gpt, llama, falcon, and starcoder are only supported."
-             " gptnext and gpt are the same and keeping it for backward compatibility"
+        " gptnext and gpt are the same and keeping it for backward compatibility",
     )
     parser.add_argument(
-        "-mr",
-        "--model_repository",
-        required=True,
-        default=None,
-        type=str,
-        help="Folder for the trt-llm model files"
+        "-mr", "--model_repository", required=True, default=None, type=str, help="Folder for the trt-llm model files"
     )
-    parser.add_argument(
-        "-ng",
-        "--num_gpus",
-        default=1,
-        type=int,
-        help="Number of GPUs for the deployment"
-    )
-    parser.add_argument(
-        "-tps",
-        "--tensor_parallelism_size",
-        type=int,
-        help="Tensor parallelism size"
-    )
-    parser.add_argument(
-        "-pps",
-        "--pipeline_parallelism_size",
-        type=int,
-        help="Pipeline parallelism size"
-    )
+    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-tps", "--tensor_parallelism_size", type=int, help="Tensor parallelism size")
+    parser.add_argument("-pps", "--pipeline_parallelism_size", type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -86,56 +60,29 @@ def get_args(argv):
         type=str,
         help="dtype of the model on TensorRT-LLM",
     )
+    parser.add_argument("-mil", "--max_input_len", default=256, type=int, help="Max input length of the model")
+    parser.add_argument("-mol", "--max_output_len", default=256, type=int, help="Max output length of the model")
+    parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument(
-        "-mil",
-        "--max_input_len",
-        default=256,
-        type=int,
-        help="Max input length of the model"
-    )
-    parser.add_argument(
-        "-mol",
-        "--max_output_len",
-        default=256,
-        type=int,
-        help="Max output length of the model"
-    )
-    parser.add_argument(
-        "-mbs",
-        "--max_batch_size",
-        default=8,
-        type=int,
-        help="Max batch size of the model"
-    )
-    parser.add_argument(
-        "-mpet",
-        "--max_prompt_embedding_table_size",
-        default=None,
-        type=int,
-        help="Max prompt embedding table size"
+        "-mpet", "--max_prompt_embedding_table_size", default=None, type=int, help="Max prompt embedding table size"
     )
     parser.add_argument(
         "-uib",
         "--use_inflight_batching",
         default=False,
         action='store_true',
-        help="Enable inflight batching for TensorRT-LLM Triton backend."
+        help="Enable inflight batching for TensorRT-LLM Triton backend.",
     )
     parser.add_argument(
-        "-upkc",
-        "--use_paged_kv_cache",
-        default=False,
-        action='store_true',
-        help="Enable paged kv cache."
+        "-upkc", "--use_paged_kv_cache", default=False, action='store_true', help="Enable paged kv cache."
     )
     parser.add_argument(
         "-mbm",
         '--multi_block_mode',
         default=False,
         action='store_true',
-        help=
-        'Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
-                        It is beneifical when batchxnum_heads cannot fully utilize GPU.'
+        help='Split long kv sequence into multiple blocks (applied to generation MHA kernels). \
+                        It is beneifical when batchxnum_heads cannot fully utilize GPU.',
     )
     parser.add_argument(
         '--use_lora_plugin',
@@ -143,39 +90,23 @@ def get_args(argv):
         const=None,
         default=False,
         choices=['float16', 'float32', 'bfloat16'],
-        help="Activates the lora plugin which enables embedding sharing."
+        help="Activates the lora plugin which enables embedding sharing.",
     )
     parser.add_argument(
         '--lora_target_modules',
         nargs='+',
         default=None,
-        choices=[
-            "attn_qkv",
-            "attn_q",
-            "attn_k",
-            "attn_v",
-            "attn_dense",
-            "mlp_h_to_4h",
-            "mlp_gate",
-            "mlp_4h_to_h",
-        ],
-        help=
-        "Add lora in which modules. Only be activated when use_lora_plugin is enabled."
+        choices=["attn_qkv", "attn_q", "attn_k", "attn_v", "attn_dense", "mlp_h_to_4h", "mlp_gate", "mlp_4h_to_h",],
+        help="Add lora in which modules. Only be activated when use_lora_plugin is enabled.",
     )
     parser.add_argument(
         '--max_lora_rank',
         type=int,
         default=64,
         help='maximum lora rank for different lora modules. '
-             'It is used to compute the workspace size of lora plugin.'
+        'It is used to compute the workspace size of lora plugin.',
     )
-    parser.add_argument(
-        "-dm",
-        "--debug_mode",
-        default=False,
-        action='store_true',
-        help="Enable debug mode"
-    )
+    parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
 
     args = parser.parse_args(argv)
     return args
@@ -193,8 +124,10 @@ def nemo_export(argv):
     LOGGER.info(args)
 
     if args.dtype != "bf16":
-        LOGGER.error("Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
-                      "Support for the other precisions will be added in the coming releases.")
+        LOGGER.error(
+            "Only bf16 is currently supported for the optimized deployment with TensorRT-LLM. "
+            "Support for the other precisions will be added in the coming releases."
+        )
         return
 
     try:

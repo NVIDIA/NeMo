@@ -223,7 +223,7 @@ def _postprocess_model_configs(
         num_configs_per_group = len(model_configs) // inference_tensor_parallel
         merged_model_configs = []
         for i in range(inference_tensor_parallel):
-            model_config_slice = model_configs[i * num_configs_per_group: (i + 1) * num_configs_per_group]
+            model_config_slice = model_configs[i * num_configs_per_group : (i + 1) * num_configs_per_group]
             _merge_model_configs_to_first(model_config_slice)
             model_config_slice[0].rank = i
             model_config_slice[0].tensor_parallel = inference_tensor_parallel

@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+import json
+import shutil
 from pathlib import Path
-from nemo.export import TensorRTLLM
-from nemo.deploy import DeployPyTriton, NemoQuery
-from tests.infer_data_path import get_infer_test_data, download_nemo_checkpoint
+
 # from scripts.deploy.cloud_telemetry_service import postToNVDataFlow
 import torch
-import shutil
-import json
-import argparse
+
+from nemo.deploy import DeployPyTriton, NemoQuery
+from nemo.export import TensorRTLLM
+from tests.infer_data_path import download_nemo_checkpoint, get_infer_test_data
 
 
 def get_accuracy_with_lambada(model, nq, task_ids, lora_uids):
@@ -59,28 +61,29 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids):
             if expected_output == trtllm_output:
                 trtllm_correct += 1
 
-            if expected_output == trtllm_output or trtllm_output.startswith(
-                    expected_output) or expected_output.startswith(trtllm_output):
+            if (
+                expected_output == trtllm_output
+                or trtllm_output.startswith(expected_output)
+                or expected_output.startswith(trtllm_output)
+            ):
                 if len(trtllm_output) == 1 and len(expected_output) > 1:
                     continue
                 trtllm_correct_relaxed += 1
 
             if nq is not None:
                 trtllm_deployed_output = nq.query_llm(
-                    prompts=[prompt],
-                    max_output_token=1,
-                    top_k=1,
-                    top_p=0,
-                    temperature=0.1,
-                    task_id=task_ids,
+                    prompts=[prompt], max_output_token=1, top_k=1, top_p=0, temperature=0.1, task_id=task_ids,
                 )
                 trtllm_deployed_output = trtllm_deployed_output[0][0].strip().lower()
 
                 if expected_output == trtllm_deployed_output:
                     trtllm_deployed_correct += 1
 
-                if expected_output == trtllm_deployed_output or trtllm_deployed_output.startswith(
-                        expected_output) or expected_output.startswith(trtllm_deployed_output):
+                if (
+                    expected_output == trtllm_deployed_output
+                    or trtllm_deployed_output.startswith(expected_output)
+                    or expected_output.startswith(trtllm_deployed_output)
+                ):
                     if len(trtllm_deployed_output) == 1 and len(expected_output) > 1:
                         continue
                     trtllm_deployed_correct_relaxed += 1
@@ -93,33 +96,40 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids):
     trtllm_deployed_accuracy = trtllm_deployed_correct / len(all_expected_outputs)
     trtllm_deployed_accuracy_relaxed = trtllm_deployed_correct_relaxed / len(all_expected_outputs)
 
-    return trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed, all_trtllm_outputs, all_expected_outputs
+    return (
+        trtllm_accuracy,
+        trtllm_accuracy_relaxed,
+        trtllm_deployed_accuracy,
+        trtllm_deployed_accuracy_relaxed,
+        all_trtllm_outputs,
+        all_expected_outputs,
+    )
 
 
 def run_trt_llm_inference(
-        model_name,
-        model_type,
-        prompt,
-        checkpoint_path,
-        trt_llm_model_dir,
-        n_gpu=1,
-        max_batch_size=8,
-        max_input_token=128,
-        max_output_token=128,
-        ptuning=False,
-        p_tuning_checkpoint=None,
-        lora=False,
-        lora_checkpoint=None,
-        tp_size=None,
-        pp_size=None,
-        top_k=1,
-        top_p=0.0,
-        temperature=1.0,
-        run_accuracy=False,
-        debug=True,
-        streaming=False,
-        stop_words_list=None,
-        test_deployment=False,
+    model_name,
+    model_type,
+    prompt,
+    checkpoint_path,
+    trt_llm_model_dir,
+    n_gpu=1,
+    max_batch_size=8,
+    max_input_token=128,
+    max_output_token=128,
+    ptuning=False,
+    p_tuning_checkpoint=None,
+    lora=False,
+    lora_checkpoint=None,
+    tp_size=None,
+    pp_size=None,
+    top_k=1,
+    top_p=0.0,
+    temperature=1.0,
+    run_accuracy=False,
+    debug=True,
+    streaming=False,
+    stop_words_list=None,
+    test_deployment=False,
 ):
     if Path(checkpoint_path).exists():
         if n_gpu > torch.cuda.device_count():
@@ -136,14 +146,11 @@ def run_trt_llm_inference(
             print("")
             print("")
             print(
-                "################################################## NEW TEST ##################################################")
+                "################################################## NEW TEST ##################################################"
+            )
             print("")
 
-            print(
-                "Path: {0} and model: {1} with {2} gpus will be tested".format(
-                    checkpoint_path, model_name, n_gpu
-                )
-            )
+            print("Path: {0} and model: {1} with {2} gpus will be tested".format(checkpoint_path, model_name, n_gpu))
 
         prompt_embeddings_checkpoint_path = None
         task_ids = None
@@ -162,8 +169,8 @@ def run_trt_llm_inference(
 
         lora_ckpt_list = None
         lora_uids = None
-        use_lora_plugin=None
-        lora_target_modules=None
+        use_lora_plugin = None
+        lora_target_modules = None
 
         if lora:
             if Path(lora_checkpoint).exists():
@@ -196,8 +203,7 @@ def run_trt_llm_inference(
 
         if ptuning:
             trt_llm_exporter.add_prompt_table(
-                task_name="0",
-                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                task_name="0", prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
 
         output = trt_llm_exporter.forward(
@@ -209,18 +215,14 @@ def run_trt_llm_inference(
             task_ids=task_ids,
             lora_uids=lora_uids,
             streaming=streaming,
-            stop_words_list=stop_words_list
+            stop_words_list=stop_words_list,
         )
 
         nq = None
         nm = None
         output_deployed = ""
         if test_deployment:
-            nm = DeployPyTriton(
-                model=trt_llm_exporter,
-                triton_model_name=model_name,
-                port=8000,
-            )
+            nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000,)
             nm.deploy()
             nm.run()
             nq = NemoQuery(url="localhost:8000", model_name=model_name)
@@ -235,7 +237,7 @@ def run_trt_llm_inference(
                 # stop_words_list = stop_words_list,
             )
 
-            #for i in range(len(stop_words_list[0])):
+            # for i in range(len(stop_words_list[0])):
             #    assert output_deployed[0][i].split(' ')[-1] == stop_words_list[0][i]
 
         if debug:
@@ -250,14 +252,14 @@ def run_trt_llm_inference(
 
         if run_accuracy:
             print("Start model accuracy testing ...")
-            (trtllm_accuracy, trtllm_accuracy_relaxed,
-             trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed,
-             all_trtllm_outputs, all_expected_outputs) = get_accuracy_with_lambada(
-                trt_llm_exporter,
-                nq,
-                task_ids,
-                lora_uids,
-            )
+            (
+                trtllm_accuracy,
+                trtllm_accuracy_relaxed,
+                trtllm_deployed_accuracy,
+                trtllm_deployed_accuracy_relaxed,
+                all_trtllm_outputs,
+                all_expected_outputs,
+            ) = get_accuracy_with_lambada(trt_llm_exporter, nq, task_ids, lora_uids,)
             if test_deployment:
                 nm.stop()
             shutil.rmtree(trt_llm_model_dir)
@@ -270,17 +272,18 @@ def run_trt_llm_inference(
     else:
         raise Exception("Checkpoint {0} could not be found.".format(checkpoint_path))
 
+
 def run_existing_checkpoints(
-        model_name,
-        n_gpus,
-        tp_size=None,
-        pp_size=None,
-        ptuning=False,
-        lora=False,
-        streaming=False,
-        run_accuracy=False,
-        test_deployment=False,
-        stop_words_list=None,
+    model_name,
+    n_gpus,
+    tp_size=None,
+    pp_size=None,
+    ptuning=False,
+    lora=False,
+    streaming=False,
+    run_accuracy=False,
+    test_deployment=False,
+    stop_words_list=None,
 ):
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -344,120 +347,74 @@ def get_args():
     )
 
     parser.add_argument(
-        "--model_name",
-        type=str,
-        required=True,
+        "--model_name", type=str, required=True,
     )
     parser.add_argument(
-        "--existing_test_models",
-        default=False,
-        action='store_true',
+        "--existing_test_models", default=False, action='store_true',
     )
     parser.add_argument(
-        "--model_type",
-        type=str,
-        required=False,
+        "--model_type", type=str, required=False,
     )
     parser.add_argument(
-        "--min_gpus",
-        type=int,
-        default=1,
-        required=True,
+        "--min_gpus", type=int, default=1, required=True,
     )
     parser.add_argument(
-        "--max_gpus",
-        type=int,
+        "--max_gpus", type=int,
     )
     parser.add_argument(
-        "--checkpoint_dir",
-        type=str,
-        default="/tmp/nemo_checkpoint/",
-        required=False,
+        "--checkpoint_dir", type=str, default="/tmp/nemo_checkpoint/", required=False,
     )
     parser.add_argument(
-        "--trt_llm_model_dir",
-        type=str,
+        "--trt_llm_model_dir", type=str,
     )
     parser.add_argument(
-        "--max_batch_size",
-        type=int,
-        default=8,
+        "--max_batch_size", type=int, default=8,
     )
     parser.add_argument(
-        "--max_input_token",
-        type=int,
-        default=256,
+        "--max_input_token", type=int, default=256,
     )
     parser.add_argument(
-        "--max_output_token",
-        type=int,
-        default=128,
+        "--max_output_token", type=int, default=128,
     )
     parser.add_argument(
-        "--p_tuning_checkpoint",
-        type=str,
+        "--p_tuning_checkpoint", type=str,
     )
     parser.add_argument(
-        "--ptuning",
-        default=False,
-        action='store_true',
+        "--ptuning", default=False, action='store_true',
     )
     parser.add_argument(
-        "--lora_checkpoint",
-        type=str,
+        "--lora_checkpoint", type=str,
     )
     parser.add_argument(
-        "--lora",
-        default=False,
-        action='store_true',
+        "--lora", default=False, action='store_true',
     )
     parser.add_argument(
-        "--tp_size",
-        type=int,
+        "--tp_size", type=int,
     )
     parser.add_argument(
-        "--pp_size",
-        type=int,
+        "--pp_size", type=int,
     )
     parser.add_argument(
-        "--top_k",
-        type=int,
-        default=1,
+        "--top_k", type=int, default=1,
     )
     parser.add_argument(
-        "--top_p",
-        type=float,
-        default=0.0,
+        "--top_p", type=float, default=0.0,
     )
     parser.add_argument(
-        "--temperature",
-        type=float,
-        default=1.0,
+        "--temperature", type=float, default=1.0,
     )
     parser.add_argument(
-        "--run_accuracy",
-        default=False,
-        action='store_true',
+        "--run_accuracy", default=False, action='store_true',
+    )
+    parser.add_argument("--streaming", default=False, action="store_true")
+    parser.add_argument(
+        "--test_deployment", type=str, default="False",
     )
     parser.add_argument(
-        "--streaming",
-        default=False,
-        action="store_true"
+        "--debug", default=False, action='store_true',
     )
     parser.add_argument(
-        "--test_deployment",
-        type=str,
-        default="False",
-    )
-    parser.add_argument(
-        "--debug",
-        default=False,
-        action='store_true',
-    )
-    parser.add_argument(
-        "--ci_upload_test_results_to_cloud",
-        default=False,
-        action='store_true',
+        "--ci_upload_test_results_to_cloud", default=False, action='store_true',
     )
 
     return parser.parse_args()
@@ -477,7 +434,12 @@ def run_inference_tests(args):
             args.max_gpus = args.min_gpus
 
         while n_gpus <= args.max_gpus:
-            trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed = run_existing_checkpoints(
+            (
+                trtllm_accuracy,
+                trtllm_accuracy_relaxed,
+                trtllm_deployed_accuracy,
+                trtllm_deployed_accuracy_relaxed,
+            ) = run_existing_checkpoints(
                 model_name=args.model_name,
                 n_gpus=n_gpus,
                 ptuning=args.ptuning,
@@ -489,9 +451,13 @@ def run_inference_tests(args):
                 run_accuracy=args.run_accuracy,
             )
             result_dic[n_gpus] = (
-                trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed)
+                trtllm_accuracy,
+                trtllm_accuracy_relaxed,
+                trtllm_deployed_accuracy,
+                trtllm_deployed_accuracy_relaxed,
+            )
 
-            #if args.ci_upload_test_results_to_cloud:
+            # if args.ci_upload_test_results_to_cloud:
             #    postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
 
             n_gpus = n_gpus * 2
@@ -502,7 +468,12 @@ def run_inference_tests(args):
             args.max_gpus = args.min_gpus
 
         while n_gpus <= args.max_gpus:
-            trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed = run_trt_llm_inference(
+            (
+                trtllm_accuracy,
+                trtllm_accuracy_relaxed,
+                trtllm_deployed_accuracy,
+                trtllm_deployed_accuracy_relaxed,
+            ) = run_trt_llm_inference(
                 model_name=args.model_name,
                 model_type=args.model_type,
                 prompt=prompt_template,
@@ -527,9 +498,13 @@ def run_inference_tests(args):
                 test_deployment=args.test_deployment,
             )
             result_dic[n_gpus] = (
-                trtllm_accuracy, trtllm_accuracy_relaxed, trtllm_deployed_accuracy, trtllm_deployed_accuracy_relaxed)
+                trtllm_accuracy,
+                trtllm_accuracy_relaxed,
+                trtllm_deployed_accuracy,
+                trtllm_deployed_accuracy_relaxed,
+            )
 
-            #if args.ci_upload_test_results_to_cloud:
+            # if args.ci_upload_test_results_to_cloud:
             #    postToNVDataFlow({"n_gpus": n_gpus, "trtllm_accuracy": trtllm_accuracy})
 
             n_gpus = n_gpus * 2
@@ -538,9 +513,12 @@ def run_inference_tests(args):
     print("======================================= Test Summary =======================================")
     for i, results in result_dic.items():
         if not results[0] is None and not results[1] is None:
-            print("Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}, "
-                  "Deployed Model Accuracy: {3}, Deployed Relaxed Model Accuracy: {4}".format(i, results[0], results[1],
-                                                                                              results[2], results[3]))
+            print(
+                "Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}, "
+                "Deployed Model Accuracy: {3}, Deployed Relaxed Model Accuracy: {4}".format(
+                    i, results[0], results[1], results[2], results[3]
+                )
+            )
             if results[1] < 0.5:
                 test_result = "FAIL"
 
