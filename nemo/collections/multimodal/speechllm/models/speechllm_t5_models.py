@@ -156,7 +156,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
         # make sure the default pytorch lightning gradient clipping in the basemodel
-        self.grad_clip_pl_default = True
+        self.grad_clip_pl_default = False  # make distributed_fused_adam happy
         self.lowest_val_loss = None
         self.prompt_encoder = None
 
@@ -164,7 +164,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
 
-
+    def configure_optimizers(self):
+        self.frozen_model.configure_optimizers()
+        super().configure_optimizers()
 
     def parameters(self):
         # override the same method in MegatronGPT model to include parameters ouside of LM
@@ -669,7 +671,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             gpt_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
             gpt_cfg.sequence_parallel = cfg.model.get("sequence_parallel", False)
             gpt_cfg.tensor_model_parallel_size = cfg.model.get(
-                "tensor_model_parallel_size", gpt_cfg.tensor_model_parallel_size
+                "tensor_model_parallel_size", gpt_cfg.tensor_model_parallel_size if hasattr(gpt_cfg, "tensor_model_parallel_size") else 1
             )
             gpt_cfg.activations_checkpoint_granularity = cfg.model.get("activations_checkpoint_granularity", None)
             gpt_cfg.activations_checkpoint_num_layers = cfg.model.get("activations_checkpoint_num_layers", None)
