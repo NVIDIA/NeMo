@@ -7,7 +7,6 @@ runs:
       id: get_active_workflows
       with:
         route: GET /repos/${{ github.repository }}/actions/runs?status=in_progress&event=pull_request
-        repository: ${{ github.repository }}
       env:
         GITHUB_TOKEN: ${{ github.token }}
     - name: Extract workflow ids
