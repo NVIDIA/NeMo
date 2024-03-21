@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from typing import Tuple
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 import numpy as np
+
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
