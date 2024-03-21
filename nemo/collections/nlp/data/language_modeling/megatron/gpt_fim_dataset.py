@@ -13,12 +13,22 @@
 # limitations under the License.
 
 from typing import Tuple
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 import numpy as np
-from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
-from megatron.core.datasets.indexed_dataset import IndexedDataset
-from megatron.core.datasets.utils import Split
 
+try:
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
+    from megatron.core.datasets.indexed_dataset import IndexedDataset
+    from megatron.core.datasets.utils import Split
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    GPTDataset = GPTDatasetConfig = IndexedDataset = Split = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
 
 # is_dataset_built_on_rank function is needed for mcore GPTDatasetConfig
 def is_dataset_built_on_rank():
@@ -33,6 +43,11 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
     """
 
     def __init__(self, fim, **kwargs):
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         super().__init__(**kwargs)
         self.fim = fim
 
@@ -62,6 +77,11 @@ class GPTFIMDataset(GPTDataset):
         index_split: Split,
         config: GPTFIMDatasetConfig,
     ) -> None:
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         super().__init__(indexed_dataset, dataset_path, indexed_indices, num_samples, index_split, config)
 
         self.indexed_dataset = indexed_dataset
