@@ -22,7 +22,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
+# from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 from nemo.core.classes.mixins.hf_io_mixin import ModelFilter
 from nemo.core.connectors import save_restore_connector
@@ -1442,3 +1442,29 @@ class TestSaveRestore:
         new_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(new_model_infos) <= 5
         assert len(new_model_infos) < len(model_infos)
+
+    @pytest.mark.unit
+    def test_save_restore_connector_safe_tensor_save_restore(self):
+        connector = save_restore_connector.SaveRestoreConnector()
+
+        # Update config
+        cfg = _mock_model_with_shared_tensors_config()
+
+        # Create model
+        model = MockModelWithSharedTensors(cfg=cfg.model, trainer=None)
+
+        # Test CPU save
+        model = model.to('cpu')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_state_dict = model.state_dict()
+            filename = os.path.join(tmpdir, connector.model_weights_ckpt)
+            connector._save_safetensor_file_with_shared_tensor_compat(original_state_dict, filename)
+            assert os.path.exists(filename)
+
+            # Restore state dict on cpu
+            restored_state_dict = connector._load_safetensor_file_with_shared_tensor_compat(filename, device='cpu')
+
+            assert len(original_state_dict.keys()) == len(restored_state_dict.keys())
+            for orig, restored in zip(original_state_dict.keys(), restored_state_dict.keys()):
+                assert (original_state_dict[orig] - restored_state_dict[restored]).abs().mean() < 1e-6

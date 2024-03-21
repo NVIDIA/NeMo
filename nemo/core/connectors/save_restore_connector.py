@@ -19,8 +19,9 @@ import os
 import shutil
 import tarfile
 import tempfile
+import traceback
 import uuid
-from typing import Optional, Set, Union
+from typing import Dict, Optional, Set, Union
 
 import safetensors.torch as safetensors_torch
 import torch
@@ -612,7 +613,7 @@ class SaveRestoreConnector:
         del state_dict
         state_dict = new_state_dict
 
-        safetensors_torch.save_file(state_dict, filepath)
+        SaveRestoreConnector._save_safetensor_file_with_shared_tensor_compat(state_dict, filepath)
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None, security_level=CheckpointSecurityLevel.COMPAT):
@@ -650,19 +651,98 @@ class SaveRestoreConnector:
 
         # Attempt to load the checkpoint via safetensors first
         data = None
+        safetensors_traceback = None
         try:
             if filetype == 'safetensors':
-                data = safetensors_torch.load_file(model_weights, device='cpu')
+                data = SaveRestoreConnector._load_safetensor_file_with_shared_tensor_compat(
+                    model_weights, map_location
+                )
         except Exception as e:
+            safetensors_traceback = traceback.format_exc()
             logging.debug(f"Failed to load model weights from {safetensors_model_weights} with error: {e}")
             logging.debug(f"Attempting to load model weights from {ckpt_model_weights} instead")
+            logging.debug(f"Traceback from safetensors load failure: \n\n{safetensors_traceback}")
             data = None
 
         # If the safetensors load fails, attempt to load the checkpoint via torch as fallback
         if data is None:
-            data = torch.load(ckpt_model_weights, map_location=map_location)
+            try:
+                data = torch.load(ckpt_model_weights, map_location=map_location)
+            except Exception as e:
+                ckpt_error = traceback.format_exc()
+                logging.error(
+                    f"Failed to load model weights from both {safetensors_model_weights} and"
+                    f" {ckpt_model_weights} with error: {e}"
+                )
+                if safetensors_traceback is not None:
+                    logging.error(f"\n\nTraceback from safetensors load failure: \n{safetensors_traceback}")
+                raise e
 
         return data
+
+    @staticmethod
+    def _save_safetensor_file_with_shared_tensor_compat(state_dict: Dict[str, torch.Tensor], filename: str):
+        """
+        Saves a given torch state_dict to specified filename.
+        This method exists specifically to avoid tensor sharing issues which are
+        not allowed in `safetensors`.
+        There is no metadata as input because the metadata is used to allow the sharing issues to be resolved.
+
+        Args:
+            state_dict (`Dict[str, torch.Tensor]`):
+                The state_dict to be saved to file
+            filename (`str`):
+                The filename location to save the file
+        """
+        # TODO: Request Safetensors to make this a public, stable API.
+        to_removes = safetensors_torch._remove_duplicate_names(state_dict)
+        metadata = None
+        for kept_name, to_remove_group in to_removes.items():
+            for to_remove in to_remove_group:
+                if metadata is None:
+                    metadata = {}
+                del state_dict[to_remove]
+
+            # Do not override user data
+            if metadata is None:
+                metadata = {}
+            metadata[kept_name] = ",".join(to_remove_group)
+
+        safetensors_torch.save_file(state_dict, filename, metadata=metadata)
+
+    @staticmethod
+    def _load_safetensor_file_with_shared_tensor_compat(filename: str, device: Union[str, torch.device] = "cpu"):
+        """
+        Loads a given torch state_dict from specified filename.
+        This method exists specifically to avoid tensor sharing issues which are
+        not allowed in `safetensors`.
+        There is no metadata as input because the metadata is used to allow the sharing issues to be resolved.
+
+        Args:
+            filename:
+
+        Returns:
+
+        """
+        safetensor_device = _get_safetensor_device(device)
+        state_dict = {}
+        with safetensors_torch.safe_open(filename, framework="pt", device=safetensor_device) as f:
+            metadata = f.metadata()
+            for k in f.keys():
+                state_dict[k] = f.get_tensor(k)
+
+        mapping = {}
+        metadata = metadata or {}
+
+        for k in state_dict:
+            aliases = metadata.get(k, None)
+            if aliases is not None:
+                aliases = aliases.split(",")
+                for alias in aliases:
+                    mapping[alias] = k
+        for alias, k in mapping.items():
+            state_dict[alias] = state_dict[k]
+        return state_dict
 
     @property
     def model_config_yaml(self) -> str:
@@ -705,3 +785,30 @@ class SaveRestoreConnector:
         if isinstance(level, str):
             level = CheckpointSecurityLevel(level)
         self._ckpt_security_level = level
+
+
+# Utils for safetensors
+def _get_safetensor_device(device: Union[str, torch.device]) -> Union[str, int]:
+    """
+    Translates a device from pytorch to a format compatible with safetensors.
+
+    Args:
+        device: str or torch.device. The device to be translated to safetensors compatible format.
+
+    Returns:
+        The device in a format compatible with safetensors.
+    """
+    # Translate device to safetensors compatible
+    rank = None
+    if isinstance(device, torch.device):
+        rank = device.index
+        device = str(device.type)
+
+    if device == "cpu":
+        device = "cpu"
+    elif device == "cuda":
+        device = 0 if rank is None else rank
+    elif "cuda:" in device:
+        device = int(device.split(":")[1])
+
+    return device
