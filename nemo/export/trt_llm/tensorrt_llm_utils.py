@@ -10,7 +10,6 @@
 
 """Utils to convert model_config layers to tensorrt_llm modules."""
 
-import numpy as np
 import tensorrt as trt
 from tensorrt_llm.layers import Embedding, LayerNorm, PromptTuningEmbedding, RmsNorm
 from tensorrt_llm.module import Module

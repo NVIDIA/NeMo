@@ -13,8 +13,7 @@
 from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
-from tensorrt_llm.layers import AttentionMaskType, MoeConfig, PositionEmbeddingType
-from tensorrt_llm.mapping import Mapping
+from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.llama.model import LLaMADecoderLayer
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from tensorrt_llm.quantization import QuantMode
@@ -111,12 +110,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
             pp_size=1,
             quant_mode=QuantMode(0),
             quant_kwargs=None,
-            # use_prompt_tuning=layer.use_prompt_tuning,
             max_lora_rank=layer.max_lora_rank,
-            # use_parallel_embedding: bool = False,
-            # embedding_sharding_dim: int = 0,
-            # share_embedding_table: bool = False,
-            # head_size: int = None,
         )
 
         config.set_if_not_exist('mlp_bias', False)

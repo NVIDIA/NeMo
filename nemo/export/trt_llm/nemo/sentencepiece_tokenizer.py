@@ -22,7 +22,7 @@ import torch
 
 class SentencePieceTokenizer:
     """
-    Sentencepiecetokenizer https://github.com/google/sentencepiece.
+    Sentencepiecetokenizer https://github.com/google/sentencepiece
     
         Args:
         model_path: path to sentence piece tokenizer model.
@@ -56,7 +56,6 @@ class SentencePieceTokenizer:
         if self.legacy:
             tokens = []
             idx = 0
-            last_idx = 0
 
             while 1:
                 indices = {}
@@ -86,7 +85,6 @@ class SentencePieceTokenizer:
         if self.legacy:
             ids = []
             idx = 0
-            last_idx = 0
 
             while 1:
                 indices = {}

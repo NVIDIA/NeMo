@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import datetime
 import logging
 import os
 import pathlib
@@ -123,7 +122,7 @@ def is_nemo_file(path):
             pc = Path(path)
             if pc.exists():
                 if pc.is_file():
-                    if path[-5 : len(path)] == ".nemo":
+                    if path[-5: len(path)] == ".nemo":
                         flag = True
 
     return flag
@@ -147,9 +146,3 @@ def get_prompt_embedding_table(prompt_checkpoint_path):
         prompt_weights = torch.load(weight_path, map_location=cpu_map_location,)
 
     return prompt_convert(prompt_config, prompt_weights)
-
-
-def torch_to_numpy(x):
-    if x.dtype != torch.bfloat16:
-        return x.numpy()
-    return x.view(torch.int16).numpy().view(np_bfloat16)

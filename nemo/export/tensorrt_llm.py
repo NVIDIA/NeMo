@@ -31,11 +31,11 @@ from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from .trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
 from .trt_llm.nemo_utils import get_tokenzier, nemo_model_to_model_config, nemo_to_model_config
 from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
-from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy, unpack_nemo_ckpt
+from .utils import is_nemo_file, unpack_nemo_ckpt
 
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
-except:
+except Exception:
     pass
 import logging
 
@@ -100,27 +100,27 @@ class TensorRTLLM(ITritonDeployable):
             self._load()
 
     def export(
-        self,
-        nemo_checkpoint_path: str,
-        model_type: str,
-        delete_existing_files: bool = True,
-        n_gpus: int = 1,
-        tensor_parallel_size: int = None,
-        pipeline_parallel_size: int = None,
-        max_input_token: int = 256,
-        max_output_token: int = 256,
-        max_batch_size: int = 8,
-        max_prompt_embedding_table_size=None,
-        use_inflight_batching: bool = False,
-        enable_context_fmha: bool = True,
-        paged_kv_cache: bool = False,
-        dtype: str = "bfloat16",
-        load_model: bool = True,
-        enable_multi_block_mode: bool = False,
-        use_lora_plugin: str = None,
-        lora_target_modules: List[str] = None,
-        max_lora_rank: int = 64,
-        save_nemo_model_config: bool = False,
+            self,
+            nemo_checkpoint_path: str,
+            model_type: str,
+            delete_existing_files: bool = True,
+            n_gpus: int = 1,
+            tensor_parallel_size: int = None,
+            pipeline_parallel_size: int = None,
+            max_input_token: int = 256,
+            max_output_token: int = 256,
+            max_batch_size: int = 8,
+            max_prompt_embedding_table_size=None,
+            use_inflight_batching: bool = False,
+            enable_context_fmha: bool = True,
+            paged_kv_cache: bool = False,
+            dtype: str = "bfloat16",
+            load_model: bool = True,
+            enable_multi_block_mode: bool = False,
+            use_lora_plugin: str = None,
+            lora_target_modules: List[str] = None,
+            max_lora_rank: int = 64,
+            save_nemo_model_config: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -144,7 +144,7 @@ class TensorRTLLM(ITritonDeployable):
             enable_multi_block_mode (bool): enable faster decoding in multihead attention. Required for long context.
         """
 
-        if not model_type in self.get_supported_models_list:
+        if model_type not in self.get_supported_models_list:
             raise Exception(
                 "Model {0} is not currently a supported model type. "
                 "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type)
@@ -230,15 +230,15 @@ class TensorRTLLM(ITritonDeployable):
             self._load()
 
     def build(
-        self,
-        nemo_model,
-        nemo_model_config,
-        tokenizer=None,
-        max_input_token: int = 256,
-        max_output_token: int = 256,
-        max_batch_size: int = 8,
-        use_refit: bool = False,
-        model_type: str = "gptnext",
+            self,
+            nemo_model,
+            nemo_model_config,
+            tokenizer=None,
+            max_input_token: int = 256,
+            max_output_token: int = 256,
+            max_batch_size: int = 8,
+            use_refit: bool = False,
+            model_type: str = "gptnext",
     ):
         from megatron.core import parallel_state
 
@@ -276,7 +276,7 @@ class TensorRTLLM(ITritonDeployable):
         )
 
     def refit(
-        self, nemo_model, nemo_model_config,
+            self, nemo_model, nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
 
@@ -290,22 +290,22 @@ class TensorRTLLM(ITritonDeployable):
         )
 
     def forward(
-        self,
-        input_texts: List[str],
-        max_output_token: int = 64,
-        top_k: int = 1,
-        top_p: float = 0.0,
-        temperature: float = 1.0,
-        stop_words_list: List[str] = None,
-        bad_words_list: List[str] = None,
-        no_repeat_ngram_size: int = None,
-        task_ids: List[str] = None,
-        lora_uids: List[str] = None,
-        prompt_embeddings_table=None,
-        prompt_embeddings_checkpoint_path: str = None,
-        streaming: bool = False,
-        output_log_probs: bool = False,
-        **sampling_kwargs,
+            self,
+            input_texts: List[str],
+            max_output_token: int = 64,
+            top_k: int = 1,
+            top_p: float = 0.0,
+            temperature: float = 1.0,
+            stop_words_list: List[str] = None,
+            bad_words_list: List[str] = None,
+            no_repeat_ngram_size: int = None,
+            task_ids: List[str] = None,
+            lora_uids: List[str] = None,
+            prompt_embeddings_table=None,
+            prompt_embeddings_checkpoint_path: str = None,
+            streaming: bool = False,
+            output_log_probs: bool = False,
+            **sampling_kwargs,
     ):
 
         """
@@ -332,7 +332,7 @@ class TensorRTLLM(ITritonDeployable):
                 "then it should be loaded first to run inference."
             )
         else:
-            if not prompt_embeddings_table is None or not prompt_embeddings_checkpoint_path is None:
+            if prompt_embeddings_table is not None or prompt_embeddings_checkpoint_path is not None:
                 prompt_table = self._get_prompt_embedding_table(
                     prompt_embeddings_table, prompt_embeddings_checkpoint_path
                 )
@@ -365,7 +365,7 @@ class TensorRTLLM(ITritonDeployable):
                         input_task_ids = []
                         for i in range(len(input_texts)):
                             assert (
-                                task_ids[i] in self.task_ids.keys()
+                                    task_ids[i] in self.task_ids.keys()
                             ), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
             if not streaming:
@@ -435,7 +435,7 @@ class TensorRTLLM(ITritonDeployable):
         self._prep_ptuning_table()
 
     def remove_prompt_table(self, task_name: str):
-        if not self.ptuning_tables is None:
+        if self.ptuning_tables is not None:
             for i in range(len(self.ptuning_tables)):
                 if self.ptuning_tables[i]["task_name"] == task_name:
                     self.ptuning_tables.pop(i)
@@ -577,7 +577,7 @@ class TensorRTLLM(ITritonDeployable):
             self.p_table = None
 
     def _load_prompt_tables(self):
-        if not self.model_dir is None:
+        if self.model_dir is not None:
             pt_path = Path(os.path.join(self.model_dir, 'prompt_tables.pkl'))
             if pt_path.exists():
                 with open(pt_path, 'rb') as f:
@@ -604,8 +604,8 @@ class TensorRTLLM(ITritonDeployable):
             if "model.embedding.adapter_layer.ptuning_adapter.inference_table" in weights:
                 weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
             elif (
-                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"
-                in weights
+                    "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"
+                    in weights
             ):
                 weights = weights[
                     "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"
@@ -629,7 +629,7 @@ class TensorRTLLM(ITritonDeployable):
         return None
 
     def _get_prompt_embedding_table(
-        self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,
+            self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,
     ):
         p_tuning = "no_ptuning"
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:

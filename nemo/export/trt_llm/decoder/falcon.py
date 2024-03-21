@@ -13,7 +13,6 @@
 from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
-from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType
 from tensorrt_llm.models.falcon.model import FalconDecoderLayer
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from tensorrt_llm.quantization import QuantMode

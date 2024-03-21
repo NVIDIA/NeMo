@@ -1,0 +1,137 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+use_trtllm_backend = True
+try:
+    from pytriton.model_config import ModelConfig, Tensor
+    from pytriton.triton import Triton, TritonConfig
+    from nemo.deploy.deploy_base import DeployBase
+    from nemo.deploy.tensorrt_llm_backend.server import ModelServer
+except:
+    use_trtllm_backend = False
+
+class DeployTensorRTLLM(DeployBase):
+
+    """
+    Deploys any models to Triton Inference Server that implements ITritonDeployable interface in nemo.deploy.
+
+    Example:
+        from nemo.deploy import DeployPyTriton, NemoQuery
+        from nemo.export import TensorRTLLM
+
+        trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
+        trt_llm_exporter.export(
+            nemo_checkpoint_path="/path/for/nemo/checkpoint",
+            model_type="llama",
+            n_gpus=1,
+        )
+
+        nm = DeployTensorRTLLM(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
+        nm.deploy()
+        nm.run()
+        nq = NemoQuery(url="localhost", model_name="model_name")
+
+        prompts = ["hello, testing GPT inference", "another GPT inference test?"]
+        output = nq.query_llm(prompts=prompts, max_output_len=100)
+        print("prompts: ", prompts)
+        print("")
+        print("output: ", output)
+        print("")
+
+        prompts = ["Give me some info about Paris", "Do you think Londan is a good city to visit?", "What do you think about Rome?"]
+        output = nq.query_llm(prompts=prompts, max_output_len=250)
+        print("prompts: ", prompts)
+        print("")
+        print("output: ", output)
+        print("")
+
+    """
+
+    def __init__(
+        self,
+        triton_model_name: str,
+        triton_model_version: int = 1,
+        checkpoint_path: str = None,
+        model=None,
+        max_batch_size: int = 128,
+        port: int = 8000,
+        http_address="0.0.0.0",
+        model_repo_dir=None,
+    ):
+
+        """
+        A nemo checkpoint or model is expected for serving on Triton Inference Server.
+
+        Args:
+            triton_model_name (str): Name for the service
+            triton_model_version(int): Version for the service
+            checkpoint_path (str): path of the nemo file
+            model (ITritonDeployable): A model that implements the ITritonDeployable from nemo.deploy import ITritonDeployable
+            max_batch_size (int): max batch size
+            port (int) : port for the Triton server
+            address (str): http address for Triton server to bind.
+
+        """
+
+        super().__init__(
+            triton_model_name=triton_model_name,
+            triton_model_version=triton_model_version,
+            checkpoint_path=checkpoint_path,
+            model=model,
+            max_batch_size=max_batch_size,
+            port=port,
+            address=http_address,
+        )
+
+        self.model_repo_dir=model_repo_dir
+
+    def deploy(self):
+
+        """
+        Deploys any models to Triton Inference Server.
+        """
+
+
+        ## create config here
+
+        try:
+            self.triton=ModelServer(self.model, http=True, max_batch_size=self.max_batch_size, model_repo_dir=self.model_repo_dir)
+        except Exception as e:
+            self.triton = None
+            print(e)
+
+    def serve(self):
+
+        """
+        Starts serving the model and waits for the requests
+        """
+
+        raise NotImplementedError("Not implemented")
+
+    def run(self):
+
+        """
+        Starts serving the model asynchronously.
+        """
+
+        if self.triton is None:
+            raise Exception("deploy should be called first.")
+
+        self.triton.run()
+
+    def stop(self):
+        """
+        Stops serving the model.
+        """
+        self.triton.stop()

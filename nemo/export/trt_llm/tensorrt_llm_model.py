@@ -12,16 +12,14 @@
 
 Referrence impl in tensorrt_llm: tensorrt_llm/models/gpt/model.py.
 """
-import inspect
-from collections import OrderedDict
+
 from pathlib import Path
 from typing import List
 
 import numpy as np
-import tensorrt as trt
 import torch
 from tensorrt_llm import default_net, str_dtype_to_trt
-from tensorrt_llm.functional import Tensor, expand_mask, gather_last_token_logits, recv, send, shape
+from tensorrt_llm.functional import expand_mask, gather_last_token_logits, recv, send, shape
 from tensorrt_llm.layers import AttentionParams, ColumnLinear, KeyValueCacheParams, LoraParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
 from tensorrt_llm.module import Module, ModuleList
@@ -29,7 +27,7 @@ from tensorrt_llm.module import Module, ModuleList
 from .decoder import build_decoder_layer
 from .model_config import DECODER_GEMMA, ModelConfig
 from .quantization_utils import quantize_linear
-from .tensor_utils import get_tensor_parallel_group, trt_dtype_to_str
+from .tensor_utils import trt_dtype_to_str
 from .tensorrt_llm_build import build
 from .tensorrt_llm_utils import build_embedding_from_config, build_layernorm_from_config, print_tensorrt_llm
 

@@ -19,7 +19,6 @@ import shutil
 import typing
 from collections import defaultdict
 from pathlib import Path
-from types import MethodType
 
 import numpy as np
 import tensorstore  # this is important even though not used
@@ -27,9 +26,9 @@ import torch
 import zarr
 from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
-from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig, T5Tokenizer
+from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
-from .convert import cpu_map_location, gpu_map_location, save_weight_torch, split_and_save_weight
+from .convert import save_weight_torch, split_and_save_weight
 from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
 from .sentencepiece_tokenizer import SentencePieceTokenizer
 
@@ -119,156 +118,6 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
     return new_key
 
 
-@torch.no_grad()
-def convert_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args):
-    nemo_model_config = unpacked_checkpoints_dir.model_config
-
-    checkpoints_paths = unpacked_checkpoints_dir.get_checkpoints_paths(
-        nemo_model_config.get("tensor_model_parallel_size", 1),
-        nemo_model_config.get("pipeline_model_parallel_size", 1),
-    )
-
-    # if checkpoints files could be found - start preparing output dir
-    out_dir = create_out_dir(args)
-
-    map_location_fn = gpu_map_location if args.load_checkpoints_on_gpu else cpu_map_location
-    storage_type = str_dtype_to_torch(args.storage_type)
-    is_mcore = nemo_model_config.get("mcore_gpt", False)
-
-    # load position_embedding from rank 0
-    model_00 = torch.load(checkpoints_paths[0][0], map_location=map_location_fn)
-    model_00 = model_00.get("state_dict", model_00)
-    prefix, transformer_layer_prefix = get_layer_prefix(model_00.keys(), is_mcore)
-
-    has_position_embedding = get_layer_name("position_embedding", prefix) in model_00
-    has_lm_head = get_layer_name("output_layer", prefix) in model_00
-
-    num_layers = nemo_model_config["num_layers"]
-    training_tp_size = nemo_model_config.get("tensor_model_parallel_size", 1)
-    training_pp_size = nemo_model_config.get("pipeline_model_parallel_size", 1)
-    inference_tp_size = args.tensor_parallelism
-    num_kv_heads = nemo_model_config.get("num_query_groups", 0)
-    multi_query_mode = nemo_model_config.get("multi_query_mode", False)
-    num_attention_heads = nemo_model_config["num_attention_heads"]
-    is_fast_glu = nemo_model_config.get("activation", "gelu") in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
-    if num_kv_heads == 0:
-        if multi_query_mode:
-            num_kv_heads = 1
-        else:
-            num_kv_heads = num_attention_heads
-
-    export_config = {
-        "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
-        "tp_size": training_tp_size,
-        "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
-        and (args.decoder_type == "gptnext" or is_mcore or is_fast_glu),
-        "num_attention_heads": num_attention_heads,
-        "num_kv_heads": num_kv_heads,
-        "use_attention_nemo_shape": True,
-        "transpose_weights": True,
-    }
-
-    # merge_factor: how many TP training nodes are merged into an inference TP node
-    # split_factor: in how many parts a TP training node is split
-    gcd = np.gcd(training_tp_size, inference_tp_size)
-    merge_factor = training_tp_size // gcd
-    split_factor = inference_tp_size // gcd
-
-    model_level_weights = defaultdict(list)
-
-    def handle_model_level_weights(model, tp_idx: int, pp_idx: int):
-        if tp_idx == 0 and pp_idx == 0:
-            if has_position_embedding:
-                val = model[get_layer_name("position_embedding", is_mcore)]
-                # not weight, do not need to transpose
-                val = torch_to_numpy(val.to(storage_type).cpu())
-                # AMMO modification
-                # val.tofile(out_dir / "model.wpe.bin")
-                model_level_weights["model.wpe.bin"].append(val)
-        if pp_idx == 0:
-            val = model.get("state_dict", model)[get_layer_name("word_embedding", is_mcore)]
-            val = torch_to_numpy(val.to(storage_type).cpu())
-            model_level_weights["model.wte.bin"].append(val)
-        if has_lm_head and pp_idx == training_pp_size - 1:
-            val = model.get("state_dict", model)[get_layer_name("output_layer", is_mcore)]
-            val = torch_to_numpy(val.to(storage_type).cpu())
-            model_level_weights["model.lm_head.weight.bin"].append(val)
-
-    # AMMO modification
-    weights_dict = {}
-    for tp_rank in range(training_tp_size // merge_factor):
-        for pp_rank in range(training_pp_size):
-            models = []
-            for k in range(merge_factor):
-                rank_weights = checkpoints_paths[tp_rank * merge_factor + k][pp_rank]
-                model = torch.load(rank_weights, map_location=map_location_fn)
-                handle_model_level_weights(model, tp_rank * merge_factor + k, pp_rank)
-
-                layers = extract_layers_with_prefix(model, transformer_layer_prefix)
-                models.append(layers)
-
-            starmap_args = []
-            for key in models[0].keys():
-                # Skipping the extra state as it is not a part of the model state dict
-                if "_extra_state" not in key:
-                    starmap_args.append(
-                        (
-                            tp_rank,
-                            out_dir,
-                            split_factor,
-                            rename_key(key, pp_rank, num_layers, training_pp_size),
-                            [model[key] for model in models],
-                            storage_type,
-                            None,
-                            export_config,
-                        )
-                    )
-
-            starmap_args = tqdm(starmap_args, desc="saving weights")
-
-            if args.processes > 1:
-                with multiprocessing.Pool(args.processes) as pool:
-                    # AMMO modification
-                    weights_dicts = pool.starmap(split_and_save_weight, starmap_args)
-                    weights_dict_local = {k: v for d in weights_dicts for k, v in d.items()}
-            else:
-                # simpler for debug situations
-                for starmap_arg in starmap_args:
-                    # AMMO modification
-                    weights_dict_local = split_and_save_weight(*starmap_arg)
-            # AMMO modification
-            weights_dict.update(weights_dict_local)
-
-    for key, values in model_level_weights.items():
-        model_level_weights[key] = np.concatenate(values, axis=0)
-        # AMMO modification
-        weights_dict[key] = model_level_weights[key]
-    vocab_size = model_level_weights["model.wte.bin"].shape[0]
-
-    tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
-    copy_tokenizer_files(tokenizer_config, out_dir)
-    # AMMO modification.
-    tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
-    tokenizer = build_tokenizer(tokenizer_config)
-    llm_config = nemo_to_llm_config(
-        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id, args.decoder_type,
-    )
-
-    llm_config.is_mcore = is_mcore
-
-    config = configparser.ConfigParser()
-    model_name = "llama" if isinstance(llm_config, LlamaConfig) else "gpt"
-    config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
-    config[model_name]["storage_dtype"] = args.storage_type
-    config_path = out_dir / "config.ini"
-    with config_path.open("w") as config_file:
-        config.write(config_file)
-
-    # AMMO modification.
-    return weights_dict, llm_config, tokenizer
-
-
 def load_sharded_metadata(checkpoint_dir: str, torch_tensor=True):
     checkpoint_dir = Path(checkpoint_dir)
     sharded_state_dict = {}
@@ -297,7 +146,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     # if checkpoints files could be found - start preparing output dir
     out_dir = create_out_dir(args)
 
-    map_location_fn = gpu_map_location if args.load_checkpoints_on_gpu else cpu_map_location
     storage_type = str_dtype_to_torch(args.storage_type)
     is_mcore = nemo_model_config.get("mcore_gpt", False)
 
@@ -340,12 +188,8 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         "transpose_weights": True,
     }
 
-    # merge_factor: how many TP training nodes are merged into an inference TP node
     # split_factor: in how many parts a TP training node is split
-
-    merge_factor = 1
     split_factor = inference_tp_size
-
     model_level_weights = defaultdict(list)
 
     def handle_model_level_weights(model, tp_idx: int, pp_idx: int):
@@ -480,7 +324,6 @@ def convert_nemo_model(nemo_model, nemo_model_config, storage_type_str, decoder_
 
     tp_rank = parallel_state.get_tensor_model_parallel_rank()
     tp_size = parallel_state.get_tensor_model_parallel_world_size()
-    tp_group = parallel_state.get_tensor_model_parallel_group()
     pp_rank = parallel_state.get_pipeline_model_parallel_rank()
     pp_size = parallel_state.get_pipeline_model_parallel_world_size()
     pp_group = parallel_state.get_pipeline_model_parallel_group()

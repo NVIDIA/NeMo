@@ -21,7 +21,6 @@ class GemmaDecoderLayer(Module):
             normalized_shape=config.hidden_size, eps=config.norm_epsilon, dtype=config.dtype
         )
 
-        layers_range = config.mapping.pp_layers(config.num_hidden_layers)
         self.attention = Attention(
             hidden_size=config.hidden_size,
             num_attention_heads=config.num_attention_heads,

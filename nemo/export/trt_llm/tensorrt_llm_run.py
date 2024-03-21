@@ -513,8 +513,6 @@ def generate(
     else:
         input_tensors = [torch.IntTensor(tokenizer.encode(t)) for t in input_texts]
 
-    batch_size = len(input_texts)
-
     stop_words_list_tensors = None
     if stop_words_list is not None:
         stop_words_arrays = to_word_list_format(stop_words_list, tokenizer)
@@ -558,7 +556,7 @@ def generate(
     input_lengths = [t.shape[0] for t in input_tensors]
 
     output_lines_list = [
-        tokenizer.batch_decode(output_ids[b, :, input_lengths[b] : sequence_lengths[b][0]])
+        tokenizer.batch_decode(output_ids[b, :, input_lengths[b]: sequence_lengths[b][0]])
         for b in range(output_ids.shape[0])
     ]
 
@@ -639,7 +637,6 @@ def generate_streaming(
     # 'outputs' is a generator that yields one generator, not sure why... Unwrap that.
     for output in outputs:
         output_ids = output['output_ids']
-        sequence_lengths = output['sequence_lengths']
         # Now iterate over the partial outputs, decode and yield each intermediate result.
         generated_tokens = 0
         for partial_outputs in output_ids:

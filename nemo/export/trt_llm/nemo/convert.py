@@ -176,7 +176,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     tp_size = config.get("tp_size", 1)
     int8_outputs = config.get("int8_outputs", None)
     multi_query_mode = config.get("multi_query_mode", False)
-    local_dim = config.get("local_dim", None)
     num_kv_heads = config.get("num_kv_heads", num_attention_heads)
     size_per_head = config.get("kv_channels", None)
 
@@ -312,7 +311,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         if size_per_head is None:
             size_per_head = hidden_dim // num_attention_heads
         q_num = num_attention_heads // num_kv_heads
-        merge_factor = len(vals)
 
         # When the merge factor exceeds 1, the 'vals' list will have multiple entries.
         # Depending on the format, 'vals' can look like either [QQQQ..KV, QQQQ..KV, ...](for GQA) or [QKV, QKV, ...](for MHA).

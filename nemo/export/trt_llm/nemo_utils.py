@@ -27,7 +27,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import tensorrt_llm
-import torch
 from tensorrt_llm import str_dtype_to_trt
 from transformers import AutoTokenizer, GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
@@ -42,7 +41,7 @@ from .model_config import (
     ModelConfig,
 )
 from .nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
-from .nemo.nemo_ckpt_convert import build_tokenizer, convert_checkpoint, convert_dist_checkpoint, convert_nemo_model
+from .nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint, convert_nemo_model
 from .tensor_utils import get_tensor_from_dict, get_tensor_parallel_group, split
 
 LOGGER = logging.getLogger("NeMo")
