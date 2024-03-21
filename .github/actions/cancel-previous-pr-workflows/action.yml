@@ -1,7 +1,6 @@
 name: Cancel out of date workflow runs
 
 runs:
-  using: "composite"
   steps:
     - uses: octokit/request-action@v2.x
       id: get_active_workflows
