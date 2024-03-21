@@ -171,7 +171,7 @@ class ControlLDM(LatentDiffusion):
         use_ddim = ddim_steps is not None
 
         log = dict()
-        batch = next(batch)
+
         batch['images'] = batch['images'].to(torch.cuda.current_device())
         batch['hint'] = batch['hint'].to(torch.cuda.current_device())
         N = batch['images'].shape[0]

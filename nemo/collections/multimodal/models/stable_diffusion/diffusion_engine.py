@@ -439,6 +439,8 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
+        self._optimizer.zero_grad()
+
         loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
 
         torch.distributed.broadcast(loss_mean, get_last_rank())
