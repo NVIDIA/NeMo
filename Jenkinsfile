@@ -139,7 +139,6 @@ pipeline {
             model.optim.name=distributed_fused_adam \
             model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
             model.data.num_workers=4 \
-            ++cluster_type=BCP \
             model.micro_batch_size=4 \
             model.data.shuffle_documents=False \
             trainer.val_check_interval=20 \
@@ -161,7 +160,6 @@ pipeline {
             model.optim.name=distributed_fused_adam \
             model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
             model.data.num_workers=4 \
-            ++cluster_type=BCP \
             model.micro_batch_size=4 \
             model.data.shuffle_documents=False \
             trainer.val_check_interval=20 \
