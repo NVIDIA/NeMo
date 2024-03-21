@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights binserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either expbinss or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -34,31 +34,16 @@ from nemo.collections.multimodal.data.neva.neva_dataset import (
     make_supervised_data_module,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.utils import logging
 
-PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle']
-
-
-def find_first_bin_that_fits(bins, s, bin_size):
-    """
-    Finds the first bin that can fit an item of size s.
-
-    Parameters:
-    - bins: List of bins where each bin is a list of item sizes.
-    - s: Size of the current item.
-    - bin_size: Maximum capacity of each bin.
-
-    Returns:
-    - Index of the first bin that can fit the item, or -1 if none can.
-    """
-    for i, abin in enumerate(bins):
-        if sum(abin) + s <= bin_size:
-            return i
-    return -1
+PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle', 'shuffle_and_pack']
 
 
 def first_fit(seq_lens, max_seq_length):
     """
-    Assigns sequences to bins using the First Fit algorithm.
+    Assigns sequences to bins using the First Fit algorithm, by integrating the search
+    and assignment within the same function. It moves bins that can no longer fit the minimum sequence length
+    to a completed bins list, avoiding direct modification of the bins list during iteration.
 
     Parameters:
     - seq_lens: List of sequence lengths.
@@ -67,14 +52,70 @@ def first_fit(seq_lens, max_seq_length):
     Returns:
     - List of bins with assigned sequence lengths.
     """
-    res = []
-    for s in seq_lens:
-        first_bin = find_first_bin_that_fits(res, s, max_seq_length)
-        if first_bin == -1:  # open a new bin
-            res.append([s])
-        else:
-            res[first_bin].append(s)
-    return res
+    min_seq_len = min(seq_lens)  # Find the minimum sequence length
+    completed_bins = []  # Initialize the completed bins list
+    bins = []  # Initialize the bins list to store active bins
+
+    for s in tqdm(seq_lens):  # Iterate through each sequence length
+        found_bin = False
+        for i, abin in enumerate(bins[:]):  # Iterate over a shallow copy of bins
+            if sum(abin) + min_seq_len > max_seq_length:
+                completed_bins.append(abin)  # Add to completed bins
+                bins[i] = 'TO_REMOVE'  # Mark this bin for removal
+                continue
+            if sum(abin) + s <= max_seq_length:  # Check if the bin can fit the sequence
+                bins[i].append(s)  # If so, add the sequence to this bin
+                found_bin = True
+                break
+
+        if not found_bin:  # If no existing bin can fit the sequence
+            bins.append([s])  # Open a new bin for this sequence
+
+        # Clean up bins marked 'TO_REMOVE'
+        bins = [bin for bin in bins if bin != 'TO_REMOVE']
+
+    # Combine completed bins with any remaining active bins
+    all_bins = completed_bins + bins
+    return all_bins
+
+
+def chunkify(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def parallel_first_fit(seq_lens, max_seq_length, chunk_size, num_workers):
+    """
+    Assigns sequences to bins in parallel using the First Fit algorithm.
+
+    Parameters:
+    - seq_lens: List of sequence lengths.
+    - max_seq_length: Maximum capacity of each bin.
+    - chunk_size: Size of chunks to divide seq_lens into for parallel processing.
+    - num_workers: Number of worker threads to use in the ThreadPoolExecutor.
+
+    Returns:
+    - List of bins with assigned sequence lengths.
+    """
+    # Split the sequence lengths into chunks
+    chunks = list(chunkify(seq_lens, chunk_size))
+
+    # Function to process each chunk
+    def process_chunk(chunk):
+        return first_fit(chunk, max_seq_length)
+
+    bins = []  # This will hold the final bins
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        # Submit each chunk to the executor
+        futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
+
+        # As each future completes, combine its bins with the final bins
+        for future in as_completed(futures):
+            bins.extend(future.result())
+
+    return bins
 
 
 def first_fit_decreasing(seq_lens, max_seq_length):
@@ -105,7 +146,7 @@ def first_fit_shuffle(seq_lens, max_seq_length):
     """
     shuffled_seq_lens = seq_lens[:]
     np.random.shuffle(shuffled_seq_lens)
-    return first_fit(shuffled_seq_lens, max_seq_length)
+    return parallel_first_fit(shuffled_seq_lens, max_seq_length, 20000, 32)
 
 
 def shuffle_and_pack(seq_lens, max_seq_length):
@@ -133,50 +174,23 @@ def shuffle_and_pack(seq_lens, max_seq_length):
     return bins
 
 
-def optimized_first_fit(seq_lens, max_seq_length):
-    """
-    An optimized version of the first fit algorithm using numpy for efficiency.
-
-    Parameters:
-    - seq_lens: List of sequence lengths.
-    - max_seq_length: Maximum capacity of each bin.
-
-    Returns:
-    - List of bins with assigned sequence lengths, optimized for space usage.
-    """
-    seq_lens_np = np.array(seq_lens)
-    bins_remaining = np.array([], dtype=int)
-    for s in seq_lens_np:
-        valid_bins = bins_remaining >= s
-        if valid_bins.any():
-            first_bin_index = np.where(valid_bins)[0][0]
-            bins_remaining[first_bin_index] -= s
-        else:
-            bins_remaining = np.append(bins_remaining, max_seq_length - s)
-
-    # Calculate the final bins from the bins_remaining information
-    # This part is mainly for reconstructing the final bins structure similar to the original function's output
-    bins = [[] for _ in range(len(bins_remaining))]
-    for s in seq_lens:
-        for i, space in enumerate(bins_remaining + s):
-            if space >= max_seq_length:
-                bins[i].append(s)
-                bins_remaining[i] -= s
-                break
-    return bins
-
-
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("--data_path", type=str)
     parser.add_argument("--image_folder", type=str)
     parser.add_argument("--tokenizer_path", type=str)
     parser.add_argument('--output_dir', required=True, type=str)
-    parser.add_argument("--max_seq_length", default=2048, type=int)
-    parser.add_argument('--packing_algorithm', default='first_fit_decreasing', choices=PACKING_ALGOS, type=str)
+    parser.add_argument("--max_seq_length", default=4096, type=int)
+    parser.add_argument('--packing_algorithm', default='first_fit_shuffle', choices=PACKING_ALGOS, type=str)
+    parser.add_argument("--hf_vision_encoder", default='openai/clip-vit-large-patch14-336', type=str)
+    parser.add_argument("--conv_template", default='plain', type=str)
+    parser.add_argument("--image_aspect_ratio", default='square', type=str)
     parser.add_argument('--seed', default=0, type=int, help="Seed for shuffling, used with first_fit_shuffle.")
-    parser.add_argument("--hparams_file", type=str, default=os.path.join(os.path.dirname(__file__), '../conf/llava_config.yaml'), required=False, help="Path to the hparams file.")
+    parser.add_argument("--hparams_file", type=str,
+                        default=os.path.join(os.path.dirname(__file__), '../conf/llava_config.yaml'), required=False,
+                        help="Path to the hparams file.")
     return parser.parse_args()
+
 
 def pack_sequence(args, seq_lens):
     """
@@ -192,8 +206,7 @@ def pack_sequence(args, seq_lens):
     np.random.seed(args.seed)
     random.seed(args.seed)
 
-    # packing_fn = globals()[args.packing_algorithm]
-    packing_fn = shuffle_and_pack
+    packing_fn = globals()[args.packing_algorithm]
     bins = packing_fn(seq_lens, args.max_seq_length)
     return bins
 
@@ -203,8 +216,11 @@ def main():
 
     args = get_args()
     nemo_config = OmegaConf.load(args.hparams_file)
+    nemo_config.model.mm_cfg.vision_encoder.from_pretrained = args.hf_vision_encoder
     nemo_config.model.data.data_path = args.data_path
     nemo_config.model.data.image_folder = args.image_folder
+    nemo_config.model.data.conv_template = args.conv_template
+    nemo_config.model.data.image_aspect_ratio = args.image_aspect_ratio
 
     tokenizer = get_nmt_tokenizer(
         library="sentencepiece",
@@ -213,26 +229,36 @@ def main():
     train_ds = make_supervised_data_module(tokenizer=tokenizer, model_cfg=nemo_config.model)["train_dataset"]
     train_dl = DataLoader(train_ds, num_workers=32, collate_fn=None, shuffle=False)
     # Example shape: {'tokens': torch.Size([1, 344]), 'labels': torch.Size([1, 344]), 'image': torch.Size([1, 1, 3, 224, 224])}
-    prefix_path = "abcabc"
+
+    output_dir = args.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+    logging.info(f"Output directory: {output_dir}")
+
+    prefix_path = f"{output_dir}/packed_seq_dataset"
     # builders = {}
-    # for item_dict in tqdm(train_dl):
+    # for item_dict in tqdm(train_dl, desc="Building indexed datasets"):
     #     item_dict = {k: v[0] for k, v in item_dict.items()}
     #     seq_len = len(item_dict['tokens'])
     #     if seq_len in builders:
     #         builder = builders[seq_len]
     #     else:
-    #         builder = IndexedDatasetBuilder(get_bin_path(f"{prefix_path}_seqlen_{seq_len}"), dtype=np.float32, multimodal=True)
+    #         builder_path = get_bin_path(f"{prefix_path}_seqlen_{seq_len}")
+    #         logging.info(f"Creating builder for sequence length {seq_len} at {builder_path}")
+    #         builder = IndexedDatasetBuilder(builder_path, dtype=np.float32, multimodal=True)
     #         builders[seq_len] = builder
     #     builder.add_item(item_dict['tokens'])
     #     builder.add_item(item_dict['labels'])
     #     builder.add_item(item_dict['image'], 1)
     #     builder.end_document()
     #     del item_dict
+    #
     # for seq_len, builder in builders.items():
-    #     builder.finalize(get_idx_path(f"{prefix_path}_seqlen_{seq_len}"))
+    #     idx_path = get_idx_path(f"{prefix_path}_seqlen_{seq_len}")
+    #     logging.info(f"Finalizing builder for sequence length {seq_len} at {idx_path}")
+    #     builder.finalize(idx_path)
 
-    files = os.listdir('.')
-    pattern = rf"{prefix_path}_seqlen_(\d+).bin"
+    files = os.listdir(output_dir)
+    pattern = rf"packed_seq_dataset_seqlen_(\d+).bin"
     seq_len_list = []
     for file in files:
         match = re.match(pattern, file)
@@ -244,27 +270,37 @@ def main():
     doc_pop_order = {}
     indexed_datasets = {}
     for seq_len in seq_len_list:
-        dataset = IndexedDataset(f"{prefix_path}_seqlen_{seq_len}", multimodal=True)
+        dataset_path = f"{prefix_path}_seqlen_{seq_len}"
+        dataset = IndexedDataset(dataset_path, multimodal=True)
         aggregated_seq_lens.extend([seq_len] * (len(dataset.document_indices) - 1))
         doc_pop_order[seq_len] = list(np.random.permutation(len(dataset.document_indices) - 1))
         indexed_datasets[seq_len] = dataset
 
-    print("getting bins")
+    logging.info("Getting bins")
     bins = pack_sequence(args, aggregated_seq_lens)
-    print("finish getting bins")
+    logging.info("Finished getting bins")
 
-    final_builder = IndexedDatasetBuilder(get_bin_path(f"{prefix_path}"), dtype=np.float32, multimodal=True)
-    for assignment in tqdm(bins):
+    num_bins = len(bins)
+    avg_bins_len = sum([len(x) for x in bins]) / num_bins
+    avg_bins_sum = sum([sum(x) for x in bins]) / num_bins
+    logging.info(f"Number of bins: {num_bins}, Average bin length: {avg_bins_len}, Average bin sum: {avg_bins_sum}")
+
+    final_builder_path = get_bin_path(f"{prefix_path}")
+    logging.info(f"Creating final builder at {final_builder_path}")
+    final_builder = IndexedDatasetBuilder(final_builder_path, dtype=np.float32, multimodal=True)
+
+    for assignment in tqdm(bins, desc="Building final dataset"):
         packed_items = collections.defaultdict(list)
         packed_items["seq_indices"] = [0]
         for seq_len in assignment:
             doc_index = doc_pop_order[seq_len].pop()
             doc_start = indexed_datasets[seq_len].document_indices[doc_index]
             doc_end = indexed_datasets[seq_len].document_indices[doc_index + 1]
-            item_dict = {"tokens": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[0]),
-                         "labels": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[1]),
-                         "image": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[2]),
-                         }
+            item_dict = {
+                "tokens": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[0]),
+                "labels": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[1]),
+                "image": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[2]),
+            }
             for key in ["tokens", "labels", "image"]:
                 packed_items[key].append(item_dict[key])
             packed_items["seq_indices"].append(packed_items["seq_indices"][-1] + seq_len)
@@ -275,9 +311,12 @@ def main():
                 1 if key == "image" else 0,
             )
         final_builder.end_document()
-    final_builder.finalize(get_idx_path(f"{prefix_path}"))
 
-if __name__ == '__main__':
+    idx_path = get_idx_path(f"{prefix_path}")
+    logging.info(f"Finalizing final builder at {idx_path}")
+    final_builder.finalize(idx_path)
+    logging.info(f"Number of bins: {num_bins}, Average bin length: {avg_bins_len}, Average bin sum: {avg_bins_sum}")
+
+
+if __name__ == "__main__":
     main()
-
-# python /opt/NeMo/examples/multimodal/multimodal_llm/neva/sequence_packing/preprocess_dataset.py  --data_path=/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Pretrain-LCS-558K/test.json --image_folder=/lustre/fsw/coreai_dlalgo_genai/datasets/LLaVA-Pretrain-LCS-558K/images  --tokenizer_path=/lustre/fsw/coreai_dlalgo_genai/datasets/checkpoints/tokenizer_add_special.model

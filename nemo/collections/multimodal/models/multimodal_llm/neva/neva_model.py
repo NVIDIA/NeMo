@@ -890,8 +890,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
         if self.cfg.data.get("packed_sequence", False):
-            self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix)
-            self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix)
+            self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
+            self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
         else:
             ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
             self._train_ds = ds_dict["train_dataset"]
