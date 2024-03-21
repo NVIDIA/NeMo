@@ -424,35 +424,32 @@ pipeline {
       parallel {
         stage('Llama') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python scripts/nlp_language_modeling/convert_hf_llama_to_nemo.py \
-            --in-file=/home/TestData/nlp/megatron_llama/llama-ci-hf \
-            --out-file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
-            --precision=16'
+            sh 'CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
+            --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
+            --output_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo'
           }
         }
         stage('StarCoder') {
           steps {
-            sh 'python scripts/nlp_language_modeling/convert_starcoder_hf_to_nemo.py \
-            --config examples/nlp/language_modeling/conf/megatron_gpt_config.yaml \
-            --input /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
-            --output /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
+            sh 'python scripts/checkpoint_converters/convert_starcoder_hf_to_nemo.py \
+            --input_name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
+            --output_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/starcoder-ci-hf/megatron_starcoder_tp1_pp1.nemo'
           }
         }
         stage('Falcon') {
           steps {
-            sh 'python scripts/nlp_language_modeling/convert_hf_falcon_to_nemo.py \
-            --config examples/nlp/language_modeling/conf/megatron_falcon_config.yaml \
-            --input /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
-            --output /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
+            sh 'python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
+            --input_name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
+            --output_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
           }
         }
         stage('Baichuan2') {
           steps {
-            sh 'python scripts/nlp_language_modeling/convert_hf_baichuan2_to_nemo.py \
-            --in-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
-            --out-file=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
+            sh 'python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
+            --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
+            --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
             sh 'rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo'
           }
         }
@@ -471,7 +468,7 @@ pipeline {
         stage('Llama2 - Export Only') {
           steps {
             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+            model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
             quantization.algorithm=null \
             model_save=/home/TestData/nlp/megatron_llama/ci_baseline'
             sh 'rm -rf /home/TestData/nlp/megatron_llama/ci_baseline'
@@ -480,7 +477,7 @@ pipeline {
         stage('Llama2 - INT8 SQ') {
           steps {
             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+            model_file=/home/TestData/nlp/megatron_llama/llama_ci_megatron_amp_O2_hf_tokenizer.nemo \
             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
             quantization.algorithm=int8_sq \
             quantization.num_calib_size=8 \
@@ -492,7 +489,7 @@ pipeline {
         stage('Llama2 - FP8') {
           steps {
             sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+            model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
             tensor_model_parallel_size=2 \
             trainer.devices=2 \
             quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
@@ -3699,6 +3696,89 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_granularity='full' \
         model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+        sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
+      }
+    }
+
+    stage('L2: Megatron GPT Pretraining and Resume Training TP=2 with Torch Distributed Checkpoint') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=3 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        model.mcore_gpt=True \
+        model.torch_distributed_checkpoint=True \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=distributed_fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=1 \
+        model.optim.sched.constant_steps=1 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.normalization=rmsnorm \
+        model.bias=False \
+        model.bias_activation_fusion=False \
+        model.bias_dropout_add_fusion=False \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=6 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.mcore_gpt=True \
+        model.torch_distributed_checkpoint=True \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=distributed_fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.normalization=rmsnorm \
+        model.bias=False \
+        model.bias_activation_fusion=False \
+        model.bias_dropout_add_fusion=False \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.cpu_offloading_num_layers=7 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
