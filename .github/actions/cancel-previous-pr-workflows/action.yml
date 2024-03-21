@@ -23,6 +23,7 @@ runs:
         # strip the wrapping quote marks before passing to next step
         echo 'WORKFLOW_IDS='$(echo $workflow_ids | tr -d '"') >> $GITHUB_ENV
     - name: Cancel active workflows
+      shell: bash
       run: |
         for i in ${WORKFLOW_IDS//,/ }
         do

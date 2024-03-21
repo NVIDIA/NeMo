@@ -30,7 +30,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: Cancel previous prs from same branch
+    - name: Cancel previous PRs from same branch
       uses: "./.github/actions/cancel-previous-pr-workflows"
 
   gpu-test:
