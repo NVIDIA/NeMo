@@ -8,8 +8,8 @@ runs:
       with:
         route: GET /repos/{repository}/actions/runs?status=in_progress&event=pull_request
         repository: ${{ github.repository }}
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
     - name: Extract workflow ids
       id: extract_workflow_ids
       shell: bash
