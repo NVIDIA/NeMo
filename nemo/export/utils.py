@@ -35,8 +35,7 @@ np_bfloat16 = np.dtype('V2', metadata={"dtype": "bfloat16"})
 
 
 def unpack_nemo_ckpt(
-    nemo_archive_path: typing.Union[str, pathlib.Path],
-    out_dir_path: typing.Union[str, pathlib.Path],
+    nemo_archive_path: typing.Union[str, pathlib.Path], out_dir_path: typing.Union[str, pathlib.Path],
 ):
     nemo_archive_path = pathlib.Path(nemo_archive_path)
     if not nemo_archive_path.exists():
@@ -145,10 +144,7 @@ def get_prompt_embedding_table(prompt_checkpoint_path):
         if not weight_path.exists():
             weight_path = prompt_out_dir / "mp_rank_00" / model_weights_ckpt
 
-        prompt_weights = torch.load(
-            weight_path,
-            map_location=cpu_map_location,
-        )
+        prompt_weights = torch.load(weight_path, map_location=cpu_map_location,)
 
     return prompt_convert(prompt_config, prompt_weights)
 

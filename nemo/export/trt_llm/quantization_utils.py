@@ -12,20 +12,9 @@
 
 import numpy as np
 from tensorrt_llm.layers import Linear, RowLinear
-from tensorrt_llm.quantization.layers import (
-    FP8Linear,
-    FP8RowLinear,
-    Int8SmoothQuantLinear,
-    Int8SmoothQuantRowLinear,
-)
+from tensorrt_llm.quantization.layers import FP8Linear, FP8RowLinear, Int8SmoothQuantLinear, Int8SmoothQuantRowLinear
 
-from .model_config import (
-    QUANTIZATION_FP8,
-    QUANTIZATION_INT8_SQ,
-    QUANTIZATION_NONE,
-    LinearConfig,
-    ModelConfig,
-)
+from .model_config import QUANTIZATION_FP8, QUANTIZATION_INT8_SQ, QUANTIZATION_NONE, LinearConfig, ModelConfig
 
 
 def quantize_linear(tensorrt_llm_layer, quantization: str, layer_config: LinearConfig):
@@ -41,14 +30,8 @@ def quantize_linear(tensorrt_llm_layer, quantization: str, layer_config: LinearC
         if layer_config.weights_scaling_factor is None:
             layer_config.weights_scaling_factor = default_scaling_factor
 
-    if (
-        layer_config.activation_scaling_factor is None
-        or layer_config.weights_scaling_factor is None
-    ):
-        print(
-            f"No valid scaling factors in {tensorrt_llm_layer._get_name()}, skipping quantization"
-            " on this layer"
-        )
+    if layer_config.activation_scaling_factor is None or layer_config.weights_scaling_factor is None:
+        print(f"No valid scaling factors in {tensorrt_llm_layer._get_name()}, skipping quantization" " on this layer")
         return tensorrt_llm_layer
     else:
         assert np.all(layer_config.activation_scaling_factor > 0)

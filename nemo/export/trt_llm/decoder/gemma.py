@@ -1,34 +1,25 @@
 from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
-from tensorrt_llm.layers import (Attention, AttentionMaskType,
-                       GatedMLP, PositionEmbeddingType,
-                       RmsNorm)
+from tensorrt_llm.layers import Attention, AttentionMaskType, GatedMLP, PositionEmbeddingType, RmsNorm
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
-from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.module import Module
+from tensorrt_llm.quantization import QuantMode
 from typing_extensions import override
 
-from ..model_config import (
-    LINEAR_COLUMN,
-    LINEAR_ROW,
-    AttentionConfig,
-    LayernormConfig,
-    LinearConfig,
-    MLPConfig,
-)
+from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
-class GemmaDecoderLayer(Module):
 
+class GemmaDecoderLayer(Module):
     def __init__(self, config, layer_idx):
         super().__init__()
         self.layer_idx = layer_idx
         self.config = config
 
-        self.input_layernorm = RmsNorm(normalized_shape=config.hidden_size,
-                                       eps=config.norm_epsilon,
-                                       dtype=config.dtype)
+        self.input_layernorm = RmsNorm(
+            normalized_shape=config.hidden_size, eps=config.norm_epsilon, dtype=config.dtype
+        )
 
         layers_range = config.mapping.pp_layers(config.num_hidden_layers)
         self.attention = Attention(
@@ -50,28 +41,29 @@ class GemmaDecoderLayer(Module):
 
         mlp_hidden_size = config.hidden_size * 4 if config.intermediate_size is None else config.intermediate_size
 
-        self.mlp = GatedMLP(hidden_size=config.hidden_size,
-                            ffn_hidden_size=mlp_hidden_size,
-                            hidden_act=config.hidden_act,
-                            dtype=config.dtype,
-                            bias=config.mlp_bias,
-                            tp_group=config.mapping.tp_group,
-                            tp_size=config.mapping.tp_size,
-                            quant_mode=config.quant_mode)
-        self.post_layernorm = RmsNorm(normalized_shape=config.hidden_size,
-                                      eps=config.norm_epsilon,
-                                      dtype=config.dtype)
+        self.mlp = GatedMLP(
+            hidden_size=config.hidden_size,
+            ffn_hidden_size=mlp_hidden_size,
+            hidden_act=config.hidden_act,
+            dtype=config.dtype,
+            bias=config.mlp_bias,
+            tp_group=config.mapping.tp_group,
+            tp_size=config.mapping.tp_size,
+            quant_mode=config.quant_mode,
+        )
+        self.post_layernorm = RmsNorm(normalized_shape=config.hidden_size, eps=config.norm_epsilon, dtype=config.dtype)
 
     def forward(
-            self,
-            hidden_states,
-            attention_mask=None,
-            medusa_packed_mask=None,  # For Medusa support
-            medusa_position_offsets=None,
-            use_cache=False,
-            kv_cache_params=None,
-            attention_params=None,
-            lora_layer_params=None):
+        self,
+        hidden_states,
+        attention_mask=None,
+        medusa_packed_mask=None,  # For Medusa support
+        medusa_position_offsets=None,
+        use_cache=False,
+        kv_cache_params=None,
+        attention_params=None,
+        lora_layer_params=None,
+    ):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
 
@@ -83,7 +75,8 @@ class GemmaDecoderLayer(Module):
             use_cache=use_cache,
             kv_cache_params=kv_cache_params,
             attention_params=attention_params,
-            lora_layer_params=lora_layer_params)
+            lora_layer_params=lora_layer_params,
+        )
 
         if use_cache:
             attention_output, presents = attention_output
@@ -93,13 +86,13 @@ class GemmaDecoderLayer(Module):
         residual = hidden_states
         hidden_states = self.post_layernorm(hidden_states)
 
-        hidden_states = self.mlp(hidden_states,
-                                 lora_layer_params=lora_layer_params)
+        hidden_states = self.mlp(hidden_states, lora_layer_params=lora_layer_params)
 
         hidden_states = residual + hidden_states
         if use_cache:
             return (hidden_states, presents)
         return hidden_states
+
 
 class GemmaDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     """The LLAMA implementation of the DecoderLayerConfigBuilder."""
@@ -135,11 +128,7 @@ class GemmaDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
         )
 
         config.dense = LinearConfig.from_nn_module(
-            layer.self_attn.o_proj,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.self_attn.o_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         return config
@@ -148,25 +137,13 @@ class GemmaDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_mlp(self, layer) -> MLPConfig:
         config = MLPConfig()
         config.fc = LinearConfig.from_nn_module(
-            layer.mlp.gate_proj,
-            LINEAR_COLUMN,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.gate_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
         config.proj = LinearConfig.from_nn_module(
-            layer.mlp.down_proj,
-            LINEAR_ROW,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.down_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
         config.gate = LinearConfig.from_nn_module(
-            layer.mlp.up_proj,
-            LINEAR_COLUMN,
-            rank=self.rank,
-            tensor_parallel=self.tensor_parallel,
-            dtype=self.dtype,
+            layer.mlp.up_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
         )
 
         return config
@@ -175,6 +152,7 @@ class GemmaDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_post_layernorm(self, layer) -> Optional[LayernormConfig]:
         return LayernormConfig.from_nn_module(layer.post_attention_layernorm, dtype=self.dtype)
 
+
 class GemmaDecoderLayerBuilder(DecoderLayerBuilder):
     """The Gemma implementation of the DecoderLayer."""
 
@@ -182,10 +160,7 @@ class GemmaDecoderLayerBuilder(DecoderLayerBuilder):
     def build_decoder(self, layer):
         rotary_scaling = None
         if layer.rotary_scaling is not None:
-            rotary_scaling = {
-                "type": "linear",
-                "factor": float(layer.rotary_scaling)
-            }
+            rotary_scaling = {"type": "linear", "factor": float(layer.rotary_scaling)}
 
         config = PretrainedConfig(
             architecture=None,
@@ -207,12 +182,12 @@ class GemmaDecoderLayerBuilder(DecoderLayerBuilder):
             pp_size=1,
             quant_mode=QuantMode(0),
             quant_kwargs=None,
-            #use_prompt_tuning=layer.use_prompt_tuning,
+            # use_prompt_tuning=layer.use_prompt_tuning,
             max_lora_rank=layer.max_lora_rank,
-            #use_parallel_embedding: bool = False,
-            #embedding_sharding_dim: int = 0,
-            #share_embedding_table: bool = False,
-            #head_size: int = None,
+            # use_parallel_embedding: bool = False,
+            # embedding_sharding_dim: int = 0,
+            # share_embedding_table: bool = False,
+            # head_size: int = None,
         )
 
         config.set_if_not_exist('mlp_bias', False)
@@ -230,15 +205,15 @@ class GemmaDecoderLayerBuilder(DecoderLayerBuilder):
                     layer.moe_top_k = 1
 
                 layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
-                layer.moe_renorm_mode = MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
-                moe_config = MoeConfig(layer.moe_num_experts, layer.moe_top_k,
-                                    layer.moe_tp_mode, layer.moe_renorm_mode).validate()
+                layer.moe_renorm_mode = (
+                    MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
+                )
+                moe_config = MoeConfig(
+                    layer.moe_num_experts, layer.moe_top_k, layer.moe_tp_mode, layer.moe_renorm_mode
+                ).validate()
                 config.moe_num_experts = layer.moe_num_experts
                 config.moe_top_k = layer.moe_top_k
                 config.moe_tp_mode = layer.moe_tp_mode
                 config.moe_normalization_mode = layer.moe_renorm_mode
 
-        return GemmaDecoderLayer(
-            config=config,
-            layer_idx=self.layer_id,
-        )
+        return GemmaDecoderLayer(config=config, layer_idx=self.layer_id,)

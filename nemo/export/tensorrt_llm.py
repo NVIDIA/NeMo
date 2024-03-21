@@ -14,24 +14,24 @@
 
 import json
 import os
+import pickle
 import shutil
+import tempfile
 from pathlib import Path
 from typing import List
 
 import numpy as np
-import pickle
 import tensorrt_llm
 import torch
-import tempfile
 import wrapt
-from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
-from .trt_llm.nemo_utils import get_tokenzier, nemo_to_model_config, nemo_model_to_model_config
-from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
-from .utils import is_nemo_file, unpack_nemo_ckpt
-from .trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
-from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy
 
 from nemo.deploy import ITritonDeployable
+
+from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
+from .trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
+from .trt_llm.nemo_utils import get_tokenzier, nemo_model_to_model_config, nemo_to_model_config
+from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
+from .utils import get_prompt_embedding_table, is_nemo_file, torch_to_numpy, unpack_nemo_ckpt
 
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
@@ -44,6 +44,7 @@ import logging
 def noop_decorator(func):
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -144,8 +145,10 @@ class TensorRTLLM(ITritonDeployable):
         """
 
         if not model_type in self.get_supported_models_list:
-            raise Exception("Model {0} is not currently a supported model type. "
-                            "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type))
+            raise Exception(
+                "Model {0} is not currently a supported model type. "
+                "Supported model types are llama, gptnext, falcon, and starcoder".format(model_type)
+            )
 
         if model_type == "gpt" or model_type == "starcoder":
             model_type = "gptnext"
@@ -246,20 +249,15 @@ class TensorRTLLM(ITritonDeployable):
 
         # Each model shard has its own directory
         if parallel_state.get_data_parallel_world_size() > 1:
-            self.model_dir = os.path.join(
-                self.model_dir, f"dp{parallel_state.get_data_parallel_rank()}")
+            self.model_dir = os.path.join(self.model_dir, f"dp{parallel_state.get_data_parallel_rank()}")
         if parallel_state.get_tensor_model_parallel_world_size() > 1:
-            self.model_dir = os.path.join(
-                self.model_dir, f"tp{parallel_state.get_tensor_model_parallel_rank()}")
+            self.model_dir = os.path.join(self.model_dir, f"tp{parallel_state.get_tensor_model_parallel_rank()}")
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            self.model_dir = os.path.join(
-                self.model_dir, f"pp{parallel_state.get_pipeline_model_parallel_rank()}")
+            self.model_dir = os.path.join(self.model_dir, f"pp{parallel_state.get_pipeline_model_parallel_rank()}")
 
         # Build or refit TRT-LLM engine from a nemo model.
         model_configs = nemo_model_to_model_config(
-            nemo_model=nemo_model,
-            decoder_type=model_type,
-            nemo_model_config=nemo_model_config,
+            nemo_model=nemo_model, decoder_type=model_type, nemo_model_config=nemo_model_config,
         )
 
         model_config_to_tensorrt_llm(
@@ -274,30 +272,22 @@ class TensorRTLLM(ITritonDeployable):
         )
         # Use load_refit to handle multiprocessed environment
         self.model = load_refit(
-            tokenizer=self.tokenizer,
-            engine_dir=self.model_dir,
-            model_configs=model_configs,
-            stream=self.stream)
+            tokenizer=self.tokenizer, engine_dir=self.model_dir, model_configs=model_configs, stream=self.stream
+        )
 
     def refit(
-        self,
-        nemo_model,
-        nemo_model_config,
+        self, nemo_model, nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
 
         # Build or refit TRT-LLM engine from a nemo model.
         model_configs = nemo_model_to_model_config(
-            nemo_model=nemo_model,
-            decoder_type=self.model_type,
-            nemo_model_config=nemo_model_config
+            nemo_model=nemo_model, decoder_type=self.model_type, nemo_model_config=nemo_model_config
         )
 
         self.model = load_refit(
-            tokenizer=self.tokenizer,
-            engine_dir=self.model_dir,
-            model_configs=model_configs,
-            stream=self.stream)
+            tokenizer=self.tokenizer, engine_dir=self.model_dir, model_configs=model_configs, stream=self.stream
+        )
 
     def forward(
         self,
@@ -362,19 +352,21 @@ class TensorRTLLM(ITritonDeployable):
                     input_task_ids = None
                 else:
                     if len(task_ids) > 1:
-                        assert len(task_ids) == len(input_texts), ("Either len of the task_ids has to be 1 or"
-                                                                   "it needs to match with len of input_texts.")
+                        assert len(task_ids) == len(input_texts), (
+                            "Either len of the task_ids has to be 1 or" "it needs to match with len of input_texts."
+                        )
 
                     if len(task_ids) == 1:
                         assert task_ids[0] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(
-                            task_ids[0])
+                            task_ids[0]
+                        )
                         input_task_ids = [self.task_ids[task_ids[0]] for i in range(len(input_texts))]
                     else:
                         input_task_ids = []
                         for i in range(len(input_texts)):
-                            assert task_ids[
-                                       i] in self.task_ids.keys(), "Task: {0} doesn't exist in the task list.".format(
-                                task_ids[i])
+                            assert (
+                                task_ids[i] in self.task_ids.keys()
+                            ), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
             if not streaming:
                 if torch.distributed.is_initialized():
@@ -430,9 +422,7 @@ class TensorRTLLM(ITritonDeployable):
 
         for pt in self.ptuning_tables:
             if pt["task_name"] == task_name:
-                raise Exception(
-                    "Task name: {0} has already added. Please pass a unique task name.".format(task_name)
-                )
+                raise Exception("Task name: {0} has already added. Please pass a unique task name.".format(task_name))
 
         prompt_table = self._get_prompt_embedding_table(
             prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path
@@ -576,7 +566,7 @@ class TensorRTLLM(ITritonDeployable):
         tid = 0
         for i, ptuning_table in enumerate(self.ptuning_tables):
             padded_table = torch.zeros((self.task_vocab_size, self.get_hidden_size))
-            padded_table[:ptuning_table["table"].size(dim=0), :] = ptuning_table["table"]
+            padded_table[: ptuning_table["table"].size(dim=0), :] = ptuning_table["table"]
             vtokens_embeddings.append(padded_table)
             self.task_ids[ptuning_table["task_name"]] = tid
             tid = tid + 1
@@ -603,17 +593,23 @@ class TensorRTLLM(ITritonDeployable):
             if not Path(mw_path).exists():
                 mw_path = os.path.join(temp_dir, "mp_rank_00", "model_weights.ckpt")
                 if not Path(mw_path).exists():
-                    raise FileNotFoundError("File: {0} could not be found in the nemo checkpoint. "
-                                            "Please check the nemo checkpoint format for the prompt "
-                                            "embedding table.".format(mw_path))
+                    raise FileNotFoundError(
+                        "File: {0} could not be found in the nemo checkpoint. "
+                        "Please check the nemo checkpoint format for the prompt "
+                        "embedding table.".format(mw_path)
+                    )
             weights = torch.load(mw_path)
 
             weights_found = True
             if "model.embedding.adapter_layer.ptuning_adapter.inference_table" in weights:
                 weights = weights["model.embedding.adapter_layer.ptuning_adapter.inference_table"]
-            elif "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight" in weights:
+            elif (
+                "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"
+                in weights
+            ):
                 weights = weights[
-                    "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"]
+                    "model.language_model.adapter_layer.ptuning_adapter.inference_table.prompt_table.taskname.prompt_embeddings.weight"
+                ]
             elif 'prompt_table' in weights:
                 if "prompt_table.taskname.prompt_embeddings.weight" in weights['prompt_table']:
                     weights = weights['prompt_table']["prompt_table.taskname.prompt_embeddings.weight"]
@@ -625,19 +621,23 @@ class TensorRTLLM(ITritonDeployable):
             if not weights_found:
                 raise Exception(
                     "Could not find the embedding table in the {0}. Please check the nemo file format".format(
-                        prompt_embeddings_checkpoint_path))
+                        prompt_embeddings_checkpoint_path
+                    )
+                )
 
             return weights.cpu().detach()
         return None
 
-    def _get_prompt_embedding_table(self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None, ):
+    def _get_prompt_embedding_table(
+        self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,
+    ):
         p_tuning = "no_ptuning"
-        if (prompt_embeddings_table is not None and
-                prompt_embeddings_checkpoint_path is not None
-        ):
-            LOGGER.warning("prompt_embeddings_table will be used and "
-                           "prompt_embeddings_checkpoint_path will be "
-                           "ignored for ptuning.")
+        if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
+            LOGGER.warning(
+                "prompt_embeddings_table will be used and "
+                "prompt_embeddings_checkpoint_path will be "
+                "ignored for ptuning."
+            )
             p_tuning = "use_table"
         elif prompt_embeddings_table is not None:
             p_tuning = "use_table"
@@ -660,12 +660,15 @@ class TensorRTLLM(ITritonDeployable):
             prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
 
         dtype = self.config['builder_config']['precision']
-        prompt_embeddings_table = prompt_embeddings_table.to(dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)).cuda()
+        prompt_embeddings_table = prompt_embeddings_table.to(
+            dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)
+        ).cuda()
 
         if prompt_embeddings_table.size(dim=1) != self.config["builder_config"]["hidden_size"]:
             raise Exception(
                 "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(
-                    self.config["builder_config"]["hidden_size"])
+                    self.config["builder_config"]["hidden_size"]
+                )
             )
 
         return prompt_embeddings_table
@@ -692,7 +695,9 @@ class TensorRTLLM(ITritonDeployable):
                 try:
                     self._load_config_file()
                     self.tokenizer = get_tokenzier(Path(os.path.join(self.model_dir)))
-                    self.model = load(tokenizer=self.tokenizer, engine_dir=self.model_dir, lora_ckpt_list=self.lora_ckpt_list)
+                    self.model = load(
+                        tokenizer=self.tokenizer, engine_dir=self.model_dir, lora_ckpt_list=self.lora_ckpt_list
+                    )
                     self._load_prompt_tables()
                 except Exception as error:
                     raise Exception(
