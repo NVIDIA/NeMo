@@ -20,6 +20,7 @@ from typing import List, Optional, Tuple, Union
 import torch
 
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
@@ -233,7 +234,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
-                f"Please use one of : (beam, pyctcdecode, subword_pyctcdecode, flashlight, subword_flashlight)"
+                f"Please use one of : (beam, pyctcdecode, flashlight)"
             )
 
         # Log the beam search algorithm
@@ -407,9 +408,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 )
 
             # perform token offset for subword models
-            if self.decoding_type == 'subword' and self.search_type == 'flashlight':
+            if self.decoding_type == 'subword' and self.word_kenlm_path:
                 vocab = self.vocab
-            elif self.decoding_type == 'subword' and self.search_type == 'subword_flashlight':
+            elif self.decoding_type == 'subword' and self.subword_kenlm_path:
                 vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
             else:
                 # char models
@@ -475,6 +476,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         if self.decoding_type == 'subword':
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
+        if isinstance(self.tokenizer, AggregateTokenizer):
+            raise NotImplementedError("model with AggregateTokenizer is not supported")
+
         if self.decoding_type == 'subword':
             if self.search_type == "flashlight":
                 if not self.flashlight_cfg.lexicon_path:  # ether subword_kenlm or word_kenlm
@@ -504,26 +508,37 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                     return  # 13.05%/6.82%
 
         elif self.decoding_type == 'char':
-            if self.flashlight_cfg.lexicon_path:  # ether subword_kenlm or word_kenlm
-                raise NotImplementedError(
-                    self.decoding_type
-                    + " acoustic model is not implemented with lexicon_path "
-                    + self.flashlight_cfg.lexicon_path
-                )
             if self.search_type == "flashlight":
-                if self.subword_kenlm_path:
-                    self.kenlm_path = self.subword_kenlm_path
-                    # raise NotImplementedError(self.search_type + " decoding with " + self.decoding_type + " acoustic model is not implemented with subword_kenlm_path " + self.subword_kenlm_path)
-                    return  # 17.61%/6.37%
-                elif self.word_kenlm_path:
-                    self.kenlm_path = self.word_kenlm_path
-                    return  # WER/CER 18.93%/7.05%
+                if not self.flashlight_cfg.lexicon_path:  # ether subword_kenlm or word_kenlm
+                    raise NotImplementedError(
+                        self.search_type
+                        + " decoding with "
+                        + self.decoding_type
+                        + " acoustic model is not implemented without lexicon_path "
+                    )
+                else:
+                    if self.subword_kenlm_path:
+                        self.kenlm_path = self.subword_kenlm_path
+                        raise NotImplementedError(
+                            self.search_type
+                            + " decoding with "
+                            + self.decoding_type
+                            + " acoustic model is not implemented with subword_kenlm_path "
+                        )
+                    elif self.word_kenlm_path:
+                        self.kenlm_path = self.word_kenlm_path
+                        return  # 15.12%/7.59%
+                    else:
+                        raise ValueError("kenlm path is not provided")
             if self.search_type == "pyctcdecode":
                 if self.subword_kenlm_path:
                     self.kenlm_path = self.subword_kenlm_path
-                    return
+                    return  # 14.88%/6.30%
+                elif self.word_kenlm_path:
+                    self.kenlm_path = self.word_kenlm_path
+                    return  #  14.88%/6.30%
 
-        NotImplementedError("wrong parameters")
+        raise NotImplementedError("Wrong parameter combination")
 
 
 @dataclass
