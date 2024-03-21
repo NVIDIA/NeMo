@@ -164,9 +164,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
 
-    def configure_optimizers(self):
-        self.frozen_model.configure_optimizers()
-        super().configure_optimizers()
+    # def configure_optimizers(self):
+    #     self.frozen_model.configure_optimizers()
+    #     super().configure_optimizers()
 
     def parameters(self):
         # override the same method in MegatronGPT model to include parameters ouside of LM
