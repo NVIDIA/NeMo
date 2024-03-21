@@ -15,8 +15,7 @@
 from .deploy_base import DeployBase
 from .deploy_pytriton import DeployPyTriton
 try:
-    from .deploy_tensorrt_llm import DeployTensorRTLLM
-    from .query import NemoQuery, NemoQueryTensorRTLLM
+    from .query import NemoQuery
 except:
     pass
 from .triton_deployable import ITritonDeployable

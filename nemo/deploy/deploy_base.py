@@ -28,6 +28,7 @@ try:
 except:
     use_nemo = False
 
+
 class DeployBase(ABC):
     def __init__(
         self,
@@ -104,5 +105,5 @@ class DeployBase(ABC):
 
     @staticmethod
     def get_module_and_class(target: str):
-        l = target.rindex(".")
-        return target[0:l], target[l + 1 : len(target)]
+        ln = target.rindex(".")
+        return target[0:ln], target[ln + 1: len(target)]

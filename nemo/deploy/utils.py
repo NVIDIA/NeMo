@@ -34,7 +34,7 @@ def typedict2tensor(
         elif type_ is str:
             return bytes
         else:
-            raise PyTritonBadParameterError(f"Unknown type {type_}")
+            raise Exception(f"Unknown type {type_}")
 
     def _get_tensor_params(type_):
         count = 0

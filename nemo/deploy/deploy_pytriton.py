@@ -14,7 +14,7 @@
 
 
 try:
-    from pytriton.model_config import ModelConfig, Tensor
+    from pytriton.model_config import ModelConfig
     from pytriton.triton import Triton, TritonConfig
 except:
     pass
