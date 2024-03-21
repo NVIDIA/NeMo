@@ -137,7 +137,7 @@ pipeline {
             model.tensor_model_parallel_size=1 \
             model.pipeline_model_parallel_size=1 \
             model.optim.name=distributed_fused_adam \
-            model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
             model.data.num_workers=4 \
             model.micro_batch_size=4 \
             model.data.shuffle_documents=False \
@@ -158,7 +158,7 @@ pipeline {
             model.tensor_model_parallel_size=1 \
             model.pipeline_model_parallel_size=1 \
             model.optim.name=distributed_fused_adam \
-            model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
             model.data.num_workers=4 \
             model.micro_batch_size=4 \
             model.data.shuffle_documents=False \
