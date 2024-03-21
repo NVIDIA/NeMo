@@ -218,7 +218,6 @@ class MockModelIncorrectWithNemoArtifact(MockModel):
 
 
 class MockModelWithSharedTensors(MockModel):
-
     def __init__(self, cfg, trainer=None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.shared_tensor = self.w
@@ -278,6 +277,7 @@ def _mock_model_incorrect_with_nemo_artifact_config(child_model_path: str):
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
+
 
 def _mock_model_with_shared_tensors_config():
     conf = {'temp_file': None, 'target': classpath(MockModelWithSharedTensors), 'stub_number': 1}
