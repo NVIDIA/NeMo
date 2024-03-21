@@ -13,7 +13,7 @@ runs:
       id: extract_workflow_ids
       shell: bash
       run: |
-        current_branch=${GITHUB_REF##*/}
+        current_branch=${{ github.workflow_ref }}
 
         # loop thru the workflows found & filter out ones that are not on PRs pointing to this branch
         # or do not match "Automated tests"
