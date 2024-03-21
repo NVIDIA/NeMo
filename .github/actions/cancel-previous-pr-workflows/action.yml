@@ -9,6 +9,7 @@ runs:
         repository: ${{ github.repository }}
     - name: Extract workflow ids
       id: extract_workflow_ids
+      shell: bash
       run: |
         current_branch=${GITHUB_REF##*/}
 
