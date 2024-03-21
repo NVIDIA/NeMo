@@ -21,6 +21,7 @@ on:
 
 jobs:
   cancel-previous-prs-from-same-branch:
+    runs-on: self-hosted-azure
     steps:
       - uses: actions/checkout@v2
       - uses: "./.github/actions/cancel-previous-pr-workflows"
