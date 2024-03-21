@@ -20,20 +20,6 @@ on:
     branches: [ "pagaray/nemo_cicd_part4" ]
 
 jobs:
-  cancel-previous-prs-from-same-branch:
-    runs-on: self-hosted-azure
-    steps:
-      - uses: actions/checkout@v2
-      - uses: "./.github/actions/cancel-previous-pr-workflows"
-
-  gpu-test:
-    runs-on: self-hosted-azure
-    steps:
-    - name: Run nvidia-smi test
-      run: |
-        whoami
-        nvidia-smi
-
   checkout-repository:
     runs-on: self-hosted-azure
     container:
@@ -43,6 +29,17 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
+
+    - name: Cancel previous prs from same branch
+      uses: "./.github/actions/cancel-previous-pr-workflows"
+
+  gpu-test:
+    runs-on: self-hosted-azure
+    steps:
+    - name: Run nvidia-smi test
+      run: |
+        whoami
+        nvidia-smi
 
   cicd-test-container-setup:
     needs: [checkout-repository]
