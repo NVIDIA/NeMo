@@ -31,7 +31,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Cancel previous PRs from same branch
-      uses: "./.github/actions/cancel-previous-pr-workflows"
+      uses: "./.github/actions/cancel-previous-pr-workflows" 
 
   gpu-test:
     runs-on: self-hosted-azure
