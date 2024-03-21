@@ -593,7 +593,7 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _save_state_dict_to_disk(state_dict, filepath):
-        # NeMo 2.0+ only saves fils in safetensors format
+        # NeMo 2.0+ only saves files in safetensors format
         if filepath.endswith('.ckpt'):
             logging.warning(
                 f"NeMo 2.0+ only supports saving model weights in safetensors format. Renaming the file "
@@ -603,16 +603,6 @@ class SaveRestoreConnector:
             filepath = filepath.replace(".ckpt", ".safetensors")
 
         # Convert shared tensors to independent tensors to make checkpoint saving work with safetensors
-        # NOTE: This duplicates all shared tensor memory so it wastes disk space plus some ram on CPU during
-        # checkpoin loading, but is necessary for safetensors
-        new_state_dict = {}
-        keys = list(state_dict.keys())
-        for key in keys:
-            new_state_dict[key] = state_dict[key].clone()
-            del state_dict[key]
-        del state_dict
-        state_dict = new_state_dict
-
         SaveRestoreConnector._save_safetensor_file_with_shared_tensor_compat(state_dict, filepath)
 
     @staticmethod
@@ -738,10 +728,10 @@ class SaveRestoreConnector:
         There is no metadata as input because the metadata is used to allow the sharing issues to be resolved.
 
         Args:
-            filename:
+            filename: The filename location to load the file from
 
         Returns:
-
+            The state_dict loaded from the file, potentially ordered and with shared tensors resolved.
         """
         safetensor_device = _get_safetensor_device(device)
         state_dict = {}
