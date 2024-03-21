@@ -116,6 +116,64 @@ pipeline {
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
       }
     }
+
+    stage('L2: Megatron RETRO Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'r1.23.0'
+          changeRequest target: 'r1.23.0'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
+            model.data.num_workers=4 \
+            ++cluster_type=BCP \
+            model.micro_batch_size=4 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=20 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            trainer.max_steps=30"
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_mcore_retro/pretrain_data/wiki-core \
+            model.data.num_workers=4 \
+            ++cluster_type=BCP \
+            model.micro_batch_size=4 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=20 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            trainer.max_steps=50"
+        sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
+      }
+    }
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads'
@@ -3482,7 +3540,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.init_method_std=0.023 \
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
-            model.data.splits_string=\'98,2,0\' \
+            model.data.splits_string=\'\"98,2,0\"\' \
             trainer.max_steps=30"
         sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
@@ -3504,7 +3562,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.init_method_std=0.023 \
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
-            model.data.splits_string=\'98,2,0\' \
+            model.data.splits_string=\'\"98,2,0\"\' \
             trainer.max_steps=50"
         sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
       }
