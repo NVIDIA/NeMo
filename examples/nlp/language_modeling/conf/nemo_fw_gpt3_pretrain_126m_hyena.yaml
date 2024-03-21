@@ -5,8 +5,8 @@ defaults:
 model:
   spec_overrides:
     # Uncomment layer norm override if not using TE classes in HyenaOperator
-    # - submodule: 'submodules.input_layernorm'
-    #   class: 'megatron.core.transformer.custom_layers.transformer_engine.TENorm'
+    - submodule: 'submodules.input_layernorm'
+      class: 'megatron.core.transformer.custom_layers.transformer_engine.TENorm'
     - submodule: 'submodules.self_attention'
       class: 'nemo.collections.nlp.modules.common.hyena.HyenaOperator'
       config_key: 'hyena'
