@@ -6,7 +6,7 @@ runs:
     - uses: octokit/request-action@v2.x
       id: get_active_workflows
       with:
-        route: GET /repos/{repository}/actions/runs?status=in_progress&event=pull_request
+        route: GET /repos/${{ github.repository }}/actions/runs?status=in_progress&event=pull_request
         repository: ${{ github.repository }}
       env:
         GITHUB_TOKEN: ${{ github.token }}
