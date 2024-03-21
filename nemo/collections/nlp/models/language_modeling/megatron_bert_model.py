@@ -203,7 +203,7 @@ class MegatronBertModel(MegatronBaseModel):
                 add_binary_head=cfg.bert_binary_head,
                 megatron_legacy=cfg.get('megatron_legacy', False),
                 position_embedding_type=self.cfg.get("position_embedding_type", "learned_absolute"),
-                add_pooler=cfg.get('add_pooler', False),
+                add_pooler=cfg.get('add_pooler', True),
                 add_lm_head=cfg.get('add_lm_head', True),
             )
 

@@ -327,7 +327,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
 # This class is used for working with HF Bert Checkpoints. These checkpoints
 # by default have post layer norm, while the vanilla mcore bert model does not support it.
 class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
-    def __init__(self, transformer_block_type='pre-ln', add_pooler=False, *args, **kwargs):
+    def __init__(self, transformer_block_type='pre-ln', add_pooler=True, *args, **kwargs):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
@@ -465,7 +465,7 @@ class NeMoBertModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         add_binary_head=True,
-        add_pooler=False,
+        add_pooler=True,
         add_lm_head=True,
         megatron_legacy=False,
         sequence_parallel=False,
@@ -487,7 +487,8 @@ class NeMoBertModel(MegatronModule):
 
         init_method = init_method_normal(init_method_std)
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
-
+        if self.add_binary_head:
+            assert self.add_pooler, "Binary head requires pooler."
         self.language_model, self._language_model_key = get_language_model(
             config=config,
             vocab_size=vocab_size,
