@@ -1,0 +1,37 @@
+name: Cancel out of date workflow runs
+
+runs:
+  using: "composite"
+  steps:
+    - uses: octokit/request-action@v2.x
+      id: get_active_workflows
+      with:
+        route: GET /repos/{repository}/actions/runs?status=in_progress&event=pull_request
+        repository: ${{ github.repository }}
+    - name: Extract workflow ids
+      id: extract_workflow_ids
+      run: |
+        current_branch=${GITHUB_REF##*/}
+
+        # loop thru the workflows found & filter out ones that are not on PRs pointing to this branch
+        # or do not match "Automated tests"
+        workflow_ids=$(echo '${{ steps.get_active_workflows.outputs.data }}' | \
+          jq '.workflow_runs | map({id, name, baseBranch: .pull_requests[0].base.ref})' | \
+          jq 'map(select(.name == "Automated tests" and .baseBranch == "'$current_branch'")) | map(.id)' | \
+          jq 'join(",")')
+
+        # strip the wrapping quote marks before passing to next step
+        echo 'WORKFLOW_IDS='$(echo $workflow_ids | tr -d '"') >> $GITHUB_ENV
+    - name: Cancel active workflows
+      run: |
+        for i in ${WORKFLOW_IDS//,/ }
+        do
+          echo "Cancelling workflow with id: $i"
+
+          # use curl here as I have no idea how to use a github action in a loop
+          curl \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            https://api.github.com/repos/${{ github.repository }}/actions/runs/$i/cancel
+        done
