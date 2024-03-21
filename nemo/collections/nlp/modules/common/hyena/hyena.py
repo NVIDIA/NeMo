@@ -29,7 +29,9 @@ try:
 except ImportError:
     FusedDense = None
 
-from megatron.core.transformer.custom_layers.transformer_engine import TEColumnParallelLinear, TERowParallelLinear
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TELayerNormColumnParallelLinear, TERowParallelLinear
+)
 
 from nemo.collections.common.parts.utils import activation_registry
 from megatron.core.transformer import MegatronModule
@@ -305,32 +307,32 @@ class HyenaOperator(nn.Module):
         "Initializes input and output projections (over the width dimension)"
         if fused_bias_fc and FusedDense is None:
             raise ImportError('fused_dense is not installed')
-        linear_cls = nn.Linear if not fused_bias_fc else FusedDense
-        self.out_proj = linear_cls(self.d_model * inner_factor, self.d_model)
-        # self.out_proj = TERowParallelLinear(
-        #     self.d_model * inner_factor,
-        #     self.d_model,
-        #     config=self.mcore_config,
-        #     init_method=self.mcore_config.output_layer_init_method,
-        #     bias=True,
-        #     input_is_parallel=True,
-        #     skip_bias_add=True,
-        #     is_expert=False,
-        #     tp_comm_buffer_name='out_proj',
-        # )
+        # linear_cls = nn.Linear if not fused_bias_fc else FusedDense
+        # self.out_proj = linear_cls(self.d_model * inner_factor, self.d_model)
+        self.out_proj = TERowParallelLinear(
+            self.d_model * inner_factor,
+            self.d_model,
+            config=self.mcore_config,
+            init_method=self.mcore_config.output_layer_init_method,
+            bias=True,
+            input_is_parallel=True,
+            skip_bias_add=True,
+            is_expert=False,
+            tp_comm_buffer_name='out_proj',
+        )
 
-        self.in_proj = linear_cls(self.d_model, (self.order + 1) * self.d_model)
-        # self.in_proj = TEColumnParallelLinear(
-        #     self.d_model,
-        #     (self.order + 1) * self.d_model,
-        #     config=self.mcore_config,
-        #     init_method=self.mcore_config.init_method,
-        #     gather_output=False,
-        #     bias=True,
-        #     skip_bias_add=False,
-        #     is_expert=False,
-        #     tp_comm_buffer_name='in_proj',
-        # )
+        # self.in_proj = linear_cls(self.d_model, (self.order + 1) * self.d_model)
+        self.in_proj = TELayerNormColumnParallelLinear(
+            self.d_model,
+            (self.order + 1) * self.d_model,
+            config=self.mcore_config,
+            init_method=self.mcore_config.init_method,
+            gather_output=False,
+            bias=True,
+            skip_bias_add=False,
+            is_expert=False,
+            tp_comm_buffer_name='in_proj',
+        )
 
         if self.post_order_ffn:
             self.ord_proj_w = nn.Parameter(
