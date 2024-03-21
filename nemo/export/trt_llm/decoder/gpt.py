@@ -16,7 +16,14 @@ from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType
 from tensorrt_llm.models.gpt.model import GPTDecoderLayer
 from typing_extensions import override
 
-from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
+from ..model_config import (
+    LINEAR_COLUMN,
+    LINEAR_ROW,
+    AttentionConfig,
+    LayernormConfig,
+    LinearConfig,
+    MLPConfig,
+)
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
 
@@ -43,11 +50,18 @@ class GPTDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_attention(self, layer) -> AttentionConfig:
         config = AttentionConfig()
         config.qkv = LinearConfig.from_qkv_nn_modules(
-            [layer.attn.c_attn], rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            [layer.attn.c_attn],
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
 
         config.dense = LinearConfig.from_nn_module(
-            layer.attn.c_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            layer.attn.c_proj,
+            LINEAR_ROW,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
 
         return config
@@ -56,10 +70,18 @@ class GPTDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_mlp(self, layer) -> MLPConfig:
         config = MLPConfig()
         config.fc = LinearConfig.from_nn_module(
-            layer.mlp.c_fc, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            layer.mlp.c_fc,
+            LINEAR_COLUMN,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
         config.proj = LinearConfig.from_nn_module(
-            layer.mlp.c_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            layer.mlp.c_proj,
+            LINEAR_ROW,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
 
         return config
@@ -87,7 +109,10 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
 
         rotary_scaling = None
         if layer.rotary_scaling is not None:
-            rotary_scaling = {"type": "linear", "factor": float(layer.rotary_scaling)}
+            rotary_scaling = {
+                "type": "linear",
+                "factor": float(layer.rotary_scaling)
+            }
 
         return GPTDecoderLayer(
             hidden_size=self.hidden_size,
@@ -109,3 +134,4 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
             tp_size=self.tensor_parallel,
             max_lora_rank=layer.max_lora_rank,
         )
+

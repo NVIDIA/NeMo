@@ -19,7 +19,14 @@ from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from tensorrt_llm.quantization import QuantMode
 from typing_extensions import override
 
-from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
+from ..model_config import (
+    LINEAR_COLUMN,
+    LINEAR_ROW,
+    AttentionConfig,
+    LayernormConfig,
+    LinearConfig,
+    MLPConfig,
+)
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
 
@@ -45,7 +52,7 @@ class FALCONDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     @override
     def build_input_layernorm(self, layer) -> LayernormConfig:
         return LayernormConfig.from_nn_module(layer.input_layernorm, dtype=self.dtype)
-
+    
     @override
     def build_mlp_layernorm(self, layer) -> LayernormConfig:
         return LayernormConfig.from_nn_module(layer.mlp_layernorm, dtype=self.dtype)
@@ -61,7 +68,11 @@ class FALCONDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
         )
 
         config.dense = LinearConfig.from_nn_module(
-            layer.self_attn.o_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            layer.self_attn.o_proj,
+            LINEAR_ROW,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
 
         return config
@@ -70,13 +81,25 @@ class FALCONDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_mlp(self, layer) -> MLPConfig:
         config = MLPConfig()
         config.fc = LinearConfig.from_nn_module(
-            layer.mlp.gate_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            layer.mlp.gate_proj,
+            LINEAR_COLUMN,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
         config.proj = LinearConfig.from_nn_module(
-            layer.mlp.down_proj, LINEAR_ROW, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            layer.mlp.down_proj,
+            LINEAR_ROW,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
         config.gate = LinearConfig.from_nn_module(
-            layer.mlp.up_proj, LINEAR_COLUMN, rank=self.rank, tensor_parallel=self.tensor_parallel, dtype=self.dtype,
+            layer.mlp.up_proj,
+            LINEAR_COLUMN,
+            rank=self.rank,
+            tensor_parallel=self.tensor_parallel,
+            dtype=self.dtype,
         )
 
         return config
@@ -91,8 +114,8 @@ class FALCONDecoderLayerBuilder(DecoderLayerBuilder):
 
     @override
     def build_decoder(self, layer):
-        # Falcon 7B: parallel_attention=True, new_decoder_architecture=False
-        # Falcon 40B/180B: parallel_attention=True, new_decoder_architecture=True
+        #Falcon 7B: parallel_attention=True, new_decoder_architecture=False
+        #Falcon 40B/180B: parallel_attention=True, new_decoder_architecture=True
         config = PretrainedConfig(
             architecture=None,
             dtype=self.dtype,
@@ -123,4 +146,8 @@ class FALCONDecoderLayerBuilder(DecoderLayerBuilder):
         config.set_if_not_exist('bias', False)
         config.set_if_not_exist('moe_num_experts', 0)
 
-        return FalconDecoderLayer(config=config, layer_idx=self.layer_id,)
+        return FalconDecoderLayer(
+            config=config,
+            layer_idx=self.layer_id,
+        )
+

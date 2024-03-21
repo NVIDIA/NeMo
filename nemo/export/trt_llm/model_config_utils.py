@@ -37,7 +37,9 @@ def _restore_model_config(model_config, weights):
                 _restore_model_config(v, weights)
 
 
-def load_model_configs(model_config_json: Union[str, Path], inference_tensor_parallel: int = 1) -> List[ModelConfig]:
+def load_model_configs(
+    model_config_json: Union[str, Path], inference_tensor_parallel: int = 1
+) -> List[ModelConfig]:
     """Loads the model_config saved from ammo export.
 
     Args:
@@ -70,7 +72,9 @@ def load_model_configs(model_config_json: Union[str, Path], inference_tensor_par
         _restore_model_config(model_config, weights)
         model_configs.append(ModelConfig.from_dict(model_config))
 
-    model_configs = _postprocess_model_configs(model_configs, inference_tensor_parallel=inference_tensor_parallel)
+    model_configs = _postprocess_model_configs(
+        model_configs, inference_tensor_parallel=inference_tensor_parallel
+    )
 
     return model_configs
 
@@ -88,7 +92,9 @@ def _merge_model_configs_to_first(configs):
 
     if isinstance(merged_config, EmbeddingConfig):
         if merged_config.is_local:
-            merged_config.weight = np.ascontiguousarray(np.concatenate([config.weight for config in configs], axis=0))
+            merged_config.weight = np.ascontiguousarray(
+                np.concatenate([config.weight for config in configs], axis=0)
+            )
 
     elif isinstance(merged_config, LinearConfig):
         # The scaling factors merge rule is summarized as below:
@@ -125,7 +131,9 @@ def _merge_model_configs_to_first(configs):
             if merged_field_value is not None and merged_field_value.size == 1:
                 # Scaling factor is a scalar.
                 setattr(
-                    merged_config, field_name, np.maximum.reduce([getattr(config, field_name) for config in configs]),
+                    merged_config,
+                    field_name,
+                    np.maximum.reduce([getattr(config, field_name) for config in configs]),
                 )
 
         if merged_config.layer_type == LAYER_QKV:
@@ -149,7 +157,11 @@ def _merge_model_configs_to_first(configs):
                             field_name,
                             np.ascontiguousarray(
                                 np.concatenate(
-                                    [field_value.reshape(3, out_dim // 3) for field_value in field_values], axis=1,
+                                    [
+                                        field_value.reshape(3, out_dim // 3)
+                                        for field_value in field_values
+                                    ],
+                                    axis=1,
                                 ).reshape(new_out_dim)
                             ),
                         )
@@ -168,13 +180,20 @@ def _merge_model_configs_to_first(configs):
 
             # Only cat the bias for column linear.
             if merged_config.linear_type == LINEAR_COLUMN and merged_config.bias is not None:
-                merged_config.bias = np.ascontiguousarray(np.concatenate([config.bias for config in configs], axis=0))
+                merged_config.bias = np.ascontiguousarray(
+                    np.concatenate([config.bias for config in configs], axis=0)
+                )
 
             if merged_config.linear_type == LINEAR_COLUMN:
-                if merged_config.weights_scaling_factor is not None and merged_config.weights_scaling_factor.size != 1:
+                if (
+                    merged_config.weights_scaling_factor is not None
+                    and merged_config.weights_scaling_factor.size != 1
+                ):
                     # INT8 sq case
                     merged_config.weights_scaling_factor = np.ascontiguousarray(
-                        np.concatenate([config.weights_scaling_factor for config in configs], axis=0)
+                        np.concatenate(
+                            [config.weights_scaling_factor for config in configs], axis=0
+                        )
                     )
                 if merged_config.prequant_scaling_factor is not None:
                     assert _same_array(
@@ -187,7 +206,9 @@ def _merge_model_configs_to_first(configs):
                     )
                 if merged_config.prequant_scaling_factor is not None:
                     merged_config.prequant_scaling_factor = np.ascontiguousarray(
-                        np.concatenate([config.prequant_scaling_factor for config in configs], axis=0)
+                        np.concatenate(
+                            [config.prequant_scaling_factor for config in configs], axis=0
+                        )
                     )
 
     elif is_dataclass(merged_config):
@@ -223,7 +244,9 @@ def _postprocess_model_configs(
         num_configs_per_group = len(model_configs) // inference_tensor_parallel
         merged_model_configs = []
         for i in range(inference_tensor_parallel):
-            model_config_slice = model_configs[i * num_configs_per_group : (i + 1) * num_configs_per_group]
+            model_config_slice = model_configs[
+                i * num_configs_per_group : (i + 1) * num_configs_per_group
+            ]
             _merge_model_configs_to_first(model_config_slice)
             model_config_slice[0].rank = i
             model_config_slice[0].tensor_parallel = inference_tensor_parallel

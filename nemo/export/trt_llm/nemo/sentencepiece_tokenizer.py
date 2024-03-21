@@ -249,3 +249,4 @@ class SentencePieceTokenizer:
             for i in range(self.vocab_size - self.original_vocab_size)
         ]
         return main_vocab + special_tokens
+

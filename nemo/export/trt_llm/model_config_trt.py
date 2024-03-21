@@ -59,7 +59,10 @@ def model_config_to_tensorrt_llm(
     if os.path.exists(engine_dir):
         shutil.rmtree(engine_dir)
 
-    print("Before engine building, CPU RAM Used (GB):" f" {psutil.Process().memory_info().rss / 1024 / 1024 / 1024}")
+    print(
+        "Before engine building, CPU RAM Used (GB):"
+        f" {psutil.Process().memory_info().rss / 1024 / 1024 / 1024}"
+    )
 
     for rank in range(world_size):
         model_configs[rank].use_prompt_tuning = max_prompt_embedding_table_size > 0

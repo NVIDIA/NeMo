@@ -1,24 +1,13 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
-#
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
-
-"""The LLAMA/LLAMA2 decoder implementation."""
-
 from typing import Optional
 
 from tensorrt_llm.functional import non_gated_version
-from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType, MoeConfig
-from tensorrt_llm.models.llama.model import LLaMADecoderLayer
+from tensorrt_llm.layers import (Attention, AttentionMaskType,
+                       GatedMLP, PositionEmbeddingType,
+                       RmsNorm)
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from tensorrt_llm.quantization import QuantMode
+from tensorrt_llm.module import Module
 from typing_extensions import override
-from tensorrt_llm.mapping import Mapping
 
 from ..model_config import (
     LINEAR_COLUMN,
@@ -30,8 +19,89 @@ from ..model_config import (
 )
 from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
 
+class GemmaDecoderLayer(Module):
 
-class LLAMADecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
+    def __init__(self, config, layer_idx):
+        super().__init__()
+        self.layer_idx = layer_idx
+        self.config = config
+
+        self.input_layernorm = RmsNorm(normalized_shape=config.hidden_size,
+                                       eps=config.norm_epsilon,
+                                       dtype=config.dtype)
+
+        layers_range = config.mapping.pp_layers(config.num_hidden_layers)
+        self.attention = Attention(
+            hidden_size=config.hidden_size,
+            num_attention_heads=config.num_attention_heads,
+            num_kv_heads=config.num_key_value_heads,
+            attention_head_size=config.head_size,
+            max_position_embeddings=config.max_position_embeddings,
+            dtype=config.dtype,
+            attention_mask_type=AttentionMaskType.causal,
+            bias=config.attn_bias,
+            position_embedding_type=PositionEmbeddingType.rope_gpt_neox,
+            rotary_embedding_base=config.rotary_base,
+            rotary_embedding_scaling=config.rotary_scaling,
+            tp_group=config.mapping.tp_group,
+            tp_size=config.mapping.tp_size,
+            quant_mode=config.quant_mode,
+        )
+
+        mlp_hidden_size = config.hidden_size * 4 if config.intermediate_size is None else config.intermediate_size
+
+        self.mlp = GatedMLP(hidden_size=config.hidden_size,
+                            ffn_hidden_size=mlp_hidden_size,
+                            hidden_act=config.hidden_act,
+                            dtype=config.dtype,
+                            bias=config.mlp_bias,
+                            tp_group=config.mapping.tp_group,
+                            tp_size=config.mapping.tp_size,
+                            quant_mode=config.quant_mode)
+        self.post_layernorm = RmsNorm(normalized_shape=config.hidden_size,
+                                      eps=config.norm_epsilon,
+                                      dtype=config.dtype)
+
+    def forward(
+            self,
+            hidden_states,
+            attention_mask=None,
+            medusa_packed_mask=None,  # For Medusa support
+            medusa_position_offsets=None,
+            use_cache=False,
+            kv_cache_params=None,
+            attention_params=None,
+            lora_layer_params=None):
+        residual = hidden_states
+        hidden_states = self.input_layernorm(hidden_states)
+
+        attention_output = self.attention(
+            hidden_states,
+            attention_mask=attention_mask,
+            medusa_packed_mask=medusa_packed_mask,  # For Medusa support
+            medusa_position_offsets=medusa_position_offsets,
+            use_cache=use_cache,
+            kv_cache_params=kv_cache_params,
+            attention_params=attention_params,
+            lora_layer_params=lora_layer_params)
+
+        if use_cache:
+            attention_output, presents = attention_output
+
+        hidden_states = residual + attention_output
+
+        residual = hidden_states
+        hidden_states = self.post_layernorm(hidden_states)
+
+        hidden_states = self.mlp(hidden_states,
+                                 lora_layer_params=lora_layer_params)
+
+        hidden_states = residual + hidden_states
+        if use_cache:
+            return (hidden_states, presents)
+        return hidden_states
+
+class GemmaDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     """The LLAMA implementation of the DecoderLayerConfigBuilder."""
 
     @override
@@ -105,9 +175,8 @@ class LLAMADecoderLayerConfigBuilder(DecoderLayerConfigBuilder):
     def build_post_layernorm(self, layer) -> Optional[LayernormConfig]:
         return LayernormConfig.from_nn_module(layer.post_attention_layernorm, dtype=self.dtype)
 
-
-class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
-    """The LLAMA implementation of the DecoderLayer."""
+class GemmaDecoderLayerBuilder(DecoderLayerBuilder):
+    """The Gemma implementation of the DecoderLayer."""
 
     @override
     def build_decoder(self, layer):
@@ -117,7 +186,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 "type": "linear",
                 "factor": float(layer.rotary_scaling)
             }
-        
+
         config = PretrainedConfig(
             architecture=None,
             dtype=self.dtype,
@@ -128,6 +197,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
             num_hidden_layers=self.num_layers,
             num_attention_heads=self.num_attention_heads,
             num_key_value_heads=self.num_kv_heads,
+            head_size=layer.kv_channels,
             hidden_act=self.hidden_act.split("-")[-1] if layer.moe_num_experts else non_gated_version(self.hidden_act),
             intermediate_size=layer.ffn_hidden_size_local * self.tensor_parallel,
             norm_epsilon=layer.norm_epsilon,
@@ -168,9 +238,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 config.moe_tp_mode = layer.moe_tp_mode
                 config.moe_normalization_mode = layer.moe_renorm_mode
 
-        return LLaMADecoderLayer(
+        return GemmaDecoderLayer(
             config=config,
             layer_idx=self.layer_id,
         )
-
-

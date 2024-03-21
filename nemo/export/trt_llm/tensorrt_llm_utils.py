@@ -10,12 +10,17 @@
 
 """Utils to convert model_config layers to tensorrt_llm modules."""
 
-import numpy as np
 import tensorrt as trt
 from tensorrt_llm.layers import Embedding, LayerNorm, PromptTuningEmbedding, RmsNorm
 from tensorrt_llm.module import Module
+import numpy as np
 
-from .model_config import LAYERNORM_DEFAULT, LAYERNORM_RMS, EmbeddingConfig, LayernormConfig
+from .model_config import (
+    LAYERNORM_DEFAULT,
+    LAYERNORM_RMS,
+    EmbeddingConfig,
+    LayernormConfig,
+)
 from .tensor_utils import get_tensor_parallel_group
 
 
@@ -74,7 +79,9 @@ def print_tensorrt_llm(name: str, tensorrt_llm_module: Module):
         if hasattr(tensorrt_llm_module, tensor_name):
             tensor = getattr(tensorrt_llm_module, tensor_name)
             if tensor is not None:
-                print(f"{name}.{tensor_name}:{tensor._value.dtype}:{tensor._value.shape}:\n{tensor._value}")
+                print(
+                    f"{name}.{tensor_name}:{tensor._value.dtype}:{tensor._value.shape}:\n{tensor._value}"
+                )
 
     for k, v in tensorrt_llm_module.named_children():
         print_tensorrt_llm(f"{name}.{k}({v._get_name()})", v)

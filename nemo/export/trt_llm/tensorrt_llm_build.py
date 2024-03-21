@@ -19,16 +19,16 @@ import time
 from pathlib import Path
 from typing import List
 
-import tensorrt as trt
 import tensorrt_llm
 import torch
+import tensorrt as trt
 from tensorrt_llm import str_dtype_to_trt
-from tensorrt_llm._utils import np_dtype_to_trt
 from tensorrt_llm.builder import Builder
 from tensorrt_llm.logger import logger
 from tensorrt_llm.network import net_guard
 from tensorrt_llm.plugin.plugin import ContextFMHAType
 from tensorrt_llm.quantization import QuantMode
+from tensorrt_llm._utils import np_dtype_to_trt
 
 MODEL_NAME = "NeMo"
 
@@ -37,14 +37,12 @@ def get_engine_name(model, dtype, tp_size, pp_size, rank):
     """Returns the engine file name based on the provided info."""
     if pp_size == 1:
         return '{}_{}_tp{}_rank{}.engine'.format(model, dtype, tp_size, rank)
-    return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size, pp_size, rank)
-
+    return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size,
+                                                  pp_size, rank)
 
 def is_engine_loaded():
     from .tensorrt_llm_run import tensorrt_llm_worker_context
-
     return tensorrt_llm_worker_context.sampling_config is not None
-
 
 def serialize_engine(engine, path):
     """Serializes the engine to path."""
@@ -55,8 +53,7 @@ def serialize_engine(engine, path):
     tok = time.time()
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
     logger.info(f"Engine serialized. Total time: {t}")
-
-
+    
 def refit_runtime_engine(params, cuda_engine):
     '''
         @brief: Inplace refit one TensorRT cuda engine using weights from the network,
@@ -72,7 +69,10 @@ def refit_runtime_engine(params, cuda_engine):
     assert params is not None
     refitter = trt.Refitter(cuda_engine, logger.trt_logger)
     for name, param in params:
-        trt_param = trt.Weights(np_dtype_to_trt(param._value.dtype), param._value.ctypes.data, param._value.size)
+        trt_param = trt.Weights(
+            np_dtype_to_trt(param._value.dtype), 
+            param._value.ctypes.data, 
+            param._value.size)
 
         if trt_param is None or not refitter.set_named_weights(name, trt_param):
             logger.error(f'Failed to refit weight: {name}')
@@ -85,12 +85,15 @@ def refit_runtime_engine(params, cuda_engine):
     tok = time.time()
     t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
     logger.info(f'Total time of refitting {cuda_engine.name}: {t}')
-
+    
     return cuda_engine
 
-
 def build_rank_engine(
-    tensorrt_llm_gpt, builder: Builder, builder_config: tensorrt_llm.builder.BuilderConfig, engine_name, args,
+    tensorrt_llm_gpt,
+    builder: Builder,
+    builder_config: tensorrt_llm.builder.BuilderConfig,
+    engine_name,
+    args,
 ):
     """@brief: Build the engine on the given rank.
 
@@ -152,7 +155,9 @@ def build_rank_engine(
         else:
             network.plugin_config.paged_kv_cache = False
         if args.use_ib_gpt_attention_plugin:
-            network.plugin_config.set_inflight_batching_gpt_attention_plugin(dtype=args.use_ib_gpt_attention_plugin)
+            network.plugin_config.set_inflight_batching_gpt_attention_plugin(
+                dtype=args.use_ib_gpt_attention_plugin
+            )
         if args.enable_multi_block_mode:
             network.plugin_config.enable_mmha_multi_block_mode()
 
@@ -215,10 +220,12 @@ def _build_impl(tensorrt_llm_model, args):
         num_layers=tensorrt_llm_model._num_layers,
         num_heads=tensorrt_llm_model._num_heads,
         num_kv_heads=tensorrt_llm_model._num_kv_heads,
+        head_size=tensorrt_llm_model._head_size,
         hidden_size=tensorrt_llm_model._hidden_size,
         vocab_size=tensorrt_llm_model._vocab_size,
         hidden_act=tensorrt_llm_model.hidden_act,
         max_position_embeddings=tensorrt_llm_model.max_position_embeddings,
+        add_bos=tensorrt_llm_model._add_bos,
         apply_query_key_layer_scaling=apply_query_key_layer_scaling,
         max_batch_size=args.max_batch_size,
         max_input_len=args.max_input_len,
@@ -246,7 +253,9 @@ def _build_impl(tensorrt_llm_model, args):
     pp_size = args.mapping.pp_size
     rank = args.mapping.rank
     engine_name = get_engine_name(MODEL_NAME, args.dtype, tp_size, pp_size, rank)
-    engine = build_rank_engine(tensorrt_llm_model, builder, builder_config, engine_name, args)
+    engine = build_rank_engine(
+        tensorrt_llm_model, builder, builder_config, engine_name, args
+    )
     assert engine is not None, f"Failed to build engine for rank {rank}"
 
     if args.mapping.rank == 0:
@@ -329,11 +338,11 @@ def build(
     logger.set_level(args.log_level)
 
     assert not (
-        args.use_smooth_quant and args.use_weight_only
+            args.use_smooth_quant and args.use_weight_only
     ), "You cannot enable both SmoothQuant and INT8 weight-only together."
 
     assert not (
-        args.use_smooth_quant and args.use_weight_only
+            args.use_smooth_quant and args.use_weight_only
     ), "You cannot enable both SmoothQuant and INT8 weight-only together."
 
     if args.use_ib_gpt_attention_plugin:
@@ -343,7 +352,9 @@ def build(
         )
 
     if args.use_inflight_batching:
-        assert args.use_gpt_attention_plugin, "You have to use GPT attention plugin for in-flight batching mode"
+        assert (
+            args.use_gpt_attention_plugin
+        ), "You have to use GPT attention plugin for in-flight batching mode"
 
         if not args.paged_kv_cache:
             logger.warning("Paged kv cache feature will enabled for in-flight batching mode.")
@@ -365,7 +376,7 @@ def build(
 
     if args.random_seed is not None:
         torch.manual_seed(args.random_seed)
-
+    
     if args.mapping.is_first_pp_rank():
         if tensorrt_llm_model._modules['vocab_embedding'].tp_size > 1:
             args.use_parallel_embedding = True

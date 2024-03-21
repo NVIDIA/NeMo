@@ -18,7 +18,7 @@ import typing
 
 import torch
 import yaml
-from transformers import FalconConfig, GPT2Config, LlamaConfig
+from transformers import GPT2Config, LlamaConfig, FalconConfig
 
 from .convert import cpu_map_location, gpu_map_location
 
@@ -43,16 +43,21 @@ def nemo_to_llm_config(nemo_model_config, vocab_size, eos_id, bos_id, decoder_ty
         "moe_num_experts": "num_moe_experts",
         "moe_top_k": "moe_router_topk",
         "moe_renorm_mode": "moe_renorm_mode",
+        "kv_channels": "kv_channels",
         "norm_epsilon": "layernorm_epsilon",
     }
 
-    kwargs = {key: nemo_model_config[value] for key, value in convertion_dict.items() if value in nemo_model_config}
+    kwargs = {
+        key: nemo_model_config[value]
+        for key, value in convertion_dict.items()
+        if value in nemo_model_config
+    }
     kwargs["vocab_size"] = vocab_size
     kwargs["eos_token_id"] = eos_id
-    kwargs["bos_token_id"] = eos_id if decoder_type == 'falcon' else bos_id  # in HF falcon eos==bos
+    kwargs["bos_token_id"] = eos_id if decoder_type=='falcon' else bos_id #in HF falcon eos==bos
     if "moe_num_experts" not in kwargs:
         kwargs["moe_num_experts"] = 0
-    config_dict = {"llama": LlamaConfig, "falcon": FalconConfig}
+    config_dict = {"llama": LlamaConfig, "falcon": FalconConfig, "gemma": LlamaConfig}
     llm_config = config_dict[decoder_type] if decoder_type in config_dict else GPT2Config
 
     return llm_config(**kwargs)
@@ -96,7 +101,8 @@ def add_special_tokens_to_tokenizer(tokenizer):
 
 # TODO: remove tar.extractall usage before releasing with KitMaker
 def unpack_nemo_ckpt(
-    nemo_archive_path: typing.Union[str, pathlib.Path], out_dir_path: typing.Union[str, pathlib.Path],
+    nemo_archive_path: typing.Union[str, pathlib.Path],
+    out_dir_path: typing.Union[str, pathlib.Path],
 ):
     nemo_archive_path = pathlib.Path(nemo_archive_path)
     if not nemo_archive_path.exists():
@@ -142,7 +148,9 @@ def extract_layers_with_prefix(model_, prefix):
 
 class UnpackedNemoCheckpointDir:
     def __init__(
-        self, checkpoints_dir: typing.Union[str, pathlib.Path], load_checkpoints_to_cpu: bool = False,
+        self,
+        checkpoints_dir: typing.Union[str, pathlib.Path],
+        load_checkpoints_to_cpu: bool = False,
     ):
         self._checkpoints_dir = pathlib.Path(checkpoints_dir)
         self._load_checkpoints_to_cpu = load_checkpoints_to_cpu
@@ -174,7 +182,9 @@ class UnpackedNemoCheckpointDir:
                 # assume that parallel ranks 0 checkpoint should have model config embedded
                 checkpoint_path = checkpoints_paths[0]
 
-                map_location_fn = cpu_map_location if self._load_checkpoints_to_cpu else gpu_map_location
+                map_location_fn = (
+                    cpu_map_location if self._load_checkpoints_to_cpu else gpu_map_location
+                )
 
                 model_00 = torch.load(checkpoint_path, map_location=map_location_fn)
                 if "hyper_parameters" in model_00 and "cfg" in model_00["hyper_parameters"]:
@@ -186,7 +196,9 @@ class UnpackedNemoCheckpointDir:
                 del model_00
 
         if model_config is None:
-            LOGGER.warning("Could not find checkpoint with NeMo model config in %s", self._checkpoints_dir)
+            LOGGER.warning(
+                "Could not find checkpoint with NeMo model config in %s", self._checkpoints_dir
+            )
 
         LOGGER.debug("Loaded model config %s", model_config)
 
