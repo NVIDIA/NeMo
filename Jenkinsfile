@@ -260,7 +260,7 @@ pipeline {
             model.unet_config.attention_resolutions=[1] \
             model.unet_config.channel_mult=[1] \
             "
-        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train_with_cuda_graphs"
       }
     }
 //     stage('L2: Multimodal ControlNet Train') {
