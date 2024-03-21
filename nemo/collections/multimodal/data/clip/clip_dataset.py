@@ -76,7 +76,7 @@ def get_preprocess_fns(model_cfg, tokenizer=None, is_train=True):
     img_size = (model_cfg.vision.get("img_h"), model_cfg.vision.get("img_w"))
     img_mean = model_cfg.vision.get("img_mean")
     img_std = model_cfg.vision.get("img_std")
-    img_transform = image_transform(img_size, is_train=is_train, mean=img_mean, std=img_std, )
+    img_transform = image_transform(img_size, is_train=is_train, mean=img_mean, std=img_std,)
     text_transform = lambda x: x
     if tokenizer is not None:
         text_transform = partial(
@@ -100,7 +100,7 @@ def transform_fn(sample, img_transform, text_transform):
 
 
 def build_train_valid_datasets(
-        model_cfg, consumed_samples, tokenizer=None,
+    model_cfg, consumed_samples, tokenizer=None,
 ):
     data_cfg = model_cfg.data
 
@@ -138,7 +138,7 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
     if imagenet_path is None:
         return None
 
-    image_dataset = ImageFolder(root=imagenet_path, transform=val_image_transform, )
+    image_dataset = ImageFolder(root=imagenet_path, transform=val_image_transform,)
 
     image_batch_sampler = MegatronPretrainingSampler(
         total_samples=len(image_dataset),
