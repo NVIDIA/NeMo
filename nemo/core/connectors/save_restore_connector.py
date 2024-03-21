@@ -695,6 +695,7 @@ class SaveRestoreConnector:
                 The filename location to save the file
         """
         # TODO: Request Safetensors to make this a public, stable API.
+        original_keys = list(state_dict.keys())
         to_removes = safetensors_torch._remove_duplicate_names(state_dict)
         metadata = None
         for kept_name, to_remove_group in to_removes.items():
@@ -708,7 +709,25 @@ class SaveRestoreConnector:
                 metadata = {}
             metadata[kept_name] = ",".join(to_remove_group)
 
+        if metadata is None:
+            metadata = {}
+        metadata['state_dict_keys'] = ",".join(original_keys)
+
         safetensors_torch.save_file(state_dict, filename, metadata=metadata)
+
+        # Repopulate the state_dict with the original keys
+        # Note: reference swapping, should not cost tensor memory
+        for kept_name, to_remove_group in to_removes.items():
+            for to_remove in to_remove_group:
+                state_dict[to_remove] = state_dict[kept_name]
+
+        # Reorder the state_dict keys to original keys order (inplace)
+        # Note: reference swapping, should not cost tensor memory
+        ordered_state_dict = {}
+        for key in original_keys:
+            ordered_state_dict[key] = state_dict.pop(key)
+        for key, val in ordered_state_dict.items():
+            state_dict[key] = val
 
     @staticmethod
     def _load_safetensor_file_with_shared_tensor_compat(filename: str, device: Union[str, torch.device] = "cpu"):
@@ -742,6 +761,14 @@ class SaveRestoreConnector:
                     mapping[alias] = k
         for alias, k in mapping.items():
             state_dict[alias] = state_dict[k]
+
+        # Reorder state dict keys if the state dict key order is present in the metadata
+        if 'state_dict_keys' in metadata:
+            state_dict_keys = metadata['state_dict_keys']
+            if state_dict_keys is not None and state_dict_keys != "":
+                state_dict_keys = state_dict_keys.split(",")
+                state_dict = {k: state_dict[k] for k in state_dict_keys}
+
         return state_dict
 
     @property

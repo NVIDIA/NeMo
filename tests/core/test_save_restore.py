@@ -22,8 +22,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-
-# from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 from nemo.core.classes.mixins.hf_io_mixin import ModelFilter
 from nemo.core.connectors import save_restore_connector
@@ -1445,7 +1444,8 @@ class TestSaveRestore:
         assert len(new_model_infos) < len(model_infos)
 
     @pytest.mark.unit
-    def test_save_restore_connector_safe_tensor_save_restore(self):
+    @pytest.mark.parametrize("device", ["cpu", torch.device("cpu")])
+    def test_save_restore_connector_safe_tensor_save_restore(self, device):
         connector = save_restore_connector.SaveRestoreConnector()
 
         # Update config
@@ -1455,16 +1455,21 @@ class TestSaveRestore:
         model = MockModelWithSharedTensors(cfg=cfg.model, trainer=None)
 
         # Test CPU save
-        model = model.to('cpu')
+        model = model.to(device)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             original_state_dict = model.state_dict()
+            original_key_order = list(original_state_dict.keys())
+
             filename = os.path.join(tmpdir, connector.model_weights_ckpt)
             connector._save_safetensor_file_with_shared_tensor_compat(original_state_dict, filename)
             assert os.path.exists(filename)
 
+            after_save_key_order = list(original_state_dict.keys())
+            assert original_key_order == after_save_key_order
+
             # Restore state dict on cpu
-            restored_state_dict = connector._load_safetensor_file_with_shared_tensor_compat(filename, device='cpu')
+            restored_state_dict = connector._load_safetensor_file_with_shared_tensor_compat(filename, device=device)
 
             assert len(original_state_dict.keys()) == len(restored_state_dict.keys())
             for orig, restored in zip(original_state_dict.keys(), restored_state_dict.keys()):
