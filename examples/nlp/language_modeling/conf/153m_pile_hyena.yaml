@@ -1,0 +1,37 @@
+defaults:
+  - 126m_pile
+  - _self_
+
+run:
+  name: gpt3_153m_hyena
+
+model:
+  num_layers: 18
+  hidden_size: 864
+  ffn_hidden_size: ${multiply:2, ${.hidden_size}}
+
+  optim:
+    overlap_param_sync: false
+    # Uncomment sched settings below for scaling law experiments
+    sched:
+      warmup_steps: ${multiply:0.01, ${trainer.max_steps}}
+      constant_steps: 0
+      min_lr: ${multiply:0.1, ${model.optim.lr}}
+
+  spec_overrides:
+    # Uncomment layer norm override if not using fused TE classes in HyenaOperator
+    # - submodule: 'submodules.input_layernorm'
+    #   class: 'megatron.core.transformer.custom_layers.transformer_engine.TENorm'
+    - submodule: 'submodules.self_attention'
+      class: 'nemo.collections.nlp.modules.common.hyena.HyenaOperator'
+      config_key: 'hyena'
+
+  hyena:  # Full defaults are in the parent 126m_pile.yaml
+    emb_dim: 33 # dim of input to MLP, augments with positional encoding
+    order: 2
+    filter_order: 64
+    short_filter_order: 3
+    fused_fft_conv: true
+    modulate: true
+    w: 14 # frequency of periodic activations
+    learn_pos_emb_z: true

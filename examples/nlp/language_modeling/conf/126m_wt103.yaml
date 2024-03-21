@@ -1,5 +1,5 @@
 defaults:
-  - nemo_fw_gpt3_pretrain_126m
+  - 126m_pile
   - _self_
 
 run:
@@ -26,11 +26,7 @@ exp_manager:
 model:
   # use GPTModel from megatron.core
   mcore_gpt: True
-#  use_flash_attention: True
-#  sequence_parallel: True
 
-#  micro_batch_size: 32 # limited by GPU memory
-#  global_batch_size: 512 # will use more micro batches to reach global batch size
   micro_batch_size: 8 # limited by GPU memory
   global_batch_size: 16 # will use more micro batches to reach global batch size
 
@@ -50,21 +46,21 @@ model:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
     model: null
-    vocab_file: '/hdd/data/gpt2-vocab.json'
-    merge_file: '/hdd/data/gpt2-merges.txt'
+    vocab_file: ${data_dir}/bpe/vocab.json
+    merge_file: ${data_dir}/bpe/merges.txt
 
   data:
     seq_length: ${model.encoder_seq_length}
     data_prefix:
       train:
-          - 1.0
-          - '/hdd/data/wikitext-103/nemo/hfbpe_gpt_training_data_text_document'
+        - 1.0
+        - ${data_dir}/hfbpe_gpt_training_data_text_document
       validation:
         - 1.0
-        - '/hdd/data/wikitext-103/nemo/hfbpe_gpt_validation_data_text_document'
+        - ${data_dir}/hfbpe_gpt_validation_data_text_document
       test:
         - 1.0
-        - '/hdd/data/wikitext-103/nemo/hfbpe_gpt_test_data_text_document'
+        - ${data_dir}/hfbpe_gpt_test_data_text_document
     splits_string: null
 
   # Miscellaneous

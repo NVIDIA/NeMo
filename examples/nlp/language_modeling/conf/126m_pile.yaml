@@ -24,7 +24,7 @@ trainer:
   max_steps: 600000 # consumed_samples = global_step * global_batch_size
   max_time: "00:23:30:00" # days:hours:minutes:seconds
   log_every_n_steps: 10
-  val_check_interval: 2000
+  val_check_interval: 1000
   limit_val_batches: 50
   limit_test_batches: 50
   accumulate_grad_batches: 1
@@ -148,6 +148,8 @@ model:
   fp8_amax_compute_algo: max # 'most_recent' or 'max'. Algorithm for computing amax from history
   fp8_wgrad: True
   ub_tp_comm_overlap: False
+  tp_comm_atomic_ag: False
+  tp_comm_atomic_rs: False
 
   # miscellaneous
   seed: 1234
@@ -164,6 +166,43 @@ model:
     end_step: 10 # Global batch to end profiling
     ranks: [0] # Global rank IDs to profile
     gen_shape: False # Generate model and kernel details including input shapes
+
+  spec_overrides: null
+
+  hyena:
+    # HyenaOperator parameters
+    d_model: ${model.hidden_size}
+    l_max: ${model.encoder_seq_length}
+    order: 2
+    filter_order: 64
+    num_heads: 1
+    inner_factor: 1
+    num_blocks: 1
+    fused_bias_fc: False
+    outer_mixing: False
+    dropout: 0.0
+    filter_dropout: 0.0
+    post_order_ffn: False
+    jit_filter: False
+    short_filter_order: 3
+    activation: "identity"
+
+    # HyenaFilter parameters
+    emb_dim: 3 # dim of input to MLP, augments with positional encoding
+    fused_fft_conv: false
+    learn_pos_emb_z: true
+    w: 1 # frequency of periodic activations
+    bias: true
+    normalized: False
+    num_inner_mlps: 2
+
+    # ExponentialModulation parameters
+    fast_decay_pct: 0.3
+    slow_decay_pct: 1.5
+    target: 1e-2
+    learn_modulation: False
+    modulate: True
+    shift: 0.0
 
   optim:
     name: distributed_fused_adam
