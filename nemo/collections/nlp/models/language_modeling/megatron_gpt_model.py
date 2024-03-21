@@ -644,20 +644,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ub_cfgs=ub_cfgs,
         )
         self.initialize_ub = False
-    
+
     def initialize_te_fp8_debug_func(self):
         try:
-            from megatron.core.transformer.custom_layers.transformer_engine import initialize_transformer_engine_fp8_debug
+            from megatron.core.transformer.custom_layers.transformer_engine import (
+                initialize_transformer_engine_fp8_debug,
+            )
 
             fp8_format = "hybrid" if self.cfg.get("fp8_hybrid", True) else "e4m3"
-            initialize_transformer_engine_fp8_debug(self.cfg.get("pipeline_model_parallel_size", 1),
-                                                fp8_format=fp8_format,
-                                                fp8_amax_history_len=self.cfg.get("fp8_amax_history_len", 1024),
-                                                fp8_amax_compute_algo=self.cfg.get("fp8_amax_compute_algo", "max"))
+            initialize_transformer_engine_fp8_debug(
+                self.cfg.get("pipeline_model_parallel_size", 1),
+                fp8_format=fp8_format,
+                fp8_amax_history_len=self.cfg.get("fp8_amax_history_len", 1024),
+                fp8_amax_compute_algo=self.cfg.get("fp8_amax_compute_algo", "max"),
+            )
             print("HERHRE")
             logging.info("Initialized FP8 debug in Transformer Engine.")
         except ImportError as e:
-            logging.warning("Could not initialize TransformerEngine FP8 debug. Check installation of Megatron-LM. Running in normal mode.")
+            logging.warning(
+                "Could not initialize TransformerEngine FP8 debug. Check installation of Megatron-LM. Running in normal mode."
+            )
         self.initialize_te_fp8_debug = False
 
     def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
