@@ -600,6 +600,18 @@ class SaveRestoreConnector:
             )
 
             filepath = filepath.replace(".ckpt", ".safetensors")
+
+        # Convert shared tensors to independent tensors to make checkpoint saving work with safetensors
+        # NOTE: This duplicates all shared tensor memory so it wastes disk space plus some ram on CPU during
+        # checkpoin loading, but is necessary for safetensors
+        new_state_dict = {}
+        keys = list(state_dict.keys())
+        for key in keys:
+            new_state_dict[key] = state_dict[key].clone()
+            del state_dict[key]
+        del state_dict
+        state_dict = new_state_dict
+
         safetensors_torch.save_file(state_dict, filepath)
 
     @staticmethod
