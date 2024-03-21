@@ -88,10 +88,11 @@ class BetaBinomialInterpolator:
     The implementation is taken from https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/FastPitch/fastpitch/data_function.py
     """
 
-    def __init__(self, round_mel_len_to=50, round_text_len_to=10, cache_size=500):
+    def __init__(self, round_mel_len_to=50, round_text_len_to=10, cache_size=500, scaling_factor: float = 1.0):
         self.round_mel_len_to = round_mel_len_to
         self.round_text_len_to = round_text_len_to
-        self.bank = functools.lru_cache(maxsize=cache_size)(beta_binomial_prior_distribution)
+        cached_func = lambda x, y: beta_binomial_prior_distribution(x, y, scaling_factor=scaling_factor)
+        self.bank = functools.lru_cache(maxsize=cache_size)(cached_func)
 
     @staticmethod
     def round(val, to):

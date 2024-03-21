@@ -73,19 +73,20 @@ __all__ = ['MegatronT5SpeechLMModel']
 
 class MegatronT5OverrideModel(MegatronT5Model):
     def _build_tokenizer(self):
-        if self._cfg.tokenizer.library != "sentencepiece":
-            raise NotImplementedError("Megatron SpeechLLM T5 TTS requires a sentencepiece tokenizer")
-        if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
-            legacy = self._cfg.tokenizer.sentencepiece_legacy
-        else:
-            legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
-        self.tokenizer = SentencePieceSpeechLLMTTSTokenizer(
-            model_path=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)), legacy=legacy
-        )
+        if self._cfg.tokenizer.library  == "sentencepiece":
+            if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
+                legacy = self._cfg.tokenizer.sentencepiece_legacy
+            else:
+                legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
+            self.tokenizer = SentencePieceSpeechLLMTTSTokenizer(
+                model_path=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)), legacy=legacy
+            )
 
-        if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
-            tokens_list = OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
-            self.tokenizer.add_special_tokens(tokens_list)
+            if self._cfg.tokenizer.get('additional_special_tokens', None) is not None:
+                tokens_list = OmegaConf.to_object(self._cfg.tokenizer.additional_special_tokens)
+                self.tokenizer.add_special_tokens(tokens_list)
+        else:
+            super()._build_tokenizer()
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         if not hasattr(self.cfg, 'encoder') or not hasattr(self.cfg, 'decoder'):
@@ -1291,6 +1292,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             skip_datasets=self.cfg.data.get('skip_datasets', []),
             english_only_model=self.cfg.get('english_only_model', False),
             context_conditioning=self.cfg.get('context_conditioning', "decoder"),
+            use_beta_binomial_interpolator=self.cfg.get('use_beta_binomial_interpolator', False),
         )
 
         rank = parallel_state.get_data_parallel_rank()

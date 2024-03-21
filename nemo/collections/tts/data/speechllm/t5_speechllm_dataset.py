@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
+    BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
     general_padding,
     get_base_dir,
@@ -140,6 +141,7 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         skip_datasets: Optional[List[str]] = [],  # substrings of dataset names to skip
         english_only_model: Optional[bool] = False,
         context_conditioning: Optional[str] = "decoder", # encoder or decoder
+        use_beta_binomial_interpolator: Optional[str] = False, # encoder or decoder
         **kwargs,
     ):
         """
@@ -235,6 +237,8 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
         # self.attention_prior_strength = attention_prior_strength
         self.transformer_type = kwargs.pop('transformer_type', 'T5')
         self.skip_datasets = skip_datasets
+
+        self.beta_binomial_interpolator = BetaBinomialInterpolator(scaling_factor=self.attention_prior_scaling_factor) if use_beta_binomial_interpolator else None
 
         super().__init__(
             datasets=datasets,
@@ -567,13 +571,20 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             if self.context_conditioning == "decoder":
                 prior_dec_len = dec_labels_len.item() - (self.decoder_context_len + 1)
                 prior_dec_start_idx = self.decoder_context_len + 1
-            cross_attention_question_prior = torch.from_numpy(
-                beta_binomial_prior_distribution(
-                    question_tokens_len.item() - start_of_question_offset - end_of_question_offset,
-                    prior_dec_len,
-                    scaling_factor=self.attention_prior_scaling_factor,
+            text_len = question_tokens_len.item() - start_of_question_offset - end_of_question_offset
+            audio_len = prior_dec_len
+            if self.beta_binomial_interpolator is not None:
+                cross_attention_question_prior = torch.from_numpy(
+                    self.beta_binomial_interpolator(audio_len, text_len)
                 )
-            )
+            else:
+                cross_attention_question_prior = torch.from_numpy(
+                    beta_binomial_prior_distribution(
+                        text_len,
+                        audio_len,
+                        scaling_factor=self.attention_prior_scaling_factor,
+                    )
+                )
             cross_attention_prior[
                 prior_dec_start_idx:, virtual_tokens_len + context_tokens_len + start_of_question_offset : -end_of_question_offset
             ] = cross_attention_question_prior
