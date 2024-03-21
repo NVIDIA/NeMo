@@ -357,6 +357,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
+        self.initialize_te_fp8_debug = bool(int(os.getenv("NVTE_FP8_DEBUG", 0)))
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
         self.loss_broadcast_src_rank = None
@@ -643,6 +644,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ub_cfgs=ub_cfgs,
         )
         self.initialize_ub = False
+    
+    def initialize_te_fp8_debug_func(self):
+        try:
+            from megatron.core.transformer.custom_layers.transformer_engine import initialize_transformer_engine_fp8_debug
+
+            fp8_format = "hybrid" if self.cfg.get("fp8_hybrid", True) else "e4m3"
+            initialize_transformer_engine_fp8_debug(self.cfg.get("pipeline_model_parallel_size", 1),
+                                                fp8_format=fp8_format,
+                                                fp8_amax_history_len=self.cfg.get("fp8_amax_history_len", 1024),
+                                                fp8_amax_compute_algo=self.cfg.get("fp8_amax_compute_algo", "max"))
+            print("HERHRE")
+            logging.info("Initialized FP8 debug in Transformer Engine.")
+        except ImportError as e:
+            logging.warning("Could not initialize TransformerEngine FP8 debug. Check installation of Megatron-LM. Running in normal mode.")
+        self.initialize_te_fp8_debug = False
 
     def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
         """
@@ -661,6 +677,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
+
+        if self.initialize_te_fp8_debug:
+            self.initialize_te_fp8_debug_func()
 
         if self.rampup_batch_size:
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
