@@ -20,6 +20,9 @@ on:
     branches: [ "pagaray/nemo_cicd_part4" ]
 
 jobs:
+  cancel-previous-prs-from-same-branch:
+    - uses: "./.github/actions/cancel-previous-pr-workflows@pagaray/nemo_cicd_part4"
+
   gpu-test:
     runs-on: self-hosted-azure
     steps:
