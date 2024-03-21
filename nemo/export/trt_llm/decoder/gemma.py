@@ -181,12 +181,7 @@ class GemmaDecoderLayerBuilder(DecoderLayerBuilder):
             pp_size=1,
             quant_mode=QuantMode(0),
             quant_kwargs=None,
-            # use_prompt_tuning=layer.use_prompt_tuning,
             max_lora_rank=layer.max_lora_rank,
-            # use_parallel_embedding: bool = False,
-            # embedding_sharding_dim: int = 0,
-            # share_embedding_table: bool = False,
-            # head_size: int = None,
         )
 
         config.set_if_not_exist('mlp_bias', False)
@@ -196,23 +191,5 @@ class GemmaDecoderLayerBuilder(DecoderLayerBuilder):
         config.set_if_not_exist('enable_pos_shift', False)
         config.set_if_not_exist('dense_context_fmha', False)
         config.set_if_not_exist('moe_num_experts', 0)
-
-        if layer.moe_num_experts:
-            moe_config = MoeConfig()
-            if not layer.moe_num_experts is None:
-                if layer.moe_top_k is None:
-                    layer.moe_top_k = 1
-
-                layer.moe_tp_mode = MoeConfig.ParallelismMode.TENSOR_PARALLEL if layer.moe_tp_mode is None else None
-                layer.moe_renorm_mode = (
-                    MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE if layer.moe_renorm_mode is None else None
-                )
-                moe_config = MoeConfig(
-                    layer.moe_num_experts, layer.moe_top_k, layer.moe_tp_mode, layer.moe_renorm_mode
-                ).validate()
-                config.moe_num_experts = layer.moe_num_experts
-                config.moe_top_k = layer.moe_top_k
-                config.moe_tp_mode = layer.moe_tp_mode
-                config.moe_normalization_mode = layer.moe_renorm_mode
 
         return GemmaDecoderLayer(config=config, layer_idx=self.layer_id,)
