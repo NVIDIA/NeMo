@@ -109,22 +109,6 @@ def _nemo_decode(
         return weights_dict, llm_config, tokenizer
 
 
-def get_model_config(weights_dir: Path) -> GPT2Config:
-    """Reads the GPT2Config from the decoded NEMO weights dir."""
-    config = configparser.ConfigParser()
-    config_path = weights_dir / "config.ini"
-    assert os.path.isfile(config_path), f"{config_path} not present"
-    config.read(config_path)
-    config_dict = dict(config.items("gpt"))
-    # Parse the config to dict.
-    for k, v in config_dict.items():
-        try:
-            config_dict[k] = ast.literal_eval(v)
-        except Exception:
-            pass
-    return GPT2Config(**config_dict)
-
-
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
     if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):

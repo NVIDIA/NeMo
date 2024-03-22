@@ -30,7 +30,6 @@ except Exception as e:
     raise (e)
 
 from .model_config_trt import *  # noqa
-from .model_config_utils import *  # noqa
 from .nemo_utils import *  # noqa
 from .quantization_utils import *  # noqa
 from .tensorrt_llm_run import *  # noqa

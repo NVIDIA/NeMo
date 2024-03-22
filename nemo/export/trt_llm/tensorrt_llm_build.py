@@ -40,12 +40,6 @@ def get_engine_name(model, dtype, tp_size, pp_size, rank):
     return '{}_{}_tp{}_pp{}_rank{}.engine'.format(model, dtype, tp_size, pp_size, rank)
 
 
-def is_engine_loaded():
-    from .tensorrt_llm_run import tensorrt_llm_worker_context
-
-    return tensorrt_llm_worker_context.sampling_config is not None
-
-
 def serialize_engine(engine, path):
     """Serializes the engine to path."""
     logger.info(f"Serializing engine to {path}...")
