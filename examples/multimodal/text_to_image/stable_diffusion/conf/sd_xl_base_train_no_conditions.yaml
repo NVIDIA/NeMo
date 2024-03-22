@@ -100,7 +100,6 @@ model:
     transformer_depth: [ 1, 2, 10 ]  # note: the first is unused (due to attn_res starting at 2) 32, 16, 8 --> 64, 32, 16
     context_dim: 2048
     image_size: 64 # unused
-#    spatial_transformer_attn_type: softmax  #note: only default softmax is supported now
     legacy: False
     use_flash_attention: True
 
@@ -149,29 +148,7 @@ model:
           layer: penultimate
           always_return_pooled: True
           legacy: False
-#    _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.GeneralConditioner
-#    emb_models:
-#      # crossattn cond
-#      - is_trainable: False
-#        input_key: captions
-#        ucg_rate: 0.1
-#        emb_model:
-#          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
-#          restore_from_path: /ckpts/openai.nemo
-#          device: cuda
-#          freeze: True
-#          layer: "penultimate"
-#      # crossattn and vector cond
-#      - is_trainable: False
-#        ucg_rate: 0.1
-#        input_key: captions
-#        emb_model:
-#          _target_: nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenMegatronCLIPEmbedder
-#          restore_from_path: /ckpts/open_clip_bigG.nemo
-#          device: cuda
-#          freeze: True
-#          layer: "penultimate"
-#          always_return_pooled: True
+
 
 
   data:

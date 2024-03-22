@@ -15,20 +15,18 @@
 import functools
 import itertools
 import os
+import pytorch_lightning as pl
 import re
 import shutil
 import tempfile
+import torch
 from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
-
-import pytorch_lightning as pl
-import torch
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from omegaconf import OmegaConf
+from pathlib import Path
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.core.optimizer import LightningOptimizer
@@ -53,6 +51,7 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
+from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
@@ -543,14 +542,15 @@ class NLPFSDPStrategy(FSDPStrategy):
     """
 
     def __init__(
-        self,
-        sharding_strategy: str = 'full',
-        grad_reduce_dtype: Union[int, str] = None,
-        sharded_checkpoint: bool = False,
-        precision: Union[int, str] = 'bf16-mixed',
-        nccl_communicator_config_path: Optional[str] = None,
-        sharp: bool = False,
-        **kwargs: Union[Any, Dict[str, Any]],
+            self,
+            sharding_strategy: str = 'full',
+            grad_reduce_dtype: Union[int, str] = None,
+            sharded_checkpoint: bool = False,
+            precision: Union[int, str] = 'bf16-mixed',
+            nccl_communicator_config_path: Optional[str] = None,
+            sharp: bool = False,
+            set_buffer_dtype: Optional[str] = None,
+            **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
             raise ImportError(
@@ -563,7 +563,8 @@ class NLPFSDPStrategy(FSDPStrategy):
             )
 
         # Set the mixed precision recipe
-        kwargs['mixed_precision'] = self._set_mixed_precision_recipe(precision, grad_reduce_dtype)
+        kwargs['mixed_precision'] = self._set_mixed_precision_recipe(precision, grad_reduce_dtype,
+                                                                     set_buffer_dtype=set_buffer_dtype)
         # Use the default FSDP backward-prefetch policy for proper communication overlap.
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
 
@@ -599,7 +600,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         super().__init__(**kwargs)
 
     def _set_mixed_precision_recipe(
-        self, precision: Union[int, str], grad_reduce_dtype: Union[int, str]
+            self, precision: Union[int, str], grad_reduce_dtype: Union[int, str], set_buffer_dtype: Union[int, str]
     ) -> MixedPrecision:
         """
         Set FSDP mixed precision recipe.
@@ -620,7 +621,9 @@ class NLPFSDPStrategy(FSDPStrategy):
         # Over-write gradient reduction dtype to support bf16 computation with fp32 grad reduction
         if grad_reduce_dtype is not None:
             reduce_dtype = utils_funcs.torch_dtype_from_precision(grad_reduce_dtype, None)
-        return MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype,)
+        if set_buffer_dtype is not None:
+            buffer_dtype = utils_funcs.torch_dtype_from_precision(buffer_dtype, None)
+        return MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype, )
 
     def setup_environment(self) -> None:
         """

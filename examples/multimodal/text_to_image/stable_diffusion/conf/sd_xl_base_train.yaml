@@ -101,7 +101,6 @@ model:
     transformer_depth: [ 1, 2, 10 ]  # note: the first is unused (due to attn_res starting at 2) 32, 16, 8 --> 64, 32, 16
     context_dim: 2048
     image_size: 64 # unused
-#    spatial_transformer_attn_type: softmax  #note: only default softmax is supported now
     legacy: False
     use_flash_attention: True
 

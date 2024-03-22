@@ -3,9 +3,9 @@ import os
 import torch
 from PIL import Image
 from einops import rearrange
-from nemo.collections.multimodal.models.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 from omegaconf.omegaconf import open_dict
 
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner

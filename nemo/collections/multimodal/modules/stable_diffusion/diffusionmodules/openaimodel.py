@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from abc import abstractmethod
-from functools import partial
-from typing import Iterable
-
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from nemo.utils import logging
+from abc import abstractmethod
 from collections.abc import Iterable
+from functools import partial
+from typing import Iterable
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -36,7 +34,7 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     timestep_embedding,
     zero_module,
 )
-
+from nemo.utils import logging
 
 
 def convert_module_to_dtype(module, dtype):
@@ -120,7 +118,7 @@ class Upsample(nn.Module):
                     It can be 1, 2, or 3. If set to 3, upsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, third_up=False):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -181,7 +179,7 @@ class Downsample(nn.Module):
                     It can be 1, 2, or 3. For 3D signals, downsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, third_down=False):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -533,7 +531,6 @@ class UNetModel(nn.Module):
         num_attention_blocks=None,
         disable_middle_self_attn=False,
         use_linear_in_transformer=False,
-        spatial_transformer_attn_type="softmax",
         adm_in_channels=None,
         offload_to_cpu=False,
         transformer_depth_middle=None,
@@ -695,7 +692,6 @@ class UNetModel(nn.Module):
                                 context_dim=context_dim,
                                 disable_self_attn=disabled_sa,
                                 use_linear=use_linear_in_transformer,
-                                attn_type=spatial_transformer_attn_type,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
                                 lora_network_alpha=lora_network_alpha,
@@ -762,7 +758,6 @@ class UNetModel(nn.Module):
                 context_dim=context_dim,
                 disable_self_attn=disable_middle_self_attn,
                 use_linear=use_linear_in_transformer,
-                attn_type=spatial_transformer_attn_type,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
                 lora_network_alpha=lora_network_alpha,
@@ -827,7 +822,6 @@ class UNetModel(nn.Module):
                                 context_dim=context_dim,
                                 disable_self_attn=disabled_sa,
                                 use_linear=use_linear_in_transformer,
-                                attn_type=spatial_transformer_attn_type,
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
                                 lora_network_alpha=lora_network_alpha,

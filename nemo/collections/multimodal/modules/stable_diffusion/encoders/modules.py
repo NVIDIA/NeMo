@@ -11,39 +11,40 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import open_clip
 import os
 import tempfile
-from functools import partial
-
-import open_clip
 import torch
 import torch.nn as nn
-from omegaconf import OmegaConf
+from einops import rearrange, repeat
+from functools import partial
+from omegaconf import ListConfig, OmegaConf
 from torch.utils.checkpoint import checkpoint
 from transformers import CLIPTextModel, CLIPTokenizer
+from typing import Dict, List, Optional, Tuple, Union
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import CLIPModel
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    ParallelLinearAdapterConfig,
-)
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
-
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.core import adapter_mixins
-from nemo.utils import logging
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     count_params,
     disabled_train,
     expand_dims_like,
     instantiate_from_config,
 )
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    ParallelLinearAdapterConfig,
+)
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.core import adapter_mixins
+from nemo.utils import logging
+
 try:
     from megatron.core import ModelParallelConfig, parallel_state
 
@@ -89,7 +90,7 @@ class AbstractEncoder(nn.Module):
                     module.add_module(lora_name, lora_layer)
 
 class AbstractEmbModel(nn.Module):
-    def __init__(self):
+    def __init__(self, enable_lora_finetune=False, target_block=[], target_module=[]):
         super().__init__()
         self._is_trainable = None
         self._ucg_rate = None
@@ -136,6 +137,9 @@ class AbstractEmbModel(nn.Module):
     def input_key(self):
         del self._input_key
 
+    def encode(self, *args, **kwargs):
+        raise NotImplementedError
+
     def _enable_lora(self, lora_model):
         for module_name, module in lora_model.named_modules():
             if module.__class__.__name__ in self.TARGET_BLOCK:
@@ -143,7 +147,7 @@ class AbstractEmbModel(nn.Module):
                 for sub_name, sub_module in module.named_modules():
                     if sub_module.__class__.__name__ in self.TARGET_MODULE:
                         if hasattr(sub_module, "input_size") and hasattr(
-                            sub_module, "output_size"
+                                sub_module, "output_size"
                         ):  # for megatron ParallelLinear
                             lora = LoraWrapper(sub_module, sub_module.input_size, sub_module.output_size)
                         else:  # for nn.Linear
@@ -436,7 +440,8 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
     LAYERS = ["last", "pooled", "hidden"]
 
     def __init__(
-        self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, enable_lora_finetune=False
+            self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, enable_lora_finetune=False,
+            layer="last", layer_idx=None, always_return_pooled=False,
     ):
         super().__init__(enable_lora_finetune, target_block=["CLIPAttention", "CLIPMLP"], target_module=["Linear"])
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
@@ -572,8 +577,11 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
 
 
 class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
-    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None, always_return_pooled=False,):
-        super().__init__()
+    def __init__(self, restore_from_path, device="cuda", layer="last", freeze=True, cfg=None,
+                 always_return_pooled=False, enable_lora_finetune=False, ):
+        super().__init__(enable_lora_finetune=enable_lora_finetune,
+                         target_block=["ParallelAttention", "ParallelMLP"],
+                         target_module=["ColumnParallelLinear", "RowParallelLinear"], )
         if restore_from_path is not None:
             cfg, state_dict = self.load_config_and_state_from_nemo(restore_from_path)
         elif cfg is not None:
