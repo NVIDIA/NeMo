@@ -87,12 +87,12 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
-    from megatron.core.dist_checkpointing.strategies import tensorstore
     from megatron.core.dist_checkpointing.optimizer import (
         get_param_id_to_sharded_param_map,
         make_sharded_optimizer_tensor,
         optim_state_to_sharding_state,
     )
+    from megatron.core.dist_checkpointing.strategies import tensorstore
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
