@@ -26,6 +26,14 @@ jobs:
         whoami
         nvidia-smi
 
+  cicd-cluster-clean:
+    runs-on: self-hosted-azure
+    steps:
+    - name: Clean server from old files
+      run: |
+        docker container prune --filter "until=24h" --force
+        docker image prune -a --filter "until=24h" --force
+
   checkout-repository:
     runs-on: self-hosted-azure
     container:
@@ -98,6 +106,9 @@ jobs:
                 pushd Megatron-LM && \
                 git checkout 43792028f003ed25a3ee8c5a0d4cad82317d81b5 && \
                 pip install . && \
+                  pushd megatron/core/datasets && \
+                  make && \
+                  popd && \
                 popd
 
             # Install only for test: L2: Segmentation Tool
