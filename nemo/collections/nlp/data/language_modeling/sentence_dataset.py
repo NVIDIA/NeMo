@@ -27,6 +27,7 @@ from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
+from nemo.utils.distributed import webdataset_split_by_workers
 
 __all__ = ['SentenceDataset', 'TarredSentenceDataset']
 
@@ -262,6 +263,7 @@ class TarredSentenceDataset(IterableDataset):
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(text_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(pkl='pkl', key='__key__'),

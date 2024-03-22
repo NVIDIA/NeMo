@@ -44,6 +44,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.neural_types import AudioSignal, ChannelType, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.distributed import webdataset_split_by_workers
 
 NUMBER_RE = "(0|[1-9][0-9]*)"
 TAR_FRAGMENT_TMPL_IN_PROGRESS = "fragment{fragment_idx}.{file_idx}.tar"
@@ -1054,6 +1055,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(self.tar_files),
+            webdataset_split_by_workers,
             wds.tarfile_to_samples(),
             wds.decode(wds.handle_extension('.pyd', decode_pyd)),
             wds.shuffle(shuffle_n),

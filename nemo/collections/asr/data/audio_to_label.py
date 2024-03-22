@@ -25,6 +25,7 @@ from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
 from nemo.utils import logging
+from nemo.utils.distributed import webdataset_split_by_workers
 
 # List of valid file formats (prioritized by order of importance)
 VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
@@ -569,6 +570,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
@@ -1162,6 +1164,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),

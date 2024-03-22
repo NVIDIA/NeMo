@@ -24,6 +24,7 @@ from torch.utils.data import Dataset, IterableDataset
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils import dataset_to_ids
 from nemo.utils import logging
+from nemo.utils.distributed import webdataset_split_by_workers
 
 __all__ = ['L2RLanguageModelingDataset', 'TarredL2RLanguageModelingDataset']
 
@@ -202,6 +203,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(text_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(npy='npy', key='__key__'),

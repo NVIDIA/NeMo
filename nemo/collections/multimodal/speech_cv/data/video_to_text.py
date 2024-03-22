@@ -26,6 +26,7 @@ from nemo.collections.multimodal.speech_cv.parts.preprocessing.features import V
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
+from nemo.utils.distributed import webdataset_split_by_workers
 
 
 def _video_speech_collate_fn(batch, pad_id):
@@ -599,6 +600,7 @@ class _TarredVideoToTextDataset(IterableDataset):
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.map(wds.autodecode.Decoder([wds.torch_video])),

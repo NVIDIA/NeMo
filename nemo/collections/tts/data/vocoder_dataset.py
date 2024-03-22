@@ -37,6 +37,7 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.utils.distributed import webdataset_split_by_workers
 
 VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
@@ -345,6 +346,7 @@ class TarredVocoderDataset(IterableDataset):
 
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),

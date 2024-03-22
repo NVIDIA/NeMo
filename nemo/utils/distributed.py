@@ -123,7 +123,8 @@ def temporary_directory():
     # We use barrier below to make sure that rank zero won't exit
     # and delete tmp_dir while other ranks may still use it
     dist.barrier()
-    
+
+
 def webdataset_split_by_workers(src):
     """
     This is for latest webdataset>=0.2.6 

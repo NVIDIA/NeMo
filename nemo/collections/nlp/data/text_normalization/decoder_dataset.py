@@ -32,6 +32,7 @@ from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+from nemo.utils.distributed import webdataset_split_by_workers
 
 __all__ = ['TextNormalizationDecoderDataset', 'TarredTextNormalizationDecoderDataset']
 
@@ -530,6 +531,7 @@ class TarredTextNormalizationDecoderDataset(IterableDataset):
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=text_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(pkl='pkl', key='__key__'),

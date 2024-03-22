@@ -26,6 +26,7 @@ from nemo.collections.nlp.data.spellchecking_asr_customization.bert_example impo
 from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.neural_types import ChannelType, IntType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.distributed import webdataset_split_by_workers
 
 __all__ = [
     "SpellcheckingAsrCustomizationDataset",
@@ -412,6 +413,7 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
         # Put together WebDataset
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=text_tar_filepaths),
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(pkl='pkl', key='__key__'),
