@@ -18,9 +18,11 @@ import tempfile
 import numpy as np
 import pytest
 import torch
+import safetensors.torch as safetensors_torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 
 try:
     from eff.cookbooks import NeMoCookbook
@@ -234,7 +236,7 @@ class TestFileIO:
 
             # Save model level PT checkpoint
             asr_model.extract_state_dict_from(nemo_file, ckpt_dir)
-            ckpt_path = os.path.join(ckpt_dir, 'model_weights.ckpt')
+            ckpt_path = os.path.join(ckpt_dir, asr_model._save_restore_connector.model_weights_ckpt)
 
             assert os.path.exists(ckpt_path)
 
@@ -253,10 +255,57 @@ class TestFileIO:
             assert not np.array_equal(w1, w2)
 
             # Restore from checkpoint
-            asr_model2.load_state_dict(torch.load(ckpt_path))
+            asr_model2.load_state_dict(safetensors_torch.load_file(ckpt_path))
 
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
             w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert np.array_equal(w1, w2)
+
+    @pytest.mark.unit
+    def test_save_model_level_pt_ckpt_shared_module(self, asr_model):
+        class SharedModel(EncDecCTCModel):
+
+            def __init__(self, cfg: DictConfig, trainer=None):
+                super().__init__(cfg, trainer=trainer)
+                self.shared = self.encoder
+
+        shared_model = SharedModel(asr_model.cfg)
+        shared_model.cfg.target = f"{SharedModel.__module__}.{SharedModel.__name__}"
+
+        with tempfile.TemporaryDirectory() as ckpt_dir:
+            nemo_file = os.path.join(ckpt_dir, 'asr.nemo')
+            shared_model.save_to(nemo_file)
+
+            # Save model level PT checkpoint
+            shared_model.extract_state_dict_from(nemo_file, ckpt_dir)
+            ckpt_path = os.path.join(ckpt_dir, shared_model._save_restore_connector.model_weights_ckpt)
+
+            assert os.path.exists(ckpt_path)
+
+            # Restore the model.
+            shared_model2 = SharedModel.restore_from(restore_path=nemo_file)
+
+            assert len(shared_model.decoder.vocabulary) == len(shared_model2.decoder.vocabulary)
+            assert shared_model.num_weights == shared_model2.num_weights
+
+            # Change weights values
+            shared_model2.encoder.encoder[0].mconv[0].conv.weight.data += 1.0
+
+            w1 = shared_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = shared_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert not np.array_equal(w1, w2)
+
+            # Restore from checkpoint will now fail with direct safetensors.torch.load_file
+            with pytest.raises(RuntimeError):
+                shared_model2.load_state_dict(safetensors_torch.load_file(ckpt_path))
+
+            # have to explicitly call the _load_state_dict_from_disk method
+            shared_model2.load_state_dict(SaveRestoreConnector._load_state_dict_from_disk(ckpt_path))
+
+            w1 = shared_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = shared_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
 
             assert np.array_equal(w1, w2)
 
@@ -268,9 +317,9 @@ class TestFileIO:
 
             # Save model level PT checkpoint
             asr_model.extract_state_dict_from(nemo_file, ckpt_dir, split_by_module=True)
-            encoder_path = os.path.join(ckpt_dir, 'encoder.ckpt')
-            decoder_path = os.path.join(ckpt_dir, 'decoder.ckpt')
-            preprocessor_path = os.path.join(ckpt_dir, 'preprocessor.ckpt')
+            encoder_path = os.path.join(ckpt_dir, 'encoder.safetensors')
+            decoder_path = os.path.join(ckpt_dir, 'decoder.safetensors')
+            preprocessor_path = os.path.join(ckpt_dir, 'preprocessor.safetensors')
 
             assert os.path.exists(encoder_path)
             assert os.path.exists(decoder_path)
@@ -291,9 +340,56 @@ class TestFileIO:
             assert not np.array_equal(w1, w2)
 
             # Restore from checkpoint
-            asr_model2.encoder.load_state_dict(torch.load(encoder_path))
+            asr_model2.encoder.load_state_dict(safetensors_torch.load_file(encoder_path))
 
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
             w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert np.array_equal(w1, w2)
+
+    @pytest.mark.unit
+    def test_save_module_level_pt_ckpt_shared_modules(self, asr_model):
+        class SharedModel(EncDecCTCModel):
+
+            def __init__(self, cfg: DictConfig, trainer=None):
+                super().__init__(cfg, trainer=trainer)
+                self.shared = self.encoder
+
+        shared_model = SharedModel(asr_model.cfg)
+        shared_model.cfg.target = f"{SharedModel.__module__}.{SharedModel.__name__}"
+
+        with tempfile.TemporaryDirectory() as ckpt_dir:
+            nemo_file = os.path.join(ckpt_dir, 'asr.nemo')
+            shared_model.save_to(nemo_file)
+
+            # Save model level PT checkpoint
+            shared_model.extract_state_dict_from(nemo_file, ckpt_dir, split_by_module=True)
+            encoder_path = os.path.join(ckpt_dir, 'encoder.safetensors')
+            decoder_path = os.path.join(ckpt_dir, 'decoder.safetensors')
+            preprocessor_path = os.path.join(ckpt_dir, 'preprocessor.safetensors')
+
+            assert os.path.exists(encoder_path)
+            assert os.path.exists(decoder_path)
+            assert os.path.exists(preprocessor_path)
+
+            # Restore the model.
+            shared_model2 = SharedModel.restore_from(restore_path=nemo_file)
+
+            assert len(shared_model.decoder.vocabulary) == len(shared_model2.decoder.vocabulary)
+            assert shared_model.num_weights == shared_model2.num_weights
+
+            # Change weights values
+            shared_model2.encoder.encoder[0].mconv[0].conv.weight.data += 1.0
+
+            w1 = shared_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = shared_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert not np.array_equal(w1, w2)
+
+            # Restore from checkpoint
+            shared_model2.encoder.load_state_dict(SaveRestoreConnector._load_state_dict_from_disk(encoder_path))
+
+            w1 = shared_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = shared_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
 
             assert np.array_equal(w1, w2)

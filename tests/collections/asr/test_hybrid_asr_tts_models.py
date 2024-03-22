@@ -126,7 +126,7 @@ class TestASRWithTTSModel:
         assert isinstance(model.tts_model, FastPitchModel)
         assert isinstance(model.asr_model, EncDecCTCModelBPE)
 
-    @pytest.mark.with_downloads
+    # @pytest.mark.with_downloads
     @pytest.mark.unit
     def test_from_pretrained_rnnt_model(self, fastpitch_model_path, conformer_rnnt_bpe_bn_model_path):
         model = ASRWithTTSModel.from_pretrained_models(

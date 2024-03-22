@@ -816,6 +816,9 @@ def _get_safetensor_device(device: Union[str, torch.device]) -> Union[str, int]:
         The device in a format compatible with safetensors.
     """
     # Translate device to safetensors compatible
+    if device is None:
+        device = "cpu"
+
     rank = None
     if isinstance(device, torch.device):
         rank = device.index
