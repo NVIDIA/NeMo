@@ -19,7 +19,7 @@ import itertools
 import torch
 from torch import inf
 
-from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
+from nemo.utils.model_utils import param_is_not_shared
 from nemo.utils import logging
 
 try:
