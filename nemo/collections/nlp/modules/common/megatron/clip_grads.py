@@ -19,8 +19,8 @@ import itertools
 import torch
 from torch import inf
 
-from nemo.utils.model_utils import param_is_not_shared
 from nemo.utils import logging
+from nemo.utils.model_utils import param_is_not_shared
 
 try:
     import amp_C
