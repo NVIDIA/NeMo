@@ -152,6 +152,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         self._inference_config = None
 
         self.tokenizer.legacy = False
+        self.bos_id = self.tokenizer.bos_id
+        if self.tokenizer.bos_id < 0:  # -1 index does not work with GPU
+            self.bos_id = self.tokenizer.pad_id
         self.pad_token_id = self.tokenizer.eos_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
@@ -364,7 +367,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         b = audio_batch['answers'].shape[0]
         device = audio_batch['answers'].device
         dec_input = torch.cat(
-            [torch.full([b, 1], self.tokenizer.bos_id, device=device), audio_batch['answers'][:, :-1]], dim=-1
+            [torch.full([b, 1], self.bos_id, device=device), audio_batch['answers'][:, :-1]], dim=-1
         )
         labels = audio_batch['answers']
         dec_mask = (dec_input != self.tokenizer.eos_id) * (dec_input != self.tokenizer.pad_id).long().contiguous()
@@ -1065,6 +1068,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             num_tokens_to_generate=self._inference_config['tokens_to_generate'],
             encoder_input=encoder_input,
             tokenizer=self.tokenizer,
+            bos_id = self.bos_id,
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.

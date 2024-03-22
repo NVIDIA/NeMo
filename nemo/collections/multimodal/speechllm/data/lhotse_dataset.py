@@ -71,8 +71,10 @@ class TextProcessing:
         self.sample_alpha = sample_alpha
         self.input_text_mask_ratio = input_text_mask_ratio
 
-        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if add_bos and hasattr(tokenizer, "bos_id"):
             self.bos_id = tokenizer.bos_id
+            if tokenizer.bos_id < 0: # -1 index does not work with GPU
+                self.bos_id = tokenizer.pad_id
         else:
             self.bos_id = None
 
@@ -176,8 +178,8 @@ class TextProcessing:
 
         # Adds bos token in the start
         if self.add_bos:
-            context_ids = [self.tokenizer.bos_id] + context_ids
-            input_ids = [self.tokenizer.bos_id] + input_ids
+            context_ids = [self.bos_id] + context_ids
+            input_ids = [self.bos_id] + input_ids
             answer_start_idx += 1
 
         # Adds sep token between text/prompt and answer
