@@ -17,8 +17,8 @@ import tempfile
 
 import numpy as np
 import pytest
-import torch
 import safetensors.torch as safetensors_torch
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
@@ -265,7 +265,6 @@ class TestFileIO:
     @pytest.mark.unit
     def test_save_model_level_pt_ckpt_shared_module(self, asr_model):
         class SharedModel(EncDecCTCModel):
-
             def __init__(self, cfg: DictConfig, trainer=None):
                 super().__init__(cfg, trainer=trainer)
                 self.shared = self.encoder
@@ -350,7 +349,6 @@ class TestFileIO:
     @pytest.mark.unit
     def test_save_module_level_pt_ckpt_shared_modules(self, asr_model):
         class SharedModel(EncDecCTCModel):
-
             def __init__(self, cfg: DictConfig, trainer=None):
                 super().__init__(cfg, trainer=trainer)
                 self.shared = self.encoder
