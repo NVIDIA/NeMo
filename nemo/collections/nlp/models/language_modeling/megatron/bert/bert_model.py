@@ -384,38 +384,13 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
         It either returns the Loss values if labels are given  or the final hidden units
         """
-        extended_attention_mask = self.bert_extended_attention_mask(attention_mask)
+        original_post_process = self.post_process
 
-        if parallel_state.is_pipeline_first_stage():
-            input_ids = input_ids
-            position_ids = self.bert_position_ids(input_ids)
-        else:
-            position_ids = None
-            input_ids = None
+        # We set this to false since we just want to get the hidden states from the encoder 
+        self.post_process = False 
+        hidden_states = super().forward(input_ids, attention_mask, tokentype_ids, lm_labels, inference_params)
+        self.post_process = original_post_process
 
-        # Encoder embedding.
-        if self.pre_process:
-            encoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids)
-        else:
-            # intermediate stage of pipeline
-            # decoder will get hidden_states from encoder.input_tensor
-            encoder_input = None
-
-        # Rotary positional embeddings (Why not move this into BERT/GPTEmberdding ?)
-        rotary_pos_emb = None
-        if self.position_embedding_type == 'rope':
-            rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
-                inference_params, self.encoder, encoder_input, self.config
-            )
-            rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
-
-        # Run decoder.
-        hidden_states = self.encoder(
-            hidden_states=encoder_input,
-            attention_mask=extended_attention_mask,
-            inference_params=inference_params,
-            rotary_pos_emb=rotary_pos_emb,
-        )
         if not self.post_process:
             return hidden_states
 
