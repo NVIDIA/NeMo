@@ -87,6 +87,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
+    from megatron.core.dist_checkpointing.strategies import tensorstore
     from megatron.core.dist_checkpointing.optimizer import (
         get_param_id_to_sharded_param_map,
         make_sharded_optimizer_tensor,
@@ -441,7 +442,7 @@ class NLPDDPStrategy(DDPStrategy):
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
-            strategy = dist_checkpointing.strategies.tensorstore.TensorStoreLoadShardedStrategy(
+            strategy = tensorstore.TensorStoreLoadShardedStrategy(
                 load_directly_on_device=True
             )
             checkpoint = dist_checkpointing.load(
