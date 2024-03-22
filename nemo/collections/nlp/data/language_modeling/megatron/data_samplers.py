@@ -15,10 +15,9 @@
 """Dataloaders."""
 
 import abc
+import torch
 from itertools import chain
 from typing import Optional
-
-import torch
 
 from nemo.utils import logging
 
@@ -171,19 +170,6 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
             # return len of dataloader in terms of micro batches to avoid discrepancy between len of dataloader and
             # num of batches fetched (as training step fetches in terms of micro batches)
             return num_global_batches * (self.global_batch_size // self.micro_batch_times_data_parallel_size)
-        else:
-            if self.drop_last:
-                return num_available_samples // self.micro_batch_times_data_parallel_size
-            else:
-                return (num_available_samples - 1) // self.micro_batch_times_data_parallel_size
-
-    def __len__(self):
-        num_available_samples: int = self.total_samples
-        if self.global_batch_size is not None:
-            if self.drop_last:
-                return num_available_samples // self.global_batch_size
-            else:
-                return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
         else:
             if self.drop_last:
                 return num_available_samples // self.micro_batch_times_data_parallel_size
