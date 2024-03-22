@@ -123,7 +123,7 @@ def eval_model(args):
             sampling_params=sampling_params,
             inference_config=cfg,
         )
-
+        # import  pdb; pdb.set_trace()
         outputs = responses[0]["clean_response"]
 
         # prompt for answer

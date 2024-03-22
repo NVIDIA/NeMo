@@ -217,6 +217,7 @@ Most importantly, the actual Torch code in your model should be ONNX or TorchScr
 #. Create your model ``Exportable`` and add an export unit test, to catch any operation/construct not supported in ONNX/TorchScript, immediately.
 
 For more information, refer to the PyTorch documentation:
+
        - `List of supported operators <https://pytorch.org/docs/stable/onnx.html#supported-operators>`_
        - `Tracing vs. scripting <https://pytorch.org/docs/stable/onnx.html#tracing-vs-scripting>`_ 
        - `AlexNet example <https://pytorch.org/docs/stable/onnx.html#example-end-to-end-alexnet-from-pytorch-to-onnx>`_

@@ -35,8 +35,10 @@ It's possible to use the same data for both training and retrieval, as long as d
 Both types of data are stored in a loose JSON format, with each line containing a single text sample. For example:
 
 .. code-block:: json
+
     {"src": "www.nvidia.com", "text": "The quick brown fox", "type": "Eng", "id": "0", "title": "First Part"}
     {"src": "The Internet", "text": "jumps over the lazy dog", "type": "Eng", "id": "42", "title": "Second Part"}
+
 The name of the text field of the json can be changed by using the ``--json-key`` flag in ``preprocess_data_for_megatron.py``.  The other metadata are optional and are not used in training.
 
 Step 2: Convert training data into memory map format
@@ -63,10 +65,7 @@ An example script to prepare data for RETRO training is:
         --retrieval-db \
         --chunk_size=64 \
         --workers=48
-The RETRO model processes chunked documents using 64 tokens as the default chunk size. The RETRO memory map dataset will add padding 
-tokens to the end of each document to make it a multiple of 64. The ``--need-pad-id`` argument adds a padding token to the tokenizer
 if it doesn't already have one. The ``--append-eod`` argument controls whether to add ``end-of-document`` tokens to the preprocessed 
-data, and the ``--retrieval-db`` argument indicates whether to create a retrieval database for the preprocessed data. If ``--retrieval-db``
 is used, it will add an additional 64 padding tokens at the end of the document. The ``--chunk_size`` and ``--workers`` arguments 
 control the size of the data chunks to be processed and the number of worker processes to use, respectively.
 
@@ -115,10 +114,7 @@ Step 3.1: Train the Faiss index structure
 In this step, it uses a subset of the retrieval data to train a empty Faiss index. An example script is:
 
 .. code-block:: bash
-    python scripts/nlp_language_modeling/build_retrieval_index.py \
-        --input_file=/result/pubmed_train_text_document  \
         --tokenizer-library=megatron \
-        --tokenizer-type=GPT2BPETokenizer \
         --merge-file=/dataset/gpt2-merges.txt \
         --vocab-file=/dataset/gpt2-vocab.json \
         --percent=1.0 \
@@ -170,10 +166,6 @@ This step merges all the sharding indexes created in the previous step into the 
         --learned_index=/result/pubmed_faiss_learn.index \
         --shard_index_input=/result/pubmed_faiss_shard \
         --output_file=/result/pubmed_faiss_final.index
-Step 4: Build KNN index
-^^^^^^^^^^^^^^^^^^^^^^^
-
-During training, it is inefficient to run a query to find the K-nearest neighbor chunk IDs for each training data point. 
 This can be pre-calculated by building a KNN index before training. The KNN index maps the training data chunk IDs to the K-nearest neighbor chunk IDs 
 in the retrieval data. As with building the Faiss index, this process is divided into two steps.
 
@@ -232,6 +224,8 @@ An example script is:
     --stage=2 \
     --output_file=pubmed_knn_final.save \
     --shard_index_input=pubmed_knn_shard
+
+
 Train NeMo RETRO Model
 -----------------------
 
@@ -307,10 +301,13 @@ An example RETRO pre-training script is:
         model.data.knn_index=[dataset/pubmed_knn_final.save] \
         model.data.retrieval_prefix=/result/pubmed_eval_text_document \
         model.micro_batch_size=8
+
 During the training, launch Tensorboard to monitor training like so:
 
 .. code-block:: bash
+
     tensorboard --logdir /result/retro_model --bind_all
+
 .. note:: Weights and Biases (WandB) is supported too. Add ``exp_manager.create_wandb_logger=True`` to the model training arguments to enable it.
 
 After the training, the model nemo file can be found at the result checkpoint directory.
@@ -359,10 +356,7 @@ Here is an example shape file calculation script:
         base_model.num_attention_heads=16 \
         delta_model.num_attention_heads=16 \
         model.shape_file=tp8_32depth_o1_rel_shape_info.yaml 
-In this example, the ``base_model`` refers to the small base model for which an optimal set of hyperparameters has been determined. 
-The ``delta_model`` refers to a model with certain hyperparameters that have been scaled up or down. In this case, 
 the ``hidden_size`` and ``ffn_hidden_size`` have been changed in the ``delta_model``, allowing these two parameters to be scaled freely later.
-
 Step 3. Pretrain mu-Transfer RETRO model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -372,10 +366,7 @@ specified by the delta model and the shape file.
 An example mu-Transfer pre-training script is:
 
 .. code-block:: bash
-    python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
-        trainer.devices=8 \
         trainer.num_nodes=2 \
-        trainer.accelerator=gpu \
         trainer.max_steps=500000 \
         trainer.precision=16 \
         exp_manager.exp_dir=/result/retro_model \

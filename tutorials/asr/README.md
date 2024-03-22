@@ -16,7 +16,7 @@ In this repository, you will find several tutorials discussing what is Automatic
 
 4) `Online_ASR_Microphone_Demo`: A short notebook that enables us to speak into a microphone and transcribe speech in an online manner. Note that this is not the most efficient way to perform streaming ASR, and it is more of a demo.
 
-5) `Offline_ASR`: ASR models are able to transcribe speech to text, however that text might be inaccurate. Here, we discuss how to leverage external language models build with KenLM to improve the accuracy of ASR transcriptions. Further, we discuss how we can extract time stamps from an ASR model with some heuristics.
+5) `Online_ASR_Microphone_Demo_Cache_Aware_Streaming`: This notebook allows you to do real-time ("streaming") speech recognition on audio recorded from your microphone, using "cache-aware" NeMo ASR models specifically tuned for the streaming ASR usecase.
 
 6) `ASR_for_telephony_speech`: Audio sources are not homogenous, nor are the ways to store large audio datasets. Here, we discuss our observations and recommendations when working with audio obtained from Telephony speech sources.
 
@@ -34,6 +34,7 @@ In this repository, you will find several tutorials discussing what is Automatic
 
 13) `ASR_Example_CommonVoice_Finetuning`: Learn how to fine-tune an ASR model using CommonVoice to a new alphabet, Esperanto. We walk through the data processing steps of MCV data using HuggingFace Datasets, preparation of the tokenizer, model and then setup fine-tuning.
 
+14) `ASR_Context_Biasing`: This tutorial aims to show how to improve the recognition accuracy of specific words in NeMo framework for CTC and Trasducer (RNN-T) ASR models by using the fast context-biasing method with CTC-based Word Spotter.
 
 ----------------
 

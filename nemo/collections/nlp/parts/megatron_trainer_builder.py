@@ -15,10 +15,11 @@
 import sys
 
 from typing import Union
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
+from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     CustomProgressBar,
@@ -70,14 +71,13 @@ class MegatronTrainerBuilder:
                 precision=self.cfg.trainer.precision,
                 nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
                 sharp=self.cfg.model.get('sharp', False),
+                use_orig_params=self.cfg.model.get('fsdp_use_orig_params', False),
             )
 
         return NLPDDPStrategy(
-            no_ddp_communication_hook=True,
-            gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
-            nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
             sharp=self.cfg.model.get('sharp', False),
+            torch_dist_ckpt=self.cfg.model.get('torch_distributed_checkpoint', False),
         )
 
     def _grad_scaler(self) -> GradScaler:
@@ -112,8 +112,7 @@ class MegatronTrainerBuilder:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
                 plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-            with open_dict(self.cfg.trainer):
-                self.cfg.trainer.pop('precision', None)
+            self.cfg.trainer.precision = None
 
         if self.cfg.get('cluster_type', None) == 'BCP':
             plugins.append(TorchElasticEnvironment())
@@ -123,7 +122,8 @@ class MegatronTrainerBuilder:
     def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        if callbacks is None:
+        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+        if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
             callbacks = [CustomProgressBar()]
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
@@ -144,12 +144,11 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
     def create_trainer(self) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(
-            plugins=plugins,
-            strategy=strategy,
-            **self.cfg.trainer,
-            callbacks=[ModelSummary(max_depth=3), CustomProgressBar()]
-        )
+        callbacks = [ModelSummary(max_depth=3)]
+        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+        if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
+            callbacks.append(CustomProgressBar())
+        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
 
 class MegatronLMPPTrainerBuilder(MegatronTrainerBuilder):

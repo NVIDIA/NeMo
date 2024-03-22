@@ -22,9 +22,11 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from transformers import CLIPImageProcessor
 
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.utils import AppState, logging
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import dist_checkpointing
@@ -50,15 +52,6 @@ def numpy_to_pil(images):
 
 def randn_like(x, generator=None):
     return torch.randn(x.shape, dtype=x.dtype, device=x.device, generator=generator)
-
-
-def extend_instance(obj, mixin):
-    """Apply mixins to a class instance after creation"""
-    base_cls = obj.__class__
-    base_cls_name = obj.__class__.__name__
-    obj.__class__ = type(
-        base_cls_name, (mixin, base_cls), {}
-    )  # mixin needs to go first for our forward() logic to work
 
 
 def getattr_recursive(obj, att):
@@ -361,6 +354,7 @@ def create_neva_model_and_processor(cfg):
             neva_cfg.activations_checkpoint_method = None
             neva_cfg.precision = trainer.precision
             neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('base_model_file', None)
+            neva_cfg.apply_rope_fusion = False
         #    neva_cfg.mm_cfg.vision_encoder.from_pretrained = None
 
         model = MegatronNevaModel.restore_from(

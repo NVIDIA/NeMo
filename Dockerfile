@@ -14,7 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+<<<<<<< HEAD
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:23.12-py3
+=======
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.01-py3
+>>>>>>> origin/main
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -66,19 +70,31 @@ WORKDIR /workspace/
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
+<<<<<<< HEAD
   git checkout 27cbe46714a50c43ed290f1b1472db8d2780c55c && \
+=======
+  git checkout 36e9b6bf3d8034b10c9bbd9fc357c2df2bd1515c && \
+>>>>>>> origin/main
   pip install .
 
 # Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
+<<<<<<< HEAD
   git checkout b496d85fb88a801d8e680872a12822de310951fd && \
+=======
+  git checkout f058162b215791b15507bb542f22ccfde49c872d && \
+>>>>>>> origin/main
   pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
+<<<<<<< HEAD
   git fetch origin 4f9662fbe621671f5f905e772fc1138953af77f6 && \
+=======
+  git fetch origin da30634a6c9ccdbb6c587b6c93b1860e4b038204 && \
+>>>>>>> origin/main
   git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
@@ -132,6 +148,8 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
+# install ammo
+RUN pip install nvidia-ammo~=0.7.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
