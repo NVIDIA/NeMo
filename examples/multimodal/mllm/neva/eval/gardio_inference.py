@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gradio as gr
-from omegaconf import OmegaConf
-from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
-import PIL.Image
 import io
+
+import gradio as gr
+import PIL.Image
+from omegaconf import OmegaConf
+
+from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
 
 CFG_STRING = """
 trainer:
@@ -58,6 +60,7 @@ cfg.neva_model_file = "/lustre/fsw/coreai_dlalgo_genai/yuya/dataset/checkpoints/
 cfg.inference.images_base_path = "/lustre/fsw/coreai_dlalgo_genai/yuya/dataset/llava-bench-in-the-wild/images"
 model, image_processor = create_neva_model_and_processor(cfg)
 
+
 def predict(prompt, image=None):
     input_data = {"prompt": prompt}
     if image is not None:
@@ -85,17 +88,18 @@ def predict(prompt, image=None):
         input_prompts=[input_data],  # Adjust based on your model's requirements
         length_params=length_params,  # Define these parameters as in your original code
         sampling_params=sampling_params,  # Define these parameters as in your original code
-        inference_config=cfg
+        inference_config=cfg,
     )
 
     return responses[0]["clean_response"]
+
 
 iface = gr.Interface(
     fn=predict,
     inputs=[gr.Textbox(), gr.Image()],
     outputs="text",
     title="Multimodal Model Inference",
-    description="Enter a prompt and optionally upload an image for model inference."
+    description="Enter a prompt and optionally upload an image for model inference.",
 )
 
 if __name__ == "__main__":

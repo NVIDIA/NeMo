@@ -1,9 +1,10 @@
-import numpy as np
 import os
+
+import numpy as np
 import torch
-from PIL import Image
 from einops import rearrange
 from omegaconf.omegaconf import open_dict
+from PIL import Image
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
@@ -67,8 +68,8 @@ def main(cfg):
         model_cfg.inductor = False
         model_cfg.unet_config.from_pretrained = None
         model_cfg.first_stage_config.from_pretrained = None
-        model_cfg.fsdp=False
-        model_cfg.global_batch_size=model_cfg.micro_batch_size*ntasks_per_node
+        model_cfg.fsdp = False
+        model_cfg.global_batch_size = model_cfg.micro_batch_size * ntasks_per_node
 
     torch.backends.cuda.matmul.allow_tf32 = True
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
@@ -77,7 +78,6 @@ def main(cfg):
     model = megatron_diffusion_model.model
     model.cuda().eval()
     base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
-
 
     if use_refiner:
         refiner_config = cfg.refiner_config

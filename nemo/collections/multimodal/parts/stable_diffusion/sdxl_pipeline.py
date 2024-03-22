@@ -36,7 +36,7 @@ class SamplingPipeline:
             model.conditioner.half()
             model.model.half()
         self.vae_scale_factor = 2 ** (self.model.first_stage_model.encoder.num_resolutions - 1)
-        self.is_legacy=is_legacy
+        self.is_legacy = is_legacy
 
     def text_to_image(
         self,

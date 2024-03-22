@@ -20,7 +20,6 @@ from apex.contrib.group_norm import GroupNorm
 from einops import rearrange, repeat
 from torch import einsum, nn
 from torch._dynamo import disable
-from nemo.utils import logging
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -28,6 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     ParallelLinearAdapterConfig,
 )
 from nemo.core import adapter_mixins
+from nemo.utils import logging
 
 
 def check_cuda():
@@ -395,11 +395,15 @@ class BasicTransformerBlock(nn.Module):
             return self._forward(x, context)
 
     def _forward(self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0):
-        x = self.attn1(self.norm1(x),
-                       context=context if self.disable_self_attn else None,
-                       additional_tokens=additional_tokens,
-                       n_times_crossframe_attn_in_self=n_times_crossframe_attn_in_self if not self.disable_self_attn else 0,
-                       ) + x
+        x = (
+            self.attn1(
+                self.norm1(x),
+                context=context if self.disable_self_attn else None,
+                additional_tokens=additional_tokens,
+                n_times_crossframe_attn_in_self=n_times_crossframe_attn_in_self if not self.disable_self_attn else 0,
+            )
+            + x
+        )
         x = self.attn2(self.norm2(x), context=context, additional_tokens=additional_tokens) + x
         x = self.ff(self.norm3(x)) + x
         return x
@@ -429,7 +433,9 @@ class SpatialTransformer(nn.Module):
         lora_network_alpha=None,
     ):
         super().__init__()
-        logging.info(f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads")
+        logging.info(
+            f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads"
+        )
         from omegaconf import ListConfig
 
         if exists(context_dim) and not isinstance(context_dim, (list, ListConfig)):

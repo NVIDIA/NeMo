@@ -50,7 +50,13 @@ def get_args():
         "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
     parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--conv-template", type=str, default="llama_2", required=False, help="Conversation template: nvgpt, llama_2, v1 (vicuna)")
+    parser.add_argument(
+        "--conv-template",
+        type=str,
+        default="llama_2",
+        required=False,
+        help="Conversation template: nvgpt, llama_2, v1 (vicuna)",
+    )
     parser.add_argument(
         "--tokenizer-model", type=str, default=None, required=False, help="Path to sentencepiece tokenizer model."
     )

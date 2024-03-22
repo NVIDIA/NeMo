@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import sys
+
 import torch
 import torch._dynamo.config as dynamo_config
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPFSDPStrategy
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
@@ -41,7 +42,7 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
         _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
         if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
             logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
-            return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False, )
+            return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False,)
 
         if self.cfg.model.get('fsdp', False):
             assert (
@@ -57,7 +58,7 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
                 grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
                 precision=self.cfg.trainer.precision,
                 use_orig_params=self.cfg.model.inductor,
-                set_buffer_dtype=self.cfg.get('fsdp_set_buffer_dtype', None)
+                set_buffer_dtype=self.cfg.get('fsdp_set_buffer_dtype', None),
             )
 
         return NLPDDPStrategy(

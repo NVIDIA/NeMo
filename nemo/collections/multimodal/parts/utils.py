@@ -318,6 +318,7 @@ def setup_trainer_and_model_for_inference(
     # Return the trainer and model objects.
     return trainer, model
 
+
 def create_neva_model_and_processor(cfg):
     from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
 

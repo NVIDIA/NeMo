@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from abc import abstractmethod
+from collections.abc import Iterable
+from functools import partial
+from typing import Iterable
+
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from abc import abstractmethod
-from collections.abc import Iterable
-from functools import partial
-from typing import Iterable
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -364,9 +365,8 @@ class AttentionBlock(nn.Module):
         self.proj_out = zero_module(conv_nd(1, channels, channels, 1))
 
     def forward(self, x, **kwargs):
-        return checkpoint(
-            self._forward, (x,), self.parameters(), True
-        )
+        return checkpoint(self._forward, (x,), self.parameters(), True)
+
     def _forward(self, x):
         b, c, *spatial = x.shape
         x = x.reshape(b, c, -1)
@@ -862,6 +862,7 @@ class UNetModel(nn.Module):
         if from_pretrained is not None:
             if from_pretrained.endswith('safetensors'):
                 from safetensors.torch import load_file as load_safetensors
+
                 state_dict = load_safetensors(from_pretrained)
             else:
                 state_dict = torch.load(from_pretrained, map_location='cpu')

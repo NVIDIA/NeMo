@@ -28,8 +28,8 @@ def main(cfg):
         model_cfg.inductor = False
         model_cfg.unet_config.from_pretrained = None
         model_cfg.first_stage_config.from_pretrained = None
-        model_cfg.first_stage_config._target_= 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper'
-        model_cfg.fsdp=False
+        model_cfg.first_stage_config._target_ = 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper'
+        model_cfg.fsdp = False
 
     torch.backends.cuda.matmul.allow_tf32 = True
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
@@ -48,7 +48,7 @@ def main(cfg):
             negative_prompt=cfg.infer.negative_prompt,
             samples=cfg.infer.num_samples,
             return_latents=True if use_refiner else False,
-            seed=int(cfg.infer.seed + i * 100)
+            seed=int(cfg.infer.seed + i * 100),
         )
 
         perform_save_locally(cfg.out_path, samples)

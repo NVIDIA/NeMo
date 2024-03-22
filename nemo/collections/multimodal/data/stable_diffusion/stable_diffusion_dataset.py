@@ -192,6 +192,7 @@ def build_train_valid_precached_datasets(
 
     return train_data, val_data
 
+
 def build_train_valid_precached_clip_datasets(model_cfg, consumed_samples):
     data_cfg = model_cfg.data
 
@@ -230,6 +231,7 @@ def build_train_valid_precached_clip_datasets(model_cfg, consumed_samples):
         )
 
     return train_data, val_data
+
 
 def build_sdxl_train_valid_datasets(
     model_cfg, consumed_samples,
@@ -282,7 +284,9 @@ def build_sdxl_train_valid_datasets(
         return img_transform(image), text_transform(text)
 
     if 'center_crop_h_w' in data_cfg.train.get("augmentations", None):
-        print('Training with center cropping, image size and crop coordinates will not be used as extra conditions during training')
+        print(
+            'Training with center cropping, image size and crop coordinates will not be used as extra conditions during training'
+        )
         compose_fn = tuple_to_dict
     else:
         compose_fn = AddOriginalImageSizeAsTupleAndCropToSquare

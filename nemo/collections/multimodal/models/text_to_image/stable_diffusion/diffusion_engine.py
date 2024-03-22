@@ -1,10 +1,12 @@
+from abc import ABC, abstractclassmethod
+from contextlib import contextmanager
+from typing import Any, Dict, List, Tuple, Union
+
 import hydra
 import pytorch_lightning as pl
 import torch
 import torch._dynamo
 import torch.nn as nn
-from abc import ABC, abstractclassmethod
-from contextlib import contextmanager
 from einops import rearrange
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -12,11 +14,12 @@ from pytorch_lightning.utilities import rank_zero_only
 from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR
-from typing import Any, Dict, List, Tuple, Union
 
-from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import \
-    build_sdxl_precached_text_train_valid_datasets, build_train_valid_precached_datasets, \
-    build_sdxl_train_valid_datasets
+from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
+    build_sdxl_precached_text_train_valid_datasets,
+    build_sdxl_train_valid_datasets,
+    build_train_valid_precached_datasets,
+)
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
@@ -61,9 +64,7 @@ UNCONDITIONAL_CONFIG = {
 
 
 class DiffusionEngine(nn.Module, Serialization):
-    def __init__(
-            self, cfg, model_parallel_config
-    ):
+    def __init__(self, cfg, model_parallel_config):
         super().__init__()
         unet_config = cfg.unet_config
         denoiser_config = cfg.denoiser_config
@@ -83,11 +84,7 @@ class DiffusionEngine(nn.Module, Serialization):
         # Precaching
         self.precache_mode = cfg.get('precache_mode')
 
-        self.loss_fn = (
-            DiffusionEngine.from_config_dict(loss_fn_config)
-            if loss_fn_config is not None
-            else None
-        )
+        self.loss_fn = DiffusionEngine.from_config_dict(loss_fn_config) if loss_fn_config is not None else None
 
         model = DiffusionEngine.from_config_dict(unet_config)
         self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(model, compile_model=compile_model)
@@ -99,11 +96,7 @@ class DiffusionEngine(nn.Module, Serialization):
             self.model = torch.compile(self.model)
 
         self.denoiser = DiffusionEngine.from_config_dict(denoiser_config)
-        self.sampler = (
-            instantiate_from_config(sampler_config)
-            if sampler_config is not None
-            else None
-        )
+        self.sampler = instantiate_from_config(sampler_config) if sampler_config is not None else None
 
         self.conditioner = DiffusionEngine.from_config_dict(default(conditioner_config, UNCONDITIONAL_CONFIG))
         self.scheduler_config = scheduler_config
@@ -112,7 +105,7 @@ class DiffusionEngine(nn.Module, Serialization):
         self._init_first_stage(first_stage_config)
         self.model_type = None
 
-        self.rng = torch.Generator(device=torch.cuda.current_device(), )
+        self.rng = torch.Generator(device=torch.cuda.current_device(),)
 
         self.use_ema = False  # TODO use_ema need to switch to NeMo style
         if self.use_ema:
@@ -224,19 +217,19 @@ class DiffusionEngine(nn.Module, Serialization):
             scheduler = DiffusionEngine.from_config_dict(self.scheduler_config)
             print("Setting up LambdaLR scheduler...")
             scheduler = [
-                {"scheduler": LambdaLR(opt, lr_lambda=scheduler.schedule), "interval": "step", "frequency": 1, }
+                {"scheduler": LambdaLR(opt, lr_lambda=scheduler.schedule), "interval": "step", "frequency": 1,}
             ]
             return [opt], scheduler
         return opt
 
     @torch.no_grad()
     def sample(
-            self,
-            cond: Dict,
-            uc: Union[Dict, None] = None,
-            batch_size: int = 16,
-            shape: Union[None, Tuple, List] = None,
-            **kwargs,
+        self,
+        cond: Dict,
+        uc: Union[Dict, None] = None,
+        batch_size: int = 16,
+        shape: Union[None, Tuple, List] = None,
+        **kwargs,
     ):
         randn = torch.randn(batch_size, *shape, generator=self.rng).to(self.device)
 
@@ -284,7 +277,7 @@ class DiffusionEngine(nn.Module, Serialization):
         pass
 
     @torch.no_grad()
-    def log_images(self, batch: Dict, N: int = 8, sample: bool = True, ucg_keys: List[str] = None, **kwargs, ) -> Dict:
+    def log_images(self, batch: Dict, N: int = 8, sample: bool = True, ucg_keys: List[str] = None, **kwargs,) -> Dict:
         conditioner_input_keys = [e.input_key for e in self.conditioner.embedders]
         if ucg_keys:
             assert all(map(lambda x: x in conditioner_input_keys, ucg_keys)), (
@@ -393,7 +386,7 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
         # handle asynchronous grad reduction
         no_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2, )
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
 
         # pipeline schedules will get these from self.model.config
         for module in self.get_module_list():
@@ -515,7 +508,7 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
             """
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
-                    self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
+                self.autocast_dtype in (torch.half, torch.bfloat16), dtype=self.autocast_dtype,
             ):
                 if self.model.precache_mode == 'both':
                     x = batch[self.model.input_key].to(torch.cuda.current_device())

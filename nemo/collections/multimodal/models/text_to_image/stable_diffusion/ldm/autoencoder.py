@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import contextmanager
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from contextlib import contextmanager
 
 try:
     from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
@@ -338,6 +339,7 @@ class AutoencoderKL(pl.LightningModule):
         if from_pretrained is not None:
             if from_pretrained.endswith('safetensors'):
                 from safetensors.torch import load_file as load_safetensors
+
                 state_dict = load_safetensors(from_pretrained)
             else:
                 state_dict = torch.load(from_pretrained)
@@ -411,8 +413,8 @@ class AutoencoderKL(pl.LightningModule):
                     model_key = checkpoint_key
 
                     if (
-                            model_key in model_state_dict
-                            and state_dict[checkpoint_key].shape != model_state_dict[model_key].shape
+                        model_key in model_state_dict
+                        and state_dict[checkpoint_key].shape != model_state_dict[model_key].shape
                     ):
                         mismatched_keys.append(
                             (checkpoint_key, state_dict[checkpoint_key].shape, model_state_dict[model_key].shape)
@@ -421,7 +423,7 @@ class AutoencoderKL(pl.LightningModule):
             return mismatched_keys
 
         if 'encoder.mid.attn_1.q.weight' in loaded_keys and (
-                state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512])
+            state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512])
         ):
             for key in [
                 'encoder.mid.attn_1.q.weight',

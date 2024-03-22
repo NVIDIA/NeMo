@@ -73,7 +73,7 @@ hparams_file: null #/pwd/nemo_multimodal/nemo_experiments/nemo_llava_finetune/ve
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -130,7 +130,7 @@ def eval_model(args):
             input_prompts=[dict(prompt=qs, image=line.get('image', None))],
             length_params=length_params,
             sampling_params=sampling_params,
-            inference_config=cfg
+            inference_config=cfg,
         )
         # import  pdb; pdb.set_trace()
         outputs = responses[0]["clean_response"]
@@ -140,20 +140,28 @@ def eval_model(args):
             outputs_reasoning = outputs
 
             responses = model.generate(
-                input_prompts=[prompt + outputs_reasoning + ' ###\nANSWER:'], length_params=length_params,
+                input_prompts=[prompt + outputs_reasoning + ' ###\nANSWER:'],
+                length_params=length_params,
                 sampling_params=sampling_params,
-                inference_config=cfg
+                inference_config=cfg,
             )
             outputs = responses[0]["clean_response"]
             outputs = outputs_reasoning + '\n The answer is ' + outputs
 
         ans_id = shortuuid.uuid()
-        ans_file.write(json.dumps({"question_id": idx,
-                                   "prompt": cur_prompt,
-                                   "text": outputs,
-                                   "answer_id": ans_id,
-                                   "model_id": args.model_path,
-                                   "metadata": {}}) + "\n")
+        ans_file.write(
+            json.dumps(
+                {
+                    "question_id": idx,
+                    "prompt": cur_prompt,
+                    "text": outputs,
+                    "answer_id": ans_id,
+                    "model_id": args.model_path,
+                    "metadata": {},
+                }
+            )
+            + "\n"
+        )
         ans_file.flush()
     ans_file.close()
 

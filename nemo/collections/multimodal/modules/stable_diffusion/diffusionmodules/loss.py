@@ -7,6 +7,7 @@ from omegaconf import ListConfig
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims, instantiate_from_config
 from nemo.collections.multimodal.parts.utils import randn_like
 
+
 class StandardDiffusionLoss(nn.Module):
     def __init__(
         self,
@@ -39,7 +40,9 @@ class StandardDiffusionLoss(nn.Module):
         cond = conditioner(batch)
         additional_model_inputs = {key: batch[key] for key in self.batch2model_keys.intersection(batch)}
 
-        rand = torch.randint(0, self.sigma_sampler.num_idx, (input.shape[0],), generator=rng, device=rng.device).to(self.sigma_sampler.sigmas.device)
+        rand = torch.randint(0, self.sigma_sampler.num_idx, (input.shape[0],), generator=rng, device=rng.device).to(
+            self.sigma_sampler.sigmas.device
+        )
         sigmas = self.sigma_sampler(input.shape[0], rand=rand).to(input.device)
         noise = randn_like(input, generator=rng)
         if self.offset_noise_level > 0.0:

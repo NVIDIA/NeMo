@@ -1,22 +1,24 @@
-import pandas as pd 
-import numpy as np
-import tarfile
-import pickle
-import os
-from pathlib import Path
-import shutil
 import multiprocessing
-from multiprocessing import Pool
+import os
+import pickle
+import shutil
+import tarfile
+import time
 from argparse import ArgumentParser
 from glob import glob
-import time
+from multiprocessing import Pool
+from pathlib import Path
 from typing import Optional
+
+import numpy as np
+import pandas as pd
 
 SHAPES = {
     'prompt_embeds': (77, 2048),
     'pooled_prompt_embeds': (1280,),
     'latents_256': (4, 32, 32),
 }
+
 
 def convert_single_parquet_to_tar(parquet_file):
     pf = pd.read_parquet(parquet_file)
@@ -58,7 +60,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_process', type=int, default=-1)
     parser.add_argument('--num_files', type=int, default=-1)
     args = parser.parse_args()
-    
+
     PROFILE = True
     if PROFILE:
         shutil.rmtree(args.output_folder)
@@ -66,7 +68,7 @@ if __name__ == '__main__':
     os.makedirs(args.output_folder, exist_ok=True)
     parquets = glob(f'{args.parquet_folder}/*.parquet')
     if args.num_files > 0:
-        parquets = parquets[:args.num_files]
+        parquets = parquets[: args.num_files]
     args.num_files = len(parquets)
     print(f'Processing {args.num_files} files.')
     if args.num_process <= 0:

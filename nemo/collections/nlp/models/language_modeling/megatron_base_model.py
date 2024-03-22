@@ -14,20 +14,21 @@
 
 import gc
 import itertools
-import omegaconf
 import os
 import re
-import torch
-import torch.nn as nn
 from dataclasses import fields
 from datetime import datetime
+from typing import Any, Dict, Optional, Union
+
+import omegaconf
+import torch
+import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from typing import Any, Dict, Optional, Union
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -1220,9 +1221,9 @@ class MegatronBaseModel(NLPModel):
             frozen_submodule_names = []
             for name, module in model.named_modules():
                 if (
-                        isinstance(module, nn.Module)
-                        and list(module.parameters())
-                        and all(not param.requires_grad for param in module.parameters())
+                    isinstance(module, nn.Module)
+                    and list(module.parameters())
+                    and all(not param.requires_grad for param in module.parameters())
                 ):
                     frozen_submodule_names.append(name)
                     frozen_submodules.append(module)
