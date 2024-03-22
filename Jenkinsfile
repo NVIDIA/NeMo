@@ -146,6 +146,7 @@ pipeline {
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
             model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
             trainer.max_steps=30"
         sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
@@ -167,6 +168,7 @@ pipeline {
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
             model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
             trainer.max_steps=50"
         sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
       }
