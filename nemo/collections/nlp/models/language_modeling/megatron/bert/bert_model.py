@@ -386,8 +386,8 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         """
         original_post_process = self.post_process
 
-        # We set this to false since we just want to get the hidden states from the encoder 
-        self.post_process = False 
+        # We set this to false since we just want to get the hidden states from the encoder
+        self.post_process = False
         hidden_states = super().forward(input_ids, attention_mask, tokentype_ids, lm_labels, inference_params)
         self.post_process = original_post_process
 
