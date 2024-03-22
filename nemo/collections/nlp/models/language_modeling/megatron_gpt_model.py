@@ -133,12 +133,12 @@ def mcore_supports_moe() -> bool:
         return False
 
 
-def get_specs(spec_name, num_experts=None):
+def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False):
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
 
     name_spec_dict = {
-        "": get_gpt_layer_with_transformer_engine_spec(num_experts),
+        "": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
         "ammo": get_gpt_layer_ammo_spec(),
@@ -380,7 +380,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_specs(self.spec_name, self.transformer_config.num_moe_experts),
+                transformer_layer_spec=get_specs(self.spec_name, self.transformer_config.num_moe_experts, self.transformer_config.moe_grouped_gemm),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
