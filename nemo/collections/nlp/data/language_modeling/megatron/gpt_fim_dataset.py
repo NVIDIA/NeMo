@@ -25,11 +25,13 @@ try:
 
     HAVE_MEGATRON_CORE = True
 
-except (ImportError, ModuleNotFoundError):
+except (ImportError, ModuleNotFoundError) as e:
 
     GPTDataset = GPTDatasetConfig = IndexedDataset = Split = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+    IMPORT_ERROR = e
+
 
 # is_dataset_built_on_rank function is needed for mcore GPTDatasetConfig
 def is_dataset_built_on_rank():
@@ -45,9 +47,7 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
 
     def __init__(self, fim, **kwargs):
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(
-                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
+            raise ImportError(IMPORT_ERROR)
 
         super().__init__(**kwargs)
         self.fim = fim
@@ -79,9 +79,7 @@ class GPTFIMDataset(GPTDataset):
         config: GPTFIMDatasetConfig,
     ) -> None:
         if not HAVE_MEGATRON_CORE:
-            raise ImportError(
-                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
+            raise ImportError(IMPORT_ERROR)
 
         super().__init__(indexed_dataset, dataset_path, indexed_indices, num_samples, index_split, config)
 

@@ -67,6 +67,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     ModelParallelConfig = ApexGuardDefaults
+    TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
