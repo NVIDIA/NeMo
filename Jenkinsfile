@@ -3384,7 +3384,7 @@ pipeline {
         model.mcore_bert=False \
         model.global_batch_size=2 \
         model.micro_batch_size=1 \
-        model.optim.lr=0.000005 \
+        model.optim.lr=0.0005 \
         model.encoder_seq_length=512 \
         model.tokenizer.library='huggingface' \
         model.tokenizer.type='intfloat/e5-large-unsupervised' \
@@ -3409,7 +3409,7 @@ pipeline {
         model.mcore_bert=False \
         model.global_batch_size=2 \
         model.micro_batch_size=1 \
-        model.optim.lr=0.000005 \
+        model.optim.lr=0.0005 \
         model.encoder_seq_length=512 \
         model.tokenizer.library='huggingface' \
         model.tokenizer.type='intfloat/e5-large-unsupervised' \
@@ -3446,7 +3446,7 @@ pipeline {
         model.mcore_bert=True \
         model.global_batch_size=2 \
         model.micro_batch_size=1 \
-        model.optim.lr=0.000005 \
+        model.optim.lr=0.0005 \
         model.encoder_seq_length=512 \
         model.tokenizer.library='huggingface' \
         model.tokenizer.type='intfloat/e5-large-unsupervised' \
@@ -3471,7 +3471,7 @@ pipeline {
         model.mcore_bert=True \
         model.global_batch_size=2 \
         model.micro_batch_size=1 \
-        model.optim.lr=0.000005 \
+        model.optim.lr=0.0005 \
         model.encoder_seq_length=512 \
         model.tokenizer.library='huggingface' \
         model.tokenizer.type='intfloat/e5-large-unsupervised' \
