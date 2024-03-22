@@ -461,7 +461,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         media_end_id = self.tokenizer.token_to_id(DEFAULT_IM_END_TOKEN)
 
         if self.mcore_gpt:
-            if parallel_state.is_unitialized():
+            if not parallel_state.is_initialized():
 
                 def dummy():
                     return
@@ -1001,7 +1001,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return
