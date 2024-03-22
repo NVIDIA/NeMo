@@ -25,7 +25,7 @@ from omegaconf import ListConfig
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.data.dataclasses import AudioNoiseBatch, AudioNoiseItem
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import WhiteNoisePerturbation, process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.common.data.dataset import ConcatDataset
@@ -112,18 +112,36 @@ def load_noise_audio(
     featurizer: WaveformFeaturizer | Any,
     max_audio_len: Optional[int] = None,
     pad_to_max: bool = True,
+    min_white_noise_db: int = -90,
+    max_white_noise_db: int = -46,
+    max_trial: int = 20,
 ):
     max_dur = None if max_audio_len is None else max_audio_len / featurizer.sample_rate
     duration = sample.get('duration', None)
     offset = sample.get('offset', 0.0)
-    if max_dur is not None and duration is not None and duration > max_dur:
-        # randomly sample a segment of the noise
-        offset = np.random.uniform(0, duration - max_dur)
-        duration = max_dur
 
-    audio_segment = AudioSegment.from_file(
-        audio_file=sample['audio_filepath'], offset=offset, duration=duration, target_sr=featurizer.sample_rate,
-    )
+    if max_dur is not None and duration is not None and duration > max_dur:
+        cnt = 0
+        while cnt < max_trial:
+            # randomly sample a segment of the noise
+            offset = np.random.uniform(0, duration - max_dur)
+            audio_segment = AudioSegment.from_file(
+                audio_file=sample['audio_filepath'], offset=offset, duration=max_dur, target_sr=featurizer.sample_rate,
+            )
+            if sum(audio_segment.samples) > 0:
+                # break if the segment is not empty
+                break
+            cnt += 1
+    else:
+        audio_segment = AudioSegment.from_file(
+            audio_file=sample['audio_filepath'], offset=offset, duration=duration, target_sr=featurizer.sample_rate,
+        )
+
+    if sum(audio_segment.samples) == 0:
+        logging.warning(
+            f"Loaded noise audio is empty: {sample}, with sampled offset={offset}, duration={max_dur}. Adding white noise."
+        )
+        WhiteNoisePerturbation(min_level=min_white_noise_db, max_level=max_white_noise_db).perturb(audio_segment)
 
     noise = torch.tensor(audio_segment.samples, dtype=torch.float)
     noise_len = torch.tensor(noise.size(0)).long()
