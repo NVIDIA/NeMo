@@ -92,9 +92,9 @@ try:
         make_sharded_optimizer_tensor,
         optim_state_to_sharding_state,
     )
+    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
-    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 
     HAVE_MEGATRON_CORE = True
 
