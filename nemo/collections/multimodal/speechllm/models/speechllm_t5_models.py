@@ -708,7 +708,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             override_vocab_size = cfg.model.get('override_vocab_size', None)
             if override_vocab_size is not None:
                 gpt_cfg.override_vocab_size = override_vocab_size
-            gpt_cfg.tokenizer = gpt_cfg.decoder_tokenizer
+            if not hasattr(gpt_cfg, 'tokenizer'):
+                gpt_cfg.tokenizer = gpt_cfg.decoder_tokenizer
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
