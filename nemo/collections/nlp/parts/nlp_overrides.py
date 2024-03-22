@@ -1156,17 +1156,16 @@ class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin, FSDPPrecision):
         scaler: Optional[torch.cuda.amp.GradScaler] = None,
     ) -> None:
         # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
-        match precision:
-            case '16-mixed'| '16'| 16:
-                plugin_precision = '16-mixed'
-            case 'bf16-mixed' | 'bf16':
-                plugin_precision = 'bf16-mixed'
-            case _:
-                raise RuntimeError(
-                    "precision expected to be one of: "
-                    "['16-mixed', '16', 16, 'bf16-mixed', 'bf16']"
-                    f" but {plugin_precision} found"
-                )
+        if precision in ['16-mixed', '16', 16]:
+            plugin_precision = '16-mixed'
+        elif plugin_precision in ['bf16-mixed', 'bf16']:
+            plugin_precision = 'bf16-mixed'
+        else:
+            raise RuntimeError(
+                "precision expected to be one of: "
+                "['16-mixed', '16', 16, 'bf16-mixed', 'bf16']"
+                f" but {plugin_precision} found"
+            )
         super().__init__(plugin_precision, device, scaler=scaler)
         dtype = None
         if precision in ['16-mixed', '16', 16]:
