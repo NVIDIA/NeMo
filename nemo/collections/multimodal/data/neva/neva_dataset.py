@@ -1,44 +1,76 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import copy
 import json
 import logging
 import os
-import pathlib
 import re
 import tarfile
+from dataclasses import dataclass
+from typing import Any, Dict, List, Sequence, Union
+
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import transformers
-from PIL import Image
-from dataclasses import dataclass, field
 from einops import rearrange
 from omegaconf import DictConfig
+from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
-from typing import Any, Dict, List, Optional, Sequence, Union
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
-from nemo.collections.multimodal.data.kosmos.kosmos_dataset import tokenize_and_insert_media_tokens
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
-    DEFAULT_PAD_TOKEN,
     DEFAULT_BOS_TOKEN,
     DEFAULT_EOS_TOKEN,
-    DEFAULT_UNK_TOKEN,
-    DEFAULT_IMAGE_TOKEN,
-    DEFAULT_SYSTEM_TOKEN,
-    DEFAULT_SEPARATOR_TOKEN,
-    DEFAULT_LABELS_TOKEN,
-    DEFAULT_IMAGE_PATCH_TOKEN,
-    DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_PATCH_TOKEN,
+    DEFAULT_IMAGE_TOKEN,
+    DEFAULT_LABELS_TOKEN,
+    DEFAULT_PAD_TOKEN,
+    DEFAULT_SEPARATOR_TOKEN,
+    DEFAULT_SYSTEM_TOKEN,
+    DEFAULT_UNK_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
-MAX_NUM_IMAGES = 4
+MAX_NUM_IMAGES = 1
 IGNORE_INDEX = -1
 
 
 class TarOrFolderImageLoader:
+    """
+    A class for loading images from a tar archive or a regular folder.
+
+    This class provides functionality to open and read images from either a tar archive
+    (.tar file) or a standard directory with image files. It builds an index of images
+    if the source is a tar archive for efficient access.
+
+    Attributes:
+        image_folder (str): The path to the tar archive or image folder.
+        tar_index (dict): A dictionary that maps file names to their tarfile member
+                          objects if the image source is a tar archive.
+
+    Methods:
+        __init__(self, image_folder): Initializes the loader with the specified image folder.
+        build_index(self): Builds an index of image file names and their corresponding
+                           tarfile member objects for a tar archive.
+        open_image(self, file_name): Opens and returns an image by its file name. The image
+                                     is returned as an RGB PIL Image object.
+    """
+
     def __init__(self, image_folder):
         self.image_folder = image_folder
         self.tar_index = {}
@@ -63,7 +95,7 @@ class TarOrFolderImageLoader:
 
 
 def tokenize(
-        texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
+    texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
 ) -> torch.LongTensor:
     """
     Returns the tokenized representation of given input string(s). If the list of tokens exceeds the context
@@ -107,6 +139,24 @@ def tokenize(
 
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
+    """
+    Preprocesses multimodal sources based on the provided configuration.
+
+    This function modifies the sources for multimodal data processing. It checks if the data is multimodal and
+    adjusts the token lengths accordingly. It also handles the start and end tokens for images and replaces
+    image tokens in conversations.
+
+    Parameters:
+    - sources (dict): A dictionary containing the multimodal sources to be processed.
+    - multimodal_cfg (dict): A configuration dictionary specifying various options for multimodal processing.
+      It includes keys like 'is_multimodal', 'use_im_start_end', and 'sep_image_conv_front'.
+    - cur_token_len (int): The current length of tokens to be considered for image processing.
+    - use_plain (bool, optional): A boolean flag to use plain image token replacement without additional processing.
+      Defaults to False.
+
+    Returns:
+    - dict: The processed sources dictionary after applying multimodal preprocessing steps.
+    """
     is_multimodal = multimodal_cfg['is_multimodal']
     image_token_len = cur_token_len
     if not is_multimodal:
@@ -124,11 +174,11 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             assert DEFAULT_IMAGE_TOKEN in conversation[0]['value']
             conversation[0]['value'] = conversation[0]['value'].replace(DEFAULT_IMAGE_TOKEN, '').strip()
             conversation[0]['value'] = (
-                    DEFAULT_IMAGE_TOKEN
-                    + conversation_lib.default_conversation.sep
-                    + conversation_lib.default_conversation.roles[0]
-                    + ": "
-                    + conversation[0]['value']
+                DEFAULT_IMAGE_TOKEN
+                + conversation_lib.default_conversation.sep
+                + conversation_lib.default_conversation.roles[0]
+                + ": "
+                + conversation[0]['value']
             )
         if use_plain:
             assert DEFAULT_IMAGE_TOKEN in conversation[0]['value']
@@ -139,7 +189,22 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     return sources
 
 
-def preprocess_llama_2(sources: dict, tokenizer, cfg, ) -> Dict:
+def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
+    """
+    Preprocesses sources for the LLaMA 2 model configuration.
+
+    The function applies prompt templates and tokenizes the conversations according to the LLaMA 2 model specifications.
+    It involves special handling of tokens, masking of labels, and adjustments based on configuration settings.
+
+    Parameters:
+    - sources (dict): A dictionary of sources containing conversations to be processed.
+    - tokenizer: The tokenizer to be used for processing the text.
+    - cfg: Configuration settings for preprocessing, including context length and additional tokens.
+
+    Returns:
+    - Dict: A dictionary containing tokenized and labeled data suitable for the LLaMA 2 model.
+      This includes tokens, labels, and any special processing as defined in the configuration.
+    """
     conv = conversation_lib.conv_llava_llama_2.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -193,7 +258,7 @@ def preprocess_llama_2(sources: dict, tokenizer, cfg, ) -> Dict:
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
             instruction_len = len(tokenizer.text_to_ids(parts[0])) - 2
-            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -208,10 +273,24 @@ def preprocess_llama_2(sources: dict, tokenizer, cfg, ) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels, )
+    return dict(tokens=tokens, labels=labels,)
 
 
-def preprocess_v1(sources: dict, tokenizer, cfg, ) -> Dict:
+def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
+    """
+    Preprocesses sources for the Vicuna V1 model configuration.
+
+    Similar to `preprocess_llama_2`, this function applies prompt templates and performs tokenization, but it is tailored
+    for the Vicuna V1 model. It includes specific handling for token translations, label masking, and tokenizer configuration.
+
+    Parameters:
+    - sources (dict): A dictionary of sources containing conversations to be processed.
+    - tokenizer: The tokenizer to be used for processing the text.
+    - cfg: Configuration settings for preprocessing, which may include context length and additional tokens.
+
+    Returns:
+    - Dict: A dictionary containing the processed data, including tokens and labels, formatted for the Vicuna V1 model.
+    """
     conv = conversation_lib.conv_vicuna_v1.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -265,7 +344,7 @@ def preprocess_v1(sources: dict, tokenizer, cfg, ) -> Dict:
             if i > 0:
                 round_len -= 1  # Remove extra token added by sp tokenizer
                 instruction_len -= 1
-            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -277,17 +356,32 @@ def preprocess_v1(sources: dict, tokenizer, cfg, ) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels, )
+    return dict(tokens=tokens, labels=labels,)
 
 
-def preprocess_nvgpt(sources: dict, tokenizer, cfg, ) -> Dict:
+def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
     """
-    Given a record this transform:
-        1. Add signal '<>' at the beginning each sentence, with end signal '\n';
-        2. Concatenate conversations together;
-        3. Tokenize the concatenated conversation;
-        4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
+    Preprocess a given set of conversational sources using nvgpt conversation template
+
+    This function processes conversations by first ensuring the conversation starts with a 'human' role, then tokenizes the conversations, applies specific token replacements, and finally masks labels for training purposes.
+
+    Parameters:
+    - sources: A dictionary containing conversational data. Expected format is a dict of conversations, where each conversation is a list of messages, and each message is a dict with 'from' (role) and 'value' (message text).
+    - tokenizer: A tokenizer from the Hugging Face Transformers library used for tokenizing the conversations.
+    - cfg: Configuration settings which include 'add_extra_token' (bool) to determine if an extra token should be added to the tokenized output, and 'context_length' for specifying the tokenization context length.
+
+    Returns:
+    - Dict: A dictionary containing two keys:
+        - 'tokens': A tensor of tokenized conversation data.
+        - 'labels': A tensor of labels for the conversation data, used for training models. Labels are masked based on the conversation structure.
+
+    Note:
+    - The function includes specific token replacements (e.g., DEFAULT_IMAGE_PATCH_TOKEN, <s>, </s>) and masking techniques for labels.
+    - It is designed to work with conversational data where messages alternate between a 'human' and a 'gpt' role.
+    - The function asserts that each message in a conversation alternates between the defined roles and skips messages not starting with the 'human' role.
     """
+
+    """<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n<extra_id_1>User\n{user input}\n<extra_id_1>Assistant\n<extra_id_2>quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4\n"""
 
     conv = conversation_lib.conv_nvgpt.copy()
 
@@ -296,12 +390,16 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg, ) -> Dict:
     for source in sources:
         conv.messages = []
         conv.system = source.get('system', conv.system)
-        if len(source['conversations']) >= 2:
-            conv.roles = (source['conversations'][0]['from'], source['conversations'][1]['from'])
 
         strip_end_for_inference = False
-        for turn in source['conversations']:
-            if 'label' in turn:
+        for i, turn in enumerate(source['conversations']):
+
+            if i % 2 == 1:
+                turn['from'] = conv.roles[1]
+                if 'label' not in turn:
+                    turn[
+                        'label'
+                    ] = "quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4"
                 value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
                 conv.append_message(turn['from'], value)
                 if not turn["value"]:
@@ -309,6 +407,7 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg, ) -> Dict:
                         True  # in inference, current turn is empty, thus end tokens need to striped.
                     )
             else:
+                turn['from'] = conv.roles[0]
                 conv.append_message(turn['from'], turn['value'])
         context = conv.get_prompt()
         if strip_end_for_inference:
@@ -334,7 +433,7 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg, ) -> Dict:
         re_rounds = [conv.sep.join(rounds[:3])]  # system + user + gpt
 
         for conv_idx in range(3, len(rounds), 2):
-            re_rounds.append(conv.sep.join(rounds[conv_idx: conv_idx + 2]))  # user + gpt
+            re_rounds.append(conv.sep.join(rounds[conv_idx : conv_idx + 2]))  # user + gpt
 
         cur_len = 0
         for i, rou in enumerate(re_rounds):
@@ -350,7 +449,7 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg, ) -> Dict:
 
             instruction_len = len(tokenizer.text_to_ids(parts[0] + sep + labels_str))
             round_len = len(tokenizer.text_to_ids(rou + conv.sep))
-            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -362,19 +461,134 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg, ) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels, )
+    return dict(tokens=tokens, labels=labels,)
 
 
-def preprocess_plain(
-        sources, tokenizer, cfg,
-) -> Dict:
+def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
+    """
+    Preprocess a given set of conversational sources using nvgpt conversation template
+
+    This function processes conversations by first ensuring the conversation starts with a 'human' role, then tokenizes the conversations, applies specific token replacements, and finally masks labels for training purposes.
+
+    Parameters:
+    - sources: A dictionary containing conversational data. Expected format is a dict of conversations, where each conversation is a list of messages, and each message is a dict with 'from' (role) and 'value' (message text).
+    - tokenizer: A tokenizer from the Hugging Face Transformers library used for tokenizing the conversations.
+    - cfg: Configuration settings which include 'add_extra_token' (bool) to determine if an extra token should be added to the tokenized output, and 'context_length' for specifying the tokenization context length.
+
+    Returns:
+    - Dict: A dictionary containing two keys:
+        - 'tokens': A tensor of tokenized conversation data.
+        - 'labels': A tensor of labels for the conversation data, used for training models. Labels are masked based on the conversation structure.
+
+    Note:
+    - The function includes specific token replacements (e.g., DEFAULT_IMAGE_PATCH_TOKEN, <s>, </s>) and masking techniques for labels.
+    - It is designed to work with conversational data where messages alternate between a 'human' and a 'gpt' role.
+    - The function asserts that each message in a conversation alternates between the defined roles and skips messages not starting with the 'human' role.
+    """
+
+    """<extra_id_0>System\n\n<extra_id_1>User\n{user input}\n<extra_id_1>Assistant\n"""
+
+    conv = conversation_lib.conv_nv_dpo.copy()
+
+    # Apply prompt templates
+    conversations = []
+    for source in sources:
+        conv.messages = []
+        conv.system = source.get('system', conv.system)
+
+        strip_end_for_inference = False
+        for i, turn in enumerate(source['conversations']):
+
+            if i % 2 == 1:
+                turn['from'] = conv.roles[1]
+                conv.append_message(turn['from'], turn['value'])
+                if not turn["value"]:
+                    strip_end_for_inference = (
+                        True  # in inference, current turn is empty, thus end tokens need to striped.
+                    )
+            else:
+                turn['from'] = conv.roles[0]
+                conv.append_message(turn['from'], turn['value'])
+        context = conv.get_prompt()
+        if strip_end_for_inference:
+            if context.endswith("\n<extra_id_1>"):
+                context = context[: -len("\n<extra_id_1>")] + "\n"
+        conversations.append(context)
+
+    add_extra_token = cfg.get("add_extra_token")
+    # Tokenize conversations
+    tokens = tokenize(
+        texts=conversations,
+        tokenizer=tokenizer,
+        context_length=cfg.get("context_length"),
+        add_extra_token=add_extra_token,
+    )
+
+    labels = tokens.clone().detach()
+
+    # Mask targets
+    sep = conv.sep + conv.roles[1] + "\n"
+    for conversation, target in zip(conversations, labels):
+        rounds = conversation.split(conv.sep)
+        re_rounds = [conv.sep.join(rounds[:3])]  # system + user + gpt
+
+        for conv_idx in range(3, len(rounds), 2):
+            re_rounds.append(conv.sep.join(rounds[conv_idx : conv_idx + 2]))  # user + gpt
+
+        cur_len = 0
+        for i, rou in enumerate(re_rounds):
+            if rou == "":
+                break
+            parts = rou.split(sep)
+            if len(parts) != 2:
+                break
+
+            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep))
+            round_len = len(tokenizer.text_to_ids(rou + conv.sep))
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+
+            cur_len += round_len
+        target[cur_len:] = IGNORE_INDEX
+
+    # Check if masking working correctly
+    # print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
+
+    if add_extra_token:
+        tokens = tokens[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+    else:
+        labels = torch.roll(labels, shifts=-1, dims=-1)
+        labels[:, -1] = IGNORE_INDEX
+
+    return dict(tokens=tokens, labels=labels,)
+
+
+def preprocess_plain(sources, tokenizer, cfg,) -> Dict:
+    """
+    Preprocesses plain text sources (no template) for tokenization and label generation.
+
+    This function concatenates conversations with an end signal, tokenizes them, and prepares labels for training.
+    It handles sources with a specific structure (expecting two elements in 'conversations') and includes the
+    option to add an extra token as specified in the configuration. The function also applies masking to the labels.
+
+    Parameters:
+    - sources: A list of source dictionaries. Each source dictionary should have a key 'conversations'
+      containing a list of conversation parts.
+    - tokenizer: The tokenizer to be used for converting text to tokens.
+    - cfg: Configuration dictionary which may include 'context_length' and 'add_extra_token' settings.
+
+    Returns:
+    - Dict: A dictionary containing tokenized data and corresponding labels. This includes 'tokens' which are the
+      tokenized representations of the conversations, and 'labels' which are used for training the model. The labels
+      have specific indices masked with IGNORE_INDEX as per the preprocessing logic.
+    """
     # add end signal and concatenate together
     conversations = []
     for source in sources:
         source = source['conversations']
         assert len(source) == 2
         # This line is different from LLaVA repo, we inserted '\n' after <image>.
-        conversation = source[0]['value'] + ' ' + source[1]['value'] + '\n'
+        conversation = source[0]['value'] + source[1]['value'] + '\n'
         conversations.append(conversation)
     # tokenize conversations
     add_extra_token = cfg.get("add_extra_token")
@@ -397,7 +611,7 @@ def preprocess_plain(
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels, )
+    return dict(tokens=tokens, labels=labels,)
 
 
 class LazySupervisedDataset(Dataset):
@@ -408,7 +622,8 @@ class LazySupervisedDataset(Dataset):
         logging.warning("Loading data...")
         if data_path is not None:
             logging.warning("Loading data...")
-            list_data_dict = json.load(open(data_path, "r"))
+            with open(data_path, "r") as file:
+                list_data_dict = json.load(file)
         else:
             list_data_dict = []
 
@@ -427,7 +642,6 @@ class LazySupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.list_data_dict[i]
-        processor = self.processor
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
@@ -440,56 +654,67 @@ class LazySupervisedDataset(Dataset):
                 image = self.image_loader.open_image(image_file)
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
-                if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
-                    max_hw, min_hw = max(image.size), min(image.size)
-                    aspect_ratio = max_hw / min_hw
-                    max_len, min_len = 448, 224
-                    shortest_edge = int(min(max_len / aspect_ratio, min_len))
-                    image = processor.preprocess(
-                        image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-                    )['pixel_values'][0]
-                elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
+                if isinstance(self.processor, CLIPImageProcessor):
+                    # image processor from HF
+                    if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
+                        max_hw, min_hw = max(image.size), min(image.size)
+                        aspect_ratio = max_hw / min_hw
+                        max_len, min_len = 448, 224
+                        shortest_edge = int(min(max_len / aspect_ratio, min_len))
+                        image = self.processor.preprocess(
+                            image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
+                        )['pixel_values'][0]
+                    elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
 
-                    def expand2square(pil_img, background_color):
-                        width, height = pil_img.size
-                        if width == height:
-                            return pil_img
-                        elif width > height:
-                            result = Image.new(pil_img.mode, (width, width), background_color)
-                            result.paste(pil_img, (0, (width - height) // 2))
-                            return result
-                        else:
-                            result = Image.new(pil_img.mode, (height, height), background_color)
-                            result.paste(pil_img, ((height - width) // 2, 0))
-                            return result
+                        def expand2square(pil_img, background_color):
+                            width, height = pil_img.size
+                            if width == height:
+                                return pil_img
+                            elif width > height:
+                                result = Image.new(pil_img.mode, (width, width), background_color)
+                                result.paste(pil_img, (0, (width - height) // 2))
+                                return result
+                            else:
+                                result = Image.new(pil_img.mode, (height, height), background_color)
+                                result.paste(pil_img, ((height - width) // 2, 0))
+                                return result
 
-                    image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-                    image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                        image = expand2square(image, tuple(int(x * 255) for x in self.processor.image_mean))
+                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                    else:
+                        image = self.processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
                 else:
-                    image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+                    assert (
+                        self.multimodal_cfg['image_aspect_ratio'] == 'square'
+                    ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+                    image = self.processor(image)
                 images.append(image)
             images_tensors = torch.tensor([])
             if images:
                 images_tensors = torch.stack(images)
                 cur_token_len = (images_tensors[0].shape[1] // 14) * (
-                        images_tensors[0].shape[2] // 14
+                    images_tensors[0].shape[2] // 14
                 )  # FIXME: 14 is hardcoded patch size
                 sources = preprocess_multimodal(
-                    copy.deepcopy(sources), self.multimodal_cfg, cur_token_len,
+                    copy.deepcopy(sources),
+                    self.multimodal_cfg,
+                    cur_token_len,
                     use_plain=(self.conv_template == "plain"),
                 )
         else:
             images_tensors = torch.tensor([])
             sources = copy.deepcopy(sources)
 
-        if self.conv_template == "nvgpt":
-            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg, )
+        if self.conv_template in ["nvgpt", "nv_steerlm"]:
+            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg,)
+        elif self.conv_template == "nv_dpo":
+            data_dict = preprocess_nv_dpo(sources, self.tokenizer, self.multimodal_cfg,)
         elif self.conv_template == "v1":
-            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg, )
+            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg,)
         elif self.conv_template == "llama_2":
-            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg, )
+            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg,)
         elif self.conv_template == "plain":
-            data_dict = preprocess_plain(sources, self.tokenizer, self.multimodal_cfg, )
+            data_dict = preprocess_plain(sources, self.tokenizer, self.multimodal_cfg,)
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
 
@@ -498,10 +723,13 @@ class LazySupervisedDataset(Dataset):
 
         # image exist in the data
         if self.multimodal_cfg['is_multimodal']:
-            crop_size = self.processor.crop_size
+            if isinstance(self.processor, CLIPImageProcessor):
+                crop_size = [self.processor.crop_size['height'], self.processor.crop_size['width']]
+            else:
+                crop_size = self.multimodal_cfg['crop_size']
             # image does not exist in the data, but the model is multimodal
             zero_padding = torch.zeros(
-                (MAX_NUM_IMAGES - len(images_tensors), 3, crop_size['height'], crop_size['width']), dtype=torch.float
+                (MAX_NUM_IMAGES - len(images_tensors), 3, crop_size[0], crop_size[1]), dtype=torch.float
             )
             images_tensors = torch.cat((images_tensors, zero_padding), dim=0)
             data_dict['image'] = images_tensors
@@ -603,15 +831,15 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
     add_extra_token = 1
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
+    crop_size = data_cfg.get("crop_size", (224, 224))
     if mm_cfg.vision_encoder.from_hf:
         image_processor = CLIPImageProcessor.from_pretrained(
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
     else:
         # TODO(yuya): Fix this hard-code for our own CLIP
-        image_processor = CLIPImageProcessor.from_pretrained(
-            "openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16
-        )
+        image_processor = image_transform(crop_size, is_train=False, mean=None, std=None,)
+
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
         data_path=data_cfg.data_path,
@@ -619,6 +847,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
             conv_template=data_cfg.get("conv_template", "nvgpt"),
+            crop_size=crop_size,
             image_token_len=data_cfg.image_token_len,
             image_folder=data_cfg.image_folder,
             image_aspect_ratio=data_cfg.image_aspect_ratio,
@@ -628,5 +857,5 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
         ),
     )
-    # data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
+
     return dict(train_dataset=train_dataset, eval_dataset=train_dataset)

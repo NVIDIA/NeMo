@@ -21,6 +21,7 @@ from einops import rearrange, repeat
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     InfusedAdapterConfig,
+    LoraDenseAttentionAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     LoraKVAdapterConfig,
@@ -37,7 +38,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     _cast_if_autocast_enabled,
     attention_mask_func,
 )
-from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 
 try:
@@ -66,10 +66,22 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
+    # Flash Attention Triton
+    import pkg_resources
+    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
+
+    # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
+    assert pkg_resources.get_distribution("triton").version == '2.0.0.dev20221202'
+
+except (ImportError, ModuleNotFoundError, AssertionError, pkg_resources.DistributionNotFound):
+
+    flash_attn_func_triton = None
+
+
+try:
     # Flash Attention 1.X
     from flash_attn.bert_padding import pad_input, unpad_input
     from flash_attn.flash_attn_interface import flash_attn_unpadded_func
-    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
     HAVE_FLASH_ATTENTION = True
     flash_attn_func = None
@@ -85,9 +97,16 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
 
         HAVE_FLASH_ATTENTION = False
-
-        flash_attn_unpadded_func, flash_attn_func_triton, flash_attn_func = None, None, None
+        flash_attn_unpadded_func, flash_attn_func = None, None
         unpad_input, pad_input = None, None
+
+    try:
+        # Flash Attention 2.2
+        from flash_attn import flash_attn_with_kvcache
+
+    except (ImportError, ModuleNotFoundError):
+
+        flash_attn_with_kvcache = None
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -125,7 +144,6 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         layer_type=None,
@@ -144,9 +162,9 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.normalize_attention_scores = normalize_attention_scores
         self.position_embedding_type = position_embedding_type
         self.multi_query_attention = multi_query_attention
+        self.use_flash_attention = use_flash_attention
 
         self.megatron_legacy = megatron_legacy
-        self.dtype = utils_funcs.torch_dtype_from_precision(precision, megatron_amp_O2)
 
         self.set_accepted_adapter_types(
             [
@@ -155,6 +173,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 LoraQAdapterConfig._target_,
                 LoraKVAdapterConfig._target_,
                 LoraKQVAdapterWeightTyingConfig._target_,
+                LoraDenseAttentionAdapterConfig._target_,
             ]
         )
 
@@ -396,7 +415,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             mixed_x_layer, _ = self.query_key_value(hidden_states)
             if self.is_adapter_available():
                 lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
-                if lora_kqv_adapter:
+                if lora_kqv_adapter and self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']:
                     lora_mixed_x_layer = lora_kqv_adapter(hidden_states)
                     mixed_x_layer = mixed_x_layer + lora_mixed_x_layer
 
@@ -418,7 +437,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             mixed_kv_layer, _ = self.key_value(encoder_output)
             if self.is_adapter_available():
                 lora_kv_adapter = self.get_adapter_module(AdapterName.LORA_KV_ADAPTER)
-                if lora_kv_adapter:
+                if lora_kv_adapter and self.adapter_cfg[AdapterName.LORA_KV_ADAPTER]['enabled']:
                     lora_mixed_kv_layer = lora_kv_adapter(encoder_output)
                     mixed_kv_layer = mixed_kv_layer + lora_mixed_kv_layer
 
@@ -440,7 +459,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             query_layer, _ = self.query(hidden_states)
             if self.is_adapter_available():
                 lora_q_adapter = self.get_adapter_module(AdapterName.LORA_Q_ADAPTER)
-                if lora_q_adapter:
+                if lora_q_adapter and self.adapter_cfg[AdapterName.LORA_Q_ADAPTER]['enabled']:
                     lora_q_layer = lora_q_adapter(hidden_states)
                     query_layer = query_layer + lora_q_layer
             # [sq, b, hp] --> [sq, b, np, hn]
@@ -453,11 +472,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if self.is_adapter_available():
             key_infused_adapter = self.get_adapter_module(AdapterName.KEY_INFUSED)
             value_infused_adapter = self.get_adapter_module(AdapterName.VALUE_INFUSED)
-            if key_infused_adapter:
+            if key_infused_adapter and self.adapter_cfg[AdapterName.KEY_INFUSED]['enabled']:
                 assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
                 kls = key_layer.shape
                 key_layer = key_infused_adapter(key_layer.reshape(kls[0], kls[1], -1)).reshape(kls)
-            if value_infused_adapter:
+            if value_infused_adapter and self.adapter_cfg[AdapterName.VALUE_INFUSED]['enabled']:
                 assert key_infused_adapter is not None, "Expected key_infused_adapter not found!"
                 vls = value_layer.shape
                 value_layer = value_infused_adapter(value_layer.reshape(vls[0], vls[1], -1)).reshape(vls)
@@ -503,7 +522,27 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if get_key_value:
             present = (key_layer, value_layer)
 
-        if checkpoint_core_attention:
+        if (
+            flash_attn_with_kvcache is not None
+            and self.use_flash_attention
+            and rotary_pos_emb is not None
+            and inference_max_sequence_len
+            and not set_inference_key_value_memory
+        ):
+            # Mainly used for decoding with sq=1
+            q = _cast_if_autocast_enabled(
+                rearrange(apply_rotary_pos_emb(query_layer, rotary_pos_emb[0]), 'sq b np hn -> b sq np hn')
+            )
+            k = _cast_if_autocast_enabled(
+                rearrange(apply_rotary_pos_emb(key_layer, rotary_pos_emb[1]), 'sk b np hn -> b sk np hn')
+            )
+            v = _cast_if_autocast_enabled(rearrange(value_layer, 'sk b np hn -> b sk np hn'))
+            context_layer = flash_attn_with_kvcache(
+                q=q, k_cache=k, v_cache=v, causal=self.attn_mask_type == AttnMaskType.causal,
+            )
+            context_layer = rearrange(context_layer, 'b sq np hn -> sq b (np hn)')
+
+        elif checkpoint_core_attention:
             context_layer = self._checkpointed_attention_forward(
                 query_layer,
                 key_layer,
@@ -533,6 +572,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # =================
 
         output, bias = self.dense(context_layer)
+        if self.is_adapter_available():
+            lora_dense_adapter = self.get_adapter_module(AdapterName.LORA_DENSE_ATTENTION_ADAPTER)
+            if lora_dense_adapter and self.adapter_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER]['enabled']:
+                lora_dense_output = lora_dense_adapter(context_layer)
+                output = output + lora_dense_output
 
         if get_key_value:
             output = [output, present]
@@ -558,7 +602,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
         precision=16,
         apply_query_key_layer_scaling=False,
         kv_channels=None,
-        megatron_amp_O2=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         megatron_legacy=False,
@@ -580,7 +623,6 @@ class ParallelChunkedCrossAttention(MegatronModule):
             precision=precision,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
-            megatron_amp_O2=megatron_amp_O2,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,

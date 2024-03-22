@@ -11,16 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Code adapted from https://github.com/DeepVoltaire/AutoAugment.
-
-This module implements the fixed AutoAugment data augmentation policy for ImageNet provided in
-Appendix A, Table 9 of reference [1]. It does not include any of the search code for augmentation
-policies.
-
-Reference:
-[1] https://arxiv.org/abs/1805.09501
-"""
+# https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/data/autoaugment.py
 
 import random
 
@@ -169,7 +160,7 @@ class SubPolicy:
             "translateY": np.linspace(0, 150 / 331, num_levels),
             "rotate": np.linspace(0, 30, num_levels),
             "color": np.linspace(0.0, 0.9, num_levels),
-            "posterize": np.round(np.linspace(8, 4, num_levels), 0).astype(np.int),
+            "posterize": np.round(np.linspace(8, 4, num_levels), 0).astype(np.int64),
             "solarize": np.linspace(256, 0, num_levels),  # range [0, 256]
             "contrast": np.linspace(0.0, 0.9, num_levels),
             "sharpness": np.linspace(0.0, 0.9, num_levels),

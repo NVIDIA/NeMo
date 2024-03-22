@@ -18,8 +18,8 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.core.classes.mixins import AccessMixin
 
 
@@ -220,7 +220,7 @@ class TestInterCTCLoss:
         else:
             asr_model = model_class(cfg=model_config)
             asr_model.train()
-            AccessMixin.set_access_enabled(access_enabled=True)
+            AccessMixin.set_access_enabled(access_enabled=True, guid=asr_model.model_guid)
             logprobs, *_ = asr_model.forward(
                 processed_signal=processed_signal, processed_signal_length=processed_length
             )

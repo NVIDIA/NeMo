@@ -20,12 +20,16 @@ from typing import Any
 
 import numpy as np
 import torch
-import torchvision
 from einops import rearrange
 from PIL import Image
 from torch.utils.data import Dataset
 
-from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import construct_image_augmentations
+try:
+    import torchvision
+
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 
 class EditDataset(Dataset):
@@ -80,6 +84,7 @@ class EditDataset(Dataset):
         image_0 = rearrange(2 * torch.tensor(np.array(image_0)).float() / 255 - 1, "h w c -> c h w")
         image_1 = rearrange(2 * torch.tensor(np.array(image_1)).float() / 255 - 1, "h w c -> c h w")
 
+        assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
         crop = torchvision.transforms.RandomCrop(self.crop_res)
         flip = torchvision.transforms.RandomHorizontalFlip(float(self.flip_prob))
         image_0, image_1 = flip(crop(torch.cat((image_0, image_1)))).chunk(2)

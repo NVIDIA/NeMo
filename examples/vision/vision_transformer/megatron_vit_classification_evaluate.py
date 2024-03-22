@@ -12,19 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import os
 
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
-from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.collections.vision.data.imagenet_classnames import imagenet_classnames
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.collections.vision.data.megatron.image_folder import ImageFolder
 from nemo.collections.vision.data.megatron.vit_dataset import ClassificationTransform
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
@@ -86,7 +84,6 @@ def main(cfg) -> None:
     val_transform = ClassificationTransform(model.cfg, (model.cfg.img_h, model.cfg.img_w), train=False)
     val_data = ImageFolder(root=cfg.model.data.imagenet_val, transform=val_transform,)
 
-    # initialize apex DDP strategy
     def dummy():
         return
 
@@ -96,15 +93,7 @@ def main(cfg) -> None:
 
     test_loader = DataLoader(val_data, batch_size=cfg.model.micro_batch_size, num_workers=cfg.model.data.num_workers,)
 
-    # get autocast_dtype
-    if trainer.precision in ['bf16', 'bf16-mixed']:
-        autocast_dtype = torch.bfloat16
-    elif trainer.precision in [32, '32', '32-true']:
-        autocast_dtype = torch.float
-    elif trainer.precision in [16, '16', '16-mixed']:
-        autocast_dtype = torch.half
-    else:
-        raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+    autocast_dtype = torch_dtype_from_precision(trainer.precision)
 
     with torch.no_grad(), torch.cuda.amp.autocast(
         enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,

@@ -23,6 +23,7 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.collections.vision.data.imagenet_classnames import imagenet_classnames
 from nemo.collections.vision.data.megatron.vit_dataset import ClassificationTransform
 from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
@@ -109,7 +110,6 @@ def main(cfg) -> None:
     test_data = ImageFolderDataset(folder_path=cfg.data_path, transform=test_transform,)
     test_loader = DataLoader(test_data, batch_size=8)
 
-    # initialize apex DDP strategy
     def dummy():
         return
 
@@ -117,15 +117,7 @@ def main(cfg) -> None:
         trainer.strategy.launcher.launch(dummy, trainer=trainer)
     trainer.strategy.setup_environment()
 
-    # get autocast_dtype
-    if trainer.precision in ['bf16', 'bf16-mixed']:
-        autocast_dtype = torch.bfloat16
-    elif trainer.precision in [32, '32', '32-true']:
-        autocast_dtype = torch.float
-    elif trainer.precision in [16, '16', '16-mixed']:
-        autocast_dtype = torch.half
-    else:
-        raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+    autocast_dtype = torch_dtype_from_precision(trainer.precision)
 
     with torch.no_grad(), torch.cuda.amp.autocast(
         enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,

@@ -12,23 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Any, Callable, Dict, Tuple
+import tempfile
+from typing import Any, Callable, Tuple
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.utils import AppState, logging
-from nemo.utils.distributed import initialize_distributed
-
 from transformers import CLIPImageProcessor
 
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
+from nemo.utils import AppState, logging
+from nemo.utils.model_utils import inject_model_parallel_rank
+
 try:
-    from megatron.core import parallel_state
+    from megatron.core import dist_checkpointing
 
     HAVE_MEGATRON_CORE = True
 
@@ -95,6 +96,54 @@ def apply_with_stopping_condition(module, apply_fn, apply_condition=None, stoppi
         apply_with_stopping_condition(
             child, apply_fn, apply_condition=apply_condition, stopping_condition=stopping_condition, **other_args
         )
+
+
+def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
+    """
+    Shared method to load model weights from a given nemo_path.
+    """
+    if torch.cuda.is_available():
+        map_location = torch.device('cuda')
+    else:
+        map_location = torch.device('cpu')
+
+    save_restore_connector = NLPSaveRestoreConnector()
+    cwd = os.getcwd()
+    app_state = AppState()
+    is_dist_ckpt = False
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            if os.path.isfile(nemo_path):
+                save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
+            else:
+                tmpdir = nemo_path
+            os.chdir(tmpdir)
+            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                model_weights = save_restore_connector._inject_model_parallel_rank_for_ckpt(
+                    tmpdir, save_restore_connector.model_weights_ckpt
+                )
+            else:
+                model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+
+            state_dict = save_restore_connector._load_state_dict_from_disk(model_weights, map_location=map_location)
+
+            # distributed checkpointing
+            if state_dict is None and sharded_state_dict is not None:
+                is_dist_ckpt = True
+                checkpoint = dict(state_dict=sharded_state_dict)
+                tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                checkpoint = dist_checkpointing.load(
+                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir,
+                )
+                state_dict = checkpoint["state_dict"]
+
+        finally:
+            os.chdir(cwd)
+
+    return state_dict, is_dist_ckpt
 
 
 def setup_trainer_and_models_for_inference(
@@ -314,7 +363,8 @@ def create_neva_model_and_processor(cfg):
             neva_cfg.activations_checkpoint_granularity = None
             neva_cfg.activations_checkpoint_method = None
             neva_cfg.precision = trainer.precision
-            neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('llm_model_file', None)
+            neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('base_model_file', None)
+            neva_cfg.apply_rope_fusion = False
         #    neva_cfg.mm_cfg.vision_encoder.from_pretrained = None
 
         model = MegatronNevaModel.restore_from(
@@ -365,7 +415,7 @@ def create_neva_model_and_processor(cfg):
         model.model.module.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-    
+
     def image_processor(maybe_image_path):
         if isinstance(maybe_image_path, str):
             image = Image.open(maybe_image_path).convert('RGB')
@@ -377,9 +427,7 @@ def create_neva_model_and_processor(cfg):
                 neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
         else:
-            processor = CLIPImageProcessor.from_pretrained(
-                "openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16
-            )
+            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16)
 
         if neva_cfg.data.image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)
@@ -417,5 +465,5 @@ def create_neva_model_and_processor(cfg):
             media = image.type(torch.bfloat16)
 
         return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0)
-    
+
     return model, image_processor

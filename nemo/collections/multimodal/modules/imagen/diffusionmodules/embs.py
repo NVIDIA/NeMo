@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -61,7 +62,6 @@ class UnLearnedSinusoidalPosEmb(nn.Module):
             device=timesteps.device
         )
         args = timesteps[:, None].float() * freqs[None]
-        freqs = freqs.to(dtype=dtype)
         args = args.to(dtype=dtype)
         embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
         if dim % 2:

@@ -69,7 +69,7 @@ def get_args():
         type=str,
         default=None,
         required=False,
-        help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
+        help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/vision/hparams.yaml",
     )
     parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)

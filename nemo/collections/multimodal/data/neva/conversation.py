@@ -1,7 +1,19 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import dataclasses
-import re
 from enum import Enum, auto
-from typing import List, Tuple
+from typing import List
 
 DEFAULT_PAD_TOKEN = "<pad>"
 DEFAULT_BOS_TOKEN = "<extra_id_6>"
@@ -15,12 +27,12 @@ DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
 DEFAULT_IM_START_TOKEN = "<extra_id_4>"
 DEFAULT_IM_END_TOKEN = "<extra_id_5>"
 
+
 class SeparatorStyle(Enum):
     """Different separator style."""
 
     SINGLE = auto()
     TWO = auto()
-    MPT = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
     NVGPT = auto()
@@ -70,19 +82,10 @@ class Conversation:
                     if type(message) is tuple:
                         message, _, _ = message
                     ret += role + ": " + message + seps[i % 2]
-                    if i % 2 == 1 and i != len(messages) - 1: #Assistant end
+                    if i % 2 == 1 and i != len(messages) - 1:  # Assistant end
                         ret += " "
                 else:
                     ret += role + ":"
-        elif self.sep_style == SeparatorStyle.MPT:
-            ret = self.system + self.sep
-            for role, message in messages:
-                if message:
-                    if type(message) is tuple:
-                        message, _, _ = message
-                    ret += role + message + self.sep
-                else:
-                    ret += role
         elif self.sep_style == SeparatorStyle.LLAMA_2:
             wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n"
             wrap_inst = lambda msg: f"[INST] {msg} [/INST]"
@@ -248,14 +251,22 @@ class Conversation:
         }
 
 
-# . .
-# NVGPT
-# . .
-
+# Conversation Template for NVGPT
 conv_nvgpt = Conversation(
     system="""A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.\n\n""",
     roles=("User", "Assistant"),
     version="nvgpt",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.NVGPT,
+    sep=DEFAULT_SEPARATOR_TOKEN,
+    sep2=f"{DEFAULT_SYSTEM_TOKEN}System\n",
+)
+
+conv_nv_dpo = Conversation(
+    system="\n",
+    roles=("User", "Assistant"),
+    version="nv_dpo",
     messages=(),
     offset=0,
     sep_style=SeparatorStyle.NVGPT,
@@ -334,17 +345,6 @@ conv_llava_llama_2 = Conversation(
     sep2=DEFAULT_EOS_TOKEN,
 )
 
-conv_mpt = Conversation(
-    system="""<|im_start|>system
-A conversation between a user and an LLM-based AI assistant. The assistant gives helpful and honest answers.""",
-    roles=("<|im_start|>user\n", "<|im_start|>assistant\n"),
-    version="mpt",
-    messages=(),
-    offset=0,
-    sep_style=SeparatorStyle.MPT,
-    sep="<|im_end|>",
-)
-
 conv_llava_plain = Conversation(
     system="", roles=("", ""), messages=(), offset=0, sep_style=SeparatorStyle.PLAIN, sep="\n",
 )
@@ -410,8 +410,9 @@ conv_templates = {
     "llava_v1": conv_llava_v1,
     "v1_mmtag": conv_llava_v1_mmtag,
     "llava_llama_2": conv_llava_llama_2,
-    "mpt": conv_mpt,
     "nvgpt": conv_nvgpt,
+    "nv_steerlm": conv_nvgpt,
+    "nv_dpo": conv_nv_dpo,
 }
 
 

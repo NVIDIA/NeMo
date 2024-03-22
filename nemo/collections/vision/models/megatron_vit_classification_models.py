@@ -14,9 +14,8 @@
 
 import itertools
 from functools import partial
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
@@ -24,7 +23,6 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -35,16 +33,14 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_from_precision
 from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
 from nemo.collections.vision.data.megatron.vit_dataset import build_train_valid_datasets
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
@@ -177,16 +173,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 self.model = Float16Module(
                     config=self.model_parallel_config, module=self.model, precision=cfg.precision
                 )
-
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
-            self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
-            self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
-            self.autocast_dtype = torch.half
-        else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
-
+        self.autocast_dtype = torch_dtype_from_precision(self.trainer.precision)
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
@@ -238,21 +225,6 @@ class MegatronVitClassificationModel(MegatronBaseModel):
 
         if self.with_distributed_adam:
 
-            # Disable overlapped grad sync for embedding grad when
-            # pipeline parallelism is enabled
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[0]  # only the first virtual rank has the embeddings
-                    else:
-                        module = self.model
-
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                    if isinstance(self.model, list):
-                        module = self.model[-1]  # only the last virtual rank has the embeddings
-                    else:
-                        module = self.model
-
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
             for param in self.parameters():
@@ -303,7 +275,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         output_tensor = self.model(tokens)
         return output_tensor
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -379,7 +351,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         )
         self.initialize_ub = False
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -395,7 +367,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
-        loss_mean, _ = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        loss_mean, _ = self.fwd_bwd_step(dataloader_iter, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -418,18 +390,11 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 self.reduce_overlap_gradients()
         elif self.megatron_amp_O2:
             # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
-            # if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
-            #     # main grads are stored in the MainParamsOptimizer wrapper
-            #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
-
-        # if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-        #     # when using pipeline parallelism the first and last stage must keep embeddings in sync
-        #     self.allreduce_first_last_embeddings()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
@@ -512,7 +477,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             return loss, {"loss": averaged_loss[0], "accuracy": averaged_loss[1]}
 
         def fwd_output_and_loss_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            batch, _, _ = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = [x.cuda(non_blocking=True) for x in batch]
                 tokens, labels = batch
@@ -541,7 +506,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -554,7 +519,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         if self.initialize_ub:
             self.initialize_ub_func()
 
-        loss, accuracy = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        loss, accuracy = self.fwd_bwd_step(dataloader_iter, True)
 
         self.validation_step_outputs.append((loss, accuracy)) if mode == 'val' else self.test_step_outputs.append(
             (loss, accuracy)
@@ -564,7 +529,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
     def on_validation_epoch_end(self):
         # TODO (yuya): need fix later, check with Sean
         if not self.validation_step_outputs:
-            return
+            return None
 
         if parallel_state.is_pipeline_last_stage():
             loss_outputs = [output[0] for output in self.validation_step_outputs]
@@ -589,7 +554,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+        return self.validation_step(batch)
 
     def on_test_epoch_end(self):
         pass
@@ -668,22 +633,8 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             num_parameters_on_device = sum(
                 [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
             )
-            # if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-            #     ignore_virtual=True
-            # ):
-            #     # substract the embedding weights on the last virtual stage
-            #     num_word_embedding_parameters = sum([p.nelement() for p in self.model[-1].word_embeddings_weight()])
-            #     num_parameters_on_device -= num_word_embedding_parameters
         else:
             num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
-
-            # if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-            #     ignore_virtual=True
-            # ):
-            #     # substract the embedding weights on the last stage
-            #     num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
-            #
-            #     num_parameters_on_device -= num_word_embedding_parameters
 
         # to be summed across data parallel group
         total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
@@ -716,11 +667,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    # module.sync_initial_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-            else:
-                # self.model.sync_initial_word_embeddings()
-                pass
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds') and self._train_ds is not None:
@@ -740,7 +687,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             if not self.cfg.data.get('validation_drop_last', True):
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples,)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, drop_last=drop_last
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds') and self._test_ds is not None:

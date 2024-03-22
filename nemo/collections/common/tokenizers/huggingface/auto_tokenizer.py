@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
 from typing import Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
@@ -42,6 +43,7 @@ class AutoTokenizer(TokenizerSpec):
         cls_token: Optional[str] = None,
         unk_token: Optional[str] = None,
         use_fast: Optional[bool] = False,
+        trust_remote_code: Optional[bool] = False,
     ):
 
         """
@@ -64,11 +66,16 @@ class AutoTokenizer(TokenizerSpec):
             # this logic deals with different huggingface tokenizers having different positional args
             if vocab_file is None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast,
+                    pretrained_model_name_or_path=pretrained_model_name,
+                    use_fast=use_fast,
+                    trust_remote_code=trust_remote_code,
                 )
             elif merges_file is None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=use_fast,
+                    pretrained_model_name_or_path=pretrained_model_name,
+                    vocab_file=vocab_file,
+                    use_fast=use_fast,
+                    trust_remote_code=trust_remote_code,
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
@@ -76,6 +83,7 @@ class AutoTokenizer(TokenizerSpec):
                     vocab_file=vocab_file,
                     merges_file=merges_file,
                     use_fast=use_fast,
+                    trust_remote_code=trust_remote_code,
                 )
         except Exception as e:
             raise ValueError(
@@ -217,30 +225,49 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def pad_id(self):
+        if getattr(self, 'pad_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'pad_token')])[0]
 
     @property
     def bos_id(self):
+        if getattr(self, 'bos_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'bos_token')])[0]
 
     @property
     def eos_id(self):
+        if getattr(self, 'eos_token') is None:
+            return None
+        return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
+
+    @property
+    def eod(self):
+        """Returns EOS token id. Exact copy of the eos_id function. Required for megatron-core."""
         return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
 
     @property
     def sep_id(self):
+        if getattr(self, 'sep_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'sep_token')])[0]
 
     @property
     def cls_id(self):
+        if getattr(self, 'cls_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'cls_token')])[0]
 
     @property
     def unk_id(self):
+        if getattr(self, 'unk_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'unk_token')])[0]
 
     @property
     def mask_id(self):
+        if getattr(self, 'mask_token') is None:
+            return None
         return self.tokens_to_ids([getattr(self, 'mask_token')])[0]
 
     @property

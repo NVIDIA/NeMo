@@ -1,5 +1,5 @@
 Stable Diffusion
-========
+================
 
 This section gives a brief overview of the stable diffusion model in NeMo framework.
 
@@ -33,7 +33,7 @@ The VAE configuration is defined under **first_stage_config**.
 .. code-block:: yaml
 
     first_stage_config:
-        _target_: nemo.collections.multimodal.models.stable_diffusion.ldm.autoencoder.AutoencoderKL
+        _target_: nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKL
         from_pretrained: /path/to/vae.bin
         embed_dim: 4
         monitor: val/rec_loss

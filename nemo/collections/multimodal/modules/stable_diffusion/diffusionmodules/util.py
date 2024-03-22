@@ -11,15 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# adopted from
-# https://github.com/openai/improved-diffusion/blob/main/improved_diffusion/gaussian_diffusion.py
-# and
-# https://github.com/lucidrains/denoising-diffusion-pytorch/blob/7706bdfc6f527f58d33f84b7b522e61e6e3164b3/denoising_diffusion_pytorch/denoising_diffusion_pytorch.py
-# and
-# https://github.com/openai/guided-diffusion/blob/0ba878e517b276c45d1195eb29f6f5f72659a05b/guided_diffusion/nn.py
-#
-# thanks!
 
+'''
+adopted from
+https://github.com/openai/improved-diffusion/blob/main/improved_diffusion/gaussian_diffusion.py
+and
+https://github.com/lucidrains/denoising-diffusion-pytorch/blob/7706bdfc6f527f58d33f84b7b522e61e6e3164b3/denoising_diffusion_pytorch/denoising_diffusion_pytorch.py
+and
+https://github.com/openai/guided-diffusion/blob/0ba878e517b276c45d1195eb29f6f5f72659a05b/guided_diffusion/nn.py
+
+thanks!
+'''
 
 import math
 from inspect import isfunction
@@ -90,14 +92,15 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
 
 def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
     """
-    Create a beta schedule that discretizes the given alpha_t_bar function,
-    which defines the cumulative product of (1-beta) over time from t = [0,1].
-    :param num_diffusion_timesteps: the number of betas to produce.
-    :param alpha_bar: a lambda that takes an argument t from 0 to 1 and
-                      produces the cumulative product of (1-beta) up to that
-                      part of the diffusion process.
-    :param max_beta: the maximum beta to use; use values lower than 1 to
-                     prevent singularities.
+    Create a beta schedule based on a discretized alpha_t_bar function.
+
+    Parameters:
+        num_diffusion_timesteps (int): The number of beta values to produce, corresponding to the number of timesteps in the diffusion process.
+        alpha_bar (function): A lambda function that accepts a time value t ranging from 0 to 1 and returns the cumulative product of (1-beta) up to that point in the diffusion process.
+        max_beta (float): The maximum allowable value for beta. Setting this to a value lower than 1 helps in preventing singularities in the diffusion process.
+
+    Returns:
+        list: A list of beta values that correspond to each timestep in the diffusion process.
     """
     betas = []
     for i in range(num_diffusion_timesteps):
@@ -115,14 +118,20 @@ def extract_into_tensor(a, t, x_shape):
 
 def checkpoint(func, inputs, params, flag):
     """
-    Evaluate a function without caching intermediate activations, allowing for
-    reduced memory at the expense of extra compute in the backward pass.
-    :param func: the function to evaluate.
-    :param inputs: the argument sequence to pass to `func`.
-    :param params: a sequence of parameters `func` depends on but does not
-                   explicitly take as arguments.
-    :param flag: if False, disable gradient checkpointing.
+    Evaluate a function without caching intermediate activations.
+
+    Parameters:
+        func (function): The function to be evaluated. This should be a callable object.
+        inputs (sequence): The arguments to pass to `func`. This is a sequence of inputs that `func` will be called with.
+        params (sequence): A sequence of parameters that `func` depends on but does not explicitly take as arguments.
+                           These are additional parameters required by `func`.
+        flag (bool): If set to False, disables gradient checkpointing. If True, enables gradient checkpointing which
+                     allows for memory savings at the cost of extra compute during the backward pass.
+
+    Returns:
+        The result of evaluating `func` with the given inputs and parameters, with reduced memory usage during the forward pass.
     """
+
     if flag:
         args = tuple(inputs) + tuple(params)
         return CheckpointFunction.apply(func, len(inputs), *args)
@@ -171,12 +180,18 @@ def get_idx(end, device):
 def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
     """
     Create sinusoidal timestep embeddings.
-    :param timesteps: a 1-D Tensor of N indices, one per batch element.
-                      These may be fractional.
-    :param dim: the dimension of the output.
-    :param max_period: controls the minimum frequency of the embeddings.
-    :return: an [N x dim] Tensor of positional embeddings.
+
+    Parameters:
+        timesteps (Tensor): A 1-D tensor of N indices, one per batch element. These indices may be fractional and
+                            represent the timesteps for which embeddings are to be created.
+        dim (int): The dimension of the output embeddings. Each timestep will be represented as a vector of this dimension.
+        max_period (float): Controls the minimum frequency of the embeddings. Higher values result in higher frequency
+                            components in the embedding.
+
+    Returns:
+        Tensor: An [N x dim] tensor of positional embeddings, where each row corresponds to the embedding for a timestep.
     """
+
     if not repeat_only:
         half = dim // 2
         idx = get_idx(half, timesteps.device)

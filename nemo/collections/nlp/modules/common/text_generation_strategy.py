@@ -89,6 +89,9 @@ class TextGenerationStrategy:
         tokenizer = self.model.tokenizer
         if add_BOS:
             context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+        elif hasattr(tokenizer.tokenizer, "get_prefix_tokens"):
+            # chatglm: add tokenizer.gmask_id, tokenizer.sop_id
+            context_tokens = [tokenizer.tokenizer.get_prefix_tokens() + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
         context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
@@ -324,6 +327,71 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         return batch, tensor_shape
 
 
+def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, conv_template):
+    from nemo.collections.multimodal.data.neva.neva_dataset import (
+        DEFAULT_IMAGE_TOKEN,
+        preprocess_llama_2,
+        preprocess_multimodal,
+        preprocess_nv_dpo,
+        preprocess_nvgpt,
+        preprocess_v1,
+    )
+
+    list_data_dict = []
+    if multimodal_cfg["conv_template"] in ["nvgpt", "nv_steerlm", "nv_dpo"]:
+        record = {
+            'system': '\n'
+            if multimodal_cfg["conv_template"] == 'nv_dpo'
+            else 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
+            'conversations': [{'from': 'User', 'value': prompt}, {'from': 'Assistant', 'value': '',},],
+        }
+
+        for turn in record['conversations']:  #
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        if multimodal_cfg["conv_template"] in ["nvgpt", "nv_steerlm"]:
+            data_dict = preprocess_nvgpt(sources, tokenizer, multimodal_cfg)
+        else:
+            data_dict = preprocess_nv_dpo(sources, tokenizer, multimodal_cfg)
+
+    elif multimodal_cfg["conv_template"] == "llama_2":
+        record = {
+            'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+        }
+
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg)
+    elif multimodal_cfg["conv_template"] == "v1":
+        record = {
+            'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+        }
+
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_v1(sources, tokenizer, multimodal_cfg)
+    else:
+        raise ValueError(f"Conversation template `{conv_template}` is not supported in Neva now.")
+    return data_dict['tokens'].tolist()
+
+
 class NevaModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
         super().__init__(model)
@@ -369,73 +437,31 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             compute_attention_mask=compute_attention_mask,
         )
 
-    def process_prompts(self, prompt):
-        from nemo.collections.multimodal.data.neva.neva_dataset import (
-            DEFAULT_IMAGE_TOKEN,
-            preprocess_llama_2,
-            preprocess_multimodal,
-            preprocess_nvgpt,
-            preprocess_v1,
-        )
-
-        list_data_dict = []
-        if self.multimodal_cfg["conv_template"] == "nvgpt":
-            record = {
-                'system': 'A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user\'s questions.\n\n',
-                'conversations': [
-                    {'from': 'User', 'value': prompt,},
-                    {
-                        'from': 'Assistant',
-                        'value': '',
-                        'label': 'quality:6,toxicity:0,humor:0,creativity:0,violence:0,helpfulness:6,not_appropriate:0',
-                    },
-                ],
-            }
-
-            for turn in record['conversations']:  #
-                if turn.get('value') is not None:
-                    turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
-            list_data_dict.append(record)
-
-            sources = preprocess_multimodal(
-                copy.deepcopy(list_data_dict), self.multimodal_cfg, self.num_media_latents
-            )  # HARDCODED FOR NOW
-            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg)
-
-        elif self.multimodal_cfg["conv_template"] == "llama_2":
-            record = {
-                'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
-            }
-
-            for turn in record['conversations']:
-                if turn.get('value') is not None:
-                    turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
-            list_data_dict.append(record)
-
-            sources = preprocess_multimodal(
-                copy.deepcopy(list_data_dict), self.multimodal_cfg, self.num_media_latents
-            )  # HARDCODED FOR NOW
-            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg)
-        elif self.multimodal_cfg["conv_template"] == "v1":
-            record = {
-                'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
-            }
-
-            for turn in record['conversations']:
-                if turn.get('value') is not None:
-                    turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
-            list_data_dict.append(record)
-
-            sources = preprocess_multimodal(
-                copy.deepcopy(list_data_dict), self.multimodal_cfg, self.num_media_latents
-            )  # HARDCODED FOR NOW
-            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg)
-        else:
-            raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
-        return data_dict['tokens'].tolist()
-
     def tokenize_batch(self, prompt, max_len, add_BOS):
-        context_tokens = self.process_prompts(prompt)
+
+        if type(prompt) == str:
+            context_tokens = neva_process_prompts(
+                prompt,
+                self.tokenizer,
+                self.multimodal_cfg,
+                self.num_media_latents,
+                self.multimodal_cfg['conv_template'],
+            )
+        elif type(prompt) == list:
+            context_tokens = []
+            for p in prompt:
+                context_tokens.append(
+                    neva_process_prompts(
+                        p,
+                        self.tokenizer,
+                        self.multimodal_cfg,
+                        self.num_media_latents,
+                        self.multimodal_cfg['conv_template'],
+                    )[0]
+                )
+        else:
+            raise ValueError(f'{type(prompt)} is not supported for tokenization')
+
         context_tokens, context_lengths = pad_batch(context_tokens, self.tokenizer.eos_id, max_len)
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
@@ -568,7 +594,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,

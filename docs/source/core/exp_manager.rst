@@ -73,7 +73,7 @@ via YAML or CLI:
 Experiment Loggers
 ------------------
 
-Alongside Tensorboard, NeMo also supports Weights and Biases, MLFlow and DLLogger. To use these loggers, simply set the following
+Alongside Tensorboard, NeMo also supports Weights and Biases, MLFlow, DLLogger, ClearML and NeptuneLogger. To use these loggers, simply set the following
 via YAML or :class:`~nemo.utils.exp_manager.ExpManagerConfig`.
 
 
@@ -152,6 +152,26 @@ ClearML
             log_model: False  # log model to clearml server
             log_cfg: False  # log config to clearml server
             log_metrics: False  # log metrics to clearml server
+
+Neptune
+~~~~~~~
+
+.. _exp_manager_neptune-label:
+
+.. code-block:: yaml
+
+    exp_manager:
+        ...
+        create_checkpoint_callback: True
+        create_neptune_logger: false
+        neptune_logger_kwargs:
+            project: ${project}
+            name: ${name}
+            prefix: train
+            log_model_checkpoints: false # set to True if checkpoints need to be pushed to Neptune
+            tags: null # can specify as an array of strings in yaml array format
+            description: null
+            <Add any other arguments supported by Neptune logger here>
 
 Exponential Moving Average
 --------------------------
@@ -265,7 +285,7 @@ name as shown below -
         project: "<Add some project name here>"
 
       # HP Search may crash due to various reasons, best to attempt continuation in order to
-      # resume from where the last failure case occured.
+      # resume from where the last failure case occurred.
       resume_if_exists: true
       resume_ignore_no_checkpoint: true
 
@@ -321,7 +341,7 @@ tracking tool and can simply rerun the best config after the search is finished.
 
 When running hydra scripts, you may sometimes face config issues which crash the program. In NeMo Multi-Run, a crash in
 any one run will **not** crash the entire program, we will simply take note of it and move onto the next job. Once all
-jobs are completed, we then raise the error in the order that it occured (it will crash the program with the first error's
+jobs are completed, we then raise the error in the order that it occurred (it will crash the program with the first error's
 stack trace).
 
 In order to debug Muti-Run, we suggest to comment out the full hyper parameter config set inside ``sweep.params``

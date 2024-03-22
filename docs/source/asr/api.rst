@@ -1,4 +1,4 @@
-NeMo ASR collection API
+NeMo ASR Collection API
 =======================
 
 
@@ -123,6 +123,14 @@ Mixins
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.mixins.transcription.TranscriptionMixin
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.mixins.transcription.TranscribeConfig
+    :show-inheritance:
+    :members:
+
 .. autoclass:: nemo.collections.asr.parts.mixins.interctc_mixin.InterCTCMixin
     :show-inheritance:
     :members:
@@ -229,11 +237,11 @@ Miscellaneous Classes
 CTC Decoding
 ~~~~~~~~~~~~
 
-.. autoclass:: nemo.collections.asr.metrics.wer.CTCDecoding
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_decoding.CTCDecoding
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.metrics.wer_bpe.CTCBPEDecoding
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_decoding.CTCBPEDecoding
     :show-inheritance:
     :members:
 
@@ -248,11 +256,11 @@ CTC Decoding
 RNNT Decoding
 ~~~~~~~~~~~~~
 
-.. autoclass:: nemo.collections.asr.metrics.rnnt_wer.RNNTDecoding
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_decoding.RNNTDecoding
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.metrics.rnnt_wer_bpe.RNNTBPEDecoding
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_decoding.RNNTBPEDecoding
     :show-inheritance:
     :members:
 
@@ -317,6 +325,4 @@ Adapter Strategies
     :members:
     :member-order: bysource
     :undoc-members: adapter_module_names
-
------
 

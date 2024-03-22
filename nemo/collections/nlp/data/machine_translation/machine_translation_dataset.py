@@ -164,8 +164,8 @@ class TranslationDataset(Dataset):
         for batch_idx, b in enumerate(batch_indices):
             src_len = max([len(src_ids[i]) for i in b])
             tgt_len = max([len(tgt_ids[i]) for i in b])
-            src_ids_ = self.src_pad_id * np.ones((len(b), src_len), dtype=np.int)
-            tgt_ids_ = self.tgt_pad_id * np.ones((len(b), tgt_len), dtype=np.int)
+            src_ids_ = self.src_pad_id * np.ones((len(b), src_len), dtype=np.int64)
+            tgt_ids_ = self.tgt_pad_id * np.ones((len(b), tgt_len), dtype=np.int64)
             for i, sentence_idx in enumerate(b):
                 src_ids_[i][: len(src_ids[sentence_idx])] = src_ids[sentence_idx]
                 tgt_ids_[i][: len(tgt_ids[sentence_idx])] = tgt_ids[sentence_idx]
@@ -319,8 +319,8 @@ class TarredTranslationDataset(IterableDataset):
         text_tar_filepaths: Either a list of tokenized text tarball filepaths, or a
             string (can be brace-expandable).
         metadata_path (str): Path to the metadata manifest.
-        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
-        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
+        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as SentenePiece
+        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as SentenePiece
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.

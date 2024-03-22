@@ -100,9 +100,9 @@ class FeedForward(nn.Module):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
-        project_in = nn.Sequential(nn.Linear(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
+        project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
 
-        self.net = nn.Sequential(project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim_out))
+        self.net = nn.Sequential(project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
 
     def forward(self, x):
         return self.net(x)
@@ -210,6 +210,7 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
         return mixed_x
 
     def add_adapter(self, name, cfg, **kwargs):
+        self.lora_network_alpha = cfg.network_alpha
         kwargs = {}
         adapter_mixins.AdapterModuleMixin.add_adapter(self, name, cfg, **kwargs)
 
@@ -350,7 +351,6 @@ class BasicTransformerBlock(nn.Module):
         use_flash_attention=False,
         disable_self_attn=False,
         lora_network_alpha=None,
-        attn_mode="softmax",  # we use flash attn, and softmax points to CrossAttention Block
     ):
         super().__init__()
         self.disable_self_attn = disable_self_attn
@@ -424,7 +424,6 @@ class SpatialTransformer(nn.Module):
         context_dim=None,
         disable_self_attn=False,
         use_linear=False,
-        attn_type="softmax",
         use_checkpoint=False,
         use_flash_attention=False,
         lora_network_alpha=None,
@@ -467,12 +466,12 @@ class SpatialTransformer(nn.Module):
                     use_checkpoint=use_checkpoint,
                     use_flash_attention=use_flash_attention,
                     disable_self_attn=disable_self_attn,
-                    attn_mode=attn_type,
                     lora_network_alpha=lora_network_alpha,
                 )
                 for d in range(depth)
             ]
         )
+
         if not use_linear:
             self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
         else:

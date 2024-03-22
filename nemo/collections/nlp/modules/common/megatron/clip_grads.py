@@ -84,6 +84,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
     sharded_grads = []
     sharded_grads_for_norm = []
     dummy_overflow_buf = torch.cuda.IntTensor([0])
+
     for param in parameters:
         if param.grad is not None:
             # FSDP-shared parameters are all unique across TP domain and
@@ -114,7 +115,9 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
 
     # Calculate norm.
     if norm_type == inf:
-      if len(grads_for_norm) > 0:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1            total_norm = max(grad.abs().max() for grad in grads_for_norm)
+        if len(grads_for_norm) > 0:  # (@adithyare) grads_for_norm can be empty for adapter training with pp>1
+            total_norm = max(grad.abs().max() for grad in grads_for_norm)
+
         if not use_fsdp:
             total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
             # Take max across all model-parallel GPUs.
@@ -128,6 +131,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
             total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
             # Take max across both model-parallel and data-parallel GPUs.
             torch.distributed.all_reduce(total_norm_cuda, op=torch.distributed.ReduceOp.MAX)
+
         total_norm = total_norm_cuda[0].item()
 
     else:
@@ -144,7 +148,6 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
             # Since we will be summing across data parallel groups,
             # we need the pow(norm-type).
             total_norm = grad_norm ** norm_type
-
             if use_fsdp:
                 if len(sharded_grads_for_norm) > 0:
                     sharded_grad_norm, _ = multi_tensor_applier(
@@ -153,12 +156,10 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
                 else:
                     sharded_grad_norm = 0.0
                 total_sharded_norm = sharded_grad_norm ** norm_type
-
         else:
             for grad in grads_for_norm:
                 grad_norm = torch.norm(grad, norm_type)
                 total_norm += grad_norm ** norm_type
-
             if use_fsdp:
                 for grad in sharded_grads_for_norm:
                     grad_norm = torch.norm(grad, norm_type)

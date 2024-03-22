@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from math import ceil
 from pathlib import Path
 from typing import List, Tuple
 
@@ -20,10 +21,11 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.tts.losses.audio_codec_loss import (
+    FeatureMatchingLoss,
     MultiResolutionMelLoss,
     MultiResolutionSTFTLoss,
     RelativeFeatureMatchingLoss,
@@ -48,6 +50,9 @@ class AudioCodecModel(ModelPT):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -77,6 +82,16 @@ class AudioCodecModel(ModelPT):
 
         if "vector_quantizer" in cfg:
             self.vector_quantizer = instantiate(cfg.vector_quantizer)
+
+            vq_output_types = list(self.vector_quantizer.output_types.keys())
+
+            if len(vq_output_types) == 3 and vq_output_types[-1] == 'commit_loss':
+                self.vector_quantizer_has_commit_loss = True
+                logging.info('Vector quantizer supports commit loss.')
+            else:
+                self.vector_quantizer_has_commit_loss = False
+                logging.info('Vector quantizer does not support commit loss.')
+
         else:
             logging.warning('Vector quantizer will not be used.')
             self.vector_quantizer = None
@@ -116,13 +131,23 @@ class AudioCodecModel(ModelPT):
         self.feature_loss_scale = cfg.get("feature_loss_scale", 1.0)
         self.gen_loss_fn = instantiate(cfg.generator_loss)
         self.disc_loss_fn = instantiate(cfg.discriminator_loss)
-        self.feature_loss_fn = RelativeFeatureMatchingLoss()
+
+        feature_loss_type = cfg.get("feature_loss_type", "relative")
+        if feature_loss_type == "relative":
+            self.feature_loss_fn = RelativeFeatureMatchingLoss()
+        elif feature_loss_type == "absolute":
+            self.feature_loss_fn = FeatureMatchingLoss()
+        else:
+            raise ValueError(f'Unknown feature loss type {feature_loss_type}.')
 
         # Codebook loss setup
         if self.vector_quantizer:
             self.commit_loss_scale = cfg.get("commit_loss_scale", 1.0)
         else:
             self.commit_loss_scale = 0.0
+
+        if self.commit_loss_scale > 0 and not self.vector_quantizer_has_commit_loss:
+            raise ValueError('Commit loss is enabled but the quantizer does not support it.')
 
         # Log setup
         self.log_config = cfg.get("log_config", None)
@@ -167,8 +192,7 @@ class AudioCodecModel(ModelPT):
         },
     )
     def decode_audio(self, inputs: torch.Tensor, input_len: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Apply decoder on the input encoded representation. Note that the input is a
-        non-quantized or dequantized representation.
+        """Apply decoder on the input. Note that the input is a non-quantized encoder output or a dequantized representation.
 
         Args:
             inputs: encoded signal
@@ -216,7 +240,7 @@ class AudioCodecModel(ModelPT):
         output_types={"dequantized": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),},
     )
     def dequantize(self, tokens: torch.Tensor, tokens_len: torch.Tensor) -> torch.Tensor:
-        """Convert the discrete input tokens into a continuous encoded representation.
+        """Convert the discrete tokens into a continuous encoded representation.
 
         Args:
             tokens: discrete tokens for each codebook for each time frame
@@ -247,12 +271,12 @@ class AudioCodecModel(ModelPT):
         """Convert input time-domain audio signal into a discrete representation (tokens).
 
         Args:
-            audio: input time-domain signal, shape (batch, number of samples)
-            audio_len: valid length for each example in the batch, shape (batch size,)
+            audio: input time-domain signal, shape `(batch, number of samples)`
+            audio_len: valid length for each example in the batch, shape `(batch size,)`
 
         Returns:
-            Tokens for each codebook for each frame, shape (batch, number of codebooks, number of frames),
-            and the corresponding valid lengths, shape (batch,)
+            Tokens for each codebook for each frame, shape `(batch, number of codebooks, number of frames)`,
+            and the corresponding valid lengths, shape `(batch,)`
         """
         # Apply encoder to obtain a continuous vector for each frame
         encoded, encoded_len = self.encode_audio(audio=audio, audio_len=audio_len)
@@ -271,11 +295,11 @@ class AudioCodecModel(ModelPT):
         },
     )
     def decode(self, tokens: torch.Tensor, tokens_len: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Convert discrete input tokens into a continuous time-domain signal.
+        """Convert discrete tokens into a continuous time-domain signal.
 
         Args:
-            tokens: discrete tokens for each codebook for each time frame, shape (batch, number of codebooks, number of frames)
-            tokens_len: valid lengths, shape (batch,)
+            tokens: discrete tokens for each codebook for each time frame, shape `(batch, number of codebooks, number of frames)`
+            tokens_len: valid lengths, shape `(batch,)`
 
         Returns:
             Decoded output `audio` in the time domain and its length in number of samples `audio_len`.
@@ -353,7 +377,11 @@ class AudioCodecModel(ModelPT):
             encoded = self.encoder_noise(encoded)
 
         if self.vector_quantizer:
-            encoded, _, commit_loss = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
+            if self.vector_quantizer_has_commit_loss:
+                encoded, _, commit_loss = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
+            else:
+                encoded, _ = self.vector_quantizer(inputs=encoded, input_len=encoded_len)
+                commit_loss = 0.0
         else:
             commit_loss = 0.0
 
@@ -473,23 +501,57 @@ class AudioCodecModel(ModelPT):
         }
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
-    @staticmethod
-    def _setup_train_dataloader(cfg):
+    def get_dataset(self, cfg):
+        with open_dict(cfg):
+            is_sharded = cfg.dataset.pop('is_sharded', False)
+
+        if is_sharded:
+            with open_dict(cfg):
+                cfg.dataset.global_rank = self.global_rank
+                cfg.dataset.world_size = self.world_size
+                cfg.dataset._target_ = 'nemo.collections.tts.data.vocoder_dataset.TarredVocoderDataset'
+
         dataset = instantiate(cfg.dataset)
-        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size)
+
+        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
+        return dataset, sampler
+
+    def _setup_train_dataloader(self, cfg):
+        dataset, sampler = self.get_dataset(cfg)
         data_loader = torch.utils.data.DataLoader(
             dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
         )
         return data_loader
 
-    @staticmethod
-    def _setup_test_dataloader(cfg):
+    def _setup_test_dataloader(self, cfg):
         dataset = instantiate(cfg.dataset)
         data_loader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
         return data_loader
 
     def setup_training_data(self, cfg):
         self._train_dl = self._setup_train_dataloader(cfg)
+        batch_size = cfg['dataloader_params']['batch_size']
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if (
+            self._train_dl is not None
+            and hasattr(self._train_dl, 'dataset')
+            and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
+        ):
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * ceil((len(self._train_dl.dataset) / self.world_size) / batch_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self._setup_test_dataloader(cfg)
@@ -507,7 +569,6 @@ class AudioCodecModel(ModelPT):
 
         if "steps_per_epoch" in self._cfg:
             return self._cfg.max_epochs * self._cfg.steps_per_epoch
-
         return compute_max_steps(
             max_epochs=self._cfg.max_epochs,
             accumulate_grad_batches=self.trainer.accumulate_grad_batches,
@@ -582,4 +643,13 @@ class AudioCodecModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
-        return []
+        models = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="audio_codec_16khz_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/audio_codec_16khz_small/versions/v1/files/audio_codec_16khz_small.nemo",
+            description="For details about this model please refer to the model card: https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/audio_codec_16khz_small",
+        )
+        models.append(model)
+
+        return models

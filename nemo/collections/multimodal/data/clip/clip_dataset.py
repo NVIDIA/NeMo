@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import partial
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Union
 
 import torch
 from torch.utils.data import Dataset, default_collate
@@ -20,12 +20,8 @@ from torch.utils.data import Dataset, default_collate
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.clip.imagenet_zeroshot_data import imagenet_classnames, openai_imagenet_template
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.vision.data.megatron.image_folder import ImageFolder
-from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
 try:
     from megatron.core import parallel_state
@@ -46,7 +42,7 @@ def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int =
     texts : Union[str, List[str]]
         An input string or a list of input strings to tokenize
     tokenizer:
-        Tokenizer loaded in NeMo NeMo
+        Tokenizer loaded in NeMo
     context_length : int
         The context length to use; all CLIP models use 77 as the context length
 

@@ -45,7 +45,10 @@ def _get_gpu_name():
 OmegaConf.register_new_resolver("gpu_name", _get_gpu_name)
 
 # multiple interpolated values in the config
-OmegaConf.register_new_resolver("multiply", lambda x, y: x * y)
+OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
+
+# sum interpolated values in the config
+OmegaConf.register_new_resolver("sum", lambda x, y: x + y, replace=True)
 
 
 def hydra_runner(

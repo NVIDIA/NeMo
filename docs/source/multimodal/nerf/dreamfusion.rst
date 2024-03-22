@@ -3,7 +3,7 @@ DreamFusion
 
 Model Introduction
 -------------------
-DreamFsuion  :cite:`mm-models-poole2022dreamfusion` uses a pretrained text-to-image diffusion model to perform
+DreamFusion  :cite:`mm-models-poole2022dreamfusion` uses a pretrained text-to-image diffusion model to perform
 text-to-3D synthesis. The model uses a loss based on probability density distillation that enables the use of a 2D
 diffusion model as a prior for optimization of a parametric image generator.
 

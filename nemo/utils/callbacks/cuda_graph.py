@@ -16,13 +16,13 @@ import os
 import time
 from dataclasses import dataclass
 from types import MethodType
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict
 
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.loops.optimization.automatic import ClosureResult
-from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_warn
+from pytorch_lightning.utilities.rank_zero import rank_zero_info
 from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.nn.parallel import DistributedDataParallel

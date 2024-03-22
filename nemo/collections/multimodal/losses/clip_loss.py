@@ -32,6 +32,28 @@ except (ImportError, ModuleNotFoundError):
 def gather_features(
     image_features, text_features, local_loss=False, gather_with_grad=False,
 ):
+    """
+    Gathers image and text features across multiple data parallel processes.
+
+    This function is designed to work in a distributed environment where multiple
+    processes are handling different portions of data. It gathers the image and text
+    features from all processes to form a complete set of features across the entire dataset.
+    This is crucial for calculating loss in models like CLIP, especially when the model is
+    trained in a data parallel fashion.
+
+    Parameters:
+    image_features (Tensor): A tensor containing the image features.
+    text_features (Tensor): A tensor containing the text features.
+    local_loss (bool, optional): A flag to determine whether to use local loss calculation.
+                                 Defaults to False.
+    gather_with_grad (bool, optional): A flag to enable gathering with gradient computation.
+                                       This is not currently working in the latest PyTorch version.
+                                       Defaults to False.
+
+    Returns:
+    Tuple[Tensor, Tensor]: A tuple containing the gathered image features and text features
+                           across all processes.
+    """
     data_parallel_world_size = parallel_state.get_data_parallel_world_size()
     data_parallel_rank = parallel_state.get_data_parallel_rank()
     data_parallel_group = parallel_state.get_data_parallel_group()
@@ -60,6 +82,32 @@ def gather_features(
 
 
 class ClipLoss(nn.Module):
+    """
+    A custom loss module for CLIP (Contrastive Language–Image Pretraining) training.
+
+    This module is specifically designed for calculating the loss in CLIP model training,
+    supporting features like local loss calculation, gradient gathering, and label caching
+    for efficiency in a distributed training setup.
+
+    Parameters:
+    local_loss (bool, optional): If True, calculates loss locally on each data parallel process.
+                                 Defaults to False.
+    gather_with_grad (bool, optional): If True, gathers gradients during loss calculation.
+                                       Currently not functional in the latest PyTorch version.
+                                       Defaults to False.
+    cache_labels (bool, optional): If True, caches labels for reuse in subsequent iterations,
+                                   improving performance. Defaults to False.
+
+    Attributes:
+    world_size (int): The size of the data parallel group (number of processes).
+    rank (int): The rank of the current process within the data parallel group.
+
+    Methods:
+    forward(output_tensor): Computes the loss given the model's output tensor. This involves
+                            gathering features across processes, computing logits, and
+                            calculating the final cross-entropy loss.
+    """
+
     def __init__(
         self, local_loss=False, gather_with_grad=False, cache_labels=False,
     ):

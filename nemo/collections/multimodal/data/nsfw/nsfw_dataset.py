@@ -1,3 +1,16 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import pathlib
 from typing import Callable, List, Optional, Tuple
 
@@ -9,6 +22,11 @@ from nemo.collections.multimodal.data.clip.augmentations.augmentations import im
 
 
 class DirectoryBasedDataset(torch.utils.data.Dataset):
+    """
+    A custom dataset class for loading images from a directory structure.
+    This class inherits from torch.utils.data.Dataset.
+    """
+
     def __init__(self, path: str, transform: Optional[Callable] = None):
         super(DirectoryBasedDataset, self).__init__()
 
@@ -37,6 +55,9 @@ class DirectoryBasedDataset(torch.utils.data.Dataset):
 
 
 def build_dataset(model_cfg: DictConfig, consumed_samples: int, is_train: bool):
+    """
+    Builds and returns a DirectoryBasedDataset instance.
+    """
     img_fn = image_transform(
         (model_cfg.vision.img_h, model_cfg.vision.img_w),
         is_train=False,

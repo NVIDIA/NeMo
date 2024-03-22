@@ -24,12 +24,17 @@ from typing import Callable, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
+from lightning_fabric.utilities.seed import seed_everything
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
+from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_PATCH_TOKEN,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
-from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 from nemo.utils import AppState
 
 try:
@@ -170,18 +175,22 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
 
         # Regular expression pattern to match the sequence
         pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
-        clean_text = re.sub(pattern, '<image>', response['sentences'][0])
+        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN}({DEFAULT_IMAGE_PATCH_TOKEN})+{DEFAULT_IM_END_TOKEN}')
+        combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
+        clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
 
         clean_response = clean_text
-        # for string in sampling_params['end_strings']:
-        #     clean_response = clean_response.rstrip(string)
-        if conv_template == "nvgpt":
+
+        if conv_template in ["nvgpt", "nv_steerlm"]:
             labels_str_regexp = re.compile(f"<extra_id_2>quality:.*\n")
             last_match_end_position = None
             for match in re.finditer(labels_str_regexp, clean_response):
                 last_match_end_position = match.end()
             if last_match_end_position is not None:
                 clean_response = clean_response[last_match_end_position:]
+            clean_response = clean_response.strip("<extra_id_1>")
+        elif conv_template == 'nv_dpo':
+            clean_response = clean_response.split("<extra_id_1>")[-2][10:]  # [10:] for removing "Assistant\n"
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
         elif conv_template == "v1":
@@ -275,7 +284,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
        This function has been mostly taken from huggingface conversational
          ai code at
          https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313 
+              conversational-ai-with-transfer-learning-2d818ac26313
 
         @param logits: logits tensor
         @param top_k: keep only top k tokens with highest probability
@@ -318,7 +327,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf'), started
 
 
 def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper 
+    """ Implement the repetition penalty, check paper
     https://arxiv.org/pdf/1909.05858.pdf
     """
     if used_tokens is not None and repetition_penalty != 1.0:
@@ -353,12 +362,15 @@ def send_generate_info(
     repetition_penalty,
     min_tokens_to_generate,
     end_strings,
+    random_seed,
 ):
     """
     Needs to be synced up with receive_generate_info
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
     src = get_model_parallel_src_rank()
+    if random_seed is None:
+        random_seed = -1  # to be able to convert to float
     # Send the sizes of the tensors
     input_info = [
         context_tokens_tensor.size(0),  # batch_size
@@ -372,6 +384,7 @@ def send_generate_info(
         greedy,
         repetition_penalty,
         min_tokens_to_generate,
+        random_seed,
     ]
     input_info_tensor = torch.cuda.FloatTensor(input_info)
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
@@ -395,7 +408,7 @@ def receive_generate_info():
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
     src = get_model_parallel_src_rank()
-    input_info_tensor = torch.empty(11, dtype=torch.float32, device=torch.cuda.current_device())
+    input_info_tensor = torch.empty(12, dtype=torch.float32, device=torch.cuda.current_device())
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
@@ -408,6 +421,9 @@ def receive_generate_info():
     greedy = bool(input_info_tensor[8].item())
     repetition_penalty = float(input_info_tensor[9].item())
     min_tokens_to_generate = int(input_info_tensor[10].item())
+    random_seed = int(input_info_tensor[11].item())
+    if random_seed == -1:  # was converted to -1 before broadcast
+        random_seed = None
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
@@ -436,6 +452,7 @@ def receive_generate_info():
         repetition_penalty,
         min_tokens_to_generate,
         end_strings,
+        random_seed,
     )
 
 
@@ -512,12 +529,8 @@ def synced_generate(
 
             if compute_logprob:
                 precision = model._trainer.precision
-                if precision in [16, "16"]:
-                    dtype = torch.float16
-                elif precision in ['bf16', 'bf16-mixed']:
-                    dtype = torch.bfloat16
-                else:
-                    dtype = torch.float32
+                dtype = torch.float32
+
                 output_logits = torch.empty(
                     tokens.size(0), context_length - 1, dtype=dtype, device=torch.device("cuda")
                 )
@@ -554,6 +567,7 @@ def generate(
     end_strings=['<|endoftext|>'],
     image_list=None,
     min_tokens_to_generate=0,
+    random_seed=None,
     **strategy_args,
 ) -> OutputType:
     """
@@ -569,10 +583,14 @@ def generate(
         greedy (bool):  Whether or not to use sampling ; use greedy decoding otherwise
         repetition_penalty (float): The parameter for repetition penalty. 1.0 means no penalty
         min_tokens_to_generate (int): The minimum length of the tokens to be generated
+        random_seed (int): can set to fix random seed for reproducibility. If None, we do not set random seed, so
+            the behavior of generation will depend on whether the seed was set earlier or not.
         strategy_args, the extra arguments are treated as inference strategy arguments
         end_strings, a list of strings to stop generation when they are encountered in the output.
+
     Returns:
         OutputType: It generates the output in a dictionary type. It has the following keys:
+
             sentences: List[str], output sentences
             tokens: List[List[str]], output sentences borken into tokens
             logprob: List[Tensor], log prob of generated tokens
@@ -606,6 +624,7 @@ def generate(
             repetition_penalty,
             min_tokens_to_generate,
             end_strings,
+            random_seed,
         )
     else:
         (
@@ -621,7 +640,11 @@ def generate(
             repetition_penalty,
             min_tokens_to_generate,
             end_strings,
+            random_seed,
         ) = receive_generate_info()
+
+    if random_seed is not None:
+        seed_everything(random_seed)
 
     output = synced_generate(
         model,
@@ -737,9 +760,6 @@ def sample_sequence_batch(
         micro_batch_size=micro_batch_size,
         data_parallel_size=1,
     )
-    assert (
-        model.cfg.get('sequence_parallel', False) == False
-    ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
     assert (
         model.cfg.get('activations_checkpoint_granularity', None) is None
     ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
@@ -1064,7 +1084,7 @@ def sample_token_greedy(logits):
 
     Args:
         logits: [batch_size, vocab_size] - unnormalized log probabilities of the next token
-    
+
     Returns:
         log_probs: [batch_size] - log probabilities of the sampled tokens
         token_ids: [batch_size] - sampled token ids
@@ -1084,7 +1104,7 @@ def sample_token_topk(logits, top_k=0, top_p=0.0, temperature=1.0, filter_value=
         top_p: float - if > 0.0: only sample from a subset of candidates, where the cumulative probability
         temperature: float - temperature for sampling
         filter_value: float - value to set filtered tokens to
-    
+
     Returns:
         log_probs: [batch_size] - log probabilities of the sampled tokens
         token_ids: [batch_size] - sampled token ids

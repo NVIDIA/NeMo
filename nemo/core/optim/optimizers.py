@@ -72,7 +72,7 @@ if HAVE_APEX:
 
         AVAILABLE_OPTIMIZERS['megatron_fused_adam'] = MegatronFusedAdam
     except (ImportError, ModuleNotFoundError):
-        logging.warning("Could not import MegatronFusedAdam optimizer")
+        pass
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
@@ -200,3 +200,18 @@ def get_optimizer(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optimizer:
     optimizer = AVAILABLE_OPTIMIZERS[name]
     optimizer = partial(optimizer, **kwargs)
     return optimizer
+
+
+def init_optimizer_states(optimizer: Optimizer):
+    adam_nondist_optims = (optim.Adam, optim.AdamW)
+    if HAVE_APEX:
+        adam_nondist_optims += (FusedAdam,)
+    if isinstance(optimizer, adam_nondist_optims):
+        for group in optimizer.param_groups:
+            for p in group['params']:
+                state = optimizer.state[p]
+                if len(state) == 0:
+                    state['exp_avg'] = torch.zeros_like(p.data, memory_format=torch.preserve_format)
+                    state['exp_avg_sq'] = torch.zeros_like(p.data, memory_format=torch.preserve_format)
+                    if group.get('amsgrad'):
+                        state['max_exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)

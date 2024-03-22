@@ -11,7 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torchvision.transforms.functional as torchvision_F
+try:
+    import torchvision.transforms.functional as torchvision_F
+
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 
 
 class ImagePyramidNoCorruptions:
@@ -23,6 +28,7 @@ class ImagePyramidNoCorruptions:
         self.resolutions = target_resolutions
 
     def obtain_image_pyramid(self, image):
+        assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
         # Downsampling
         data_dict = dict()
         for res in self.resolutions:

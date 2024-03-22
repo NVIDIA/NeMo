@@ -11,15 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+try:
+    import torchvision.transforms as transforms
+
+    TORCHVISION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    TORCHVISION_AVAILABLE = False
 import numpy as np
 import torch
-import torchvision.transforms as transforms
 
 
 def construct_clip_augmentations(n_px=224):
     def _convert_image_to_rgb(image):
         return image.convert("RGB")
 
+    assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
     return transforms.Compose(
         [
             transforms.Resize(n_px, interpolation=transforms.InterpolationMode.BICUBIC),
