@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path='conf/stable_diffusion/conf', config_name='sd_xl_infer')
+@hydra_runner(config_path='conf', config_name='sd_xl_infer')
 def main(cfg):
     def model_cfg_modifier(model_cfg):
         model_cfg.precision = cfg.trainer.precision

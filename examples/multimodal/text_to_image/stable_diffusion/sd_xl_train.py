@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import sys
-
 import torch
 import torch._dynamo.config as dynamo_config
 from omegaconf.omegaconf import OmegaConf
@@ -68,7 +67,7 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
         )
 
 
-@hydra_runner(config_path='conf/stable_diffusion/conf', config_name='sd_xl_base_train')
+@hydra_runner(config_path='conf', config_name='sd_xl_base_train')
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
