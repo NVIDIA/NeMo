@@ -20,7 +20,6 @@ from torch.nn.parameter import Parameter
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 from nemo.utils import logging
-from nemo.utils.model_utils import param_is_not_shared
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
