@@ -41,6 +41,7 @@ from nemo.utils.data_utils import (
     is_datastore_path,
     is_tarred_path,
 )
+from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = [
@@ -863,26 +864,10 @@ class _TarredAudioToTextDataset(IterableDataset):
             global_rank=global_rank,
         )
 
-        def update_workers(src):
-            group = torch.distributed.group.WORLD
-            rank = torch.distributed.get_rank(group=group)
-            world_size = torch.distributed.get_world_size(group=group)
-            
-            worker_info = torch.utils.data.get_worker_info()
-            worker = worker_info.id
-            num_workers = worker_info.num_workers
-            print(src)
-            if num_workers > 1:
-                yield from list(src)[worker :: num_workers]
-            else:
-                yield from src
-            
         # Put together WebDataset pipeline
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=audio_tar_filepaths),
-            # wds.split_by_node,
-            # wds.split_by_worker,
-            update_workers,
+            webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
@@ -891,20 +876,6 @@ class _TarredAudioToTextDataset(IterableDataset):
             self._loop_offsets,
             wds.map(self._build_sample),
         )
-
-        # self._dataset = (
-        #     wds.WebDataset(audio_tar_filepaths, nodesplitter=None)
-        #     .shuffle(shuffle_n)
-        # )
-        # # self._dataset.append(wds.tarfile_to_samples())
-        # self._dataset.append(wds.rename(audio=VALID_FILE_FORMATS, key='__key__'))
-        # self._dataset.append(wds.to_tuple('audio', 'key'))
-        # self._dataset.append(self._filter)
-        # self._dataset.append(self._loop_offsets)
-        # self._dataset.map(self._build_sample)
-
-        
-
 
     def _filter(self, iterator):
         """This function is used to remove samples that have been filtered out by ASRAudioText already.

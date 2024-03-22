@@ -29,6 +29,7 @@ import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
+from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.timer import Interval, Timer
@@ -177,6 +178,7 @@ class ExpManagerConfig:
     max_time_per_run: Optional[str] = None
     # time to sleep non 0 ranks during initialization
     seconds_to_sleep: float = 5
+    global_seed: Optional[int] = None
 
 
 class TimingCallback(Callback):
@@ -341,9 +343,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     elif not isinstance(cfg, DictConfig):
         raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
-    cfg = OmegaConf.merge(schema, cfg)
+    cfg = OmegaConf.merge(schema, cfg)  # type: ExpManagerConfig
 
     error_checks(trainer, cfg)  # Ensures that trainer options are compliant with NeMo and exp_manager arguments
+
+    if cfg.global_seed is not None:
+        seed_value = global_rank + cfg.global_seed
+        seed_everything(seed_value, workers=True)
 
     log_dir, exp_dir, name, version = get_log_dir(
         trainer=trainer,
