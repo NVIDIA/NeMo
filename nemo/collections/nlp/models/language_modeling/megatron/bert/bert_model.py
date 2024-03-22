@@ -395,9 +395,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
         # Encoder embedding.
         if self.pre_process:
-            encoder_input = self.embedding(
-                input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids
-            )
+            encoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids, tokentype_ids=tokentype_ids)
         else:
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
