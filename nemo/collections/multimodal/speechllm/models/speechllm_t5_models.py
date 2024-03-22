@@ -351,6 +351,13 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             self.log(
                 'audio_ratio', audio_batch['audio_ratio'].mean(), prog_bar=True, batch_size=1, rank_zero_only=False
             )
+            self.log(
+                'local_batch_size',
+                audio_batch['audio_ratio'].shape[0],
+                prog_bar=True,
+                batch_size=1,
+                rank_zero_only=False,
+            )
         encoder_input, attention_mask, enc_mask = self.prepare_llm_input(audio_batch)
         # enc_input = speech and text prompt
         # dec_input and label = text output label
