@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import torch
 import warnings
 from typing import Tuple
+
+import torch
 
 from nemo.utils.decorators import experimental
 

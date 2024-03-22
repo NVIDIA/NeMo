@@ -15,9 +15,10 @@
 """Dataloaders."""
 
 import abc
-import torch
 from itertools import chain
 from typing import Optional
+
+import torch
 
 from nemo.utils import logging
 
