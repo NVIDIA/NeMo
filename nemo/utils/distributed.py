@@ -134,8 +134,10 @@ def webdataset_split_by_workers(src):
     # rank = torch.distributed.get_rank(group=group)
     # world_size = torch.distributed.get_world_size(group=group)
     worker_info = torch.utils.data.get_worker_info()
-    worker = worker_info.id
-    num_workers = worker_info.num_workers
+    num_workers = 1
+    if worker_info is not None:
+        worker = worker_info.id
+        num_workers = worker_info.num_workers
 
     if num_workers > 1:
         yield from list(src)[worker::num_workers]
