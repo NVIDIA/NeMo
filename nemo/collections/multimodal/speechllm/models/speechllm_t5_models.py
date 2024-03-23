@@ -151,10 +151,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         self._reduced_loss_buffer = []
         self._inference_config = None
 
-        self.tokenizer.legacy = False
+        self.tokenizer.legacy = cfg.get('legacy_tokenizer', False)
         self.bos_id = self.tokenizer.bos_id
-        if self.tokenizer.bos_id < 0:  # -1 index does not work with GPU
-            self.bos_id = self.tokenizer.pad_id
         self.pad_token_id = self.tokenizer.eos_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
@@ -361,6 +359,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 batch_size=1,
                 rank_zero_only=False,
             )
+
+            
         encoder_input, attention_mask, enc_mask = self.prepare_llm_input(audio_batch)
         # enc_input = speech and text prompt
         # dec_input and label = text output label
@@ -670,6 +670,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         with open_dict(gpt_cfg):
             if 'vocab_file' in cfg.model:
                 gpt_cfg.tokenizer.vocab_file = cfg.model.vocab_file
+            gpt_cfg.legacy_tokenizer= cfg.model.get('legacy_tokenizer', False)
             gpt_cfg.audio_prompt_first = cfg.model.get('audio_prompt_first', True)
             gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)

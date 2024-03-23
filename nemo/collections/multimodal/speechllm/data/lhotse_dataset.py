@@ -71,10 +71,8 @@ class TextProcessing:
         self.sample_alpha = sample_alpha
         self.input_text_mask_ratio = input_text_mask_ratio
 
-        if add_bos and hasattr(tokenizer, "bos_id"):
+        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             self.bos_id = tokenizer.bos_id
-            if tokenizer.bos_id < 0: # -1 index does not work with GPU
-                self.bos_id = tokenizer.pad_id
         else:
             self.bos_id = None
 
