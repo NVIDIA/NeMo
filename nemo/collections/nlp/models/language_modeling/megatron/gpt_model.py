@@ -176,6 +176,12 @@ class GPTModel(MegatronModule):
         adversarial_training=False,
         adversarial_training_epsilon=0.01,
         neft_reimplement=False,
+        embedmix=False,
+        embedmix_subset_p=0.0,
+        embedmix_embed_p=0.0,
+        embedmix_tokens_p=0.0,
+        embedmix_type=None,
+        embedmix_alpha=0.5,
     ):
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
@@ -266,6 +272,12 @@ class GPTModel(MegatronModule):
             adversarial_training=adversarial_training,
             adversarial_training_epsilon=adversarial_training_epsilon,
             neft_reimplement=neft_reimplement,
+            embedmix=embedmix,
+            embedmix_subset_p=embedmix_subset_p,
+            embedmix_embed_p=embedmix_embed_p,
+            embedmix_tokens_p=embedmix_tokens_p,
+            embedmix_type=embedmix_type,
+            embedmix_alpha=embedmix_alpha,
         )
 
         if self.share_embeddings_and_output_weights:

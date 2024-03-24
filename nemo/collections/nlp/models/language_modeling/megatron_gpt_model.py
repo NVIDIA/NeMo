@@ -376,6 +376,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 creat_lr=self.cfg.get('creat_lr', 0.1),
                 creat_max_norm=self.cfg.get('creat_max_norm', 0.1),
                 neft_reimplement=self.cfg.get('neft_reimplement', False),
+                embedmix=self.cfg.get('embedmix', False),
+                embedmix_subset_p=self.cfg.get('embedmix_subset_p', 0.0),
+                embedmix_embed_p=self.cfg.get('embedmix_embed_p', 0.0),
+                embedmix_tokens_p=self.cfg.get('embedmix_tokens_p', 0.0),
+                embedmix_type=self.cfg.get('embedmix_type', None),
+                embedmix_alpha=self.cfg.get('embedmix_alpha', 0.5),
             )
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -462,6 +468,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 creat_adv_lr=self.cfg.get('cre_adv_lr', 0.1),
                 creat_adv_max_norm=self.cfg.get('cre_adv_max_norm', 0.1),
                 neft_reimplement=self.cfg.get('neft_reimplement', False),
+                embedmix=self.cfg.get('embedmix', False),
+                embedmix_subset_p=self.cfg.get('embedmix_subset_p', 0.0),
+                embedmix_tokens_p=self.cfg.get('embedmix_tokens_p', 0.0),
+                embedmix_embed_p=self.cfg.get('embedmix_embed_p', 0.0),
+                embedmix_type=self.cfg.get('embedmix_type', None),
+                embedmix_alpha=self.cfg.get('embedmix_alpha', 0.5),
             )
         return model
 
