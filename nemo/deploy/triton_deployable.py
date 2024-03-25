@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tensorrt_llm import TensorRTLLM
+
+from abc import ABC, abstractmethod
+import numpy as np
+
+
+class ITritonDeployable(ABC):
+    @abstractmethod
+    def get_triton_input(self):
+        pass
+
+    @abstractmethod
+    def get_triton_output(self):
+        pass
+
+    @abstractmethod
+    def triton_infer_fn(self, **inputs: np.ndarray):
+        pass
