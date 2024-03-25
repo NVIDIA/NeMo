@@ -73,7 +73,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ["ModularAudioGPTLoRAModel"]
+__all__ = ["ModularAudioGPTModel"]
 
 
 default_inference_config = {'tokens_to_generate': 30}
@@ -273,8 +273,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         ):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
             encoder_input = encoder_input + position_embeddings
-        else:
-            encoder_input = encoder_input
+
         encoder_max_length = encoder_input.shape[1]
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
@@ -687,7 +686,8 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                     speaker_model = EncDecSpeakerLabelModel.from_pretrained(
                         speaker_cfg.pretrained_model, map_location='cpu'
                     )
-            return speaker_model, speaker_model.cfg
+                return speaker_model, speaker_model.cfg
+            return None, None
         else:
             return None, None
 

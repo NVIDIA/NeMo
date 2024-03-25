@@ -655,7 +655,7 @@ class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
         output.update(text_data)
         output['metadata'] = {
             'audio_filepath': sample.audio_file,
-            'offset': offset,
+            'offset': offsets,
             'duration': sample.duration,
         }
         return output

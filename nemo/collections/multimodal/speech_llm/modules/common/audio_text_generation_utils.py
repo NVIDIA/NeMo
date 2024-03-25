@@ -363,6 +363,7 @@ def generate(
                 context_start_idx,
             ) = inputs
         else:
+            audio_signal, audio_signal_length = None, None
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )

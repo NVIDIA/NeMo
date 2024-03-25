@@ -153,6 +153,7 @@ class Aggregator(nn.Module):
         self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor], ref_idx: Optional[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if not self._have_same_length(encoded_len):
+            target_len = encoded[0].size(self.channel_dim)
             if ref_idx is not None:
                 target_len = encoded[ref_idx].size(self.channel_dim)
             if self.channel_dim != 1:
