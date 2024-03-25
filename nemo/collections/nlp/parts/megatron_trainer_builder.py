@@ -75,7 +75,10 @@ class MegatronTrainerBuilder:
             )
 
         return NLPDDPStrategy(
+            no_ddp_communication_hook=True,
+            gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
+            nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
             sharp=self.cfg.model.get('sharp', False),
             torch_dist_ckpt=self.cfg.model.get('torch_distributed_checkpoint', False),
         )
@@ -108,6 +111,7 @@ class MegatronTrainerBuilder:
                 plugin_precision = '16-mixed'
             else:
                 plugin_precision = 'bf16-mixed'
+
             if megatron_amp_O2 and not with_distributed_adam:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:

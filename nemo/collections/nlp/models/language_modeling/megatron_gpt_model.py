@@ -561,6 +561,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -634,6 +635,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             // self.cfg.get('context_parallel_size', 1),
             self.cfg.get('hidden_size'),
         ]
+
         te_module.base.initialize_ub(
             shape=input_shape,
             tp_size=self.cfg.get('tensor_model_parallel_size'),

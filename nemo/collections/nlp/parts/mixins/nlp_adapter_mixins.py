@@ -301,7 +301,11 @@ class NLPAdapterModelMixin:
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
         if not self.ptuning_only_and_non_first_stage:
-            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+            target_keys = self.adapter_keys.union(self.tunable_base_param_keys)
+            if set(state_dict.keys()) != target_keys:
+                logging.warning(
+                    f"Unexpected keys found in state_dict: {set(state_dict.keys()) - target_keys}, missing keys in state_dict: {target_keys - set(state_dict.keys())}"
+                )
         super().load_state_dict(state_dict, strict=False)
 
     def set_tunable_base_params(self, peft_cfg):

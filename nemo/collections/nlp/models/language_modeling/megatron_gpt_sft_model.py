@@ -162,7 +162,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return set(["f1", "accuracy", "average_precision"])
 
     def maybe_setup_test(self):
-        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+        if hasattr(self.cfg.data, 'test_ds'):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
         return
 
@@ -175,6 +175,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
+
         self.init_consumed_samples = init_consumed_samples
         if stage == 'predict':
             return
@@ -788,7 +789,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 )
 
     def maybe_build_test(self):
-        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+        if hasattr(self.cfg.data, 'test_ds'):
             logging.info('Building GPT SFT test datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
@@ -856,7 +857,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
     def on_validation_epoch_start(self):
         self._reset_activation_checkpointing_args()
-        self._reset_sequence_parallelism_args()
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,

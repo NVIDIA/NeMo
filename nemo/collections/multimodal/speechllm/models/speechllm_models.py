@@ -1215,7 +1215,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
         self._restore_activation_checkpointing_args()
-        self._restore_sequence_parallelism_args()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
