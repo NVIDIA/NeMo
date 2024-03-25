@@ -539,7 +539,11 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
 
             if i % 2 == 1:
                 turn['from'] = conv.roles[1]
-                conv.append_message(turn['from'], turn['value'])
+                if "labels" in turn:
+                    value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
+                else:
+                    value = turn["value"]
+                conv.append_message(turn['from'], value)
                 if not turn["value"]:
                     strip_end_for_inference = (
                         True  # in inference, current turn is empty, thus end tokens need to striped.
