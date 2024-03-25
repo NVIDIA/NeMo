@@ -456,6 +456,27 @@ pipeline {
       }
     }
 
+    stage('L2: Nemo Export to TRT-LLM tests') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Llama2 - Export and Deploy') {
+          steps {
+            sh 'python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base \
+            --checkpoint_dir /home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
+            --model_type llama --min_gpus 1 --max_gpus 1 --trt_llm_model_dir /tmp/llama2-7B-base \
+            --test_deployment True'
+            sh 'rm -rf /tmp/llama2-7B-base'
+          }
+        }
+      }
+    }
+
     stage('L2: Nemo PTQ') {
       when {
         anyOf {
