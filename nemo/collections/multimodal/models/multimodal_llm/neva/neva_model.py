@@ -295,10 +295,10 @@ class NevaBaseModel:
                 mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
         elif mm_cfg.vision_encoder.get("from_open_clip", False):
-            assert mm_cfg.vision_encoder.get("open_clip_model_config") is not None, \
-                f"`open_clip_model_config` needs to be set."
+            assert mm_cfg.vision_encoder.get("open_clip_model_name") is not None, \
+                f"`open_clip_model_name` needs to be set."
             model, _, image_processor = open_clip.create_model_and_transforms(
-                mm_cfg.vision_encoder.open_clip_model_config,
+                mm_cfg.vision_encoder.open_clip_model_name,
                 pretrained=mm_cfg.vision_encoder.from_pretrained, precision=torch.bfloat16,
             )
             vision_encoder = model.visual.cuda()
