@@ -28,16 +28,16 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
+from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
     get_aqa_dataset_from_config,
     get_tarred_aqa_dataset_from_config,
 )
-from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speechllm.modules.speechllm_perception import (
+from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
+from nemo.collections.multimodal.speech_llm.modules.speechllm_perception import (
     AudioPerceptionModel,
     MultiAudioPerceptionModel,
 )
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import remove_text_pc, to_cuda
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import remove_text_pc, to_cuda
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -184,10 +184,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         logging.info(f"Optimizer groups set:\n{self.summarize(max_depth=2)}")
 
     def _create_attention_mask(self, encoder_input: torch.Tensor):
+        # Create causal attention mask for whole input
         batch_size = encoder_input.shape[0]
         max_len = encoder_input.shape[1]
-        # TODO(zhehuai): use prefixlm instead for the audio embeddings
-        # Using causal attention mask for whole input
         attention_mask = torch.tril(torch.ones((batch_size, max_len, max_len), device=encoder_input.device)).view(
             batch_size, 1, max_len, max_len
         )
@@ -196,6 +195,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return attention_mask
 
     def _concat_features(self, embs1, emb1_lens, embs2, emb2_lens):
+        """Concatenate two sets of embeddings and their lengths."""
         concat_emb = []
         concat_len = []
         for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
@@ -217,6 +217,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         input_length: torch.Tensor,
         context_start_idx: List[List[int]],
     ):
+        """Concatenate multiple audio features with text segments."""
         encoder_input_list, encoder_length_list = [], []
         batch_size = input_embeds.size(0)
         max_length = 0
@@ -250,6 +251,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         input_length: torch.Tensor,
         context_start_idx: Optional[List[List[int]]] = None,
     ):
+        """Inject audio features into the text input and return the final input embeddings to LLM."""
         # [b, t, c]
         lm_embedding = (
             self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
@@ -284,6 +286,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return encoder_input, attention_mask, encoder_length, position_ids, encoder_max_length
 
     def _shift_labels_by_emb_len(self, labels, label_lens, emb_lens, max_len, pad_token=0):
+        """Shift labels to the right by the length of the audio embeddings."""
         shifted_labels = []
         for label, label_len, emb_len in zip(labels, label_lens, emb_lens):
             shifted_label = torch.full([max_len], pad_token, device=label.device)
@@ -293,6 +296,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return shifted_labels
 
     def _get_text_embeddings(self, text_tokens, position_ids):
+        """Get text embeddings for the input text tokens."""
         lm_embedding = (
             self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
         )
@@ -303,7 +307,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return text_embeddings.transpose(0, 1)
 
     def prepare_llm_input(self, audio_batch):
-
+        """Prepare input for the LLM."""
         input_signal = audio_batch['audio_signal']
         input_signal_length = audio_batch['audio_signal_length']
 
@@ -329,6 +333,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
             encoded = encoded.split(num_audios.tolist())
             encoded_len = encoded_len.split(num_audios.tolist())
+
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
             encoded, encoded_len, input_ids, input_length, context_start_idx
         )
@@ -348,10 +353,8 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def forward(
         self, audio_batch, checkpoint_activations_all_layers,
     ):
-        """Forward pass of the model.
-
-        We prepend audio embeddings to the instruction and label text tokens 
-        as the LLM input.
+        """
+        Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
         """
         encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
         if self.mcore_gpt:

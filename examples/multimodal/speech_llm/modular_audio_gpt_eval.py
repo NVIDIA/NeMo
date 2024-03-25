@@ -20,7 +20,7 @@ import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTModel
+from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP

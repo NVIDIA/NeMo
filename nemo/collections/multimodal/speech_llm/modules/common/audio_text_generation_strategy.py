@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
 from typing import List, Optional, Tuple
 
 import torch
 
 import nemo.collections.nlp.modules.common.text_generation_strategy as text_generation_strategy
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import shift_tokens_by_multi_audios
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
 
 
 try:
@@ -187,7 +186,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.multimodal.speechllm.models.speechllm_models import ModularAudioGPTModel
+    from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 
     if isinstance(model, ModularAudioGPTModel):
         return AudioToTextGenerationStrategy(model, **args)

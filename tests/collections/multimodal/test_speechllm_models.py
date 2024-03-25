@@ -25,13 +25,13 @@ from megatron.core import parallel_state
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
-from nemo.collections.multimodal.speechllm.models import speechllm_models
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import shift_tokens_by_multi_audios
+from nemo.collections.multimodal.speech_llm.models import modular_models
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 
-class ModularAudioGPTLoRAModel(speechllm_models.ModularAudioGPTLoRAModel):
+class ModularAudioGPTLoRAModel(modular_models.ModularAudioGPTModel):
     # disable logging to avoid MisconfigurationException
     def log(self, *args, **kwargs):
         pass

@@ -13,12 +13,9 @@
 # limitations under the License.
 import copy
 import io
-import json
 import os
-from math import isclose
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
-import braceexpand
 import numpy as np
 import torch
 import webdataset as wd
@@ -33,7 +30,7 @@ from nemo.collections.asr.data.audio_to_text_dataset import ConcatDataset, conve
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.parts.preprocessing import collections
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import (
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     ceil_to_nearest,
     get_num_samples_from_files,
     maybe_cast_to_list,
@@ -534,9 +531,9 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             output["audio_length"] = fl
         else:
             # dummy features
-            output["audio_signal"] = torch.zeros([8000])
+            output["audio_signal"] = torch.zeros([80])
             # accomodates normalize_batch
-            output["audio_length"] = torch.tensor(8000)
+            output["audio_length"] = torch.tensor(80)
 
         text_data = self._process_example(context=sample.question, output=sample.answer)
 
@@ -561,6 +558,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         )
 
     def collate_fn(self, batch):
+        # override collate_fn to skip type checking
         return self._collate_fn(batch)
 
 
@@ -951,6 +949,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         )
 
     def collate_fn(self, batch):
+        # override collate_fn to skip type checking
         return self._collate_fn(batch)
 
     def _build_sample(self, tup):
@@ -987,9 +986,9 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             output["audio_length"] = fl
         else:
             # dummy features
-            output["audio_signal"] = torch.zeros([8000])
+            output["audio_signal"] = torch.zeros([80])
             # accomodates normalize_batch
-            output["audio_length"] = torch.tensor(8000)
+            output["audio_length"] = torch.tensor(80)
 
         # Text features
         text_data = self._process_example(context=manifest_entry.question, output=manifest_entry.answer)

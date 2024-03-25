@@ -22,7 +22,7 @@ from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import align_feat_seq_list, get_nested_dict_value
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import align_feat_seq_list, get_nested_dict_value
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.mixins import AccessMixin

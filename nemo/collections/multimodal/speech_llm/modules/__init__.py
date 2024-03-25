@@ -12,11 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import (
-    ceil_to_nearest,
-    get_num_samples_from_files,
-    maybe_cast_to_list,
-    shift_tokens_by_multi_audios,
-    to_cuda,
-)
+from nemo.collections.multimodal.speech_llm.modules.modality_adapters import *
+from nemo.collections.multimodal.speech_llm.modules.speechllm_perception import *

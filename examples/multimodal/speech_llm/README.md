@@ -1,6 +1,6 @@
 # Modular SpeechLLM
 
-This directory contains example scripts to train and evaluate modular SpeechLLM[1]. 
+This directory contains example scripts to train and evaluate modular SpeechLLM (e.g, SALM[1], etc). 
 
 ## Requirements
 You will need to install this specific branch of NeMo, or use the provided Dockerfile in the root directory of this repository to build a Docker image with all the necessary dependencies. This branch is based on NeMo main branch by 2/14/2024, while diverging from the main branch in the following ways:
