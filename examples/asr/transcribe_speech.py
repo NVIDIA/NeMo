@@ -129,7 +129,6 @@ class TranscriptionConfig:
     presort_manifest: bool = True  # Significant inference speedup on short-form data due to padding reduction
 
     # General configs
-    output_dir: Optional[str] = None
     output_filename: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0

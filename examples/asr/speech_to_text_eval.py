@@ -213,10 +213,6 @@ def main(cfg: EvaluationConfig):
         dper_obj.print()
         dper_obj.reset()
 
-    if cfg.use_punct_er:
-        dper_obj.print()
-        dper_obj.reset()
-
     # Inject the metric name and score into the config, and return the entire config
     with open_dict(cfg):
         cfg.metric_name = metric_name

@@ -147,15 +147,6 @@ Developer Documentation
 +---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
 
 
-You can also get a high-level overview of NeMo by watching the talk *NVIDIA NeMo: Toolkit for Conversational AI*, presented at PyData Yerevan 2022:
-
-|pydata|
-
-.. |pydata| image:: https://img.youtube.com/vi/J-P6Sczmas8/maxres3.jpg
-    :target: https://www.youtube.com/embed/J-P6Sczmas8?mute=0&start=14&autoplay=0
-    :width: 600
-    :alt: NeMo presentation at PyData@Yerevan 2022
-
 Getting help with NeMo
 ----------------------
 FAQ can be found on NeMo's `Discussions board <https://github.com/NVIDIA/NeMo/discussions>`_. You are welcome to ask questions or start discussions there.
