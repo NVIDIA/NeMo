@@ -175,8 +175,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
-
         self.init_consumed_samples = init_consumed_samples
+
         if stage == 'predict':
             return
 
@@ -794,7 +794,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT test datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-            logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
+            lengths = [len(x) for x in self._test_ds]
+            logging.info(f'Length of test datasets: {lengths}, total: {sum(lengths)}')
         return
 
     def build_train_valid_test_datasets(self, stage):

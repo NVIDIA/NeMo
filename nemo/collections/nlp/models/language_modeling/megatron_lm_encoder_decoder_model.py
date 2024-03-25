@@ -768,14 +768,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def on_test_epoch_end(self):
         return self._test_validation_epoch_end(step_outputs=self.test_step_outputs, prefix="test",)
 
-    def on_validation_epoch_end(self):
-        # FIXME: do we need this? 'global_step' is logged in training_step
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-        return self._test_validation_epoch_end(step_outputs=self.validation_step_outputs, prefix="val",)
-
-    def on_test_epoch_end(self):
-        return self._test_validation_epoch_end(step_outputs=self.test_step_outputs, prefix="test",)
-
     def loss_func(self, loss_mask, tokens_loss):
         """
         This function takes as input per-token loss and masks non-required values.
