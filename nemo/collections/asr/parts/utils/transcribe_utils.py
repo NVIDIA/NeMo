@@ -327,15 +327,6 @@ def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
         # create default output filename
         if cfg.audio_dir is not None:
             cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
-        elif cfg.get("output_dir", None):
-            if not os.path.exists(cfg.output_dir):
-                os.makedirs(cfg.output_dir)
-            manifest_name = os.path.basename(cfg.dataset_manifest)
-            if cfg.pred_name_postfix is not None:
-                manifest_name = manifest_name.replace('.json', f'_{cfg.pred_name_postfix}.json')
-            else:
-                manifest_name = manifest_name.replace('.json', f'_{model_name}.json')
-            cfg.output_filename = os.path.join(cfg.output_dir, manifest_name)
         elif cfg.pred_name_postfix is not None:
             cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
         else:

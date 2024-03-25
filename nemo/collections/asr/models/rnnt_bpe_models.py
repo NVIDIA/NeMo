@@ -462,13 +462,6 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
         decoding_cfg = self.set_decoding_type_according_to_loss(decoding_cfg)
 
-        loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
-
-        if loss_name == 'tdt':
-            decoding_cfg.durations = loss_kwargs.durations
-        elif loss_name == 'multiblank_rnnt':
-            decoding_cfg.big_blank_durations = loss_kwargs.big_blank_durations
-
         self.decoding = RNNTBPEDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )

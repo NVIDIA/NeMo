@@ -848,6 +848,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         Returns:
             Tuple of 2 tensors, each of shape [L, B, H], where
+
                 L = Number of RNN layers
 
                 B = Batch size
