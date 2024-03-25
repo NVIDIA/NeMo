@@ -235,30 +235,32 @@ def main():
     logging.info(f"Output directory: {output_dir}")
 
     prefix_path = f"{output_dir}/packed_seq_dataset"
-    # builders = {}
-    # for item_dict in tqdm(train_dl, desc="Building indexed datasets"):
-    #     item_dict = {k: v[0] for k, v in item_dict.items()}
-    #     seq_len = len(item_dict['tokens'])
-    #     if seq_len in builders:
-    #         builder = builders[seq_len]
-    #     else:
-    #         builder_path = get_bin_path(f"{prefix_path}_seqlen_{seq_len}")
-    #         logging.info(f"Creating builder for sequence length {seq_len} at {builder_path}")
-    #         builder = IndexedDatasetBuilder(builder_path, dtype=np.float32, multimodal=True)
-    #         builders[seq_len] = builder
-    #     builder.add_item(item_dict['tokens'])
-    #     builder.add_item(item_dict['labels'])
-    #     builder.add_item(item_dict['image'], 1)
-    #     builder.end_document()
-    #     del item_dict
-    #
-    # for seq_len, builder in builders.items():
-    #     idx_path = get_idx_path(f"{prefix_path}_seqlen_{seq_len}")
-    #     logging.info(f"Finalizing builder for sequence length {seq_len} at {idx_path}")
-    #     builder.finalize(idx_path)
+    # Original Datasets to Sequence Lengths Files
+    builders = {}
+    for item_dict in tqdm(train_dl, desc="Building indexed datasets"):
+        item_dict = {k: v[0] for k, v in item_dict.items()}
+        seq_len = len(item_dict['tokens'])
+        if seq_len in builders:
+            builder = builders[seq_len]
+        else:
+            builder_path = get_bin_path(f"{prefix_path}/seqlen_{seq_len}")
+            logging.info(f"Creating builder for sequence length {seq_len} at {builder_path}")
+            builder = IndexedDatasetBuilder(builder_path, dtype=np.float32, multimodal=True)
+            builders[seq_len] = builder
+        builder.add_item(item_dict['tokens'])
+        builder.add_item(item_dict['labels'])
+        builder.add_item(item_dict['image'], 1)
+        builder.end_document()
+        del item_dict
 
-    files = os.listdir(output_dir)
-    pattern = rf"packed_seq_dataset_seqlen_(\d+).bin"
+    for seq_len, builder in builders.items():
+        idx_path = get_idx_path(f"{prefix_path}/seqlen_{seq_len}")
+        logging.info(f"Finalizing builder for sequence length {seq_len} at {idx_path}")
+        builder.finalize(idx_path)
+
+    # Packing Sequences into Bins
+    files = os.listdir(f"{output_dir}/packed_seq_dataset")
+    pattern = rf"seqlen_(\d+).bin"
     seq_len_list = []
     for file in files:
         match = re.match(pattern, file)
@@ -270,7 +272,7 @@ def main():
     doc_pop_order = {}
     indexed_datasets = {}
     for seq_len in seq_len_list:
-        dataset_path = f"{prefix_path}_seqlen_{seq_len}"
+        dataset_path = f"{prefix_path}/seqlen_{seq_len}"
         dataset = IndexedDataset(dataset_path, multimodal=True)
         aggregated_seq_lens.extend([seq_len] * (len(dataset.document_indices) - 1))
         doc_pop_order[seq_len] = list(np.random.permutation(len(dataset.document_indices) - 1))
@@ -285,6 +287,7 @@ def main():
     avg_bins_sum = sum([sum(x) for x in bins]) / num_bins
     logging.info(f"Number of bins: {num_bins}, Average bin length: {avg_bins_len}, Average bin sum: {avg_bins_sum}")
 
+    # Reading Sequence Lengths and Packing into New Files
     final_builder_path = get_bin_path(f"{prefix_path}")
     logging.info(f"Creating final builder at {final_builder_path}")
     final_builder = IndexedDatasetBuilder(final_builder_path, dtype=np.float32, multimodal=True)
