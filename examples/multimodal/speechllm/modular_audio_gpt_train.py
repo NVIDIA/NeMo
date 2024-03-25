@@ -56,7 +56,10 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
+    precision = cfg.trainer.precision
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
+    cfg.trainer.precision = precision
+
     exp_manager(trainer, cfg.exp_manager)
     # update resume from checkpoint found by exp_manager
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')

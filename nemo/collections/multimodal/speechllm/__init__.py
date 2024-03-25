@@ -13,4 +13,3 @@
 # limitations under the License.
 
 from nemo.collections.multimodal.speechllm import models, modules
-from .quantizer import Quantizer

@@ -119,7 +119,9 @@ model:
       position_embedding_strategy: null # used only when weight_tying is True
 
     lora_tuning:
+      target_modules: ['attention_qkv','attention_dense','mlp_fc1','mlp_fc2'] # this can either be 'attention_qkv','attention_dense','mlp_fc1','mlp_fc2', attention (qkv & dense), mlp (fc1 & fc2)
       adapter_dim: 32
+      alpha: ${model.peft.lora_tuning.adapter_dim} 
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
@@ -133,6 +135,13 @@ model:
       bottleneck_dim: 1024  # the size of the prompt encoder mlp bottleneck
       embedding_dim: 1024  # the size of the prompt encoder embeddings
       init_std: 0.023
+
+    ia3_tuning:
+      layer_selection:  null  # selects in which layers to add ia3 adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+    
+    selective_tuning:
+      tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
+
 
   perception:
     use_multi_layer_feat: false  # whether to extract multi-layer features, only supports conformer encoder

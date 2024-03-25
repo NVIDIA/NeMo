@@ -68,6 +68,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
+    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 
     HAVE_MEGATRON_CORE = True
 
@@ -122,7 +123,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         to be passed around in pipeline parallel models. The prompt-encoder 
         and/or prompt table will use the learning rate set by the user. 
         """
-        self.unfreeze()
         known_groups = []
         if self.cfg.get('freeze_llm', True):
             for param in self.model.parameters():
@@ -402,25 +402,23 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             else:
                 extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                 extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            if self.mcore_gpt:
-                output_tensor = model(
-                    input_ids=None,
-                    position_ids=None,
-                    decoder_input=input_embeddings,
-                    attention_mask=attention_mask,
-                    **extra_arg,
-                )
-            else:
-                output_tensor = model(
-                    input_ids=None,
-                    position_ids=None,
-                    encoder_input=input_embeddings,
-                    attention_mask=attention_mask,
-                    **extra_arg,
-                )
 
-            if isinstance(output_tensor, tuple):
-                output_tensor = output_tensor[1]  # get logits only
+            # Currently for all MCore transformer layer specs causal attention mask
+            # is used so we can delegate creating it to MCore/TE and pass None below
+            if (
+                isinstance(model, MCoreGPTModel)
+                or hasattr(model, "module")
+                and isinstance(model.module, MCoreGPTModel)
+            ):
+                attention_mask = None
+
+            output_tensor = model(
+                input_ids=None,
+                position_ids=None,
+                decoder_input=input_embeddings,
+                attention_mask=attention_mask,
+                **extra_arg,
+            )
 
             # Advance inference sequence offset.
             if self.inference_params:
@@ -447,8 +445,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
-                if 'cu_seqlens' in batch:
-                    required_keys.add('cu_seqlens')
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -459,19 +455,39 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             batch = to_cuda(batch, non_blocking=True)
             batch = self.get_batch_on_this_context_parallel_rank(batch)
 
+            if not self.mcore_gpt:
+                batch['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
+
             output_tensor, loss_mask = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
             batch['loss_mask'] = loss_mask
 
-            if not self.mcore_gpt:
-                output_tensor = output_tensor[0]  # get loss only, ingore logits
-
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_tokens_in_ub = batch['loss_mask'].sum()
+                cp_size = self.cfg.get('context_parallel_size', 1)
+                if self.cfg.data.get(
+                    "return_output_tensors", False
+                ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
+                    loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
+                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    pos_cs = average_losses_across_data_parallel_group([pos_cs])
+                    neg_cs = average_losses_across_data_parallel_group([neg_cs])
+                    diff_cs = average_losses_across_data_parallel_group([diff_cs])
+                    return (
+                        loss_for_ub * cp_size,
+                        {
+                            'avg': reduced_loss,
+                            'query_hs': q_hs,
+                            'doc_hs': d_hs,
+                            'avg_pos_cs': pos_cs,
+                            'avg_neg_cs': neg_cs,
+                            'diff_cs': diff_cs,
+                        },
+                    )
+                elif validation_step and not self.cfg.data.get('validation_drop_last', True):
+                    num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
                         assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
                         loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
@@ -488,10 +504,10 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                     torch.distributed.all_reduce(
                         loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub, {'avg': reduced_loss}
+                    return loss_for_ub * cp_size, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -897,45 +913,13 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 metric = [metric_cls()]
         return metric, metric_name
 
-    # Override the parent batch reconfiguring logic.
-    def _reconfigure_and_process_inference_batch(self, batch, data_cfg):
-        global_batch_size_per_gpu = batch['tokens'].size(0)
-        # This should happen only on the last batch of the dataset.
-        if (
-            global_batch_size_per_gpu
-            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
-        ):
-            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
-            if (
-                global_batch_size_per_gpu
-                != data_cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
-            ):
-                app_state = AppState()
-                _reconfigure_microbatch_calculator(
-                    rank=app_state.global_rank,
-                    rampup_batch_size=None,
-                    global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                    micro_batch_size=global_batch_size_per_gpu,
-                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                )
-            # NOTE: need to explicitly handle resetting for multi-validation
-            else:
-                app_state = AppState()
-                _reconfigure_microbatch_calculator(
-                    rank=app_state.global_rank,
-                    rampup_batch_size=None,
-                    global_batch_size=data_cfg.global_batch_size,
-                    micro_batch_size=data_cfg.micro_batch_size,
-                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                )
-
     def inference_step(self, dataloader_iter, mode):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([(batch, batch_idx, dataloader_idx)]))
+        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), dataloader_idx)
 
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
