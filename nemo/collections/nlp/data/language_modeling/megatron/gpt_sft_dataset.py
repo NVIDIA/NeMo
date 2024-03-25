@@ -63,7 +63,7 @@ class GPTSFTDataset(Dataset):
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
-        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
@@ -478,7 +478,7 @@ class GPTSFTDataset(Dataset):
 class GPTSFTPackedDataset(GPTSFTDataset):
     def __init__(self, file_path: str, tokenizer: TokenizerSpec, **kwargs):
         super().__init__(file_path, tokenizer, **kwargs)
-
+        assert self.virtual_tokens == 0, "P-Tuning with packed sequence is not supported."
         self._load_packed_dataset(file_path)
 
     def __getitem__(self, idx):
@@ -491,7 +491,14 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         return len(self.indexed_dataset)
 
     def _load_packed_dataset(self, file_path):
-        self.indexed_dataset = np.load(file_path, allow_pickle=True)
+        try:
+            self.indexed_dataset = np.load(file_path, allow_pickle=True)
+        except Exception as e:
+            logging.error(
+                f"Failed to load packed dataset. The dataset should be a `.npy` file. "
+                f"Please check if the packed dataset was prepared correctly. The original error was:\n {e}",
+            )
+            exit(1)
 
     def _build_loss_mask(self, processed_example):
         if self.answer_only_loss:

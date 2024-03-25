@@ -13,74 +13,44 @@ Pretrained checkpoints for all of these models, as well as instructions on how t
 section. You can use the available checkpoints for immediate inference, or fine-tune them on your own datasets. The checkpoints section
 also contains benchmark results for the available ASR models.
 
-.. _Jasper_model:
 
-Jasper
-------
+Spotlight Models
+----------------
 
-Jasper ("Just Another Speech Recognizer") :cite:`asr-models-li2019jasper` is a deep time delay neural network (TDNN) comprising of
-blocks of 1D-convolutional layers. The Jasper family of models are denoted as ``Jasper_[BxR]`` where ``B`` is the number of blocks
-and ``R`` is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization,
-ReLU, and dropout:
+Canary
+~~~~~~
 
-    .. image:: images/jasper_vertical.png
-        :align: center
-        :alt: jasper model
-        :scale: 50%
+Canary-1B is the latest ASR model from NVIDIA NeMo. It sits at the top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of publishing.
 
-Jasper models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
+You can `download the checkpoint <https://huggingface.co/nvidia/canary-1b>`__  or try out Canary in action in this `HuggingFace Space <https://huggingface.co/spaces/nvidia/canary-1b>`__.
 
-QuartzNet
+Canary-1B is an encoder-decoder model with a :ref:`FastConformer Encoder <Fast-Conformer>` and Transformer Decoder :cite:`asr-models-vaswani2017aayn`.
+
+It is a multi-lingual, multi-task model, supporting automatic speech-to-text recognition (ASR) in 4 languages (English, German, French, Spanish) as well as translation between English and the 3 other supported languages.
+
+
+Parakeet
+~~~~~~~~
+
+Parakeet is the name of a family of ASR models with a :ref:`FastConformer Encoder <Fast-Conformer>` and a CTC, RNN-T, or TDT decoder.
+
+Model checkpoints:
+
+* `Parakeet-CTC-0.6B <https://huggingface.co/nvidia/parakeet-ctc-0.6b>`__ and `Parakeet-CTC-1.1B <https://huggingface.co/nvidia/parakeet-ctc-1.1b>`__ model cards
+* `Parakeet-RNNT-0.6B <https://huggingface.co/nvidia/parakeet-rnnt-0.6b>`__ and `Parakeet-RNNT-1.1B <https://huggingface.co/nvidia/parakeet-rnnt-1.1b>`__ model cards
+* `Parakeet-TDT-1.1B <https://huggingface.co/nvidia/parakeet-tdt-1.1b>`__ model card
+
+HuggingFace Spaces to try out Parakeet models in your browser:
+
+* `Parakeet-RNNT-1.1B <https://huggingface.co/spaces/nvidia/parakeet-rnnt-1.1b>`__ space
+* `Parakeet-TDT-1.1B <https://huggingface.co/spaces/nvidia/parakeet-tdt-1.1b>`__ space
+
+.. _Conformer_model:
+Conformer
 ---------
-
-QuartzNet :cite:`asr-models-kriman2019quartznet` is a version of Jasper :cite:`asr-models-li2019jasper` model with separable
-convolutions and larger filters. It can achieve performance similar to Jasper but with an order of magnitude fewer parameters.
-Similarly to Jasper, the QuartzNet family of models are denoted as ``QuartzNet_[BxR]`` where ``B`` is the number of blocks and ``R``
-is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization,
-ReLU, and dropout:
-
-    .. image:: images/quartz_vertical.png
-        :align: center
-        :alt: quartznet model
-        :scale: 40%
-
-QuartzNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
-
-.. _Citrinet_model:
-
-Citrinet
---------
-
-Citrinet is a version of QuartzNet :cite:`asr-models-kriman2019quartznet` that extends ContextNet :cite:`asr-models-han2020contextnet`,
-utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to
-obtain highly accurate audio transcripts while utilizing a non-autoregressive CTC based decoding scheme for efficient inference.
-
-    .. image:: images/citrinet_vertical.png
-        :align: center
-        :alt: citrinet model
-        :scale: 50%
-
-Citrinet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class.
-
-.. _ContextNet_model:
-
-ContextNet
-----------
-
-ContextNet is a model uses Transducer/RNNT loss/decoder and is introduced in :cite:`asr-models-han2020contextnet`.
-It uses Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to model larger context.
-Unlike Citrinet, it has an autoregressive decoding scheme.
-
-ContextNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class for a
-model with sub-word encoding and :class:`~nemo.collections.asr.models.EncDecRNNTModel` for char-based encoding.
-
-You may find the example config files of ContextNet model with character-based encoding at
-``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt_char.yaml`` and
-with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt.yaml``.
-
 .. _Conformer-CTC_model:
-
 Conformer-CTC
+~~~~~~~~~~~~~
 -------------
 
 Conformer-CTC is a CTC-based variant of the Conformer model introduced in :cite:`asr-models-gulati2020conformer`. Conformer-CTC has a
@@ -98,7 +68,7 @@ Here is the overall architecture of the encoder of Conformer-CTC:
         :scale: 50%
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
-Conformer-CTC models at `Conformer-CTC <./configs.html#conformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
+Conformer-CTC models in the `Conformer-CTC configuration documentation <./configs.html#conformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
 character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
 
@@ -109,7 +79,7 @@ with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conforme
 .. _Conformer-Transducer_model:
 
 Conformer-Transducer
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 Conformer-Transducer is the Conformer model introduced in :cite:`asr-models-gulati2020conformer` and uses RNNT/Transducer loss/decoder.
 It has the same encoder as Conformer-CTC but utilizes RNNT/Transducer loss/decoder which makes it an autoregressive model.
@@ -118,7 +88,7 @@ Most of the config file for Conformer-Transducer models are similar to Conformer
 You may take a look at our `tutorials page <../starthere/tutorials.html>`_ on Transducer models to become familiar with their configs:
 `Introduction to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>`_ and
 `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`_
-You can find more details on the config files for the Conformer-Transducer models at `Conformer-CTC <./configs.html#conformer-ctc>`_.
+You can find more details on the config files for the Conformer-Transducer models in the `Conformer-CTC configuration documentation <./configs.html#conformer-ctc>`_.
 
 This model supports both the sub-word level and character level encodings. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class, while the
@@ -127,6 +97,34 @@ character-based variant is based on :class:`~nemo.collections.asr.models.EncDecR
 You may find the example config files of Conformer-Transducer model with character-based encoding at
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
+
+.. _Conformer-HAT_model:
+
+Conformer-HAT
+~~~~~~~~~~~~~
+
+Conformer HAT (Hybrid Autoregressive Transducer) model (do not confuse it with Hybrid-Transducer-CTC) is a modification of Conformer-Transducer model based on this previous `work <https://arxiv.org/abs/2003.07705>`_.
+The main idea is to separate labels and blank score predictions, which allows to estimate the internal LM probabilities during decoding.
+When external LM is available for inference, the internal LM can be subtracted from HAT model prediction in beamsearch decoding to improve external LM efficiency.
+It can be helpful in the case of text-only adaptation for new domains.
+
+The only difference from the standard Conformer-Transducer model (RNNT) is the use of `"HATJiont" <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/asr/modules/hybrid_autoregressive_transducer.py#L39>`_
+class (instead of "RNNTJoint") for joint module. The all HAT logic is implemented in the "HATJiont" class.
+
+    .. image:: images/hat.png
+        :align: center
+        :alt: HAT Model
+        :scale: 50%
+
+You may find the example config files of Conformer-HAT model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/conformer/hat/conformer_hat_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/hat/conformer_hat_bpe.yaml``.
+
+By default, the decoding for HAT model works in the same way as for Conformer-Transducer.
+In the case of external ngram LM fusion you can use ``<NeMo_git_root>/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_transducer.py``.
+To enable HAT internal LM subtraction set ``hat_subtract_ilm=True`` and find more appropriate couple of ``beam_alpha`` and ``hat_ilm_weight`` values in terms of the best recognition accuracy.
+
+.. _Fast-Conformer:
 
 Fast-Conformer
 --------------
@@ -159,51 +157,57 @@ You may find more examples under ``<NeMo_git_root>/examples/asr/conf/fastconform
 Cache-aware Streaming Conformer
 -------------------------------
 
-Try real-time ASR with the Cache-aware Streaming Conformer `tutorial notebook <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_.
+Try real-time ASR with the `Cache-aware Streaming Conformer tutorial notebook <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_.
 
-Buffered streaming uses overlapping chunks to make an offline ASR model to be used for streaming with reasonable accuracy. However, it uses significant amount of duplication in computations due to the overlapping chunks.
-Also there is a accuracy gap between the offline model and the streaming one as there is inconsistency between how we train the model and how we perform inference for streaming.
-The Cache-aware Streaming Conformer models would tackle and address these disadvantages. These streaming Conformers are trained with limited right context that it would make it possible to match how the model is being used in both the training and inference.
-They also uses caching to store intermediate activations to avoid any duplication in compute.
+Buffered streaming uses overlapping chunks to make an offline ASR model usable for streaming with reasonable accuracy. However, it causes significant amount of duplication in computation due to the overlapping chunks.
+Also, there is an accuracy gap between the offline model and the streaming one, as there is inconsistency between how we train the model and how we perform inference for streaming.
+The Cache-aware Streaming Conformer models tackle and address these disadvantages. These streaming Conformers are trained with limited right context, making it possible to match how the model is being used in both training and inference.
+They also use caching to store intermediate activations to avoid any duplication in compute.
 The cache-aware approach is supported for both the Conformer-CTC and Conformer-Transducer and enables the model to be used very efficiently for streaming.
 
-Three categories of layers in Conformer have access to right tokens: 1-depthwise convolutions 2-self-attention, and 3-convolutions in the downsampling layers.
-Streaming Conformer models uses causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
+Three categories of layers in Conformer have access to right tokens:
+#. depthwise convolutions
+#. self-attention
+#. convolutions in the downsampling layers.
+
+Streaming Conformer models use causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
 The model trained with such limitations can be used in streaming mode and give the exact same outputs and accuracy as when the whole audio is given to the model in offline mode.
 These model can use caching mechanism to store and reuse the activations during streaming inference to avoid any duplications in the computations as much as possible.
 
-We support the following three right context modeling:
+We support the following three right context modeling techniques:
 
-*  fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention.
+* | Fully causal model with zero look-ahead: tokens do not see any future tokens. Convolution layers are all causal and right tokens are masked for self-attention.
+  |
+  | It gives zero latency but with limited accuracy.
+  | To train such a model, you need to set `model.encoder.att_context_size=[left_context,0]` and `model.encoder.conv_context_size=causal` in the config.
 
-It gives zero latency but with limited accuracy.
-To train such a model, you need to set `model.encoder.att_context_size=[left_context,0]` and `model.encoder.conv_context_size=causal` in the config.
+* | Regular look-ahead: convolutions are able to see few future frames, and self-attention also sees the same number of future tokens.
+  |
+  | In this approach the activations for the look-ahead part are not cached, and are recalculated in the next chunks. The right context in each layer should be a small number as multiple layers would increase the effective context size and then increase the look-ahead size and latency.
+  | For example for a model of 17 layers with 4x downsampling and 10ms window shift, then even 2 right context in each layer means 17*2*10*4=1360ms look-ahead. Each step after the downsampling corresponds to 4*10=40ms.
 
-*  regular look-ahead: convolutions would be able to see few future frames, and self-attention would also see the same number of future tokens.
+* | Chunk-aware look-ahead: input is split into equal chunks. Convolutions are fully causal while self-attention layers are able to see all the tokens in their corresponding chunk.
+  |
+  | For example, in a model with chunk size of 20 tokens, tokens at the first position of each chunk would see all the next 19 tokens while the last token would see zero future tokens.
+  | This approach is more efficient than regular look-ahead in terms of computations as the activations for most of the look-ahead part would be cached and there is close to zero duplications in the calculations.
+  | In terms of accuracy, this approach gives similar or even better results in term of accuracy than regular look-ahead as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming. Therefore we recommend to use the chunk-aware for cache-aware models.
 
-In this approach the activations for the look-ahead part is not cached and recalculated in the next chunks. The right context in each layer should be a small number as multiple layers would increase the effective context size and then increase the look-ahead size and latency.
-For example for a model of 17 layers with 4x downsampling and 10ms window shift, then even 2 right context in each layer means 17*2*10*4=1360ms look-ahead. Each step after the downsampling corresponds to 4*10=40ms.
-
-*  chunk-aware look-ahead: input is split into equal chunks. Convolutions are fully causal while self-attention layers would be able to see all the tokens in their corresponding chunk.
-
-For example, in a model which chunk size of 20 tokens, tokens at the first position of each chunk would see all the next 19 tokens while the last token would see zero future tokens.
-This approach is more efficient than regular look-ahead in terms of computations as the activations for most of the look-ahead part would be cached and there is close to zero duplications in the calculations.
-In terms of accuracy, this approach gives similar or even better results in term of accuracy than regular look-ahead as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming. Therefore we recommend to use the chunk-aware for cache-aware models.
-
-** Note: Latencies are based on the assumption that the forward time of the network is zero and it just estimates the time needed after a frame would be available until it is passed through the model.
+.. note:: Latencies are based on the assumption that the forward time of the network is zero and it just estimates the time needed after a frame would be available until it is passed through the model.
 
 Approaches with non-zero look-ahead can give significantly better accuracy by sacrificing latency. The latency can get controlled by the left context size. Increasing the right context would help the accuracy to a limit but would increase the computation time.
 
-In all modes, left context can be controlled by the number of tokens to be visible in the self-attention and the kernel size of the convolutions.
-For example, if left context of self-attention in each layer is set to 20 tokens and there are 10 layers of Conformer, then effective left context is 20*10=200 tokens.
-Left context of self-attention for regular look-ahead can be set as any number while it should be set as a multiplication of the right context in chunk-aware look-ahead.
-For convolutions, if we use a left context of 30 in such model, then there would be 30*10=300 effective left context.
-Left context of convolutions is dependent to the their kernel size while it can be any number for self-attention layers. Higher left context for self-attention means larger cache and more computations for the self-attention.
-Self-attention left context of around 6 secs would give close result to have unlimited left context. For a model with 4x downsampling and shift window of 10ms in the preprocessor, each token corresponds to 4*10=40ms.
+In all modes, left context can be controlled by the number of tokens visible in self-attention and the kernel size of the convolutions.
+For example, if the left context of self-attention in each layer is set to 20 tokens and there are 10 layers of Conformer, then the effective left context is 20*10=200 tokens.
+Left context of self-attention for regular look-ahead can be set as any number, while it should be set as a multiple of the right context in chunk-aware look-ahead.
+For convolutions, if we use a left context of 30, then there would be 30*10=300 effective left context.
+Left context of convolutions is dependent on their kernel size while it can be any number for self-attention layers. Higher left context for self-attention means larger cache and more computations for the self-attention.
+A self-attention left context of around 6 secs would give close results to unlimited left context. For a model with 4x downsampling and shift window of 10ms in the preprocessor, each token corresponds to 4*10=40ms.
 
 If striding approach is used for downsampling, all the convolutions in downsampling would be fully causal and don't see future tokens.
 
-*  Multiple Look-aheads
+Multiple Look-aheads
+~~~~~~~~~~~~~~~~~~~~
+
 We support multiple look-aheads for cahce-aware models. You may specify a list of context sizes for att_context_size.
 During the training, different context sizes would be used randomly with the distribution specified by att_context_probs.
 For example you may enable multiple look-aheads by setting `model.encoder.att_context_size=[[70,13],[70,6],[70,1],[70,0]]` for the training.
@@ -236,56 +240,6 @@ To include caching support, `model.set_export_config({'cache_support' : 'True'})
 Or, if ``<NeMo_git_root>/scripts/export.py`` is being used:
 `python export.py cache_aware_conformer.nemo cache_aware_conformer.onnx --export-config cache_support=True`
 
-.. _LSTM-Transducer_model:
-
-LSTM-Transducer
----------------
-
-LSTM-Transducer is a model which uses RNNs (eg. LSTM) in the encoder. The architecture of this model is followed from suggestions in :cite:`asr-models-he2019streaming`.
-It uses RNNT/Transducer loss/decoder. The encoder consists of RNN layers (LSTM as default) with lower projection size to increase the efficiency.
-Layer norm is added between the layers to stabilize the training.
-It can be trained/used in unidirectional or bidirectional mode. The unidirectional mode is fully causal and can be used easily for simple and efficient streaming. However the accuracy of this model is generally lower than other models like Conformer and Citrinet.
-
-This model supports both the sub-word level and character level encodings. You may find the example config file of RNNT model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_transducer_bpe.yaml``.
-You can find more details on the config files for the RNNT models at `LSTM-Transducer <./configs.html#lstm-transducer>`_.
-
-.. _LSTM-CTC_model:
-
-LSTM-CTC
---------
-
-LSTM-CTC model is a CTC-variant of the LSTM-Transducer model which uses CTC loss/decoding instead of Transducer.
-You may find the example config file of LSTM-CTC model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_ctc_bpe.yaml``.
-
-.. _Squeezeformer-CTC_model:
-
-Squeezeformer-CTC
------------------
-
-Squeezeformer-CTC is a CTC-based variant of the Squeezeformer model introduced in :cite:`asr-models-kim2022squeezeformer`. Squeezeformer-CTC has a
-similar encoder as the original Squeezeformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model. The vast majority of the architecture is similar to Conformer model, so please refer to `Conformer-CTC <./models.html#conformer-ctc>`_.
-
-The model primarily differs from Conformer in the following ways :
-
-* Temporal U-Net style time reduction, effectively reducing memory consumption and FLOPs for execution.
-* Unified activations throughout the model.
-* Simplification of module structure, removal of redundant layers.
-
-Here is the overall architecture of the encoder of Squeezeformer-CTC:
-
-    .. image:: images/squeezeformer.png
-        :align: center
-        :alt: Squeezeformer-CTC Model
-        :scale: 50%
-
-This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
-Squeezeformer-CTC models at `Squeezeformer-CTC <./configs.html#squeezeformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
-which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
-character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
-
-You may find the example config files of Squeezeformer-CTC model with character-based encoding at
-``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_char.yaml`` and
-with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_bpe.yaml``.
 
 .. _Hybrid-Transducer_CTC_model:
 
@@ -316,32 +270,6 @@ Note Hybrid models are being exported as RNNT (encoder and decoder+joint parts) 
 To export as CTC (single encoder+decoder graph), `model.set_export_config({'decoder_type' : 'ctc'})` should be called before export.
 Or, if ``<NeMo_git_root>/scripts/export.py`` is being used:
 `python export.py hybrid_transducer.nemo hybrid_transducer.onnx --export-config decoder_type=ctc`
-
-.. _Conformer-HAT_model:
-
-Conformer-HAT (Hybrid Autoregressive Transducer)
-------------------------------------------------
-Conformer HAT model (do not confuse it with Hybrid-Transducer-CTC) is a modification of Conformer-Transducer model based on `Google paper <https://arxiv.org/abs/2003.07705>`_.
-The main idea is to separate labels and blank score predictions, which allows to estimate the internal LM probabilities during decoding.
-When external LM is available for inference, the internal LM can be subtracted from HAT model prediction in beamsearch decoding to improve external LM efficiency.
-It can be helpful in the case of text-only adaptation for new domains.
-
-The only difference from the standard Conformer-Transducer model (RNNT) is the use of `"HATJiont" <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/asr/modules/hybrid_autoregressive_transducer.py#L39>`_
-class (instead of "RNNTJoint") for joint module. The all HAT logic is implemented in the "HATJiont" class.
-
-    .. image:: images/hat.png
-        :align: center
-        :alt: HAT Model
-        :scale: 50%
-
-You may find the example config files of Conformer-HAT model with character-based encoding at
-``<NeMo_git_root>/examples/asr/conf/conformer/hat/conformer_hat_char.yaml`` and
-with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/hat/conformer_hat_bpe.yaml``.
-
-By default, the decoding for HAT model works in the same way as for Conformer-Transducer.
-In the case of external ngram LM fusion you can use ``<NeMo_git_root>/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_transducer.py``.
-To enable HAT internal LM subtraction set ``hat_subtract_ilm=True`` and find more appropriate couple of ``beam_alpha`` and ``hat_ilm_weight`` values in terms of the best recognition accuracy.
-
 
 .. _Hybrid-ASR-TTS_model:
 
@@ -377,7 +305,7 @@ Confidence-based Ensembles
 Confidence-based ensemble is a simple way to combine multiple models into a single system by only retaining the
 output of the most confident model. Below is a schematic illustration of how such ensembles work.
 
-    .. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.19.0/conf-ensembles-overview.png
+    .. image:: images/conf-ensembles-overview.png
         :align: center
         :alt: confidence-based ensembles
         :scale: 50%
@@ -399,6 +327,125 @@ A typical workflow to create and use the ensemble is like this
 
 Note that the ensemble cannot be modified after construction (e.g. it does not support finetuning) and only
 transcribe functionality is supported (e.g., ``.forward()`` is not properly defined).
+
+.. _Jasper_model:
+
+Jasper
+------
+
+Jasper ("Just Another Speech Recognizer") :cite:`asr-models-li2019jasper` is a deep time delay neural network (TDNN) comprising of
+blocks of 1D-convolutional layers. The Jasper family of models are denoted as ``Jasper_[BxR]`` where ``B`` is the number of blocks
+and ``R`` is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization,
+ReLU, and dropout:
+
+    .. image:: images/jasper_vertical.png
+        :align: center
+        :alt: jasper model
+        :scale: 50%
+
+Jasper models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
+
+.. _Quartznet_model:
+
+QuartzNet
+---------
+
+QuartzNet :cite:`asr-models-kriman2019quartznet` is a version of Jasper :cite:`asr-models-li2019jasper` model with separable
+convolutions and larger filters. It can achieve performance similar to Jasper but with an order of magnitude fewer parameters.
+Similarly to Jasper, the QuartzNet family of models are denoted as ``QuartzNet_[BxR]`` where ``B`` is the number of blocks and ``R``
+is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization,
+ReLU, and dropout:
+
+    .. image:: images/quartz_vertical.png
+        :align: center
+        :alt: quartznet model
+        :scale: 40%
+
+QuartzNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
+
+
+.. _Citrinet_model:
+
+Citrinet
+--------
+
+Citrinet is a version of QuartzNet :cite:`asr-models-kriman2019quartznet` that extends ContextNet :cite:`asr-models-han2020contextnet`,
+utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to
+obtain highly accurate audio transcripts while utilizing a non-autoregressive CTC based decoding scheme for efficient inference.
+
+    .. image:: images/citrinet_vertical.png
+        :align: center
+        :alt: citrinet model
+        :scale: 50%
+
+Citrinet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class.
+
+.. _ContextNet_model:
+
+ContextNet
+----------
+
+ContextNet is a model uses Transducer/RNNT loss/decoder and is introduced in :cite:`asr-models-han2020contextnet`.
+It uses Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to model larger context.
+Unlike Citrinet, it has an autoregressive decoding scheme.
+
+ContextNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class for a
+model with sub-word encoding and :class:`~nemo.collections.asr.models.EncDecRNNTModel` for char-based encoding.
+
+You may find the example config files of ContextNet model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt.yaml``.
+
+.. _Squeezeformer-CTC_model:
+
+Squeezeformer-CTC
+-----------------
+
+Squeezeformer-CTC is a CTC-based variant of the Squeezeformer model introduced in :cite:`asr-models-kim2022squeezeformer`. Squeezeformer-CTC has a
+similar encoder as the original Squeezeformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model. The vast majority of the architecture is similar to Conformer model, so please refer to `Conformer-CTC <./models.html#conformer-ctc>`_.
+
+The model primarily differs from Conformer in the following ways :
+
+* Temporal U-Net style time reduction, effectively reducing memory consumption and FLOPs for execution.
+* Unified activations throughout the model.
+* Simplification of module structure, removal of redundant layers.
+
+Here is the overall architecture of the encoder of Squeezeformer-CTC:
+
+    .. image:: images/squeezeformer.png
+        :align: center
+        :alt: Squeezeformer-CTC Model
+        :scale: 50%
+
+This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
+Squeezeformer-CTC models at `Squeezeformer-CTC <./configs.html#squeezeformer-ctc>`_. The variant with sub-word encoding is a BPE-based model
+which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
+character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
+
+You may find the example config files of Squeezeformer-CTC model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_bpe.yaml``.
+
+.. _LSTM-Transducer_model:
+
+LSTM-Transducer
+---------------
+
+LSTM-Transducer is a model which uses RNNs (eg. LSTM) in the encoder. The architecture of this model is followed from suggestions in :cite:`asr-models-he2019streaming`.
+It uses RNNT/Transducer loss/decoder. The encoder consists of RNN layers (LSTM as default) with lower projection size to increase the efficiency.
+Layer norm is added between the layers to stabilize the training.
+It can be trained/used in unidirectional or bidirectional mode. The unidirectional mode is fully causal and can be used easily for simple and efficient streaming. However the accuracy of this model is generally lower than other models like Conformer and Citrinet.
+
+This model supports both the sub-word level and character level encodings. You may find the example config file of RNNT model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_transducer_bpe.yaml``.
+You can find more details on the config files for the RNNT models at `LSTM-Transducer <./configs.html#lstm-transducer>`_.
+
+.. _LSTM-CTC_model:
+
+LSTM-CTC
+--------
+
+LSTM-CTC model is a CTC-variant of the LSTM-Transducer model which uses CTC loss/decoding instead of Transducer.
+You may find the example config file of LSTM-CTC model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_ctc_bpe.yaml``.
 
 
 References
