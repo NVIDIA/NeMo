@@ -50,13 +50,12 @@ python speech_to_text_bpe_with_text.py \
 
 
 import pytorch_lightning as pl
-
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from omegaconf import OmegaConf
 
 
 @hydra_runner(config_path="examples/asr/conf/conformer", config_name="conformer_transducer_bpe")
