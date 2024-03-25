@@ -22,11 +22,11 @@ micro batch, maximizing both GPU compute and GPU memory.
 While sequences for pretraining can be concatenated naively, this is not the case for SFT and instruction fine-tuning
 where each input sequence should be treated individually. The conventional solution is to build an extended attention
 mask to mark the sequence id each token belongs to, and mask out attention values between sequences. However, this
-increases the complexity of attention from :math:`\sum_{s_i}^2` to :math:`{\sum_{s_i}}^2`, where :math:`s_i` is the
+increases the complexity of attention from :math:`\sum_i {s_i}^2` to :math:`\Big({\sum_i {s_i}}\Big)^2`, where :math:`s_i` is the
 length of the ith subsequence. In practice, the conventional solution puts a limit on the length of packing.
 Instead, NeMo provides a highly optimized version of sequence packing which makes use of variable-length attention
 kernels in FlashAttention and TransformerEngine. With this, attention values between sequences are never calculated,
-so the complexity of attention remains at :math:`\sum_{s_i}^2`. This allows packing sequences to arbitrary lengths so
+so the complexity of attention remains at :math:`\sum_i {s_i}^2`. This allows packing sequences to arbitrary lengths so
 that GPU memory can be fully utilized.
 
 All things considered, NeMo’s implementation of sequence packing provides [#f1]_
@@ -89,7 +89,7 @@ target length (i.e. efficient packing), then use shuffle. Otherwise try *first_f
 
     Note 4. ``pack_sizes`` is a list of packed sequence lengths. In this example, there will be three output files, one for
     each pack size. The output files are named ``<output_folder>/packed_{pack_size}_seed{seed}.npy``.
-    This argument is a list because you will likely want to experiment with a few ``pack sizes`` to find out which length
+    This argument is a list because you will likely want to experiment with a few ``pack_sizes`` to find out which length
     can fill the GPU memory without exceeding it. Adjusting ``pack_size`` is analogous to adjusting the micro batch size in
     the unpacked case.
 
@@ -103,7 +103,7 @@ To train with packed sequences, you need to change four items in the SFT/PEFT co
 
     .. code-block:: bash
 
-        +model.data.train_ds.packed_sequence=True
+        ++model.data.train_ds.packed_sequence=True
 
 2. Use the new dataset file instead of the original jsonl file
 
