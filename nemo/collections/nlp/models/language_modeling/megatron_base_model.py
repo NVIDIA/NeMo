@@ -1201,15 +1201,37 @@ class MegatronBaseModel(NLPModel):
             logging.warning("Cannot compute `max_steps` from the number of epochs as the train dataloader is not set")
             return -1
 
-        # The number of training step per epoch is typically the number of global batches in the training set...
-        num_global_batches = len(self._train_dl)
+        # The number of training steps per epoch (before accounting for `limit_train_batches`, which happens below)
+        # is not necessarily equal to the length of the training dataloader. This is because when resuming an
+        # experiment, samples that have already been consumed in the current epoch are ignored by the sampler.
+        # So we need to dig into the sampler's internals in order to recover the total training set size.
+        if getattr(self._train_dl, "batch_sampler", None) is None:
+            logging.warning(
+                "Cannot compute `max_steps` from the number of epochs as the train dataloader has no batch sampler"
+            )
+            return -1
+        sampler = self._train_dl.batch_sampler
+        if getattr(sampler, "consumed_samples", None) is None:
+            logging.warning(
+                f"Cannot compute `max_steps` from the number of epochs as the sampler (of type {type(sampler)}) "
+                "is missing  `consumed_samples`"
+            )
+            return -1
+        # Temporarily set `consumed_samples` to zero so as to obtain the total length of the training set.
+        current_consumed_samples = sampler.consumed_samples
+        sampler.consumed_samples = 0
+        try:
+            num_global_batches = len(sampler)
+        finally:
+            sampler.consumed_samples = current_consumed_samples
         steps_per_epoch = num_global_batches
 
-        # ... unless it is constrained by the `limit_train_batches` option.
+        # We also need to account for the `limit_train_batches` option.
         limit_batches = self._trainer.limit_train_batches
         if limit_batches is not None:
             if isinstance(limit_batches, float):
-                limit_batches = int(limit_batches * num_global_batches)
+                assert 0.0 <= limit_batches <= 1.0
+                limit_batches = int(limit_batches * num_global_batches) if limit_batches < 1.0 else num_global_batches
             steps_per_epoch = min(num_global_batches, limit_batches)
 
         return steps_per_epoch * self._trainer.max_epochs
