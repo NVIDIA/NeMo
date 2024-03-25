@@ -20,24 +20,6 @@ import nemo.collections.nlp.modules.common.text_generation_strategy as text_gene
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
 
 
-try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-try:
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
-
 # the text representation of eos_id, it applies for all tokenizers
 END_OF_SEQ = '<|endoftext|>'
 

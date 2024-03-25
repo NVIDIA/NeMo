@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 import string
 from typing import List, Optional, Union
 
@@ -30,7 +29,7 @@ def remove_text_pc(text, punctuations: Optional[Union[str, List]] = None):
         punctuations = "".join(punctuations)
 
     # Create a translation table to map each custom punctuation character to None
-    translation_table = str.maketrans("", "", punctuations)
+    translation_table = str.maketrans("", "", punctuations.replace("'", ""))
 
     # Use translate method to remove custom punctuation from the text
     text_without_punctuation = text.translate(translation_table)

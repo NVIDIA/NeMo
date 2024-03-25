@@ -16,7 +16,7 @@
 
 import pickle
 from collections.abc import Iterable
-from typing import Callable, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -24,11 +24,9 @@ import torch.nn.functional as F
 import nemo.collections.nlp.modules.common.text_generation_utils as text_generation_utils
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_strategy import (
-    END_OF_SEQ,
     model_inference_strategy_dispatcher,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
+from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
 from nemo.utils import AppState
 
 try:

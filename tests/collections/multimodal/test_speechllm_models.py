@@ -20,7 +20,6 @@ import numpy as np
 import pytest
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 from megatron.core import parallel_state
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment

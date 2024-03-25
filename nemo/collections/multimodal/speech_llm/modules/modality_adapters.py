@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 
 from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron as MLP
+from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.module import NeuralModule
+from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+
+__all__ = ['PoolingMLPConnectors']
 
 
 class ConcatPooling(nn.Module):
@@ -73,6 +79,27 @@ class PoolingMLPConnectors(NeuralModule, Exportable, AccessMixin):
         else:
             self.mlp = MLP(self.hidden_dim, output_dim, num_layers, activation, log_softmax=False)
 
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        return OrderedDict(
+            {
+                "audio_signal": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "length": NeuralType(tuple("B"), LengthsType()),
+            }
+        )
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports."""
+        return OrderedDict(
+            {
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "outputs_len": NeuralType(tuple("B"), LengthsType()),
+            }
+        )
+
+    @typecheck()
     def forward(self, audio_signal, length=None):
         """
         Args: 

@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,5 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.multimodal.speech_llm.modules.modality_adapters import *
-from nemo.collections.multimodal.speech_llm.modules.speechllm_perception import *
+from nemo.collections.multimodal.speech_llm.modules.modality_adapters import PoolingMLPConnectors
+from nemo.collections.multimodal.speech_llm.modules.speechllm_perception import (
+    AudioPerceptionModel,
+    MultiAudioPerceptionModel,
+)

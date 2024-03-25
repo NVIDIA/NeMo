@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,21 +13,21 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf import DictConfig, ListConfig, open_dict
+from omegaconf import DictConfig, open_dict
 
-from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import align_feat_seq_list, get_nested_dict_value
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
-from nemo.utils import logging
+
 
 __all__ = ["AudioPerceptionModel", "MultiAudioPerceptionModel"]
 
@@ -113,7 +113,7 @@ class AudioPerceptionModel(NeuralModule, Exportable):
             )
         return processed_signal, processed_signal_length
 
-    @typecheck()
+    @typecheck.disable_checks()
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
     ):

@@ -14,7 +14,7 @@
 import copy
 import io
 import os
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -40,7 +40,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.core.neural_types import *
 from nemo.utils import logging
 
 try:

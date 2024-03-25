@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
 import itertools
 import json
 import os
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
+import hydra
 import sacrebleu
 import torch
 from hydra.utils import get_class
@@ -25,7 +26,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
@@ -56,11 +57,7 @@ from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
-        get_current_global_batch_size,
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -705,25 +702,17 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             return audio_encoders, audio_enc_cfgs
         else:
             pretrained_audio_model = cfg.model.get("pretrained_audio_model", None)
-            try:
-                if pretrained_audio_model.endswith('.nemo'):
-                    logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-                    audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
-                else:
-                    logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-                    audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
-            except:
-                logging.info(f'Fail in loading it with ASRModel. Try again with SpeechEncDecSelfSupervisedModel.')
-                if pretrained_audio_model.endswith('.nemo'):
-                    logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-                    audio_model = SpeechEncDecSelfSupervisedModel.restore_from(
-                        pretrained_audio_model, map_location='cpu'
-                    )
-                else:
-                    logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-                    audio_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
-                        pretrained_audio_model, map_location='cpu'
-                    )
+            pretrained_audio_model_class = cfg.model.get(
+                "pretrained_audio_model_target", "nemo.collections.asr.models.ASRModel"
+            )
+
+            model_class = hydra.utils.get_class(pretrained_audio_model_class)
+            if pretrained_audio_model.endswith('.nemo'):
+                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                audio_model = model_class.restore_from(pretrained_audio_model, map_location='cpu')
+            else:
+                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                audio_model = model_class.from_pretrained(pretrained_audio_model, map_location='cpu')
             return audio_model, audio_model.cfg
 
     @classmethod
