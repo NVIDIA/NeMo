@@ -16,6 +16,8 @@ from typing import Dict
 
 from omegaconf import DictConfig
 
+from nemo.utils import logging
+
 try:
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
         MCoreGPTEmbeddingMixin,
@@ -95,6 +97,16 @@ class PEFTConfig:
     def get_config_dict(self):
         return self.name_key_to_cfg
 
+    def _calculate_kv_channels(self, cfg):
+        if cfg.get("kv_channels", None) is None:
+            assert (
+                cfg.hidden_size % cfg.num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = cfg.hidden_size // cfg.num_attention_heads
+        else:
+            kv_channels = cfg.kv_channels
+        return kv_channels
+
 
 class SelectivePEFTConfig(PEFTConfig):
     def __init__(self, cfg):
@@ -148,19 +160,15 @@ class LoraPEFTConfig(PEFTConfig):
                 )
                 name_key_to_cfg[AdapterName.LORA_4HtoH_ADAPTER] = adapter_cfg
                 name_key_to_mcore_mixins[AdapterName.LORA_4HtoH_ADAPTER] = [("mlp", MCoreMLPMixin)]
+            else:
+                logging.error(
+                    f"Unrecognized target_module string: {module}.\n"
+                    f"The possible options are: {list(PEFT_MODULE_MAP.values())}"
+                )
+                exit(1)
 
         self.name_key_to_mcore_mixins = name_key_to_mcore_mixins
         super().__init__(lora_cfg, name_key_to_cfg)
-
-    def _calculate_kv_channels(self, cfg):
-        if cfg.get("kv_channels", None) is None:
-            assert (
-                cfg.hidden_size % cfg.num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
-            kv_channels = cfg.hidden_size // cfg.num_attention_heads
-        else:
-            kv_channels = cfg.kv_channels
-        return kv_channels
 
     def _create_lora_config(self, cfg, lora_cfg, in_features, out_features, adapter_cfg_cls):
         config_args = {
@@ -174,6 +182,8 @@ class LoraPEFTConfig(PEFTConfig):
             "row_init_method": lora_cfg.get("row_init_method", "zero"),
             "gather_output": False,
             "dropout": lora_cfg.adapter_dropout,
+            "alpha": lora_cfg.get("alpha", lora_cfg.adapter_dim),
+            "dropout_position": lora_cfg.get("dropout_position", "post"),
         }
 
         if lora_cfg.weight_tying:
@@ -210,7 +220,11 @@ class IA3PEFTConfig(PEFTConfig):
         mlp_infused_adapter_cfg = MLPInfusedAdapterConfig(
             in_features=cfg.ffn_hidden_size // cfg.tensor_model_parallel_size
         )
-        infused_adapter_cfg = InfusedAdapterConfig(in_features=cfg.hidden_size // cfg.tensor_model_parallel_size)
+
+        kv_channels = self._calculate_kv_channels(cfg)
+        num_query_groups = cfg.get("num_query_groups", cfg.num_attention_heads)
+        kv_projection_size = kv_channels * num_query_groups
+        infused_adapter_cfg = InfusedAdapterConfig(in_features=kv_projection_size // cfg.tensor_model_parallel_size)
 
         name_key_to_cfg = {
             AdapterName.KEY_INFUSED: infused_adapter_cfg,

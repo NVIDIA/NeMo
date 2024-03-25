@@ -27,6 +27,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -65,7 +66,7 @@ try:
 
 except (ImportError, ModuleNotFoundError):
 
-    ModelParallelConfig = ApexGuardDefaults
+    ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -160,7 +161,11 @@ class MegatronBaseModel(NLPModel):
         # Overrides used when converting checkpoints
         if os.environ.get(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, "false").lower() == "true":
             app_state = AppState()
-            init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+            init_world_size = (
+                app_state.tensor_model_parallel_size
+                * app_state.pipeline_model_parallel_size
+                * (app_state.expert_model_parallel_size or 1)
+            )
             init_global_rank = app_state.global_rank
             init_local_rank = app_state.local_rank
         else:
@@ -185,6 +190,7 @@ class MegatronBaseModel(NLPModel):
             global_rank=init_global_rank,
             local_rank=init_local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            expert_model_parallel_size=cfg.get('expert_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
@@ -322,9 +328,37 @@ class MegatronBaseModel(NLPModel):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
+        # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
         if isinstance(self.trainer.limit_val_batches, int):
-            # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
             self.trainer.limit_val_batches *= get_num_microbatches()
+        else:
+            assert isinstance(self.trainer.limit_val_batches, float)
+            # Don't reconfigure if limit_val_batches is 0.0 or if there's no val dataloader
+            if self.trainer.limit_val_batches == 0.0 or self._validation_dl is None:
+                return
+            # len(self._validation_dl) returns len as num of microbatches
+            val_len_in_micro_batches = len(self._validation_dl)
+            if self._validation_ds is not None and len(self._validation_dl) != float("inf"):
+                if self.trainer.limit_val_batches == 1.0:
+                    self.trainer.limit_val_batches = val_len_in_micro_batches
+                else:
+                    limit_val_micro_batches = int(val_len_in_micro_batches * self.trainer.limit_val_batches)
+                    if limit_val_micro_batches == 0 and self.trainer.limit_val_batches > 0.0:
+                        min_percentage = 1.0 / len(self._validation_dl)
+                        raise MisconfigurationException(
+                            f"You requested to check {self.trainer.limit_val_batches} of the val_dataloader but"
+                            f" {self.trainer.limit_val_batches} * {len(self._validation_dl)} < 1. Please increase the"
+                            f" `limit_val_batches` argument. Try at least"
+                            f" `limit_val_batches={min_percentage}`"
+                        )
+                    # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+                    if limit_val_micro_batches < get_num_microbatches():
+                        self.trainer.limit_val_batches = get_num_microbatches()
+                    else:
+                        self.trainer.limit_val_batches = (
+                            limit_val_micro_batches - limit_val_micro_batches % get_num_microbatches()
+                        )
+
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
@@ -388,6 +422,7 @@ class MegatronBaseModel(NLPModel):
             use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             special_tokens=self.cfg.tokenizer.get('special_tokens', None),
+            trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
             legacy=legacy,
         )
 
@@ -426,6 +461,7 @@ class MegatronBaseModel(NLPModel):
         model_parallel_config = self.build_model_parallel_config()
 
         add_bias_linear = self.cfg.get('bias', True)
+        add_qkv_bias = self.cfg.get('qkv_bias', False)
 
         activation = self.cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
@@ -447,6 +483,8 @@ class MegatronBaseModel(NLPModel):
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
         apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
 
+        rotary_interleaved = self.cfg.get('rotary_interleaved', False)
+
         fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
         if apply_query_key_layer_scaling:
             if fp16_enabled:
@@ -466,7 +504,8 @@ class MegatronBaseModel(NLPModel):
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
 
-        apply_rope_fusion = self.cfg.get('apply_rope_fusion', True)
+        # @chcui default rope fusion to false until #8590 is closed.
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', False)
 
         # TODO: need to check if recompute APIs are matching up properly
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
@@ -479,6 +518,7 @@ class MegatronBaseModel(NLPModel):
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,
             'add_bias_linear': add_bias_linear,
+            'add_qkv_bias': add_qkv_bias,
             'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
             'normalization': normalization,
@@ -493,6 +533,7 @@ class MegatronBaseModel(NLPModel):
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': None,
+            'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
         }
 
@@ -860,6 +901,8 @@ class MegatronBaseModel(NLPModel):
 
     def _compute_consumed_samples_after_training_step(self):
         # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        if not hasattr(self, 'init_global_step'):
+            self.init_global_step = 0  # in case this method is called before training starts.
         return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
