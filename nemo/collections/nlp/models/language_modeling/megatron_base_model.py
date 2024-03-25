@@ -355,9 +355,7 @@ class MegatronBaseModel(NLPModel):
                     if limit_micro_batches < get_num_microbatches():
                         limit_batches = get_num_microbatches()
                     else:
-                        limit_batches = (
-                            limit_batches - limit_batches % get_num_microbatches()
-                        )
+                        limit_batches = limit_batches - limit_batches % get_num_microbatches()
 
         if mode == 'train':
             self.trainer.limit_train_batches = limit_batches
