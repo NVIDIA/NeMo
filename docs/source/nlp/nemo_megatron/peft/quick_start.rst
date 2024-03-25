@@ -78,15 +78,15 @@ PEFT.
    trainer = MegatronTrainerBuilder(config).create_trainer()
    model_cfg = MegatronGPTSFTModel.merge_cfg_with(config.model.restore_from_path, config)
 
-<<<<<<< HEAD
+   ### Training API ###
    model = MegatronGPTSFTModel.restore_from(restore_path, model_cfg, trainer) # restore from pretrained ckpt
-   + peft_cfg = LoRAPEFTConfig(model_cfg)
+   + peft_cfg = LoraPEFTConfig(model_cfg)
    + model.add_adapter(peft_cfg) 
    trainer.fit(model)  # saves adapter weights only
 
    ### Inference API ###
->>>>>>> origin/main
    # Restore from base then load adapter API 
    model = MegatronGPTSFTModel.restore_from(restore_path, trainer, model_cfg)
    + model.load_adapters(adapter_save_path, peft_cfg)
+   model.freeze()
    trainer.predict(model)

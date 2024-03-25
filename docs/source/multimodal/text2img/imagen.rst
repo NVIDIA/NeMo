@@ -124,6 +124,7 @@ during training to generate text embedding for the raw text from the dataset.
 
 Regular UNet
 ^^^^^^^^^^^^
+
 .. code-block:: yaml
 
   unet_type: base

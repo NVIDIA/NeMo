@@ -197,6 +197,7 @@ To facilitate that, the hooks below are provided. To export, for example, 'encod
 Some nertworks may be exported differently according to user-settable options (like ragged batch support for TTS or cache support for ASR). To facilitate that - `set_export_config()` method is provided by Exportable to set key/value pairs to predefined model.export_config dictionary, to be used during the export:
 
 .. code-block:: Python	
+
     def set_export_config(self, args):
         """
         Sets/updates export_config dictionary
@@ -207,6 +208,7 @@ An example can be found in ``<NeMo_git_root>/nemo/collections/asr/models/rnnt_mo
 Here is example on now `set_export_config()` call is being tied to command line arguments in ``<NeMo_git_root>/scripts/export.py`` :
 
 .. code-block:: Python
+
     python scripts/export.py  hybrid_conformer.nemo hybrid_conformer.onnx --export-config decoder_type=ctc
 
 Exportable Model Code

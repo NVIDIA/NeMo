@@ -43,11 +43,11 @@ To evaluate a partially trained checkpoint, you may need to convert it to ``.nem
 
 
 Converting HuggingFace Checkpoints
-<<<<<<< HEAD
----------------------------------
-=======
 ----------------------------------
+
+To fully utilize the optimized training pipeline and framework/TRT inference pipeline
 of NeMo, we provide scripts to convert popular checkpoints on HuggingFace into NeMo format.
+Once converted, you can perform fine-tuning or inference on such checkpoints.
 
 Stable Diffusion & ControlNet
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -77,8 +77,4 @@ Imagen
 
 We will provide conversion script if Imagen research team releases their checkpoint
 in the future. Conversion script for DeepFloyd IF models will be provided in the
-<<<<<<< HEAD
 next release.
-=======
-next release.
->>>>>>> origin/main

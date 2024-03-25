@@ -114,23 +114,6 @@ For more information, browse the developer docs for your area of interest in the
 
    common/intro
 
-.. toctree::
-   :maxdepth: 3
-   :caption: Multimodal (MM)
-   :name: Multimodal
-
-   multimodal/mllm/intro
-   multimodal/vlm/intro
-   multimodal/text2img/intro
-   multimodal/nerf/intro
-   multimodal/api
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Vision
-   :name: vision
-
-   vision/intro
 
 .. toctree::
    :maxdepth: 2

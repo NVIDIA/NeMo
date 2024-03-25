@@ -41,17 +41,17 @@ in the transformer encoder. This design choice ensures efficient scaling and uti
 +-------+----------------+------------+--------+-----------------+------------------+---------+-------------------+
 
 Model Configuration
-<<<<<<< HEAD
-------------------
+--------------------
 
 Transformer Encoder
+^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: yaml
 
->>>>>>> origin/main
   encoder_seq_length: 196
   max_position_embeddings: ${.encoder_seq_length}
   num_layers: 12
+  hidden_size: 768
   ffn_hidden_size: 3072
   num_attention_heads: 12
   hidden_dropout: 0.1
@@ -69,10 +69,16 @@ Patch & Positional Embedding
   vision_pretraining_type: "classify"
   num_classes: 1000
   patch_dim: 16
+  img_h: 224
+  img_w: 224
+  num_channels: 3
+
+- ``vision_pretraining_type``: Type of MLP head, with support limited to classification tasks now
 - ``num_classes``: Number of labels used for classification
 - ``patch_dim``: Size of the patches the image is divided into.
 - ``img_h`` and ``img_w``: Height and width of the input images.
 - ``num_channels``: Number of channels in the input image (e.g., 3 for RGB images).
+
 Optimizations
 ^^^^^^^^^^^^^^
 

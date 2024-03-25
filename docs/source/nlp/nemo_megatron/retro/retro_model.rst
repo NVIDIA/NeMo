@@ -50,6 +50,7 @@ Set the ``--dataset-impl`` flag to `retmmap`, which is the memory map format ded
 An example script to prepare data for RETRO training is:
 
 .. code-block:: bash
+
     python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
         --input=/dataset/pubmed_train.jsonl \
         --json-keys=text \
@@ -65,7 +66,11 @@ An example script to prepare data for RETRO training is:
         --retrieval-db \
         --chunk_size=64 \
         --workers=48
+
+The RETRO model processes chunked documents using 64 tokens as the default chunk size. The RETRO memory map dataset will add padding 
+tokens to the end of each document to make it a multiple of 64. The ``--need-pad-id`` argument adds a padding token to the tokenizer
 if it doesn't already have one. The ``--append-eod`` argument controls whether to add ``end-of-document`` tokens to the preprocessed 
+data, and the ``--retrieval-db`` argument indicates whether to create a retrieval database for the preprocessed data. If ``--retrieval-db``
 is used, it will add an additional 64 padding tokens at the end of the document. The ``--chunk_size`` and ``--workers`` arguments 
 control the size of the data chunks to be processed and the number of worker processes to use, respectively.
 
@@ -114,7 +119,11 @@ Step 3.1: Train the Faiss index structure
 In this step, it uses a subset of the retrieval data to train a empty Faiss index. An example script is:
 
 .. code-block:: bash
+
+    python scripts/nlp_language_modeling/build_retrieval_index.py \
+        --input_file=/result/pubmed_train_text_document  \
         --tokenizer-library=megatron \
+        --tokenizer-type=GPT2BPETokenizer \
         --merge-file=/dataset/gpt2-merges.txt \
         --vocab-file=/dataset/gpt2-vocab.json \
         --percent=1.0 \
@@ -125,6 +134,7 @@ In this step, it uses a subset of the retrieval data to train a empty Faiss inde
         --devices=0,1,2,3,4,5,6,7 \
         --stage=0 \
         --output_file=/result/pubmed_faiss_learn.index
+
 This command is used to build an empty Faiss index using the 2000000 training data in ``pubmed_train_text_document``. 
 The ``all-mpnet-base-v2`` sentence transformer model is used to encode the chunk tokens into an embedding vector. 
 The index will be saved in the result directory as ``pubmed_faiss_learn.index``. This command specifies using 8 GPUs to train the Faiss index.
@@ -135,6 +145,7 @@ Step 3.2: Add retrieval data into sharding index
 This step adds all the retrieval data to the empty Faiss index created in the previous step. An example script is:
 
 .. code-block:: bash
+
     python scripts/nlp_language_modeling/build_retrieval_index.py \
         --input_file=/result/pubmed_train_text_document  \
         --tokenizer-library=megatron \
@@ -151,6 +162,7 @@ This step adds all the retrieval data to the empty Faiss index created in the pr
         --stage=1 \
         --learned_index=/result/pubmed_faiss_learn.index \
         --output_file=/result/pubmed_faiss_shard0.save
+
 This command breaks the retrieval data into ``total_shards`` shards and adds the data in the shard specified by ``shard_id``. 
 The result is saved to a file specified by ``output_file``. In the example above, 10 sharding indexes are created.
 
@@ -160,12 +172,18 @@ Step 3.3: Merge the sharding indexes into final Faiss index
 This step merges all the sharding indexes created in the previous step into the final Faiss index.  An example script is:
 
 .. code-block:: bash
+
     python scripts/nlp_language_modeling/build_retrieval_index.py \
         --stage=2 \
         --devices=0,1,2,3,4,5,6,7 \
         --learned_index=/result/pubmed_faiss_learn.index \
         --shard_index_input=/result/pubmed_faiss_shard \
         --output_file=/result/pubmed_faiss_final.index
+
+Step 4: Build KNN index
+^^^^^^^^^^^^^^^^^^^^^^^
+
+During training, it is inefficient to run a query to find the K-nearest neighbor chunk IDs for each training data point. 
 This can be pre-calculated by building a KNN index before training. The KNN index maps the training data chunk IDs to the K-nearest neighbor chunk IDs 
 in the retrieval data. As with building the Faiss index, this process is divided into two steps.
 
@@ -189,6 +207,7 @@ file for the retrieval data built by the ``build_retrieval_index.py`` script.
 An example script is:
 
 .. code-block:: bash
+
     python scripts/nlp_language_modeling/build_knn_map_index.py \
         --input_file=/result/pubmed_eval_text_document  \
         --tokenizer-library=megatron \
@@ -209,6 +228,7 @@ An example script is:
         --stage=1 \
         --output_file=/dataset/pubmed_knn_shard0.save \
         --faiss_index=/result/pubmed_faiss_final.index
+
 In this example, the training data is broken into ``total_shards`` shards, and the KNN index is calculated for the shard specified by ``shard_id``. 
 The result is saved to a file specified by ``output_file``. In the example above, 10 KNN sharding indexes are created.
 
@@ -220,6 +240,7 @@ Step 4.2: Merge KNN sharding index into final KNN index
 An example script is:
 
 .. code-block:: bash
+
     python scripts/nlp_language_modeling/build_knn_map_index.py  \
     --stage=2 \
     --output_file=pubmed_knn_final.save \
@@ -278,6 +299,7 @@ Option 1: Train the NeMo RETRO model *without* mu-Transfer
 An example RETRO pre-training script is:
 
 .. code-block:: bash
+
     python examples/nlp/language_modeling/megatron_retro_pretraining.py \
         trainer.devices=8 \
         trainer.num_nodes=2 \
@@ -334,6 +356,7 @@ Here is an example shape file calculation script:
 
 
 .. code-block:: bash
+
     python examples/nlp/language_modeling/megatron_retro_cal_shape.py \
         trainer.devices=8 \
         trainer.num_nodes=1 \
@@ -356,7 +379,11 @@ Here is an example shape file calculation script:
         base_model.num_attention_heads=16 \
         delta_model.num_attention_heads=16 \
         model.shape_file=tp8_32depth_o1_rel_shape_info.yaml 
+
+In this example, the ``base_model`` refers to the small base model for which an optimal set of hyperparameters has been determined. 
+The ``delta_model`` refers to a model with certain hyperparameters that have been scaled up or down. In this case, 
 the ``hidden_size`` and ``ffn_hidden_size`` have been changed in the ``delta_model``, allowing these two parameters to be scaled freely later.
+
 Step 3. Pretrain mu-Transfer RETRO model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -366,7 +393,11 @@ specified by the delta model and the shape file.
 An example mu-Transfer pre-training script is:
 
 .. code-block:: bash
+
+    python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
+        trainer.devices=8 \
         trainer.num_nodes=2 \
+        trainer.accelerator=gpu \
         trainer.max_steps=500000 \
         trainer.precision=16 \
         exp_manager.exp_dir=/result/retro_model \
@@ -387,6 +418,7 @@ An example mu-Transfer pre-training script is:
         model.data.retrieval_prefix=/result/pubmed_eval_text_document \
         model.micro_batch_size=8 \
         model.shape_file=tp8_32depth_o1_rel_shape_info.yaml
+
 .. note:: We have chosen to use ``muadamw`` as the optimizer for use with the mu-transfer method.  Currently, only ``muadam`` and ``muadamw`` are supported. 
 
 Similarly to the pre-training in Option 1, the model nemo file can be found at the result checkpoint directory after training is complete.
@@ -402,6 +434,7 @@ allowing users to add, reset, and query new documents on the fly.
 We have built a simple web client that makes it easy for users to play around with the model. Here is an example script to launch the server:
 
 .. code-block:: bash
+
     python examples/nlp/language_modeling/megatron_retro_eval.py \
         trainer.devices=8 \
         trainer.num_nodes=1 \
@@ -423,6 +456,7 @@ We have built a simple web client that makes it easy for users to play around wi
         share=True \
         username=test \
         password=test123
+
 Set the retro_model_file to use the nemo file generated in the pre-training step. After launching the server, copy-paste the URL from 
 the terminal into your browser. Use the specified username and password to log in and have fun experimenting with the RETRO model.
 

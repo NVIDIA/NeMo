@@ -145,10 +145,11 @@ By default we use ``fused_adam`` as the optimizer, refer to NeMo user guide for 
 Learning rate scheduler can be specified in ``optim.sched`` section.
 
 Model Architecture Configurations
-<<<<<<< HEAD
-------------------------
-=======
 ---------------------------------
+
+Each configuration file should describe the model architecture being used for the experiment. 
+
+Here is the list of the parameters in the model section which are shared among most of the MM Text2Img models:
 
 +---------------------------+--------------+---------------------------------------------------------------------------------------+
 | **Parameter**             | **Datatype** | **Description**                                                                       |

@@ -1065,8 +1065,6 @@ The same script can be used to finetune CTC, RNNT or Hybrid models as well.
         trainer.max_epochs=50 \
         +init_from_nemo_model="<path to .nemo model file>" (or +init_from_pretrained_model="<name of pretrained checkpoint>")
 
-Fine-tuning by changing model architecture and tokenizer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Refer to <NeMo_repo>/examples/asr/conf/asr_finetune/speech_to_text_finetune.yaml for more details.
 
@@ -1107,6 +1105,7 @@ There are multiple ASR subtasks inside the ``examples/asr/`` directory, you can 
 To reinitialize part of the model, to make it different from the pretrained model, users can mention them through config:
 
 .. code-block:: yaml
+
     init_from_nemo_model: "<path to .nemo model file>"
         asr_model:
             include: ["preprocessor","encoder"]

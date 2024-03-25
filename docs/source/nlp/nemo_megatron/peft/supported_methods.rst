@@ -32,18 +32,18 @@ NeMo supports the following PFET tuning methods
       model weights and adapted weights can be combined during
       inference, avoiding any architectural change or additional latency
       in the model at inference time.
-<<<<<<< HEAD
-   -  The matrix decomposition operation can be applied to any linear
-      layer, but in practice, it is only applied to the K, Q, V
-      projection matrices (sometimes just applied to the Q,V layers).
+   -  In NeMo, you can customize the adapter bottleneck dimension and
+      the target modules to apply LoRA. LoRA can be applied to any linear
+      layer. In a transformer model, this includes 1) Q, K, V attention
+      projections, 2) attention output layer, and 3) either or both of
       the two transformer MLP layers. For QKV, NeMo's attention
       implementation fuses QKV into a single projection, so our LoRA
       implementation learns a single Low-Rank projection for QKV
       combined.
->>>>>>> origin/main
 
 3. **IA3**: `Few-Shot Parameter-Efficient Fine-Tuning is Better and
    Cheaper than In-Context Learning <http://arxiv.org/abs/2205.05638>`__
+
    -  IA3 makes fine-tuning efficient by rescaling activations with
       learned vectors. The rescaling layers are injected in the
       attention (for key and value) and feedforward modules in the base

@@ -226,6 +226,7 @@ Sometimes, the downsampling module at the earliest stage of the model can take m
     # Speedup conv subsampling factor to speed up the subsampling module.
     asr_model.change_subsampling_conv_chunking_factor(1)  # 1 = auto select
 
+
 .. note::
 
     Only certain models which use depthwise separable convolutions in the downsampling layer support this operation. Please try it out on your model and see if it is supported.
