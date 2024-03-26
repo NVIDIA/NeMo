@@ -322,7 +322,7 @@ class MegatronBertModel(MegatronBaseModel):
             # parameter's __getattribute__ function so that it can
             # launch parameter all-gathers the first time the
             # parameter is accessed after the optimizer step. However,
-            # PyTorch directly passes embedding parameters into a C  ,
+            # PyTorch directly passes embedding parameters into a C++,
             # bypassing this process. A quick-and-dirty hack is to
             # manually interact with the parameter.
             modules = self.model if isinstance(self.model, list) else [self.model]
@@ -394,7 +394,7 @@ class MegatronBertModel(MegatronBaseModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        if (dataloader_iter._batch_idx   1) % self.trainer.accumulate_grad_batches == 0:
+        if (dataloader_iter._batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             self.log('reduced_train_loss', loss_mean[0], prog_bar=True, batch_size=1)
             if len(loss_mean) > 2:
@@ -565,7 +565,7 @@ class MegatronBertModel(MegatronBaseModel):
             sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(), sentence_order.view(-1), ignore_index=-1)
             sop_loss = sop_loss.float()
             return {'lm loss': lm_loss, 'sop loss': sop_loss}
-            # loss = lm_loss   sop_loss
+            # loss = lm_loss + sop_loss
             # averaged_losses = average_losses_across_data_parallel_group(
             #     [lm_loss, sop_loss])
             # return loss, {'lm loss': averaged_losses[0],
@@ -676,7 +676,7 @@ class MegatronBertModel(MegatronBaseModel):
         global_batch_size = self.cfg.global_batch_size
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
         max_train_steps = self.trainer.max_steps
-        eval_iters = (max_train_steps // self.trainer.val_check_interval   1) * self.trainer.limit_val_batches
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
         train_valid_test_num_samples = [
