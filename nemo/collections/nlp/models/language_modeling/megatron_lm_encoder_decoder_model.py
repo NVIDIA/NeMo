@@ -1012,7 +1012,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 Format is not defined and should match the expected format of the used hiddens modules.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if not parallel_state.is_initialized():
+        if parallel_state.is_unitialized():
 
             def dummy():
                 return
