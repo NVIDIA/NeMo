@@ -347,6 +347,7 @@ def generate(
     has_multi_audios = False
     num_audios = None
     context_start_idx = None
+    audio_signal, audio_signal_length = None, None
     if torch.distributed.get_rank() == text_generation_utils.get_model_parallel_src_rank():
         if isinstance(inputs, tuple) and len(inputs) == 2:
             context_tokens_tensor, context_length_tensor = inputs
@@ -363,7 +364,6 @@ def generate(
                 context_start_idx,
             ) = inputs
         else:
-            audio_signal, audio_signal_length = None, None
             context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
                 inputs, tokens_to_generate, add_BOS
             )
