@@ -178,7 +178,6 @@ class ExpManagerConfig:
     max_time_per_run: Optional[str] = None
     # time to sleep non 0 ranks during initialization
     seconds_to_sleep: float = 5
-    global_seed: Optional[int] = None
 
 
 class TimingCallback(Callback):
@@ -346,10 +345,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     cfg = OmegaConf.merge(schema, cfg)  # type: ExpManagerConfig
 
     error_checks(trainer, cfg)  # Ensures that trainer options are compliant with NeMo and exp_manager arguments
-
-    if cfg.global_seed is not None:
-        seed_value = global_rank + cfg.global_seed
-        seed_everything(seed_value, workers=True)
 
     log_dir, exp_dir, name, version = get_log_dir(
         trainer=trainer,
