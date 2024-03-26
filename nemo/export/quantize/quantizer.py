@@ -28,7 +28,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRest
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 from nemo.utils.distributed import temporary_directory
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import load_config, save_artifacts
 
 try:
