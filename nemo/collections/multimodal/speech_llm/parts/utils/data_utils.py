@@ -19,24 +19,6 @@ import numpy as np
 import torch
 
 
-def remove_text_pc(text, punctuations: Optional[Union[str, List]] = None):
-    """Remove punctuation and capitalization from text."""
-    text = text.lower()
-    # If punctuations are not specified, use all punctuation from string module
-    if punctuations is None:
-        punctuations = string.punctuation
-    if isinstance(punctuations, list):
-        punctuations = "".join(punctuations)
-
-    # Create a translation table to map each custom punctuation character to None
-    translation_table = str.maketrans("", "", punctuations.replace("'", ""))
-
-    # Use translate method to remove custom punctuation from the text
-    text_without_punctuation = text.translate(translation_table)
-
-    return text_without_punctuation
-
-
 def maybe_cast_to_list(x):
     if isinstance(x, np.ndarray):
         return [item.tolist() for item in x]
@@ -59,18 +41,6 @@ def get_num_samples_from_files(file_list):
                 num -= 1
             num_samples.append(num)
     return num_samples
-
-
-def to_cuda(inputs, non_blocking=True):
-    """Recursively move inputs to cuda."""
-    if isinstance(inputs, torch.Tensor):
-        return inputs.cuda(non_blocking=non_blocking)
-    elif isinstance(inputs, dict):
-        return {k: to_cuda(v, non_blocking) for k, v in inputs.items()}
-    elif isinstance(inputs, (list, tuple, set)):
-        return inputs.__class__([to_cuda(x, non_blocking) for x in inputs])
-    else:
-        return inputs
 
 
 def shift_tokens_by_multi_audios(

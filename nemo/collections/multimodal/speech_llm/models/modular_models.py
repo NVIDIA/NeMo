@@ -27,7 +27,9 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
+from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
     get_aqa_dataset_from_config,
@@ -38,7 +40,6 @@ from nemo.collections.multimodal.speech_llm.modules.speechllm_perception import 
     AudioPerceptionModel,
     MultiAudioPerceptionModel,
 )
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import remove_text_pc, to_cuda
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -451,7 +452,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
 
-            batch = to_cuda(batch, non_blocking=True)
+            batch = move_to_device(batch, self.device)
             batch = self.get_batch_on_this_context_parallel_rank(batch)
 
             if not self.mcore_gpt:
@@ -949,8 +950,8 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             labels_text = labels_text_cleaned
 
         if data_cfg.get("remove_text_pc", False):
-            preds_text = [remove_text_pc(p, data_cfg.get("punctuations", None)) for p in preds_text]
-            labels_text = [remove_text_pc(l, data_cfg.get("punctuations", None)) for l in labels_text]
+            preds_text = [remove_punctuations(p.lower(), data_cfg.get("punctuations", None)) for p in preds_text]
+            labels_text = [remove_punctuations(l.lower(), data_cfg.get("punctuations", None)) for l in labels_text]
 
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
