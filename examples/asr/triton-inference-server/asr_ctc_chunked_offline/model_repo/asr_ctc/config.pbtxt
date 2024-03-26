@@ -1,0 +1,80 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "nemo_asr_ctc_chunked_offline"
+backend: "python"
+max_batch_size: 32
+
+parameters [
+  {
+    key: "model_name"
+    value: { string_value: "nvidia/parakeet-ctc-1.1b" }  # .nemo model or pretrained model name
+  }
+  {
+    key: "dtype"
+    value: { string_value: "bfloat16" }
+  }
+  {
+    key: "chunk_len_in_secs"
+    value: { string_value: "1.6" }
+  }
+  {
+    key: "total_buffer_in_secs"
+    value: { string_value: "4.0" }
+  }
+  {
+    key: "model_stride"
+    value: { string_value: "8" }  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
+  }
+  {
+    key: "batch_size"
+    value: { string_value: "32"}
+  }
+]
+
+
+input [
+  {
+    name: "WAV"
+    data_type: TYPE_FP32
+    dims: [-1]
+  }
+  {
+    name: "sampling_rate"
+    data_type: TYPE_INT32
+    dims: [1]
+  }
+]
+
+
+output [
+  {
+    name: "TRANSCRIPT"
+    data_type: TYPE_STRING
+    dims: [1]
+  }
+]
+
+# How do I make it do "sequence batching"?
+dynamic_batching {
+    preferred_batch_size: [32]
+    max_queue_delay_microseconds: 1000
+  }
+
+instance_group [
+    {
+      count: 1
+      kind: KIND_GPU
+    }
+  ]
