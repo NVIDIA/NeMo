@@ -144,6 +144,11 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     elif grp_cfg.type == "lhotse":
         is_tarred = False
         cuts = read_lhotse_manifest(grp_cfg, is_tarred=is_tarred)
+    # Note: "txt" and "txt_pair" have "is_tarred" set to True.
+    #       The main reason is to enable combination of tarred audio and text dataloading,
+    #       since we don't allow combination of tarred and non-tarred datasets.
+    #       We choose to treat text as-if it was tarred, which also tends to be more
+    #       efficient as it moves the text file iteration into dataloading subprocess.
     elif grp_cfg.type == "txt":
         is_tarred = True
         cuts = read_txt_paths(grp_cfg)

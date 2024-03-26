@@ -16,7 +16,7 @@ import logging
 import warnings
 from dataclasses import dataclass
 from functools import partial, singledispatch
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -37,6 +37,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
+from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 @dataclass
@@ -117,12 +118,12 @@ def get_lhotse_dataloader_from_config(
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
-    tokenizer: TokenizerWrapper = None,
+    tokenizer: TokenizerSpec | TokenizerWrapper = None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
 
-    Expects a typical NeMo dataset configuration format, with additional fields: "use_lhotse=True" and "lhotse: <dict>".
+    Expects a typical NeMo dataset configuration format, with additional fields: "use_lhotse=True".
     Some fields in the original NeMo configuration may be ignored.
 
     The ``dataset`` parameter should be an instance of a Lhotse-compatible PyTorch Dataset class.
@@ -130,13 +131,15 @@ def get_lhotse_dataloader_from_config(
     This dataset is not expected to hold a reference to any actual data; it may be interpreted as a function
     mapping a Lhotse CutSet into a mini-batch of tensors.
 
+    For an example, see: :class:`nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`,
+    which is constructed from just a tokenizer and essentially loads and collates audio and tokenizes the transcript.
+
     The ``tokenizer`` is used when text-only datasets are included in dataloading.
     In these cases we will tokenize ``TextExample``s before sampling mini-batches so that
     we can account for their number of tokens.
     Note: this behaviour might eventually be extended to audio datasets too.
 
-    For example, see: :class:`nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`,
-    which is constructed from just a tokenizer and essentially loads and collates audio and tokenizes the transcript.
+    Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
     logging.info("We will be using a Lhotse DataLoader.")
 
@@ -158,9 +161,8 @@ def get_lhotse_dataloader_from_config(
         assert (
             tokenizer is not None
         ), "You must pass a tokenizer to `get_lhotse_dataloader_from_config` in order to read text-only datasets (enabled via use_multimodal_dataloading)"
-        assert isinstance(
-            tokenizer, TokenizerWrapper
-        ), "The tokenizer must be wrapped with TokenizerWrapper to provide a uniform API for aggregate and BPE tokenizers."
+        if not isinstance(tokenizer, TokenizerWrapper):
+            tokenizer = TokenizerWrapper(tokenizer)
         # Note this code can also pre-tokenize the text in cuts, but for now we disable it with apply_fn.
         cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=is_text)
 
