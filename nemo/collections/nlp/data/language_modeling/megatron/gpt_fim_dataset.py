@@ -15,9 +15,22 @@
 from typing import Tuple
 
 import numpy as np
-from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
-from megatron.core.datasets.indexed_dataset import MMapIndexedDataset
-from megatron.core.datasets.utils import Split
+
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
+try:
+    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig
+    from megatron.core.datasets.indexed_dataset import IndexedDataset
+    from megatron.core.datasets.utils import Split
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError) as e:
+
+    GPTDataset = GPTDatasetConfig = IndexedDataset = Split = ApexGuardDefaults
+
+    HAVE_MEGATRON_CORE = False
+    IMPORT_ERROR = e
 
 
 # is_dataset_built_on_rank function is needed for mcore GPTDatasetConfig
@@ -33,6 +46,9 @@ class GPTFIMDatasetConfig(GPTDatasetConfig):
     """
 
     def __init__(self, fim, **kwargs):
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(IMPORT_ERROR)
+
         super().__init__(**kwargs)
         self.fim = fim
 
@@ -41,7 +57,7 @@ class GPTFIMDataset(GPTDataset):
     """The base GPT dataset
 
     Args:
-        indexed_dataset (MMapIndexedDataset): The MMapIndexedDataset around which to build the
+        indexed_dataset (IndexedDataset): The IndexedDataset around which to build the
         MegatronDataset
 
         indexed_indices (np.ndarray): The set of the documents indices to expose
@@ -55,13 +71,16 @@ class GPTFIMDataset(GPTDataset):
 
     def __init__(
         self,
-        indexed_dataset: MMapIndexedDataset,
+        indexed_dataset: IndexedDataset,
         dataset_path: str,
         indexed_indices: np.ndarray,
         num_samples: int,
         index_split: Split,
         config: GPTFIMDatasetConfig,
     ) -> None:
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(IMPORT_ERROR)
+
         super().__init__(indexed_dataset, dataset_path, indexed_indices, num_samples, index_split, config)
 
         self.indexed_dataset = indexed_dataset

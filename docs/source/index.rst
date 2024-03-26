@@ -40,13 +40,15 @@ For more information, browse the developer docs for your area of interest in the
    :name: core
    :titlesonly:
 
-   core/core
-   core/exp_manager
-   core/neural_types
-   core/export
-   core/adapters/intro
-   core/api
+   core/core_index
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Community Model Converters
+   :name: CheckpointConverters
+
+   ckpt_converters/user_guide
+   ckpt_converters/dev_guide
 
 .. toctree::
    :maxdepth: 1
