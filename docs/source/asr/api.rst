@@ -1,4 +1,4 @@
-NeMo ASR collection API
+NeMo ASR Collection API
 =======================
 
 
@@ -325,6 +325,4 @@ Adapter Strategies
     :members:
     :member-order: bysource
     :undoc-members: adapter_module_names
-
------
 

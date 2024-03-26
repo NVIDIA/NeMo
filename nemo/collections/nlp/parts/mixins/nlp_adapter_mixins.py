@@ -65,12 +65,10 @@ class NLPAdapterModelMixin:
         self.use_peft = False
         self.tunable_base_param_names = []
         self.setup_complete = False
-        self.use_ptuning_only = False
+
+        # for P-Tuning with PP, second stage and onward have no trainable parameters so only first stage needs peft handling
+        self.ptuning_only_and_non_first_stage = False
         super().__init__(*args, **kwargs)
-        if hasattr(self, "enc_dec_model"):
-            self.model_prefix = "enc_dec_model.module." if self.cfg.megatron_amp_O2 else "enc_dec_model."  # for T5
-        else:
-            self.model_prefix = "model.module." if self.cfg.get('megatron_amp_O2', False) else "model."
 
         self.use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
         if self.use_mcore_gpt:
@@ -178,22 +176,25 @@ class NLPAdapterModelMixin:
         if self.cfg.optim.name == "distributed_fused_adam":
             raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
 
+        self.use_peft = True
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
+
+        # @chcui crucial to set self.virtual_tokens and self.use_peft for all PP ranks
+        for peft_cfg in peft_cfgs:
+            if isinstance(peft_cfg, PtuningPEFTConfig):
+                self.virtual_tokens = peft_cfg.virtual_tokens
+        ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
+        self.ptuning_only_and_non_first_stage = ptuning_only and not self.first_stage_of_pipeline()
+        if self.ptuning_only_and_non_first_stage:
+            # There are no params to add if we are not in the first state of the pipeline
+            return
 
         self.base_keys = self._get_all_keys()
         self.freeze()
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
-        self.use_ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
-
         for peft_cfg in peft_cfgs:
-            if self.use_ptuning_only:
-                if not self.first_stage_of_pipeline():
-                    # There are no params to add if we are not in the first state of the pipeline
-                    continue
-                self.virtual_tokens = peft_cfg.virtual_tokens
-
             self._check_and_add_peft_cfg(peft_cfg)
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
@@ -206,7 +207,6 @@ class NLPAdapterModelMixin:
 
             if hasattr(cfg, "tunable_base_param_names") and cfg.tunable_base_param_names:
                 self.set_tunable_base_params(cfg)
-        self.use_peft = True
 
     def _get_config_and_state_dict_from_nemo(self, filepath, map_location):
         cwd = os.getcwd()
@@ -242,19 +242,22 @@ class NLPAdapterModelMixin:
         """
         if self.use_peft:
             self.freeze()  # Freeze the entire model
-            opt_params = []
-            for _, module in self.named_modules():
-                if isinstance(module, AdapterModuleMixin) and module.is_adapter_available():
-                    module.set_enabled_adapters(enabled=True)
-                    module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
-                    opt_params += [p for p in module.parameters() if p.requires_grad]
+            if not self.ptuning_only_and_non_first_stage:
+                opt_params = []
+                for _, module in self.named_modules():
+                    if isinstance(module, AdapterModuleMixin) and module.is_adapter_available():
+                        module.set_enabled_adapters(enabled=True)
+                        module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
+                        opt_params += [p for p in module.parameters() if p.requires_grad]
 
-            for name, param in self.named_parameters():
-                if name in self.tunable_base_param_keys:
-                    param.requires_grad = True
-                    opt_params += [param]
+                for name, param in self.named_parameters():
+                    if name in self.tunable_base_param_keys:
+                        param.requires_grad = True
+                        opt_params += [param]
 
-            self._optimizer_param_groups = ({"params": opt_params},)
+                self._optimizer_param_groups = ({"params": opt_params},)
+            else:
+                self._optimizer_param_groups = ({"params": []},)
             logging.info(f"Optimizer groups set:\n{self.summarize()}")
         else:
             super().setup_optimizer_param_groups()
@@ -297,7 +300,8 @@ class NLPAdapterModelMixin:
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
-        assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+        if not self.ptuning_only_and_non_first_stage:
+            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
         super().load_state_dict(state_dict, strict=False)
 
     def set_tunable_base_params(self, peft_cfg):
@@ -349,23 +353,25 @@ class NLPAdapterModelMixin:
         """
         Gets the keys associated with the adapters only.
         """
-        state_dict = self.model.state_dict(prefix=self.model_prefix)
+        state_dict = super().state_dict()
         peft_state_dict = {}
         for k in self.adapter_keys.union(self.tunable_base_param_keys):
             # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
             new_k = k.replace("model.module.", "model.", 1)
-            peft_state_dict[new_k] = state_dict[k]
+            peft_state_dict[new_k] = state_dict[new_k]
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.use_peft and self.setup_complete:
             # Once setup is complete we no longer need to track the frozen part of the model. Only there adapter state dict keeps changing so state_dict only track these.
+            if self.ptuning_only_and_non_first_stage:
+                return {}
             return self.get_peft_state_dict()
         else:
             # we want all the params with the same keys as calling self.state_dict()
             # but we can't call self.state_dict() here as it would be a recursive call.
             # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            return self.model.state_dict(prefix=self.model_prefix)
+            return super().state_dict()
 
     def sharded_state_dict(self, prefix: str = ''):
         use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
@@ -383,8 +389,9 @@ class NLPAdapterModelMixin:
             # setting strict=False will ignore the missing keys (which are not being updated anyway)
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
-            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
-            super().load_state_dict(state_dict, strict=False)
+            if not self.ptuning_only_and_non_first_stage:
+                assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+                super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=True)
 
@@ -393,7 +400,7 @@ class NLPAdapterModelMixin:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
         """
         if self.use_peft and self.setup_complete:
-            if not self.use_ptuning_only or self.first_stage_of_pipeline():
+            if not self.ptuning_only_and_non_first_stage:
                 # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
                 # mcore uses distributed checkpointing
                 if hasattr(self, 'mcore_gpt') and self.mcore_gpt:
@@ -490,6 +497,13 @@ class NLPAdapterModelMixin:
         """
 
         peft_cfg = cls.restore_from(path, return_config=True)
+        if hasattr(peft_cfg, 'peft') and peft_cfg.peft.peft_scheme not in [None, 'none']:
+            # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
+            for p in ['tensor_model_parallel_size', 'pipeline_model_parallel_size']:
+                assert peft_cfg.get(p) == cfg.model.get(
+                    p
+                ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({peft_cfg.get(p)})"
+
         with open_dict(peft_cfg):
             # update the model config of the trained model with params we want to set at inference time.
             peft_cfg.precision = cfg.trainer.precision
@@ -500,6 +514,7 @@ class NLPAdapterModelMixin:
 
         with open_dict(cfg):
             cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos
-            cfg.inference.tokens_to_generate = peft_cfg.data.test_ds.tokens_to_generate
+            cfg.inference.tokens_to_generate = peft_cfg.data.test_ds.get("tokens_to_generate", 1)
 
+        peft_cfg.megatron_amp_O2 = False  # always evaluate with O1
         return peft_cfg
