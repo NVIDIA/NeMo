@@ -3,10 +3,7 @@
 This directory contains example scripts to train and evaluate modular SpeechLLM (e.g, SALM[1], etc). 
 
 ## Requirements
-You will need to install this specific branch of NeMo, or use the provided Dockerfile in the root directory of this repository to build a Docker image with all the necessary dependencies. This branch is based on NeMo main branch by 2/14/2024, while diverging from the main branch in the following ways:
-- Migrating to `pytorch_lightning==2.2` to fix some bugs with multiple validation dataloader_iter and saving `-last.ckpt` files.
-- Pinning to `megatron-core==0.4.0` to avoid possible unstable behaviors of the latest versions or not well supported NeMo components.
-
+You will need to install this specific branch of NeMo, or use the provided Dockerfile in the root directory of this repository to build a Docker image with all the necessary dependencies.
 
 ## Architecture
 
