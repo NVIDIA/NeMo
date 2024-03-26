@@ -729,7 +729,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     ):
 
         # check whether the DDP is initialized
-        if not parallel_state.is_initialized():
+        if parallel_state.is_unitialized():
 
             def dummy():
                 return

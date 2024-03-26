@@ -385,7 +385,7 @@ class NLPModel(ModelPT, Exportable):
                 sharded_state_dict = model.sharded_state_dict()
                 checkpoint['state_dict'] = sharded_state_dict
                 # dist checkpointing needs torch.distributed to load the checkpoint
-                if not parallel_state.is_initialized():
+                if parallel_state.is_unitialized():
 
                     def dummy():
                         return
