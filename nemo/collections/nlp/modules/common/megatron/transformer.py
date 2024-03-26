@@ -1191,7 +1191,6 @@ class ParallelTransformer(MegatronModule):
             self.layers = make_graphed_callables(
                 tuple(self.layers), graph_inputs,
                 enabled=self.fp8,
-                fp8_group=fp8_group,
                 fp8_recipe=self.fp8_recipe)
             del graph_inputs
         self.layers = torch.nn.ModuleList(self.layers)
