@@ -16,19 +16,9 @@
 
 import warnings
 from dataclasses import dataclass
-
 import torch
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
-from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
-from megatron.core.models.bert.bert_model import BertModel as MCoreBert
-from megatron.core.models.bert.pooler import Pooler
-from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.transformer.transformer_block import TransformerBlock
-from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
-from megatron.core.utils import make_viewless_tensor
 from torch import Tensor
-
+from dataclasses import dataclass
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
@@ -57,19 +47,24 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import InferenceParams, parallel_state, tensor_parallel
+    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+    from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
+    from megatron.core.models.bert.bert_model import BertModel as MCoreBert
+    from megatron.core.models.bert.pooler import Pooler
+    from megatron.core.packed_seq_params import PackedSeqParams
+    from megatron.core.transformer.transformer_block import TransformerBlock
+    from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
+    from megatron.core.utils import make_viewless_tensor
+    from megatron.core.transformer.spec_utils import build_module
+    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
     ModelParallelConfig = ApexGuardDefaults
-
     HAVE_MEGATRON_CORE = False
-from dataclasses import dataclass
-
-from megatron.core.transformer.spec_utils import build_module
-from megatron.core.transformer.transformer_layer import TransformerLayer
-
 
 def bert_extended_attention_mask(attention_mask):
     # We create a 3D attention mask from a 2D tensor mask.
@@ -169,9 +164,6 @@ def post_language_model_processing(
             lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
         # lm_loss: [s, b]
         return lm_loss, binary_logits
-
-
-from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
 
 @dataclass
@@ -324,8 +316,10 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         )
 
 
-# This class is used for working with HF Bert Checkpoints. These checkpoints
-# by default have post layer norm, while the vanilla mcore bert model does not support it.
+'''
+This class is used for working with HF Bert Checkpoints. These checkpoints
+by default have post layer norm, while the vanilla mcore bert model does not support it.
+'''
 class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     def __init__(self, transformer_block_type='pre-ln', add_pooler=True, *args, **kwargs):
 
