@@ -115,7 +115,7 @@ def perception_model_config():
 
     model_config = DictConfig(
         {
-            "_target_": "nemo.collections.multimodal.speechllm.modules.speechllm_perception.AudioPerceptionModel",
+            "_target_": "nemo.collections.multimodal.speechllm.modules.speechllm_perception.AudioPerceptionModule",
             "preprocessor": DictConfig(preprocessor),
             "encoder": DictConfig(encoder),
             "modality_adapter": DictConfig(encoder),

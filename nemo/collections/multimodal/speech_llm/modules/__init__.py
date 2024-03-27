@@ -13,7 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.multimodal.speech_llm.modules.modality_adapters import PoolingMLPConnectors
-from nemo.collections.multimodal.speech_llm.modules.speechllm_perception import (
-    AudioPerceptionModel,
-    MultiAudioPerceptionModel,
-)
+from nemo.collections.multimodal.speech_llm.modules.perception import AudioPerceptionModule, MultiAudioPerceptionModule

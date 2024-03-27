@@ -29,10 +29,10 @@ from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 
 
-__all__ = ["AudioPerceptionModel", "MultiAudioPerceptionModel"]
+__all__ = ["AudioPerceptionModule", "MultiAudioPerceptionModule"]
 
 
-class AudioPerceptionModel(NeuralModule, Exportable):
+class AudioPerceptionModule(NeuralModule, Exportable):
     """Audio perception model with basic modality_adapter (some fc layers)."""
 
     def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
@@ -230,7 +230,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         return self.aggregator(encoded_list, encoded_len_list)
 
 
-class MultiAudioPerceptionModel(NeuralModule, Exportable):
+class MultiAudioPerceptionModule(NeuralModule, Exportable):
     def __init__(self, cfg: DictConfig):
         super().__init__()
         # Initialize components

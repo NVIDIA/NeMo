@@ -36,10 +36,7 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
     get_tarred_aqa_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speech_llm.modules.speechllm_perception import (
-    AudioPerceptionModel,
-    MultiAudioPerceptionModel,
-)
+from nemo.collections.multimodal.speech_llm.modules.perception import AudioPerceptionModule, MultiAudioPerceptionModule
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -88,9 +85,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         super().__init__(cfg, trainer)
 
         self.perception = (
-            AudioPerceptionModel(cfg=cfg.perception)
+            AudioPerceptionModule(cfg=cfg.perception)
             if "encoders" not in cfg.perception
-            else MultiAudioPerceptionModel(cfg=cfg.perception)
+            else MultiAudioPerceptionModule(cfg=cfg.perception)
         )
         # print out params in more details
         self.summarize(max_depth=2)
