@@ -17,7 +17,7 @@ on:
   pull_request:
     branches: [ "main" ]
   push:
-    branches: [ "pagaray/nemo_cicd_part6" ]
+    branches: [ "pagaray/nemo_cicd_part7" ]
 
 jobs:
   gpu-test:
