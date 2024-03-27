@@ -35,11 +35,6 @@ input [
     data_type: TYPE_INT32
     dims: [1]
   }
-  {
-    name: "sampling_rate"    # sampling rate is used for deciding whether to do upsampling and downsampling
-    data_type: TYPE_INT32
-    dims: [1]
-  }
 ]
 
 
