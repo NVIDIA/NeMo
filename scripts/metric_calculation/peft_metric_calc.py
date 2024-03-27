@@ -18,6 +18,7 @@ import re
 import string
 from collections import Counter
 from rouge_score import rouge_scorer
+from sacrebleu.metrics import BLEU, CHRF, TER
 
 
 """
@@ -95,7 +96,10 @@ def main():
         default="pred",
     )
     parser.add_argument(
-        '--split_prediction', type=str, help="split the predictions and use only second part of the split", default="",
+        '--split_prediction',
+        type=str,
+        help="split the predictions and use only second part of the split",
+        default="",
     )
     parser.add_argument(
         '--label_field',
@@ -110,7 +114,8 @@ def main():
     scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rouge3', 'rougeL'], use_stemmer=True)
     preds = open(pred_file, encoding="utf-8").readlines()
     f1 = exact_match = total = rl_score = r1_score = r2_score = r3_score = 0
-
+    pred_answers = []
+    refs = []
     for i in range(len(preds)):
         pred_line = json.loads(preds[i])
 
@@ -122,6 +127,8 @@ def main():
             pred_answer = pred_answer.split(args.split_prediction)[-1]
             true_answers = [_ta.split(args.split_prediction)[-1] for _ta in true_answers]
 
+        pred_answers.append(pred_answer)
+        refs.append(true_answers[0])
         rl_scores = []
         r1_scores = []
         r2_scores = []
@@ -146,15 +153,9 @@ def main():
     r1_score = 100 * (r1_score / total)
     r2_score = 100 * (r2_score / total)
     r3_score = 100 * (r3_score / total)
-    res = {
-        'exact_match': exact_match,
-        'f1': f1,
-        "rL": rl_score,
-        "r1": r1_score,
-        "r2": r2_score,
-        "r3": r3_score,
-        'total': total,
-    }
+    bleu = BLEU()
+    cbleu = bleu.corpus_score(pred_answers, [refs])
+    res = {'exact_match': exact_match, 'f1': f1, "rL": rl_score, "r1": r1_score, "r2": r2_score, "r3": r3_score, 'cBLEU': cbleu.score, 'total': total}
     print('\t'.join([f"{k} {v:.3f}" for k, v in res.items()]))
 
 
