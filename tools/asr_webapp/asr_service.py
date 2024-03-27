@@ -108,6 +108,11 @@ def _store_model(nemo_model_file):
     Returns:
         A file name (with a .nemo) at the end - to signify this is an uploaded checkpoint.
     """
+    # check if file length is valid
+    MAX_LENGTH = 1_000
+    if len(nemo_model_file.filename) > MAX_LENGTH:
+        raise ValueError(f"Filename too long. Max length is {MAX_LENGTH}")
+    
     filename = secure_filename(nemo_model_file.filename)
     file_basename = os.path.basename(filename)
     model_dir = os.path.splitext(file_basename)[0]
