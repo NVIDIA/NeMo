@@ -1,5 +1,5 @@
 #####################
-ASR Language Modeling
+ASR Language Modeling and Customization
 #####################
 
 Language models have shown to help the accuracy of ASR models. NeMo supports the following two approaches to incorporate language models into the ASR models:
@@ -76,27 +76,27 @@ it is stored at the path specified by `kenlm_model_file`.
 
 The following is the list of the arguments for the training script:
 
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| **Argument**     | **Type** | **Default** | **Description**                                                                                                                |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| nemo_model_file  | str      | Required    | The path to `.nemo` file of the ASR model, or name of a pretrained NeMo model to extract a tokenizer.                          |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| train_paths      | List[str] | Required    | List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz".                          |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| kenlm_model_file | str      | Required    | The path to store the KenLM binary model file.                                                                                 |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| kenlm_bin_path   | str      | Required    | The path to the bin folder of KenLM. It is a folder named `bin` under where KenLM is installed.                                |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                                                  |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| ngram_prune      | List[int] | [0]        | List of thresholds to prune N-grams. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| cache_path       | str      | ""          | Cache path to save tokenized files.                                                                                            |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| preserve_arpa    | bool     | ``False``   | Whether to preserve the intermediate ARPA file after construction of the BIN file.                                             |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
-| verbose          | int      | 1           | Verbose level.                                                                                                                 |
-+------------------+----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| **Argument**     | **Type**  | **Default** | **Description**                                                                                                                |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| nemo_model_file  | str       | Required    | The path to `.nemo` file of the ASR model, or name of a pretrained NeMo model to extract a tokenizer.                          |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| train_paths      | List[str] | Required    | List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz".                           |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| kenlm_model_file | str       | Required    | The path to store the KenLM binary model file.                                                                                 |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| kenlm_bin_path   | str       | Required    | The path to the bin folder of KenLM. It is a folder named `bin` under where KenLM is installed.                                |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| ngram_length**   | int       | Required    | Specifies order of N-gram LM.                                                                                                  |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| ngram_prune      | List[int] | [0]         | List of thresholds to prune N-grams. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation  |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| cache_path       | str       | ``""``      | Cache path to save tokenized files.                                                                                            |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| preserve_arpa    | bool      | ``False``   | Whether to preserve the intermediate ARPA file after construction of the BIN file.                                             |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
+| verbose          | int       | 1           | Verbose level.                                                                                                                 |
++------------------+-----------+-------------+--------------------------------------------------------------------------------------------------------------------------------+
 
 ** Note: Recommend to use 6 as the order of the N-gram model for BPE-based models. Higher orders may need the re-compilation of KenLM to support it.
 
@@ -184,7 +184,7 @@ The following is the list of the important arguments for the evaluation script:
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | text_processing.do_lowercase         | bool     | ``False``        | Whether to make the training text all lower case.                       |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
-| text_processing.punctuation_marks    | str      | ""               | String with punctuation marks to process. Example: ".\,?"               |
+| text_processing.punctuation_marks    | str      | ``""``           | String with punctuation marks to process. Example: ".\,?"               |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | text_processing.rm_punctuation       |  bool    | ``False``        | Whether to remove punctuation marks from text.                          |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
@@ -472,6 +472,7 @@ You can then pass this file to your flashlight config object during decoding:
            decoding.beam.flashlight_cfg.beam_size_token = 32 \
            decoding.beam.flashlight_cfg.beam_threshold = 25.0
 
+
 Combine N-gram Language Models
 ==============================
 
@@ -545,3 +546,81 @@ The following is the list of the arguments for the opengrm script:
 +----------------------+--------+------------------+-----------------------------------------------------------------------------------------------------------------+
 | force                | bool   | ``False``        | Whether to recompile and rewrite all files                                                                      |
 +----------------------+--------+------------------+-----------------------------------------------------------------------------------------------------------------+
+
+
+******************
+Context-biasing (word boosting) without external LM
+******************
+
+NeMo toolkit supports a fast context-biasing method for CTC and Transducer (RNN-T) ASR models with CTC-based Word Spotter.
+The method involves decoding CTC log probabilities with a context graph built for words and phrases from the context-biasing list.
+The spotted context-biasing candidates (with their scores and time intervals) are compared by scores with words from the greedy CTC decoding results to improve recognition accuracy and pretend false accepts of context-biasing.
+
+A Hybrid Transducer-CTC model (a shared encoder trained together with CTC and Transducer output heads) enables the use of the CTC-WS method for the Transducer model.
+Context-biasing candidates obtained by CTC-WS are also filtered by the scores with greedy CTC predictions and then merged with greedy Transducer results.
+
+Scheme of the CTC-WS method:
+
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.22.0/asset-post-v1.22.0-ctcws_scheme_1.png
+    :align: center
+    :alt: CTC-WS scheme
+    :scale: 40%
+
+High-level overview of the context-biasing words replacement with CTC-WS method:
+
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.22.0/asset-post-v1.22.0-ctcws_scheme_2.png
+    :align: center
+    :alt: CTC-WS high level overview
+    :scale: 40%
+
+More details about CTC-WS context-biasing can be found in the `tutorial <https://github.com/NVIDIA/NeMo/tree/main/tutorials/asr/ASR_Context_Biasing.ipynb>`__.
+
+To use CTC-WS context-biasing, you need to create a context-biasing text file that contains words/phrases to be boosted, with its transcriptions (spellings) separated by underscore.
+Multiple transcriptions can be useful for abbreviations ("gpu" -> "g p u"), compound words ("nvlink" -> "nv link"), 
+or words with common mistakes in the case of our ASR model ("nvidia" -> "n video").
+
+Example of the context-biasing file:
+
+.. code-block::
+
+    nvidia_nvidia
+    omniverse_omniverse
+    gpu_gpu_g p u
+    dgx_dgx_d g x_d gx
+    nvlink_nvlink_nv link
+    ray tracing_ray tracing
+
+The main script for CTC-WS context-biasing in NeMo is: 
+
+.. code-block::
+
+    {NEMO_DIR_PATH}/scripts/asr_context_biasing/eval_greedy_decoding_with_context_biasing.py
+
+Context-biasing is managed by ``apply_context_biasing`` parameter [true or false].
+Other important context-biasing parameters are:
+
+*  ``beam_threshold`` - threshold for CTC-WS beam pruning
+*  ``context_score`` - per token weight for context biasing
+*  ``ctc_ali_token_weight`` - per token weight for CTC alignment (prevents false acceptances of context-biasing words)
+
+All the context-biasing parameters are selected according to the default values in the script.
+You can tune them according to your data and ASR model (list all the values in the [] separated by commas)
+for example: ``beam_threshold=[7.0,8.0,9.0]``, ``context_score=[3.0,4.0,5.0]``, ``ctc_ali_token_weight=[0.5,0.6,0.7]``.
+The script will run the recognition with all the combinations of the parameters and will select the best one based on WER value.
+
+.. code-block::
+
+    # Context-biasing with the CTC-WS method for CTC ASR model 
+    python {NEMO_DIR_PATH}/scripts/asr_context_biasing/eval_greedy_decoding_with_context_biasing.py \
+            nemo_model_file={ctc_model_name} \
+            input_manifest={test_nemo_manifest} \
+            preds_output_folder={exp_dir} \
+            decoder_type="ctc" \
+            acoustic_batch_size=64 \
+            apply_context_biasing=true \
+            context_file={cb_list_file_modified} \
+            beam_threshold=[7.0] \
+            context_score=[3.0] \
+            ctc_ali_token_weight=[0.5]
+
+To use Transducer head of the Hybrid Transducer-CTC model, you need to set ``decoder_type=rnnt``.

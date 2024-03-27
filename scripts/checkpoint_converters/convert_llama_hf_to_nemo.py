@@ -15,9 +15,9 @@
 r"""
 Conversion script to convert Huggingface LLaMA checkpoints into nemo checkpoint.
   Example to run this conversion script:
-    python convert_hf_llama_to_nemo.py \
-     --in-file <path_to_hf_checkpoints_folder> \
-     --out-file <path_to_output_nemo_file>
+    python convert_llama_hf_to_nemo.py \
+     --input_name_or_path <path_to_hf_checkpoints_folder> \
+     --output_path <path_to_output_nemo_file>
 """
 
 import os
@@ -44,18 +44,26 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--in-file", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
+        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface LLaMA checkpoints",
     )
-    parser.add_argument("--out-file", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--hparams_file",
+        type=str,
+        default=os.path.join(
+            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml'
+        ),
+        required=False,
+        help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
+    )
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
 
 
-def load_config(llama_config):
-    nemo_config = OmegaConf.load(
-        os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
-    ).model
+def load_config(args, llama_config):
+    nemo_config = OmegaConf.load(args.hparams_file).model
+
     if llama_config.get('rope_theta', None):
         nemo_config['rotary_base'] = llama_config['rope_theta']
     nemo_config.encoder_seq_length = llama_config['max_position_embeddings']
@@ -88,9 +96,9 @@ def load_config(llama_config):
 
 
 def convert(args):
-    logging.info(f"loading checkpoint {args.in_file}")
-    model = LlamaForCausalLM.from_pretrained(args.in_file)
-    tokenizer = LlamaTokenizer.from_pretrained(args.in_file)
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
+    model = LlamaForCausalLM.from_pretrained(args.input_name_or_path)
+    tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
     hf_config = vars(model.config)
     hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
     print(f"hf_config: {hf_config}")
@@ -98,7 +106,7 @@ def convert(args):
     for name, param in model.named_parameters():
         print(f"- {name}")
 
-    nemo_config = load_config(hf_config)
+    nemo_config = load_config(args, hf_config)
 
     if args.precision in ["32", "16"]:
         precision = int(float(args.precision))
@@ -271,8 +279,8 @@ def convert(args):
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
 
-    model.save_to(args.out_file)
-    logging.info(f'NeMo model saved to: {args.out_file}')
+    model.save_to(args.output_path)
+    logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
