@@ -15,10 +15,12 @@
 import itertools
 import queue
 from typing import Any, Dict, Iterator, List, Optional
+
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -64,10 +66,10 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
 
     HAVE_MEGATRON_CORE = True
 

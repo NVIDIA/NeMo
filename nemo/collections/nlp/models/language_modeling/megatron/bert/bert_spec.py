@@ -34,7 +34,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
-    
+
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
     TransformerLayerSubmodulesWithPostLNSupport,
     TransformerLayerWithPostLNSupport,
