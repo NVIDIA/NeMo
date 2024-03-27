@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Optional
 from importlib.metadata import version
-from pkg_resources import packaging
+from typing import Any, Callable, Optional
 
 import torch
+from pkg_resources import packaging
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
@@ -90,36 +90,36 @@ class AutocastTransformerLayer(TransformerLayer):
             raise ImportError(IMPORT_ERROR)
 
         transformer_layer_args = {
-            "hidden_size":hidden_size,
-            "ffn_hidden_size":ffn_hidden_size,
-            "layernorm_epsilon":layernorm_epsilon,
-            "num_attention_heads":num_attention_heads,
-            "init_method":init_method,
-            "output_layer_init_method":output_layer_init_method,
-            "hidden_dropout":hidden_dropout,
-            "attention_dropout":attention_dropout,
-            "layer_number":layer_number,
-            "kv_channels":kv_channels,
-            "self_attn_mask_type":self_attn_mask_type,
-            "tp_group":tp_group,
-            "tp_size":tp_size,
-            "params_dtype":params_dtype,
-            "get_rng_state_tracker":get_rng_state_tracker,
-            "fuse_wgrad_accumulation":fuse_wgrad_accumulation,
-            "seq_length":seq_length,
-            "micro_batch_size":micro_batch_size,
-            "sequence_parallel":sequence_parallel,
-            "apply_residual_connection_post_layernorm":apply_residual_connection_post_layernorm,
-            "output_layernorm":output_layernorm,
-            "layer_type":layer_type,
-            "drop_path_rate":drop_path_rate,
-            "set_parallel_mode":tp_size > 1,
-            "fuse_qkv_params":True,
-            "zero_centered_gamma":zero_centered_gamma,
-            "ub_tp_comm_overlap":ub_tp_comm_overlap,
-            "ub_bulk_wgrad":ub_bulk_wgrad,
-            "ub_bulk_dgrad":ub_bulk_dgrad,
-            "device":device,
+            "hidden_size": hidden_size,
+            "ffn_hidden_size": ffn_hidden_size,
+            "layernorm_epsilon": layernorm_epsilon,
+            "num_attention_heads": num_attention_heads,
+            "init_method": init_method,
+            "output_layer_init_method": output_layer_init_method,
+            "hidden_dropout": hidden_dropout,
+            "attention_dropout": attention_dropout,
+            "layer_number": layer_number,
+            "kv_channels": kv_channels,
+            "self_attn_mask_type": self_attn_mask_type,
+            "tp_group": tp_group,
+            "tp_size": tp_size,
+            "params_dtype": params_dtype,
+            "get_rng_state_tracker": get_rng_state_tracker,
+            "fuse_wgrad_accumulation": fuse_wgrad_accumulation,
+            "seq_length": seq_length,
+            "micro_batch_size": micro_batch_size,
+            "sequence_parallel": sequence_parallel,
+            "apply_residual_connection_post_layernorm": apply_residual_connection_post_layernorm,
+            "output_layernorm": output_layernorm,
+            "layer_type": layer_type,
+            "drop_path_rate": drop_path_rate,
+            "set_parallel_mode": tp_size > 1,
+            "fuse_qkv_params": True,
+            "zero_centered_gamma": zero_centered_gamma,
+            "ub_tp_comm_overlap": ub_tp_comm_overlap,
+            "ub_bulk_wgrad": ub_bulk_wgrad,
+            "ub_bulk_dgrad": ub_bulk_dgrad,
+            "device": device,
         }
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version > packaging.version.Version("1.5.0"):
@@ -177,30 +177,30 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         precision = 'bf16' if config.bf16 else 16
 
         transformer_layer_args = {
-            "hidden_size":config.hidden_size,
-            "ffn_hidden_size":config.ffn_hidden_size,
-            "layernorm_epsilon":config.layernorm_epsilon,
-            "num_attention_heads":config.num_attention_heads,
-            "init_method":config.init_method,
-            "output_layer_init_method":config.output_layer_init_method,
-            "hidden_dropout":config.hidden_dropout,
-            "attention_dropout":config.attention_dropout,
-            "layer_number":layer_number + self._get_layer_offset(),
-            "kv_channels":config.kv_channels,
-            "tp_size":parallel_state.get_tensor_model_parallel_world_size(),
-            "params_dtype":config.params_dtype,
-            "get_rng_state_tracker":tensor_parallel.random.get_cuda_rng_tracker,
-            "fuse_wgrad_accumulation":config.gradient_accumulation_fusion,
-            "seq_length":None,  # used for jit warmup
-            "micro_batch_size":None,  # used for jit warmup
-            "sequence_parallel":config.sequence_parallel,
-            "apply_residual_connection_post_layernorm":config.apply_residual_connection_post_layernorm,
-            "autocast_dtype":precision,
-            "ub_tp_comm_overlap":config.tp_comm_overlap,
-            "ub_bulk_wgrad":config.tp_comm_bulk_wgrad,
-            "ub_bulk_dgrad":config.tp_comm_bulk_dgrad,
-            "zero_centered_gamma":config.layernorm_zero_centered_gamma,
-            "device":'cpu' if config.use_cpu_initialization else 'cuda',
+            "hidden_size": config.hidden_size,
+            "ffn_hidden_size": config.ffn_hidden_size,
+            "layernorm_epsilon": config.layernorm_epsilon,
+            "num_attention_heads": config.num_attention_heads,
+            "init_method": config.init_method,
+            "output_layer_init_method": config.output_layer_init_method,
+            "hidden_dropout": config.hidden_dropout,
+            "attention_dropout": config.attention_dropout,
+            "layer_number": layer_number + self._get_layer_offset(),
+            "kv_channels": config.kv_channels,
+            "tp_size": parallel_state.get_tensor_model_parallel_world_size(),
+            "params_dtype": config.params_dtype,
+            "get_rng_state_tracker": tensor_parallel.random.get_cuda_rng_tracker,
+            "fuse_wgrad_accumulation": config.gradient_accumulation_fusion,
+            "seq_length": None,  # used for jit warmup
+            "micro_batch_size": None,  # used for jit warmup
+            "sequence_parallel": config.sequence_parallel,
+            "apply_residual_connection_post_layernorm": config.apply_residual_connection_post_layernorm,
+            "autocast_dtype": precision,
+            "ub_tp_comm_overlap": config.tp_comm_overlap,
+            "ub_bulk_wgrad": config.tp_comm_bulk_wgrad,
+            "ub_bulk_dgrad": config.tp_comm_bulk_dgrad,
+            "zero_centered_gamma": config.layernorm_zero_centered_gamma,
+            "device": 'cpu' if config.use_cpu_initialization else 'cuda',
         }
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version > packaging.version.Version("1.5.0"):
