@@ -193,12 +193,12 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
             "detach": cfg.get("detach", False),
             "convert_to_cpu": cfg.get("convert_to_cpu", False),
         }
-        self.update_access_cfg(access_cfg)
+        self.update_access_cfg(access_cfg, guid=getattr(self, "model_guid", None))
         self.aggregator = Aggregator(cfg.aggregator, channel_dim=1)
 
     def forward(self, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
-        old_access_flag = self.is_access_enabled()
-        self.set_access_enabled(access_enabled=True)
+        old_access_flag = self.is_access_enabled(guid=getattr(self, "model_guid", None))
+        self.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
 
         _ = self.encoder(*args, **kwargs)
 
@@ -225,7 +225,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
             encoded_len_list.append(layer_lengths[0])  # [B]
 
         self.encoder.reset_registry()
-        self.set_access_enabled(access_enabled=old_access_flag)
+        self.set_access_enabled(access_enabled=old_access_flag, guid=getattr(self, "model_guid", None))
 
         return self.aggregator(encoded_list, encoded_len_list)
 
