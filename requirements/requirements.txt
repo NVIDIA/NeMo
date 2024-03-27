@@ -3,6 +3,7 @@ numba
 numpy>=1.22
 onnx>=1.7.0
 python-dateutil
+pytorch-triton
 ruamel.yaml
 scikit-learn
 setuptools>=65.5.1
@@ -10,6 +11,5 @@ tensorboard
 text-unidecode
 torch
 tqdm>=4.41.0
-pytorch-triton
 wget
 wrapt
