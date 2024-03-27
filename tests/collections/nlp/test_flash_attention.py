@@ -39,11 +39,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_FA = False
 
 try:
-    import pkg_resources
+    from importlib.metadata import version
     import triton
 
     # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-    assert pkg_resources.get_distribution("pytorch-triton").version == '2.0.0.dev20221202'
+    assert version("pytorch-triton") == '2.0.0.dev20221202'
 
     HAVE_TRITON = True
 except (ImportError, ModuleNotFoundError, AssertionError):
