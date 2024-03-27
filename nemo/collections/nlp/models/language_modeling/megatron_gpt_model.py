@@ -38,7 +38,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import (
     GPTFIMDataset,
     GPTFIMDatasetConfig,
-    is_dataset_built_on_rank,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
@@ -1298,7 +1297,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
         kwargs = {
-            "is_built_on_rank": is_dataset_built_on_rank,
             "random_seed": self.cfg.seed,
             "sequence_length": self.cfg.data.seq_length,
             "path_to_cache": self.cfg.data.index_mapping_dir,
@@ -1320,17 +1318,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.cfg.data.get('add_fim', False):
             dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
-
-            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                GPTFIMDataset, train_valid_test_num_samples, dataset_config,
-            ).build()
+            dataset_type = GPTFIMDataset
         else:
             dataset_config = GPTDatasetConfig(**kwargs)
             dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
-            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                dataset_type, train_valid_test_num_samples, dataset_config,
-            ).build()
+        # is_dataset_built_on_rank function is needed for mcore GPTDataset
+        is_dataset_built_on_rank = lambda: True
+
+        self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+            dataset_type, train_valid_test_num_samples, is_dataset_built_on_rank, dataset_config,
+        ).build()
 
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
