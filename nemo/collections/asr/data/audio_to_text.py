@@ -943,7 +943,6 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         # Grab manifest entry from self.manifest_preprocessor.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-        # print(file_id)
 
         manifest_idx = self.manifest_processor.collection.mapping[file_id][offset_id]
         manifest_entry = self.manifest_processor.collection[manifest_idx]
@@ -997,7 +996,6 @@ class _TarredAudioToTextDataset(IterableDataset):
             logging.info(f'Sharded manifests: Total length: {my_len}')
         else:
             my_len = len(self.manifest_processor.collection)
-            print("len: ", my_len)
 
         return my_len
 
