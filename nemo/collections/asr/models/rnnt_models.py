@@ -57,8 +57,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         if trainer is not None:
             self.world_size = trainer.world_size
 
-        print("world_size: ", self.world_size)
-
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Initialize components
