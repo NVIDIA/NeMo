@@ -30,7 +30,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPT
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 
-class ModularAudioGPTLoRAModel(modular_models.ModularAudioGPTModel):
+class ModularAudioGPTModel(modular_models.ModularAudioGPTModel):
     # disable logging to avoid MisconfigurationException
     def log(self, *args, **kwargs):
         pass
@@ -148,13 +148,13 @@ def test_batch():
     return batch
 
 
-class TestModularAudioGPTLoRAModel:
+class TestModularAudioGPTModel:
     @pytest.mark.unit
     def test_init_and_train(self, llm_model_config, perception_model_config, trainer_config):
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
 
         assert isinstance(model.model, GPTModel)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -167,7 +167,7 @@ class TestModularAudioGPTLoRAModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
@@ -184,7 +184,7 @@ class TestModularAudioGPTLoRAModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.on_train_start()
         model.setup()
@@ -197,7 +197,7 @@ class TestModularAudioGPTLoRAModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
@@ -209,7 +209,7 @@ class TestModularAudioGPTLoRAModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
@@ -222,7 +222,7 @@ class TestModularAudioGPTLoRAModel:
         llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTLoRAModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
         model.eval()
 
         feat_dim = 32
