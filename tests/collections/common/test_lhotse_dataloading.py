@@ -951,14 +951,9 @@ def txt_en_path(tmp_path_factory):
     tmp_path = tmp_path_factory.mktemp("text_data")
     en_path = tmp_path / "text.en"
     en_path.write_text(
-        """But , obviously , the creatures are not happy .
-Such a quasi-continuous photodisruptive fragmentation of the lenticle can be obtained by suitable spacings of the focal positions and incision planes within the desired lenticle volume .
-Suitable hydrophobic and hydrophilic macromers for the grafts are described in WO 95 / 06078 .
-God is still primal .
-Most of us had the kobe beef , which ... More
-With regard to non-member States that do not recognize the organization , member States would have to be held responsible and the articles on State responsibility would then apply .
-Definition of toe box in English :
-Turning to FIGS . 7A-7C , each coupling 22 , 28 includes an integral serrated portion 125 and a flat face 212 ."""
+        """Example text in English.
+Another sentence.
+        """
     )
     return en_path
 
@@ -968,14 +963,8 @@ def txt_es_path(tmp_path_factory):
     tmp_path = tmp_path_factory.mktemp("text_data")
     es_path = tmp_path / "text.es"
     es_path.write_text(
-        """But , obviously , the creatures are not happy .
-Such a quasi-continuous photodisruptive fragmentation of the lenticle can be obtained by suitable spacings of the focal positions and incision planes within the desired lenticle volume .
-Suitable hydrophobic and hydrophilic macromers for the grafts are described in WO 95 / 06078 .
-God is still primal .
-Most of us had the kobe beef , which ... More
-With regard to non-member States that do not recognize the organization , member States would have to be held responsible and the articles on State responsibility would then apply .
-Definition of toe box in English :
-Turning to FIGS . 7A-7C , each coupling 22 , 28 includes an integral serrated portion 125 and a flat face 212 ."""
+        """Otro texto en ingles.
+Otra frase."""
     )
     return es_path
 
@@ -1164,12 +1153,12 @@ def test_multimodal_text_audio_dataloading(
 
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 7
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(203.0)
+    assert len(b) == 48
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(574.0)
     assert min(ex.num_tokens for ex in b) == pytest.approx(10)
-    assert max(ex.num_tokens for ex in b) == pytest.approx(84)
-    assert sum(isinstance(ex, Cut) for ex in b) == 4
-    assert sum(isinstance(ex, TextPairExample) for ex in b) == 3
+    assert max(ex.num_tokens for ex in b) == pytest.approx(16)
+    assert sum(isinstance(ex, Cut) for ex in b) == 29
+    assert sum(isinstance(ex, TextPairExample) for ex in b) == 19
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
@@ -1186,12 +1175,12 @@ def test_multimodal_text_audio_dataloading(
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert len(b) == 9
-    assert sum(ex.num_tokens for ex in b) == pytest.approx(198.0)
+    assert len(b) == 48
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(614.0)
     assert min(ex.num_tokens for ex in b) == pytest.approx(10)
-    assert max(ex.num_tokens for ex in b) == pytest.approx(84)
-    assert sum(isinstance(ex, Cut) for ex in b) == 6
-    assert sum(isinstance(ex, TextPairExample) for ex in b) == 3
+    assert max(ex.num_tokens for ex in b) == pytest.approx(16)
+    assert sum(isinstance(ex, Cut) for ex in b) == 21
+    assert sum(isinstance(ex, TextPairExample) for ex in b) == 27
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
