@@ -14,13 +14,16 @@
 # limitations under the License.
 from __future__ import annotations  # necessary for lazy types evaluation
 
+import enum
 import os
 import shutil
 import tarfile
 import tempfile
+import traceback
 import uuid
-from typing import Optional, Set, Union
+from typing import Dict, Optional, Set, Union
 
+import safetensors.torch as safetensors_torch
 import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
@@ -33,12 +36,22 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 
+class CheckpointSecurityLevel(str, enum.Enum):
+    """
+    Enum to define the security level of checkpoint save/restore operations.
+    """
+
+    COMPAT = "compat"  # Compatible with older versions of NeMo
+    STANDARD = "standard"  # Standard security level; only safetensors are allowed
+
+
 class SaveRestoreConnector:
     def __init__(self) -> None:
         self._model_config_yaml = "model_config.yaml"
-        self._model_weights_ckpt = "model_weights.ckpt"
+        self._model_weights_ckpt = "model_weights.safetensors"
         self._model_extracted_dir = None
         self._pack_nemo_file = True
+        self._ckpt_security_level = CheckpointSecurityLevel.COMPAT
 
     def save_to(self, model: "nemo_classes.ModelPT", save_path: str):
         """
@@ -180,7 +193,9 @@ class SaveRestoreConnector:
                 # add load_state_dict override
                 if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                     model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
-                state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+                state_dict = self._load_state_dict_from_disk(
+                    model_weights, map_location=map_location, security_level=self.ckpt_security_level
+                )
             finally:
                 os.chdir(cwd)
 
@@ -315,7 +330,7 @@ class SaveRestoreConnector:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
-                state_dict = self._load_state_dict_from_disk(model_weights)
+                state_dict = self._load_state_dict_from_disk(model_weights, security_level=self.ckpt_security_level)
 
                 if not split_by_module:
                     filepath = os.path.join(save_dir, self.model_weights_ckpt)
@@ -578,11 +593,173 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _save_state_dict_to_disk(state_dict, filepath):
-        torch.save(state_dict, filepath)
+        # NeMo 2.0+ only saves files in safetensors format
+        if filepath.endswith('.ckpt'):
+            logging.warning(
+                f"NeMo 2.0+ only supports saving model weights in safetensors format. Renaming the file "
+                f"from {filepath} to {filepath.replace('.ckpt', '.safetensors')}"
+            )
+
+            filepath = filepath.replace(".ckpt", ".safetensors")
+
+        # Convert shared tensors to independent tensors to make checkpoint saving work with safetensors
+        SaveRestoreConnector._save_safetensor_file_with_shared_tensor_compat(state_dict, filepath)
 
     @staticmethod
-    def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu')
+    def _load_state_dict_from_disk(model_weights, map_location=None, security_level=CheckpointSecurityLevel.COMPAT):
+        # resolve potential filepaths
+        if '.ckpt' in model_weights:
+            ckpt_model_weights = model_weights
+            safetensors_model_weights = model_weights.replace(".ckpt", ".safetensors")
+        elif '.safetensors' in model_weights:
+            ckpt_model_weights = model_weights.replace(".safetensors", ".ckpt")
+            safetensors_model_weights = model_weights
+        else:
+            # Cannot resolve, assume the file is of the expected type (safetensors)
+            ckpt_model_weights = model_weights
+            safetensors_model_weights = model_weights
+
+        # Check if filepath exists, and determine which exists
+        if os.path.exists(safetensors_model_weights):
+            model_weights = safetensors_model_weights
+            filetype = "safetensors"
+        elif os.path.exists(ckpt_model_weights):
+            model_weights = ckpt_model_weights
+            filetype = "ckpt"
+        else:
+            raise FileNotFoundError(f"Model weights file {model_weights} not found")
+
+        # Raise security error if the file is not of the expected type for the security level
+        # Early exit here to avoid loading the file if it's not of the expected type
+        if security_level == CheckpointSecurityLevel.STANDARD and filetype == 'ckpt':
+            raise ValueError(
+                f"Security level is set to `{security_level}`, but the model weights file is of type `{filetype}`. "
+                f"This filetype is not supported for `{security_level}` security level.\n"
+                f"Please ensure that the model weights file is of type `safetensors` or "
+                f"change the security level to `compat`."
+            )
+
+        # Attempt to load the checkpoint via safetensors first
+        data = None
+        safetensors_traceback = None
+        try:
+            if filetype == 'safetensors':
+                data = SaveRestoreConnector._load_safetensor_file_with_shared_tensor_compat(
+                    model_weights, map_location
+                )
+        except Exception as e:
+            safetensors_traceback = traceback.format_exc()
+            logging.debug(f"Failed to load model weights from {safetensors_model_weights} with error: {e}")
+            logging.debug(f"Attempting to load model weights from {ckpt_model_weights} instead")
+            logging.debug(f"Traceback from safetensors load failure: \n\n{safetensors_traceback}")
+            data = None
+
+        # If the safetensors load fails, attempt to load the checkpoint via torch as fallback
+        if data is None:
+            try:
+                data = torch.load(ckpt_model_weights, map_location=map_location)
+            except Exception as e:
+                ckpt_error = traceback.format_exc()
+                logging.error(
+                    f"Failed to load model weights from both {safetensors_model_weights} and"
+                    f" {ckpt_model_weights} with error: {e}"
+                )
+                if safetensors_traceback is not None:
+                    logging.error(f"\n\nTraceback from safetensors load failure: \n{safetensors_traceback}")
+                raise e
+
+        return data
+
+    @staticmethod
+    def _save_safetensor_file_with_shared_tensor_compat(state_dict: Dict[str, torch.Tensor], filename: str):
+        """
+        Saves a given torch state_dict to specified filename.
+        This method exists specifically to avoid tensor sharing issues which are
+        not allowed in `safetensors`.
+        There is no metadata as input because the metadata is used to allow the sharing issues to be resolved.
+
+        Args:
+            state_dict (`Dict[str, torch.Tensor]`):
+                The state_dict to be saved to file
+            filename (`str`):
+                The filename location to save the file
+        """
+        # TODO: Request Safetensors to make this a public, stable API.
+        original_keys = list(state_dict.keys())
+        to_removes = safetensors_torch._remove_duplicate_names(state_dict)
+        metadata = None
+        for kept_name, to_remove_group in to_removes.items():
+            for to_remove in to_remove_group:
+                if metadata is None:
+                    metadata = {}
+                del state_dict[to_remove]
+
+            # Do not override user data
+            if metadata is None:
+                metadata = {}
+            metadata[kept_name] = ",".join(to_remove_group)
+
+        if metadata is None:
+            metadata = {}
+        metadata['state_dict_keys'] = ",".join(original_keys)
+
+        safetensors_torch.save_file(state_dict, filename, metadata=metadata)
+
+        # Repopulate the state_dict with the original keys
+        # Note: reference swapping, should not cost tensor memory
+        for kept_name, to_remove_group in to_removes.items():
+            for to_remove in to_remove_group:
+                state_dict[to_remove] = state_dict[kept_name]
+
+        # Reorder the state_dict keys to original keys order (inplace)
+        # Note: reference swapping, should not cost tensor memory
+        ordered_state_dict = {}
+        for key in original_keys:
+            ordered_state_dict[key] = state_dict.pop(key)
+        for key, val in ordered_state_dict.items():
+            state_dict[key] = val
+
+    @staticmethod
+    def _load_safetensor_file_with_shared_tensor_compat(filename: str, device: Union[str, torch.device] = "cpu"):
+        """
+        Loads a given torch state_dict from specified filename.
+        This method exists specifically to avoid tensor sharing issues which are
+        not allowed in `safetensors`.
+        There is no metadata as input because the metadata is used to allow the sharing issues to be resolved.
+
+        Args:
+            filename: The filename location to load the file from
+
+        Returns:
+            The state_dict loaded from the file, potentially ordered and with shared tensors resolved.
+        """
+        safetensor_device = _get_safetensor_device(device)
+        state_dict = {}
+        with safetensors_torch.safe_open(filename, framework="pt", device=safetensor_device) as f:
+            metadata = f.metadata()
+            for k in f.keys():
+                state_dict[k] = f.get_tensor(k)
+
+        mapping = {}
+        metadata = metadata or {}
+
+        for k in state_dict:
+            aliases = metadata.get(k, None)
+            if aliases is not None:
+                aliases = aliases.split(",")
+                for alias in aliases:
+                    mapping[alias] = k
+        for alias, k in mapping.items():
+            state_dict[alias] = state_dict[k]
+
+        # Reorder state dict keys if the state dict key order is present in the metadata
+        if 'state_dict_keys' in metadata:
+            state_dict_keys = metadata['state_dict_keys']
+            if state_dict_keys is not None and state_dict_keys != "":
+                state_dict_keys = state_dict_keys.split(",")
+                state_dict = {k: state_dict[k] for k in state_dict_keys}
+
+        return state_dict
 
     @property
     def model_config_yaml(self) -> str:
@@ -615,3 +792,43 @@ class SaveRestoreConnector:
     @pack_nemo_file.setter
     def pack_nemo_file(self, save_nemo_file: bool):
         self._pack_nemo_file = save_nemo_file
+
+    @property
+    def ckpt_security_level(self) -> CheckpointSecurityLevel:
+        return self._ckpt_security_level
+
+    @ckpt_security_level.setter
+    def ckpt_security_level(self, level: Union[str, CheckpointSecurityLevel]):
+        if isinstance(level, str):
+            level = CheckpointSecurityLevel(level)
+        self._ckpt_security_level = level
+
+
+# Utils for safetensors
+def _get_safetensor_device(device: Union[str, torch.device]) -> Union[str, int]:
+    """
+    Translates a device from pytorch to a format compatible with safetensors.
+
+    Args:
+        device: str or torch.device. The device to be translated to safetensors compatible format.
+
+    Returns:
+        The device in a format compatible with safetensors.
+    """
+    # Translate device to safetensors compatible
+    if device is None:
+        device = "cpu"
+
+    rank = None
+    if isinstance(device, torch.device):
+        rank = device.index
+        device = str(device.type)
+
+    if device == "cpu":
+        device = "cpu"
+    elif device == "cuda":
+        device = 0 if rank is None else rank
+    elif "cuda:" in device:
+        device = int(device.split(":")[1])
+
+    return device

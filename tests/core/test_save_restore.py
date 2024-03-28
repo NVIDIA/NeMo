@@ -19,12 +19,12 @@ from typing import Dict, Optional, Set, Union
 
 import pytest
 import torch
-from huggingface_hub.hf_api import ModelFilter
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
+from nemo.core.classes.mixins.hf_io_mixin import ModelFilter
 from nemo.core.connectors import save_restore_connector
 from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
@@ -217,6 +217,12 @@ class MockModelIncorrectWithNemoArtifact(MockModel):
         self.child_model = ModelPT.restore_from(child_model_path)
 
 
+class MockModelWithSharedTensors(MockModel):
+    def __init__(self, cfg, trainer=None):
+        super().__init__(cfg=cfg, trainer=trainer)
+        self.shared_tensor = self.w
+
+
 def _mock_model_config():
     conf = {'temp_file': None, 'target': classpath(MockModel), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
@@ -268,6 +274,13 @@ def _mock_model_with_child_custom_config_path_config():
 
 def _mock_model_incorrect_with_nemo_artifact_config(child_model_path: str):
     conf = {'temp_file': None, 'child_model_path': child_model_path, 'stub_number': 1}
+    conf = OmegaConf.create({'model': conf})
+    OmegaConf.set_struct(conf, True)
+    return conf
+
+
+def _mock_model_with_shared_tensors_config():
+    conf = {'temp_file': None, 'target': classpath(MockModelWithSharedTensors), 'stub_number': 1}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -523,6 +536,34 @@ class TestSaveRestore:
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
         assert isinstance(model_copy, MockModel)
+        assert model_copy.temp_data == ["*****\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_from_shared_tensors(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+
+            # Update config
+            cfg = _mock_model_with_shared_tensors_config()
+            cfg.model.temp_file = empty_file.name
+
+            # Create model
+            model = MockModelWithSharedTensors(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+
+            assert model.temp_file == empty_file.name
+
+            # Save test
+            model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
+
+        # Restore test
+        diff = model.w.weight - model_copy.w.weight
+        # because of caching - cache gets prepended
+        assert os.path.basename(model_copy.temp_file).endswith(os.path.basename(model.temp_file))
+        assert diff.mean() <= 1e-9
+        # assert os.path.basename(model.temp_file) == model_copy.temp_file
         assert model_copy.temp_data == ["*****\n"]
 
     @pytest.mark.unit
@@ -806,6 +847,53 @@ class TestSaveRestore:
             )
             assert type(restored_model) == MockModelV2
             assert type(restored_model._save_restore_connector) == MySaveRestoreConnector
+
+    @pytest.mark.unit
+    def test_save_restore_connector_security_mode_standard(self):
+        class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
+            def save_to(self, model, save_path: str):
+                save_path = save_path.replace(".nemo", "_XYZ.nemo")
+                super().save_to(model, save_path)
+
+        class MockModelV2(MockModel):
+            pass
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Update config
+            cfg = _mock_model_config()
+
+            # Create model
+            save_path = os.path.join(tmpdir, 'save_custom.nemo')
+            model_with_custom_connector = MockModel(cfg=cfg.model, trainer=None)
+            model_with_custom_connector._save_restore_connector = MySaveRestoreConnector()
+
+            # Change security mode to standard
+            model_with_custom_connector._save_restore_connector.ckpt_security_level = "standard"
+            model_with_custom_connector.save_to(save_path)
+
+            assert os.path.exists(os.path.join(tmpdir, 'save_custom_XYZ.nemo'))
+
+            # Restore with security mode set to standard
+            save_restore_connector_v2 = MySaveRestoreConnector()
+            save_restore_connector_v2.ckpt_security_level = "standard"
+            restored_model = MockModelV2.restore_from(
+                save_path.replace(".nemo", "_XYZ.nemo"), save_restore_connector=save_restore_connector_v2
+            )
+            assert type(restored_model) == MockModelV2
+            assert type(restored_model._save_restore_connector) == MySaveRestoreConnector
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_legacy_EncDecCTCModel_with_security_mode_standard(self):
+        connector = save_restore_connector.SaveRestoreConnector()
+        connector.ckpt_security_level = "standard"
+
+        with pytest.raises(ValueError):
+            _ = EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En", save_restore_connector=connector)
+
+        connector.ckpt_security_level = "compat"
+        qn = EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En", save_restore_connector=connector)
+        assert qn is not None
 
     @pytest.mark.unit
     def test_mock_model_model_collision(self):
@@ -1303,7 +1391,8 @@ class TestSaveRestore:
     def test_hf_model_filter(self):
         filt = ModelPT.get_hf_model_filter()
         assert isinstance(filt, ModelFilter)
-        assert filt.library == 'nemo'
+        assert filt.library[0] == 'nemo'
+        assert filt.library[1] == 'NeMo'
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -1318,16 +1407,16 @@ class TestSaveRestore:
         default_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) == len(default_model_infos)
 
-    @pytest.mark.pleasefixme()
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_hf_model_info_with_card_data(self):
         filt = ModelPT.get_hf_model_filter()
+        filt.limit_results = 3
 
         # check no override results
         model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) > 0
-        assert not hasattr(model_infos[0], 'cardData')
+        assert hasattr(model_infos[0], 'card_data') and model_infos[0].card_data is None
 
         # check overriden defaults
         filt.resolve_card_info = True
@@ -1335,7 +1424,7 @@ class TestSaveRestore:
         assert len(model_infos) > 0
 
         for info in model_infos:
-            if hasattr(info, 'cardData'):
+            if hasattr(info, 'card_data'):
                 assert info.cardData is not None
                 break
 
@@ -1353,3 +1442,35 @@ class TestSaveRestore:
         new_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(new_model_infos) <= 5
         assert len(new_model_infos) < len(model_infos)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("device", ["cpu", torch.device("cpu")])
+    def test_save_restore_connector_safe_tensor_save_restore(self, device):
+        connector = save_restore_connector.SaveRestoreConnector()
+
+        # Update config
+        cfg = _mock_model_with_shared_tensors_config()
+
+        # Create model
+        model = MockModelWithSharedTensors(cfg=cfg.model, trainer=None)
+
+        # Test CPU save
+        model = model.to(device)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_state_dict = model.state_dict()
+            original_key_order = list(original_state_dict.keys())
+
+            filename = os.path.join(tmpdir, connector.model_weights_ckpt)
+            connector._save_safetensor_file_with_shared_tensor_compat(original_state_dict, filename)
+            assert os.path.exists(filename)
+
+            after_save_key_order = list(original_state_dict.keys())
+            assert original_key_order == after_save_key_order
+
+            # Restore state dict on cpu
+            restored_state_dict = connector._load_safetensor_file_with_shared_tensor_compat(filename, device=device)
+
+            assert len(original_state_dict.keys()) == len(restored_state_dict.keys())
+            for orig, restored in zip(original_state_dict.keys(), restored_state_dict.keys()):
+                assert (original_state_dict[orig] - restored_state_dict[restored]).abs().mean() < 1e-6

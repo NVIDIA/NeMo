@@ -4,6 +4,7 @@ numpy>=1.22
 onnx>=1.7.0
 python-dateutil
 ruamel.yaml
+safetensors>=0.4.2
 scikit-learn
 setuptools>=65.5.1
 tensorboard
