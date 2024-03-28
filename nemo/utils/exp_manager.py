@@ -327,6 +327,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     global_rank = trainer.node_rank * trainer.num_devices + local_rank
     logging.rank = global_rank
 
+    if not torch.distributed.is_initialized() and trainer.num_nodes * trainer.num_devices > 1:
+
+        def dummy():
+            return
+
+        if trainer.strategy.launcher is not None:
+            trainer.strategy.launcher.launch(dummy, trainer=trainer)
+        trainer.strategy.setup_environment()
+
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
         return
@@ -525,6 +534,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         time.sleep(cfg.seconds_to_sleep)
 
     add_handlers_to_mcore_logger()
+
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     return log_dir
 
