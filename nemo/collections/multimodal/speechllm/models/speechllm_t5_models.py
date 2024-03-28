@@ -695,10 +695,22 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             gpt_cfg.resume_from_checkpoint = cfg.model.resume_from_checkpoint
             gpt_cfg.save_nemo_on_validation_end = cfg.model.save_nemo_on_validation_end
             gpt_cfg.gradient_as_bucket_view = cfg.model.gradient_as_bucket_view
-            gpt_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
-            gpt_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.0)
+            # set dropout
+            hidden_dropout = cfg.model.get('hidden_dropout', 0.0)
+            attention_dropout = cfg.model.get('attention_dropout', 0.0)
+            ffn_dropout = cfg.model.get('ffn_dropout', 0.0)
+            gpt_cfg.encoder.hidden_dropout = hidden_dropout
+            gpt_cfg.decoder.hidden_dropout = hidden_dropout
+            gpt_cfg.encoder.attention_dropout = attention_dropout
+            gpt_cfg.decoder.attention_dropout = attention_dropout
+            gpt_cfg.encoder.ffn_dropout = ffn_dropout
+            gpt_cfg.decoder.ffn_dropout = ffn_dropout
+            if hasattr(gpt_cfg, 'embedding_dropout'):
+                gpt_cfg.embedding_dropout = hidden_dropout
+            # set label_smoothing
+            if hasattr(gpt_cfg, 'label_smoothing'):
+                gpt_cfg.label_smoothing = cfg.model.get('label_smoothing', gpt_cfg.label_smoothing)
             gpt_cfg.virtual_prompt_style = cfg.model.virtual_prompt_style
-            gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
             gpt_cfg.lora_tuning = cfg.model.lora_tuning
             # for AudioGPTLoRAModel
             gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
