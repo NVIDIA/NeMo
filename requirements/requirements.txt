@@ -3,6 +3,7 @@ numba
 numpy>=1.22
 onnx>=1.7.0
 python-dateutil
+pytorch-triton
 ruamel.yaml
 scikit-learn
 setuptools>=65.5.1
