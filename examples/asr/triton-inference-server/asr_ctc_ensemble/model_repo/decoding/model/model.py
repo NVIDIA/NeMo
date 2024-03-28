@@ -45,7 +45,7 @@ class TritonPythonModel:
             model = ASRModel.from_pretrained(model_name)
         # init decoding strategy
         ctc_decoding = CTCDecodingConfig()
-        ctc_decoding.strategy = parameters['strategy']['string_value']
+        ctc_decoding.strategy = parameters['decoding_strategy']['string_value']
         if ctc_decoding.strategy == 'beam_search':
             ctc_decoding.beam_size = int(parameters['beam_size']['string_value'])
         

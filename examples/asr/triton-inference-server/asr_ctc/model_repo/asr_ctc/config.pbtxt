@@ -12,14 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "nemo_asr_ctc_chunked_offline"
+name: "asr_ctc"
 backend: "python"
 max_batch_size: 32
 
 parameters [
   {
-    key: "model_name"
-    value: { string_value: "nvidia/parakeet-ctc-1.1b"}
+    key: "model_name_or_path"
+    value: {string_value: "nvidia/parakeet-ctc-1.1b"}
+  },
+  {
+    key: "dtype"
+    value: { string_value: "float16" }
+  },
+  {
+    key: "decoding_strategy"
+    value: { string_value: "greedy"}   #'greedy','beam', 'pyctcdecode', 'flashlight'
+  },
+  {
+    key: "beam_size"
+    value: { string_value: "8"}
+  },
+  {
+    key: "language_model"     # not supported yet
+    value: { string_value: ""}
   }
 ]
 
@@ -31,22 +47,25 @@ input [
     name: "WAV"
     data_type: TYPE_FP32
     dims: [-1]
+  },
+  {
+    name: "WAV_LENS"
+    data_type: TYPE_INT32
+    dims: [1]
   }
 ]
 # TODO: Consider adding a sampling frequency parameter here. Just for error checking.
 
 output [
   {
-    name: "TRANSCRIPT"
+    name: "TRANSCRIPTS"
     data_type: TYPE_STRING
     dims: [1]
   }
 ]
 
-# How do I make it do "sequence batching"?
 dynamic_batching {
     preferred_batch_size: [32]
-    max_queue_delay_microseconds: 1000
   }
 
 instance_group [

@@ -83,8 +83,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_name",
         required=False,
-        default="asr_ctc_infer",
-        choices=["asr_ctc_infer"],
+        default="asr_ctc",
+        choices=["asr_ctc"],
         help="the model to send request to",
     )
     parser.add_argument(
@@ -132,7 +132,7 @@ if __name__ == "__main__":
                 url=args.url, verbose=args.verbose) as triton_client:
             protocol_client = grpcclient
             speech_client = speech_client_cls(triton_client, args.model_name,
-                                              protocol_client, args)
+                                              protocol_client)
             idx, audio_files = client_files
             predictions = []
             for li in audio_files:

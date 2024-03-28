@@ -29,7 +29,7 @@ input [
     data_type: TYPE_FP32
     dims: [-1]
     allow_ragged_batch: true
-  }
+  },
   {
     name: "WAV_LENGTH"
     data_type: TYPE_INT32
@@ -43,7 +43,7 @@ output [
     name: "processed_signal"
     data_type: TYPE_FP32
     dims: [80, -1]
-  }
+  },
   {
     name: "processed_signal_length"
     data_type: TYPE_INT32

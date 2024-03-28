@@ -20,15 +20,15 @@ parameters [
   {
     key: "model_name"
     value: { string_value: "nvidia/parakeet-ctc-1.1b" }  # .nemo model or pretrained model name
-  }
+  },
   {
     key: "decoding_strategy"
     value: { string_value: "greedy"}  # 'greedy', 'beam', 'pyctcdecode', 'flashlight'
-  }
+  },
   {
     key: "beam_size"
     value: { string_value: "8"}
-  }
+  },
   {
     key: "language_model"     # not supported yet
     value: { string_value: ""}

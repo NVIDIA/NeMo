@@ -7,14 +7,10 @@ from collections import namedtuple
 import numpy as np
 import torch
 import triton_python_backend_utils as pb_utils
-from riva.asrlib.decoder.python_decoder import (
-    BatchedMappedDecoderCuda,
-    BatchedMappedDecoderCudaConfig,
-    BatchedMappedOnlineDecoderCuda,
-    BatchedMappedOnlineDecoderCudaConfig,
-)
 from torch.utils.dlpack import from_dlpack
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 
 class TritonPythonModel:
     """Your Python model must use the same class name. Every Python model
@@ -129,16 +125,34 @@ class TritonPythonModel:
           * model_name: Model name
         """
         model_config = json.loads(args["model_config"])
-        model_name = model_config["parameters"]["model_name"]["string_value"]
+        parameters = model_config["parameters"]
+        model_name_or_path = parameters["model_name_or_path"]["string_value"]
 
         assert args["model_instance_kind"] == "GPU"
 
-        self.dtype = torch.bfloat16
+        dtype_map = {
+            "bfloat16": torch.bfloat16,
+            "float16": torch.float16,
+            "float32": torch.float32
+        }
+        dtype = dtype_map[parameters["dtype"]["string_value"]]
+        self.dtype = dtype
+        if model_name_or_path.endswith(".nemo"):
+          asr_model = nemo_asr.models.ASRModel.restore_from(model_name_or_path)
+        else:
+          asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name_or_path)
+        ctc_decoding = CTCDecodingConfig()
+        ctc_decoding.strategy = parameters['decoding_strategy']['string_value']
+        if ctc_decoding.strategy == 'beam_search':
+            ctc_decoding.beam_size = int(parameters['beam_size']['string_value'])
+        asr_model.change_decoding_strategy(ctc_decoding)
+        self.model = asr_model.cuda()
+        self.model.encoder.freeze()
+        self.model.decoder.freeze()
+        self.model.eval()
+        self.model.to()
+        self.precision_context = torch.cuda.amp.autocast(dtype=self.dtype)
 
-        self.model = nemo_asr.models.ASRModel.from_pretrained(model_name)
-        self.model.to(dtype)
-
-        torch.cuda.cudart().cudaProfilerStart()
 
     def execute(self, requests):
         """`execute` must be implemented in every Python model. `execute`
@@ -157,45 +171,38 @@ class TritonPythonModel:
           A list of pb_utils.InferenceResponse. The length of this list must
           be the same as `requests`
         """
+        with self.precision_context:
+          with torch.inference_mode():
+              responses = []
+              # Every Python backend must iterate through list of requests and create
+              # an instance of pb_utils.InferenceResponse class for each of them. You
+              # should avoid storing any of the input Tensors in the class attributes
+              # as they will be overridden in subsequent inference requests. You can
+              # make a copy of the underlying NumPy array and store it if it is
+              # required.
+              waveforms = []
+              wave_lens = []
+              for i, request in enumerate(requests):
+                  # Perform inference on the request and append it to responses
+                  # list...
+                  in_0 = pb_utils.get_input_tensor_by_name(request, "WAV")
+                  # assume batch size is always 1 squeeze it
+                  waveforms.append(from_dlpack(in_0.to_dlpack()).squeeze(0))
+                  in_1 = pb_utils.get_input_tensor_by_name(request, "WAV_LENS")
+                  wave_lens.append(from_dlpack(in_1.to_dlpack()).squeeze(0))
 
-        with torch.inference_mode():
-            responses = []
-            # Every Python backend must iterate through list of requests and create
-            # an instance of pb_utils.InferenceResponse class for each of them. You
-            # should avoid storing any of the input Tensors in the class attributes
-            # as they will be overridden in subsequent inference requests. You can
-            # make a copy of the underlying NumPy array and store it if it is
-            # required.
-
-            torch.cuda.nvtx.range_push("get requests")
-            waveforms = []
-
-            for i, request in enumerate(requests):
-                # Perform inference on the request and append it to responses
-                # list...
-                in_0 = pb_utils.get_input_tensor_by_name(request, "WAV")
-                waveforms.append(from_dlpack(in_0.to_dlpack()).squeeze())
-
-            lengths = torch.Tensor([waveform.shape[-1] for waveform in waveforms]).cuda()
-            waveform_batch = torch.nn.utils.rnn.pad_sequence(waveforms).cuda()
-            torch.cuda.nvtx.range_pop()
-
-            torch.cuda.nvtx.range_push("decode_batch")
-            log_probs, encoded_len, _ = self.model(waveform_batch, lengths)
-            transcribed_texts, _ = self.model.wer.decoding.ctc_decoder_predictions_tensor(
-                decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
-            )
-            torch.cuda.nvtx.range_pop()
-
-            torch.cuda.nvtx.range_push("create responses")
-            for i in range(len(requests)):
-                out_tensor = pb_utils.Tensor("TRANSCRIPT", np.array(transcribed_texts[i]).astype(np.object_))
-                response = pb_utils.InferenceResponse(output_tensors=[out_tensor])
-                responses.append(response)
-
-            torch.cuda.nvtx.range_pop()
-
-            return responses
+              lengths = torch.Tensor(wave_lens).cuda()
+              waveform_batch = torch.nn.utils.rnn.pad_sequence(waveforms, batch_first=True).cuda()
+              log_probs, encoded_len, greedy_predictions = self.model.forward(input_signal=waveform_batch,
+                                                                              input_signal_length=lengths)
+              transcribed_texts, _ = self.model.decoding.ctc_decoder_predictions_tensor(
+                  decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+              )
+        for i in range(len(requests)):
+            out_tensor = pb_utils.Tensor("TRANSCRIPTS", np.array([transcribed_texts[i]]).astype(np.object_))
+            response = pb_utils.InferenceResponse(output_tensors=[out_tensor])
+            responses.append(response)
+        return responses
 
     def finalize(self):
         """`finalize` is called only once when the model is being unloaded.
