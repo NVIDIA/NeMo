@@ -37,7 +37,7 @@ python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of t
            ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
            ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
            preds_output_folder=<optional folder to store the predictions> \
-           probs_cache_file=null \
+           cache_file=null \
            decoding_strategy=beam
            ...
 
@@ -93,13 +93,19 @@ class EvalBeamSearchNGramConfig:
     # File paths
     input_manifest: str = MISSING  # The manifest file of the evaluation set
     preds_output_folder: Optional[str] = None  # The optional folder where the predictions are stored
-    probs_cache_file: Optional[str] = None  # The cache file for storing the logprobs of the model
+    cache_file: Optional[str] = None  # The cache file for storing the logprobs of the model
 
     # Parameters for inference
     batch_size: int = 16  # The batch size to calculate log probabilities
     beam_batch_size: int = 1  # The batch size to be used for beam search decoding
-    device: str = "cuda"  # The device to load the model onto to calculate log probabilities
-    amp: bool = False  # Whether to use AMP if available to calculate log probabilities
+    
+    # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
+    # device anyway, and do inference on CPU only if CUDA device is not found.
+    # If `cuda` is a negative number, inference will be on CPU only.
+    cuda: Optional[int] = None
+    allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
+    amp: bool = False
+    matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
 
     # Beam Search hyperparameters
     ctc_decoding: CTCDecodingConfig = field(default_factory=lambda: CTCDecodingConfig(
@@ -275,14 +281,32 @@ def main(cfg: EvalBeamSearchNGramConfig):
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalBeamSearchNGramConfig
 
+    # setup GPU
+    torch.set_float32_matmul_precision(cfg.matmul_precision)
+    if cfg.cuda is None:
+        if torch.cuda.is_available():
+            map_location = torch.device('cuda:0')
+        elif cfg.allow_mps and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            logging.warning(
+                "MPS device (Apple Silicon M-series GPU) support is experimental."
+                " Env variable `PYTORCH_ENABLE_MPS_FALLBACK=1` should be set in most cases to avoid failures."
+            )
+            map_location = torch.device('mps')
+        else:
+            map_location = torch.device('cpu')
+    else:
+        map_location = torch.device(f'cuda:{cfg.cuda}')
+
+    logging.info(f"Inference will be done on device: {map_location}")
+
     if cfg.nemo_model_file.endswith('.nemo'):
-        asr_model = nemo_asr.models.ASRModel.restore_from(cfg.nemo_model_file, map_location=torch.device(cfg.device))
+        asr_model = nemo_asr.models.ASRModel.restore_from(cfg.nemo_model_file, map_location=torch.device(map_location))
     else:
         logging.warning(
             "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
         )
         asr_model = nemo_asr.models.ASRModel.from_pretrained(
-            cfg.nemo_model_file, map_location=torch.device(cfg.device)
+            cfg.nemo_model_file, map_location=torch.device(map_location)
         )
 
     target_transcripts = []
@@ -305,15 +329,15 @@ def main(cfg: EvalBeamSearchNGramConfig):
     if cfg.text_processing.separate_punctuation:
         target_transcripts = punctuation_capitalization.separate_punctuation(target_transcripts)
 
-    if cfg.probs_cache_file and os.path.exists(cfg.probs_cache_file):
-        logging.info(f"Found a pickle file of probabilities at '{cfg.probs_cache_file}'.")
-        logging.info(f"Loading the cached pickle file of probabilities from '{cfg.probs_cache_file}' ...")
-        with open(cfg.probs_cache_file, 'rb') as probs_file:
-            all_probs = pickle.load(probs_file)
+    if cfg.cache_file and os.path.exists(cfg.cache_file):
+        logging.info(f"Found a pickle file of probabilities at '{cfg.cache_file}'.")
+        logging.info(f"Loading the cached pickle file of probabilities from '{cfg.cache_file}' ...")
+        with open(cfg.cache_file, 'rb') as probs_file:
+            all_hypotheses = pickle.load(probs_file)
 
-        if len(all_probs) != len(audio_file_paths):
+        if len(all_hypotheses) != len(audio_file_paths):
             raise ValueError(
-                f"The number of samples in the probabilities file '{cfg.probs_cache_file}' does not "
+                f"The number of samples in the probabilities file '{cfg.cache_file}' does not "
                 f"match the manifest file. You may need to delete the probabilities cached file."
             )
     else:
@@ -337,20 +361,20 @@ def main(cfg: EvalBeamSearchNGramConfig):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
-                all_probs = asr_model.transcribe(audio_file_paths, batch_size=cfg.batch_size, logprobs=True)
+                all_hypotheses = asr_model.transcribe(audio_file_paths, batch_size=cfg.batch_size, return_hypotheses=True)
 
-        if cfg.probs_cache_file:
-            os.makedirs(os.path.split(cfg.probs_cache_file)[0], exist_ok=True)
-            logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
-            with open(cfg.probs_cache_file, 'wb') as f_dump:
-                pickle.dump(all_probs, f_dump)
+        if cfg.cache_file:
+            os.makedirs(os.path.split(cfg.cache_file)[0], exist_ok=True)
+            logging.info(f"Writing pickle files of probabilities at '{cfg.cache_file}'...")
+            with open(cfg.cache_file, 'wb') as f_dump:
+                pickle.dump(all_hypotheses, f_dump)
 
     wer_dist_greedy = 0
     cer_dist_greedy = 0
     words_count = 0
     chars_count = 0
-    for batch_idx, probs in enumerate(all_probs):
-        preds = np.argmax(probs, axis=1)
+    for batch_idx, hypotheses in enumerate(all_hypotheses):
+        preds = np.argmax(hypotheses.alignments, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         if isinstance(asr_model, EncDecHybridRNNTCTCModel):
             pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor)[0][0]
