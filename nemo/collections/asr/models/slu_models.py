@@ -112,7 +112,6 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         self.wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
-            dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
             fold_consecutive=False,
         )

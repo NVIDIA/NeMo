@@ -84,7 +84,6 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         self._wer = WER(
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
-            dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
         )
 
@@ -257,7 +256,6 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
             decoding=self.decoding,
             use_cer=self._cfg.get('use_cer', False),
             log_prediction=self._cfg.get("log_prediction", False),
-            dist_sync_on_step=True,
         )
 
         # Update config
@@ -289,12 +287,7 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
 
         self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer,)
 
-        self._wer = WER(
-            decoding=self.decoding,
-            use_cer=self._wer.use_cer,
-            log_prediction=self._wer.log_prediction,
-            dist_sync_on_step=True,
-        )
+        self._wer = WER(decoding=self.decoding, use_cer=self._wer.use_cer, log_prediction=self._wer.log_prediction,)
 
         # Update config
         with open_dict(self.cfg.decoding):

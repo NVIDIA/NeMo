@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
 from typing import Literal, Optional, Sequence, Union
 
 import torch
-from torchmetrics.functional.text.bleu import _bleu_score_compute
-from torchmetrics.text import SacreBLEUScore
+from torchmetrics import Metric
+from torchmetrics.functional.text.bleu import _bleu_score_compute, _bleu_score_update
+from torchmetrics.functional.text.sacre_bleu import _SacreBLEUTokenizer
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
 from nemo.collections.asr.parts.submodules.multitask_decoding import AbstractMultiTaskDecoding
@@ -31,8 +32,7 @@ def move_dimension_to_the_front(tensor, dim_index):
     return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
 
-# TODO: Add documentation
-class BLEU(SacreBLEUScore):
+class BLEU(Metric):
     """
     This metric computes numerator, denominator, hypotheses lengths, and target lengths for Overall Bilingual Evaluation Understudy (BLEU) 
     between prediction and reference texts. When doing distributed training/evaluation the result of 
@@ -78,6 +78,7 @@ class BLEU(SacreBLEUScore):
     """
 
     full_state_update: bool = True
+    is_differentiable: bool = False
 
     def __init__(
         self,
@@ -89,16 +90,18 @@ class BLEU(SacreBLEUScore):
         smooth: bool = False,
         log_prediction=True,
         batch_dim_index=0,
-        dist_sync_on_step=False,
     ):
-        super().__init__(
-            tokenize=tokenize,
-            n_gram=n_gram,
-            lowercase=lowercase,
-            weights=weights,
-            smooth=smooth,
-            dist_sync_on_step=dist_sync_on_step,
-        )
+        super().__init__(dist_sync_on_step=False, sync_on_compute=False)
+
+        self.tokenizer = _SacreBLEUTokenizer(tokenize, lowercase)
+
+        self.n_gram = n_gram
+        if weights is not None and len(weights) != n_gram:
+            raise ValueError(f"List of weights has different weights than `n_gram`: {len(weights)} != {n_gram}")
+        self.weights = weights if weights is not None else [1.0 / n_gram] * n_gram
+
+        self.smooth = smooth
+
         self.has_spl_tokens = False
         self.decoding = decoding
         self.decode = None
@@ -123,9 +126,13 @@ class BLEU(SacreBLEUScore):
         else:
             raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
 
-        self.tokenize = tokenize
         self.log_prediction = log_prediction
         self.batch_dim_index = batch_dim_index
+
+        self.add_state("preds_len", torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("target_len", torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("numerator", torch.zeros(self.n_gram), dist_reduce_fx="sum")
+        self.add_state("denominator", torch.zeros(self.n_gram), dist_reduce_fx="sum")
 
     def update(
         self,
@@ -158,9 +165,9 @@ class BLEU(SacreBLEUScore):
             if self.batch_dim_index != 0:
                 targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
             # iterate over batch
-            for ind in range(targets_cpu_tensor.shape[0]):
-                tgt_len = tgt_lenths_cpu_tensor[ind].item()
-                target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
+            for idx in range(targets_cpu_tensor.shape[0]):
+                tgt_len = tgt_lenths_cpu_tensor[idx].item()
+                target = targets_cpu_tensor[idx][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
             hypotheses, _ = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
@@ -174,7 +181,16 @@ class BLEU(SacreBLEUScore):
             logging.info(f"reference:{references[0]}")
             logging.info(f"predicted:{hypotheses[0]}")
 
-        super().update(hypotheses, [references])  # Note: [references] since BLEU allows multiple references.
+        self.preds_len, self.target_len = _bleu_score_update(
+            hypotheses,
+            [references],
+            self.numerator,
+            self.denominator,
+            self.preds_len,
+            self.target_len,
+            self.n_gram,
+            self.tokenizer,
+        )
 
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
         """
@@ -190,7 +206,7 @@ class BLEU(SacreBLEUScore):
             Dict: key-value pairs of BLEU metrics and values. Keys are prepended and appended with prefix
                 and suffix flags, respectively.
         """
-        bleu = super().compute()
+        bleu = self._compute_bleu(self.preds_len, self.target_len, self.numerator, self.denominator)
         if return_all_metrics:
             return {
                 f"{prefix}bleu{suffix}": bleu,

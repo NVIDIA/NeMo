@@ -99,7 +99,6 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
             batch_dim_index=0,
             use_cer=self.cfg.get('use_cer', False),
             log_prediction=self.cfg.get('log_prediction', True),
-            dist_sync_on_step=True,
         )
 
         # Setup fused Joint step if flag is set
@@ -119,7 +118,6 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
         self.ctc_wer = WER(
             decoding=self.ctc_decoding,
             use_cer=self.cfg.aux_ctc.get('use_cer', False),
-            dist_sync_on_step=True,
             log_prediction=self.cfg.get("log_prediction", False),
         )
 
@@ -290,7 +288,6 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
             batch_dim_index=self.wer.batch_dim_index,
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
         )
 
         # Setup fused Joint step
@@ -354,7 +351,6 @@ class VisualEncDecHybridRNNTCTCBPEModel(VisualEncDecHybridRNNTCTCModel, ASRBPEMi
                 decoding=self.ctc_decoding,
                 use_cer=self.cfg.aux_ctc.get('use_cer', False),
                 log_prediction=self.cfg.get("log_prediction", False),
-                dist_sync_on_step=True,
             )
 
             # Update config
