@@ -1,0 +1,55 @@
+name: Isort and Black Formatting
+# Incrementally reformat only changed files instead of all
+# Adapted solution from https://stackoverflow.com/a/72088304
+# Replaces pre-commit.ci, since it reformats all the files
+
+on:
+  pull_request:
+    paths:
+      - '**.py'
+
+jobs:
+  reformat_with_isort_and_black:
+    runs-on: ubuntu-latest
+    permissions:
+      # write permissions required to commit changes
+      contents: write
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      # https://github.com/tj-actions/changed-files
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: |
+            **.py
+
+      - name: Setup Python env
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: black
+        uses: psf/black@stable
+        with:
+          options: "--verbose"
+          # apply only to changed files (pass explicitly the files)
+          src: "${{ steps.changed-files.outputs.all_changed_files }}"
+          version: "~= 24.2"
+
+      - name: isort
+        uses: isort/isort-action@v1
+        with:
+          isort-version: "5.13.2"
+          # reformat all files with isort - safe since the whole repo is reformatted
+          configuration: ""
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+            message: Apply isort and black reformatting
+            commit: --signoff
