@@ -168,12 +168,10 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
         if z_log_prob is None:
             # compute log probability of z under a diagonal Gaussian distribution
             z_log_prob = -0.5 * (math.log(2 * math.pi) + z_logvar + (z - z_mean).pow(2) / z_logvar.exp())
-            # sum over the last dimension (hidden_size)
-            z_log_prob = z_log_prob.sum(dim=-1)
 
         return {
             "z": z,  # [S x B x H]
             "z_mean": z_mean,  # [S x B x H]
             "z_logvar": z_logvar,  # [S x B x H]
-            "z_log_prob": z_log_prob,  # [S x B]
+            "z_log_prob": z_log_prob,  # [S x B x H]
         }
