@@ -75,6 +75,7 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -129,6 +130,21 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         self.sep_id = cfg.get('sep_id', 49704)
         self.virtual_tokens = 0
         self.model = self.frozen_model.enc_dec_model
+
+    def load_frozen_model(self, cfg, trainer):
+        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        t5_cfg_base = MegatronT5Model.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
+        # use the incoming cfg updated by _modify_config
+        t5_cfg = copy.deepcopy(cfg)
+        t5_cfg.target = t5_cfg_base.target
+        self.frozen_model = MegatronT5Model.restore_from(
+            cfg.get('language_model_path'),
+            trainer=trainer,
+            override_config_path=t5_cfg,
+            save_restore_connector=NLPSaveRestoreConnector(),
+        )
+        logging.info(f"self.frozen_model.cfg: {self.frozen_model.cfg}")
+        
 
     def init_model(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
