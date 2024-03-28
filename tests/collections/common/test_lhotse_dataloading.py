@@ -184,6 +184,62 @@ def test_dataloader_from_lhotse_cuts(cutset_path: Path):
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
 
 
+def test_dataloader_from_lhotse_cuts_truncate(cutset_path: Path):
+    config = OmegaConf.create(
+        {
+            "cuts_path": cutset_path,
+            "truncate_duration": 0.5,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    batches = [b for b in dl]
+    assert len(batches) == 3
+    # 0.5s = 8000 samples, note the constant duration and batch size except for last batch
+    assert batches[0]["audio"].shape == (4, 8000)
+    assert batches[1]["audio"].shape == (4, 8000)
+    assert batches[2]["audio"].shape == (2, 8000)
+    # exactly 10 cuts were used
+
+
+def test_dataloader_from_lhotse_cuts_cut_into_windows(cutset_path: Path):
+    config = OmegaConf.create(
+        {
+            "cuts_path": cutset_path,
+            "cut_into_windows_duration": 0.5,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    batches = [b for b in dl]
+    assert len(batches) == 5
+    # 0.5s = 8000 samples, note the constant duration and batch size
+    assert batches[0]["audio"].shape == (4, 8000)
+    assert batches[1]["audio"].shape == (4, 8000)
+    assert batches[2]["audio"].shape == (4, 8000)
+    assert batches[3]["audio"].shape == (4, 8000)
+    assert batches[4]["audio"].shape == (4, 8000)
+    # exactly 20 cuts were used because we cut 10x 1s cuts into 20x 0.5s cuts
+
+
 @requires_torchaudio
 def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
     config = OmegaConf.create(
