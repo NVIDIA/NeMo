@@ -120,10 +120,12 @@ class AutocastTransformerLayer(TransformerLayer):
             ub_tp_comm_overlap=ub_tp_comm_overlap,
             ub_bulk_wgrad=ub_bulk_wgrad,
             ub_bulk_dgrad=ub_bulk_dgrad,
-            ub_split_ag=ub_split_ag,
-            ub_split_rs=ub_split_rs,
-            ub_atomic_gemm_ag=ub_atomic_gemm_ag,
-            ub_atomic_gemm_rs=ub_atomic_gemm_rs,
+            #            ub_split_ag=ub_split_ag,
+            ub_overlap_ag=ub_split_ag or ub_atomic_gemm_ag,
+            #            ub_split_rs=ub_split_rs,
+            ub_overlap_rs=ub_atomic_gemm_rs or ub_split_rs,
+            #            ub_atomic_gemm_ag=ub_atomic_gemm_ag,
+            #            ub_atomic_gemm_rs=ub_atomic_gemm_rs,
             device=device,
         )
         # use_emha=use_emha,
@@ -134,7 +136,8 @@ class AutocastTransformerLayer(TransformerLayer):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: torch.Tensor,
+        skip_fp8_weight_update: torch.Tensor = None,
+        attention_mask: torch.Tensor = None,
         encoder_output: Optional[torch.Tensor] = None,
         enc_dec_attn_mask: Optional[torch.Tensor] = None,
         inference_params: Optional[Any] = None,
@@ -154,7 +157,8 @@ class AutocastTransformerLayer(TransformerLayer):
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
                 hidden_states,
-                attention_mask,
+                skip_fp8_weight_update=skip_fp8_weight_update,
+                attention_mask=attention_mask,
                 encoder_output=encoder_output,
                 enc_dec_attn_mask=enc_dec_attn_mask,
                 inference_params=inference_params,
@@ -205,12 +209,23 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             device='cpu' if config.use_cpu_initialization else 'cuda',
         )
 
+    def reset_fp8_meta_tensors(self) -> None:
+        """Set TP group"""
+        # Deep iterate but skip self to avoid infinite recursion.
+        for index, child in enumerate(self.modules()):
+            if index == 0:
+                continue
+            if hasattr(child, "reset_fp8_meta_tensors"):
+                child.reset_fp8_meta_tensors()
+
     # Called by MCore's TransformerBlock.forward
     # megatron/core/transformer/transformer_block.py
     def forward(
         self,
         hidden_states,
-        attention_mask,
+        skip_fp8_weight_update,
+        is_first_microbatch=None,
+        attention_mask=None,
         context=None,
         context_mask=None,
         rotary_pos_emb=None,
@@ -219,17 +234,18 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
     ):
         hidden_states = super().forward(
             hidden_states,
+            skip_fp8_weight_update=skip_fp8_weight_update,
             attention_mask=attention_mask,
             encoder_output=context,
             enc_dec_attn_mask=context_mask,
             inference_params=inference_params,
-            is_first_microbatch=self.is_first_microbatch,
+            is_first_microbatch=is_first_microbatch if is_first_microbatch is not None else self.is_first_microbatch,
             # checkpoint_core_attention,
         )
         self.is_first_microbatch = False
         context = None
 
-        return hidden_states, context
+        return hidden_states  # , context
 
     def _get_layer_offset(self):
 
