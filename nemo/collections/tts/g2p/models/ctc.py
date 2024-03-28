@@ -127,7 +127,15 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
                 punctuation_marks = string.punctuation.replace('"', "").replace("\\", "").replace("'", "")
                 chars += punctuation_marks
 
+            if cfg.tokenizer_grapheme.vocab_file:
+                vocab_file = cfg.tokenizer_grapheme.vocab_file
+                chars = ""
+                with open(vocab_file, "w") as f:
+                    for line in f.readLine():
+                        chars += line.strip("\"")
+
             vocab_file = "/tmp/char_vocab.txt"
+
             with open(vocab_file, "w") as f:
                 [f.write(f'"{ch}"\n') for ch in chars]
                 f.write('"\\""\n')  # add " to the vocab
