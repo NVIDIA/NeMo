@@ -24,6 +24,9 @@ except (ImportError, ModuleNotFoundError):
 
 
 class VideoFeaturizer(object):
+
+    """ Load video from path or byte sequence """
+
     def __init__(self):
         pass
 

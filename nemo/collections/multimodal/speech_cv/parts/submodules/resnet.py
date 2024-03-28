@@ -36,7 +36,8 @@ class ResNet(nn.Module):
     def __init__(self, dim_input=3, dim_output=1000, model="ResNet50", include_stem=True, include_head=True):
         super(ResNet, self).__init__()
 
-        assert model in ["ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"]
+        models = ["ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"]
+        assert model in models, "model must be in {}".format(models)
 
         if model == "ResNet18":
             dim_stem = 64
