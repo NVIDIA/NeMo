@@ -63,6 +63,13 @@ jobs:
 #        --env TRANSFORMERS_OFFLINE=0 
 #        --env HYDRA_FULL_ERROR=1
     steps:
+    - name: Log into ACR (Azure Container Registry)  # this login is for the pushing step after
+      uses: azure/docker-login@v1
+      with:
+        login-server: nemoci.azurecr.io
+        username: nemoci
+        password: ${{ secrets.ACR_PASSWORD }}
+
     - name: Container setup
       run: |
         # Pull base PyTorch container
@@ -138,12 +145,6 @@ jobs:
             '
             ### \'\'
 
-    - name: Log into ACR (Azure Container Registry)
-      uses: azure/docker-login@v1
-      with:
-        login-server: nemoci.azurecr.io
-        username: nemoci
-        password: ${{ secrets.ACR_PASSWORD }}
     - name: Push container to registry for future use
       run: |
         # Push container
