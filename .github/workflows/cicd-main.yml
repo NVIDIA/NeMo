@@ -19,10 +19,6 @@ on:
   push:
     branches: [ "pagaray/nemo_cicd_part7" ]
 
-defaults:
- run:
-  working-directory: ${{ github.run_id }}
-
 jobs:
   gpu-test:
     runs-on: self-hosted-azure
@@ -185,9 +181,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -213,9 +207,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -245,9 +237,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -275,9 +265,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -304,9 +292,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -333,9 +319,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -363,9 +347,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -396,9 +378,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -432,9 +412,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -466,9 +444,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -502,9 +478,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -554,9 +528,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -593,9 +565,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -632,9 +602,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -718,9 +686,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -755,9 +721,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -793,9 +757,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -834,9 +796,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -870,9 +830,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -906,9 +864,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -938,9 +894,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -973,9 +927,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1008,9 +960,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1052,9 +1002,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1089,9 +1037,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1129,9 +1075,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1161,9 +1105,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1188,9 +1130,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1225,9 +1165,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1264,9 +1202,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1335,9 +1271,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1425,9 +1359,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1469,9 +1401,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1512,9 +1442,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1558,9 +1486,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1605,9 +1531,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1645,9 +1569,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1685,9 +1607,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1731,9 +1651,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1814,9 +1732,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1855,9 +1771,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1930,9 +1844,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1969,9 +1881,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2015,9 +1925,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2059,9 +1967,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2105,9 +2011,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2149,9 +2053,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2195,9 +2097,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2239,9 +2139,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2274,9 +2172,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2415,9 +2311,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2451,9 +2345,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2492,9 +2384,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2526,9 +2416,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2555,9 +2443,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2591,9 +2477,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2656,9 +2540,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2726,9 +2608,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2859,9 +2739,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2895,9 +2773,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2942,9 +2818,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2989,9 +2863,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3028,9 +2900,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3111,9 +2981,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3156,9 +3024,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3200,9 +3066,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3233,9 +3097,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3281,9 +3143,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3327,9 +3187,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3363,9 +3221,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3477,9 +3333,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3800,9 +3654,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3886,9 +3738,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3973,9 +3823,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4062,9 +3910,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4246,9 +4092,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4278,9 +4122,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4376,9 +4218,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4571,9 +4411,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4672,9 +4510,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4773,9 +4609,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4878,9 +4712,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4964,9 +4796,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5013,9 +4843,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5064,9 +4892,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5131,9 +4957,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5162,9 +4986,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5195,9 +5017,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5263,9 +5083,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5297,9 +5115,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5331,9 +5147,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5443,9 +5257,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5555,9 +5367,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5667,9 +5477,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5753,9 +5561,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5812,9 +5618,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5908,9 +5712,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5937,9 +5739,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6022,9 +5822,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6113,9 +5911,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6162,9 +5958,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6216,9 +6010,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6286,9 +6078,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6318,9 +6108,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6353,9 +6141,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6396,9 +6182,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6435,9 +6219,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6484,9 +6266,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6530,9 +6310,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6573,9 +6351,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6644,9 +6420,7 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
