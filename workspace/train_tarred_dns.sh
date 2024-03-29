@@ -16,7 +16,7 @@ noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest
 
 exp_name=ssl_fastconformer_large_rq_ls_dns_debug_r2
 
-CUDA_VISIBLE_DEVICES="0" python speech_pretrain_denoise.py \
+CUDA_VISIBLE_DEVICES="1" python speech_pretrain_denoise.py \
     --config-path="configs" \
     --config-name="fastconformer_large_ssl_rq_dns" \
     model.train_ds.manifest_filepath=${TRAIN_MANIFEST} \

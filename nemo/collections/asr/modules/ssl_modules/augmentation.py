@@ -116,8 +116,8 @@ class WavLMAugmentation(object):
 
             # calculate the scale factor for noise
             audio_energy = torch.sum(audio_signal[i, : audio_lengths[i]] ** 2) / audio_lengths[i]
-            noise_energy = torch.sum(noise[i, : noise_len[i]] ** 2) / noise_len[i]
-            mix_scale = math.sqrt(audio_energy / (10 ** (energy_ratio / 10) * noise_energy))
+            noise_energy = torch.sum(noise[i, : noise_len[i]] ** 2) / noise_len[i] if noise_len[i] > 0 else 0
+            mix_scale = math.sqrt(audio_energy / (10 ** (energy_ratio / 10) * noise_energy)) if noise_energy > 0 else 0
 
             # get the residual signal to be added to original audio
             noise_clip = noise[i, noise_start_idx : noise_start_idx + mix_len]
@@ -129,6 +129,15 @@ class WavLMAugmentation(object):
             noisy_audio_len[i] = audio_lengths[i]
             noise[i] = noise_signal
             noise_len[i] = audio_lengths[i]
+
+            if noise[i].isnan().any():
+                from nemo.utils import logging
+
+                logging.error(f"NaN detected in noise signal")
+            if noisy_audio[i].isnan().any():
+                from nemo.utils import logging
+
+                logging.error(f"NaN detected in noisy audio signal")
 
         return AudioNoiseBatch(
             sample_id=batch.sample_id,
