@@ -50,7 +50,7 @@ jobs:
 
 
   cicd-test-container-setup:
-    needs: [checkout-repository]
+    needs: [cicd-cluster-clean]
     runs-on: self-hosted-azure
     # uses: actions/cache@v2
     #container:
