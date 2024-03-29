@@ -60,7 +60,7 @@ jobs:
 #        --device=/dev/nvidia0
 #        --gpus all
 #        --shm-size=8g 
-#        --env TRANSFORMERS_OFFLINE=0 
+#        --env TRANSFORMERS_OFFLINE=0
 #        --env HYDRA_FULL_ERROR=1
     steps:
     - name: Log into ACR (Azure Container Registry)  # this login is for the pushing step after
