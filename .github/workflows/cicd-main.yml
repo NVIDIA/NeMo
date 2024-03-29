@@ -138,6 +138,12 @@ jobs:
             '
             ### \'\'
 
+    - name: Log into ACR (Azure Container Registry)
+      uses: azure/docker-login@v1
+      with:
+        login-server: nemoci.azurecr.io
+        username: nemoci
+        password: ${{ secrets.ACR_PASSWORD }}
     - name: Push container to registry for future use
       run: |
         # Push container
@@ -169,6 +175,9 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -194,12 +203,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -223,12 +235,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -250,12 +265,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -276,12 +294,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -302,12 +323,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -329,12 +353,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -359,12 +386,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -392,12 +422,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -423,12 +456,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -456,12 +492,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -505,12 +544,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -541,12 +583,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -577,12 +622,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -660,12 +708,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -694,12 +745,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -729,12 +783,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -767,12 +824,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -800,12 +860,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -833,12 +896,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -862,12 +928,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -894,12 +963,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -926,12 +998,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -967,12 +1042,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1001,12 +1079,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1038,12 +1119,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1067,12 +1151,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1091,12 +1178,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1125,12 +1215,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1161,12 +1254,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1229,12 +1325,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1316,12 +1415,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1357,12 +1459,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1397,12 +1502,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1440,12 +1548,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1484,12 +1595,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1521,12 +1635,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1558,12 +1675,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1601,12 +1721,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1681,12 +1804,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1719,12 +1845,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1791,12 +1920,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1827,12 +1959,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1870,12 +2005,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1911,12 +2049,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1954,12 +2095,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -1995,12 +2139,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2038,12 +2185,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2079,12 +2229,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2111,12 +2264,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2249,12 +2405,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2282,12 +2441,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2320,12 +2482,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2351,12 +2516,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2377,12 +2545,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2410,12 +2581,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2472,12 +2646,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2539,12 +2716,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2669,12 +2849,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2702,12 +2885,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2746,12 +2932,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2790,12 +2979,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2826,12 +3018,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2906,12 +3101,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2948,12 +3146,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -2989,12 +3190,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3019,12 +3223,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3064,12 +3271,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3107,12 +3317,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3140,12 +3353,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3251,12 +3467,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3571,12 +3790,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3654,12 +3876,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3738,12 +3963,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -3824,12 +4052,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4005,12 +4236,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4034,12 +4268,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4129,12 +4366,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4321,12 +4561,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4419,12 +4662,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4517,12 +4763,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4619,12 +4868,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4702,12 +4954,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4748,12 +5003,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4796,12 +5054,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4860,12 +5121,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4888,12 +5152,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4918,12 +5185,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -4983,12 +5253,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5014,12 +5287,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5045,12 +5321,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5154,12 +5433,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5263,12 +5545,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5372,12 +5657,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5455,12 +5743,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5511,12 +5802,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5604,12 +5898,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5630,12 +5927,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5712,12 +6012,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5800,12 +6103,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5846,12 +6152,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5897,12 +6206,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5964,12 +6276,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -5993,12 +6308,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -6025,12 +6343,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -6065,12 +6386,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -6101,12 +6425,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -6147,12 +6474,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -6190,12 +6520,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -6230,12 +6563,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
@@ -6298,12 +6634,15 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
+      credentials:
+         username: nemoci
+         password: ${{ secrets.ACR_PASSWORD }}
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
-        --shm-size=8g 
+        --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
         --volume /datadrive/TestData:/home/TestData
