@@ -298,7 +298,7 @@ class NevaBaseModel:
                 f"`open_clip_model_name` needs to be set."
             model, _, image_processor = open_clip.create_model_and_transforms(
                 mm_cfg.vision_encoder.open_clip_model_name,
-                pretrained=mm_cfg.vision_encoder.from_pretrained, precision=torch.bfloat16,
+                precision=torch.bfloat16,
             )
             vision_encoder = model.visual.cuda()
             del model

@@ -28,6 +28,8 @@ from omegaconf import DictConfig
 from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
+from torchvision.transforms.transforms import Compose
+from torchvision.transforms import Normalize, Resize
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.neva.conversation import (
@@ -189,7 +191,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
 
 def process_image(processor, image, image_aspect_ratio="square"):
-    if isinstance(processor, CLIPImageProcessor):
+    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, Compose): #could be refactored better
         # image processor from HF
         if image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)
@@ -198,7 +200,7 @@ def process_image(processor, image, image_aspect_ratio="square"):
             shortest_edge = int(min(max_len / aspect_ratio, min_len))
             image = processor.preprocess(
                 image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-            )['pixel_values'][0]
+            )['pixel_values'][0] if isinstance(processor, CLIPImageProcessor) else processor(image)
         elif image_aspect_ratio == 'pad':
 
             def expand2square(pil_img, background_color):
@@ -214,10 +216,18 @@ def process_image(processor, image, image_aspect_ratio="square"):
                     result.paste(pil_img, ((height - width) // 2, 0))
                     return result
 
-            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            def get_img_mean(processor):
+                if isinstance(processor, CLIPImageProcessor): return processor.image_mean
+                for transform in processor.transforms:
+                    if isinstance(transform, Normalize): 
+                        return transform.mean
+                logging.warning("No image mean found in image processor, using [0.5, 0.5, 0.5] by default")
+                return [0.5, 0.5, 0.5]
+            
+            image = expand2square(image, tuple(int(x * 255) for x in get_img_mean(processor)))
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0] if isinstance(processor, CLIPImageProcessor) else processor(image)
         else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0] if isinstance(processor, CLIPImageProcessor) else processor(image)
     else:
         assert (
                 image_aspect_ratio == 'square'
@@ -742,6 +752,11 @@ class LazySupervisedDataset(Dataset):
         if self.multimodal_cfg['is_multimodal']:
             if isinstance(self.processor, CLIPImageProcessor):
                 crop_size = [self.processor.crop_size['height'], self.processor.crop_size['width']]
+            elif isinstance(self.processor, Compose):
+                crop_size = self.multimodal_cfg.get('crop_size', None)
+                for transform in self.processor.transforms:
+                    if isinstance(transform, Resize):
+                        crop_size = list(transform.size)
             else:
                 crop_size = self.multimodal_cfg['crop_size']
             # image does not exist in the data, but the model is multimodal
