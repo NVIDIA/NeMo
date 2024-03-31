@@ -37,13 +37,9 @@ checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpo
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
 
-# DEBUGGING
-prompts: # prompts for Retro inference
-  - "prompt1"
-  - "prompt2"
-
-# RETRO inference
-neighbors: null
+# qa tasks
+qa_file_path: null
+pred_file_path: null
 
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server

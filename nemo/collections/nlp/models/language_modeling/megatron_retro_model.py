@@ -79,15 +79,17 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, parallel_state
-    from megatron.core.models.retro.model import RetroModel as MCoreRetroModel
-    from megatron.core.models.retro.model.config import RetroConfig
-    from megatron.core.models.retro.model.decoder_spec import get_retro_decoder_block_spec
-    from megatron.core.models.retro.utils import get_config_path as get_retro_config_path
-    from megatron.core.models.retro.utils import get_gpt_data_dir as get_retro_data_dir
+    from megatron.core.models.retro import RetroModel as MCoreRetroModel
+    from megatron.core.models.retro.config import RetroConfig
+    from megatron.core.models.retro.decoder_spec import get_retro_decoder_block_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.models.retro.utils import (
+        get_config_path as get_retro_config_path,
+        get_gpt_data_dir as get_retro_data_dir,
+    )
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -120,7 +122,7 @@ class MegatronRetroModel(MegatronGPTModel):
 
         # Retro config path.
         retro_config_path = get_retro_config_path(cfg.retro.get('retro_project_dir'))
-        assert os.path.exists(retro_config_path), "retro project dir missing config.json."
+        assert os.path.exists(retro_config_path), "retro project dir missing config.json." + str(retro_config_path)
 
         # Load retro config.
         with open(retro_config_path) as f:
@@ -334,9 +336,9 @@ class MegatronRetroModel(MegatronGPTModel):
         def fwd_output_only_func(dataloader_iter, model):
             batch = next(dataloader_iter)
             extra_arg = {}
-            if len(batch) == 5:
+            if len(batch) == 6:
                 batch = [x.cuda() for x in batch]
-                tokens, attention_mask, position_ids, context_input_ids, context_position_ids, context_mask = batch
+                tokens, attention_mask, position_ids, context_input_ids, context_mask, context_position_ids = batch
                 attention_mask = attention_mask[0:1]
             else:
                 (
@@ -344,26 +346,27 @@ class MegatronRetroModel(MegatronGPTModel):
                     attention_mask,
                     position_ids,
                     context_input_ids,
-                    context_position_ids,
                     context_mask,
+                    context_position_ids,
                     set_inference_key_value_memory,
                     inference_max_sequence_len,
                 ) = batch
+                # Transfer needed data to GPU
                 tokens = tokens.cuda()
                 position_ids = position_ids.cuda()
-                if attention_mask is not None:
-                    attention_mask = attention_mask.cuda()
-                    attention_mask = attention_mask[0:1]
+                ## DEBUGGING (hacking)
+                # if attention_mask is not None:
+                #     attention_mask = attention_mask.cuda()
+                #     attention_mask = attention_mask[0:1]
                 context_input_ids = context_input_ids.cuda()
                 context_position_ids = context_position_ids.cuda()
                 context_mask = None
                 if self.mcore_gpt:
-                    # if first step, then clear KV cache, otherwise reuse inference_paarms
-                    if set_inference_key_value_memory[0].item():
-                        self.inference_params = InferenceParams(
-                            max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
-                        )
-                    extra_arg['inference_params'] = self.inference_params
+                    ## DEBUGGING (hacking)
+                    # not caching key, value because currently it's not supported for RETRO
+                    # print("Not caching key, value because currently it's not supported for RETRO.")
+                    pass
+
                 else:
                     extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
