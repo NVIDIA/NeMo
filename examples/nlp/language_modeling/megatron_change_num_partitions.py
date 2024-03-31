@@ -159,7 +159,7 @@ def force_cpu_model(cfg):
         if amp_o2_key is not None:
             cfg[amp_o2_key] = False
 
-        # Disable sequence parallelism - Not disabling this gives error when converting the the model to TP=1
+        # Disable sequence parallelism - Not disabling this gives error when converting the model to TP=1
         original_sequence_parallel = cfg.get('sequence_parallel', None)
         cfg.sequence_parallel = False
 

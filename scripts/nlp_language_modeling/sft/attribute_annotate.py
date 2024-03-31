@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""script to annotate the the datasets with using trained attribute prediciton model.
+"""script to annotate the datasets with using trained attribute prediciton model.
 First, we need to launch the NeMo Megatron inference server
 Example:
 ```bash

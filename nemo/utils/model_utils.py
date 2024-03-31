@@ -127,7 +127,7 @@ def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:
 
     # IMPORTANT NOTE:
     It <can> potentially mismatch if there exist more than 2 valid paths, and the
-    first path does *not* resolve the the path of the data file (but does resolve to
+    first path does *not* resolve the path of the data file (but does resolve to
     some other valid path).
 
     To avoid this side-effect, place the data path as the first item on the config file.

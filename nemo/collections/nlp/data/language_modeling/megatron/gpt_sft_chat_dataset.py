@@ -144,7 +144,7 @@ def _mask_targets(
                 # newline_loc = torch.where((s_id[skip_name_len:] == name_end_token_ids))[0]
                 newline_loc = identify_start_index_of_subsequence(name_end_token_ids, s_id[skip_name_len:])
                 if newline_loc < 0:
-                    # cannot find new line token, which means the the whole turn is just a partial label string. Mask the whole turn
+                    # cannot find new line token, which means the whole turn is just a partial label string. Mask the whole turn
                     target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
                     continue
                 # skip the label part and the new line token

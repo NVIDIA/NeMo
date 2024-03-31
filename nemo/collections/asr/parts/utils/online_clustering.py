@@ -994,7 +994,7 @@ class OnlineSpeakerClustering(torch.nn.Module):
             total_emb.append(self.history_embedding_buffer_emb)
             total_cluster_labels.append(self.history_embedding_buffer_label)
 
-        # `emb_curr` is the incumbent set of embeddings which is the the latest.
+        # `emb_curr` is the incumbent set of embeddings which is the latest.
         emb_curr = self.make_constant_length_emb(emb_in, base_segment_indexes)
         total_emb.append(emb_curr)
 

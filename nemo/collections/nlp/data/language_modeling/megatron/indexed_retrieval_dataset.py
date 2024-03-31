@@ -212,7 +212,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                         pointers.append(address)
                         address += size * dtype_size
                         if retrieval_db:
-                            # if it is retrieval db, the the last chunk is reserved for padding
+                            # if it is retrieval db, the last chunk is reserved for padding
                             address += chunk_size * dtype_size
                     return pointers
 
@@ -237,7 +237,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                             else:
                                 address += stride * dtype_size
                         if retrieval_db:
-                            # if it is retrieval db, the the last chunk is reserved for padding
+                            # if it is retrieval db, the last chunk is reserved for padding
                             address += chunk_size * dtype_size
                         last_id += num_of_chunks
                     return chunk_ids, pointers

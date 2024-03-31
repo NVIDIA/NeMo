@@ -75,7 +75,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
-    certain token embeddings from the the pretrained GPT model's vocabulary
+    certain token embeddings from the pretrained GPT model's vocabulary
     and directly tunes these embedding weights. The token embeddings used in 
     initalization are specified by the user in the config file. The model can 
     be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 

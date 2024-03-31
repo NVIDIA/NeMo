@@ -90,7 +90,7 @@ model = ModelPT.from_pretrained("{repo_id}")
 
 ## Training
 
-**Add information here about how the model was trained. It should be as detailed as possible, potentially including the the link to the script used to train as well as the base config used to train the model. If extraneous scripts are used to prepare the components of the model, please include them here.**
+**Add information here about how the model was trained. It should be as detailed as possible, potentially including the link to the script used to train as well as the base config used to train the model. If extraneous scripts are used to prepare the components of the model, please include them here.**
 
 ### NOTE
 

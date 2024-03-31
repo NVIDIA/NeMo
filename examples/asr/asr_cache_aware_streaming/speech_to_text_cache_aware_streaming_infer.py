@@ -266,7 +266,7 @@ def main():
     parser.add_argument(
         "--pad_and_drop_preencoded",
         action="store_true",
-        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.",
+        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.",
     )
 
     parser.add_argument(

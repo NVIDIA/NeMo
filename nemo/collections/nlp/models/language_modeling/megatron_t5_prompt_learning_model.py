@@ -68,7 +68,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
-    certain token embeddings from the the pretrained T5 model's vocabulary
+    certain token embeddings from the pretrained T5 model's vocabulary
     and directly tunes these embedding weights. The token embeddings used in 
     initalization are specified by the user in the config file. The model can 
     be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a 

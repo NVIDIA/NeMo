@@ -58,7 +58,7 @@ class RETRODataset(Dataset):
     Dataset for RETRO model.
 
     It constructs single data record from the training/retrieval indexed retrieval dataset and knn index file.
-    The KNN index file maps data chunk id to K-nearest neighbors in the the retrieval dataset chunk ids.
+    The KNN index file maps data chunk id to K-nearest neighbors in the retrieval dataset chunk ids.
     First, it loads a long sequence (2048) from training dataset. Then for each chunk in the sequence, it finds the kNN 
     chunks from the retrieval dataset using the KNN index. Lastly, compute the masks based on pad id.
     """
