@@ -67,7 +67,9 @@ class _TokensWrapper:
             return -1
 
         if self.tokenizer is not None:
-            return self.tokenizer.token_to_id(token)
+            return self.tokenizer.token_to_id(
+                token
+            )  ### Todo: fix AggregateTokenizer.token_to_id() missing 1 required positional argument: 'lang_id'
         else:
             return self.reverse_map[token]
 
