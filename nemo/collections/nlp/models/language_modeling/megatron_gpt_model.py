@@ -304,6 +304,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.cfg.get('expert_model_parallel_size', 1) > 1 and self.with_distributed_adam:
             raise ValueError('Expert parallelism is currently not supporting distributed optimizer')
 
+        self.transformer_engine = cfg.get('transformer_engine', False)
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
             self.model = build_model(
@@ -343,8 +344,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.enable_autocast = (
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
-
-        self.transformer_engine = cfg.get('transformer_engine', False)
 
         # configuration used for inference
         self._inference_config = None
