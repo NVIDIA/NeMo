@@ -29,12 +29,14 @@ class _Collection(collections.UserList):
 
     OUTPUT_TYPE = None  # Single element output type.
 
-class SpeechLabelEntity():
+
+class SpeechLabelEntity:
     def __init__(self, audio_file, duration, label, offset):
         self.audio_file = audio_file
         self.duration = duration
         self.label = label
         self.offset = offset
+
 
 class Text(_Collection):
     """Simple list of preprocessed text entries, result in list of tokens."""
