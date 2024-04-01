@@ -272,7 +272,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 word_kenlm_path=self.cfg.beam.get('word_kenlm_path', None),
-                subword_kenlm_path=self.cfg.beam.get('subword_kenlm_path', None),
+                nemo_kenlm_path=self.cfg.beam.get('nemo_kenlm_path', None),
                 flashlight_cfg=self.cfg.beam.get('flashlight_cfg', None),
                 pyctcdecode_cfg=self.cfg.beam.get('pyctcdecode_cfg', None),
             )

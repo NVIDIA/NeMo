@@ -194,7 +194,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
         word_kenlm_path: str = None,
-        subword_kenlm_path: str = None,
+        nemo_kenlm_path: str = None,
         flashlight_cfg: Optional['FlashlightConfig'] = None,
         pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
     ):
@@ -224,7 +224,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             self.search_type = "pyctcdecode"
 
         self.word_kenlm_path = word_kenlm_path
-        self.subword_kenlm_path = subword_kenlm_path
+        self.nemo_kenlm_path = nemo_kenlm_path
         self.kenlm_path = None
 
         if search_type == "pyctcdecode":
@@ -410,7 +410,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             # perform token offset for subword models
             if self.decoding_type == 'subword' and self.word_kenlm_path:
                 vocab = self.vocab
-            elif self.decoding_type == 'subword' and self.subword_kenlm_path:
+            elif self.decoding_type == 'subword' and self.nemo_kenlm_path:
                 vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
             else:
                 # char models
@@ -481,27 +481,27 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         if self.decoding_type == 'subword':
             if self.search_type == "flashlight":
-                if not self.flashlight_cfg.lexicon_path:  # ether subword_kenlm or word_kenlm
+                if not self.flashlight_cfg.lexicon_path:  # ether nemo_kenlm or word_kenlm
                     raise NotImplementedError(
                         self.search_type
                         + " decoding with "
                         + self.decoding_type
                         + " acoustic model works only with lexicon_path"
                     )
-                elif self.subword_kenlm_path:
-                    self.kenlm_path = self.subword_kenlm_path
+                elif self.nemo_kenlm_path:
+                    self.kenlm_path = self.nemo_kenlm_path
                     return  # 13.28%/6.17%
                 elif self.word_kenlm_path:
                     self.kenlm_path = self.word_kenlm_path
                     return  # 13.95%/9.38%
             if self.search_type == "pyctcdecode":
-                if self.subword_kenlm_path:
+                if self.nemo_kenlm_path:
                     raise NotImplementedError(
                         self.search_type
                         + " decoding with "
                         + self.decoding_type
-                        + " acoustic model is not implemented with subword_kenlm_path "
-                        + self.subword_kenlm_path
+                        + " acoustic model is not implemented with nemo_kenlm_path "
+                        + self.nemo_kenlm_path
                     )  # 23.49%/12.40%
                 elif self.word_kenlm_path:
                     self.kenlm_path = self.word_kenlm_path
@@ -509,7 +509,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         elif self.decoding_type == 'char':
             if self.search_type == "flashlight":
-                if not self.flashlight_cfg.lexicon_path:  # ether subword_kenlm or word_kenlm
+                if not self.flashlight_cfg.lexicon_path:  # ether nemo_kenlm or word_kenlm
                     raise NotImplementedError(
                         self.search_type
                         + " decoding with "
@@ -517,13 +517,13 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                         + " acoustic model is not implemented without lexicon_path "
                     )
                 else:
-                    if self.subword_kenlm_path:
-                        self.kenlm_path = self.subword_kenlm_path
+                    if self.nemo_kenlm_path:
+                        self.kenlm_path = self.nemo_kenlm_path
                         raise NotImplementedError(
                             self.search_type
                             + " decoding with "
                             + self.decoding_type
-                            + " acoustic model is not implemented with subword_kenlm_path "
+                            + " acoustic model is not implemented with nemo_kenlm_path "
                         )
                     elif self.word_kenlm_path:
                         self.kenlm_path = self.word_kenlm_path
@@ -531,8 +531,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                     else:
                         raise ValueError("kenlm path is not provided")
             if self.search_type == "pyctcdecode":
-                if self.subword_kenlm_path:
-                    self.kenlm_path = self.subword_kenlm_path
+                if self.nemo_kenlm_path:
+                    self.kenlm_path = self.nemo_kenlm_path
                     return  # 14.88%/6.30%
                 elif self.word_kenlm_path:
                     self.kenlm_path = self.word_kenlm_path
@@ -574,7 +574,7 @@ class BeamCTCInferConfig:
     beam_alpha: float = 1.0
     beam_beta: float = 0.0
     word_kenlm_path: Optional[str] = None
-    subword_kenlm_path: Optional[str] = None
+    nemo_kenlm_path: Optional[str] = None
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())

@@ -33,7 +33,7 @@ python eval_beamsearch_ngram_ctc.py --cfg job
 python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file> \
            ctc_decoding.beam.word_kenlm_path=<path to the binary KenLM model> \
-           ctc_decoding.beam.subword_kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.nemo_kenlm_path=<path to the binary KenLM model> \
            ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
            ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
            ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
@@ -165,7 +165,7 @@ def beam_search_eval(
                                                     beam_alpha=beam_alpha,
                                                     beam_beta=beam_beta,
                                                     word_kenlm_path=cfg.ctc_decoding.beam.word_kenlm_path,
-                                                    subword_kenlm_path=cfg.ctc_decoding.beam.subword_kenlm_path,
+                                                    nemo_kenlm_path=cfg.ctc_decoding.beam.nemo_kenlm_path,
                                                     preserve_alignments=cfg.ctc_decoding.beam.preserve_alignments,
                                                     compute_timestamps=cfg.ctc_decoding.beam.compute_timestamps,
                                                     flashlight_cfg=cfg.ctc_decoding.beam.flashlight_cfg,
@@ -253,7 +253,7 @@ def beam_search_eval(
         out_file.close()
         logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
 
-    if cfg.ctc_decoding.beam.word_kenlm_path or cfg.ctc_decoding.beam.subword_kenlm_path:
+    if cfg.ctc_decoding.beam.word_kenlm_path or cfg.ctc_decoding.beam.nemo_kenlm_path:
         logging.info(
             'WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(
                 wer_dist_first / words_count, cer_dist_first / chars_count
