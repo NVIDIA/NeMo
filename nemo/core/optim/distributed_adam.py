@@ -22,14 +22,24 @@ from apex.contrib.optimizers.distributed_fused_adam import (
     _disable_pre_forward_hook,
     _multi_tensor_copy,
 )
+
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
-from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
 
 from nemo.utils import str_to_dtype
+from nemo.utils.exceptions import check_imports
 from nemo.utils.te_utils import is_float8tensor
+
+IMPORT_ERROR = None
+
+try:
+    from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
+
+except (ImportError, ModuleNotFoundError) as e:
+
+    IMPORT_ERROR = e
 
 
 class MegatronDistributedFusedAdam(DistributedFusedAdam):
@@ -55,6 +65,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         disable_distributed_parameters: bool = False,
         **kwargs,
     ):
+        # Check imports
+        check_imports(IMPORT_ERROR)
 
         # Initialize process groups
         if 'process_group' not in kwargs and not parallel_state.is_unitialized():

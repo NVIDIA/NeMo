@@ -18,6 +18,9 @@ import torch
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
+from nemo.utils.exceptions import check_imports
+
+IMPORT_ERROR = None
 
 try:
     from transformer_engine.pytorch import TransformerLayer
@@ -87,6 +90,8 @@ class AutocastTransformerLayer(TransformerLayer):
         zero_centered_gamma: bool = False,
         device: str = 'cuda',
     ) -> None:
+        check_imports(IMPORT_ERROR)
+
         if not HAVE_MEGATRON_CORE or not HAVE_TE:
             raise ImportError(IMPORT_ERROR)
 
@@ -165,6 +170,8 @@ class AutocastTransformerLayer(TransformerLayer):
 
 class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
+        check_imports(IMPORT_ERROR)
+
         if not HAVE_MEGATRON_CORE or not HAVE_TE:
             raise ImportError(IMPORT_ERROR)
 
@@ -286,6 +293,8 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
 # Use this spec to use the full Transformer layer from Transformer Engine
 def get_gpt_full_te_layer_autocast_spec() -> ModuleSpec:
+    check_imports(IMPORT_ERROR)
+
     if not HAVE_MEGATRON_CORE or not HAVE_TE:
         raise ImportError(IMPORT_ERROR)
 

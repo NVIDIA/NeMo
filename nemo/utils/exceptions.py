@@ -26,6 +26,11 @@ class LightningNotInstalledException(NeMoBaseException):
         super().__init__(message)
 
 
+class NeMoImportException(NeMoBaseException):
+    def __init__(self, message):
+        super().__init__(message)
+
+
 class CheckInstall:
     def __init__(self, *args, **kwargs):
         raise LightningNotInstalledException(self)
@@ -35,3 +40,8 @@ class CheckInstall:
 
     def __getattr__(self, *args, **kwargs):
         raise LightningNotInstalledException(self)
+
+
+def check_imports(error_message):
+    if error_message:
+        raise NeMoImportException(error_message)

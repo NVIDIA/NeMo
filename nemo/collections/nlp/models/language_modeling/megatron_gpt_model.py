@@ -76,6 +76,9 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
+from nemo.utils.exceptions import check_imports
+
+IMPORT_ERROR = None
 
 try:
     import apex.transformer.pipeline_parallel.utils
@@ -116,8 +119,9 @@ try:
 
     HAVE_TE = True
 
-except (ImportError, ModuleNotFoundError):
+except (ImportError, ModuleNotFoundError) as e:
     HAVE_TE = False
+    IMPORT_ERROR = e
 
 
 @cache
@@ -255,6 +259,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        check_imports(IMPORT_ERROR)
+
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."

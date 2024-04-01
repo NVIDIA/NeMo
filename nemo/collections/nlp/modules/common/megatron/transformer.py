@@ -43,6 +43,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
+from nemo.utils.exceptions import check_imports
+
+IMPORT_ERROR = None
 
 try:
     from apex.normalization import MixedFusedRMSNorm
@@ -75,8 +78,10 @@ try:
 
     HAVE_TE = True
 
-except:
+except (ImportError, ModuleNotFoundError) as e:
     HAVE_TE = False
+    IMPORT_ERROR = e
+
 
     # fake missing class
     class TransformerLayer(ApexGuardDefaults):
@@ -941,6 +946,8 @@ class ParallelTransformer(MegatronModule):
         moe_dropout=0.0,
         use_flash_attention=False,
     ):
+        check_imports(IMPORT_ERROR)
+
         super(ParallelTransformer, self).__init__(config=config)
 
         if kv_channels is None:
