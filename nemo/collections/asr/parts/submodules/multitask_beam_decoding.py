@@ -20,6 +20,7 @@ import torch
 
 from nemo.collections.asr.modules.transformer import BeamSearchSequenceGenerator
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.common.tokenizers.canary_tokenizer import CanaryTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core import Typing, typecheck
 from nemo.core.neural_types import ChannelType, HypothesisType, LabelsType, MaskType, NeuralType
@@ -141,15 +142,23 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
             preserve_alignments=preserve_alignments,
         )
         self.beam_size = beam_size
+        if isinstance(tokenizer, CanaryTokenizer):
+            bos = tokenizer.bos_id
+            pad = tokenizer.pad_id
+            eos = tokenizer.eos_id
+        else:
+            bos = tokenizer.text_to_ids("<s>")[0]
+            pad = tokenizer.text_to_ids("<pad>")[0]
+            eos = tokenizer.text_to_ids("</s>")[0]
         self.beam_search = BeamSearchSequenceGenerator(
             embedding=transformer_decoder.embedding,
             decoder=transformer_decoder.decoder,
             log_softmax=log_softmax_module,
             max_sequence_length=transformer_decoder.max_sequence_length,
             beam_size=beam_size,
-            bos=tokenizer.bos_id,
-            pad=tokenizer.pad_id,
-            eos=tokenizer.eos_id,
+            bos=bos,
+            pad=pad,
+            eos=eos,
             len_pen=length_penalty,
             max_delta_length=max_generation_delta,
         )

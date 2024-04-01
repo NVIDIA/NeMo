@@ -50,7 +50,10 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         super().__init__()
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
-        self.padding_value = self.tokenizer._tokenizer.pad_id
+        if isinstance(tokenizer, CanaryTokenizer):
+            self.padding_value = self.tokenizer._tokenizer.pad_id
+        else:
+            self.padding_value = tokenizer.text_to_ids("<pad>")[0]
         self.prompt_format_fn = prompt_format_fn
         self.inference = inference
 
