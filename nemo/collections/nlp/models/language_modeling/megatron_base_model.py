@@ -409,7 +409,10 @@ class MegatronBaseModel(NLPModel):
         All tokenizers are expected to provide compatible interface.
         Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
         """
-        if hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
+        if hasattr(self._cfg.data, "chat"):
+            # We need the ability to add_special_tokens for chat separators
+            legacy = self._cfg.data.chat
+        elif hasattr(self._cfg.tokenizer, "sentencepiece_legacy"):
             legacy = self._cfg.tokenizer.sentencepiece_legacy
         else:
             legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False

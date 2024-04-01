@@ -51,7 +51,8 @@ def _get_header_conversation_type_mask_role(source, special_tokens):
         if TYPE_INSTRUCTION[data_type] != '':
             conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
     mask_role = source.get('mask', 'User')
-    header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
+    system_token = special_tokens.get("system_role", SYSTEM_TOKEN)
+    header = f"{special_tokens['system_turn_start']}{system_token}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
     conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
     return header, conversation, data_type, mask_role
 
@@ -305,6 +306,19 @@ def preprocess(
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # add special tokens for the chat prompt
+        add_special_tokens = list(self.special_tokens.get('add_special_tokens', []))
+        if add_special_tokens:
+            self.tokenizer.add_special_tokens(add_special_tokens)
+            print(f"Added special tokens {add_special_tokens} to the tokenizer")
+        # process values in special_tokens to convert escaped newline to actual newline
+        for k, v in self.special_tokens.items():
+            if isinstance(v, str):
+                self.special_tokens[k] = v.replace("\\n", "\n")
+
     def _maybe_validate_prompt_template(self):
         pass
 
