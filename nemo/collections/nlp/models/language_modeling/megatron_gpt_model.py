@@ -91,6 +91,7 @@ try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
+    from megatron.core.deploy.gpt.model_specs import get_gpt_layer_ammo_spec
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -140,6 +141,7 @@ def get_specs(spec_name, num_experts=None):
         "": get_gpt_layer_with_transformer_engine_spec(num_experts),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(),
+        "ammo": get_gpt_layer_ammo_spec(),
     }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
@@ -291,6 +293,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
+
+        if not self.megatron_amp_O2 and self.cfg.get('expert_model_parallel_size', 1) > 1:
+            raise ValueError('Expert parallelism is only supported when using megatron_amp_O2')
+
+        # TODO(akoumparouli): this is temporary and will be removed in the future.
+        if self.cfg.get('expert_model_parallel_size', 1) > 1 and self.with_distributed_adam:
+            raise ValueError('Expert parallelism is currently not supporting distributed optimizer')
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
@@ -635,6 +644,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
         self.initialize_ub = False
 
+    def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
+        """
+        This method is called from the training_step method.
+        It is separated out to allow for overriding in the MegatronGPTEmbeddingModel
+        """
+        loss_mean = self.fwd_bwd_step(dataloader_iter, forward_only)
+        return loss_mean
+
     def training_step(self, dataloader_iter):
         """
             We pass the dataloader iterator function to the micro-batch scheduler.
@@ -674,7 +691,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        loss_mean = self.fwd_bwd_step(dataloader_iter, False)
+        loss_mean = self.training_step_fwd_bwd_step_call(dataloader_iter, forward_only=False)
 
         if self.cfg.get('fp8', False):
             self.prev_step_training = self.training
@@ -926,13 +943,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Broadcast data.
         if data_iterator is not None:
-            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
-            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
-            # from the data_iterator
-            if isinstance(data_iterator, _DataFetcherWrapper):
-                data, _, _ = next(data_iterator)
-            else:
-                data = next(data_iterator)
+            # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
+            data = next(data_iterator)
+            if isinstance(data, tuple):
+                data = data[0]
         else:
             data = None
 
@@ -1010,7 +1024,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 'input_ids': batch['tokens'],
                 'position_ids': batch['position_ids'],
                 'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
-                'labels': batch['labels'],
+                'labels': batch['labels'] if 'labels' in batch else None,
                 'loss_mask': batch['loss_mask'],
             }
 
@@ -1054,8 +1068,27 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                cp_size = parallel_state.get_context_parallel_world_size()
-                if validation_step and not self.cfg.data.get('validation_drop_last', True):
+                cp_size = self.cfg.get('context_parallel_size', 1)
+                if self.cfg.data.get(
+                    "return_output_tensors", False
+                ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
+                    loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
+                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    pos_cs = average_losses_across_data_parallel_group([pos_cs])
+                    neg_cs = average_losses_across_data_parallel_group([neg_cs])
+                    diff_cs = average_losses_across_data_parallel_group([diff_cs])
+                    return (
+                        loss_for_ub * cp_size,
+                        {
+                            'avg': reduced_loss,
+                            'query_hs': q_hs,
+                            'doc_hs': d_hs,
+                            'avg_pos_cs': pos_cs,
+                            'avg_neg_cs': neg_cs,
+                            'diff_cs': diff_cs,
+                        },
+                    )
+                elif validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
                     if loss_for_ub.isnan():
                         assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
@@ -1084,13 +1117,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
-            # from the dataloader_iter are already extracted in the child class validation steps. In that case extact only the batch
-            # from the data_iterator
-            if isinstance(dataloader_iter, _DataFetcherWrapper):
-                batch, _, _ = next(dataloader_iter)
-            else:
-                batch = next(dataloader_iter)
+            # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
+            batch = next(dataloader_iter)
+            if isinstance(batch, tuple):
+                batch = batch[0]
             extra_arg = {}
             if len(batch) == 3:
                 batch = [x.cuda() for x in batch]
@@ -1121,7 +1151,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             # Currently for all MCore transformer layer specs causal attention mask
             # is used so we can delegate creating it to MCore/TE and pass None below
-            if isinstance(model, MCoreGPTModel):
+            if (
+                isinstance(model, MCoreGPTModel)
+                or hasattr(model, "module")
+                and isinstance(model.module, MCoreGPTModel)
+            ):
                 attention_mask = None
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
@@ -1273,6 +1307,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             "reset_attention_mask": self.reset_attention_mask,
             "eod_mask_loss": self.eod_mask_loss,
             "mock": mock_dataset,
+            "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
         }
 
         # support for dict data input type
@@ -1284,7 +1319,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             kwargs["split"] = self.cfg.data.splits_string
 
         if self.cfg.data.get('add_fim', False):
-            dataset_config = GPTFIMDatasetConfig(self.tokenizer, self.cfg.data.fim, **kwargs)
+            dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
 
             self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
                 GPTFIMDataset, train_valid_test_num_samples, dataset_config,
