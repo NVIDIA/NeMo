@@ -22,9 +22,9 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.core.utils.cuda_python_utils import (
-    assert_drv,
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
     cu_call,
+    run_nvrtc,
     with_conditional_node,
 )
 from nemo.utils import logging
@@ -35,38 +35,6 @@ try:
     HAVE_CUDA_PYTHON = True
 except ImportError:
     HAVE_CUDA_PYTHON = False
-
-
-def run_nvrtc(kernel_string, kernel_name):
-    err, prog = nvrtc.nvrtcCreateProgram(str.encode(kernel_string), b"while_loop_labels_conditional.cu", 0, [], [])
-    assert_drv(err)
-    # Compile program
-    # Not specifying --gpu-architecture will default us to a fairly low compute capability, which is a safe bet.
-    # Otherwise, there are ways to query the current device's compute capability.
-    # https://stackoverflow.com/questions/48283009/nvcc-get-device-compute-capability-in-runtime
-    opts = []
-    (err,) = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
-    assert_drv(err)
-    err, size = nvrtc.nvrtcGetProgramLogSize(prog)
-    assert_drv(err)
-    buf = b" " * size
-    (err,) = nvrtc.nvrtcGetProgramLog(prog, buf)
-    assert_drv(err)
-
-    # Get PTX from compilation
-    err, ptxSize = nvrtc.nvrtcGetPTXSize(prog)
-    assert_drv(err)
-    ptx = b" " * ptxSize
-    (err,) = nvrtc.nvrtcGetPTX(prog, ptx)
-    assert_drv(err)
-
-    ptx = np.char.array(ptx)
-    err, module = cuda.cuModuleLoadData(ptx.ctypes.data)
-    assert_drv(err)
-    err, kernel = cuda.cuModuleGetFunction(module, kernel_name)
-    assert_drv(err)
-
-    return kernel
 
 
 class LoopLabelsState:
@@ -186,6 +154,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
     """
 
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
+    CUDA_PROGRAM_NAME = b"while_loop_labels_conditional_rnnt.cu"
 
     def __init__(
         self,
@@ -486,7 +455,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
          cudaGraphSetConditional(handle, *active_mask_any);
         }
         """
-        return run_nvrtc(kernel_string, b"outer_loop_labels_conditional")
+        return run_nvrtc(kernel_string, b"outer_loop_labels_conditional", cls.CUDA_PROGRAM_NAME)
 
     @classmethod
     def _create_inner_while_loop_kernel(cls):
@@ -505,7 +474,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
          cudaGraphSetConditional(handle, *advance_mask_any);
         }
         """
-        return run_nvrtc(kernel_string, b"inner_find_non_blank_conditional")
+        return run_nvrtc(kernel_string, b"inner_find_non_blank_conditional", cls.CUDA_PROGRAM_NAME)
 
     def _graph_reinitialize(
         self, encoder_output_projected: torch.Tensor, encoder_output_length: torch.Tensor,

@@ -14,6 +14,7 @@
 
 import contextlib
 
+import numpy as np
 import torch
 from packaging.version import Version
 
@@ -184,3 +185,37 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
     cudart.cudaStreamEndCapture(body_stream.cuda_stream)
 
     torch.cuda.set_stream(previous_stream)
+
+
+def run_nvrtc(kernel_string: str, kernel_name: bytes, program_name: bytes):
+    from cuda import cuda, nvrtc
+
+    err, prog = nvrtc.nvrtcCreateProgram(str.encode(kernel_string), program_name, 0, [], [])
+    assert_drv(err)
+    # Compile program
+    # Not specifying --gpu-architecture will default us to a fairly low compute capability, which is a safe bet.
+    # Otherwise, there are ways to query the current device's compute capability.
+    # https://stackoverflow.com/questions/48283009/nvcc-get-device-compute-capability-in-runtime
+    opts = []
+    (err,) = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
+    assert_drv(err)
+    err, size = nvrtc.nvrtcGetProgramLogSize(prog)
+    assert_drv(err)
+    buf = b" " * size
+    (err,) = nvrtc.nvrtcGetProgramLog(prog, buf)
+    assert_drv(err)
+
+    # Get PTX from compilation
+    err, ptxSize = nvrtc.nvrtcGetPTXSize(prog)
+    assert_drv(err)
+    ptx = b" " * ptxSize
+    (err,) = nvrtc.nvrtcGetPTX(prog, ptx)
+    assert_drv(err)
+
+    ptx = np.char.array(ptx)
+    err, module = cuda.cuModuleLoadData(ptx.ctypes.data)
+    assert_drv(err)
+    err, kernel = cuda.cuModuleGetFunction(module, kernel_name)
+    assert_drv(err)
+
+    return kernel

@@ -578,6 +578,7 @@ def batched_hyps_to_hypotheses(
     Returns:
         list of Hypothesis objects
     """
+    assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
     hypotheses = [
         Hypothesis(

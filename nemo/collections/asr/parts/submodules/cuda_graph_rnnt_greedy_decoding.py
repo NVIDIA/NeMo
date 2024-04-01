@@ -26,43 +26,13 @@ from typing import List, Optional
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils.cuda_python_utils import (
-    assert_drv,
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
     cu_call,
+    run_nvrtc,
     with_conditional_node,
 )
 
-
-def run_nvrtc(kernel_string, kernel_name):
-    err, prog = nvrtc.nvrtcCreateProgram(str.encode(kernel_string), b"while_loop_conditional.cu", 0, [], [])
-    assert_drv(err)
-    # Compile program
-    # Not specifying --gpu-architecture will default us to a fairly low compute capability, which is a safe bet.
-    # Otherwise, there are ways to query the current device's compute capability.
-    # https://stackoverflow.com/questions/48283009/nvcc-get-device-compute-capability-in-runtime
-    opts = []
-    (err,) = nvrtc.nvrtcCompileProgram(prog, len(opts), opts)
-    assert_drv(err)
-    err, size = nvrtc.nvrtcGetProgramLogSize(prog)
-    assert_drv(err)
-    buf = b" " * size
-    (err,) = nvrtc.nvrtcGetProgramLog(prog, buf)
-    assert_drv(err)
-
-    # Get PTX from compilation
-    err, ptxSize = nvrtc.nvrtcGetPTXSize(prog)
-    assert_drv(err)
-    ptx = b" " * ptxSize
-    (err,) = nvrtc.nvrtcGetPTX(prog, ptx)
-    assert_drv(err)
-
-    ptx = np.char.array(ptx)
-    err, module = cuda.cuModuleLoadData(ptx.ctypes.data)
-    assert_drv(err)
-    err, kernel = cuda.cuModuleGetFunction(module, kernel_name)
-    assert_drv(err)
-
-    return kernel
+_CUDA_PROGRAM_NAME = b"while_loop_conditional.cu"
 
 
 def create_outer_for_loop_kernel():
@@ -82,7 +52,7 @@ def create_outer_for_loop_kernel():
      cudaGraphSetConditional(handle, *time_idx < *trip_count);
     }
     """
-    return run_nvrtc(kernel_string, b"for_loop_conditional")
+    return run_nvrtc(kernel_string, b"for_loop_conditional", _CUDA_PROGRAM_NAME)
 
 
 def create_inner_while_loop_kernel():
@@ -102,7 +72,7 @@ def create_inner_while_loop_kernel():
      cudaGraphSetConditional(handle, *not_blank && *symbols_added < *max_symbols);
     }
     """
-    return run_nvrtc(kernel_string, b"while_loop_conditional")
+    return run_nvrtc(kernel_string, b"while_loop_conditional", _CUDA_PROGRAM_NAME)
 
 
 class RNNTGreedyDecodeCudaGraph:

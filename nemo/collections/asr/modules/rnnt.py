@@ -386,7 +386,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @classmethod
     def batch_replace_states_all(
-        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor],
     ):
         """Replace states in dst_states with states from src_states"""
         dst_states[0].copy_(src_states[0])
