@@ -30,7 +30,7 @@ from nemo.core.utils.cuda_python_utils import (
 from nemo.utils import logging
 
 try:
-    from cuda import cuda, cudart, nvrtc
+    from cuda import cudart
 
     HAVE_CUDA_PYTHON = True
 except ImportError:
