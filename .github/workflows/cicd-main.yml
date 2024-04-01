@@ -67,8 +67,8 @@ jobs:
       uses: azure/docker-login@v1
       with:
         login-server: nemoci.azurecr.io
-        username: nemoci
         password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
 
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -182,8 +182,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -208,8 +208,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -238,8 +238,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -266,8 +266,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -293,8 +293,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -320,8 +320,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -348,8 +348,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -379,8 +379,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -413,8 +413,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -445,8 +445,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -479,8 +479,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -529,8 +529,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -566,8 +566,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -603,8 +603,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -685,8 +685,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -720,8 +720,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -756,8 +756,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -795,8 +795,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -829,8 +829,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -863,8 +863,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -893,8 +893,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -926,8 +926,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -959,8 +959,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1001,8 +1001,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1036,8 +1036,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1074,8 +1074,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1104,8 +1104,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1129,8 +1129,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1164,8 +1164,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1201,8 +1201,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1270,8 +1270,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1356,8 +1356,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1398,8 +1398,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1439,8 +1439,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1483,8 +1483,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1528,8 +1528,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1566,8 +1566,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1604,8 +1604,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1648,8 +1648,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1729,8 +1729,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1768,8 +1768,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1841,8 +1841,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1878,8 +1878,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1922,8 +1922,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1964,8 +1964,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2008,8 +2008,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2050,8 +2050,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2094,8 +2094,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2136,8 +2136,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2169,8 +2169,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2308,8 +2308,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2342,8 +2342,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2381,8 +2381,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2413,8 +2413,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2440,8 +2440,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2474,8 +2474,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2537,8 +2537,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2605,8 +2605,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2734,8 +2734,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2768,8 +2768,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2813,8 +2813,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2858,8 +2858,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2895,8 +2895,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2976,8 +2976,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3019,8 +3019,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3061,8 +3061,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3092,8 +3092,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3138,8 +3138,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3182,8 +3182,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3216,8 +3216,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3328,8 +3328,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3649,8 +3649,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3733,8 +3733,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3818,8 +3818,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3905,8 +3905,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4085,8 +4085,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4115,8 +4115,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4211,8 +4211,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4404,8 +4404,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4503,8 +4503,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4602,8 +4602,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4705,8 +4705,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4789,8 +4789,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4836,8 +4836,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4885,8 +4885,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4950,8 +4950,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4979,8 +4979,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5010,8 +5010,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5076,8 +5076,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5108,8 +5108,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5140,8 +5140,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5250,8 +5250,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5360,8 +5360,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5470,8 +5470,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5554,8 +5554,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5611,8 +5611,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5705,8 +5705,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5732,8 +5732,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5815,8 +5815,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5904,8 +5904,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5951,8 +5951,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6003,8 +6003,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6071,8 +6071,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6101,8 +6101,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6134,8 +6134,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6175,8 +6175,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6212,8 +6212,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6259,8 +6259,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6303,8 +6303,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6344,8 +6344,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6411,8 +6411,8 @@ jobs:
     runs-on: self-hosted-azure
     container:
       credentials:
-         username: nemoci
-         password: ${{ secrets.ACR_PASSWORD }}
+        password: ${{ secrets.ACR_PASSWORD }}
+        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
