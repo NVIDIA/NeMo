@@ -1,12 +1,24 @@
-from abc import ABC, abstractclassmethod
-from contextlib import contextmanager
-from typing import Any, Dict, List, Tuple, Union
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import hydra
 import pytorch_lightning as pl
 import torch
 import torch._dynamo
 import torch.nn as nn
+from abc import ABC, abstractclassmethod
+from contextlib import contextmanager
 from einops import rearrange
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -14,6 +26,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR
+from typing import Any, Dict, List, Tuple, Union
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_sdxl_precached_text_train_valid_datasets,

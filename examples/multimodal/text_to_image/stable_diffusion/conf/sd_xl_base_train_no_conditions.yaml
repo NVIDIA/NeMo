@@ -155,7 +155,7 @@ model:
     num_workers: 16
     train:
       dataset_path:
-        - /datasets/coyo/test.pkl
+        - YOUR_TRAINING_DATASET_WDINFO_FILE
       augmentations:
         resize_smallest_side: 256
         center_crop_h_w: 256, 256

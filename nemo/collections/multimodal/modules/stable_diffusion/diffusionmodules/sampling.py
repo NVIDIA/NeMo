@@ -1,13 +1,25 @@
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
     Partially ported from https://github.com/crowsonkb/k-diffusion/blob/master/k_diffusion/sampling.py
 """
 
-
-from typing import Dict, Union
-
 import torch
 from omegaconf import ListConfig, OmegaConf
 from tqdm import tqdm
+from typing import Dict, Union
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling_utils import (
     get_ancestral_step,

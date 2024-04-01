@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from contextlib import contextmanager
-
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from contextlib import contextmanager
 
 try:
     from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
@@ -348,7 +347,7 @@ class AutoencoderKL(pl.LightningModule):
             missing_key, unexpected_key, _, _ = self._load_pretrained_model(state_dict)
             if len(missing_key) > 0:
                 print(
-                    f'{self.__class__.__name__}: Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                    f'{self.__class__.__name__}: Following keys are missing during loading VAE weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
                 )
                 print(f'Missing:{missing_key}')
                 print(f'Unexpected:{unexpected_key}')
