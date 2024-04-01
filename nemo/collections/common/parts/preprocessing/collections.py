@@ -29,6 +29,7 @@ class _Collection(collections.UserList):
 
     OUTPUT_TYPE = None  # Single element output type.
 
+
 class Text(_Collection):
     """Simple list of preprocessed text entries, result in list of tokens."""
 
@@ -377,12 +378,14 @@ class ASRVideoText(VideoText):
             ids, video_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
         )
 
+
 class SpeechLabelEntity:
     def __init__(self, audio_file, duration, label, offset):
         self.audio_file = audio_file
         self.duration = duration
         self.label = label
         self.offset = offset
+
 
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
