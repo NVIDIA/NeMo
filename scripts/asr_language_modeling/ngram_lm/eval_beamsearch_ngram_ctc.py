@@ -32,7 +32,8 @@ python eval_beamsearch_ngram_ctc.py --cfg job
 
 python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file> \
-           ctc_decoding.beam.kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.word_kenlm_path=<path to the binary KenLM model> \
+           ctc_decoding.beam.subword_kenlm_path=<path to the binary KenLM model> \
            ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
            ctc_decoding.beam.beam_alpha=[<list of the beam alphas, separated with commas>] \
            ctc_decoding.beam.beam_beta=[<list of the beam betas, separated with commas>] \
@@ -131,10 +132,9 @@ class EvalBeamSearchNGramConfig:
 def beam_search_eval(
     model: nemo_asr.models.ASRModel,
     cfg: EvalBeamSearchNGramConfig,
-    all_probs: List[torch.Tensor],
+    all_hypotheses: List[torch.Tensor],
     target_transcripts: List[str],
     preds_output_file: str = None,
-    lm_path: str = None,
     beam_alpha: float = 1.0,
     beam_beta: float = 0.0,
     beam_size: int = 4,
@@ -164,7 +164,8 @@ def beam_search_eval(
         beam = ctc_beam_decoding.BeamCTCInferConfig(beam_size=beam_size,
                                                     beam_alpha=beam_alpha,
                                                     beam_beta=beam_beta,
-                                                    kenlm_path=cfg.ctc_decoding.beam.kenlm_path,
+                                                    word_kenlm_path=cfg.ctc_decoding.beam.word_kenlm_path,
+                                                    subword_kenlm_path=cfg.ctc_decoding.beam.subword_kenlm_path,
                                                     preserve_alignments=cfg.ctc_decoding.beam.preserve_alignments,
                                                     compute_timestamps=cfg.ctc_decoding.beam.compute_timestamps,
                                                     flashlight_cfg=cfg.ctc_decoding.beam.flashlight_cfg,
@@ -188,18 +189,18 @@ def beam_search_eval(
     sample_idx = 0
     if preds_output_file:
         out_file = open(preds_output_file, 'w', encoding='utf_8', newline='\n')
-
+    
     if progress_bar:
         it = tqdm(
-            range(int(np.ceil(len(all_probs) / beam_batch_size))),
+            range(int(np.ceil(len(all_hypotheses) / beam_batch_size))),
             desc=f"Beam search decoding with width={beam_size}, alpha={beam_alpha}, beta={beam_beta}",
             ncols=120,
         )
     else:
-        it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
+        it = range(int(np.ceil(len(all_hypotheses) / beam_batch_size)))
     for batch_idx in it:
         # disabling type checking
-        probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
+        probs_batch = [x.alignments for x in all_hypotheses[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]]
         probs_lens = torch.tensor([prob.shape[0] for prob in probs_batch])
         with torch.no_grad():
             packed_batch = torch.zeros(len(probs_batch), max(probs_lens), probs_batch[0].shape[-1], device='cpu')
@@ -252,7 +253,7 @@ def beam_search_eval(
         out_file.close()
         logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
 
-    if lm_path:
+    if cfg.ctc_decoding.beam.word_kenlm_path or cfg.ctc_decoding.beam.subword_kenlm_path:
         logging.info(
             'WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(
                 wer_dist_first / words_count, cer_dist_first / chars_count
@@ -405,12 +406,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
     asr_model = asr_model.to('cpu')
 
-    if cfg.ctc_decoding.strategy == "beam" or cfg.ctc_decoding.strategy == "pyctcdecode" or cfg.ctc_decoding.strategy == "flashlight":
-        if not os.path.exists(cfg.ctc_decoding.beam.kenlm_path):
-            raise FileNotFoundError(f"Could not find the KenLM model file '{cfg.ctc_decoding.beam.kenlm_path}'.")
-        lm_path = cfg.ctc_decoding.beam.kenlm_path
-    else:
-        lm_path = None
+    if cfg.ctc_decoding.beam.return_best_hypothesis==True:
+        raise ValueError("Works only with cfg.ctc_decoding.beam.return_best_hypothesis=False")
 
     # 'greedy' decoding_mode would skip the beam search decoding
     if cfg.ctc_decoding.strategy in ["beam", "pyctcdecode", "flashlight"]:
@@ -444,10 +441,9 @@ def main(cfg: EvalBeamSearchNGramConfig):
             candidate_wer, candidate_cer = beam_search_eval(
                 asr_model,
                 cfg,
-                all_probs=all_probs,
+                all_hypotheses=all_hypotheses,
                 target_transcripts=target_transcripts,
                 preds_output_file=preds_output_file,
-                lm_path=lm_path,
                 beam_size=hp["beam_size"],
                 beam_alpha=hp["beam_alpha"],
                 beam_beta=hp["beam_beta"],
