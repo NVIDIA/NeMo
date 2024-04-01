@@ -75,8 +75,8 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
-from nemo.utils.te_utils import is_float8tensor
 from nemo.utils.exceptions import check_imports
+from nemo.utils.te_utils import is_float8tensor
 
 IMPORT_ERROR = None
 

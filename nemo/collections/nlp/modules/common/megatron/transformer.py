@@ -82,7 +82,6 @@ except (ImportError, ModuleNotFoundError) as e:
     HAVE_TE = False
     IMPORT_ERROR = e
 
-
     # fake missing class
     class TransformerLayer(ApexGuardDefaults):
         def __init__(self):
