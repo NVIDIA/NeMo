@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional, Union
+
 import torch
 import torch.nn as nn
 from omegaconf import ListConfig
-from typing import List, Optional, Union
 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims, instantiate_from_config
 from nemo.collections.multimodal.parts.utils import randn_like

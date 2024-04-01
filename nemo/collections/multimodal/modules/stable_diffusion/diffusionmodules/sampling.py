@@ -16,10 +16,11 @@
     Partially ported from https://github.com/crowsonkb/k-diffusion/blob/master/k_diffusion/sampling.py
 """
 
+from typing import Dict, Union
+
 import torch
 from omegaconf import ListConfig, OmegaConf
 from tqdm import tqdm
-from typing import Dict, Union
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling_utils import (
     get_ancestral_step,

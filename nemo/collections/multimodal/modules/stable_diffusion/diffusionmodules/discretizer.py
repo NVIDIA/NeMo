@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import torch
 from abc import abstractmethod
 from functools import partial
+
+import numpy as np
+import torch
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import make_beta_schedule
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_zero

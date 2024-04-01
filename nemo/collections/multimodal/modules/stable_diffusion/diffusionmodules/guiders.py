@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from functools import partial
+
+import torch
 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import default, instantiate_from_config
 

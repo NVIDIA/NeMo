@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import math
-import numpy as np
 import os
+from typing import List, Optional, Union
+
+import numpy as np
 import torch
-from PIL import Image
 from einops import rearrange
 from omegaconf import ListConfig
+from PIL import Image
 from torch import autocast
-from typing import List, Optional, Union
 
 from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims
 from nemo.collections.multimodal.parts.utils import randn_like

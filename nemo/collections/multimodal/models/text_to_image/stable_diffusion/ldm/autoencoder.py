@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import contextmanager
+
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from contextlib import contextmanager
 
 try:
     from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer

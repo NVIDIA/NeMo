@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy
 import pathlib
-import torch
-from PIL import Image
 from enum import Enum
-from omegaconf import OmegaConf
-from tqdm import tqdm
 from typing import List, Optional, Tuple, Union
+
+import numpy
+import torch
+from omegaconf import OmegaConf
+from PIL import Image
+from tqdm import tqdm
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import DiffusionEngine
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling import (

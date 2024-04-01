@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import multiprocessing
-import numpy as np
 import os
-import pandas as pd
 import pickle
 import shutil
 import tarfile
@@ -25,6 +23,9 @@ from glob import glob
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional
+
+import numpy as np
+import pandas as pd
 
 SHAPES = {
     'prompt_embeds': (77, 2048),
