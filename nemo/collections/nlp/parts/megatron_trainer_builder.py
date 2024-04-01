@@ -80,6 +80,7 @@ class MegatronTrainerBuilder:
             find_unused_parameters=False,
             nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
             sharp=self.cfg.model.get('sharp', False),
+            torch_dist_ckpt=self.cfg.model.get('torch_distributed_checkpoint', False),
         )
 
     def _grad_scaler(self) -> GradScaler:
@@ -114,12 +115,7 @@ class MegatronTrainerBuilder:
             if megatron_amp_O2 and not with_distributed_adam:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
-                if self.cfg.model.get('fsdp', False):
-                    plugins.append(FSDPPrecision(precision=plugin_precision, scaler=scaler))
-                else:
-                    plugins.append(
-                        PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
-                    )
+                plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             self.cfg.trainer.precision = None
 
         if self.cfg.get('cluster_type', None) == 'BCP':
