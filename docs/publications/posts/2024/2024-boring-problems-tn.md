@@ -7,7 +7,7 @@ date: 2024-04-14
 
 # Optional: Categories
 categories: [Text Normalization, Large-Language Models]
-continue_url:https://ieeexplore.ieee.org/abstract/document/10447169
+continue_url: https://ieeexplore.ieee.org/abstract/document/10447169
 
 # Optional: OpenGraph metadata
 # og_title: Title of the blog post for Rich URL previews
