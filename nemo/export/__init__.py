@@ -12,4 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.export.tensorrt_llm import TensorRTLLM
+
+try:
+    from nemo.export.tensorrt_llm import TensorRTLLM
+except Exception:
+    pass
