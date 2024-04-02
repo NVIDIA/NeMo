@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractclassmethod
+from contextlib import contextmanager
+from typing import Any, Dict, List, Tuple, Union
+
 import hydra
 import pytorch_lightning as pl
 import torch
 import torch._dynamo
 import torch.nn as nn
-from abc import ABC, abstractclassmethod
-from contextlib import contextmanager
 from einops import rearrange
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -26,7 +28,6 @@ from pytorch_lightning.utilities import rank_zero_only
 from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR
-from typing import Any, Dict, List, Tuple, Union
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_sdxl_precached_text_train_valid_datasets,
