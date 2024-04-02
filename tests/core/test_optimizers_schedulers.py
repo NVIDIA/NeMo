@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import math
+import random
+
 import omegaconf
 import pytest
 import pytorch_lightning as pl
-import random
 import torch
 import torch.optim
 from pytorch_lightning.utilities import rank_zero_only
