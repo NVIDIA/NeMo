@@ -401,15 +401,17 @@ class VoiceboxModel(TextToWaveform):
         with tempfile.TemporaryDirectory() as temp_dir:
             print('Temporary directory created at:', temp_dir)
             # You can create files and directories inside the temporary directory
-            temp_audio_path = os.path.join(temp_dir, 'speech.wav')
-            temp_text_path = os.path.join(temp_dir, 'speech.lab')
-            temp_tg_path = os.path.join(temp_dir, 'speech.TextGrid')
+            os.makedirs(f"{temp_dir}/0", exist_ok=True)
+            os.makedirs(f"{temp_dir}/MFA", exist_ok=True)
+            temp_audio_path = os.path.join(f"{temp_dir}/0", 'speech.wav')
+            temp_text_path = os.path.join(f"{temp_dir}/0", 'speech.lab')
+            temp_tg_path = os.path.join(f"{temp_dir}/MFA", '0/speech.TextGrid')
 
-            sf.write(temp_audio_path, audio, samplerate=sampling_rate, format='WAV')
+            sf.write(temp_audio_path, audio.cpu(), samplerate=sampling_rate)
             with open(temp_text_path, 'w') as temp_file:
                 temp_file.write(texts)
 
-            os.system(f"conda run -n aligner bash -c \"mfa align_one {temp_audio_path} {temp_text_path} english_us_arpa english_us_arpa {temp_tg_path} \"")
+            os.system(f"conda run -n aligner bash -c \"mfa align {temp_dir} english_us_arpa english_us_arpa {temp_dir}/MFA \"")
 
             alignment = parse_mfa_textgrid(temp_tg_path, seg=None)
         return alignment
@@ -425,6 +427,7 @@ class VoiceboxModel(TextToWaveform):
         mel_lens: Tensor | None = None,
         phoneme_ids: Optional[Tensor] = None,
         alignments: List[Dict[str, List[AlignmentItem]]] | None = None,
+        textgrids: List[str] | None = None,
         edit_from: List[str] | None = None,
         edit_to: List[str] | List[Tuple[str, List[str]]] | None = None,
         steps = 3,
@@ -463,7 +466,10 @@ class VoiceboxModel(TextToWaveform):
 
         # mfa align if needed
         if alignments is None:
-            alignments = [self.mfa_align(audio=audio[i].unsqueeze(0), texts=texts[i], sampling_rate=24000) for i in len(texts)]
+            if textgrids is None:
+                alignments = [self.mfa_align(audio=audio[i], texts=text, sampling_rate=24000) for i, text in enumerate(texts)]
+            else:
+                alignments = [parse_mfa_textgrid(tg, None) for tg in textgrids]
 
         def parse_dp_input_from_ali(alignment, mel_len, ed_f, ed_t):
             alignment = fix_alignment(alignment=alignment)
@@ -631,6 +637,9 @@ class VoiceboxModel(TextToWaveform):
             "edit_audio": edit_audio,
             "ztts_audio": ztts_audio,
             "resyn_audio": resyn_audio,
+            "edit_mel": edit_mel,
+            "ztts_mel": ztts_mel,
+            "ori_mel": mel,
             "ori_mel_lens": mel_lens,
             "ori_audio_lens": audio_lens,
             "ori_cond_st_idx": ori_cond_st_idx,
@@ -1115,9 +1124,9 @@ def parse_mfa_textgrid(f_id, seg: None):
         if seg is not None:
             new_sup_seg = new_sup_seg.with_alignment(tier.name, _dur)
         
-        # warning
-        if f"{seg.duration:.2f}" != f"{maxTime:.2f}":
-            logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.2f}, ali_end: {maxTime:.2f}")
+            # warning
+            if f"{seg.duration:.2f}" != f"{maxTime:.2f}":
+                logging.warning(f"recording length unmatch: cut_dur: {seg.duration:.2f}, ali_end: {maxTime:.2f}")
 
     if seg is not None:
         return new_sup_seg
