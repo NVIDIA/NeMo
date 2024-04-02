@@ -13,8 +13,9 @@
 # limitations under the License.
 
 name: "encoder"
-backend: "tensorrt_plan"
-default_model_filename: "model.onnx"
+backend: "tensorrt"
+platform: "tensorrt_plan"
+default_model_filename: "encoder.trt"
 
 max_batch_size: 32
 input [
@@ -27,6 +28,7 @@ input [
     name: "length"
     data_type: TYPE_INT32
     dims: [1]
+    reshape: { shape: [ ] }
   }
 ]
 
@@ -39,7 +41,8 @@ output [
   {
     name: "encoded_length"
     data_type: TYPE_INT32
-    dims: [1] # [-1, beam_size]
+    dims: [1]
+    reshape: { shape: [ ] }
   }
 ]
 
@@ -50,7 +53,7 @@ dynamic_batching {
 
 instance_group [
     {
-      count: 2
+      count: 1
       kind: KIND_GPU
     }
 ]

@@ -46,6 +46,7 @@ class OfflineSpeechClient(object):
         ]
         inputs[0].set_data_from_numpy(samples)
         inputs[1].set_data_from_numpy(lengths)
+        print("model name", self.model_name)
         outputs = [self.protocol_client.InferRequestedOutput("TRANSCRIPTS")]
         response = self.triton_client.infer(
             self.model_name,
@@ -84,7 +85,7 @@ if __name__ == "__main__":
         "--model_name",
         required=False,
         default="asr_ctc",
-        choices=["asr_ctc"],
+        choices=["asr_ctc", "asr_ctc_ensemble"],
         help="the model to send request to",
     )
     parser.add_argument(
@@ -152,9 +153,11 @@ if __name__ == "__main__":
         cur_files = per_split.tolist()
         tasks.append((idx, cur_files))
 
-    with Pool(processes=num_workers) as pool:
-        predictions = pool.map(single_job, tasks)
-
+    #with Pool(processes=num_workers) as pool:
+    #    predictions = pool.map(single_job, tasks)
+    # remove pool to better debug 
+    predictions = single_job(tasks[0])
+    
     predictions = [item for sublist in predictions for item in sublist]
     # dump prediction
     if args.output_file is not None:

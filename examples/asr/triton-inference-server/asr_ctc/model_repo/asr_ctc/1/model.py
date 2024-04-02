@@ -143,14 +143,13 @@ class TritonPythonModel:
           asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name_or_path)
         ctc_decoding = CTCDecodingConfig()
         ctc_decoding.strategy = parameters['decoding_strategy']['string_value']
-        if ctc_decoding.strategy == 'beam_search':
-            ctc_decoding.beam_size = int(parameters['beam_size']['string_value'])
+        if ctc_decoding.strategy != 'greedy':
+          ctc_decoding.beam_size = int(parameters['beam_size']['string_value'])
         asr_model.change_decoding_strategy(ctc_decoding)
         self.model = asr_model.cuda()
         self.model.encoder.freeze()
         self.model.decoder.freeze()
         self.model.eval()
-        self.model.to()
         self.precision_context = torch.cuda.amp.autocast(dtype=self.dtype)
 
 

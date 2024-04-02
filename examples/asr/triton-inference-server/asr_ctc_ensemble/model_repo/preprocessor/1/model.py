@@ -37,7 +37,7 @@ class TritonPythonModel:
         
         # load model and get the preprocessor here
         model_name = model_config['parameters']["model_name"]['string_value']
-        self.preprocessor = self.extract_preprocessor(model_name)
+        self.preprocessor = self.extract_preprocessor(model_name, self.device)
     
     def extract_preprocessor(self, asr_model_name, device):
       # load model
@@ -79,7 +79,6 @@ class TritonPythonModel:
             # as they will be overridden in subsequent inference requests. You can
             # make a copy of the underlying NumPy array and store it if it is
             # required.
-
             waveforms = []
             lengths = []
             total_number_of_samples = 0
@@ -92,19 +91,22 @@ class TritonPythonModel:
                 total_number_of_samples += 1
 
             audio_signal_len = torch.tensor(lengths).cuda()
-            audio_signal = torch.nn.utils.rnn.pad_sequence(waveforms).cuda()
-            processed_example, processed_example_length = self.processor(input_signal=audio_signal, 
+            audio_signal = torch.nn.utils.rnn.pad_sequence(waveforms, batch_first=True).cuda()
+            processed_example, processed_example_length = self.preprocessor(input_signal=audio_signal, 
                                                                          length=audio_signal_len)
            
             responses = []
             for i in range(total_number_of_samples):
                 processed_signal = processed_example[i]
+               
                 processed_signal_len = processed_example_length[i]
-                processed_signal = processed_signal[i][:, 0:processed_signal_len]
+               
+                processed_signal = processed_signal[:, 0:processed_signal_len]
+                
+                processed_signal_len = torch.tensor([processed_signal_len], dtype=torch.int32).cuda()
                 
                 out0 = pb_utils.Tensor.from_dlpack("processed_signal", to_dlpack(processed_signal.unsqueeze(0)))
                 out1 = pb_utils.Tensor.from_dlpack("processed_signal_length", to_dlpack(processed_signal_len.unsqueeze(0)))
-                
                 responses.append(pb_utils.InferenceResponse(output_tensors=[out0, out1]))
             return responses
 

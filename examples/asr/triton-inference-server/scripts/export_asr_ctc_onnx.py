@@ -85,7 +85,7 @@ def export_model(args, nemo_model):
             )
     model = EncDecModel(nemo_model.encoder, nemo_model.decoder)
     torch.onnx.export(model, (processed_audio, processed_audio_len), 
-                      args.onnx_model, opset_version=12, verbose=True,
+                      args.onnx_model, opset_version=18, verbose=True,
                       input_names=['audio_signal', 'length'], 
                       output_names=['log_probs', 'encoded_length'],
                       dynamic_axes={'audio_signal': {0: 'batch_size', 2: 'time'}, 

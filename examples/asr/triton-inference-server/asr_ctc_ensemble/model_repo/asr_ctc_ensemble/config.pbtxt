@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "attention_rescoring"
+name: "asr_ctc_ensemble"
 platform: "ensemble"
-max_batch_size: 64
+max_batch_size: 32
 
 input [
   {

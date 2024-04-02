@@ -5,11 +5,9 @@ import numpy as np
 import torch
 import triton_python_backend_utils as pb_utils
 
-from omegaconf import OmegaConf
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
-from torch.utils.dlpack import from_dlpack, to_dlpack
-
+from torch.utils.dlpack import from_dlpack
 
 class TritonPythonModel:
    
@@ -46,7 +44,7 @@ class TritonPythonModel:
         # init decoding strategy
         ctc_decoding = CTCDecodingConfig()
         ctc_decoding.strategy = parameters['decoding_strategy']['string_value']
-        if ctc_decoding.strategy == 'beam_search':
+        if ctc_decoding.strategy != 'greedy':
             ctc_decoding.beam_size = int(parameters['beam_size']['string_value'])
         
         model.change_decoding_strategy(ctc_decoding)
@@ -70,7 +68,6 @@ class TritonPythonModel:
           A list of pb_utils.InferenceResponse. The length of this list must
           be the same as `requests`
         """
-
         with torch.inference_mode():
             responses = []
             # Every Python backend must iterate through list of requests and create
@@ -79,7 +76,6 @@ class TritonPythonModel:
             # as they will be overridden in subsequent inference requests. You can
             # make a copy of the underlying NumPy array and store it if it is
             # required.
-
             logits = []
             logits_len = []
             total_number_of_samples = 0
@@ -91,8 +87,8 @@ class TritonPythonModel:
                 logits_len.append(from_dlpack(in_1.to_dlpack()).squeeze(0))
                 total_number_of_samples += 1
 
-            logits = torch.tensor(logits).cuda()
-            logits_len = torch.nn.utils.rnn.pad_sequence(logits, batch_first=True).cuda()
+            logits_len = torch.tensor(logits_len, dtype=torch.int32).cuda()
+            logits = torch.nn.utils.rnn.pad_sequence(logits, batch_first=True).cuda()
            
             current_hypotheses, _ = self.decoding.ctc_decoder_predictions_tensor(
                     logits, decoder_lengths=logits_len, return_hypotheses=False,
@@ -100,7 +96,7 @@ class TritonPythonModel:
            
             responses = []
             for i in range(len(requests)):
-                out_tensor = pb_utils.Tensor("TRANSCRIPT", np.array(current_hypotheses[i]).astype(np.object_))
+                out_tensor = pb_utils.Tensor("TRANSCRIPT", np.array([current_hypotheses[i]]).astype(np.object_))
                 response = pb_utils.InferenceResponse(output_tensors=[out_tensor])
                 responses.append(response)
             return responses
