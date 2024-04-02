@@ -40,9 +40,10 @@ exp_manager:
 
 
 model:
+  restore_from_path: /home/ataghibakhsh/griffin.nemo
   # model parallelism 
-  micro_batch_size: 1
-  global_batch_size: 1
+  micro_batch_size: 2
+  global_batch_size: 2
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
@@ -78,6 +79,7 @@ model:
     model: '/home/ataghibakhsh/deepmind/space_gemma_model/tokenizer.model'
     vocab_file: null
     merge_file: null 
+    sentencepiece_legacy: False
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
