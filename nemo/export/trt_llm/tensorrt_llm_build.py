@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This module builds the tensorrt_llm engine.
-
-Referrence impl in tensorrt_llm: examples/gpt/build.py.
-"""
 
 import argparse
 import os
@@ -90,36 +86,8 @@ def refit_runtime_engine(params, cuda_engine):
 def build_rank_engine(
     tensorrt_llm_gpt, builder: Builder, builder_config: tensorrt_llm.builder.BuilderConfig, engine_name, args,
 ):
-    """@brief: Build the engine on the given rank.
 
-    @param rank: The rank to build the engine.
-    @param args: The cmd line arguments.
-    @return: The built engine.
-    """
     str_dtype_to_trt(args.dtype)
-
-    # TODO: Enable use_embedding_sharing when this feature is needed.
-    # Share_embedding_table can be set True only when:
-    # 1) the weight for lm_head() does not exist while other weights exist
-    # 2) For multiple-processes, use_parallel_embedding=True and embedding_sharding_dim == 0.
-    # Besides, for TensorRT 9.0, we can observe the engine size reduction when the lookup and gemm plugin are enabled.
-    # share_embedding_table = False
-    # if args.use_embedding_sharing:
-    #     if args.world_size > 1:
-    #         if args.model_dir is not None and args.embedding_sharding_dim == 0 and args.use_parallel_embedding:
-    #             share_embedding_table = check_embedding_share(args.model_dir)
-    #     else:
-    #         if args.model_dir is not None:
-    #             share_embedding_table = check_embedding_share(args.model_dir)
-
-    #     if not share_embedding_table:
-    #         logger.warning(f'Cannot share the embedding lookup table.')
-
-    # if share_embedding_table:
-    #     logger.info(
-    #         'Engine will share embedding and language modeling weights.')
-
-    # Module -> Network
     ootb = os.getenv("OOTB", False)
 
     network = builder.create_network()

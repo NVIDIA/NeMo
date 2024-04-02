@@ -24,7 +24,8 @@ from tensorrt_llm.functional import is_gated_activation
 from transformers import LlamaConfig, PretrainedConfig
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
-from .tensor_utils import get_tensor_from_dict, split, torch_to_numpy_with_dtype
+from nemo.export.trt_llm.tensor_utils import get_tensor_from_dict, split, torch_to_numpy_with_dtype
+
 
 DECODER_GPT2 = "gpt2"
 DECODER_GPTJ = "gptj"

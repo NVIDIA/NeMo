@@ -20,7 +20,7 @@ from pathlib import Path
 # from scripts.deploy.cloud_telemetry_service import postToNVDataFlow
 import torch
 
-from nemo.deploy import DeployPyTriton, NemoQuery
+from nemo.deploy import DeployPyTriton, NemoQueryLLM
 from nemo.export import TensorRTLLM
 from tests.infer_data_path import download_nemo_checkpoint, get_infer_test_data
 
@@ -225,7 +225,7 @@ def run_trt_llm_inference(
             nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000,)
             nm.deploy()
             nm.run()
-            nq = NemoQuery(url="localhost:8000", model_name=model_name)
+            nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
             # stop_words_list = ["Paris", "whale", "falcon"]
             output_deployed = nq.query_llm(
                 prompts=prompt,

@@ -18,7 +18,6 @@ import numpy as np
 import torch
 from tensorrt_llm._utils import torch_to_numpy
 
-# AMMO modification
 # A global dicts to store exported weights.
 # This is set to be a global variable to avoid extra code modification from tensorrt_llm.
 weights_dict = {}
@@ -41,7 +40,6 @@ def gpu_map_location(storage, loc):
 
 def save_val(val, dir, key, tp_num=None):
     suffix = "bin" if tp_num is None else f"{tp_num}.bin"
-    # AMMO modification, save to in-memory dict instead of dir.
     # Transpose linear layer weights to the correct shape.
     if len(val.shape) >= 2:
         val = np.ascontiguousarray(np.transpose(val.reshape(val.shape[0], -1), [1, 0]))
@@ -270,7 +268,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             split_vals = np.split(gate, split_factor, axis=cat_dim)
             save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
-    # Ammo modification
     elif "mlp.dense_h_to_4h_2.weight" in key or "mlp.dense_h_to_4h_2.bias" in key:
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
@@ -391,7 +388,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     else:
         print(f"[WARNING] {key} not handled by converter")
 
-    # Ammo modification
     global weights_dict
     return weights_dict
 
@@ -405,7 +401,6 @@ def save_weight_torch(tp_rank, saved_dir, split_factor, key, vals, storage_type,
         else:
             suffix = f"{tp_rank}.bin"
 
-        # AMMO modification, save to in-memory dict instead of dir.
         # Transpose linear layer weights to the correct shape.
         assert torch.is_tensor(val)
         if len(val.shape) >= 2:
@@ -490,7 +485,6 @@ def save_weight_torch(tp_rank, saved_dir, split_factor, key, vals, storage_type,
             key = prefix + ".gate" + dot + suffix
             save_tranpose(gate, key)
 
-    # Ammo modification
     elif "mlp.dense_h_to_4h_2.weight" in key or "mlp.dense_h_to_4h_2.bias" in key:
         save_tranpose(gpu_val, key)
 
@@ -527,6 +521,5 @@ def save_weight_torch(tp_rank, saved_dir, split_factor, key, vals, storage_type,
     else:
         print(f"[WARNING] {key} not handled by converter")
 
-    # Ammo modification
     global weights_dict
     return weights_dict

@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The utils to convert a tensorrt_llm network to a quantized network."""
 
 import numpy as np
 from tensorrt_llm.layers import Linear, RowLinear
 from tensorrt_llm.quantization.layers import FP8Linear, FP8RowLinear, Int8SmoothQuantLinear, Int8SmoothQuantRowLinear
 
-from .model_config import QUANTIZATION_FP8, QUANTIZATION_INT8_SQ, QUANTIZATION_NONE, LinearConfig, ModelConfig
+from nemo.export.trt_llm.model_config import (
+    QUANTIZATION_FP8,
+    QUANTIZATION_INT8_SQ,
+    QUANTIZATION_NONE,
+    LinearConfig,
+    ModelConfig,
+)
 
 
 def quantize_linear(tensorrt_llm_layer, quantization: str, layer_config: LinearConfig):

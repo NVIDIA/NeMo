@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The parent decoder class implementation for model_config and tensorrt_llm conversion."""
 
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -20,9 +19,15 @@ from typing import Optional
 import tensorrt as trt
 from transformers.activations import ACT2FN
 
-from ..model_config import QUANTIZATION_NONE, AttentionConfig, DecoderLayerConfig, LayernormConfig, MLPConfig
-from ..quantization_utils import quantize_linear
-from ..tensor_utils import get_tensor_parallel_group
+from nemo.export.trt_llm.model_config import (
+    QUANTIZATION_NONE,
+    AttentionConfig,
+    DecoderLayerConfig,
+    LayernormConfig,
+    MLPConfig,
+)
+from nemo.export.trt_llm.quantization_utils import quantize_linear
+from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
 
 
 def _get_hidden_act(act_func):
@@ -218,7 +223,6 @@ class DecoderLayerBuilder(ABC):
 
         if is_moe:
             self.decoder.mlp.router.weight.value = layer.mlp.router.weight
-            # TODO: bias
             self.decoder.mlp.experts_weight_1.value = layer.mlp.fc1.weight
             self.decoder.mlp.experts_weight_2.value = layer.mlp.fc2.weight
 

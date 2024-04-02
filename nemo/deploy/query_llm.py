@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from .utils import str_list2numpy
+from nemo.deploy.utils import str_list2numpy
 
 use_pytriton = True
 try:
@@ -25,7 +25,7 @@ except:
     use_pytriton = False
 
 
-class NemoQueryBase(ABC):
+class NemoQueryLLMBase(ABC):
     def __init__(self, url, model_name):
         self.url = url
         self.model_name = model_name
@@ -49,14 +49,14 @@ class NemoQueryBase(ABC):
         pass
 
 
-class NemoQuery(NemoQueryBase):
+class NemoQueryLLM(NemoQueryLLMBase):
     """
     Sends a query to Triton for LLM inference
 
     Example:
-        from nemo.deploy import NemoQuery
+        from nemo.deploy import NemoQueryLLM
 
-        nq = NemoQuery(url="localhost", model_name="GPT-2B")
+        nq = NemoQueryLLM(url="localhost", model_name="GPT-2B")
 
         prompts = ["hello, testing GPT inference", "another GPT inference test?"]
         output = nq.query_llm(

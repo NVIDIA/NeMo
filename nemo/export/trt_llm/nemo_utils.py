@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import argparse
 import ast
 import configparser
@@ -32,7 +33,7 @@ import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
 from transformers import AutoTokenizer, GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
-from .model_config import (
+from nemo.export.trt_llm.model_config import (
     LAYERNORM_DEFAULT,
     LAYERNORM_RMS,
     LINEAR_COLUMN,
@@ -42,14 +43,14 @@ from .model_config import (
     LinearConfig,
     ModelConfig,
 )
-from .nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
-from .nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint, convert_nemo_model
-from .tensor_utils import get_tensor_from_dict, get_tensor_parallel_group, split
+from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir, unpack_nemo_ckpt
+from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint, convert_nemo_model
+from nemo.export.trt_llm.tensor_utils import get_tensor_from_dict, get_tensor_parallel_group, split
 
 LOGGER = logging.getLogger("NeMo")
 
 
-def _nemo_decode(
+def _nemo_llm_decode(
     in_file: str,
     out_dir: str,
     tensor_parallelism: int = 1,
@@ -121,7 +122,7 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     return build_tokenizer(tokenizer_config)
 
 
-def nemo_to_model_config(
+def nemo_llm_to_model_config(
     in_file: str,
     decoder_type: str,
     nemo_export_dir: typing.Union[str, Path],
@@ -133,7 +134,7 @@ def nemo_to_model_config(
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = dtype
 
-    weights_dict, llm_model_config, tokenizer = _nemo_decode(
+    weights_dict, llm_model_config, tokenizer = _nemo_llm_decode(
         in_file=in_file,
         out_dir=nemo_export_dir,
         tensor_parallelism=tensor_parallel_size,
@@ -253,7 +254,7 @@ def to_word_list_format(word_dict: List[List[str]], tokenizer=None):
     return np.array([flat_ids, offsets], dtype="int32").transpose((1, 0, 2))
 
 
-def nemo_model_to_model_config(
+def nemo_llm_model_to_model_config(
     nemo_model: str, decoder_type: str, nemo_model_config: str, dtype_str: str = "float32",
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO model object and construct the `ModelConfig` before tensorrt_llm deployment."""

@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tensorrt_llm import TensorRTLLM
+from nemo.export.tensorrt_llm import TensorRTLLM

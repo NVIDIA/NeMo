@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Referrence impl in tensorrt_llm: examples/gpt/utils/nemo.py."""
+
 import functools
 import logging
 import os
@@ -24,7 +24,8 @@ import torch
 import yaml
 from transformers import FalconConfig, GPT2Config, LlamaConfig
 
-from .convert import cpu_map_location, gpu_map_location
+from nemo.export.trt_llm.nemo.convert import cpu_map_location, gpu_map_location
+
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -99,7 +100,6 @@ def add_special_tokens_to_tokenizer(tokenizer):
         tokenizer.add_special_tokens({"eos_token": "</s>"})
 
 
-# TODO: remove tar.extractall usage before releasing with KitMaker
 def unpack_nemo_ckpt(
     nemo_archive_path: typing.Union[str, pathlib.Path], out_dir_path: typing.Union[str, pathlib.Path],
 ):

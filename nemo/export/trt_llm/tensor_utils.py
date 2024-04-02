@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils for tensor conversions between tensorrt, torch and numpy."""
 
 from typing import Dict
 

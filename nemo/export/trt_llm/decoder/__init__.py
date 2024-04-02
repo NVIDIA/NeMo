@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""LLM Decoder implementation for tensorrt_llm conversion."""
 from typing import Dict, Type
 
 import tensorrt as trt
 
-from ..model_config import (
+from nemo.export.trt_llm.decoder.decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
+from nemo.export.trt_llm.decoder.falcon import FALCONDecoderLayerBuilder, FALCONDecoderLayerConfigBuilder
+from nemo.export.trt_llm.decoder.gemma import GemmaDecoderLayerBuilder, GemmaDecoderLayerConfigBuilder
+from nemo.export.trt_llm.decoder.gpt import GPTDecoderLayerBuilder, GPTDecoderLayerConfigBuilder
+from nemo.export.trt_llm.decoder.gptj import GPTJDecoderLayerBuilder, GPTJDecoderLayerConfigBuilder
+from nemo.export.trt_llm.decoder.llama import LLAMADecoderLayerBuilder, LLAMADecoderLayerConfigBuilder
+from nemo.export.trt_llm.model_config import (
     DECODER_FALCON,
     DECODER_GEMMA,
     DECODER_GPT2,
@@ -26,12 +31,6 @@ from ..model_config import (
     DECODER_LLAMA,
     QUANTIZATION_NONE,
 )
-from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
-from .falcon import FALCONDecoderLayerBuilder, FALCONDecoderLayerConfigBuilder
-from .gemma import GemmaDecoderLayerBuilder, GemmaDecoderLayerConfigBuilder
-from .gpt import GPTDecoderLayerBuilder, GPTDecoderLayerConfigBuilder
-from .gptj import GPTJDecoderLayerBuilder, GPTJDecoderLayerConfigBuilder
-from .llama import LLAMADecoderLayerBuilder, LLAMADecoderLayerConfigBuilder
 
 DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
     DECODER_GPT2: GPTDecoderLayerConfigBuilder,

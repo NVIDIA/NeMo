@@ -24,7 +24,7 @@ import pytest
 import torch
 from tqdm import tqdm
 
-from nemo.deploy import DeployPyTriton, DeployTensorRTLLM, NemoQuery, NemoQueryTensorRTLLM
+from nemo.deploy import DeployPyTriton, NemoQueryLLM
 from nemo.export import TensorRTLLM
 from tests.infer_data_path import download_nemo_checkpoint, get_infer_test_data
 
@@ -136,7 +136,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
                 nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000,)
                 nm.deploy()
                 nm.run()
-                nq = NemoQuery(url="http://localhost:8000", model_name=model_name)
+                nq = NemoQueryLLM(url="http://localhost:8000", model_name=model_name)
                 output = nq.query_llm(
                     prompts=prompts,
                     max_output_token=model_info["max_output_token"],
@@ -149,7 +149,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
 
                 nm.deploy()
                 nm.run()
-                nq = NemoQuery(url="grpc://localhost:8001", model_name=model_name)
+                nq = NemoQueryLLM(url="grpc://localhost:8001", model_name=model_name)
                 output_gen = nq.query_llm_streaming(
                     prompts=prompts,
                     max_output_token=model_info["max_output_token"],
@@ -159,17 +159,7 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
                 )
                 output = [cur_output for cur_output in output_gen][-1]
         else:
-            model_repo_dir = "/tmp/ensemble"
-            nm = DeployTensorRTLLM(
-                model=trt_llm_exporter, triton_model_name=model_name, port=8000, model_repo_dir=model_repo_dir
-            )
-            nm.deploy()
-            nm.run()
-            time.sleep(20)
-            nq = NemoQueryTensorRTLLM(url="localhost:8000", model_name="ensemble")
-            output = nq.query_llm(
-                prompts=prompts, max_output_token=model_info["max_output_token"], top_k=1, top_p=0.0, temperature=1.0,
-            )
+            raise Exception("This option will be implemented in the next releases.")
 
         print("")
         print("--- Prompt: ", prompts)

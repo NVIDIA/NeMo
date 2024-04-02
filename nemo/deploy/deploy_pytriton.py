@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ try:
     from pytriton.triton import Triton, TritonConfig
 except:
     pass
-from .deploy_base import DeployBase
+from nemo.deploy.deploy_base import DeployBase
 
 
 class DeployPyTriton(DeployBase):
@@ -27,7 +27,7 @@ class DeployPyTriton(DeployBase):
     Deploys any models to Triton Inference Server that implements ITritonDeployable interface in nemo.deploy.
 
     Example:
-        from nemo.deploy import DeployPyTriton, NemoQuery
+        from nemo.deploy import DeployPyTriton, NemoQueryLLM
         from nemo.export import TensorRTLLM
 
         trt_llm_exporter = TensorRTLLM(model_dir="/path/for/model/files")
@@ -40,7 +40,7 @@ class DeployPyTriton(DeployBase):
         nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
         nm.deploy()
         nm.run()
-        nq = NemoQuery(url="localhost", model_name="model_name")
+        nq = NemoQueryLLM(url="localhost", model_name="model_name")
 
         prompts = ["hello, testing GPT inference", "another GPT inference test?"]
         output = nq.query_llm(prompts=prompts, max_output_len=100)

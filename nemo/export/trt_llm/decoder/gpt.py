@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The GPT2 decoder implementation."""
 
 from typing import Optional
 
@@ -20,8 +19,15 @@ from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType
 from tensorrt_llm.models.gpt.model import GPTDecoderLayer
 from typing_extensions import override
 
-from ..model_config import LINEAR_COLUMN, LINEAR_ROW, AttentionConfig, LayernormConfig, LinearConfig, MLPConfig
-from .decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
+from nemo.export.trt_llm.decoder.decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
+from nemo.export.trt_llm.model_config import (
+    LINEAR_COLUMN,
+    LINEAR_ROW,
+    AttentionConfig,
+    LayernormConfig,
+    LinearConfig,
+    MLPConfig,
+)
 
 
 class GPTDecoderLayerConfigBuilder(DecoderLayerConfigBuilder):

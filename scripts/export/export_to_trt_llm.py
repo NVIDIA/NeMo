@@ -18,7 +18,7 @@ import os
 import sys
 from pathlib import Path
 
-from nemo.deploy import DeployPyTriton, NemoQuery
+from nemo.deploy import DeployPyTriton
 from nemo.export import TensorRTLLM
 
 try:
@@ -112,7 +112,7 @@ def get_args(argv):
     return args
 
 
-def nemo_export(argv):
+def nemo_export_trt_llm(argv):
     args = get_args(argv)
     if args.debug_mode:
         loglevel = logging.DEBUG
@@ -160,4 +160,4 @@ def nemo_export(argv):
 
 
 if __name__ == '__main__':
-    nemo_export(sys.argv[1:])
+    nemo_export_trt_llm(sys.argv[1:])

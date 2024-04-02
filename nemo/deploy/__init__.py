@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deploy_base import DeployBase
-from .deploy_pytriton import DeployPyTriton
+
+from nemo.deploy.deploy_base import DeployBase
+from nemo.deploy.deploy_pytriton import DeployPyTriton
 
 try:
-    from .query import NemoQuery
+    from nemo.deploy.query_llm import NemoQueryLLM
 except:
     pass
-from .triton_deployable import ITritonDeployable
+from nemo.deploy.triton_deployable import ITritonDeployable

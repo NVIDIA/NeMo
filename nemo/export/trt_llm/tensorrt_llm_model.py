@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This module defines a tensorrt_llm based model for all LLMs we support inside AMMO.
-
-Referrence impl in tensorrt_llm: tensorrt_llm/models/gpt/model.py.
-"""
 
 from pathlib import Path
 from typing import List
@@ -28,12 +24,16 @@ from tensorrt_llm.layers import AttentionParams, ColumnLinear, KeyValueCachePara
 from tensorrt_llm.models.generation_mixin import GenerationMixin
 from tensorrt_llm.module import Module, ModuleList
 
-from .decoder import build_decoder_layer
-from .model_config import DECODER_GEMMA, ModelConfig
-from .quantization_utils import quantize_linear
-from .tensor_utils import trt_dtype_to_str
-from .tensorrt_llm_build import build
-from .tensorrt_llm_utils import build_embedding_from_config, build_layernorm_from_config, print_tensorrt_llm
+from nemo.export.trt_llm.decoder import build_decoder_layer
+from nemo.export.trt_llm.model_config import DECODER_GEMMA, ModelConfig
+from nemo.export.trt_llm.quantization_utils import quantize_linear
+from nemo.export.trt_llm.tensor_utils import trt_dtype_to_str
+from nemo.export.trt_llm.tensorrt_llm_build import build
+from nemo.export.trt_llm.tensorrt_llm_utils import (
+    build_embedding_from_config,
+    build_layernorm_from_config,
+    print_tensorrt_llm,
+)
 
 
 def get_transformer_layers(mapping, num_layers):
@@ -203,7 +203,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         """Initializes the LMHeadModelBuilder from a model_config."""
         super().__init__(model_config)
 
-        # TODO: Add support for share_embedding_table
         share_embedding_table = False
         share_weight = None
         if share_embedding_table:
@@ -343,7 +342,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
             use_custom_all_reduce=use_custom_all_reduce,
         )
 
-        # todo: we should remove this, but hesitant since no explicit argument names below.
         inflight_batching_args = None
 
         return (

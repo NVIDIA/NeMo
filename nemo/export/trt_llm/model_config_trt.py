@@ -17,10 +17,8 @@ import shutil
 from pathlib import Path
 from typing import List, Union
 
-import psutil
-
-from .model_config import ModelConfig
-from .tensorrt_llm_model import LMHeadModelBuilder
+from nemo.export.trt_llm.model_config import ModelConfig
+from nemo.export.trt_llm.tensorrt_llm_model import LMHeadModelBuilder
 
 
 def model_config_to_tensorrt_llm(
@@ -61,8 +59,6 @@ def model_config_to_tensorrt_llm(
     if os.path.exists(engine_dir):
         shutil.rmtree(engine_dir)
 
-    print("Before engine building, CPU RAM Used (GB):" f" {psutil.Process().memory_info().rss / 1024 / 1024 / 1024}")
-
     for rank in range(world_size):
         model_configs[rank].use_prompt_tuning = max_prompt_embedding_table_size > 0
         model_configs[rank].max_lora_rank = max_lora_rank
@@ -83,8 +79,4 @@ def model_config_to_tensorrt_llm(
             use_lora_plugin=use_lora_plugin,
             lora_target_modules=lora_target_modules,
             max_lora_rank=max_lora_rank,
-        )
-        print(
-            f"After Engine building rank {rank}, CPU RAM Used (GB):"
-            f" {psutil.Process().memory_info().rss / 1024 / 1024 / 1024}"
         )

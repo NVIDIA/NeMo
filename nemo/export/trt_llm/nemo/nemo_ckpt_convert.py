@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Referrence impl in tensorrt_llm: examples/gpt/nemo_ckpt_convert.py."""
 
 import configparser
 import logging
@@ -32,9 +31,10 @@ from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
-from .convert import save_weight_torch, split_and_save_weight
-from .nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
-from .sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.trt_llm.nemo.convert import save_weight_torch, split_and_save_weight
+from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
+from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
+
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -218,7 +218,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
             val = torch_to_numpy(val.to(storage_type).cpu())
             model_level_weights["model.lm_head.weight.bin"].append(val)
 
-    # AMMO modification
     weights_dict = {}
 
     tp_rank = 0
@@ -267,20 +266,18 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
     if args.processes > 1:
         with multiprocessing.Pool(args.processes) as pool:
-            # AMMO modification
             weights_dicts = pool.starmap(split_and_save_weight, starmap_args)
             weights_dict_local = {k: v for d in weights_dicts for k, v in d.items()}
     else:
         # simpler for debug situations
         for starmap_arg in starmap_args:
-            # AMMO modification
             weights_dict_local = split_and_save_weight(*starmap_arg)
-    # AMMO modification
+
     weights_dict.update(weights_dict_local)
 
     for key, values in model_level_weights.items():
         model_level_weights[key] = np.concatenate(values, axis=0)
-        # AMMO modification
+
         weights_dict[key] = model_level_weights[key]
     vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
@@ -291,7 +288,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     else:
         tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
         copy_tokenizer_files(tokenizer_config, out_dir)
-        # AMMO modification.
+
         tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
         tokenizer = build_tokenizer(tokenizer_config)
 
@@ -513,7 +510,6 @@ def convert_nemo_model(nemo_model, nemo_model_config, storage_type_str, decoder_
 
 
 def create_out_dir(args):
-    # AMMO modification.
     out_dir = Path(args.out_dir)
     if not out_dir.exists():
         out_dir.mkdir(parents=True)

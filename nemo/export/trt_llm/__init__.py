@@ -12,24 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""LLM deployment package with tensorrt_llm."""
 
+import tensorrt_llm
 from mpi4py import MPI
 
-# Pre load MPI libs to avoid tensorrt_llm importing failures.
-print(f"Loaded mpi lib {MPI.__file__} successfully")
-
-# Pre import tensorrt_llm
-try:
-    import tensorrt_llm
-except Exception as e:
-    print(
-        "tensorrt_llm package is not installed. Please build or install tensorrt_llm package"
-        " properly before calling the llm deployment API."
-    )
-    raise (e)
-
-from .model_config_trt import *  # noqa
-from .nemo_utils import *  # noqa
-from .quantization_utils import *  # noqa
-from .tensorrt_llm_run import *  # noqa
+from nemo.export.trt_llm.model_config_trt import *  # noqa
+from nemo.export.trt_llm.nemo_utils import *  # noqa
+from nemo.export.trt_llm.quantization_utils import *  # noqa
+from nemo.export.trt_llm.tensorrt_llm_run import *  # noqa

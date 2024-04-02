@@ -23,7 +23,7 @@ import torch
 class SentencePieceTokenizer:
     """
     Sentencepiecetokenizer https://github.com/google/sentencepiece
-    
+
         Args:
         model_path: path to sentence piece tokenizer model.
         special_tokens: either list of special tokens or dictionary of token name to token value

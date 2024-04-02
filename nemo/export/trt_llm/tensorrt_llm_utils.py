@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utils to convert model_config layers to tensorrt_llm modules."""
 
 import tensorrt as trt
 from tensorrt_llm.layers import Embedding, LayerNorm, PromptTuningEmbedding, RmsNorm
 from tensorrt_llm.module import Module
 
-from .model_config import LAYERNORM_DEFAULT, LAYERNORM_RMS, EmbeddingConfig, LayernormConfig
-from .tensor_utils import get_tensor_parallel_group
+from nemo.export.trt_llm.model_config import LAYERNORM_DEFAULT, LAYERNORM_RMS, EmbeddingConfig, LayernormConfig
+from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
 
 
 def build_embedding_from_config(

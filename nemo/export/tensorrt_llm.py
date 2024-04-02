@@ -26,12 +26,11 @@ import torch
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-
-from .trt_llm.model_config_trt import model_config_to_tensorrt_llm
-from .trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
-from .trt_llm.nemo_utils import get_tokenzier, nemo_model_to_model_config, nemo_to_model_config
-from .trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
-from .utils import is_nemo_file, unpack_nemo_ckpt
+from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
+from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
+from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config
+from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
+from nemo.export.trt_llm.utils import is_nemo_file, unpack_nemo_ckpt
 
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
@@ -187,7 +186,7 @@ class TensorRTLLM(ITritonDeployable):
         tmp_dir = tempfile.TemporaryDirectory()
         nemo_export_dir = Path(tmp_dir.name)
 
-        model_configs, self.tokenizer = nemo_to_model_config(
+        model_configs, self.tokenizer = nemo_llm_to_model_config(
             in_file=nemo_checkpoint_path,
             decoder_type=model_type,
             dtype=dtype,
@@ -256,7 +255,7 @@ class TensorRTLLM(ITritonDeployable):
             self.model_dir = os.path.join(self.model_dir, f"pp{parallel_state.get_pipeline_model_parallel_rank()}")
 
         # Build or refit TRT-LLM engine from a nemo model.
-        model_configs = nemo_model_to_model_config(
+        model_configs = nemo_llm_model_to_model_config(
             nemo_model=nemo_model, decoder_type=model_type, nemo_model_config=nemo_model_config,
         )
 
@@ -281,7 +280,7 @@ class TensorRTLLM(ITritonDeployable):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
 
         # Build or refit TRT-LLM engine from a nemo model.
-        model_configs = nemo_model_to_model_config(
+        model_configs = nemo_llm_model_to_model_config(
             nemo_model=nemo_model, decoder_type=self.model_type, nemo_model_config=nemo_model_config
         )
 
@@ -411,9 +410,6 @@ class TensorRTLLM(ITritonDeployable):
                 )
 
     def add_prompt_table(self, task_name: str, prompt_embeddings_checkpoint_path: str):
-        # TODO: check if the added table's size is larger than the max_prompt_embedding_table_size
-        #       If yes, then raise an error.
-
         if self.model is None:
             raise Exception(
                 "A nemo checkpoint should be exported to TensorRT-LLM and "
