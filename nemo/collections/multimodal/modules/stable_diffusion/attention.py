@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from inspect import isfunction
+
 import torch
 import torch.nn.functional as F
 from apex.contrib.group_norm import GroupNorm
 from einops import rearrange, repeat
-from inspect import isfunction
 from torch import einsum, nn
 from torch._dynamo import disable
 
