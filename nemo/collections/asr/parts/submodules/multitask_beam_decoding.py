@@ -147,9 +147,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
             pad = tokenizer.pad_id
             eos = tokenizer.eos_id
         else:
-            bos = tokenizer.text_to_ids("<s>")[0]
-            pad = tokenizer.text_to_ids("<pad>")[0]
-            eos = tokenizer.text_to_ids("</s>")[0]
+            bos = tokenizer.token_to_id("<s>")
+            pad = tokenizer.token_to_id("<pad>")
+            eos = tokenizer.token_to_id("</s>")
         self.beam_search = BeamSearchSequenceGenerator(
             embedding=transformer_decoder.embedding,
             decoder=transformer_decoder.decoder,

@@ -53,7 +53,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         if isinstance(tokenizer, CanaryTokenizer):
             self.padding_value = self.tokenizer._tokenizer.pad_id
         else:
-            self.padding_value = tokenizer.text_to_ids("<pad>")[0]
+            self.padding_value = self.tokenizer._tokenizer.token_to_id("<pad>")
         self.prompt_format_fn = prompt_format_fn
         self.inference = inference
 
@@ -114,16 +114,20 @@ def canary_natural(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = 
     this format uses natural language to construct the prompt.
     """
     tokens, prompts = [], []
+    bos = tokenizer._tokenizer.token_to_id('<s>')
+    eos = tokenizer._tokenizer.token_to_id('</s>')
     for cut in cuts:
         assert hasattr(cut, "prompt"), f"Error: missing 'prompt' field in {cut=}"
         prompt = cut.prompt + "\n\n"
-        prompt_tokens = tokenizer(prompt, cut.supervisions[0].language)
+        prompt_tokens = [bos] + tokenizer(prompt, cut.supervisions[0].language)
 
-        if inference:
-            prompt_with_answer_tokens = prompt_tokens
+        prompt_with_answer_tokens = prompt_tokens
+        texts = [s.text for s in cut.supervisions if s.text is not None]
+        if texts:
+            answer = " ".join(texts)
+            prompt_with_answer_tokens = prompt_tokens + tokenizer(answer, cut.supervisions[0].language) + [eos]
         else:
-            answer = " ".join(s.text for s in cut.supervisions)
-            prompt_with_answer_tokens = prompt_tokens + tokenizer(answer, cut.supervisions[0].language)
+            prompt_with_answer_tokens = prompt_with_answer_tokens + [eos]
 
         prompts.append(prompt_tokens)
         tokens.append(prompt_with_answer_tokens)
