@@ -972,9 +972,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'tokens': data["tokens"],
             'labels': data["labels"],
             'loss_mask': data["loss_mask"],
-            'attention_mask': data["attention_mask"],
             'position_ids': data["position_ids"],
         }
+        if "attention_mask" in data:
+            batch['attention_mask'] = data["attention_mask"]
 
         return batch
 
