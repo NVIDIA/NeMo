@@ -102,8 +102,7 @@ pipeline {
              git checkout 9de386d08770d7296263a590171ace4ae45348ad && \
              pip install . && \
              cd megatron/core/datasets && \
-             make && \
-             export PYTHONPATH="${PYTHONPATH}:/opt/Megatron-LM" '
+             make'
       }
     }
 
