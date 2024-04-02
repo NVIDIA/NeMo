@@ -390,17 +390,27 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
 
     def freeze_llm(self, mm_cfg):
-        for param in chain(self.embedding.parameters(), self.decoder.parameters(), self.output_layer.parameters(),):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            embedding_parameters = self.embedding.parameters()
+            self.embedding = self.embedding.eval()
+        else:
+            embedding_parameters = {}
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+            output_layer_parameters = self.output_layer.parameters()
+            self.output_layer = self.output_layer.eval()
+        else:
+            output_layer_parameters = {}
+
+        for param in chain(embedding_parameters, self.decoder.parameters(), output_layer_parameters,):
             param.requires_grad = False
-        self.embedding = self.embedding.eval()
         self.decoder = self.decoder.eval()
-        self.output_layer = self.output_layer.eval()
 
     def forward(
         self, *args, **kwargs,
     ):
         media = kwargs.pop('media', None)
-        self.embedding.word_embeddings.set_media(media)
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            self.embedding.word_embeddings.set_media(media)
         return MCoreGPTModel.forward(self, *args, **kwargs)
 
 
@@ -426,7 +436,8 @@ class NevaModel(GPTModel, NevaBaseModel):
         self, *args, **kwargs,
     ):
         media = kwargs.pop('media', None)
-        self.embedding.word_embeddings.set_media(media)
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            self.embedding.word_embeddings.set_media(media)
         return GPTModel.forward(self, *args, **kwargs)
 
 
@@ -736,7 +747,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                             )
                 else:
                     # Intermediate pipeline stage doesn't need any inputs
-                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media']}
+                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media',  'loss_mask']}
 
             forward_args = {
                 'input_ids': batch['tokens'],
@@ -775,7 +786,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
             output_tensor = model(**forward_args)
 
-            return output_tensor, partial(loss_func, loss_mask=batch['loss_mask'])
+            return output_tensor, partial(loss_func, loss_mask=batch.get('loss_mask'))
 
         return fwd_output_and_loss_func
 
