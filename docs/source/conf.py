@@ -203,6 +203,10 @@ pygments_style = "default"
 
 # html_logo = html_theme_options["logo_path"]
 
+# html_sidebars = {
+#     "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+# }
+
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
@@ -222,7 +226,7 @@ html_logo = os.path.join('nv_logo.png')
 html_title = 'NVIDIA NeMo'
 
 html_theme_options = {
-    'logo_only': True,
+    'logo_only': False,
     'display_version': True,
     # 'prev_next_buttons_location': 'bottom',
     # 'style_external_links': False,
@@ -270,4 +274,5 @@ ogp_site_url = 'https://nvidia.github.io/NeMo/'
 ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
 
 # MathJax CDN
-mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/mml-chtml.min.js"
+# follow recommendation here https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.mathjax
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

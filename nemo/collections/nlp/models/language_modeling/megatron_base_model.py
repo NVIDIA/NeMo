@@ -66,7 +66,7 @@ try:
 
 except (ImportError, ModuleNotFoundError):
 
-    ModelParallelConfig = ApexGuardDefaults
+    ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -333,8 +333,8 @@ class MegatronBaseModel(NLPModel):
             self.trainer.limit_val_batches *= get_num_microbatches()
         else:
             assert isinstance(self.trainer.limit_val_batches, float)
-            # Don't reconfigure if limit_val_batches is 0.0
-            if self.trainer.limit_val_batches == 0.0:
+            # Don't reconfigure if limit_val_batches is 0.0 or if there's no val dataloader
+            if self.trainer.limit_val_batches == 0.0 or self._validation_dl is None:
                 return
             # len(self._validation_dl) returns len as num of microbatches
             val_len_in_micro_batches = len(self._validation_dl)
@@ -422,6 +422,7 @@ class MegatronBaseModel(NLPModel):
             use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             special_tokens=self.cfg.tokenizer.get('special_tokens', None),
+            trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
             legacy=legacy,
         )
 
@@ -460,6 +461,7 @@ class MegatronBaseModel(NLPModel):
         model_parallel_config = self.build_model_parallel_config()
 
         add_bias_linear = self.cfg.get('bias', True)
+        add_qkv_bias = self.cfg.get('qkv_bias', False)
 
         activation = self.cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
@@ -481,6 +483,8 @@ class MegatronBaseModel(NLPModel):
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
         apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
 
+        rotary_interleaved = self.cfg.get('rotary_interleaved', False)
+
         fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
         if apply_query_key_layer_scaling:
             if fp16_enabled:
@@ -500,7 +504,8 @@ class MegatronBaseModel(NLPModel):
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
 
-        apply_rope_fusion = self.cfg.get('apply_rope_fusion', True)
+        # @chcui default rope fusion to false until #8590 is closed.
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', False)
 
         # TODO: need to check if recompute APIs are matching up properly
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
@@ -513,6 +518,7 @@ class MegatronBaseModel(NLPModel):
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,
             'add_bias_linear': add_bias_linear,
+            'add_qkv_bias': add_qkv_bias,
             'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
             'normalization': normalization,
@@ -527,6 +533,7 @@ class MegatronBaseModel(NLPModel):
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': None,
+            'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
         }
 
@@ -894,6 +901,8 @@ class MegatronBaseModel(NLPModel):
 
     def _compute_consumed_samples_after_training_step(self):
         # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        if not hasattr(self, 'init_global_step'):
+            self.init_global_step = 0  # in case this method is called before training starts.
         return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
