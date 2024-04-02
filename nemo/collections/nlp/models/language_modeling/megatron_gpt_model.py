@@ -308,6 +308,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             raise ValueError('Expert parallelism is currently not supporting distributed optimizer')
 
         self.transformer_engine = cfg.get('transformer_engine', False)
+        if self.megatron_amp_O2 and not self.transformer_engine:
+            logging.warning('megatron_amp_O2 is enabled but transformer-engine is not.')
+
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
             self.model = build_model(
