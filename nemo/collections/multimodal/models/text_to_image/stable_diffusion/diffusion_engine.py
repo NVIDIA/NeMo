@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractclassmethod
-from contextlib import contextmanager
-from typing import Any, Dict, List, Tuple, Union
-
 import hydra
 import pytorch_lightning as pl
 import torch
 import torch._dynamo
 import torch.nn as nn
+from abc import ABC, abstractclassmethod
+from contextlib import contextmanager
 from einops import rearrange
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -28,6 +26,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from safetensors.torch import load_file as load_safetensors
 from torch._dynamo import optimize
 from torch.optim.lr_scheduler import LambdaLR
+from typing import Any, Dict, List, Tuple, Union
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_sdxl_precached_text_train_valid_datasets,
@@ -625,6 +624,8 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
             build_dataset_cls = build_train_valid_precached_datasets
         elif self.model.precache_mode is None:
             build_dataset_cls = build_sdxl_train_valid_datasets
+        else:
+            raise ValueError("unsupported precache mode provided. Check your config file.")
         self._train_ds, self._validation_ds = build_dataset_cls(
             model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
         )
