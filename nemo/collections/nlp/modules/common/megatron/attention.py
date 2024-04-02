@@ -67,13 +67,13 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     # Flash Attention Triton
-    from importlib.metadata import version
+    from importlib.metadata import version, PackageNotFoundError
     from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
     # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
     assert version("pytorch-triton") == '2.0.0.dev20221202'
 
-except (ImportError, ModuleNotFoundError, AssertionError, pkg_resources.DistributionNotFound):
+except (ImportError, ModuleNotFoundError, AssertionError, PackageNotFoundError):
 
     flash_attn_func_triton = None
 
