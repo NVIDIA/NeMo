@@ -13,11 +13,10 @@
 # limitations under the License.
 
 import math
-import random
-
 import omegaconf
 import pytest
 import pytorch_lightning as pl
+import random
 import torch
 import torch.optim
 from pytorch_lightning.utilities import rank_zero_only
@@ -143,7 +142,7 @@ class TestOptimizersSchedulers:
             model.cuda()
 
         for opt_name in AVAILABLE_OPTIMIZERS.keys():
-            if opt_name == 'fused_adam':
+            if opt_name == 'fused_adam' or opt_name == 'megatron_fused_adam':
                 if not torch.cuda.is_available():
                     continue
             if opt_name == 'distributed_fused_adam':
