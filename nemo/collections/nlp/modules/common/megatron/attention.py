@@ -67,7 +67,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     # Flash Attention Triton
-    from importlib.metadata import version, PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError, version
+
     from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
     # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
