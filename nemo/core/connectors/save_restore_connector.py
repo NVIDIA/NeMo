@@ -581,8 +581,8 @@ class SaveRestoreConnector:
         torch.save(state_dict, filepath)
 
     @staticmethod
-    def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu')
+    def _load_state_dict_from_disk(model_weights, map_location='cpu'):
+        return torch.load(model_weights, map_location=map_location)
 
     @property
     def model_config_yaml(self) -> str:
