@@ -39,41 +39,44 @@ except ImportError:
 
 class LoopLabelsState:
     """
-    State for Loop Labels algorithm. Used only with CUDA graphs
+    State for Loop Labels algorithm. Used only with CUDA graphs.
+    In initialization phase it is possible to assign values (tensors) to the state.
+    For algorithm code the storage should be reused (prefer copy data instead of assigning tensors).
     """
 
-    max_time: int
-    batch_size: int
-    device: torch.device
+    max_time: int  # maximum length of internal storage for time dimension
+    batch_size: int  # (maximum) length of internal storage for batch dimension
+    device: torch.device  # device to store preallocated tensors
 
-    encoder_output_projected: torch.Tensor
-    encoder_output_length: torch.Tensor
+    encoder_output_projected: torch.Tensor  # projected output from the encoder for decoding algorithm
+    encoder_output_length: torch.Tensor  # length of the (projected) output from the encoder
 
-    labels: torch.Tensor
-    scores: torch.Tensor
+    labels: torch.Tensor  # storage for current labels
+    scores: torch.Tensor  # storage for current scores
 
-    batch_indices: torch.Tensor
+    batch_indices: torch.Tensor  # indices of elements in batch (constant, range [0, batch_size-1])
 
-    time_indices: torch.Tensor
-    safe_time_indices: torch.Tensor
-    time_indices_current_labels: torch.Tensor
-    last_timesteps: torch.Tensor
+    time_indices: torch.Tensor  # current time indices for each element in batch
+    safe_time_indices: torch.Tensor  # current time indices, but guaranteed to be < encoder_output_length
+    time_indices_current_labels: torch.Tensor  # time indices for found labels (corresponding to `labels` field)
+    last_timesteps: torch.Tensor  # indices of the last timesteps for each element (encoder_output_length - 1)
 
-    active_mask: torch.Tensor
-    advance_mask: torch.Tensor
-    blank_mask: torch.Tensor
+    active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
+    advance_mask: torch.Tensor  # mask for "advancing" hypotheses (blank is found for the element on the current step)
+    blank_mask: torch.Tensor  # if the element is blank
+    # if the element was active on the previous step: to identify the end of decoding and store final hidden state
     active_mask_prev: torch.Tensor
-    became_inactive_mask: torch.Tensor
+    became_inactive_mask: torch.Tensor  # mask for elements that became inactive (end of decoding)
 
-    active_mask_any: torch.Tensor
-    advance_mask_any: torch.Tensor
+    active_mask_any: torch.Tensor  # 0-dim bool tensor, condition for outer loop ('any element is still active')
+    advance_mask_any: torch.Tensor  # 0-dim bool tensor, condition for inner loop ('should advance any index')
 
-    last_decoder_state: Any
-    decoder_state: Any
-    decoder_output: torch.Tensor
+    last_decoder_state: Any  # last state from the decoder, needed for the output
+    decoder_state: Any  # current decoder state
+    decoder_output: torch.Tensor  # output from the decoder (projected)
 
-    batched_hyps: rnnt_utils.BatchedHyps
-    alignments: Optional[rnnt_utils.BatchedAlignments] = None
+    batched_hyps: rnnt_utils.BatchedHyps  # batched hypotheses - decoding result
+    alignments: Optional[rnnt_utils.BatchedAlignments] = None  # batched alignments
 
     def __init__(
         self,
@@ -87,6 +90,19 @@ class LoopLabelsState:
         preserve_alignments=False,
         preserve_frame_confidence=False,
     ):
+        """
+
+        Args:
+            batch_size: batch size for encoder output storage
+            max_time: maximum time for encoder output storage
+            encoder_dim: last dimension for encoder output storage (projected encoder output)
+            max_symbols: max symbols per step (to avoid infinite looping and pre-allocate storage)
+            device: device to store tensors
+            float_dtype: default float dtype for tensors (should match projected encoder output)
+            logits_dim: output dimension for Joint
+            preserve_alignments: if alignments are needed
+            preserve_frame_confidence: if frame confidence is needed
+        """
         self.device = device
         self.float_dtype = float_dtype
         self.batch_size = batch_size
@@ -133,6 +149,8 @@ class LoopLabelsState:
                 store_alignments=preserve_alignments,
                 store_frame_confidence=preserve_frame_confidence,
             )
+        else:
+            self.alignments = None
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
         """Check if need to reinit state: larger batch_size/max_time, or new device"""
