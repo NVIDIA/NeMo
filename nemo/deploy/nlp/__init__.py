@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
-from nemo.deploy.deploy_base import DeployBase
-from nemo.deploy.deploy_pytriton import DeployPyTriton
-from nemo.deploy.triton_deployable import ITritonDeployable
+try:
+    from nemo.deploy.nlp.query_llm import NemoQueryLLM
+except:
+    pass

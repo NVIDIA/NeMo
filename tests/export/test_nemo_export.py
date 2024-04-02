@@ -20,7 +20,8 @@ from pathlib import Path
 # from scripts.deploy.cloud_telemetry_service import postToNVDataFlow
 import torch
 
-from nemo.deploy import DeployPyTriton, NemoQueryLLM
+from nemo.deploy import DeployPyTriton
+from nemo.deploy.nlp import NemoQueryLLM
 from nemo.export import TensorRTLLM
 from tests.infer_data_path import download_nemo_checkpoint, get_infer_test_data
 
