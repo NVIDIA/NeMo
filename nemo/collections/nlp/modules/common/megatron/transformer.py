@@ -20,6 +20,7 @@ from typing import Any, Callable, Optional
 import torch
 import torch.nn as nn
 from einops import rearrange
+from omegaconf.listconfig import ListConfig
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -1073,10 +1074,12 @@ class ParallelTransformer(MegatronModule):
 
         # Transformer layers.
         def build_layer(layer_number):
-            if isinstance(layer_type, list):
+            if isinstance(layer_type, (list, ListConfig)):
                 lt = layer_type[layer_number - 1]
             else:
                 lt = layer_type
+            if isinstance(lt, int):
+                lt = LayerType(lt)
 
             if self.transformer_engine:
                 return AutocastTransformerLayer(
@@ -1612,7 +1615,7 @@ class ParallelTransformer(MegatronModule):
                                 checkpoint_core_attention=checkpoint_core_attention,
                             )
                         else:
-                            if self.layer_type == LayerType.decoder and return_all_crossattention_probs:
+                            if layer.layer_type == LayerType.decoder and return_all_crossattention_probs:
                                 hidden_states, attention_probs = layer(
                                     hidden_states,
                                     attention_mask,
@@ -1630,7 +1633,7 @@ class ParallelTransformer(MegatronModule):
                                     encoder_max_sequence_len=encoder_max_sequence_len,
                                 )
                                 attention_probs_list.append(attention_probs)
-                            elif self.layer_type == LayerType.encoder and return_all_selfattention_probs:
+                            elif layer.layer_type == LayerType.encoder and return_all_selfattention_probs:
                                 hidden_states, attention_probs = layer(
                                     hidden_states,
                                     attention_mask,

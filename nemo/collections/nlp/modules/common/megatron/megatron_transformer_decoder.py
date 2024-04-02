@@ -97,6 +97,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         moe_dropout=0.0,
         position_embedding_type='learned_absolute',
         use_flash_attention=False,
+        layer_type=LayerType.decoder,
     ):
         super(MegatronTransformerDecoderModule, self).__init__(config=config)
 
@@ -121,7 +122,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         # Transformer.
         self.model = ParallelTransformer(
             config=config,
-            layer_type=LayerType.decoder,
+            layer_type=layer_type,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=self.num_layers,
