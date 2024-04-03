@@ -203,7 +203,7 @@ class EncDecSpeechSSLModel(SpeechEncDecSelfSupervisedModel):
         return metrics
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        metrics = self.inference_pass(batch, batch_idx, dataloader_idx, eval_mode="test")
+        metrics = self.inference_pass(batch, batch_idx, dataloader_idx, mode="test")
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
             self.validation_step_outputs[dataloader_idx].append(metrics)
         else:

@@ -42,6 +42,7 @@ model:
     trim_silence: false
     max_duration: 20.0
     min_duration: 0.02
+    drop_last: true
     is_concat: false
     # tarred datasets
     is_tarred: false

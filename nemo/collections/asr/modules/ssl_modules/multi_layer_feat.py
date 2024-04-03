@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from collections import OrderedDict
 from typing import List, Optional, Tuple
 
@@ -32,15 +31,15 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, L
 class Aggregator(nn.Module):
     AVAILABLE_POOLING = ["cat", "sum", "mean", "avg", "max", "min", "none", "weighted_sum"]
 
-    def __init__(self, cfg: DictConfig, channel_dim: int = 1):
+    def __init__(self, mode, weights, layer_idx_list, channel_dim: int = 1):
         super().__init__()
-        self.mode = cfg.get("mode", "cat")
+        self.mode = mode
         self.channel_dim = channel_dim
-        self.weights = cfg.get("weights", None)
+        self.weights = weights
         if self.mode not in self.AVAILABLE_POOLING:
             raise ValueError(f"Unknown mode `{self.mode}`, available modes are {self.AVAILABLE_POOLING}")
         if self.mode == "weighted_sum" and self.weights is None:
-            self.weights = nn.Parameter(torch.ones(len(cfg.layer_idx_list)) / len(cfg.layer_idx_list))
+            self.weights = nn.Parameter(torch.ones(len(layer_idx_list)) / len(layer_idx_list))
 
     def _forward_for_weighted_sum(
         self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor]
@@ -71,27 +70,27 @@ class Aggregator(nn.Module):
             raise ValueError(f"Unknown mode {self.mode}")
 
 
-class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin):
-    def __init__(self, cfg: DictConfig):
+class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
+    def __init__(self, encoder, aggregator, layer_idx_list):
         super().__init__()
-        self.encoder = self.from_config_dict(cfg.encoder)
-        self.aggregator = Aggregator(cfg.aggregator, channel_dim=1)
-        self.layer_idx_list = [int(l) for l in cfg.layer_idx_list]
+        self.encoder = encoder
+        self.aggregator = aggregator
+        self.layer_idx_list = [int(l) for l in layer_idx_list]
         for x in self.layer_idx_list:
             if x < 0 or x >= len(self.encoder.layers):
                 raise ValueError(f"layer index {x} out of range [0, {len(self.encoder.layers)})")
-        access_cfg = {
+        self.access_cfg = {
             "interctc": {"capture_layers": self.layer_idx_list,},
-            "detach": cfg.get("detach", False),
-            "convert_to_cpu": cfg.get("convert_to_cpu", False),
+            "detach": False,
+            "convert_to_cpu": False,
         }
-        self.update_access_cfg(access_cfg, guid=getattr(self, "model_guid", None))
+        self._is_access_enabled = False
 
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        old_access_flag = self.is_access_enabled(guid=getattr(self, "model_guid", None))
-        self.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
+        self.encoder.update_access_cfg(self.access_cfg, guid=self.model_guid)
+        self.encoder.set_access_enabled(access_enabled=True, guid=self.model_guid)
 
         _ = self.encoder(
             audio_signal=audio_signal,
@@ -102,7 +101,7 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         )
 
         total_registry = {}
-        for module_registry in self.get_module_registry(self.encoder).values():
+        for module_registry in self.encoder.get_module_registry(self.encoder).values():
             for key in module_registry:
                 if key.startswith("interctc/") and key in total_registry:
                     raise RuntimeError(f"layer {key} has been logged multiple times!")
@@ -124,23 +123,31 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
             encoded_len_list.append(layer_lengths[0])  # [B]
 
         self.encoder.reset_registry()
-        self.set_access_enabled(access_enabled=old_access_flag, guid=getattr(self, "model_guid", None))
 
         return self.aggregator(encoded_list, encoded_len_list)
 
 
-class ConformerMultiLayerFeaturePreprocessor(ConformerMultiLayerFeatureExtractor):
-    def __init__(self, cfg: DictConfig):
-        super().__init__(cfg)
-        self.preprocessor = self.from_config_dict(cfg.preprocessor)
-        if cfg.get("spec_augmentation", None) is not None:
-            self.spec_augmentation = self.from_config_dict(cfg.spec_augmentation)
-        else:
-            self.spec_augmentation = None
-
-    def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+class ConformerMultiLayerFeaturePreprocessor(NeuralModule, Exportable, AccessMixin):
+    def __init__(
+        self,
+        layer_idx_list: List[int],
+        aggregator,
+        preprocessor,
+        encoder,
+        spec_augment=None,
+        freeze_encoder: bool = True,
     ):
+        super().__init__()
+        self.preprocessor = preprocessor
+        self.spec_augmentation = spec_augment
+        self.feature_extractor = ConformerMultiLayerFeatureExtractor(
+            encoder=encoder, aggregator=aggregator, layer_idx_list=layer_idx_list
+        )
+        self.freeze_encoder = freeze_encoder
+        if freeze_encoder:
+            self.freeze()
+
+    def forward(self, input_signal, length):
         """
         Forward pass of the model.
 
@@ -148,28 +155,19 @@ class ConformerMultiLayerFeaturePreprocessor(ConformerMultiLayerFeatureExtractor
             input_signal: Tensor that represents a batch of raw audio signals,
                 of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
                 `self.sample_rate` number of floating point values.
-            input_signal_length: Vector of length B, that contains the individual lengths of the audio
+            length: Vector of length B, that contains the individual lengths of the audio
                 sequences.
-            processed_signal: Tensor that represents a batch of processed audio signals,
-                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
-            processed_signal_length: Vector of length B, that contains the individual lengths of the
-                processed audio sequences.
+        Returns:
+            encoded: A tensor of shape [B, D, T], where D represents the number of
+                feature dimensions extracted from the audio signal, and T represents the
+                number of timesteps in the processed audio signal.
+            encoded_len: A tensor of shape [B], that contains the lengths of the audio sequences.
         """
 
-        has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
-        if (has_input_signal ^ has_processed_signal) == False:
-            raise ValueError(
-                f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
-                " with ``processed_signal`` and ``processed_signal_len`` arguments."
-            )
-
-        if not has_processed_signal:
-            processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
-            )
+        processed_signal, processed_signal_length = self.preprocessor(input_signal=input_signal, length=length,)
 
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        return super().forward(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.feature_extractor(audio_signal=processed_signal, length=processed_signal_length)
+        return encoded, encoded_len
