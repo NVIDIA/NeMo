@@ -66,7 +66,8 @@ The TensorRT-LLM engine can be build with ``trtllm-build`` command, see `TensorR
         --output_dir engine_dir \
         --max_batch_size 8 \
         --max_input_len 2048 \
-        --max_output_len 512
+        --max_output_len 512 \
+        --strongly_typed
 
 
 
@@ -74,7 +75,6 @@ Known issues
 ^^^^^^^^^^^^
 * Currently in NeMo quantizing and building TensorRT-LLM engines is limited to single-node use cases.
 * Supported and tested model family is Llama2. Quantizing other model types is experimental and may not be fully supported.
-* For INT8 SmoothQuant ``quantization.algorithm=int8_sq``, the TensorRT-LLM engine cannot be build with CLI ``trtllm-build`` command -- Python API and ``tensorrt_llm.builder`` should be used instead.
 
 
 Please refer to the following papers for more details on quantization techniques.
