@@ -65,17 +65,14 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
-# try:
+try:
     # Flash Attention Triton
-    # import pkg_resources
-    # from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
+    import pkg_resources
+    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
 
-    # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-    # assert pkg_resources.get_distribution("triton").version == '2.0.0.dev20221202'
+except (ImportError, ModuleNotFoundError, pkg_resources.DistributionNotFound):
 
-# except (ImportError, ModuleNotFoundError, AssertionError, pkg_resources.DistributionNotFound):
-
-#     flash_attn_func_triton = None
+    flash_attn_func_triton = None
 
 
 try:
