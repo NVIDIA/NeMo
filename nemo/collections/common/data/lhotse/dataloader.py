@@ -32,7 +32,7 @@ from lhotse.dataset import (
 from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
@@ -98,7 +98,9 @@ class LhotseDataLoadingConfig:
     noise_mix_prob: float = 0.5
     #   b. On-the-fly 3-way speed perturbation.
     perturb_speed: bool = False
-    #   c. Cut concatenation (glue together multiple utterances into a single one)
+    #   c. Narrow band augmentation
+    nb_augmentation: bool = False
+    #   d. Cut concatenation (glue together multiple utterances into a single one)
     concatenate_samples: bool = False
     concatenate_gap_seconds: float = 0.1
     concatenate_duration_factor: float = 1.0
@@ -175,9 +177,12 @@ def get_lhotse_dataloader_from_config(
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
     if config.noise_path is not None:
+        noise_snr = config.noise_snr
+        if isinstance(noise_snr, ListConfig):
+            noise_snr = list(noise_snr)
         noise = CutSet.from_file(config.noise_path)
         cuts = cuts.mix(
-            cuts=noise, snr=config.noise_snr, mix_prob=config.noise_mix_prob, seed="trng", random_mix_offset=True
+            cuts=noise, snr=noise_snr, mix_prob=config.noise_mix_prob, seed="trng", random_mix_offset=True
         )
 
     # 2.b. On-the-fly speed perturbation.
@@ -186,7 +191,6 @@ def get_lhotse_dataloader_from_config(
     #    bucket allocation.
     if config.perturb_speed:
         cuts = CutSet.mux(cuts, cuts.perturb_speed(0.9), cuts.perturb_speed(1.1),)
-
     # 2.d: truncation/slicing
     if config.truncate_duration is not None:
         cuts = cuts.truncate(
@@ -218,7 +222,6 @@ def get_lhotse_dataloader_from_config(
             max_duration=config.batch_duration,
             quadratic_duration=config.quadratic_duration,
         )
-
     # 3. The sampler.
     if config.use_bucketing:
         # Bucketing. Some differences from NeMo's native bucketing:
