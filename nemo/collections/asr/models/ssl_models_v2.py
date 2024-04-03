@@ -210,8 +210,26 @@ class EncDecSpeechSSLModel(SpeechEncDecSelfSupervisedModel):
             self.validation_step_outputs.append(metrics)
         return metrics
 
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+    def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
+        # loss_list = [x['val_loss'] for x in outputs]
+        loss_list = []
+        for i, x in enumerate(outputs):
+            if not isinstance(x, dict):
+                logging.warning(f'Batch {i} output in validation dataloader {dataloader_idx} is not a dictionary: {x}')
+            if 'val_loss' in x:
+                loss_list.append(x['val_loss'])
+            else:
+                logging.warning(
+                    f'Batch {i} output in validation dataloader {dataloader_idx} does not have key `val_loss`: {x}'
+                )
+
+        if len(loss_list) == 0:
+            logging.warning(
+                f'Epoch {self.current_epoch} received no batches for validation dataloader {dataloader_idx}.'
+            )
+            return {}
+
+        val_loss_mean = torch.stack(loss_list).mean()
         tensorboard_logs = {'val_loss': val_loss_mean}
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
