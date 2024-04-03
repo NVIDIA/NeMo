@@ -154,6 +154,13 @@ def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True):
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
     return name_spec_dict[spec_name]
 
+class RandomDataset(torch.utils.data.Dataset):
+    def __init__(self, length):
+        self.len = length
+        self.data = torch.randn(length, 32)
+
+    def __len__(self):
+        return self.len
 
 class EmbeddingScalingMixin(torch.nn.Module):
     """
@@ -1521,7 +1528,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            # Assign a dummy dataloader with a RandomDataset for self._train_dl to run PTL's setup_data() method so that the actual data is not prefetched
+            # during the iter() call in setup_data().
+            # Use self.trainer.val_check_interval for the len of this RandomDataset so that val_check_interval is not greater than len(dl) which can otherise
+            # error out at https://github.com/Lightning-AI/pytorch-lightning/blob/2.2.1/src/lightning/pytorch/loops/fit_loop.py#L276
+            self._train_dl = torch.utils.data.DataLoader(RandomDataset(self.trainer.val_check_interval), batch_size=1, num_workers=2, prefetch_factor=None)
+
+    def on_train_start(self) -> None:
+        # Call on_train_start of MegatronBaseModel
+        super().on_train_start()
+        # Build the actual dataloader with self._train_ds
+        consumed_samples = self.compute_consumed_samples(0)
+        self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+        # Reset fit_loop._combined_loader to None.
+        self.trainer.fit_loop._combined_loader = None
+        # Redo setup_data from PTL's fit_loop.py
+        self.trainer.fit_loop.setup_data()
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
