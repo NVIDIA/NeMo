@@ -188,16 +188,16 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         for x in self.layer_idx_list:
             if x < 0 or x >= len(encoder.layers):
                 raise ValueError(f"layer index {x} out of range [0, {len(encoder.layers)})")
-        access_cfg = {
+        self.enc_access_cfg = {
             "interctc": {"capture_layers": self.layer_idx_list,},
             "detach": cfg.get("detach", False),
             "convert_to_cpu": cfg.get("convert_to_cpu", False),
         }
-        self.update_access_cfg(access_cfg, guid=getattr(self, "model_guid", None))
         self.aggregator = Aggregator(cfg.aggregator, channel_dim=1)
 
     def forward(self, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
         old_access_flag = self.is_access_enabled(guid=getattr(self, "model_guid", None))
+        self.update_access_cfg(self.enc_access_cfg, guid=getattr(self, "model_guid", None))
         self.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
 
         _ = self.encoder(*args, **kwargs)

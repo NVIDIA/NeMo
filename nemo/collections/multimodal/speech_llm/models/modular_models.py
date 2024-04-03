@@ -790,6 +790,69 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             model.set_inference_config(inference_cfg)
         return model
 
+    @classmethod
+    def load_audio_encoder_for_inference(cls, cfg, model_cfg, model):
+        with open_dict(cfg):
+            if (
+                model_cfg.get("pretrained_audio_model", None) is not None
+                and cfg.model.get("pretrained_audio_model", None) is None
+            ):
+                logging.info(
+                    f"model.pretrained_audio_model not found in config, setting it to {model_cfg.pretrained_audio_model} from loaded checkpoint."
+                )
+                cfg.model.pretrained_audio_model = model_cfg.pretrained_audio_model
+            cfg.model.perception = model_cfg.perception
+
+        audio_model, _ = cls.get_audio_encoder_models_and_configs(cfg)
+        speaker_model, _ = cls.get_speaker_model_and_config(cfg)
+        model = cls.load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
+        return model
+
+    @classmethod
+    def merge_inference_cfg(cls, cfg: DictConfig, trainer: Trainer, pretrained_model_cfg: DictConfig = None):
+        if pretrained_model_cfg:
+            model_cfg = pretrained_model_cfg
+        elif cfg.model.peft.restore_from_path:
+            if cfg.model.peft.restore_from_path.endswith(".nemo"):
+                model_cfg = ModularAudioGPTModel.restore_from(
+                    restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
+                )
+            elif cfg.model.peft.restore_from_hparams_path:  # not a .nemo model we expect a hparams.yaml file
+                model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.peft.restore_from_hparams_path).cfg)
+                model_cfg = OmegaConf.create(model_cfg)
+                # extract dict inside cfg key and convert it to DictConfig
+                # this allows interpolation to work the same way as config from the .restore_from method
+            else:
+                raise RuntimeError(
+                    "This script requires a .nemo peft model or path to hparams.yaml (and a ckpt path)."
+                )
+        else:
+            model_cfg = MegatronGPTSFTModel.restore_from(
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
+            )
+
+        if hasattr(model_cfg, 'peft') and model_cfg.peft.peft_scheme not in [None, 'none']:
+            # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
+            for p in ['tensor_model_parallel_size', 'pipeline_model_parallel_size']:
+                assert model_cfg.get(p) == cfg.model.get(
+                    p
+                ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({model_cfg.get(p)})"
+
+        with open_dict(model_cfg):
+            # update the model config of the trained model with params we want to set at inference time.
+            model_cfg.precision = cfg.trainer.precision
+            for key, val in cfg.model.items():
+                if key != 'data' and key != 'peft':
+                    model_cfg[key] = val
+            model_cfg.data.test_ds = cfg.model.data.test_ds
+
+        with open_dict(cfg):
+            cfg.inference.add_BOS = model_cfg.data.test_ds.add_bos
+            cfg.inference.tokens_to_generate = model_cfg.data.test_ds.get("tokens_to_generate", 1)
+
+        model_cfg.megatron_amp_O2 = False  # always evaluate with O1
+        return model_cfg
+
     def _build_vocab(self):
         """
         Manipulate vocabulary (e.g., pad vocabulary for increased performance)/
