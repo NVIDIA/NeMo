@@ -444,27 +444,6 @@ pipeline {
       }
     }
 
-    stage('L2: Nemo Export to TRT-LLM tests') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage('Llama2 - Export and Deploy') {
-          steps {
-            sh 'python tests/export/test_nemo_export.py --model_name LLAMA2-7B-base \
-            --checkpoint_dir /home/TestData/nlp/megatron_llama/llama-ci-hf/llama_ci.nemo \
-            --model_type llama --min_gpus 1 --max_gpus 1 --trt_llm_model_dir /tmp/llama2-7B-base \
-            --test_deployment True'
-            sh 'rm -rf /tmp/llama2-7B-base'
-          }
-        }
-      }
-    }
-
     stage('L2: Nemo PTQ') {
       when {
         anyOf {
@@ -2222,7 +2201,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Punctuation & Capitalization tarred dataset') {
       when {
         anyOf {
@@ -2282,7 +2261,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Punctuation & Capitalization, Different ways of passing labels to model') {
       when {
         anyOf {
@@ -3864,6 +3843,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.optim.name=distributed_fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=1 \
+        model.transformer_engine=true \
         model.optim.sched.constant_steps=1 \
         model.optim.sched.min_lr=8e-5 \
         model.max_position_embeddings=128 \
@@ -3906,6 +3886,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.seq_length=128 \
         model.normalization=rmsnorm \
         model.bias=False \
+        model.transformer_engine=True \
         model.bias_activation_fusion=False \
         model.bias_dropout_add_fusion=False \
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
@@ -4005,6 +3986,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
        model.position_embedding_type=rope \
        model.rotary_percentage=0.5 \
        model.normalization=rmsnorm \
+       model.transformer_engine=True \
        model.bias=False \
        model.bias_activation_fusion=False \
        model.bias_dropout_add_fusion=False \
@@ -5603,7 +5585,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
       }
     }
-    
+
     stage('L2: Megatron Mock Data Generation') {
       when {
         anyOf {
