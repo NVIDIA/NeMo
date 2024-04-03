@@ -1,6 +1,6 @@
 .. _megatron_quantization:
 
-Model Quantization
+Quantization
 ==========================
 
 Post-Training Quantization (PTQ)
@@ -81,6 +81,8 @@ Please refer to the following papers for more details on quantization techniques
 
 References
 ----------
+
+`Integer Quantization for Deep Learning Inference: Principles and Empirical Evaluation, 2020 <https://arxiv.org/abs/2004.09602>`_
 
 `FP8 Formats for Deep Learning, 2022 <https://arxiv.org/abs/2209.05433>`_
 
