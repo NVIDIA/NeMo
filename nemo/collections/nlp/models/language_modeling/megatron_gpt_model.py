@@ -1742,7 +1742,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                         parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                     sync_embeddings = (
-                        module.initialize_last_stage_with_word_embeddings
+                        module.setup_embeddings_and_output_layer
                         if self.mcore_gpt
                         else module.sync_initial_word_embeddings
                     )
