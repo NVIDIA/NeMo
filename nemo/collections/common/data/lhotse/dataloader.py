@@ -181,9 +181,7 @@ def get_lhotse_dataloader_from_config(
         if isinstance(noise_snr, ListConfig):
             noise_snr = list(noise_snr)
         noise = CutSet.from_file(config.noise_path)
-        cuts = cuts.mix(
-            cuts=noise, snr=noise_snr, mix_prob=config.noise_mix_prob, seed="trng", random_mix_offset=True
-        )
+        cuts = cuts.mix(cuts=noise, snr=noise_snr, mix_prob=config.noise_mix_prob, seed="trng", random_mix_offset=True)
 
     # 2.b. On-the-fly speed perturbation.
     #    mux here ensures it's uniformly distributed throughout sampling,
