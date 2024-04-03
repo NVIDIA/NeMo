@@ -492,7 +492,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         # Whether to return `cu_seqlen` to pass to model. This should be true for almost all use cases.
         self.return_cu_seqlen = return_cu_seqlen
-        
+
     def __getitem__(self, idx):
         if self.samples_mapping is not None:
             # assert idx < len(self.samples_mapping)
