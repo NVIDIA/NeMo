@@ -771,7 +771,7 @@ class MegatronBaseModel(NLPModel):
                 if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                     if self.mcore_gpt:
                         fp32_params.append(modules[0].shared_embedding_or_output_weight())
-                        fp32_params.append(modules[0].language_model.embedding.position_embeddings.weight)
+                        fp32_params.append(modules[0].embedding.position_embeddings.weight)
                     else:
                         fp32_params.append(modules[0].word_embeddings_weight())
                         fp32_params.append(modules[0].position_embeddings_weight())
