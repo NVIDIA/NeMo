@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import OmegaConf
 from typing import Optional
+
+from omegaconf import OmegaConf
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling import (
     DPMPP2MSampler,
