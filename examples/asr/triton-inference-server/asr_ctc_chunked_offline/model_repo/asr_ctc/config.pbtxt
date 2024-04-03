@@ -20,23 +20,23 @@ parameters [
   {
     key: "model_name"
     value: { string_value: "nvidia/parakeet-ctc-1.1b" }  # .nemo model or pretrained model name
-  }
+  },
   {
     key: "dtype"
     value: { string_value: "bfloat16" }
-  }
+  },
   {
     key: "chunk_len_in_secs"
     value: { string_value: "1.6" }
-  }
+  },
   {
     key: "total_buffer_in_secs"
     value: { string_value: "4.0" }
-  }
+  },
   {
     key: "model_stride"
     value: { string_value: "8" }  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
-  }
+  },
   {
     key: "batch_size"
     value: { string_value: "32"}
@@ -49,7 +49,7 @@ input [
     name: "WAV"
     data_type: TYPE_FP32
     dims: [-1]
-  }
+  },
   {
     name: "sampling_rate"
     data_type: TYPE_INT32
