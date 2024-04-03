@@ -14,21 +14,20 @@
 
 import gc
 import itertools
+import omegaconf
 import os
 import re
-from dataclasses import fields
-from datetime import datetime
-from typing import Any, Dict, Optional, Union
-
-import omegaconf
 import torch
 import torch.nn as nn
+from dataclasses import fields
+from datetime import datetime
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
+from typing import Any, Dict, Optional, Union
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -1237,6 +1236,8 @@ class MegatronBaseModel(NLPModel):
             # extended to support lower precision main parameters.
             frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
+            # FSDP requires uniform status of require_grads
+            # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
             self.model = self.trainer.strategy._setup_model(self.model)
             # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
             # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.

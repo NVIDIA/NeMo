@@ -13,16 +13,14 @@
 # limitations under the License.
 import importlib
 import multiprocessing as mp
+import numpy as np
+import torch
+from PIL import Image, ImageDraw
 from collections import abc
-from functools import partial
 from inspect import isfunction
 from queue import Queue
 from threading import Thread
 
-import numpy as np
-import torch
-from einops import rearrange
-from PIL import Image, ImageDraw, ImageFont
 from nemo.utils import logging
 
 
