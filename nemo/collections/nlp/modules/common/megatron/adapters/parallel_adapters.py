@@ -237,16 +237,16 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         # revert config change in case it is read elsewhere
         model_parallel_config.sequence_parallel = self._sequence_parallel
-        if self._sequence_parallel and not input_is_parallel:
-            from importlib.metadata import version
+        #if self._sequence_parallel and not input_is_parallel:
+        #    from importlib.metadata import version
 
-            from pkg_resources import packaging
+        #    from pkg_resources import packaging
 
-            te_version = packaging.version.Version(version("transformer-engine"))
-            if te_version >= packaging.version.Version("1.5.0dev"):
-                # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
-                # in the forward method is not needed, so set self._sequence_parallel to False
-                self._sequence_parallel = False
+        #    te_version = packaging.version.Version(version("transformer-engine"))
+        #    if te_version >= packaging.version.Version("1.5.0dev"):
+        #        # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
+        #        # in the forward method is not needed, so set self._sequence_parallel to False
+        #        self._sequence_parallel = False
 
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
@@ -278,7 +278,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             # layernorm before lora is impacted by sequence parallel,
             # hence seq dim need to be gathered right before lora linear layers
             # this function also handles the backward pass correctly
-            x = gather_from_sequence_parallel_region(x)
+            x = gather_from_sequence_parallel_region(x, tensor_parallel_output_grad=False)
 
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
