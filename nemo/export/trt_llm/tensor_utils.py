@@ -34,17 +34,6 @@ def torch_to_numpy_with_dtype(tensor, dtype=trt.float16):
     return tensorrt_llm._utils.torch_to_numpy(tensor.detach().to(torch_dtype))
 
 
-def trt_dtype_to_str(dtype: trt.DataType):
-    """Converts a trt dtype to string."""
-    str_map = {
-        trt.float16: "float16",
-        trt.bfloat16: "bfloat16",
-        trt.float32: "float32",
-    }
-
-    return str_map[dtype]
-
-
 def split(v, tp_size, idx, dim=0):
     """Splits the np tensor v on dim and return the idx's slice."""
     if tp_size == 1:

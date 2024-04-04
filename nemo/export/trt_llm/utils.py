@@ -102,12 +102,6 @@ def prompt_convert(prompt_config, prompt_weights):
     return vtokens_embeddings
 
 
-def torch_to_numpy(x):
-    if x.dtype != torch.bfloat16:
-        return x.numpy()
-    return x.view(torch.int16).numpy().view(np_bfloat16)
-
-
 def cpu_map_location(storage, loc):
     return storage.cpu()
 

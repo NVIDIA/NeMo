@@ -19,6 +19,7 @@ from typing import List
 import numpy as np
 import torch
 from tensorrt_llm import default_net, str_dtype_to_trt
+from tensorrt_llm._utils import trt_dtype_to_str
 from tensorrt_llm.functional import expand_mask, gather_last_token_logits, recv, send, shape
 from tensorrt_llm.layers import AttentionParams, ColumnLinear, KeyValueCacheParams, LoraParams
 from tensorrt_llm.models.generation_mixin import GenerationMixin
@@ -27,7 +28,6 @@ from tensorrt_llm.module import Module, ModuleList
 from nemo.export.trt_llm.decoder import build_decoder_layer
 from nemo.export.trt_llm.model_config import DECODER_GEMMA, ModelConfig
 from nemo.export.trt_llm.quantization_utils import quantize_linear
-from nemo.export.trt_llm.tensor_utils import trt_dtype_to_str
 from nemo.export.trt_llm.tensorrt_llm_build import build
 from nemo.export.trt_llm.tensorrt_llm_utils import (
     build_embedding_from_config,
