@@ -91,7 +91,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout c04d3e8ed042630f01952f9c4285fc38fbd890b6 && \
+             git checkout 81dab6067a0ef4635270b7e6e56bdf79ccfd7731 && \
              touch megatron/core/models/retro/__init__.py && \
              pip install .'
       }
