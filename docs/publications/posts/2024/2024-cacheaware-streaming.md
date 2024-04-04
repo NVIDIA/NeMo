@@ -3,7 +3,7 @@ title: Stateful Conformer with Cache-based Inference for Streaming Automatic Spe
 author: [Vahid Noroozi, Somshubra Majumdar, Ankur Kumar, Jagadeesh Balam, Boris Ginsburg]
 author_gh_user: []
 readtime: 30
-date: 2023-01-11
+date: 2024-01-11
 
 
 # Categories - Domain of the article
