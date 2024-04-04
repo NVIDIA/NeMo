@@ -363,13 +363,12 @@ if __name__ == "__main__":
             )
 
         # get vocabulary list
-        if hasattr(asr_model, 'tokenizer'): # i.e. tokenization is BPE-based
+        if hasattr(asr_model, 'tokenizer'):  # i.e. tokenization is BPE-based
             vocabulary = asr_model.tokenizer.vocab
         elif hasattr(asr_model.decoder, "vocabulary"):  # i.e. tokenization is character-based
             vocabulary = asr_model.cfg.decoder.vocabulary
         else:
             raise ValueError("Unexpected model type. Vocabulary list not found.")
-
 
         if os.path.isdir(args.in_text):
             text_files = glob(f"{args.in_text}/*.txt")

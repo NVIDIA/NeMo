@@ -78,16 +78,14 @@ if __name__ == "__main__":
     else:
         asr_model = nemo_asr.models.ASRModel.from_pretrained(args.model, strict=False)
 
-
     if not (isinstance(asr_model, EncDecCTCModel) or isinstance(asr_model, EncDecHybridRNNTCTCModel)):
         raise NotImplementedError(
             f"Model is not an instance of NeMo EncDecCTCModel or ENCDecHybridRNNTCTCModel."
             " Currently only instances of these models are supported"
         )
 
-    bpe_model = (
-        isinstance(asr_model, nemo_asr.models.EncDecCTCModelBPE)
-        or isinstance(asr_model, nemo_asr.models.EncDecHybridRNNTCTCBPEModel)
+    bpe_model = isinstance(asr_model, nemo_asr.models.EncDecCTCModelBPE) or isinstance(
+        asr_model, nemo_asr.models.EncDecHybridRNNTCTCBPEModel
     )
 
     # get tokenizer used during training, None for char based models
@@ -100,7 +98,7 @@ if __name__ == "__main__":
         asr_model.change_decoding_strategy(decoder_type="ctc")
 
     # extract ASR vocabulary and add blank symbol
-    if hasattr(asr_model, 'tokenizer'): # i.e. tokenization is BPE-based
+    if hasattr(asr_model, 'tokenizer'):  # i.e. tokenization is BPE-based
         vocabulary = asr_model.tokenizer.vocab
     elif hasattr(asr_model.decoder, "vocabulary"):  # i.e. tokenization is character-based
         vocabulary = asr_model.cfg.decoder.vocabulary
@@ -155,7 +153,9 @@ if __name__ == "__main__":
             # if hypotheses form a tuple (from Hybrid model), extract just "best" hypothesis
             if type(hypotheses) == tuple and len(hypotheses) == 2:
                 hypotheses = hypotheses[0]
-            log_probs = hypotheses[0].alignments # note: "[0]" is for batch dimension unpacking (and here batch size=1)
+            log_probs = hypotheses[
+                0
+            ].alignments  # note: "[0]" is for batch dimension unpacking (and here batch size=1)
 
             # move blank values to the first column (ctc-package compatibility)
             blank_col = log_probs[:, -1].reshape((log_probs.shape[0], 1))
