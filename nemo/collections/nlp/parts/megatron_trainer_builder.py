@@ -140,6 +140,7 @@ class MegatronTrainerBuilder:
         self.cfg.trainer.precision = precision
         return trainer
 
+
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
     """Builder for BERT model Trainer with overrides."""
 
