@@ -218,6 +218,18 @@ class AutoTokenizer(TokenizerSpec):
         text = self.tokens_to_text(tokens_clean)
         return text
 
+    def encode(self, *args, **kwargs):
+        return self.tokenizer.encode(*args, **kwargs)
+
+    def batch_encode_plus(self, *args, **kwargs):
+        return self.tokenizer.batch_encode_plus(*args, **kwargs)
+
+    def decode(self, *args, **kwargs):
+        return self.tokenizer.decode(*args, **kwargs)
+
+    def batch_decode(self, *args, **kwargs):
+        return self.tokenizer.batch_decode(*args, **kwargs)
+
     @property
     def vocab(self):
         id2vocab = {v: k for k, v in self.tokenizer.vocab.items()}
@@ -240,6 +252,18 @@ class AutoTokenizer(TokenizerSpec):
         if getattr(self, 'eos_token') is None:
             return None
         return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
+
+    @property
+    def pad_token_id(self):
+        return self.pad_id
+
+    @pad_token_id.setter
+    def pad_token_id(self, value):
+        self.pad_token = self.ids_to_tokens(value)
+
+    @property
+    def eos_token_id(self):
+        return self.eos_id
 
     @property
     def eod(self):
