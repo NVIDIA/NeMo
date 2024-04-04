@@ -19,7 +19,7 @@ on:
       - opened
       - reopened
     branches: 
-      - "main"
+      - 'main'
 
 jobs:
   gpu-test:
