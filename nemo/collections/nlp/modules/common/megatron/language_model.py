@@ -340,6 +340,12 @@ class Embedding(MegatronModule):
         self.init_method(self.tokentype_embeddings.weight)
 
     def forward(self, input_ids, position_ids=None, token_type_ids=None):
+
+        if self.word_embeddings.tensor_model_parallel_size == 1:
+            input_mask = (input_ids < self.word_embeddings.vocab_start_index) | (input_ids >= self.word_embeddings.vocab_end_index)
+            masked_input = input_ids.clone() - self.word_embeddings.vocab_start_index
+            masked_input[input_mask] = 0
+            input_ids = masked_input
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
         if self.position_embedding_type == 'learned_absolute':

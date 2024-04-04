@@ -350,7 +350,10 @@ def model_inference_strategy_dispatcher(model, **args):
         strategy_name = args['strategy']
         del args['strategy']
         if args.get("peft", True) is False:
-            megatron_lm_compatible = model.model.megatron_lm_compatible
+            if args.get("ptuning", False):
+                megatron_lm_compatible = model.frozen_model.model.megatron_lm_compatible
+            else:
+                megatron_lm_compatible = model.model.megatron_lm_compatible
         else:    
             megatron_lm_compatible = model.frozen_model.model.model.megatron_lm_compatible
         args['megatron_lm_compatible'] = megatron_lm_compatible
@@ -361,7 +364,10 @@ def model_inference_strategy_dispatcher(model, **args):
         elif strategy_name == 'RetroFileQAModelTextGenerationStrategy':
             return RetroFileQAModelTextGenerationStrategy(model, **args)
         elif strategy_name == 'RetroQAModelNEIGHBORSREADYTextGenerationStrategy':
-            return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model.frozen_model, **args)
+            if args.get("peft", True) is False:
+                return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model, **args)
+            else:
+                return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model.frozen_model, **args)
         else:
             raise ValueError(f'{strategy_name} is not supported for inference')
     # Should call GPTModel or Megatron Retrieval Model's forward method

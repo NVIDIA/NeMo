@@ -44,6 +44,7 @@ exp_manager:
     min_delta: 0.001
     patience: 30
     verbose: True
+    strict: False
   
 
 model:
