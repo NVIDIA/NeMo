@@ -342,4 +342,47 @@ class MegatronGriffinModel(MegatronGPTModel):
 
         return fwd_output_and_loss_func
 
+    
+    def get_forward_output_only_func(self):
+        def fwd_output_only_func(dataloader_iter, model):
+            # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
+            batch = next(dataloader_iter)
+            if isinstance(batch, tuple):
+                batch = batch[0]
+            extra_arg = {}
+            if len(batch) == 3:
+                batch = [x.cuda() for x in batch]
+                tokens, attention_mask, position_ids = batch
+                attention_mask = attention_mask[0:1]
+            else:
+                (
+                    tokens,
+                    attention_mask,
+                ) = batch
+                tokens = tokens.cuda()
+
+                if attention_mask is not None:
+                    attention_mask = attention_mask.cuda()
+                    attention_mask = attention_mask[0:1]
+            
+            # Currently for all MCore transformer layer specs causal attention mask
+            # is used so we can delegate creating it to MCore/TE and pass None below
+            attention_mask = None
+            output_tensor = model(tokens, attention_mask)
+
+            # Advance inference sequence offset.
+            if self.inference_params:
+                # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
+                if parallel_state.is_pipeline_last_stage():
+                    self.inference_params.sequence_len_offset += output_tensor.size(1)
+                else:
+                    self.inference_params.sequence_len_offset += output_tensor.size(0)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
+
    
