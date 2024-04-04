@@ -47,6 +47,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
+def replace_prefix(name, old_prefix, new_prefix):
+    if name.startswith(new_prefix):
+        return name
+    if not name.startswith(old_prefix):
+        return name
+    return name.replace(old_prefix, new_prefix, 1)
+
+
 class NLPAdapterModelMixin:
     """ NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
     This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or an `enc_dec_model` submodule.
@@ -300,7 +308,7 @@ class NLPAdapterModelMixin:
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         if self.cfg.metatron_amp_O2:
-            state_dict = {k.replace('model.', 'model.module.'): v for k, v in state_dict.items()}
+            state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
         self.add_adapter(peft_cfgs)
         if not self.ptuning_only_and_non_first_stage:
             assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
