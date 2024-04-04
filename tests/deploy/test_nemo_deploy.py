@@ -13,13 +13,9 @@
 # limitations under the License.
 
 import json
-import os
 import shutil
-import time
-import urllib.request as req
 from pathlib import Path
 
-import numpy as np
 import pytest
 import torch
 from tqdm import tqdm
@@ -179,7 +175,6 @@ def run_trt_llm_export(model_name, n_gpu, skip_accuracy=False, use_pytriton=True
             print("Model Accuracy: {0}, Relaxed Model Accuracy: {1}".format(trtllm_accuracy, trtllm_accuracy_relaxed))
             assert trtllm_accuracy_relaxed > 0.5, "Model accuracy is below 0.5"
 
-        trt_llm_exporter = None
         nm.stop()
         shutil.rmtree(model_info["trt_llm_model_dir"])
 

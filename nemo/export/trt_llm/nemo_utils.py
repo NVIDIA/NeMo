@@ -14,8 +14,6 @@
 
 
 import argparse
-import ast
-import configparser
 import copy
 import csv
 import datetime
@@ -31,7 +29,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
-from transformers import AutoTokenizer, GPT2Config, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
+from transformers import AutoTokenizer, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
 from nemo.export.trt_llm.model_config import (
     LAYERNORM_DEFAULT,

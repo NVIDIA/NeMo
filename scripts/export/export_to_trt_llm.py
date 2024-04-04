@@ -14,19 +14,9 @@
 
 import argparse
 import logging
-import os
 import sys
-from pathlib import Path
 
-from nemo.deploy import DeployPyTriton
 from nemo.export import TensorRTLLM
-
-try:
-    from contextlib import nullcontext
-except ImportError:
-    # handle python < 3.7
-    from contextlib import suppress as nullcontext
-
 
 LOGGER = logging.getLogger("NeMo")
 

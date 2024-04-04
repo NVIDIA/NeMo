@@ -13,11 +13,13 @@
 # limitations under the License.
 
 
+use_pytriton = True
 try:
     from pytriton.model_config import ModelConfig
     from pytriton.triton import Triton, TritonConfig
-except:
-    pass
+except Exception:
+    use_pytriton = False
+
 from nemo.deploy.deploy_base import DeployBase
 
 

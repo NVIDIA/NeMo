@@ -18,6 +18,7 @@ import os
 import time
 from pathlib import Path
 from typing import List
+import logging
 
 import tensorrt as trt
 import tensorrt_llm
@@ -31,6 +32,8 @@ from tensorrt_llm.plugin.plugin import ContextFMHAType
 from tensorrt_llm.quantization import QuantMode
 
 MODEL_NAME = "NeMo"
+
+LOGGER = logging.getLogger("NeMo")
 
 
 def get_engine_name(model, dtype, tp_size, pp_size, rank):
@@ -129,7 +132,7 @@ def build_rank_engine(
             # Use the plugin for the embedding parallelism and sharing
             network.plugin_config.set_lookup_plugin(dtype=args.dtype)
     else:
-        print("Build engine in OOTB mode, disable all plugins except nccl.")
+        LOGGER.warning("Build engine in OOTB mode, disable all plugins except nccl.")
 
     if args.mapping.world_size > 1:
         network.plugin_config.set_nccl_plugin(args.dtype)
@@ -217,10 +220,6 @@ def _build_impl(tensorrt_llm_model, args):
     engine = build_rank_engine(tensorrt_llm_model, builder, builder_config, engine_name, args)
     assert engine is not None, f"Failed to build engine for rank {rank}"
 
-    if args.mapping.rank == 0:
-        # Use in-memory timing cache for multiple builder passes.
-        if not args.parallel_build:
-            timing_cache = builder_config.trt_builder_config.get_timing_cache()
     serialize_engine(engine, args.output_dir / engine_name)
 
     if args.mapping.rank == 0:

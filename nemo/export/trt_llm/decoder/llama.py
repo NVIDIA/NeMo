@@ -132,8 +132,7 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
         config.set_if_not_exist('moe_num_experts', 0)
 
         if layer.moe_num_experts:
-            moe_config = MoeConfig()
-            if not layer.moe_num_experts is None:
+            if layer.moe_num_experts is not None:
                 if layer.moe_top_k is None:
                     layer.moe_top_k = 1
 
@@ -143,10 +142,11 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 )
                 moe_config = MoeConfig(
                     layer.moe_num_experts, layer.moe_top_k, layer.moe_tp_mode, layer.moe_renorm_mode
-                ).validate()
+                )
+                moe_config.validate()
                 config.moe_num_experts = layer.moe_num_experts
                 config.moe_top_k = layer.moe_top_k
                 config.moe_tp_mode = layer.moe_tp_mode
                 config.moe_normalization_mode = layer.moe_renorm_mode
 
-        return LLaMADecoderLayer(config=config, layer_idx=self.layer_id,)
+        return LLaMADecoderLayer(config=config, layer_idx=self.layer_id, )

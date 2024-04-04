@@ -14,35 +14,40 @@
 
 import importlib
 from abc import ABC, abstractmethod
+import logging
 
+use_pytorch_lightning = True
 try:
     from pytorch_lightning import Trainer
 except Exception:
-    pass
+    use_pytorch_lightning = False
 
 from nemo.deploy.triton_deployable import ITritonDeployable
 
 use_nemo = True
 try:
     from nemo.core.classes.modelPT import ModelPT
-except:
+except Exception:
     use_nemo = False
+
+
+LOGGER = logging.getLogger("NeMo")
 
 
 class DeployBase(ABC):
     def __init__(
-        self,
-        triton_model_name: str,
-        triton_model_version: int = 1,
-        checkpoint_path: str = None,
-        model=None,
-        max_batch_size: int = 128,
-        port: int = 8000,
-        address="0.0.0.0",
-        allow_grpc=True,
-        allow_http=True,
-        streaming=False,
-        pytriton_log_verbose=0,
+            self,
+            triton_model_name: str,
+            triton_model_version: int = 1,
+            checkpoint_path: str = None,
+            model=None,
+            max_batch_size: int = 128,
+            port: int = 8000,
+            address="0.0.0.0",
+            allow_grpc=True,
+            allow_http=True,
+            streaming=False,
+            pytriton_log_verbose=0,
     ):
         self.checkpoint_path = checkpoint_path
         self.triton_model_name = triton_model_name
@@ -87,8 +92,8 @@ class DeployBase(ABC):
             # has to turn off activations_checkpoint_method for inference
             try:
                 self.model.model.language_model.encoder.activations_checkpoint_method = None
-            except AttributeError:
-                pass
+            except AttributeError as e:
+                LOGGER.warning(e)
 
         if self.model is None:
             raise Exception("There is no model to deploy.")
@@ -106,4 +111,4 @@ class DeployBase(ABC):
     @staticmethod
     def get_module_and_class(target: str):
         ln = target.rindex(".")
-        return target[0:ln], target[ln + 1 : len(target)]
+        return target[0:ln], target[ln + 1: len(target)]

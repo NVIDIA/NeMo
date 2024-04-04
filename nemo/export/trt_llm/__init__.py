@@ -12,11 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import tensorrt_llm
-from mpi4py import MPI
-
-from nemo.export.trt_llm.model_config_trt import *  # noqa
-from nemo.export.trt_llm.nemo_utils import *  # noqa
-from nemo.export.trt_llm.quantization_utils import *  # noqa
-from nemo.export.trt_llm.tensorrt_llm_run import *  # noqa

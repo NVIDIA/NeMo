@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 
 import tensorrt as trt
 from tensorrt_llm.layers import Embedding, LayerNorm, PromptTuningEmbedding, RmsNorm
@@ -19,6 +20,8 @@ from tensorrt_llm.module import Module
 
 from nemo.export.trt_llm.model_config import LAYERNORM_DEFAULT, LAYERNORM_RMS, EmbeddingConfig, LayernormConfig
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
+
+LOGGER = logging.getLogger("NeMo")
 
 
 def build_embedding_from_config(
@@ -76,7 +79,7 @@ def print_tensorrt_llm(name: str, tensorrt_llm_module: Module):
         if hasattr(tensorrt_llm_module, tensor_name):
             tensor = getattr(tensorrt_llm_module, tensor_name)
             if tensor is not None:
-                print(f"{name}.{tensor_name}:{tensor._value.dtype}:{tensor._value.shape}:\n{tensor._value}")
+                LOGGER.info(f"{name}.{tensor_name}:{tensor._value.dtype}:{tensor._value.shape}:\n{tensor._value}")
 
     for k, v in tensorrt_llm_module.named_children():
         print_tensorrt_llm(f"{name}.{k}({v._get_name()})", v)
