@@ -643,8 +643,8 @@ class ALMAudioTextCollection(ALMAudioText):
         item = dict(
             audio_file=item['audio_file'],
             duration=item['duration'],
-            question=item['question'],
-            answer=item['answer'],
+            question=str(item['question']),
+            answer=str(item['answer']),
             offset=item.get('offset', None),
             speaker=item.get('speaker', None),
             orig_sr=item.get('orig_sample_rate', None),
