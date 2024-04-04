@@ -56,9 +56,9 @@ Usage:
             trainer.num_nodes=1 \
             tensor_model_parallel_size=-1 \
             pipeline_model_parallel_size=-1 \
-            prompts=[prompt1, prompt2] \
+            prompt="prompt" \
             inference.retro_inference.retro_num_neighbors=2 \
-            neighbors=[[prompt1_neighbor1, prompt1_neighbor2], [prompt2_neighbor1, prompt2_neighbor2]]
+            neighbors=["prompt1", "prompt2"]
 
 
         ```
@@ -217,36 +217,11 @@ def main(cfg) -> None:
         "end_strings": cfg.inference.end_strings,
     }
 
-    # DEBUGGING
-    ## Example
-    bs = 1
-    # cfg.prompts = ["Question: Who is the president of the US? Who is the president of the US? Answer: "]
-    # cfg.prompts = ["Question: who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? Answer: The answer is"]
-    # cfg.prompts = ["* "*66]
-    # cfg.prompts = ["* "*212 +  "Question: who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? Answer: The answer is"]
-    # worked: cfg.prompts = ["* "*201 +  "Question: who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? Answer: The answer is"]
-    # not worked (201, 202, 203, 205, 206, 207): cfg.prompts = ["* "*201 +  "Question: who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? who won the oscar for best picture in 1976? Answer: The answer is"]
-    # 2x tokens = (tokens + 1)*2
-    # worked number of 2x tokens (528)
-    # not worked number of 2x tokens (530) => this number must be divisible by 8, meaning (tokens + 1) must be divisible by 4?
-    # however, when numner tokens 14 ((+1)x2=30) still works; also 31, 51, 63, 62, 67; not work: 101, 64, 65, 66 not work!
-    # neighbor1 = "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by Sidney Lumet, about a fictional television network, UBS, and its struggle with poor ratings. The film stars Faye Dunaway, William Holden, Peter Finch, and Robert Duvall and features Wesley Addy, Ned Beatty, and Beatrice Straight. The film won four Academy Awards, in the categories of Best Actor (Finch), Best Actress (Dunaway), Best Supporting Actress (Straight), and Best Original Screenplay (Chayefsky). In 2000, the film was selected for preservation in the United States National Film Registry by the Library of Congress as being"
-    # neighbor2 = "title: 49th Academy Awards, source: 1976. For the second straight year, the ceremony was scheduled directly opposite the NCAA championship basketball game on NBC, won by Marquette in Al McGuire's final game as head coach. Winners are listed first, highlighted in boldface and indicated with a double dagger (). These films had multiple nominations: The following films received multiple awards. The following individuals, listed in order of appearance, presented awards or performed musical numbers. 49th Academy Awards The 49th Academy Awards were presented Monday, March 28, 1977, at the Dorothy Chandler Pavilion in Los Angeles, California. The ceremonies were presided over by Richard Pryor, Ellen"
-    cfg.prompts = ["title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by"]
-    # neighbor1 = "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by Christopher Nolan"
-    # neighbor2 = "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by Christopher Nolan"
-    neighbor1 = "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by Sidney Lumet, about a fictional television network, UBS, and its struggle with poor ratings. The film stars Faye Dunaway, William Holden, Peter Finch, and Robert Duvall and features Wesley Addy, Ned Beatty, and Beatrice Straight. The film won four Academy Awards, in the categories of Best Actor (Finch), Best Actress (Dunaway), Best Supporting Actress (Straight), and Best Original Screenplay (Chayefsky). In 2000, the film was selected for preservation in the United States National Film Registry by the Library of Congress as being"
-    neighbor2 = "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by Sidney Lumet, about a fictional television network, UBS, and its struggle with poor ratings. The film stars Faye Dunaway, William Holden, Peter Finch, and Robert Duvall and features Wesley Addy, Ned Beatty, and Beatrice Straight. The film won four Academy Awards, in the categories of Best Actor (Finch), Best Actress (Dunaway), Best Supporting Actress (Straight), and Best Original Screenplay (Chayefsky). In 2000, the film was selected for preservation in the United States National Film Registry by the Library of Congress as being"
-    # neighbor1 = "Question: Who is the president of the US? Who is the president of the US? Answer: "
-    # neighbor2 = "Question: Who is the president of the US? Who is the president of the US? Answer: "
-    # neighbor1 = "*"*64
-    # neighbor2 = "*"*64
-    cfg.neighbors = [[neighbor1, neighbor2]]
-
     # Second method of running text generation, call trainer.predict [recommended]
-    prompts = cfg.prompts
-    neighbors = cfg.neighbors
-    ds = RequestDataSet(prompts, neighbors)
+    prompt = [cfg.prompt]
+    neighbors = [cfg.neighbors]
+    ds = RequestDataSet(prompt, neighbors)
+    bs = 1
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)

@@ -587,7 +587,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
             tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
 
 
-class RetroModelTextGenerationStrategy(TextGenerationStrategy):
+class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
         super().__init__(model)
         self.forward_model = self.model.model
@@ -768,7 +768,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         generate the batch used in inference for each of the steps
         """
 
-        # RETRO not support memory caching, always allocate memory for the entire context
+        # Currently mcore RETRO not support memory caching, always allocate memory for the entire context
         # Allocate memory for the entire context.
         set_inference_key_value_memory = True
         tokens2use = tokens
@@ -798,12 +798,12 @@ def model_inference_strategy_dispatcher(model, **args):
         MegatronGPTPromptLearningModel,
     )
 
-    # from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-    # from nemo.collections.nlp.modules.common.retro_inference_strategies_legacy import (
-    #     RetroFileQAModelTextGenerationStrategy,
-    #     RetroModelTextGenerationStrategy,
-    #     RetroQAModelTextGenerationStrategy,
-    # )
+    from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+    from nemo.collections.nlp.modules.common.retro_inference_strategies import (
+        RetroFileQAModelTextGenerationStrategy,
+        RetroModelTextGenerationStrategy,
+        RetroQAModelTextGenerationStrategy,
+    )
     from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
     
     if isinstance(model, MegatronNevaModel):
@@ -812,21 +812,21 @@ def model_inference_strategy_dispatcher(model, **args):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel) and not(isinstance(model, MegatronRetroModel)):
         return GPTModelTextGenerationStrategy(model)
-    # elif isinstance(model, MegatronRetrievalModel):
-    #     strategy_name = args['strategy']
-    #     del args['strategy']
-    #     megatron_lm_compatible = model.model.megatron_lm_compatible
-    #     args['megatron_lm_compatible'] = megatron_lm_compatible
-    #     if strategy_name == 'RetroModelTextGenerationStrategy':
-    #         return RetroModelTextGenerationStrategy(model, **args)
-    #     elif strategy_name == 'RetroQAModelTextGenerationStrategy':
-    #         return RetroQAModelTextGenerationStrategy(model, **args)
-    #     elif strategy_name == 'RetroFileQAModelTextGenerationStrategy':
-    #         return RetroFileQAModelTextGenerationStrategy(model, **args)
-    #     else:
-    #         raise ValueError(f'{strategy_name} is not supported for inference')
+    elif isinstance(model, MegatronRetrievalModel):
+        strategy_name = args['strategy']
+        del args['strategy']
+        megatron_lm_compatible = model.model.megatron_lm_compatible
+        args['megatron_lm_compatible'] = megatron_lm_compatible
+        if strategy_name == 'RetroModelTextGenerationStrategy':
+            return RetroModelTextGenerationStrategy(model, **args)
+        elif strategy_name == 'RetroQAModelTextGenerationStrategy':
+            return RetroQAModelTextGenerationStrategy(model, **args)
+        elif strategy_name == 'RetroFileQAModelTextGenerationStrategy':
+            return RetroFileQAModelTextGenerationStrategy(model, **args)
+        else:
+            raise ValueError(f'{strategy_name} is not supported for inference')
     elif isinstance(model, MegatronRetroModel):
-        return RetroModelTextGenerationStrategy(model)
+        return McoreRetroModelTextGenerationStrategy(model)
     else:
         raise ValueError(f'{model} is not supported for inference')
 

@@ -40,12 +40,3 @@ hparams_file: null # model configuration file, only used for PTL checkpoint load
 # qa tasks
 qa_file_path: null
 pred_file_path: null
-
-server: False  # whether launch the API server
-port: 5555 # the port number for the inference server
-web_server: False # whether launch the web inference server
-share: False  # whether create a public URL
-username: test # user name for web client
-password: test2  # password for web client
-web_port: 9889 # the port number of the web server
-

@@ -513,7 +513,7 @@ def synced_generate(
             temperature=temperature,
             end_strings=end_strings,
             image_list=image_list,
-            **extra
+            extra=extra,
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -632,7 +632,7 @@ def generate(
             random_seed,
         )
 
-        # tokenize neighbors and broadcast (for retrieval RETRO model)
+        # tokenize neighbors and broadcast (for Mcore retrieval RETRO model)
         if 'neighbors' in strategy_args:
             # tokenize neighbors
             if isinstance(strategy_args['neighbors'], tuple):
@@ -666,7 +666,7 @@ def generate(
             random_seed,
         ) = receive_generate_info()
 
-        # receive broadcast (for retrieval RETRO model)
+        # receive broadcast (for Mcore retrieval RETRO model)
         if 'neighbors' in strategy_args:
             # receive neighbors tensors to all ranks 
             model_parallel_group = parallel_state.get_model_parallel_group()
@@ -785,7 +785,7 @@ def sample_sequence_batch(
     temperature=None,
     end_strings=['<|endoftext|>'],
     image_list=None,
-    **extra,
+    extra={},
 ):
     # Importing here to avoid circular import errors
 
@@ -809,10 +809,8 @@ def sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        if 'neighbors_tokens' in extra: # (for retrieval RETRO model)
-            # inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask, **extra)
+        if 'neighbors_tokens' in extra: # for Mcore retrieval RETRO model
 
-            # DEBUGGING (HACKS)
             # For RETRO, context_tokens tensors are updated after init_batch() (the length is doubled)
             context_tokens = inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask, **extra)
 
@@ -855,9 +853,11 @@ def sample_sequence_batch(
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 else:
-                    # disimilar to GPT, we will get the logits of the (context_length - 1)th token, instead of the last token
-                    # logits = output[0]['logits'][:, -1].contiguous()
-                    logits = output[0]['logits'][:, context_length - 1].contiguous()
+                    if 'neighbors_tokens' in extra: # for Mcore retrieval RETRO model
+                        # for Mcore RETRO inference, disimilar to GPT, we will get the logits of the (context_length - 1)th token, instead of the last token
+                        logits = output[0]['logits'][:, context_length - 1].contiguous()
+                    else:
+                        logits = output[0]['logits'][:, -1].contiguous()                    
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
                     assert logits is not None
                     logits = logits.view(batch_size, -1)
