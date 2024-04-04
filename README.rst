@@ -304,33 +304,39 @@ To install NeMo on Windows:
 - Install conda:
   - Download and install the latest version of Anaconda from `Anaconda's official website <https://www.anaconda.com/products/distribution>`_.
   - Create a new conda environment:
-    - Run the following command in Conda Prompt:
-      ```shell
-      conda create --name NeMo_py310 python=3.10
-      conda activate NeMo_py310
-      ```
+  
+    ```shell
+
+    conda create --name NeMo_py310 python=3.10
+    conda activate NeMo_py310
+    
+    ```
 
 
 - Clone NeMo (or download the win_reqs.txt file from the repository):
 
     ```shell
+
     git clone https://github.com/NVIDIA/NeMo.git
     pip install -r NeMo/requirements/win/win_reqs.txt
+    
     ```
 
-- If not installed already, download and install Visual Studio build tools from `Visual Studio's official website <https://visualcurl -L "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "vs_BuildTools.exe"studio.microsoft.com/visual-cpp-build-tools/>`.
+- If not installed already, download and install Visual Studio build tools `from official website <https://visualstudio.microsoft.com/en/visual-cpp-build-tools/>`_.
   - Or use the following command:
-    ```shell
-    curl -L "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "vs_BuildTools.exe"
-    
-    vs_buildtools.exe --norestart --passive --downloadThenInstall --includeRecommended --add Microsoft.VisualStudio.Workload.NativeDesktop --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.MSBuildTools
-    ```
+  ```shell
+
+  curl -L "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "vs_BuildTools.exe"
+  vs_buildtools.exe --norestart --passive --downloadThenInstall --includeRecommended --add Microsoft.VisualStudio.Workload.NativeDesktop \
+  --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.MSBuildTools
+  
+  ```
 
 - Install NeMo:
   - Run the following command:
-    ```shell
-    pip install -e git+https://github.com/NVIDIA/NeMo#egg=nemo_toolkit[asr]
-    ```
+  ```shell
+  pip install -e git+https://github.com/NVIDIA/NeMo#egg=nemo_toolkit[asr]
+  ```
 
 Note: Pure Windows installation is experimental and may have limitations or issues. It is recommended to use Windows Subsystem for Linux (WSL) for better compatibility.
 
