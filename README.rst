@@ -326,14 +326,12 @@ To install NeMo on Windows:
   .. code-block:: shell
 
       curl -L "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "vs_BuildTools.exe"
-      vs_buildtools.exe --norestart --passive --downloadThenInstall --includeRecommended --add Microsoft.VisualStudio.Workload.NativeDesktop \
-      --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.MSBuildTools
+      vs_buildtools.exe --norestart --passive --downloadThenInstall --includeRecommended --add Microsoft.VisualStudio.Workload.NativeDesktop --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.MSBuildTools
     
 
 
 - Install NeMo:
   - Run the following command:
-
   .. code-block:: shell
       pip install -e git+https://github.com/NVIDIA/NeMo#egg=nemo_toolkit[asr]
     
