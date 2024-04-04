@@ -70,7 +70,7 @@ def get_args():
         default=None,
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument("--local_rank", type=int, required=False, default=int(os.getenv('LOCAL_RANK', '-1')))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
     parser.add_argument("--model_type", type=str, required=False, default="stable_diffusion")
     parser.add_argument("--nemo_clip_path", type=str, required=False, help="Path to clip ckpt file in .nemo format")
