@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import importlib
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 
 use_pytorch_lightning = True
 try:
@@ -36,18 +36,18 @@ LOGGER = logging.getLogger("NeMo")
 
 class DeployBase(ABC):
     def __init__(
-            self,
-            triton_model_name: str,
-            triton_model_version: int = 1,
-            checkpoint_path: str = None,
-            model=None,
-            max_batch_size: int = 128,
-            port: int = 8000,
-            address="0.0.0.0",
-            allow_grpc=True,
-            allow_http=True,
-            streaming=False,
-            pytriton_log_verbose=0,
+        self,
+        triton_model_name: str,
+        triton_model_version: int = 1,
+        checkpoint_path: str = None,
+        model=None,
+        max_batch_size: int = 128,
+        port: int = 8000,
+        address="0.0.0.0",
+        allow_grpc=True,
+        allow_http=True,
+        streaming=False,
+        pytriton_log_verbose=0,
     ):
         self.checkpoint_path = checkpoint_path
         self.triton_model_name = triton_model_name
@@ -111,4 +111,4 @@ class DeployBase(ABC):
     @staticmethod
     def get_module_and_class(target: str):
         ln = target.rindex(".")
-        return target[0:ln], target[ln + 1: len(target)]
+        return target[0:ln], target[ln + 1 : len(target)]

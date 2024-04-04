@@ -149,4 +149,4 @@ class LLAMADecoderLayerBuilder(DecoderLayerBuilder):
                 config.moe_tp_mode = layer.moe_tp_mode
                 config.moe_normalization_mode = layer.moe_renorm_mode
 
-        return LLaMADecoderLayer(config=config, layer_idx=self.layer_id, )
+        return LLaMADecoderLayer(config=config, layer_idx=self.layer_id,)

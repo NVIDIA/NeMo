@@ -14,11 +14,11 @@
 
 
 import argparse
+import logging
 import os
 import time
 from pathlib import Path
 from typing import List
-import logging
 
 import tensorrt as trt
 import tensorrt_llm
