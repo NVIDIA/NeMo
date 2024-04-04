@@ -35,6 +35,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import (
     GPTFIMDataset,
     GPTFIMDatasetConfig,
@@ -100,7 +101,7 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.utils import drain_embedding_wgrad_compute, init_method_normal, scaled_init_method_normal
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -405,7 +406,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False):
+            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -475,7 +476,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False):
+            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
@@ -704,10 +705,51 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=True
+        ):
+            if (
+                self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
+            ):  # Silently ignore the optimization if MCORE is not used
+                module_list = self.get_model_module_list()
+                if len(module_list) > 1:
+                    embedding_module = module_list[-1]
+                else:
+                    embedding_module = module_list[0]
+
+                embedding_module.embedding_activation_buffer.clear()
+                assert (
+                    len(embedding_module.embedding_activation_buffer) == 0
+                ), "When you defer wgrads, this buffer should not hold stray activations"
+
         loss_mean = self.training_step_fwd_bwd_step_call(dataloader_iter, forward_only=False)
 
         if self.cfg.get('fp8', False):
             self.prev_step_training = self.training
+
+        # Optimization: Defer the embedding GEMM Wgrads of the last PP stage to pipeline flush waiting time
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=True
+        ):
+            if (
+                self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
+            ):  # Silently ignore the optimization if MCORE is not used
+                module_list = self.get_model_module_list()
+                if len(module_list) > 1:
+                    embedding_module = module_list[-1]
+                else:
+                    embedding_module = module_list[0]
+
+                embedding_activation_buffer = embedding_module.embedding_activation_buffer
+                grad_output_buffer = embedding_module.grad_output_buffer
+                if self.cfg.get('share_embeddings_and_output_weights', True):
+                    weight = embedding_module.shared_embedding_or_output_weight()
+                else:
+                    weight = embedding_module.output_layer.weight
+
+                drain_embedding_wgrad_compute(
+                    embedding_module.config, embedding_activation_buffer, grad_output_buffer, weight
+                )
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
@@ -971,9 +1013,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'tokens': data["tokens"],
             'labels': data["labels"],
             'loss_mask': data["loss_mask"],
-            'attention_mask': data["attention_mask"],
             'position_ids': data["position_ids"],
         }
+        if "attention_mask" in data:
+            batch['attention_mask'] = data["attention_mask"]
 
         return batch
 
@@ -1202,6 +1245,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.eval()
+        else:
+            self.model.eval()
 
         if self.cfg.get('fp8', False):
             first_val_step = self.prev_step_training and not self.training
@@ -1209,11 +1254,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             first_val_step = None
 
-        loss = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
+        with torch.no_grad():
+            loss = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
+        else:
+            self.model.train()
 
         if mode == 'val':
             # Append with the correct dataloader_idx in case of multiple dataloaders
@@ -1309,41 +1357,55 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             fim_tokens = [fim_tokens.prefix, fim_tokens.middle, fim_tokens.suffix, fim_tokens.pad, fim_tokens.eod]
             self.tokenizer.add_special_tokens({'additional_special_tokens': fim_tokens})
 
-        mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
-        kwargs = {
-            "is_built_on_rank": is_dataset_built_on_rank,
-            "random_seed": self.cfg.seed,
-            "sequence_length": self.cfg.data.seq_length,
-            "path_to_cache": self.cfg.data.index_mapping_dir,
-            "tokenizer": self.tokenizer,
-            "reset_position_ids": self.reset_position_ids,
-            "reset_attention_mask": self.reset_attention_mask,
-            "eod_mask_loss": self.eod_mask_loss,
-            "mock": mock_dataset,
-            "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
-        }
-
-        # support for dict data input type
-        if isinstance(self.cfg.data.data_prefix, DictConfig):
-            _pref = self.cfg.data.data_prefix
-            kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+        if self.cfg.data.get("legacy_dataset", False):
+            self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+                cfg=self.cfg,
+                trainer=self.trainer,
+                data_prefix=self.cfg.data.data_prefix,
+                data_impl=self.cfg.data.data_impl,
+                splits_string=self.cfg.data.splits_string,
+                train_valid_test_num_samples=train_valid_test_num_samples,
+                seq_length=self.cfg.data.seq_length,
+                seed=self.cfg.seed,
+                skip_warmup=self.cfg.data.get('skip_warmup', True),
+                tokenizer=self.tokenizer,
+            )
         else:
-            kwargs['blend'] = self.cfg.data.data_prefix
-            kwargs["split"] = self.cfg.data.splits_string
+            mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
+            kwargs = {
+                "is_built_on_rank": is_dataset_built_on_rank,
+                "random_seed": self.cfg.seed,
+                "sequence_length": self.cfg.data.seq_length,
+                "path_to_cache": self.cfg.data.index_mapping_dir,
+                "tokenizer": self.tokenizer,
+                "reset_position_ids": self.reset_position_ids,
+                "reset_attention_mask": self.reset_attention_mask,
+                "eod_mask_loss": self.eod_mask_loss,
+                "mock": mock_dataset,
+                "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
+            }
 
-        if self.cfg.data.get('add_fim', False):
-            dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
+            # support for dict data input type
+            if isinstance(self.cfg.data.data_prefix, DictConfig):
+                _pref = self.cfg.data.data_prefix
+                kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+            else:
+                kwargs['blend'] = self.cfg.data.data_prefix
+                kwargs["split"] = self.cfg.data.splits_string
 
-            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                GPTFIMDataset, train_valid_test_num_samples, dataset_config,
-            ).build()
-        else:
-            dataset_config = GPTDatasetConfig(**kwargs)
-            dataset_type = MockGPTDataset if mock_dataset else GPTDataset
+            if self.cfg.data.get('add_fim', False):
+                dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
 
-            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                dataset_type, train_valid_test_num_samples, dataset_config,
-            ).build()
+                self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                    GPTFIMDataset, train_valid_test_num_samples, dataset_config,
+                ).build()
+            else:
+                dataset_config = GPTDatasetConfig(**kwargs)
+                dataset_type = MockGPTDataset if mock_dataset else GPTDataset
+
+                self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                    dataset_type, train_valid_test_num_samples, dataset_config,
+                ).build()
 
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
@@ -1437,8 +1499,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
+            # Override limit_train_batches in terms of num of microbatches
+            self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_dl, 'train')
             # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-            self._reconfigure_val_batches()
+            self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_dl, 'val')
 
         if stage == 'fit':
             self.initialize_last_rank_embeddings()
