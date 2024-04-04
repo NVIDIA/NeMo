@@ -168,11 +168,9 @@ def get_nmt_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
-    if (library != 'byte-level') and (
-        (tokenizer_model is None or not os.path.isfile(tokenizer_model))
-    ):
+    if (library != 'byte-level') and ((tokenizer_model is None or not os.path.isfile(tokenizer_model))):
         raise ValueError("No Tokenizer path provided or file does not exist!")
-    
+
     if library in ['huggingface', 'megatron'] and model_name is None:
         raise ValueError(f"Please specify model_name as you are using the following library: {library}")
 
