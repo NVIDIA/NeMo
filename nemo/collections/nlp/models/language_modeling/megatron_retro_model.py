@@ -79,9 +79,9 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import InferenceParams, parallel_state
-    from megatron.core.models.retro.model import RetroModel as MCoreRetroModel
-    from megatron.core.models.retro.model.config import RetroConfig
-    from megatron.core.models.retro.model.decoder_spec import get_retro_decoder_block_spec
+    from megatron.core.models.retro import RetroModel as MCoreRetroModel
+    from megatron.core.models.retro.config import RetroConfig
+    from megatron.core.models.retro.decoder_spec import get_retro_decoder_block_spec
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
