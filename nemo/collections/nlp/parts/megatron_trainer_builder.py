@@ -134,8 +134,11 @@ class MegatronTrainerBuilder:
         # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
         if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
             callbacks = [CustomProgressBar()]
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
-
+        # cfg.trainer.precision becomes None in TrainerBuilder if precision_plugins exist since both precision plugins and precision
+        precision = self.cfg.trainer.precision
+        trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
+        self.cfg.trainer.precision = precision
+        return trainer
 
 class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
     """Builder for BERT model Trainer with overrides."""
