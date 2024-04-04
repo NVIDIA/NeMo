@@ -15,11 +15,8 @@ name: "CICD NeMo"
 
 on:
   pull_request:
-    types:
-      - opened
-      - reopened
-    branches: 
-      - 'main'
+    types: [opened, reopened]
+    branches: [ "main" ]
 
 jobs:
   gpu-test:
