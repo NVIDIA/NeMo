@@ -301,11 +301,11 @@ NeMo can also be installed directly on Windows without using WSL.
 
 To install NeMo on Windows:
 
-- Install conda:
+- Install conda and create a new environment:
   - Download and install the latest version of Anaconda from `Anaconda's official website <https://www.anaconda.com/products/distribution>`_.
   - Create a new conda environment:
   
-    ```shell
+    ```bash
 
     conda create --name NeMo_py310 python=3.10
     conda activate NeMo_py310
@@ -315,7 +315,7 @@ To install NeMo on Windows:
 
 - Clone NeMo (or download the win_reqs.txt file from the repository):
 
-    ```shell
+    ```bash
 
     git clone https://github.com/NVIDIA/NeMo.git
     pip install -r NeMo/requirements/win/win_reqs.txt
@@ -324,19 +324,21 @@ To install NeMo on Windows:
 
 - If not installed already, download and install Visual Studio build tools `from official website <https://visualstudio.microsoft.com/en/visual-cpp-build-tools/>`_.
   - Or use the following command:
-  ```shell
+    
+    ```bash
 
-  curl -L "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "vs_BuildTools.exe"
-  vs_buildtools.exe --norestart --passive --downloadThenInstall --includeRecommended --add Microsoft.VisualStudio.Workload.NativeDesktop \
-  --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.MSBuildTools
-  
-  ```
+    curl -L "https://aka.ms/vs/17/release/vs_BuildTools.exe" -o "vs_BuildTools.exe"
+    vs_buildtools.exe --norestart --passive --downloadThenInstall --includeRecommended --add Microsoft.VisualStudio.Workload.NativeDesktop \
+    --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.MSBuildTools
+    
+    ```
 
 - Install NeMo:
   - Run the following command:
-  ```shell
-  pip install -e git+https://github.com/NVIDIA/NeMo#egg=nemo_toolkit[asr]
-  ```
+
+    ```bash
+    pip install -e git+https://github.com/NVIDIA/NeMo#egg=nemo_toolkit[asr]
+    ```
 
 Note: Pure Windows installation is experimental and may have limitations or issues. It is recommended to use Windows Subsystem for Linux (WSL) for better compatibility.
 
