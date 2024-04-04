@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 from functools import partial
+from typing import Any, Optional
+
+import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch._inductor import config as inductor_config
-from typing import Any, Optional
 
 from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
 from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
@@ -646,6 +647,7 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
 
     def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
         from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+
         if isinstance(module, AdapterModuleMixin):
             if isinstance(module, LinearWrapper):
                 peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
