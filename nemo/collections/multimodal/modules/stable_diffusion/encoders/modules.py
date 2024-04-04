@@ -11,26 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import open_clip
 import os
 import tempfile
-from functools import partial
-from typing import Dict, List, Optional, Tuple, Union
-
-import open_clip
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from functools import partial
 from omegaconf import ListConfig, OmegaConf
 from torch.utils.checkpoint import checkpoint
 from transformers import CLIPTextModel, CLIPTokenizer
+from typing import Dict, List, Optional, Tuple, Union
 
 from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import CLIPModel
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
 from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
     TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 )
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     count_params,
     disabled_train,
@@ -718,7 +717,7 @@ class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
 
     def encode_with_transformer(self, text):
         x = self.model.language_model.embedding.word_embeddings(text)
-        x += self.model.language_model.embedding.position_embeddings
+        x = x + self.model.language_model.embedding.position_embeddings
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.text_transformer_forward(x, attn_mask=self.model.attn_mask)
         x = self.model.language_model.encoder.final_layernorm(x)

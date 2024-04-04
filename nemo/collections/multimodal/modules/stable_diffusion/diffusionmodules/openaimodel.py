@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from abc import abstractmethod
-from collections.abc import Iterable
-from functools import partial
-from typing import Iterable
-
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+from abc import abstractmethod
+from collections.abc import Iterable
+from functools import partial
+from typing import Iterable
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -1035,7 +1034,6 @@ class UNetModel(nn.Module):
         if 'output_blocks.2.2.conv.bias' in missing_keys and 'output_blocks.2.1.conv.bias' in loaded_keys:
             state_dict['output_blocks.2.2.conv.bias'] = state_dict['output_blocks.2.1.conv.bias']
             state_dict['output_blocks.2.2.conv.weight'] = state_dict['output_blocks.2.1.conv.weight']
-
         if 'out.1.weight' in missing_keys:
             state_dict['out.1.weight'] = state_dict['out.2.weight']
             state_dict['out.1.bias'] = state_dict['out.2.bias']
@@ -1090,14 +1088,16 @@ class UNetModel(nn.Module):
         for key_, value_ in state_dict.items():
             if key_.startswith('model.diffusion_model'):
                 re_state_dict[key_.replace('model.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model'):
+            elif key_.startswith('model.model.diffusion_model'):
                 re_state_dict[key_.replace('model.model.diffusion_model.', '')] = value_
-            if key_.startswith('model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model.model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model._orig_mod.'):
+            elif key_.startswith('model.model.diffusion_model._orig_mod.'):
                 re_state_dict[key_.replace('model.model.diffusion_model._orig_mod.', '')] = value_
+            else:
+                re_state_dict[key_] = value_
         return re_state_dict
 
     def _load_state_dict_into_model(self, state_dict):
