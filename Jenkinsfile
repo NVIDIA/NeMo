@@ -9,6 +9,7 @@ pipeline {
   environment {
         NVTE_FUSED_ATTN = 0
         NVTE_FLASH_ATTN = 0
+	PYTHONPATH = "${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH/Megatron-LM"
   }
 
   options {
@@ -102,8 +103,7 @@ pipeline {
              git checkout 9de386d08770d7296263a590171ace4ae45348ad && \
              pip install . && \
              cd megatron/core/datasets && \
-             make && \
-	     pwd'
+             make'
       }
     }
 
