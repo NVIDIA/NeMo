@@ -46,7 +46,6 @@ class OfflineSpeechClient(object):
         ]
         inputs[0].set_data_from_numpy(samples)
         inputs[1].set_data_from_numpy(lengths)
-        print("model name", self.model_name)
         outputs = [self.protocol_client.InferRequestedOutput("TRANSCRIPTS")]
         response = self.triton_client.infer(
             self.model_name,
@@ -85,7 +84,7 @@ if __name__ == "__main__":
         "--model_name",
         required=False,
         default="asr_ctc",
-        choices=["asr_ctc", "asr_ctc_ensemble"],
+        choices=["asr_ctc", "asr_ctc_ensemble", "asr_ctc_chunked_offline"],
         help="the model to send request to",
     )
     parser.add_argument(

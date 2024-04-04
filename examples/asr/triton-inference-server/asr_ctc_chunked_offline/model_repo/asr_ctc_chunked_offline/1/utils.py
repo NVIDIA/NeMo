@@ -17,6 +17,8 @@ import numpy as np
 import torch
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, AudioFeatureIterator
 from torch.nn.utils.rnn import pad_sequence
+import copy
+from omegaconf import OmegaConf
 
 class FrameBatchASRWrapper(FrameBatchASR):
     def read_audio_samples(self, samples, delay, model_stride_in_secs):
@@ -39,47 +41,60 @@ class FrameBatchASRWrapper(FrameBatchASR):
             
 
 class HFChunkedASR:
-    def __init__(self, asr_model, chunk_len_in_secs=30, overlapping=5):
+    def __init__(self, asr_model, chunk_len_in_secs=30, overlapping_in_secs=5, batch_size=32):
         self.asr_model = asr_model
         self.chunk_len_in_secs = chunk_len_in_secs
-        self.overlapping = overlapping
-        self.chunk_len = int(self.asr_model._cfg.sample_rate * self.chunk_len_in_secs)
-        self.overlap_len = int(self.asr_model._cfg.sample_rate * self.overlapping)
-        self.subsampling_rate = asr_model.encoder.subsampling_rate
-        
-        self.samples_to_logits_ratio = self.get_sample_logits_ratio() // self.subsampling_rate
-    
+        self.overlapping = overlapping_in_secs
+        self.cfg = asr_model._cfg
+        self.chunk_len = int(self.cfg.sample_rate * self.chunk_len_in_secs)
+        self.overlap_len = int(self.cfg.sample_rate * self.overlapping)
+        self.subsampling_rate = asr_model.encoder.subsampling_factor
+        self.samples_to_logits_ratio = self.get_sample_logits_ratio()
+        self.batch_size = batch_size
+        self.preprocessor = self.extract_preprocessor(asr_model.device)
+        self.asr_model.preprocessor = self.preprocessor
+        self.asr_model.encoder.freeze()
+        self.asr_model.decoder.freeze()
+        self.asr_model.eval()
+
     def get_sample_logits_ratio(self):
-        preprocessor = self.asr_model.preprocessor
-        samples = torch.random.rand(1, preprocessor.sample_rate)
-        samples_len = torch.tensor([preprocessor.sample_rate], dtype=torch.int32)
-        processed, processed_len = preprocessor(input_signal=samples, length=samples_len)
-        return int(samples_len[0] / processed_len[0])
-        
-    def get_batch_preds(self, samples, batch_size):
-        hyps = []
+        preprocessor = self.cfg.preprocessor
+        window_stride = preprocessor.window_stride
+        sample_to_frame = 1 / window_stride * preprocessor.sample_rate
+        sample_to_logits = sample_to_frame * self.subsampling_rate
+        return sample_to_logits
+    
+    def extract_preprocessor(self, device):
+        cfg = copy.deepcopy(self.cfg)
+        OmegaConf.set_struct(cfg.preprocessor, False)
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        preprocessor = self.asr_model.from_config_dict(cfg.preprocessor)
+        return preprocessor.to(device)
+  
+    def get_batch_preds(self, samples):
         all_item_info = []
         all_log_probs = []
         all_log_probs_len = []
+        batch_size = self.batch_size
         for batch_wavs, batch_len, batch_idx in self.batch_chunk_iter(samples, batch_size):
             # pad samples
             batch_wavs = torch.nn.utils.rnn.pad_sequence(batch_wavs, batch_first=True).cuda()
-            lengths = torch.Tensor(batch_len, dtype=torch.int32).cuda()
+            lengths = torch.Tensor(batch_len).cuda()
             all_item_info.extend(batch_idx) # idx,  (chunk_len, _stride_left, _stride_right), is_last
             
             log_probs, encoded_len, greedy_predictions = self.asr_model.forward(input_signal=batch_wavs,
                                                                               input_signal_length=lengths)
             all_log_probs.extend(list(log_probs))
             all_log_probs_len.extend(list(encoded_len))
-        
+
         all_probs_to_predict = []
         cur_seq_log_probs = []
         all_encoded_len = []
         for item, log_prob, log_prob_len in zip(all_item_info, all_log_probs, all_log_probs_len):
             idx, (chunk_len, _stride_left, _stride_right), is_last = item
-            left_start = _stride_left // self.samples_to_logits_ratio
-            right_end = _stride_right // self.samples_to_logits_ratio
-            
+            left_start = int(_stride_left // self.samples_to_logits_ratio)
+            right_end = int(_stride_right // self.samples_to_logits_ratio)
             log_prob = log_prob[left_start: log_prob_len - right_end, :]
             cur_seq_log_probs.append(log_prob)
             if is_last:
@@ -94,11 +109,10 @@ class HFChunkedASR:
             all_encoded_len.append(cur_seq_log_probs.shape[0])
         
         # it's better to have ctc_decoder_predictions tensor accept list of tensors   
-        all_log_probs = pad_sequence(all_probs_to_predict, 0)
+        all_log_probs = pad_sequence(all_probs_to_predict, batch_first=True).cuda()
         all_encoded_len = torch.tensor(all_encoded_len, dtype=torch.int32).cuda()
-            
         # ctc_decoder_predictions_tensor could be replaced with riva.asrlib.decoder
-        transcribed_texts, _ = self.model.decoding.ctc_decoder_predictions_tensor(
+        transcribed_texts, _ = self.asr_model.decoding.ctc_decoder_predictions_tensor(
                   decoder_outputs=all_log_probs, decoder_lengths=all_encoded_len, return_hypotheses=False,
               )
             

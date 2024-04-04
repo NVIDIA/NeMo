@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "nemo_asr_ctc_chunked_offline"
+name: "asr_ctc_chunked_offline"
 backend: "python"
 max_batch_size: 32
 
@@ -23,23 +23,23 @@ parameters [
   },
   {
     key: "dtype"
-    value: { string_value: "bfloat16" }
+    value: { string_value: "float16" }
   },
   {
     key: "chunk_len_in_secs"
-    value: { string_value: "1.6" }
+    value: { string_value: "20.0" }
   },
   {
     key: "total_buffer_in_secs"
-    value: { string_value: "4.0" }
-  },
-  {
-    key: "model_stride"
-    value: { string_value: "8" }  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
+    value: { string_value: "30.0" }
   },
   {
     key: "batch_size"
     value: { string_value: "32"}
+  },
+  {
+    key: "chunk_strategy"
+    value: { string_value: "hf_chunked_infer"}  # hf_chunked_infer, nemo_chunked_infer
   }
 ]
 
@@ -49,9 +49,10 @@ input [
     name: "WAV"
     data_type: TYPE_FP32
     dims: [-1]
+    allow_ragged_batch: true
   },
   {
-    name: "sampling_rate"
+    name: "WAV_LENS"
     data_type: TYPE_INT32
     dims: [1]
   }
@@ -60,13 +61,12 @@ input [
 
 output [
   {
-    name: "TRANSCRIPT"
+    name: "TRANSCRIPTS"
     data_type: TYPE_STRING
     dims: [1]
   }
 ]
 
-# How do I make it do "sequence batching"?
 dynamic_batching {
     preferred_batch_size: [32]
     max_queue_delay_microseconds: 1000
