@@ -25,9 +25,9 @@ exp_manager:
   name: megatron_griffin
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: null
-    name: null
-  resume_if_exists: True
+    project: griffin
+    name: sft-test
+  resume_if_exists: False
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -128,27 +128,38 @@ model:
   sequence_parallel: False
   
   data:
-    # Path to data must be specified by the user.
-    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
-    # Or see example below: 
-    # data_prefix: 
-    #   - .5
-    #   - /raid/data/pile/my-gpt3_00_text_document
-    #   - .5
-    #   - /raid/data/pile/my-gpt3_01_text_document
-    data_prefix: [1.0, /path/to/data]
-    index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_impl: mmap
-    splits_string: 900,50,50
-    seq_length: ${model.encoder_seq_length}
-    skip_warmup: True
-    num_workers: 0
-    dataloader_type: single  # cyclic, LDDL
-    reset_position_ids: False # Reset position ids after end-of-document token
-    reset_attention_mask: False # Reset attention mask after end-of-document token
-    eod_mask_loss: False # Mask loss for the end of document tokens
-    masked_lm_prob: 0.15 # Probability of replacing a token with mask.
-    short_seq_prob: 0.1 # Probability of producing a short sequence.
+    train_ds:
+      # Example of how to specify paths to multiple datasets
+      # file_names:
+      #   - /path/to/squad.jsonl
+      #   - /path/to/mnli.jsonl
+      #   - /path/to/boolq.jsonl
+      # Example of how each dataset is formatted
+      # {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
+      file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl, /home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data.
+      global_batch_size: ${model.global_batch_size}
+      micro_batch_size: ${model.micro_batch_size}
+      shuffle: True
+      num_workers: 0
+      memmap_workers: 2
+      pin_memory: True
+      max_seq_length: 2048
+      min_seq_length: 1
+      drop_last: True
+      # Example of how to specify concat_sampling_probabilities
+      # concat_sampling_probabilities:
+      #   - 0.5
+      #   - 0.25
+      #   - 0.25
+      concat_sampling_probabilities: [.5, .5] # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
+      label_key: 'output'
+      add_eos: True
+      add_sep: False
+      add_bos: False
+      truncation_field: "input" # # Can be multiple keys separated with ',' Options: keys in prompt_template
+      index_mapping_dir: null # Path to a directory to write index mapping files.
+      prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
   
   optim:
     name: fused_adam

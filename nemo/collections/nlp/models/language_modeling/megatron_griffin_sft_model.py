@@ -1,0 +1,449 @@
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import torch
+import torch.nn.functional as F
+from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
+
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+)
+from nemo.utils import logging
+
+try:
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
+try:
+    import logging
+
+
+    HAVE_LDDL = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_LDDL = False
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+    TransformerConfig = ApexGuardDefaults
+    HAVE_MEGATRON_CORE = False
+
+from functools import partial
+
+import torch
+from omegaconf import DictConfig, ListConfig
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_datasets_weights_and_num_samples,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset, GPTSFTPackedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+)
+from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
+from nemo.utils import logging
+
+try:
+    from apex.transformer.pipeline_parallel.utils import (
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+try:
+    from megatron.core import parallel_state
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
+
+__all__ = ['MegatronGriffinSFTModel']
+
+
+class MegatronGriffinSFTModel(MegatronGriffinModel):
+    """
+    Megatron Griffin Supervised Fine-Tuning
+    """
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+        super().__init__(cfg, trainer=trainer)
+        self.sep_id = cfg.get('sep_id', 49704)
+        if hasattr(self.cfg.data, "validation_ds"):
+            self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+            self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
+            # Used other keys from metadata to calulate metrics
+            if hasattr(self.cfg.data.validation_ds, "metric"):
+                self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+
+        if hasattr(self.cfg.data, "test_ds"):
+            self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
+            self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
+            # Used other keys from metadata to calulate metrics
+            if hasattr(self.cfg.data.test_ds, "metric"):
+                self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+
+        # Set the profile start and end steps in the unit of global batach
+        if hasattr(self, '_nsys_profile_enabled'):
+            self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
+            self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
+
+        # self._reset_activation_checkpointing_args()
+        self.virtual_tokens = 0
+        self.init_global_step = 0
+
+    def setup(self, stage=None):
+        # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
+        # We then set things up for real only once setup() of this class is called.
+        resume_checkpoint_path = self.trainer.ckpt_path
+        self.setup_complete = True
+        if resume_checkpoint_path:
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+
+        if stage == 'predict':
+            return
+
+        # If the user wants to manually override train and validation dataloaders before calling `.fit()`
+        if self._train_dl is not None and self._validation_dl is not None:
+            return
+        self.build_train_valid_test_datasets(stage=stage)
+        if hasattr(self, '_train_ds'):
+            self.setup_training_dataloader()
+        if hasattr(self, '_validation_ds'):
+            self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
+        self.maybe_setup_test()
+
+        # when using pipeline model parallel the final stage need to initialize word embeddings
+        self.initialize_last_rank_embeddings()
+
+        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
+            self.setup_transformer_engine_tp_groups()
+            self.setup_transformer_engine_cp_groups()
+        self.setup_complete = True
+
+    def _build_dataset(self, data_cfg, is_train=True):
+        packed_sequence = data_cfg.get("packed_sequence", False)
+        datasets = []
+        # Determine if we are using a single dataset or a list of datasets.
+        is_list_config = isinstance(data_cfg.file_names, ListConfig)
+        if not is_list_config:
+            raise ValueError(f"SFT train/validation datasets must be provided as a list of individual JSONL files.")
+
+        if is_train:
+            # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
+            # that is of the format [weight1,file_name1,weight2,file_name2,...]
+            if data_cfg.concat_sampling_probabilities is None or not isinstance(
+                data_cfg.concat_sampling_probabilities, ListConfig
+            ):
+                raise ValueError(
+                    (
+                        f"concat_sampling_probabilities must be a ListConfig with the same number of files in file_names."
+                        f"Found: {data_cfg.concat_sampling_probabilities}"
+                    )
+                )
+
+            if len(data_cfg.get('concat_sampling_probabilities', None)) != len(data_cfg.file_names):
+                raise ValueError(
+                    (
+                        f"concat_sampling_probabilities must be of the same size as file_names.",
+                        f"Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.file_names)}",
+                    )
+                )
+
+            data_prefix = []
+            for weight, prefix in zip(data_cfg.concat_sampling_probabilities, data_cfg.file_names):
+                data_prefix.append(weight)
+                data_prefix.append(prefix)
+
+            if self.trainer.max_steps is None or self.trainer.max_steps <= 0:
+                raise ValueError(
+                    f'Trainer max_steps must be set to a positive integer. Found {self.trainer.max_steps}'
+                )
+            num_train_samples = [self.trainer.max_steps * data_cfg.global_batch_size]
+            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
+            num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
+        else:
+            num_train_samples_per_dataset = [[None]] * len(data_cfg.file_names)
+
+        # Check dataset max_seq_legnth and max_position_embeddings size
+        if (
+            self.cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
+            and data_cfg.max_seq_length > self.cfg.max_position_embeddings
+        ):
+            logging.warning(
+                f"Set dataset max_seq_length to max_position_embeddings {self.cfg.max_position_embeddings} if using learned_absolute position embedding"
+            )
+            data_cfg.max_seq_length = self.cfg.max_position_embeddings
+
+        # TE requires that the first input dim is divisible by 8 and the second by 16 for fp8
+        # When using sequence parallel, sequence will further be split by TP size
+        pad_seq_length_to_mult = (
+            8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
+        )
+
+        dataset_kwargs = {}
+        for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
+            if self.cfg.data.get("chat", False):
+                dataset_cls = GPTSFTChatDataset
+            elif packed_sequence:
+                dataset_cls = GPTSFTPackedDataset
+                dataset_kwargs = {'return_cu_seqlen': data_cfg.get("packed_sequence_return_cu_seqlen", True)}
+                assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
+            else:
+                dataset_cls = GPTSFTDataset
+
+            # TODO(akoumparouli): MCore assumes/requires equal length input sequences.
+            if not data_cfg.get('pad_to_max_length', False) and self.cfg.get('expert_model_parallel_size', 1) > 1:
+                raise ValueError('Expert parallelism requires pad_to_max_length')
+
+            dataset = dataset_cls(
+                file_path=file_path,
+                tokenizer=self.tokenizer,
+                max_seq_length=data_cfg.max_seq_length,
+                min_seq_length=data_cfg.min_seq_length,
+                pad_seq_length_to_mult=pad_seq_length_to_mult,
+                add_bos=data_cfg.get('add_bos', False),
+                add_eos=data_cfg.get('add_eos', True),
+                add_sep=data_cfg.get('add_sep', False),
+                sep_id=self.sep_id,
+                max_num_samples=num_samples[0],
+                seed=data_cfg.get('seed', 1234),
+                label_key=data_cfg.get('label_key', 'answer'),
+                answer_only_loss=self.cfg.get('answer_only_loss', True),
+                truncation_field=data_cfg.get('truncation_field', 'text'),
+                pad_to_max_length=data_cfg.get('pad_to_max_length', False),
+                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
+                prompt_template=data_cfg.get('prompt_template', None),
+                virtual_tokens=self.virtual_tokens,
+                tokens_to_generate=data_cfg.get(
+                    'tokens_to_generate', 0
+                ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+                memmap_workers=data_cfg.get(
+                    'memmap_workers', None
+                ),  # used to set num. of workers to create the memmap index files
+                hf_dataset=data_cfg.get(
+                    'hf_dataset', False
+                ),  # Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
+                truncation_method=data_cfg.get(
+                    'truncation_method', 'right'
+                ),  # used to choose truncation method. Options: ['random', 'left', 'right']
+                special_tokens=self.cfg.data.get(
+                    'chat_prompt_tokens', None
+                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+                is_test=not is_train,
+                **dataset_kwargs,
+            )
+            datasets.append(dataset)
+        if is_train:
+            if packed_sequence:
+                num_train_samples_after_blend = sum(len(dataset) for dataset in datasets)
+            dataset = BlendableDataset(
+                datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
+            )
+            return dataset
+        else:
+            return datasets
+
+    def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
+        # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
+        base_key = f"{mode}_{metric_name}_" if metric_name is not None else f"{mode}_"
+        # If the user provided names for each validation/test dataset, use those.
+        if hasattr(data_config, "names") and data_config.names is not None:
+            # With only a single validation/test dataset, the name is not a list.
+            if not isinstance(data_config.names, ListConfig):
+                name = data_config.names
+            else:
+                name = data_config.names[dataloader_idx]
+            return base_key + name
+        else:
+            return base_key + f"dataloader{dataloader_idx}"
+
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+        # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
+        # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        else:
+            batch = next(dataloader_iter)
+
+        log_token_counts = self.cfg.get('log_token_counts', False)
+        if log_token_counts:
+            token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
+
+        # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        _, seq_length = batch['tokens'].shape
+        data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+        if log_token_counts:
+            self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
+            self.log('tokens_avg', token_count_avg, prog_bar=True, sync_dist=True, batch_size=1)
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
+        for module in self.get_model_module_list():
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
+
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(tuning=True),
+            data_iterator=self._make_data_iterator_list(data_iter),
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            seq_length=seq_length,
+            micro_batch_size=get_micro_batch_size(),
+            first_val_step=first_val_step,
+        )
+        non_loss_tensors = {}
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            for item in losses_reduced_per_micro_batch:
+                for k, v in item.items():
+                    if k != 'avg':
+                        av = non_loss_tensors.get(k, [])
+                        av.append(v)
+                        non_loss_tensors[k] = av
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.concat(loss_tensors_list)
+                loss_mean = loss_tensor.mean()
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                loss_sum_tensors_list = [
+                    loss_sum['loss_sum_and_ub_size']
+                    for loss_sum in losses_reduced_per_micro_batch
+                    if loss_sum['loss_sum_and_ub_size'][1] > 0
+                ]
+                loss_sum = (
+                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                    if len(loss_sum_tensors_list) > 0
+                    else torch.tensor([0.0, 0.0]).cuda()
+                )
+                return loss_sum
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        # if forward_only:
+        # return loss_mean
+        if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
+            return loss_mean, non_loss_tensors
+        else:
+            return loss_mean
+
+    def build_train_valid_test_datasets(self, stage):
+        # if stage != 'test':
+        #     logging.info('Building GPT SFT validation datasets.')
+        #     # Wrap this in a list since the general finetuning parent class supports multi-validation.
+        #     self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
+        #     logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
+
+        # if stage != 'validate':
+        #     self.maybe_build_test()
+
+        # if stage == 'validate' or stage == 'test':
+        #     return
+        logging.info('Building GPT SFT traing datasets.')
+
+        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
+        logging.info(f'Length of train dataset: {len(self._train_ds)}')
+
+    def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
+        """Buld dataloader given an input dataset."""
+
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        if isinstance(dataset, BlendableDataset):
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
+
+        batch_sampler = MegatronPretrainingBatchSampler(
+            total_samples=len(dataset),
+            consumed_samples=consumed_samples,
+            micro_batch_size=data_cfg.micro_batch_size,
+            global_batch_size=data_cfg.global_batch_size,
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            drop_last=data_cfg.drop_last,
+            pad_samples_to_global_batch_size=not data_cfg.drop_last,
+        )
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_sampler=batch_sampler,
+            collate_fn=collate_fn,
+            num_workers=data_cfg.num_workers,
+            pin_memory=data_cfg.pin_memory,
+            persistent_workers=True if data_cfg.num_workers > 0 else False,
+        )
+
+    def setup_training_dataloader(self):
+        if hasattr(self, '_train_ds'):
+            consumed_samples = self.compute_consumed_samples(0)
+            self._train_dl = self.build_data_loader(
+                dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
+            )
+    
+    def on_train_epoch_start(self) -> None:
+        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
+        self.on_validation_epoch_end()
+        return super().on_train_epoch_start()
+
+    def maybe_setup_test(self):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+        return

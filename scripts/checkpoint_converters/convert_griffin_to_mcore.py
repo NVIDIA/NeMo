@@ -11,8 +11,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 
 '''
-CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/gitlab/megatron-lm/convert_griffin_to_mcore.py 
-                                        --output_path=... --hparams_file=... --path_to_base=...
+CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_griffin_to_mcore.py --output_path /home/ataghibakhsh/griffin.nemo --hparams_file /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/conf/megatron_griffin_config.yaml --path_to_base /home/ataghibakhsh/deepmind/space_gemma_model/2b.pt
 '''
 
 def get_args():
