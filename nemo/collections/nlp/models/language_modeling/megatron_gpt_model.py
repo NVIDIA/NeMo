@@ -406,7 +406,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False):
+            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.embedding, EmbeddingScalingMixin)
         else:
             assert self.cfg.get('num_query_groups', None) is None or self.cfg.get(
@@ -476,7 +476,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False):
+            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
@@ -1245,6 +1245,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.eval()
+        else:
+            self.model.eval()
 
         if self.cfg.get('fp8', False):
             first_val_step = self.prev_step_training and not self.training
@@ -1252,11 +1254,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             first_val_step = None
 
-        loss = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
+        with torch.no_grad():
+            loss = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
+        else:
+            self.model.train()
 
         if mode == 'val':
             # Append with the correct dataloader_idx in case of multiple dataloaders
