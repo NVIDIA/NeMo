@@ -797,6 +797,20 @@ class DataCollatorForSupervisedDataset(object):
             pad_len = max_len - instance['tokens'].shape[0]
             instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
             instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', -1)
+            if packed_sequence and instance["cu_seqlens"][-1] != max_len:
+                instance["cu_seqlens"] = torch.cat((instance["cu_seqlens"], torch.IntTensor([max_len])), 0)
+
+        if packed_sequence:
+            max_len_cu = max(instance['cu_seqlens'].shape[0] for instance in instances)
+            max_len_image = max(instance['image'].shape[0] for instance in instances)
+            for instance in instances:
+                pad_len_cu = max_len_cu - instance['cu_seqlens'].shape[0]
+                instance['cu_seqlens'] = F.pad(instance['cu_seqlens'], (0, pad_len_cu), 'constant', max_len)
+
+                x = instance['image']
+                num_pad = max_len_image - x.shape[0]
+                pad_tensor = torch.zeros(num_pad, *x.shape[1:], dtype=x.dtype, device=x.device)
+                instance['image'] = torch.cat((x, pad_tensor), dim=0)
 
         batch = default_collate(instances)
         tokenizer = self.tokenizer
@@ -807,15 +821,14 @@ class DataCollatorForSupervisedDataset(object):
         media = batch.get('image')
 
         if packed_sequence:
-            cu_seqlens = instances[0]["cu_seqlens"]
-            assert len(instances) == 1, "Micro batch size must be 1 if using packed sequence"
-            if cu_seqlens[-1] != max_len:
-                cu_seqlens = torch.cat((cu_seqlens, torch.IntTensor([max_len])), 0)  # Concatenate along a specific dimension
+            cu_seqlens = batch["cu_seqlens"]
             position_ids = []
-            for ind in range(0, len(cu_seqlens) - 1):
-                seqlen = cu_seqlens[ind + 1] - cu_seqlens[ind]
-                position_ids.extend(list(range(seqlen)))
-            position_ids = torch.LongTensor(position_ids).unsqueeze(0)
+            for cu_seqlen in cu_seqlens:
+                position_ids.append([])
+                for ind in range(0, len(cu_seqlen) - 1):
+                    seqlen = cu_seqlen[ind + 1] - cu_seqlen[ind]
+                    position_ids[-1].extend(list(range(seqlen)))
+            position_ids = torch.LongTensor(position_ids)
             loss_mask = torch.ones(tokens.size(), dtype=torch.float, device=tokens.device)
             attention_mask = torch.ones(tokens.size(), dtype=torch.long, device=tokens.device)
         else:
