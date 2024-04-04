@@ -332,11 +332,13 @@ To install NeMo on Windows:
 
 - Install NeMo:
   - Run the following command:
+  
   .. code-block:: shell
-      pip install -e git+https://github.com/NVIDIA/NeMo#egg=nemo_toolkit[asr]
-    
 
-Note: Pure Windows installation is experimental and may have limitations or issues. It is recommended to use Windows Subsystem for Linux (WSL) for better compatibility.
+      pip install -e git+https://github.com/NVIDIA/NeMo#egg=nemo_toolkit[asr]
+
+
+- Note: Pure Windows installation is experimental and may have limitations or issues. It is recommended to use Windows Subsystem for Linux (WSL) for better compatibility.
 
 
 RNNT
