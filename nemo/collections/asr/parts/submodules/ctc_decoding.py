@@ -213,9 +213,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             'greedy',
             'beam',
             'pyctcdecode',
-            'subword_pyctcdecode',
             'flashlight',
-            'subword_flashlight',
         ]
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}. Given {self.cfg.strategy}")
@@ -1247,7 +1245,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
 @dataclass
 class CTCDecodingConfig:
-    strategy: str = "greedy"  # greedy, pyctcdecode, beam = pyctcdecode, flashlight, subword_flashlight, subword_pyctcdecode
+    strategy: str = "greedy"  # greedy, pyctcdecode, beam = pyctcdecode, flashlight
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
