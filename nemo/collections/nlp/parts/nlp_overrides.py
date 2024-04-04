@@ -34,7 +34,7 @@ from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision import FSDPPrecision, MixedPrecisionPlugin
+from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
@@ -59,6 +59,7 @@ except ImportError:
     # since PyTorch 2.3 the path has changed
     from torch.amp.grad_scaler import _refresh_per_optimizer_state
 
+from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
@@ -71,7 +72,6 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
@@ -98,6 +98,7 @@ try:
         make_sharded_optimizer_tensor,
         optim_state_to_sharding_state,
     )
+    from megatron.core.dist_checkpointing.strategies import tensorstore
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
@@ -260,7 +261,7 @@ class NLPDDPStrategy(DDPStrategy):
             else:
                 super().configure_ddp()
 
-    def optimizer_sharded_state_dict(self):
+    def optimizer_sharded_state_dict(self, unsharded_optim_state=None):
         """
         Sharded state dictionary for an MainParamsOptimizerWrapper.
         Used to save and load the optimizer state when training with distributed_checkpoint.
@@ -280,7 +281,7 @@ class NLPDDPStrategy(DDPStrategy):
         }
 
         if isinstance(optimizer, MegatronDistributedFusedAdam):
-            return optimizer.sharded_state_dict(model_sharded_state_dict)
+            return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
         elif not isinstance(optimizer, MainParamsOptimizerWrapper):
             # Regular optimizer, e.g. Adam or FusedAdam
             init_optimizer_states(optimizer)
@@ -343,9 +344,14 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         ):
+            assert (
+                len(checkpoint['optimizer_states']) == 1
+            ), "Currently only support checkpointing 1 distributed optimizer per time!"
             # converts the optimizer states to their sharded equivalents
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
-
+            sharded_optim_state = self.optimizer_sharded_state_dict(
+                unsharded_optim_state=checkpoint['optimizer_states'][0]
+            )
+            checkpoint['optimizer_states'] = [sharded_optim_state]
             # dist_checkpointing expects a directory so we will name the directory
             # using the path with the file extension removed
             checkpoint_dir = ckpt_to_dir(filepath)
@@ -443,9 +449,13 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint['state_dict'] = sharded_state_dict
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
-            checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path)
-
-            checkpoint = self._fix_tensors_device(checkpoint)
+            if self.torch_dist_ckpt:
+                sharded_strategy = ('torch_dist', 1)
+            else:
+                sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
+            checkpoint = dist_checkpointing.load(
+                sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path, sharded_strategy=sharded_strategy
+            )
 
             return checkpoint
 
@@ -556,6 +566,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         precision: Union[int, str] = 'bf16-mixed',
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
+        set_buffer_dtype: Optional[str] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -569,7 +580,9 @@ class NLPFSDPStrategy(FSDPStrategy):
             )
 
         # Set the mixed precision recipe
-        kwargs['mixed_precision'] = self._set_mixed_precision_recipe(precision, grad_reduce_dtype)
+        kwargs['mixed_precision'] = self._set_mixed_precision_recipe(
+            precision, grad_reduce_dtype, set_buffer_dtype=set_buffer_dtype
+        )
         # Use the default FSDP backward-prefetch policy for proper communication overlap.
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
 
@@ -578,6 +591,7 @@ class NLPFSDPStrategy(FSDPStrategy):
             MCoreTransformerLayer,
             AutocastTransformerLayer,
             ParallelTransformerLayer,
+            BasicTransformerBlock,
         }
         kwargs['auto_wrap_policy'] = functools.partial(
             transformer_auto_wrap_policy, transformer_layer_cls=self.fsdp_wrap_module
@@ -605,7 +619,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         super().__init__(**kwargs)
 
     def _set_mixed_precision_recipe(
-        self, precision: Union[int, str], grad_reduce_dtype: Union[int, str]
+        self, precision: Union[int, str], grad_reduce_dtype: Union[int, str], set_buffer_dtype: Union[int, str]
     ) -> MixedPrecision:
         """
         Set FSDP mixed precision recipe.
@@ -626,6 +640,8 @@ class NLPFSDPStrategy(FSDPStrategy):
         # Over-write gradient reduction dtype to support bf16 computation with fp32 grad reduction
         if grad_reduce_dtype is not None:
             reduce_dtype = utils_funcs.torch_dtype_from_precision(grad_reduce_dtype, None)
+        if set_buffer_dtype is not None:
+            buffer_dtype = utils_funcs.torch_dtype_from_precision(buffer_dtype, None)
         return MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype,)
 
     def setup_environment(self) -> None:
@@ -1140,7 +1156,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
-class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin, FSDPPrecision):
+class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
     """ Overrides PTL autocasting to not wrap training/val/test_step.
         We do this because we have the megatron-core fwd/bwd functions in training_step.
         This means .backward is being called in training_step so we do not want the whole
