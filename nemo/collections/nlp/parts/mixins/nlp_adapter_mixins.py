@@ -268,7 +268,7 @@ class NLPAdapterModelMixin:
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
         This allows the sharing of adapters which are often just a fraction of the size of the full model,
-        enabling easier deliver.
+        enabling easier delivery.
 
         .. note::
 
@@ -299,6 +299,8 @@ class NLPAdapterModelMixin:
                 '.nemo'
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
+        if self.cfg.metatron_amp_O2:
+            state_dict = {k.replace('model.', 'model.module.'): v for k,v in state_dict.items()}
         self.add_adapter(peft_cfgs)
         if not self.ptuning_only_and_non_first_stage:
             assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
@@ -497,6 +499,7 @@ class NLPAdapterModelMixin:
         """
 
         peft_cfg = cls.restore_from(path, return_config=True)
+        OmegaConf.resolve(cfg)
         if hasattr(peft_cfg, 'peft') and peft_cfg.peft.peft_scheme not in [None, 'none']:
             # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
             for p in ['tensor_model_parallel_size', 'pipeline_model_parallel_size']:
@@ -506,17 +509,19 @@ class NLPAdapterModelMixin:
 
         with open_dict(peft_cfg):
             # update the model config of the trained model with params we want to set at inference time.
-            peft_cfg.precision = cfg.trainer.precision
             for key, val in cfg.model.items():
                 if key != 'data':
                     peft_cfg[key] = val
+            if cfg.get("trainer", None) and cfg.trainer.get("precision"):
+                peft_cfg.precision = cfg.trainer.precision
             peft_cfg.data.test_ds = cfg.model.data.test_ds
 
         with open_dict(cfg):
             cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos
             cfg.inference.tokens_to_generate = peft_cfg.data.test_ds.get("tokens_to_generate", 1)
 
-        peft_cfg.megatron_amp_O2 = False  # always evaluate with O1
+        if cfg.model.get('megatron_amp_O2', None) is not None:
+            peft_cfg.megatron_amp_O2 = cfg.model.megatron_amp_O2
         return peft_cfg
 
     def freeze(self, training: bool = False) -> None:
