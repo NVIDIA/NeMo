@@ -184,7 +184,7 @@ class MultiHeadAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, queries, keys, values, attention_mask):
+    def forward(self, queries, keys, values, attention_mask, p_prior=None, regular_attn=True):
 
         # attention_mask is needed to hide the tokens which correspond to [PAD]
         # in the case of BERT, or to hide the future tokens in the case of
@@ -201,9 +201,30 @@ class MultiHeadAttention(nn.Module):
         if attention_mask is not None:
             attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
         attention_probs = torch.softmax(attention_scores, dim=-1)
+
+        if p_prior is not None:
+            upper_mask, lower_mask = p_prior
+            p_choose = torch.sigmoid(attention_scores / 0.2)
+
+            if not regular_attn:
+                p_choose = torch.maximum(p_choose, upper_mask)
+                p_choose = torch.minimum(p_choose, lower_mask)
+                lens_mask = self.ones_on_seq_len(attention_mask)
+                p_choose = torch.maximum(p_choose, lens_mask)
+
+            alpha_mask = (attention_mask == 0).to(p_choose.dtype)
+            alphas = self.monotonic_alignment(p_choose) * alpha_mask
+
+            monotonic_energy = attention_scores - torch.max(attention_scores, dim=-1, keepdim=True)[0]
+            softmax_energy = torch.clamp(torch.exp(monotonic_energy), min=1e-5)
+            summand = alphas / softmax_energy.cumsum(dim=-1)
+            if not regular_attn:
+                attention_probs = softmax_energy * summand.flip([-1]).cumsum(dim=-1).flip([-1]) # betas
+
         attention_probs = self.attn_dropout(attention_probs)
 
         context = torch.matmul(attention_probs, value)
+
         context = context.permute(0, 2, 1, 3).contiguous()
         new_context_shape = context.size()[:-2] + (self.hidden_size,)
         context = context.view(*new_context_shape)
@@ -211,6 +232,10 @@ class MultiHeadAttention(nn.Module):
         # output projection
         output_states = self.out_projection(context)
         output_states = self.layer_dropout(output_states)
+        
+        if p_prior is not None:
+            return output_states, alphas, p_choose
+        
         return output_states
 
 

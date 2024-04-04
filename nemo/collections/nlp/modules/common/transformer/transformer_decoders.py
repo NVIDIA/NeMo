@@ -14,6 +14,8 @@
 
 import copy
 
+import numpy as np
+
 import torch
 import torch.nn as nn
 
@@ -63,7 +65,10 @@ class TransformerDecoderBlock(nn.Module):
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
-    def forward_preln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward_preln(
+            self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask,
+            p_prior=None, regular_attn=False
+    ):
         """
         Pre-LayerNorm block
         Order of operations: LN -> Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN
@@ -76,7 +81,8 @@ class TransformerDecoderBlock(nn.Module):
 
         residual = self_attn_output
         self_attn_output = self.layer_norm_2(self_attn_output)
-        enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output, alphas, p_choose = self.second_sub_layer(
+            self_attn_output, encoder_states, encoder_states, encoder_mask)
         enc_dec_attn_output += residual
 
         residual = enc_dec_attn_output
@@ -84,7 +90,7 @@ class TransformerDecoderBlock(nn.Module):
         output_states = self.third_sub_layer(enc_dec_attn_output)
         output_states += residual
 
-        return output_states
+        return output_states, alphas, p_choose
 
     def forward_postln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
         """
@@ -103,13 +109,14 @@ class TransformerDecoderBlock(nn.Module):
         output_states += enc_dec_attn_output
         return self.layer_norm_3(output_states)
 
-    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask, p_prior, regular_attn):
         if self.pre_ln:
-            return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+            return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask, p_prior, regular_attn)
         else:
-            return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+            return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask, None, True)
 
 
+# +
 class TransformerDecoder(nn.Module):
     def __init__(
         self,
@@ -123,6 +130,7 @@ class TransformerDecoder(nn.Module):
         hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
+        mask_range: list =[7, 15]
     ):
         super().__init__()
 
@@ -143,6 +151,7 @@ class TransformerDecoder(nn.Module):
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self.diagonal = 0
+        self.mask_range = mask_range
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
@@ -154,6 +163,24 @@ class TransformerDecoder(nn.Module):
             memory_states = decoder_states
         return memory_states
 
+    def p_prior(self, decoder_mask, encoder_mask):
+
+        dec_lens = decoder_mask.sum(dim=-1).long()
+        enc_lens = encoder_mask.sum(dim=-1).long()
+
+        upper_mask = torch.zeros(len(dec_lens), max(dec_lens).item(), max(enc_lens).item())
+        lower_mask = torch.zeros_like(upper_mask)
+
+        for i in range(len(dec_lens)):
+            dec_size = dec_lens[i].item()
+            enc_size = enc_lens[i].item()
+            diag_upper = np.random.randint(self.mask_range[0], self.mask_range[1])
+            diag_lower = np.random.randint(self.mask_range[0], self.mask_range[1])
+            upper_mask[i][:dec_size,:enc_size] = torch.ones((dec_size, enc_size)).triu(diagonal=diag_upper)
+            lower_mask[i][:dec_size,:enc_size] = 1 - torch.ones((dec_size, enc_size)).tril(diagonal=-diag_lower)
+
+        return upper_mask, lower_mask
+
     def forward(
         self,
         decoder_states,
@@ -163,6 +190,7 @@ class TransformerDecoder(nn.Module):
         decoder_mems_list=None,
         return_mems=False,
         return_mems_as_list=True,
+        regular_attn=False,
     ):
         """
         Args:
@@ -179,19 +207,31 @@ class TransformerDecoder(nn.Module):
         """
         decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
         encoder_attn_mask = form_attention_mask(encoder_mask)
+
+        upper_mask, lower_mask = self.p_prior(decoder_mask, encoder_mask)
+        upper_mask = upper_mask.to(decoder_states.device).to(decoder_states.dtype)
+        lower_mask = lower_mask.to(decoder_states.device).to(decoder_states.dtype)
+        p_prior = (upper_mask[:, None], lower_mask[:, None])
+
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
-        if return_mems_as_list:
-            cached_mems_list = [memory_states]
-        else:
-            cached_mems_list = memory_states.unsqueeze(0)
+        if return_mems:
+            if return_mems_as_list:
+                cached_mems_list = [memory_states]
+            else:
+                cached_mems_list = memory_states.unsqueeze(0)
 
         for i, layer in enumerate(self.layers):
-            decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
+            decoder_states, alphas, p_choose = layer(
+                decoder_states, decoder_attn_mask, memory_states,
+                encoder_states, encoder_attn_mask, p_prior, regular_attn)
+            all_alphas.append(alphas)
+            all_p_choose.append(p_choose)
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
-            if return_mems_as_list:
-                cached_mems_list.append(memory_states)
-            else:
-                cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
+            if return_mems:
+                if return_mems_as_list:
+                    cached_mems_list.append(memory_states)
+                else:
+                    cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
 
         if self.final_layer_norm is not None:
             decoder_states = self.final_layer_norm(decoder_states)
@@ -202,17 +242,17 @@ class TransformerDecoder(nn.Module):
                 cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
 
         if return_mems:
-            return cached_mems_list
+            return cached_mems_list, all_alphas, all_p_choose
         else:
-            return cached_mems_list[-1]
+            return memory_states, all_alphas, all_p_choose
 
-    def input_example(self, max_batch=1, max_dim=256):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(max_batch, max_dim), device=sample.device)
-        return tuple([input_ids, encoder_mask, input_ids, encoder_mask])
+#     def input_example(self, max_batch=1, max_dim=256):
+#         """
+#         Generates input examples for tracing etc.
+#         Returns:
+#             A tuple of input examples.
+#         """
+#         sample = next(self.parameters())
+#         input_ids = torch.randint(low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device)
+#         encoder_mask = torch.randint(low=0, high=1, size=(max_batch, max_dim), device=sample.device)
+#         return tuple([input_ids, encoder_mask, input_ids, encoder_mask])

@@ -182,6 +182,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
         padding_idx: int = 0,
+        mask_range: list = [7, 15],
     ):
         super().__init__()
 
@@ -214,6 +215,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             hidden_act=hidden_act,
             pre_ln=pre_ln,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+            mask_range=mask_range,
         )
 
     @typecheck()
@@ -227,7 +229,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             decoder_mask = decoder_mask[:, -1:]
             decoder_mems = torch.transpose(decoder_mems, 0, 1)
         decoder_embeddings = self._embedding(input_ids=input_ids, start_pos=start_pos)
-        decoder_hidden_states = self._decoder(
+        decoder_hidden_states, alphas, p_choose = self._decoder(
             decoder_states=decoder_embeddings,
             decoder_mask=decoder_mask,
             encoder_states=encoder_embeddings,
@@ -238,7 +240,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         )
         if self.return_mems:
             decoder_hidden_states = torch.transpose(decoder_hidden_states, 0, 1)
-        return decoder_hidden_states
+        return decoder_hidden_states, alphas, p_choose
 
     @property
     def hidden_size(self):
@@ -282,6 +284,14 @@ class TransformerDecoderNM(DecoderModule, Exportable):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         if self.return_mems:
-            return {"last_hidden_states": NeuralType(('B', 'D', 'T', 'D'), ChannelType())}
+            return {
+                "last_hidden_states": NeuralType(('B', 'D', 'T', 'D'), ChannelType()),
+                "alphas": NeuralType(('N', 'B', 'H', 'T', 'T'), ChannelType()),
+                "p_choose": NeuralType(('N', 'B', 'H', 'T', 'T'), ChannelType()),
+            }
         else:
-            return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+            return {
+                "last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+                "alphas": NeuralType(('N', 'B', 'H', 'T', 'T'), ChannelType()),
+                "p_choose": NeuralType(('N', 'B', 'H', 'T', 'T'), ChannelType()),
+            }

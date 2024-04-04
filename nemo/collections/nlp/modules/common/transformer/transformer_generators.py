@@ -95,20 +95,21 @@ class GreedySequenceGenerator:
         decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
 
         if encoder_hidden_states is not None:
-            decoder_mems_list = self.decoder.forward(
+            decoder_mems_list, alphas, p_choose = self.decoder.forward(
                 decoder_hidden_states,
                 decoder_input_mask,
                 encoder_hidden_states,
                 encoder_input_mask,
                 decoder_mems_list,
-                return_mems=True,
+                return_mems=False,
+                regular_attn=True
             )
         else:
-            decoder_mems_list = self.decoder.forward(
+            decoder_mems_list, alphas = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        log_probs = self.log_softmax.forward(hidden_states=decoder_mems_list[-1][:, -1:])
-        return log_probs, decoder_mems_list
+        log_probs = self.log_softmax.forward(hidden_states=decoder_mems_list[:, -1:])
+        return log_probs, decoder_mems_list, p_choose
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
         """
@@ -153,16 +154,23 @@ class GreedySequenceGenerator:
         pad_profile = torch.zeros(batch_size, 1).long().to(decoder_parameter.device)
 
         decoder_mems_list = None
-        for i in range(max_generation_length):
+        src_len = 1
+        i = 0
 
-            log_probs, decoder_mems_list = self._one_step_forward(
-                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
+        while i < max_generation_length:
+
+            log_probs, decoder_mems_list, p_choose = self._one_step_forward(
+                tgt, encoder_hidden_states[:, :src_len], encoder_input_mask[:, :src_len], None, i
             )
 
-            next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)
-            next_tokens = self.pad * pad_profile + next_tokens * (1 - pad_profile)
-            pad_profile = torch.max(pad_profile, (next_tokens == self.eos).long())
-            tgt = torch.cat((tgt, next_tokens), dim=-1)
+            if p_choose[-1,:,:,-1,-1].min().item() > 1.5 or (src_len - i) > 5:
+                next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)
+                next_tokens = self.pad * pad_profile + next_tokens * (1 - pad_profile)
+                pad_profile = torch.max(pad_profile, (next_tokens == self.eos).long())
+                tgt = torch.cat((tgt, next_tokens), dim=-1)
+                i += 1
+            else:
+                src_len += 1
 
             # abort generation if all sequences end with <eos>
             if pad_profile.sum() == batch_size:

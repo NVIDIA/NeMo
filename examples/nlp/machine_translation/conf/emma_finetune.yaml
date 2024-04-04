@@ -1,0 +1,94 @@
+name: AttentionIsAllYouNeedFinetune
+do_training: True # set to False if only preprocessing data
+do_testing: False # set to True to run evaluation on test data after training
+model_path: ???
+
+model:
+
+  max_generation_delta: 20
+  latency_coef: 0.2
+  var_coef: 0.0
+
+  encoder:
+    mask_future: True
+    
+  decoder:
+    mask_range: [5, 10]
+
+  train_ds:
+#     src_file_name: /workspace/projects/rtx_translate/data/enru/train100k.en
+#     tgt_file_name: /workspace/projects/rtx_translate/data/enru/train100k.ru
+    use_tarred_dataset: True # if true tar_file_name and meta_file_name will be used (or created automatically) 
+    # config for preprocessing training data and creating a tarred datset automatically
+    tar_file_prefix: parallel # prefix for tar file names
+    #tar_files: null # if data has already been preprocessed (rest of config ignored)
+    metadata_file: /workspace/datasets/nmt/en_ru/tarred_enru_simult_1536_144/metadata.tokens.1536.json # metadata for tarred dataset
+    lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
+    num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
+    tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
+    shard_strategy: scatter # tarred dataset shard distribution strategy
+    n_preproc_jobs: -2 # number of processes to use for data preprocessing (-2 means all but 2)
+    tokens_in_batch: 1536
+    clean: true
+    max_seq_length: 128
+    shuffle: true
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+    concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
+    concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
+
+  validation_ds:
+    src_file_name: /workspace/projects/rtx_translate/data/enru/wmt_dev.en
+    tgt_file_name: /workspace/projects/rtx_translate/data/enru/wmt_dev.ru
+    tokens_in_batch: 1024
+    clean: false
+    max_seq_length: 512
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+
+  test_ds:
+    src_file_name: /workspace/projects/rtx_translate/data/enru/wmt_dev.en
+    tgt_file_name: /workspace/projects/rtx_translate/data/enru/wmt_dev.ru
+    tokens_in_batch: 2048
+    clean: false
+    max_seq_length: 512
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+
+  optim:
+    name: adam
+    lr: 0.00002
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+
+trainer:
+  devices: 2
+  num_nodes: 1
+  max_epochs: 5
+  precision: 32 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  accelerator: gpu
+  enable_checkpointing: False
+  logger: False
+  log_every_n_steps: 50  # Interval of logging.
+  val_check_interval: 0.001
+  check_val_every_n_epoch: 1
+
+exp_manager:
+  name: AAYNBaseFineTune
+  files_to_copy: []
+
+  create_wandb_logger: true
+  wandb_logger_kwargs:
+    name: "t2t_25M_masks_5_10_delay_loss_0.2_var_loss_0.0_waitk_5"
+    project: "emma"

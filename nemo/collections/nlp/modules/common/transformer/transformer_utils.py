@@ -133,6 +133,7 @@ def get_nemo_transformer(
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
             num_token_types=cfg.get('num_token_types', 2),
             padding_idx=padding_idx,
+            mask_range=cfg.get('mask_range', [512, 512])
         )
 
     return model
