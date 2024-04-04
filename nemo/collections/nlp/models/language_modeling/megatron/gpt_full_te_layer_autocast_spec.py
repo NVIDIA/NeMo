@@ -125,6 +125,7 @@ class AutocastTransformerLayer(TransformerLayer):
         if te_version > packaging.version.Version("1.5.0"):
             transformer_layer_args["ub_overlap_ag"] = kwargs.get("ub_overlap_ag", True)
             transformer_layer_args["ub_overlap_rs"] = kwargs.get("ub_overlap_rs", True)
+            transformer_layer_args["ub_overlap_rs_dgrad"] = kwargs.get("ub_overlap_rs_dgrad", True)
         else:
             transformer_layer_args["ub_split_ag"] = kwargs.get("ub_split_ag", True)
             transformer_layer_args["ub_split_rs"] = kwargs.get("ub_split_rs", True)
@@ -206,6 +207,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         if te_version > packaging.version.Version("1.5.0"):
             transformer_layer_args["ub_overlap_ag"] = config.tp_comm_overlap_ag
             transformer_layer_args["ub_overlap_rs"] = config.tp_comm_overlap_rs
+            transformer_layer_args["ub_overlap_rs_dgrad"] = config.tp_comm_overlap_rs_dgrad
         else:
             transformer_layer_args["ub_split_ag"] = config.tp_comm_split_ag
             transformer_layer_args["ub_split_rs"] = config.tp_comm_split_rs
