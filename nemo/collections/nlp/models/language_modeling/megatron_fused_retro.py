@@ -363,6 +363,8 @@ class MegatronFusedRetrievalLoraModel(MegatronRetrievalModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
+        # cfg.restore_from_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted2/mp_rank_00'
+
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('restore_from_path')):
             save_restore_connector.model_extracted_dir = cfg.get('restore_from_path')
