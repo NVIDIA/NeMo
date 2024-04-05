@@ -273,12 +273,20 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
 
         input_example = prompt_template
 
+        # Reformat question
+        if self.task_templates[taskname].get('chat_type', None):
+            example['question'] = example['question'].replace('Question: ', '').replace('? Answer: The answer is', '')
+
         
         # Format the input example according to the template
         input_example = input_example.replace("<|VIRTUAL_PROMPT_0|>", "").strip()
         input_example = self._insert_text_in_template(input_example, prompt_template_fields, example)
         input_ids = self.tokenizer.text_to_ids(input_example)
 
+        ## Add newlines
+        if self.task_templates[taskname].get('chat_type', None):
+            preprompt = self.tokenizer.text_to_ids("\n\n")
+            input_ids = preprompt + input_ids
 
         chunks = []
         contexts = example['ctxs'] # are these neighbors ordered???????????????????????????????????????????????
@@ -308,6 +316,11 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
 
+
+        # Add system prompt
+        if self.task_templates[taskname].get('chat_type', None):
+            system_prompt = self.tokenizer.text_to_ids("System: This is a chat between a user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions based on the context. The assistant should also indicate when the answer cannot be found in the context.\n\n")
+            input_ids = system_prompt + input_ids
 
         # these will be lobbed during the collate_fn
         temp_pads = list(self.pseudo_token_ids) 
