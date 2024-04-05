@@ -50,8 +50,8 @@ exp_manager:
 model:
   restore_from_path: /home/ataghibakhsh/griffin.nemo
   # model parallelism 
-  micro_batch_size: 32
-  global_batch_size: 32
+  micro_batch_size: 2
+  global_batch_size: 2
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
@@ -60,7 +60,7 @@ model:
   encoder_seq_length: 512
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'rope' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
-  num_layers: 2
+  num_layers: 8
   gated_linear_unit: True
   window_size: [1024, 0]
   num_query_groups: 1
