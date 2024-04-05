@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Sequence, Tuple
 
 from lhotse import CutSet
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
 from nemo.collections.common.data.lhotse.text_adapters import LhotseTextAdapter, LhotseTextPairAdapter
@@ -126,7 +126,11 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "missing_sampling_rate_ok": config.missing_sampling_rate_ok,
         "max_open_streams": config.max_open_streams,
     }
-    cuts, is_tarred = parse_and_combine_datasets(config.input_cfg, propagate_attrs=propagate_attrs)
+    input_cfg = config.input_cfg
+    if isinstance(input_cfg, (str, Path)):
+        # Resolve /path/to/input_cfg.yaml into config contents if needed.
+        input_cfg = OmegaConf.load(input_cfg)
+    cuts, is_tarred = parse_and_combine_datasets(input_cfg, propagate_attrs=propagate_attrs)
     return cuts, is_tarred
 
 
