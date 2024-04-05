@@ -45,20 +45,20 @@ With any config, you can set the following flags to control which components to 
 
 In addition to the config file, you will also need to prepare the audio encoder and the LLM as `*.nemo` files.
 
-To train a SpeechLLM, you can run the following script:
+To train a SpeechLLM that uses LoRA, you can run the following script:
 ```bash
 MEGATRON_MODEL=/path/to/megatron-model.nemo
-ASR_MODEL=/path/to/audio-encoder.nemo
+ASR_MODEL=/path/to/audio-model.nemo  # only the encoder part will be loaded. e.g, stt_en_fastconformer_transducer_large.nemo 
 
 TRAIN_MANIFESTS="[/data/train_1.json,/data/train_2.json]"
 VAL_MANIFESTS="[/data/dev_1.json,/data/dev_2.json]"
-VAL_NAMES="[dev-1,dev-2]"
+VAL_NAMES="[dev-1,dev-2]"  # names to display when logging validation results for each dataset
 
 CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./conf" --config-name "modular_audio_gpt_config_peft" \
     trainer.devices=-1 \
     model.freeze_audio_encoder=True \
     model.freeze_llm=True \
-    model.global_batch_size=4 \  # global_batch_size = micro_batch_size * num_gpus_per_node * num_nodes * gradient_accumulation_steps
+    model.global_batch_size=4 \  # global_batch_size = micro_batch_size * num_gpus_per_node * num_nodes * accumulate_grad_batches
     model.micro_batch_size=2 \  # micro_batch_size = batch_size_per_gpu
     model.pretrained_audio_model=$ASR_MODEL \
     model.restore_from_path=$MEGATRON_MODEL \
@@ -67,7 +67,7 @@ CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./co
     ++model.data.validation_ds.names=$VAL_NAMES \
 ```
 
-You can also use tarred datasets for faster training by converting normal NeMo datasets to tarred datasets using this [script](https://github.com/NVIDIA/NeMo/blob/main/scripts/speech_recognition/convert_to_tarred_audio_dataset.py) and follow the same dataset setting as shown in the script.
+You can also use tarred datasets for faster training by converting normal NeMo datasets to tarred datasets using this [script](https://github.com/NVIDIA/NeMo/blob/main/scripts/speech_recognition/convert_to_tarred_audio_dataset.py) and follow the same dataset setting as shown in the script. Also, `accumulate_grad_batches` is automatically set by the model based on `global_batch_size` and `micro_batch_size`, so there's no need to manually calculate and set `trainer.accumulate_grad_batches`.
 
 
 #### **Multi-task Training**

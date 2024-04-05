@@ -22,10 +22,10 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
-  max_epochs: 100
+  max_epochs: 1000
   max_steps: 1000000 # 1M steps
   log_every_n_steps: 10 # frequency with which training steps are logged 
-  val_check_interval: 1.0 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
+  val_check_interval: 3000 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
 

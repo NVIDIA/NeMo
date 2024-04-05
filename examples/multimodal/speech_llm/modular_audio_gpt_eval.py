@@ -13,13 +13,12 @@
 # limitations under the License.
 
 
-import json
 import os
 from pathlib import Path
 
 import torch
 import torch.multiprocessing as mp
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import write_predictions_to_file
