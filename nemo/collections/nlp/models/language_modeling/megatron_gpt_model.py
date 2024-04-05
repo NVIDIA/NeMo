@@ -1371,9 +1371,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 tokenizer=self.tokenizer,
             )
         else:
+            # Function needed for mcore GPTDataset
+            is_dataset_built_on_rank = lambda: True
+
             mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
             kwargs = {
-                "is_built_on_rank": is_dataset_built_on_rank,
                 "random_seed": self.cfg.seed,
                 "sequence_length": self.cfg.data.seq_length,
                 "path_to_cache": self.cfg.data.index_mapping_dir,
@@ -1397,14 +1399,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
 
                 self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    GPTFIMDataset, train_valid_test_num_samples, dataset_config,
+                    GPTFIMDataset, train_valid_test_num_samples, is_dataset_built_on_rank, dataset_config,
                 ).build()
             else:
                 dataset_config = GPTDatasetConfig(**kwargs)
                 dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
                 self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    dataset_type, train_valid_test_num_samples, dataset_config,
+                    dataset_type, train_valid_test_num_samples, is_dataset_built_on_rank, dataset_config,
                 ).build()
 
         if self._train_ds is not None:

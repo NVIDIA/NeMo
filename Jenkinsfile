@@ -87,11 +87,11 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout 9de386d08770d7296263a590171ace4ae45348ad && \
+             git checkout ba773259dbe5735fbd91ca41e7f4ded60b335c52 && \
              pip install . && \
              cd megatron/core/datasets && \
              make'
-         sh 'export PYTHONPATH="${PYTHONPATH}:/usr/local/lib/python3.10/dist-packages"'
+         sh 'export PYTHONPATH="${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"'
          sh 'echo ${PYTHONPATH}'
       }
     }
@@ -118,7 +118,6 @@ pipeline {
       steps {
         sh 'echo ${PYTHONPATH}'
         sh 'pip show megatron_core'
-        sh 'pwd'
         sh 'python -c "import nemo.collections.asr as nemo_asr"'
         sh 'python -c "import nemo.collections.nlp as nemo_nlp"'
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
