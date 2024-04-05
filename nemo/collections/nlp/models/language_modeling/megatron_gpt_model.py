@@ -1397,17 +1397,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             if self.cfg.data.get('add_fim', False):
                 dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
-
-                self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    GPTFIMDataset, train_valid_test_num_samples, is_dataset_built_on_rank, dataset_config,
-                ).build()
+                dataset_type = GPTFIMDataset
             else:
                 dataset_config = GPTDatasetConfig(**kwargs)
                 dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
-                self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    dataset_type, train_valid_test_num_samples, is_dataset_built_on_rank, dataset_config,
-                ).build()
+            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                dataset_type, train_valid_test_num_samples, is_dataset_built_on_rank, dataset_config,
+            ).build()
 
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
