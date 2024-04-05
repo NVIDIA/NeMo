@@ -20,6 +20,7 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.NEMO_REFORMAT_TOKEN }}
 
       # https://github.com/tj-actions/changed-files
       - name: Get changed files
@@ -40,7 +41,7 @@ jobs:
           options: "--verbose"
           # apply only to changed files (pass explicitly the files)
           src: "${{ steps.changed-files.outputs.all_changed_files }}"
-          version: "~= 24.2"
+          version: "~= 24.3"
 
       - name: isort
         uses: isort/isort-action@v1
