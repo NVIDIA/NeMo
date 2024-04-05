@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
+import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
@@ -66,7 +67,7 @@ try:
 
 except (ImportError, ModuleNotFoundError):
 
-    ModelParallelConfig = ApexGuardDefaults
+    ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -324,40 +325,43 @@ class MegatronBaseModel(NLPModel):
         else:
             return [self.model]
 
-    def _reconfigure_val_batches(self):
+    def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
-        if isinstance(self.trainer.limit_val_batches, int):
-            self.trainer.limit_val_batches *= get_num_microbatches()
+        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
+        if isinstance(limit_batches, int):
+            limit_batches *= get_num_microbatches()
         else:
-            assert isinstance(self.trainer.limit_val_batches, float)
-            # Don't reconfigure if limit_val_batches is 0.0 or if there's no val dataloader
-            if self.trainer.limit_val_batches == 0.0 or self._validation_dl is None:
+            assert isinstance(limit_batches, float)
+            # Don't reconfigure if limit_batches is 0.0 or if there's no dataloader
+            if limit_batches == 0.0 or dataloader is None:
                 return
-            # len(self._validation_dl) returns len as num of microbatches
-            val_len_in_micro_batches = len(self._validation_dl)
-            if self._validation_ds is not None and len(self._validation_dl) != float("inf"):
-                if self.trainer.limit_val_batches == 1.0:
-                    self.trainer.limit_val_batches = val_len_in_micro_batches
+            # len(dataloader) returns len as num of microbatches
+            dl_len_in_micro_batches = len(dataloader)
+            if len(dataloader) != float("inf"):
+                if limit_batches == 1.0:
+                    limit_batches = dl_len_in_micro_batches
                 else:
-                    limit_val_micro_batches = int(val_len_in_micro_batches * self.trainer.limit_val_batches)
-                    if limit_val_micro_batches == 0 and self.trainer.limit_val_batches > 0.0:
-                        min_percentage = 1.0 / len(self._validation_dl)
+                    limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
+                    if limit_micro_batches == 0 and limit_batches > 0.0:
+                        min_percentage = 1.0 / len(dataloader)
                         raise MisconfigurationException(
-                            f"You requested to check {self.trainer.limit_val_batches} of the val_dataloader but"
-                            f" {self.trainer.limit_val_batches} * {len(self._validation_dl)} < 1. Please increase the"
+                            f"You requested to check {limit_batches} of the val_dataloader but"
+                            f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
                             f" `limit_val_batches` argument. Try at least"
                             f" `limit_val_batches={min_percentage}`"
                         )
                     # Make sure trainer.limit_val_batches is a multiple of num of microbatches
-                    if limit_val_micro_batches < get_num_microbatches():
-                        self.trainer.limit_val_batches = get_num_microbatches()
+                    if limit_micro_batches < get_num_microbatches():
+                        limit_batches = get_num_microbatches()
                     else:
-                        self.trainer.limit_val_batches = (
-                            limit_val_micro_batches - limit_val_micro_batches % get_num_microbatches()
-                        )
+                        limit_batches = limit_batches - limit_batches % get_num_microbatches()
+
+        if mode == 'train':
+            self.trainer.limit_train_batches = limit_batches
+        else:
+            self.trainer.limit_val_batches = limit_batches
 
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
@@ -422,6 +426,7 @@ class MegatronBaseModel(NLPModel):
             use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             special_tokens=self.cfg.tokenizer.get('special_tokens', None),
+            trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
             legacy=legacy,
         )
 
@@ -460,6 +465,7 @@ class MegatronBaseModel(NLPModel):
         model_parallel_config = self.build_model_parallel_config()
 
         add_bias_linear = self.cfg.get('bias', True)
+        add_qkv_bias = self.cfg.get('qkv_bias', False)
 
         activation = self.cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
@@ -480,6 +486,8 @@ class MegatronBaseModel(NLPModel):
 
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
         apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
+
+        rotary_interleaved = self.cfg.get('rotary_interleaved', False)
 
         fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
         if apply_query_key_layer_scaling:
@@ -514,6 +522,7 @@ class MegatronBaseModel(NLPModel):
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,
             'add_bias_linear': add_bias_linear,
+            'add_qkv_bias': add_qkv_bias,
             'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
             'normalization': normalization,
@@ -528,6 +537,7 @@ class MegatronBaseModel(NLPModel):
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': None,
+            'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
         }
 
@@ -1209,12 +1219,29 @@ class MegatronBaseModel(NLPModel):
         return steps_per_epoch * self._trainer.max_epochs
 
     def configure_sharded_model(self):
+        def find_frozen_submodules(model):
+            frozen_submodules = []
+            frozen_submodule_names = []
+            for name, module in model.named_modules():
+                if (
+                    isinstance(module, nn.Module)
+                    and list(module.parameters())
+                    and all(not param.requires_grad for param in module.parameters())
+                ):
+                    frozen_submodule_names.append(name)
+                    frozen_submodules.append(module)
+            return frozen_submodule_names, frozen_submodules
+
         if self.use_fsdp:
             """ Top-evel FSDP model sharding """
             # Shard the top-level model hierarchically. We shard the strategy-unwrapped model not
             # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
             # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
             # extended to support lower precision main parameters.
+            frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
+            # FSDP requires uniform status of require_grads
+            # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
             self.model = self.trainer.strategy._setup_model(self.model)
             # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
             # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.

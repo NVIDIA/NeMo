@@ -65,6 +65,7 @@ model:
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
+  expert_model_parallel_size: 1 # expert model parallelism
 
   # model architecture
   encoder_seq_length: 512
@@ -147,6 +148,9 @@ model:
   fsdp_sharding_strategy: 'full' # Method to shard model states. Available options are 'full', 'hybrid', and 'grad'.
   fsdp_grad_reduce_dtype: 32 # Gradient reduction data type.
   fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
+
+  # PyTorch distributed checkpoint
+  torch_distributed_checkpoint: False # Set to True to use PyTorch distributed checkpoint format.
 
   ## Activation Checkpointing
   # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
