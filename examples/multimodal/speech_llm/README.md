@@ -43,7 +43,7 @@ With any config, you can set the following flags to control which components to 
 - `model.freeze_audio_encoder` # Generally set to `False` unless you want to freeze the audio encoder.
 - `model.freeze_modality_adapter` # Generally set to `False` since we want to train the modality adapter.
 
-In addition to the config file, you will also need two prepare the audio encoder and the LLM as `*.nemo` files.
+In addition to the config file, you will also need to prepare the audio encoder and the LLM as `*.nemo` files.
 
 To train a SpeechLLM, you can run the following script:
 ```bash
