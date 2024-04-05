@@ -34,7 +34,7 @@ repos:
       - id: requirements-txt-fixer
 
   - repo: https://github.com/PyCQA/isort
-    rev: 5.12.0
+    rev: 5.13.2
     hooks:
       - id: isort
         name: Format imports
@@ -42,7 +42,7 @@ repos:
 
   # Using this mirror lets us use mypyc-compiled black, which is about 2x faster
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.2.0
+    rev: 24.3.0
     hooks:
       - id: black
         # It is recommended to specify the latest version of Python
