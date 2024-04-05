@@ -726,23 +726,23 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
                             batch[k] = (
-                                batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids', 'media'] else None
+                                batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids', 'media', 'cu_seqlens'] else None
                             )
                         else:
                             batch[k] = (
                                 batch[k].cuda(non_blocking=True)
-                                if k in ['tokens', 'position_ids', 'attention_mask', 'media']
+                                if k in ['tokens', 'position_ids', 'attention_mask', 'media', 'cu_seqlens']
                                 else None
                             )
                 elif parallel_state.is_pipeline_last_stage():
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
+                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask', 'cu_seqlens'] else None
                         else:
                             batch[k] = (
                                 batch[k].cuda(non_blocking=True)
-                                if k in ['labels', 'loss_mask', 'attention_mask']
+                                if k in ['labels', 'loss_mask', 'attention_mask', 'cu_seqlens']
                                 else None
                             )
                 else:
