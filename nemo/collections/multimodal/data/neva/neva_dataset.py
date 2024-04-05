@@ -586,7 +586,7 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
 
             #handle label if exists
             labels_match = re.search(rf"{re.escape(DEFAULT_LABELS_TOKEN)}.*?\n", parts[1])
-            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep + parts[1][:labels_match.end()] if labels_match else ""))
+            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep + (parts[1][:labels_match.end()] if labels_match else "")))
             round_len = len(tokenizer.text_to_ids(rou + conv.sep))
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
