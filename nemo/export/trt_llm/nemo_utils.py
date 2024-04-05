@@ -22,9 +22,8 @@ import os
 import shutil
 import sys
 import tempfile
-import typing
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import tensorrt_llm
@@ -123,7 +122,7 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
 def nemo_llm_to_model_config(
     in_file: str,
     decoder_type: str,
-    nemo_export_dir: typing.Union[str, Path],
+    nemo_export_dir: Union[str, Path],
     dtype: str = "bfloat16",
     tensor_parallel_size: int = 1,
     pipeline_parallel_size: int = 1,

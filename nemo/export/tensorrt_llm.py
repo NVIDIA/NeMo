@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import logging
 import os
 import pickle
 import shutil
@@ -32,11 +33,11 @@ from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_mode
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file, unpack_nemo_ckpt
 
+use_deploy = True
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
 except Exception:
-    pass
-import logging
+    use_deploy = False
 
 
 @wrapt.decorator
@@ -505,11 +506,11 @@ class TensorRTLLM(ITritonDeployable):
 
             output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)
-            return {"outputs": output}
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
             output = cast_output([err_msg], np.bytes_)
-            return {"outputs": output}
+
+        return {"outputs": output}
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
@@ -622,12 +623,10 @@ class TensorRTLLM(ITritonDeployable):
                 )
 
             return weights.cpu().detach()
-        return None
 
     def _get_prompt_embedding_table(
         self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,
     ):
-        p_tuning = "no_ptuning"
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
             LOGGER.warning(
                 "prompt_embeddings_table will be used and "

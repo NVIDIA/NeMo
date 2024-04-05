@@ -24,7 +24,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
-import tensorstore  # this is important even though not used
+import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import zarr
 from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
@@ -57,7 +57,6 @@ def get_layer_name(layer_type: str, prefix: str):
 
 def get_layer_prefix(layer_names, is_mcore):
     transformer_layer_prefix = None
-    model_prefix = None
 
     for layer_name in layer_names:
         if 'self_attention' in layer_name:

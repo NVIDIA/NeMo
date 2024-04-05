@@ -45,13 +45,7 @@ def get_transformer_layers(mapping, num_layers):
 
 
 class ModelBuilder(Module):
-    """A generic tensorrt_llm transformer model builder.
-
-    We try to make this module builder as flexibile as possible to cover all transformer conversion usecases.
-    """
-
     def __init__(self, model_config: ModelConfig):
-        """Initializes the ModelBuilder from a model_config."""
         super().__init__()
         self.quantization = model_config.quantization
         self.max_position_embeddings = model_config.max_position_embeddings
@@ -129,7 +123,6 @@ class ModelBuilder(Module):
         hidden_states=None,
         lora_params=None,
     ):
-        """Forward function for the full model."""
         ptuning_args = []
         if self._use_prompt_tuning:
             ptuning_args = [prompt_embedding_table, prompt_tasks, prompt_vocab_size]
@@ -197,16 +190,8 @@ class ModelBuilder(Module):
 
 
 class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
-    """The implementation of the model builder with an LMHead."""
-
     def __init__(self, model_config: ModelConfig):
-        """Initializes the LMHeadModelBuilder from a model_config."""
         super().__init__(model_config)
-
-        share_embedding_table = False
-        share_weight = None
-        if share_embedding_table:
-            share_weight = self.embedding.vocab_embedding.weight
 
         if self._mapping.is_last_pp_rank():
             self.lm_head = ColumnLinear(
@@ -217,7 +202,7 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
                 tp_group=self._mapping.tp_group,
                 tp_size=self._tensor_parallel,
                 gather_output=True,
-                share_weight=share_weight,
+                share_weight=None,
             )
             self.lm_head.weight.value = model_config.lm_head.weight
             if model_config.quantization:
@@ -240,7 +225,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         lora_params=None,
     ):
 
-        """Forward function for the full LMHead model."""
         hidden_states = super().forward(
             input_ids,
             position_ids,
@@ -295,22 +279,13 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         prompt_embedding_table_size: int = 0,
         lora_target_modules: List[str] = None,
     ):
-        """@brief: Prepare inputs Tensors for the model.
 
-        The given sizes are used to determine the
-        ranges of the dimensions of when using TRT dynamic shapes.
-
-        @return: a list contains values which can be fed into the self.forward()
-        """
         # Prepare inputs
-
         head_size = self._head_size
         num_heads_kv = self._num_kv_heads
         remove_input_padding = default_net().plugin_config.remove_input_padding
         use_gpt_attention_plugin = default_net().plugin_config.gpt_attention_plugin
         use_gemm_plugin = default_net().plugin_config.gemm_plugin
-        # paged_kv_cache = default_net().plugin_config.paged_kv_cache
-        # tokens_per_block = default_net().plugin_config.tokens_per_block
         use_custom_all_reduce = default_net().plugin_config.use_custom_all_reduce
         use_lora_plugin = default_net().plugin_config.lora_plugin
 
@@ -400,19 +375,6 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
     ):
-        """Builds the model and generate the tensorrt_llm engine.
-
-        Args:
-            timing_cache: the name of the tensorrt timing cache file inside the output_dir.
-            log_level: the logging level.
-            max_batch_size: the max batch size of the deployed model engine.
-            max_input_len: the max length of the input tokens.
-            max_output_len: the max length of the output tokens.
-            max_beam_width: the max beam search width.
-            output_dir: the output directory where we save the generated tensorrt_llm engine file.
-        """
-        # Uncomment the following to print the network for debugging purpose.
-        # self.print()
 
         if self.rank > torch.cuda.device_count():
             print(f"warning: Rank {self.rank} larger than GPUs available ({torch.cuda.device_count()})")
@@ -443,6 +405,5 @@ class LMHeadModelBuilder(ModelBuilder, GenerationMixin):
         )
 
     def print(self):
-        """Debugging print of the tensorrt_llm network."""
         np.set_printoptions(threshold=36)
         print_tensorrt_llm(f"rank.{self.rank}", self)
