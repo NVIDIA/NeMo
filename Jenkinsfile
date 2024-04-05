@@ -9,7 +9,6 @@ pipeline {
   environment {
         NVTE_FUSED_ATTN = 0
         NVTE_FLASH_ATTN = 0
-        PYTHONPATH='${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM'
   }
 
   options {
