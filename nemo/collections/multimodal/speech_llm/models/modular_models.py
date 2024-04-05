@@ -25,8 +25,9 @@ from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities import rank_zero_only
 
-from nemo.collections.asr.models import EncDecSpeakerLabelModel
+from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
@@ -605,6 +606,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     @classmethod
     def _modify_audio_encoder_config(cls, gpt_cfg, audio_cfg, speaker_cfg=None):
+        """load the ecoder configs from the pretrained audio models and updating the model's config."""
         with open_dict(gpt_cfg):
             use_multi_encoder = gpt_cfg.perception.get("encoders", None) is not None
             if not use_multi_encoder:
@@ -652,7 +654,10 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     @classmethod
     def get_pretraind_audio_model(cls, encoder_cfg: DictConfig) -> ModelPT:
-        encoder_cls = get_class(encoder_cfg.get("_target_")) if encoder_cfg.get("_target_", None) is not None else None
+        """load pretrained audio model from a given config"""
+        encoder_cls = (
+            get_class(encoder_cfg.get("_target_")) if encoder_cfg.get("_target_", None) is not None else ASRModel
+        )
         pretrained_model = encoder_cfg.get('pretrained_model', None)
         if pretrained_model is None:
             return None
@@ -672,18 +677,19 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     @classmethod
     def get_speaker_model_and_config(cls, cfg):
         if 'speaker_model' in cfg.model.perception:
+            model_cls = (
+                get_class(cfg.model.get("_target_", None))
+                if cfg.model.get("_target_", None) is not None
+                else EncDecSpeakerLabelModel
+            )
             speaker_cfg = cfg.model.perception.speaker_model
             if speaker_cfg.get('pretrained_model', None) is not None:
                 if speaker_cfg.pretrained_model.endswith('.nemo'):
                     logging.info(f'Loading pretrained speaker model from local file: {speaker_cfg.pretrained_model}')
-                    speaker_model = EncDecSpeakerLabelModel.restore_from(
-                        speaker_cfg.pretrained_model, map_location='cpu'
-                    )
+                    speaker_model = model_cls.restore_from(speaker_cfg.pretrained_model, map_location='cpu')
                 else:
                     logging.info(f'Loading pretrained speaker model from NGC: {speaker_cfg.pretrained_model}')
-                    speaker_model = EncDecSpeakerLabelModel.from_pretrained(
-                        speaker_cfg.pretrained_model, map_location='cpu'
-                    )
+                    speaker_model = model_cls.from_pretrained(speaker_cfg.pretrained_model, map_location='cpu')
                 return speaker_model, speaker_model.cfg
             return None, None
         else:
@@ -746,6 +752,12 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def restore_from_pretrained_models(
         cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
     ):
+        """
+        load pretrained LLM and audio encoders, and maybe add adapters, used for training.
+        Args:
+            cfg: input yaml config, with trainer, model, exp_manager, etc.
+            trainer: trainer object
+        """
         if (
             cfg.model.get("pretrained_audio_model", None) is None
             and cfg.model.perception.get("encoders", None) is None
@@ -791,7 +803,16 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return model
 
     @classmethod
-    def load_audio_encoder_for_inference(cls, cfg, model_cfg, model):
+    def load_audio_encoder_for_inference(cls, cfg: DictConfig, model_cfg: DictConfig, model: ModelPT) -> ModelPT:
+        """
+        load audio encoder for inference.
+        Args:
+            cfg: inference config
+            model_cfg: model config
+            model: model object
+        Returns:
+            model: model object with audio encoder weights loaded
+        """
         with open_dict(cfg):
             if (
                 model_cfg.get("pretrained_audio_model", None) is not None
@@ -809,7 +830,19 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return model
 
     @classmethod
-    def merge_inference_cfg(cls, cfg: DictConfig, trainer: Trainer, pretrained_model_cfg: DictConfig = None):
+    def merge_inference_cfg(
+        cls, cfg: DictConfig, trainer: Trainer, pretrained_model_cfg: DictConfig = None
+    ) -> DictConfig:
+        """
+        Merge the inference config with the model config, used for inference only. 
+        if no pretrained_model_cfg is given, it will be loaded from the checkpoint specified in cfg.
+        Args:
+            cfg: inference config
+            trainer: trainer object
+            pretrained_model_cfg: a pre-loaded SpeechLLM model config
+        Returns:
+            model_cfg: merged model config
+        """
         if pretrained_model_cfg:
             model_cfg = pretrained_model_cfg
         elif cfg.model.peft.restore_from_path:
@@ -867,6 +900,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             )
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        """
+        Overwrite the state_dict method to include only the trainable parameters.
+        """
         if self.setup_complete:
             # Once setup is complete we only need adapter and perception model.
             if self.cfg.freeze_llm and self.cfg.get("peft", None) is not None:
@@ -967,6 +1003,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return metric, metric_name
 
     def inference_step(self, dataloader_iter, mode):
+        """
+        Used for validation and test steps, added postprocessing after calling self.predict_step().
+        """
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -1051,6 +1090,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return outputs
 
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
+        """
+        Used to get LLM predictions for validation and test steps based on the given inference config.
+        """
         inference_config = self.get_inference_config()
         if inference_config is not None:
             # need to overwrite some configuration, make it immutable
@@ -1290,6 +1332,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return averaged_loss, averaged_metric
 
     # consistent with speech models
+    @rank_zero_only
     def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
         os.makedirs(output_dir, exist_ok=True)
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"

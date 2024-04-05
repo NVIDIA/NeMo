@@ -117,7 +117,7 @@ def _collate_item(item: Union[torch.Tensor, np.ndarray, List], max_length: int, 
     return item
 
 
-def _audio_text_collate_fn(
+def _speechllm_audio_text_collate_fn(
     batch: Dict, tokens_to_generate: int, pad_to_max_length: bool, max_seq_length: int, text_pad_id: int,
 ):
     sample_ids = [x["idx"] for x in batch]
@@ -171,7 +171,7 @@ def _audio_text_collate_fn(
     return batch
 
 
-def _multi_audio_text_collate_fn(
+def _speechllm_multi_audio_text_collate_fn(
     batch: Dict, tokens_to_generate: int, pad_to_max_length: bool, max_seq_length: int, text_pad_id: int,
 ):
     """Collate function for multi audio case."""
@@ -187,11 +187,11 @@ def _multi_audio_text_collate_fn(
     audio_signals_merged, audio_lengths_merged = _audio_collate_fn(audio_signals_merged, audio_lengths_merged)
 
     for i in range(len(batch)):
-        # create dummy audio_signal and audio_length for _audio_text_collate_fn()
+        # create dummy audio_signal and audio_length for _speechllm_audio_text_collate_fn()
         batch[i]["audio_signal"] = audio_signals[i][0]
         batch[i]["audio_length"] = audio_lengths[i][0]
 
-    batch = _audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
+    batch = _speechllm_audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
 
     # add multi audio specific fields
     batch['context_start_idx'] = list(context_start_idx)
@@ -550,7 +550,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         return len(self.collection)
 
     def _collate_fn(self, batch):
-        return _audio_text_collate_fn(
+        return _speechllm_audio_text_collate_fn(
             batch=batch,
             tokens_to_generate=self.tokens_to_generate,
             pad_to_max_length=self.pad_to_max_length,
@@ -590,7 +590,7 @@ class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
         super().__init__(*args, **kwargs)
 
     def _collate_fn(self, batch):
-        return _multi_audio_text_collate_fn(
+        return _speechllm_multi_audio_text_collate_fn(
             batch=batch,
             tokens_to_generate=self.tokens_to_generate,
             pad_to_max_length=self.pad_to_max_length,
@@ -946,7 +946,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         return TarredAudioLoopOffsets(self.collection, iterator)
 
     def _collate_fn(self, batch):
-        return _audio_text_collate_fn(
+        return _speechllm_audio_text_collate_fn(
             batch=batch,
             tokens_to_generate=self.tokens_to_generate,
             pad_to_max_length=self.pad_to_max_length,

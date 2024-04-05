@@ -28,7 +28,7 @@ You'll need to prepare data in the NeMo manifest format, where each line is a py
 }
 ```
 
-The `question` field in the manifest is optional, and you can put a list of questions in a file then set `++model.data.train_ds.question_file=<path to to question file>` to ask the dataloader to randomly pick a question from the file for each audio sample. This is useful for training with multiple prompts for the same task. If neither `question` field nor `question_file` is provided, the dataloader will use a default question `what does the audio mean?` for all aduios. During inference, it is best to have the `question` field in the manifest.
+The `question` field in the manifest is optional, and you can put a list of questions in a question file then set `++model.data.train_ds.question_file=<path to to question file>` to ask the dataloader to randomly pick a question from the file for each audio sample. This is useful for training with multiple prompts for the same task. If neither `question` field nor `question_file` is provided, the dataloader will use a default question `what does the audio mean?` for all aduios. During inference, it is best to have the `question` field in the manifest.
 
 
 ### Training
@@ -54,9 +54,6 @@ TRAIN_MANIFESTS="[/data/train_1.json,/data/train_2.json]"
 VAL_MANIFESTS="[/data/dev_1.json,/data/dev_2.json]"
 VAL_NAMES="[dev-1,dev-2]"
 
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
-NVTE_MASKED_SOFTMAX_FUSION=0 \
 CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./conf" --config-name "modular_audio_gpt_config_peft" \
     trainer.devices=-1 \
     model.freeze_audio_encoder=True \
@@ -109,9 +106,6 @@ ALM_CKPT="$ALM_DIR/checkpoints/AudioGPT--validation_wer\=0.2-step\=100000-epoch\
 TEST_MANIFESTS="[/data/test_1.json,/data/test_2.json]"
 TEST_NAMES="[test-1,test-2]"
 
-NVTE_MASKED_SOFTMAX_FUSION=0 \
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
 CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
     model.restore_from_path=$MEGATRON_CKPT \
     model.peft.restore_from_path=$ALM_CKPT \
@@ -147,9 +141,6 @@ If you want to load a trained SpeechLLM from cloud, you can use the following sc
 TEST_MANIFESTS="[/data/test_1.json,/data/test_2.json]"
 TEST_NAMES="[test-1,test-2]"
 
-NVTE_MASKED_SOFTMAX_FUSION=0 \
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
 CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
     model.from_pretrained="speechllm_fc_llama2_7b" \
     model.data.test_ds.manifest_filepath=$TEST_MANIFESTS \

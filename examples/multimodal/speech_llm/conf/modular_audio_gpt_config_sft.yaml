@@ -64,11 +64,10 @@ model:
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   
-  pretrained_audio_model: stt_en_fastconformer_transducer_large
+  pretrained_audio_model: ???
   freeze_llm: True
   freeze_audio_encoder: True
   freeze_modality_adapter: False
-  load_audio_encoder: True
 
   global_batch_size: 128
   micro_batch_size: 4
