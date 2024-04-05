@@ -1531,7 +1531,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
             # Assign a dummy dataloader with NeMoMockGPTDataset for self._train_dl to run PTL's setup_data() method so that the actual data is not prefetched
             # during the iter() call in setup_data().
-            self._train_dl = self.build_pretraining_data_loader(NeMoMockGPTDataset(cfg, self.tokenizer, "train", int(self.train_valid_test_num_samples[0]), cfg.seq_length, 20), consumed_samples)
+            self._train_dl = self.build_pretraining_data_loader(NeMoMockGPTDataset(cfg, self.tokenizer, "train", int(self.train_valid_test_num_samples[0]), cfg.seq_length, cfg.seed), consumed_samples)
 
     def on_train_start(self) -> None:
         # Call on_train_start of MegatronBaseModel
