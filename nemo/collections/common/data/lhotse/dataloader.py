@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+<<<<<<< HEAD
+=======
+import logging
+import random
+>>>>>>> Randomly pick samples for nb augmentations in lhotse
 import warnings
 from dataclasses import dataclass
 from functools import partial, singledispatch
@@ -29,7 +34,11 @@ from lhotse.dataset import (
     IterableDatasetWrapper,
     make_worker_init_fn,
 )
+<<<<<<< HEAD
 from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
+=======
+from lhotse.dataset.dataloading import resolve_seed as lhotse_resolve_seed
+>>>>>>> Randomly pick samples for nb augmentations in lhotse
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -100,6 +109,8 @@ class LhotseDataLoadingConfig:
     perturb_speed: bool = False
     #   c. Narrow band augmentation
     nb_augmentation: bool = False
+    nb_mix_prob: float = 0.5
+    nb_target_freq: float = 8000
     #   d. Cut concatenation (glue together multiple utterances into a single one)
     concatenate_samples: bool = False
     concatenate_gap_seconds: float = 0.1
@@ -220,6 +231,9 @@ def get_lhotse_dataloader_from_config(
             max_duration=config.batch_duration,
             quadratic_duration=config.quadratic_duration,
         )
+    # 2.c. On-the-fly Narrowband augmentation
+    if config.nb_augmentation:
+        cuts = cuts.map(NarrowbandTransform(config.sample_rate, config.nb_target_freq,  p=config.nb_mix_prob, seed="trng"))
     # 3. The sampler.
     if config.use_bucketing:
         # Bucketing. Some differences from NeMo's native bucketing:
@@ -452,3 +466,21 @@ def _flatten_alt_text(cut) -> list:
         text_instance.custom = {"text": data.pop("text"), "lang": data.pop("lang"), **data}
         ans.append(text_instance)
     return ans
+
+
+class NarrowbandTransform:
+    """Converts the input example with probability p to narrowband (default: 8kHz) and resamples back to the original sampling rate."""
+    def __init__(self, sampling_rate, target_sampling_rate=8000, p=0.5, seed=0):
+        self.sampling_rate = sampling_rate
+        self.target_sampling_rate = target_sampling_rate
+        self.p = p
+        self.seed = seed
+        self.rng = None
+    def __call__(self, cut):
+        self._maybe_init_rng()
+        if self.rng.uniform(0.0, 1.0) > self.p:
+            return cut
+        return cut.resample(self.target_sampling_rate).resample(self.sampling_rate)
+    def _maybe_init_rng(self):
+        if self.rng is None:
+            self.rng = random.Random(lhotse_resolve_seed(self.seed))
