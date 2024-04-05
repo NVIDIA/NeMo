@@ -41,6 +41,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import
     GPTFIMDatasetConfig,
     is_dataset_built_on_rank,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import MockGPTDataset as NeMoMockGPTDataset
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
     get_gpt_full_te_layer_autocast_spec,
@@ -1348,7 +1349,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         test_iters = self.trainer.limit_test_batches
 
         # TODO: @athitten make num of eval and test samples 1 always, after it works with non DictConfig data_prefix.
-        train_valid_test_num_samples = [
+        self.train_valid_test_num_samples = [
             max_train_steps * global_batch_size,
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
@@ -1360,7 +1361,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Where N_d is the total number of samples in a dataset (files), and N is the requested number of samples (provided for every split in the list below).
         # Setting N = 1 we force E to be 1 as well
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            train_valid_test_num_samples[1] = 1
+            self.train_valid_test_num_samples[1] = 1
 
         # Add extra FIM tokens to tokenizer
         if self.cfg.data.get('add_fim', False) and self.cfg.tokenizer.library == 'megatron':
@@ -1375,7 +1376,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 data_prefix=self.cfg.data.data_prefix,
                 data_impl=self.cfg.data.data_impl,
                 splits_string=self.cfg.data.splits_string,
-                train_valid_test_num_samples=train_valid_test_num_samples,
+                train_valid_test_num_samples=self.train_valid_test_num_samples,
                 seq_length=self.cfg.data.seq_length,
                 seed=self.cfg.seed,
                 skip_warmup=self.cfg.data.get('skip_warmup', True),
@@ -1408,14 +1409,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
 
                 self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    GPTFIMDataset, train_valid_test_num_samples, dataset_config,
+                    GPTFIMDataset, self.train_valid_test_num_samples, dataset_config,
                 ).build()
             else:
                 dataset_config = GPTDatasetConfig(**kwargs)
                 dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
                 self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    dataset_type, train_valid_test_num_samples, dataset_config,
+                    dataset_type, self.train_valid_test_num_samples, dataset_config,
                 ).build()
 
         if self._train_ds is not None:
@@ -1528,11 +1529,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
-            # Assign a dummy dataloader with a RandomDataset for self._train_dl to run PTL's setup_data() method so that the actual data is not prefetched
+            # Assign a dummy dataloader with NeMoMockGPTDataset for self._train_dl to run PTL's setup_data() method so that the actual data is not prefetched
             # during the iter() call in setup_data().
-            # Use self.trainer.val_check_interval for the len of this RandomDataset so that val_check_interval is not greater than len(dl) which can otherise
-            # error out at https://github.com/Lightning-AI/pytorch-lightning/blob/2.2.1/src/lightning/pytorch/loops/fit_loop.py#L276
-            self._train_dl = torch.utils.data.DataLoader(RandomDataset(self.trainer.val_check_interval), batch_size=1, num_workers=2, prefetch_factor=None)
+            self._train_dl = self.build_pretraining_data_loader(NeMoMockGPTDataset(cfg, self.tokenizer, "train", int(self.train_valid_test_num_samples[0]), cfg.seq_length, 20), consumed_samples)
 
     def on_train_start(self) -> None:
         # Call on_train_start of MegatronBaseModel
