@@ -13,10 +13,8 @@
 # limitations under the License.
 
 
-import os
 from pathlib import Path
 
-import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
@@ -26,7 +24,6 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerB
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 mp.set_start_method("spawn", force=True)
 
@@ -44,9 +41,6 @@ VAL_MANIFESTS="[/data/libri-test-other.json,/data/MCV_7.1_test.json,/data/wsj-te
 VAL_NAMES="[ls-test-other,mcv7.1-test,wsj-test]"
 
 HYDRA_FULL_ERROR=1 \
-NVTE_MASKED_SOFTMAX_FUSION=0 \
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
 CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
     model.restore_from_path=$MEGATRON_CKPT \
     model.peft.restore_from_path=$ALM_CKPT \
@@ -80,48 +74,27 @@ def main(cfg) -> None:
         )
         model_cfg = ModularAudioGPTModel.merge_inference_cfg(cfg, trainer, model_cfg)
         model = ModularAudioGPTModel.from_pretrained(
-            cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg
+            cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            strict=False,
+            map_location="cpu",
         )
+        if "peft" in model_cfg and model_cfg.peft.get("peft_scheme", None):
+            # special case for loading a complete speechllm checkpoint in nemo format
+            peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
+            model.load_adapters(cfg.model.restore_from_path, peft_cfg_cls(model_cfg), map_location="cpu")
     else:
         model_cfg = ModularAudioGPTModel.merge_inference_cfg(cfg, trainer)
         model = ModularAudioGPTModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg,
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False
         )
-        if cfg.model.peft.restore_from_path:
-            if '\\' in cfg.model.peft.restore_from_path:
-                cfg.model.peft.restore_from_path = cfg.model.peft.restore_from_path.replace('\\', '')
-            if "peft" in model_cfg:
-                peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
-                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
-            else:
-                model.load_state_dict(torch.load(cfg.model.peft.restore_from_path), strict=False)
-        elif cfg.model.peft.restore_from_ckpt.checkpoint_dir and cfg.model.peft.restore_from_ckpt.checkpoint_name:
-            checkpoint_path = os.path.join(
-                cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name
-            )
-            # checkpoint_path is a dir in case of distributed checkpointing
-            if not os.path.isdir(checkpoint_path):
-                # legacy checkpoint needs model parallel rank injection
-                checkpoint_path = inject_model_parallel_rank(
-                    os.path.join(
-                        cfg.model.peft.restore_from_ckpt.checkpoint_dir,
-                        cfg.model.peft.restore_from_ckpt.checkpoint_name,
-                    )
-                )
-                if "peft" in model_cfg:
-                    peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-                    model.load_adapters(checkpoint_path, peft_cfgs=peft_cfg_cls(model_cfg))
-                else:
-                    model.load_state_dict(torch.load(checkpoint_path), strict=False)
-            else:
-                raise NotImplementedError("distributed checkpointing of PEFT weights is not supported")
-
-        if model_cfg.freeze_audio_encoder:
-            model = ModularAudioGPTModel.load_audio_encoder_for_inference(cfg, model_cfg, model)
+        model = ModularAudioGPTModel.load_adapters_for_inference(cfg, model_cfg, model)
+        model = ModularAudioGPTModel.load_audio_encoder_for_inference(cfg, model_cfg, model)
 
     model.freeze()
     if cfg.get("save_as_nemo", None):
-        model.setup()  # need to call setup() to load adapters and prepare for saving
+        model.setup("predict")  # need to call setup() to load adapters and prepare for saving
         model.save_to(cfg.save_as_nemo)
         logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}, exiting...")
         exit(0)
@@ -132,12 +105,13 @@ def main(cfg) -> None:
     model.set_inference_config(config)
 
     if cfg.evaluate_metric:
+        # Evaluate the model on the test set
         trainer.test(model)
-        exit(0)
-
-    test_loaders = model.get_test_dataloader(model_cfg.data.test_ds)
-    predictions = trainer.predict(model, test_loaders)
-    write_predictions_to_file(cfg, predictions, model)
+    else:
+        # otherwise, generate predictions
+        dataloaders = model.get_test_dataloader(model_cfg.data.test_ds)
+        predictions = trainer.predict(model, dataloaders)
+        write_predictions_to_file(cfg, predictions, model)
 
 
 if __name__ == "__main__":

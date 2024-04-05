@@ -87,8 +87,11 @@ model:
 
   peft: # keep these basic params for reusing in both sft and peft SpeechLMs
     restore_from_path: null
-    restore_from_ckpt_name: null
     restore_from_hparams_path: null
+    restore_from_ckpt:
+      checkpoint_name: null
+      checkpoint_dir: null
+
 
   data:
     test_ds:
