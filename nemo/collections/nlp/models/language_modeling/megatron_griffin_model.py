@@ -286,11 +286,8 @@ class MegatronGriffinModel(MegatronGPTModel):
                         qkv_format='thd',
                     )
 
-            forward_args['input_ids'] = torch.randint(0, 100, (2, 128)).cuda()
-            forward_args['labels'] = torch.randint(0, 100, (2, 128)).cuda()
-            batch['loss_mask'] = torch.ones(256).cuda()
-            batch['num_valid_tokens_in_ub'] = torch.tensor(4.).cuda()
-            output_tensor = model(forward_args['input_ids'], None, labels=forward_args['labels'])
+    
+            output_tensor = model(forward_args['input_ids'], forward_args['attention_mask'], labels=forward_args['labels'])
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -384,5 +381,34 @@ class MegatronGriffinModel(MegatronGPTModel):
             return output_tensor, id_func
 
         return fwd_output_only_func
+    
+    def _reset_activation_checkpointing_args(self):
+        return
 
-   
+    def _reset_activation_checkpointing_args(self):
+        """ Disables activation checkpointing completely and saves the values so that
+            _restore_activation_checkpointing_args can restore them later. This function must always be
+            called before _restore_activation_checkpointing_args.
+        """
+        return
+
+    def _restore_activation_checkpointing_args(self):
+        """ Restores the activation checkpointing parameters using the values saved by
+            _reset_activation_checkpointing_args. This function must never be called before
+            _reset_activation_checkpointing_args.
+        """
+        return
+    def _reset_sequence_parallelism_args(self):
+        """ Disables sequence parallelism completely and saves the values so that
+            _restore_sequence_parallelism_args can restore them later. This function must always be
+            called before _restore_sequence_parallelism_args.
+        """
+        return
+
+    def _restore_sequence_parallelism_args(self):
+        """ Restores the sequence parallelism parameters using the values saved by
+            _reset_sequence_parallelism_args. This function must never be called before
+            _reset_sequence_parallelism_args.
+        """
+        return
+                  

@@ -3,27 +3,25 @@ restore_from_path: null # used when starting from a .nemo file
 
 trainer:
   devices: 1
-  num_nodes: 1
   accelerator: gpu
+  num_nodes: 1
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
-  max_epochs: -1 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10
-  val_check_interval: 100
-  limit_val_batches: 50
-  limit_test_batches: 500
-  accumulate_grad_batches: 1
+  max_epochs: 9999
+  max_steps: 10000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10 # frequency with which training steps are logged
+  val_check_interval: 200 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
-  benchmark: False
+  limit_val_batches: 1024
+  limit_test_batches: 500
 
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_griffin
-  create_wandb_logger: False
+  name: ${name}
+  create_wandb_logger: True
   wandb_logger_kwargs:
     project: griffin
     name: sft-test
@@ -31,19 +29,29 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: val_loss
-    save_top_k: 10
+    monitor: validation_${model.data.validation_ds.metric.name}
+    save_top_k: 1
     mode: min
-    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    filename: 'megatron_griffin--{val_loss:.2f}-{step}-{consumed_samples}'
-    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    save_nemo_on_train_end: True
+    filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
+    model_parallel_size: ${model.tensor_model_parallel_size}
+    always_save_nemo: False
+    save_best_model: True
+  create_early_stopping_callback: True
+  early_stopping_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    min_delta: 0.001
+    patience: 10
+    verbose: True
+    strict: False # Should be False to avoid a runtime error where EarlyStopping says monitor is unavailable, which sometimes happens with resumed training.
 
 
 model:
   restore_from_path: /home/ataghibakhsh/griffin.nemo
   # model parallelism 
-  micro_batch_size: 2
-  global_batch_size: 2
+  micro_batch_size: 32
+  global_batch_size: 32
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
@@ -52,7 +60,7 @@ model:
   encoder_seq_length: 512
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'rope' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
-  num_layers: 8
+  num_layers: 2
   gated_linear_unit: True
   window_size: [1024, 0]
   num_query_groups: 1
@@ -136,7 +144,7 @@ model:
       #   - /path/to/boolq.jsonl
       # Example of how each dataset is formatted
       # {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
-      file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl, /home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data.
+      file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -151,16 +159,70 @@ model:
       #   - 0.5
       #   - 0.25
       #   - 0.25
-      concat_sampling_probabilities: [.5, .5] # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
+      concat_sampling_probabilities: [1.0] # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
       label_key: 'output'
       add_eos: True
       add_sep: False
-      add_bos: False
+      add_bos: True
       truncation_field: "input" # # Can be multiple keys separated with ',' Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
-  
+    validation_ds:
+        file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+        names: null # Names of the corresponding datasets used to log metrics.
+        global_batch_size: ${model.global_batch_size}
+        micro_batch_size: ${model.micro_batch_size}
+        shuffle: False
+        num_workers: 0
+        memmap_workers: ${model.data.train_ds.memmap_workers}
+        pin_memory: True
+        max_seq_length: 2048
+        min_seq_length: 1
+        drop_last: False
+        label_key: ${model.data.train_ds.label_key}
+        add_eos: ${model.data.train_ds.add_eos}
+        add_sep: ${model.data.train_ds.add_sep}
+        add_bos: ${model.data.train_ds.add_bos}
+        write_predictions_to_file: False
+        output_file_path_prefix: null # Prefix of the file to write predictions to.
+        truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in prompt_template
+        index_mapping_dir: null # Path to a directory to write index mapping files.
+        prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+        tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
+        truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
+        metric:
+          name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+          average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+          num_classes: null
+    test_ds:
+      file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+      names: null # Names of the corresponding datasets used to log metrics.
+      global_batch_size: ${model.global_batch_size}
+      micro_batch_size: ${model.micro_batch_size}
+      shuffle: False
+      num_workers: 0
+      memmap_workers: ${model.data.train_ds.memmap_workers}
+      pin_memory: True
+      max_seq_length: 2048
+      min_seq_length: 1
+      drop_last: False
+      label_key: ${model.data.train_ds.label_key}
+      add_eos: ${model.data.train_ds.add_eos}
+      add_sep: ${model.data.train_ds.add_sep}
+      add_bos: ${model.data.train_ds.add_bos}
+      write_predictions_to_file: False
+      output_file_path_prefix: null # Prefix of the file to write predictions to.
+      truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in prompt_template
+      index_mapping_dir: null # Path to a directory to write index mapping files.
+      prompt_template: ${model.data.train_ds.prompt_template}
+      tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
+      truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
+      metric:
+        name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
+        average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+        num_classes: null
+
   optim:
     name: fused_adam
     lr: 2e-4

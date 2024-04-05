@@ -18,6 +18,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -43,7 +44,6 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -55,7 +55,6 @@ from functools import partial
 
 import torch
 from omegaconf import DictConfig, ListConfig
-from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -64,10 +63,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset, GPTSFTPackedDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
-from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+from nemo.collections.nlp.data.language_modeling.megatron.griffin_sft_dataset import GriffinSFTDataset
+
 
 from nemo.utils import logging
 
@@ -80,10 +77,10 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -91,11 +88,19 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
 
+try:
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+    )
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 __all__ = ['MegatronGriffinSFTModel']
 
 
-class MegatronGriffinSFTModel(MegatronGriffinModel):
+class MegatronGriffinSFTModel(MegatronGriffinModel, MegatronGPTSFTModel):
     """
     Megatron Griffin Supervised Fine-Tuning
     """
@@ -126,40 +131,9 @@ class MegatronGriffinSFTModel(MegatronGriffinModel):
             self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
 
         # self._reset_activation_checkpointing_args()
+        self.use_peft = False
         self.virtual_tokens = 0
         self.init_global_step = 0
-
-    def setup(self, stage=None):
-        # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
-        # We then set things up for real only once setup() of this class is called.
-        resume_checkpoint_path = self.trainer.ckpt_path
-        self.setup_complete = True
-        if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
-        else:
-            init_consumed_samples = 0
-        self.init_consumed_samples = init_consumed_samples
-
-        if stage == 'predict':
-            return
-
-        # If the user wants to manually override train and validation dataloaders before calling `.fit()`
-        if self._train_dl is not None and self._validation_dl is not None:
-            return
-        self.build_train_valid_test_datasets(stage=stage)
-        if hasattr(self, '_train_ds'):
-            self.setup_training_dataloader()
-        if hasattr(self, '_validation_ds'):
-            self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
-        self.maybe_setup_test()
-
-        # when using pipeline model parallel the final stage need to initialize word embeddings
-        self.initialize_last_rank_embeddings()
-
-        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
-            self.setup_transformer_engine_tp_groups()
-            self.setup_transformer_engine_cp_groups()
-        self.setup_complete = True
 
     def _build_dataset(self, data_cfg, is_train=True):
         packed_sequence = data_cfg.get("packed_sequence", False)
@@ -230,7 +204,7 @@ class MegatronGriffinSFTModel(MegatronGriffinModel):
                 dataset_kwargs = {'return_cu_seqlen': data_cfg.get("packed_sequence_return_cu_seqlen", True)}
                 assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             else:
-                dataset_cls = GPTSFTDataset
+                dataset_cls = GriffinSFTDataset
 
             # TODO(akoumparouli): MCore assumes/requires equal length input sequences.
             if not data_cfg.get('pad_to_max_length', False) and self.cfg.get('expert_model_parallel_size', 1) > 1:
@@ -283,167 +257,46 @@ class MegatronGriffinSFTModel(MegatronGriffinModel):
             return dataset
         else:
             return datasets
-
-    def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
-        # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
-        base_key = f"{mode}_{metric_name}_" if metric_name is not None else f"{mode}_"
-        # If the user provided names for each validation/test dataset, use those.
-        if hasattr(data_config, "names") and data_config.names is not None:
-            # With only a single validation/test dataset, the name is not a list.
-            if not isinstance(data_config.names, ListConfig):
-                name = data_config.names
-            else:
-                name = data_config.names[dataloader_idx]
-            return base_key + name
-        else:
-            return base_key + f"dataloader{dataloader_idx}"
-
-    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
-        # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
-        # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
-        if isinstance(dataloader_iter, _DataFetcherWrapper):
-            batch, _, _ = next(dataloader_iter)
-        else:
-            batch = next(dataloader_iter)
-
-        log_token_counts = self.cfg.get('log_token_counts', False)
-        if log_token_counts:
-            token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
-
-        # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
-        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
-        _, seq_length = batch['tokens'].shape
-        data_iter = get_iterator_k_split(batch, get_num_microbatches())
-
-        if log_token_counts:
-            self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
-            self.log('tokens_avg', token_count_avg, prog_bar=True, sync_dist=True, batch_size=1)
-
-        # handle asynchronous grad reduction
-        no_sync_func = None
-        grad_sync_func = None
-        param_sync_func = None
-        if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
-            grad_sync_func = self.reduce_overlap_gradients
-            param_sync_func = self.sync_overlap_parameters
-
-        for module in self.get_model_module_list():
-            module.config.no_sync_func = no_sync_func
-            module.config.grad_sync_func = grad_sync_func
-            module.config.param_sync_func = param_sync_func
-
-        fwd_bwd_function = get_forward_backward_func()
-
-        losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(tuning=True),
-            data_iterator=self._make_data_iterator_list(data_iter),
-            model=self.model,
-            num_microbatches=get_num_microbatches(),
-            forward_only=forward_only,
-            seq_length=seq_length,
-            micro_batch_size=get_micro_batch_size(),
-            first_val_step=first_val_step,
-        )
-        non_loss_tensors = {}
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            for item in losses_reduced_per_micro_batch:
-                for k, v in item.items():
-                    if k != 'avg':
-                        av = non_loss_tensors.get(k, [])
-                        av.append(v)
-                        non_loss_tensors[k] = av
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
-                # average loss across micro batches
-                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-                loss_tensor = torch.concat(loss_tensors_list)
-                loss_mean = loss_tensor.mean()
-            else:
-                # Get the total loss since micro batches sizes are not uniform
-                loss_sum_tensors_list = [
-                    loss_sum['loss_sum_and_ub_size']
-                    for loss_sum in losses_reduced_per_micro_batch
-                    if loss_sum['loss_sum_and_ub_size'][1] > 0
-                ]
-                loss_sum = (
-                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
-                    if len(loss_sum_tensors_list) > 0
-                    else torch.tensor([0.0, 0.0]).cuda()
-                )
-                return loss_sum
-        else:
-            # we're not on the last pipeline stage so no losses
-            if forward_only:
-                loss_mean = []
-            else:
-                loss_mean = torch.tensor(0.0).cuda()
-
-        # if forward_only:
-        # return loss_mean
-        if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
-            return loss_mean, non_loss_tensors
-        else:
-            return loss_mean
-
-    def build_train_valid_test_datasets(self, stage):
-        # if stage != 'test':
-        #     logging.info('Building GPT SFT validation datasets.')
-        #     # Wrap this in a list since the general finetuning parent class supports multi-validation.
-        #     self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-        #     logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
-
-        # if stage != 'validate':
-        #     self.maybe_build_test()
-
-        # if stage == 'validate' or stage == 'test':
-        #     return
-        logging.info('Building GPT SFT traing datasets.')
-
-        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
-        logging.info(f'Length of train dataset: {len(self._train_ds)}')
-
-    def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
-        """Buld dataloader given an input dataset."""
-
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
-        if isinstance(dataset, BlendableDataset):
-            collate_fn = dataset.datasets[0].collate_fn
-        else:
-            collate_fn = dataset.collate_fn
-
-        batch_sampler = MegatronPretrainingBatchSampler(
-            total_samples=len(dataset),
-            consumed_samples=consumed_samples,
-            micro_batch_size=data_cfg.micro_batch_size,
-            global_batch_size=data_cfg.global_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+        
+    def on_validation_epoch_start(self):
+        # self._reset_activation_checkpointing_args()
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=data_cfg.drop_last,
-            pad_samples_to_global_batch_size=not data_cfg.drop_last,
         )
-        return torch.utils.data.DataLoader(
-            dataset,
-            batch_sampler=batch_sampler,
-            collate_fn=collate_fn,
-            num_workers=data_cfg.num_workers,
-            pin_memory=data_cfg.pin_memory,
-            persistent_workers=True if data_cfg.num_workers > 0 else False,
-        )
+        return super().on_validation_epoch_start()
 
-    def setup_training_dataloader(self):
-        if hasattr(self, '_train_ds'):
-            consumed_samples = self.compute_consumed_samples(0)
-            self._train_dl = self.build_data_loader(
-                dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
-            )
-    
+    def on_test_epoch_start(self):
+        # self._reset_activation_checkpointing_args()
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.test_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_test_epoch_start()
+
+    def on_predict_epoch_start(self):
+        return self.on_test_epoch_start()
+
+    def on_test_epoch_end(self):
+        _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
+        # Commenting as on_test_epoch_end was a no-op in PTL 1.9
+        # return super().on_test_epoch_end()
+
+    def on_validation_epoch_end(self):
+        _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
+        # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
+        # return super().on_validation_epoch_end()
+
     def on_train_epoch_start(self) -> None:
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
-
-    def maybe_setup_test(self):
-        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
-            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
-        return
+    
