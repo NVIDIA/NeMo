@@ -26,6 +26,7 @@ try:
     from megatron.core.transformer.enums import AttnMaskType
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
     from megatron.core.transformer.spec_utils import ModuleSpec
+    from megatron.core.transformer.identity_op import IdentityOp
 
     from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
@@ -54,6 +55,8 @@ def get_falcon_layer_spec() -> ModuleSpec:
                 linear_qkv=TEColumnParallelLinear,
                 core_attention=TEDotProductAttention,
                 linear_proj=TERowParallelLinear,
+                q_layernorm=IdentityOp,
+                k_layernorm=IdentityOp,
             ),
         ),
         self_attn_bda=get_bias_dropout_add,
