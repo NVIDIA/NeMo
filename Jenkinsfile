@@ -3816,6 +3816,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
     }
+<<<<<<< HEAD
 
     stage('L2: Megatron GPT Pretraining and Resume Training TP=2 with Torch Distributed Checkpoint') {
       when {
@@ -3954,6 +3955,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       }
     }
 */
+=======
+>>>>>>> parent of 8847b2e95... Expert parallelism support (#8632)
     stage('L2: Megatron GPT with Rope Pretraining and Resume Training TP=2') {
      when {
        anyOf {
