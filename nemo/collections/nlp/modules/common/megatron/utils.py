@@ -382,11 +382,9 @@ def get_params_for_weight_decay_optimization(
                             weight_decay_expert_params['params'].extend([param])
                         else:
                             weight_decay_params['params'].extend([param])
-    if len(weight_decay_expert_params['params']) > 0:
-        return weight_decay_params, weight_decay_expert_params, no_weight_decay_params
-    else:
-        return weight_decay_params, no_weight_decay_params
 
+    param_groups = [weight_decay_params, weight_decay_expert_params, no_weight_decay_params]
+    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 
 def get_all_params_for_weight_decay_optimization(
@@ -404,7 +402,8 @@ def get_all_params_for_weight_decay_optimization(
         weight_decay_params['params'] += list(filter(lambda x: not is_expert(x), module.parameters()))
         weight_decay_expert_params['params'] += list(filter(is_expert, module.parameters()))
 
-    return weight_decay_params, weight_decay_expert_params
+    param_groups = [weight_decay_params, weight_decay_expert_params]
+    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 
 def get_iterator_k_split(batch: List[torch.Tensor], num_microbatches: int) -> Iterator:
