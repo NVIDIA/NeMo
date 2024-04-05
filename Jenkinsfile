@@ -92,11 +92,11 @@ pipeline {
              pip install . && \
              cd megatron/core/datasets && \
              make'
-         sh 'export PYTHONPATH="${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"'
+         sh 'export PYTHONPATH="${PYTHONPATH}:/usr/local/lib/python3.10/dist-packages"'
          sh 'echo ${PYTHONPATH}'
       }
     }
-    
+
     stage('AMMO installation') {
       steps {
          sh 'pip install nvidia-ammo~=0.7.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir'
