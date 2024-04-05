@@ -68,7 +68,11 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
-        if self.config.sequence_parallel and hasattr(self.linear_qkv, "return_layernorm_output_gathered") and not self.config.tp_comm_overlap:
+        if (
+            self.config.sequence_parallel
+            and hasattr(self.linear_qkv, "return_layernorm_output_gathered")
+            and not self.config.tp_comm_overlap
+        ):
             # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
             # to perform the redundant gather in the adapter module, unless TP communication
             # overlap is used.
@@ -250,7 +254,11 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
             [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
         )  # only self attn (packed qkv) for now
         self.linear_fc1.return_layernorm_output = True  # need layernorm output for lora mlp
-        if self.config.sequence_parallel and hasattr(self.linear_fc1, "return_layernorm_output_gathered") and not self.config.tp_comm_overlap:
+        if (
+            self.config.sequence_parallel
+            and hasattr(self.linear_fc1, "return_layernorm_output_gathered")
+            and not self.config.tp_comm_overlap
+        ):
             # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
             # to perform the redundant gather in the adapter module, unless TP communication
             # overlap is used.
