@@ -228,11 +228,13 @@ class VitBackbone(MegatronModule):
             self.position_ids = torch.arange(self.seq_length).expand(1, -1).cuda()
 
             # Convolution layer
-            self.conv1 = torch.nn.Conv2d(in_channels=model_cfg.num_channels,    # Number of input channels
-                                        out_channels=self.hidden_size, # Number of output channels
-                                        kernel_size=(self.patch_dim, self.patch_dim), # Kernel size (height, width)
-                                        stride=(self.patch_dim, self.patch_dim),     # Stride (height, width)
-                                        bias=False)         # Disable bias
+            self.conv1 = torch.nn.Conv2d(
+                in_channels=model_cfg.num_channels,  # Number of input channels
+                out_channels=self.hidden_size,  # Number of output channels
+                kernel_size=(self.patch_dim, self.patch_dim),  # Kernel size (height, width)
+                stride=(self.patch_dim, self.patch_dim),  # Stride (height, width)
+                bias=False,
+            )  # Disable bias
 
             # embedding
             self.position_embedding_type = model_cfg.get("position_embedding_type", "learned_absolute")
