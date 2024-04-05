@@ -24,6 +24,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
+    PromptedAudioToTextMiniBatch,
     get_prompt_format_fn,
 )
 from nemo.collections.asr.metrics import BLEU, WER
@@ -103,6 +104,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     pnc: Optional[bool] = None
     source_lang: Optional[str] = None
     target_lang: Optional[str] = None
+    prompt: Optional[str] = None
     text_field: str = "answer"
     lang_field: str = "target_lang"
 
@@ -612,20 +614,19 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
     # PTL-specific methods
-    def training_step(self, batch, batch_nb):
+    def training_step(self, batch: PromptedAudioToTextMiniBatch, batch_nb):
 
         if batch is None:
             return torch.tensor([0.0])
 
         # During training prompt and prompt_len are null, ignore.
-        signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
-        input_ids, labels = transcript[:, :-1], transcript[:, 1:]
+        input_ids, labels = batch.prompted_transcript[:, :-1], batch.prompted_transcript[:, 1:]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
-            input_signal=signal,
-            input_signal_length=signal_len,
+            input_signal=batch.audio,
+            input_signal_length=batch.audio_lens,
             transcript=input_ids,
-            transcript_length=transcript_len,
+            transcript_length=batch.prompted_transcript_lens,
         )
 
         audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
@@ -637,16 +638,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         return {'loss': audio_loss, 'log': tensorboard_logs}
 
-    def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
-        # During inference, dataloader passes pure prompt without transcript text.
-        signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
-        input_ids, labels = transcript[:, :-1], transcript[:, 1:]
+    def validation_pass(self, batch: PromptedAudioToTextMiniBatch, batch_idx, dataloader_idx=0, eval_mode="val"):
+        input_ids, labels = batch.prompted_transcript[:, :-1], batch.prompted_transcript[:, 1:]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
-            input_signal=signal,
-            input_signal_length=signal_len,
+            input_signal=batch.audio,
+            input_signal_length=batch.audio_lens,
             transcript=input_ids,
-            transcript_length=transcript_len,
+            transcript_length=batch.prompted_transcript_lens,
         )
 
         transf_loss = self.loss(log_probs=transf_log_probs, labels=labels)
@@ -658,10 +657,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         self.wer.update(
             predictions=enc_states,
             predictions_lengths=encoded_len,
-            targets=transcript,
-            targets_lengths=transcript_len,
+            targets=batch.transcript,
+            targets_lengths=batch.transcript_lens,
             predictions_mask=enc_mask,
-            input_ids=prompt,
+            input_ids=batch.prompt,
         )
         wer, wer_num, wer_denom = self.wer.compute()
         output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
@@ -670,10 +669,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         self.bleu.update(
             predictions=enc_states,
             predictions_lengths=encoded_len,
-            targets=transcript,
-            targets_lengths=transcript_len,
+            targets=batch.transcript,
+            targets_lengths=batch.transcript_lens,
             predictions_mask=enc_mask,
-            input_ids=prompt,
+            input_ids=batch.prompt,
         )
         bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
         output_dict.update(bleu_metrics)
@@ -774,7 +773,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
         return super()._transcribe_input_manifest_processing(audio_files, temp_dir, trcfg)
 
-    def _transcribe_forward(self, batch: Any, trcfg: MultiTaskTranscriptionConfig):
+    def _transcribe_forward(self, batch: PromptedAudioToTextMiniBatch, trcfg: MultiTaskTranscriptionConfig):
         """
         Internal function to perform the model's custom forward pass to return outputs that are processed by
         `_transcribe_output_processing()`.
@@ -788,9 +787,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             The model's outputs that are processed by `_transcribe_output_processing()`.
         """
         log_probs, encoded_len, enc_states, enc_mask = self.forward(
-            input_signal=batch[0], input_signal_length=batch[1]
+            input_signal=batch.audio, input_signal_length=batch.audio_lens
         )
-        decoder_input_ids = batch[-2].to(trcfg._internal.device)
+        decoder_input_ids = batch.prompt.to(trcfg._internal.device)
         output = dict(
             log_probs=log_probs,
             encoded_lengths=encoded_len,
@@ -910,6 +909,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 entry = {
                     'audio_filepath': item,
                     'duration': 100000,
+                    'prompt': 'Transcribe the recording in English with punctuation and capitalization'
+                    if trcfg.prompt is None
+                    else trcfg.prompt,
                     'source_lang': 'en' if trcfg.source_lang is None else trcfg.source_lang,
                     'taskname': 'asr' if trcfg.task is None else trcfg.task,
                     'target_lang': 'en' if trcfg.target_lang is None else trcfg.target_lang,
@@ -920,6 +922,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 entry = item
                 entry['audio_filepath'] = get_full_path(entry['audio_filepath'], manifest_file=manifest_path)
 
+                if 'prompt' not in entry:
+                    entry['prompt'] = (
+                        'Transcribe the recording in English with punctuation and capitalization'
+                        if trcfg.prompt is None
+                        else trcfg.prompt
+                    )
                 if 'source_lang' not in entry:
                     entry['source_lang'] = 'en' if trcfg.source_lang is None else trcfg.source_lang
                 if 'taskname' not in entry:
@@ -945,30 +953,33 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         """
         return MultiTaskTranscriptionConfig()
 
-    def predict_step(self, batch, batch_idx=0, dataloader_idx=0, has_processed_signal=False):
-        signal, signal_len, _, _, prompt, prompt_len = batch
-
-        processed_signal = None
-        processed_signal_length = None
+    def predict_step(
+        self, batch: PromptedAudioToTextMiniBatch, batch_idx=0, dataloader_idx=0, has_processed_signal=False
+    ):
         if has_processed_signal:
-            processed_signal = signal
-            processed_signal_length = signal_len
             signal = None
             signal_len = None
+            processed_signal = batch.audio
+            processed_signal_length = batch.audio_lens
+        else:
+            signal = batch.audio
+            signal_len = batch.audio_lens
+            processed_signal = None
+            processed_signal_length = None
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=signal,
             input_signal_length=signal_len,
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
-            transcript=prompt,
-            transcript_length=prompt_len,
+            transcript=batch.prompt,
+            transcript_length=batch.prompt_lens,
         )
 
         text = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
-            decoder_input_ids=prompt,
+            decoder_input_ids=batch.prompt,
             return_hypotheses=False,
         )[0]
 

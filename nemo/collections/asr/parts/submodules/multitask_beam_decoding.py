@@ -205,9 +205,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 for i in range(len(topk_hypotheses)):
                     hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(self.beam_size)]
                     # Pack results into Hypotheses
-                    packed_result.append(
-                        NBestHypotheses(pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i]))
-                    )
+                    hypotheses = pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i])
+                    truncate_prompts(packed_result, decoder_input_ids)
+                    packed_result.append(NBestHypotheses(hypotheses))
             else:
                 beam_scores = [None for _ in range(len(best_hypo))]
                 best_hypo = best_hypo.detach().cpu()
@@ -216,8 +216,22 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 ]
                 # Pack results into Hypotheses
                 packed_result = pack_hypotheses(hypotheses, best_hypo, beam_scores)
+                truncate_prompts(packed_result, decoder_input_ids)
 
         return (packed_result,)
+
+
+def truncate_prompts(packed_result: List[Hypothesis], decoder_input_ids: torch.Tensor) -> None:
+    """For each example in the mini-batch, remove the decoder input ids (prompt) from the predictions. Modifies results in-place."""
+    assert (
+        len(packed_result) == decoder_input_ids.shape[0]
+    ), f"Mismatching number of examples {len(packed_result)=} {decoder_input_ids.shape[0]=}"
+    decoder_input_ids = decoder_input_ids.detach().cpu()
+    for hyp, prefix in zip(packed_result, decoder_input_ids):
+        assert (
+            hyp.y_sequence[: prefix.shape[0]] == prefix
+        ).all(), f"The decoder input IDs were not found at the beginning of prediction: {hyp.y_sequence=} {prefix=})"
+        hyp.y_sequence = hyp.y_sequence[prefix.shape[0] :]
 
 
 @dataclass

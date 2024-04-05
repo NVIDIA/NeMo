@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dataclasses import dataclass
 from typing import Callable, Sequence
 
 import omegaconf
@@ -22,6 +23,18 @@ from lhotse.dataset.collation import collate_vectors
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
+
+
+@dataclass
+class PromptedAudioToTextMiniBatch:
+    audio: torch.Tensor
+    audio_lens: torch.Tensor
+    transcript: torch.Tensor | None
+    transcript_lens: torch.Tensor | None
+    prompt: torch.Tensor | None
+    prompt_lens: torch.Tensor | None
+    prompted_transcript: torch.Tensor | None
+    prompted_transcript_lens: torch.Tensor | None
 
 
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
@@ -57,24 +70,37 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self.prompt_format_fn = prompt_format_fn
         self.inference = inference
 
-    def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        tokens, prompt_tokens = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
+        tokens, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
 
+        if self.inference:
+            transcript = None
+            transcript_lens = None
+        else:
+            transcript = [t[len(p) :] for t, p in zip(tokens, prompts)]
+            transcript, transcript_lens = self._collate_tokens(transcript)
+
+        tokens, token_lens = self._collate_tokens(tokens)
+        prompts, prompt_lens = self._collate_tokens(prompts)
+
+        return PromptedAudioToTextMiniBatch(
+            audio=audio,
+            audio_lens=audio_lens,
+            transcript=transcript,
+            transcript_lens=transcript_lens,
+            prompt=prompts,
+            prompt_lens=prompt_lens,
+            prompted_transcript=tokens,
+            prompted_transcript_lens=token_lens,
+        )
+
+    def _collate_tokens(self, tokens: list[list[int]]) -> tuple[torch.Tensor, torch.Tensor]:
         tokens = [torch.as_tensor(t) for t in tokens]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
-
-        if self.inference:
-            prompt_tokens = [torch.as_tensor(t) for t in prompt_tokens]
-            prompt_token_lens = torch.tensor([t.size(0) for t in prompt_tokens], dtype=torch.long)
-            prompt_tokens = collate_vectors(prompt_tokens, padding_value=self.padding_value)
-        else:
-            prompt_tokens = None
-            prompt_token_lens = None
-
-        return audio, audio_lens, tokens, token_lens, prompt_tokens, prompt_token_lens
+        return tokens, token_lens
 
 
 # Mapping from a string name to a known prompt formatter function.

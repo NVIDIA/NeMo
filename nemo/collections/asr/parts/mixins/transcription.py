@@ -17,7 +17,7 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -73,10 +73,17 @@ def move_to_device(batch, device):
     """
     if isinstance(batch, torch.Tensor):
         return batch.to(device)
+    elif batch is None:
+        return batch
     elif isinstance(batch, (list, tuple)):
         return [move_to_device(x, device) for x in batch]
     elif isinstance(batch, dict):
         return {k: move_to_device(v, device) for k, v in batch.items()}
+    elif is_dataclass(batch):
+        for field in batch.__dataclass_fields__:
+            value = getattr(batch, field)
+            setattr(batch, field, move_to_device(value, device))
+        return batch
     else:
         raise TypeError(f"Unsupported type: {type(batch)}")
 
