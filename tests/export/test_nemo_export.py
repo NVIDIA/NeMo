@@ -18,10 +18,15 @@ import shutil
 from pathlib import Path
 import torch
 
-from nemo.deploy import DeployPyTriton
-from nemo.deploy.nlp import NemoQueryLLM
-from nemo.export import TensorRTLLM
 from tests.infer_data_path import get_infer_test_data
+
+run_export_tests = True
+try:
+    from nemo.deploy import DeployPyTriton
+    from nemo.deploy.nlp import NemoQueryLLM
+    from nemo.export import TensorRTLLM
+except Exception as e:
+    run_export_tests = False
 
 
 def get_accuracy_with_lambada(model, nq, task_ids, lora_uids):
