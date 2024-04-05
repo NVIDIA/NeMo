@@ -9,6 +9,7 @@ pipeline {
   environment {
         NVTE_FUSED_ATTN = 0
         NVTE_FLASH_ATTN = 0
+        PYTHONPATH='${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM'
   }
 
   options {
@@ -97,7 +98,7 @@ pipeline {
     stage ('Add Megatron Core to PYTHONPATH') {
       steps {
         sh 'export PYTHONPATH="${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"'
-        sh 'echo "${PYTHONPATH}"'
+        sh 'echo ${PYTHONPATH}'
       }
     }
 
@@ -121,7 +122,9 @@ pipeline {
 
     stage('Basic Import Checks') {
       steps {
-        sh 'echo "${PYTHONPATH}"'
+        sh 'echo ${PYTHONPATH}'
+        sh 'pip show megatron_core'
+        sh 'pwd'
         sh 'python -c "import nemo.collections.asr as nemo_asr"'
         sh 'python -c "import nemo.collections.nlp as nemo_nlp"'
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
