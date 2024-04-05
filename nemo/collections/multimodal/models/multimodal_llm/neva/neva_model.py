@@ -636,7 +636,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return loss_for_ub, dict(avg=reduced_loss[0].unsqueeze(0))
 
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            batch, _, _ = next(dataloader_iter)
+            batch = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 for k in batch.keys():
                     if self.get_attention_mask_from_fusion:
@@ -715,7 +715,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch, _, _ = next(dataloader_iter)
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,
