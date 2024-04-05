@@ -175,10 +175,7 @@ def main(cfg) -> None:
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-    ):
+    if cfg.tensor_model_parallel_size < 0 or cfg.pipeline_model_parallel_size < 0:
         model_config = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True,
         )
