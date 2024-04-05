@@ -41,7 +41,18 @@
 Latest News
 -----------
 
-- 2023/12/06 `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_
+- `Accelerate your generative AI journey with NVIDIA NeMo framework on GKE <https://cloud.google.com/blog/products/compute/gke-and-nvidia-nemo-framework-to-train-generative-ai-models/>`_ (2024/03/16)
+  
+NVIDIA NeMo now includes instructions on how to train generative AI models on the Google Kubernetes Engine (GKE) using NVIDIA accelerated computing and the NVIDIA NeMo Framework. An end-to-end walkthrough is available at https://github.com/GoogleCloudPlatform/nvidia-nemo-on-gke. The walkthrough includes detailed instructions on how to set up a Google Cloud Project and use the NVIDIA NeMo Megatron Generative Pre-trained Transformer (GPT) with the NeMo Framework.
+
+
+- `Bria Builds Responsible Generative AI for Enterprises Using NVIDIA NeMo, Picasso <https://blogs.nvidia.com/blog/bria-builds-responsible-generative-ai-using-nemo-picasso/>`_ (2024/03/06)
+  
+NVIDIA NeMo now supplies Bria, a Tel Aviv startup at the forefront of visual generative AI for enterprises, with the NVIDIA NeMo Framework and NVIDIA Picasso. The Bria.ai platform uses reference implementations from the NeMo Multimodal collection, trained on NVIDIA Tensor Core GPUs, to enable high-throughput and low-latency image generation. Bria has also adopted NVIDIA Picasso, a foundry for visual generative AI models, to run inference.
+
+- `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_ (2023/12/06)
+
+NVIDIA NeMo Framework now includes several optimizations and enhancements, including: 1) Fully Sharded Data Parallelism (FSDP) to improve the efficiency of training large-scale AI models, 2) Mix of Experts (MoE)-based LLM architectures with expert parallelism for efficient LLM training at scale, 3) Reinforcement Learning from Human Feedback (RLHF) with TensorRT-LLM for inference stage acceleration, and 4) up to 4.2x speedups for Llama 2 pre-training on NVIDIA H200 Tensor Core GPUs.
 
 .. image:: https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png
   :target: https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility
@@ -52,7 +63,9 @@ NeMo Framework has been updated with state-of-the-art features,
 such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200.
 **All of these features will be available in an upcoming release.**
 
-
+- `NVIDIA now powers training for Amazon Titan Foundation models <https://blogs.nvidia.com/blog/nemo-amazon-titan/>`_ (2023/11/28)
+  
+NVIDIA NeMo now empowers the Amazon Titan Foundation models (FM) with efficient training and high-quality generative AI. The Titan FMs form the basis of Amazon’s generative AI service, Amazon Bedrock. The NeMo Framework provides a versatile framework for building, customizing, and running large language models (LLMs). Amazon Web Services (AWS) leverage the NeMo Framework to create and fine-tune Titan models which benefit from its extensibility, scalability, parallelism techniques, and high GPU utilization.
 
 Introduction
 ------------
