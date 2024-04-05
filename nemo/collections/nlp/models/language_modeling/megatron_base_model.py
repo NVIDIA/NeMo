@@ -68,6 +68,8 @@ except (ImportError, ModuleNotFoundError):
 
     ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
+    ModelParallelConfig = ApexGuardDefaults
+
     HAVE_MEGATRON_CORE = False
 
 try:
@@ -146,6 +148,19 @@ class MegatronBaseModel(NLPModel):
         # set the megatron core model parallel config
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
+        # TODO: @maanug-nv consolidate into one attribute (requires lots of changes in subclasses)
+        self.torch_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)  # Mixed precision datatype
+        self.autocast_dtype = self.torch_dtype  # Mixed precision datatype
+        # instantiate weights in mixed precision datatype if using megatron amp O2
+        self.params_dtype = (
+            self.torch_dtype
+            if self.torch_dtype in [torch.bfloat16, torch.float16] and self.cfg.get('megatron_amp_O2', False)
+            else torch.float32
+        )
+
+        # set the megatron core model parallel config
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
+
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
         self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
@@ -185,6 +200,18 @@ class MegatronBaseModel(NLPModel):
                     self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
                 ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
+        # Set virtual pipeline size to None if it is 1 and
+        # confirm that the number of model chunks is the same across all pipeline stages.
+        vp_size = self.cfg.get('virtual_pipeline_model_parallel_size', None)
+
+        if vp_size is not None:
+            if vp_size == 1:
+                vp_size = None
+            else:
+                assert (
+                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,
             global_rank=init_global_rank,
@@ -210,6 +237,9 @@ class MegatronBaseModel(NLPModel):
         # set the megatron core model parallel config
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
+        # set the megatron core model parallel config
+        self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
+
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
         if hasattr(self._cfg, "tokenizer") or (
@@ -230,6 +260,8 @@ class MegatronBaseModel(NLPModel):
         }
 
         self.gc_interval = cfg.get('gc_interval', 0)
+        # Do manual garbage collection during validation routine when gc_interval > 0
+        self.gc_in_validation = bool(int(os.getenv("NEMO_MANUAL_GC_IN_VALIDATION", 1)))
         # Do manual garbage collection during validation routine when gc_interval > 0
         self.gc_in_validation = bool(int(os.getenv("NEMO_MANUAL_GC_IN_VALIDATION", 1)))
         assert self.gc_interval >= 0, "gc_interval should be an integer value larger than or equal to 0."
@@ -362,6 +394,15 @@ class MegatronBaseModel(NLPModel):
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
+    def _reconfigure_val_batches(self):
+        """
+        Reconfigure trainer.limit_val_batches for pretraining
+        """
+        # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
+        self.trainer.limit_val_batches *= get_num_microbatches()
+        # Override num sanity steps to be a multiple of num of microbatches
+        self.trainer.num_sanity_val_steps *= get_num_microbatches()
+
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
 
@@ -415,7 +456,7 @@ class MegatronBaseModel(NLPModel):
             legacy = True if self._cfg.tokenizer.library == 'sentencepiece' else False
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
+            model_name=self._cfg.tokenizer.get("type", None),
             tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.get('model', None)),
             vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.get('vocab_file', None)),
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.get('merge_file', None)),
@@ -905,6 +946,10 @@ class MegatronBaseModel(NLPModel):
             self.init_global_step = 0  # in case this method is called before training starts.
         return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
+    def _compute_consumed_samples_after_training_step(self):
+        # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
+
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
         try:
             init_consumed_samples = int(float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", ckpt_path)[0]))
@@ -954,6 +999,15 @@ class MegatronBaseModel(NLPModel):
         if self.cfg.get('use_emha', False):
             raise ValueError('use_emha is not yet supported please set to False')
 
+        vp_size = self.cfg.get('virtual_pipeline_model_parallel_size', None)
+
+        if vp_size is not None:
+            if vp_size == 1:
+                self.cfg['virtual_pipeline_model_parallel_size'] = None
+            else:
+                assert (
+                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
         vp_size = self.cfg.get('virtual_pipeline_model_parallel_size', None)
 
         if vp_size is not None:
@@ -1016,7 +1070,13 @@ class MegatronBaseModel(NLPModel):
                     if is_mcore_model
                     else model[-1].word_embeddings_weight()
                 )
+                word_embeddings_weight = (
+                    model[-1].module.shared_embedding_or_output_weight()
+                    if getattr(self, 'mcore_gpt', False)
+                    else model[-1].word_embeddings_weight()
+                )
                 # substract the embedding weights on the last virtual stage
+                num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
                 num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
                 num_parameters_on_device -= num_word_embedding_parameters
         else:
@@ -1031,7 +1091,13 @@ class MegatronBaseModel(NLPModel):
                     if is_mcore_model
                     else model.word_embeddings_weight()
                 )
+                word_embeddings_weight = (
+                    model.module.shared_embedding_or_output_weight()
+                    if getattr(self, 'mcore_gpt', False)
+                    else model.word_embeddings_weight()
+                )
                 # substract the embedding weights on the last stage
+                num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
                 num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
                 num_parameters_on_device -= num_word_embedding_parameters
 

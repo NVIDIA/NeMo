@@ -135,7 +135,10 @@ def _audio_text_collate_fn(
 
     loss_mask = [_build_loss_mask(item)[1:] for item in batch]
 
-    max_length = max([len(x) for x in input_ids]) + tokens_to_generate
+    max_length = (
+        max([len(x) for x in input_ids] + [len(x) for x in answers] + [len(x) for x in contexts]) + tokens_to_generate
+    )
+
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
         max_length = max_seq_length
@@ -145,12 +148,14 @@ def _audio_text_collate_fn(
 
     position_ids = [list(range(max_length)) for _ in batch]
     position_ids = torch.LongTensor(position_ids)
+    input_length = torch.LongTensor([len(x) for x in input_ids])
     input_ids = torch.LongTensor(_collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
     input_length = torch.LongTensor([len(x) for x in input_ids])
     labels = torch.LongTensor(_collate_item(labels, max_length=max_length, pad_id=text_pad_id))
     loss_mask = torch.LongTensor(_collate_item(loss_mask, max_length=max_length, pad_id=0))
     contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
     answers = torch.LongTensor(_collate_item(answers, max_length=max_length, pad_id=text_pad_id))
+    audio_ratio = [item['audio_ratio'] for item in batch if 'audio_ratio' in item]
 
     batch = {
         'sample_ids': sample_ids,
@@ -342,10 +347,10 @@ class TextProcessing(object):
         # If the total number of token is greater than the max, we will try to truncate the answer
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
-            if self.truncation_field == "answer":
-                answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-            elif self.truncation_field == "context":
-                context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+            # TODO
+            answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
+            context_ids = context_ids[: -min(truncation_length, len(context_ids))]
+
 
         input_ids = context_ids
         answer_start_idx = len(input_ids)
@@ -530,6 +535,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             f, fl = features, torch.tensor(features.shape[0]).long()
             output["audio_signal"] = f
             output["audio_length"] = fl
+            audio_ratio = 1
         else:
             # dummy features
             output["audio_signal"] = torch.zeros([80])
@@ -544,6 +550,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             'offset': offset,
             'duration': sample.duration,
         }
+        output['audio_ratio'] = torch.tensor(audio_ratio)
         return output
 
     def __len__(self):
@@ -660,6 +667,7 @@ class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
             'offset': offsets,
             'duration': sample.duration,
         }
+        output['audio_ratio'] = torch.tensor(audio_ratio)
         return output
 
 

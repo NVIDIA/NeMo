@@ -347,8 +347,10 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if log_token_counts:
             token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
 
-        # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
-        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        # TODO: Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+        if 'context_start_idx' not in batch:
+            # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+            batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
@@ -806,8 +808,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            lengths = [len(x) for x in self._validation_ds]
-            logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
+            # TODO: for lhotse
+            # lengths = [len(x) for x in self._validation_ds]
+            # logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
 
         if stage != 'validate':
             self.maybe_build_test()

@@ -188,6 +188,7 @@ class TextToSpeechDataset(Dataset):
 
             sample = DatasetSample(
                 dataset_name=dataset_name,
+                dataset_name=dataset_name,
                 manifest_entry=entry,
                 audio_dir=Path(dataset.audio_dir),
                 feature_dir=Path(dataset.feature_dir),
@@ -251,6 +252,7 @@ class TextToSpeechDataset(Dataset):
 
     def collate_fn(self, batch: List[dict]):
         dataset_name_list = []
+        dataset_name_list = []
         audio_filepath_list = []
         audio_list = []
         audio_len_list = []
@@ -260,6 +262,7 @@ class TextToSpeechDataset(Dataset):
         prior_list = []
 
         for example in batch:
+            dataset_name_list.append(example["dataset_name"])
             dataset_name_list.append(example["dataset_name"])
             audio_filepath_list.append(example["audio_filepath"])
 
@@ -285,6 +288,7 @@ class TextToSpeechDataset(Dataset):
         batch_tokens = stack_tensors(token_list, max_lens=[token_max_len], pad_value=self.text_tokenizer.pad)
 
         batch_dict = {
+            "dataset_names": dataset_name_list,
             "dataset_names": dataset_name_list,
             "audio_filepaths": audio_filepath_list,
             "audio": batch_audio,

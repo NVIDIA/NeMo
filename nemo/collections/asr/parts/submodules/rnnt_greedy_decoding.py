@@ -742,7 +742,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Mask buffers
             blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
-            blank_mask_prev = None
 
             # Get max sequence length
             max_out_len = out_len.max()
@@ -760,8 +759,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
                 blank_mask = time_idx >= out_len
-                blank_mask_prev = blank_mask.clone()
-
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                     # Batch prediction and joint network steps
@@ -790,6 +787,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                     k_is_blank = k == self._blank_index
                     blank_mask.bitwise_or_(k_is_blank)
+                    all_blanks = torch.all(blank_mask)
 
                     del k_is_blank
 
@@ -800,9 +798,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         logp_vals = logp.to('cpu')
                         logp_ids = logp_vals.max(1)[1]
                         for batch_idx, is_blank in enumerate(blank_mask):
-                            # we only want to update non-blanks and first-time blanks,
-                            # otherwise alignments will contain duplicate predictions
-                            if time_idx < out_len[batch_idx] and (not blank_mask_prev[batch_idx] or not is_blank):
+                            # we only want to update non-blanks, unless we are at the last step in the loop where
+                            # all elements produced blanks, otherwise there will be duplicate predictions
+                            # saved in alignments
+                            if time_idx < out_len[batch_idx] and (all_blanks or not is_blank):
                                 hypotheses[batch_idx].alignments[-1].append(
                                     (logp_vals[batch_idx], logp_ids[batch_idx])
                                 )
@@ -814,15 +813,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Insert probabilities into last timestep per sample
                         confidence = self._get_confidence(logp)
                         for batch_idx, is_blank in enumerate(blank_mask):
-                            if time_idx < out_len[batch_idx] and (not blank_mask_prev[batch_idx] or not is_blank):
+                            if time_idx < out_len[batch_idx] and (all_blanks or not is_blank):
                                 hypotheses[batch_idx].frame_confidence[-1].append(confidence[batch_idx])
                     del logp
 
-                    blank_mask_prev.bitwise_or_(blank_mask)
-
                     # If all samples predict / have predicted prior blanks, exit loop early
                     # This is equivalent to if single sample predicted k
-                    if blank_mask.all():
+                    if all_blanks:
                         not_blank = False
                     else:
                         # Collect batch indices where blanks occurred now/past
@@ -943,7 +940,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         # Mask buffers
         blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
-        blank_mask_prev = None
 
         # Get max sequence length
         max_out_len = out_len.max()
@@ -963,7 +959,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
                 blank_mask = time_idx >= out_len
-                blank_mask_prev = blank_mask.clone()
 
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
@@ -1002,6 +997,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                     k_is_blank = k == self._blank_index
                     blank_mask.bitwise_or_(k_is_blank)
+                    all_blanks = torch.all(blank_mask)
 
                     # If preserving alignments, check if sequence length of sample has been reached
                     # before adding alignment
@@ -1010,9 +1006,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         logp_vals = logp.to('cpu')
                         logp_ids = logp_vals.max(1)[1]
                         for batch_idx, is_blank in enumerate(blank_mask):
-                            # we only want to update non-blanks and first-time blanks,
-                            # otherwise alignments will contain duplicate predictions
-                            if time_idx < out_len[batch_idx] and (not blank_mask_prev[batch_idx] or not is_blank):
+                            # we only want to update non-blanks, unless we are at the last step in the loop where
+                            # all elements produced blanks, otherwise there will be duplicate predictions
+                            # saved in alignments
+                            if time_idx < out_len[batch_idx] and (all_blanks or not is_blank):
                                 hypotheses[batch_idx].alignments[-1].append(
                                     (logp_vals[batch_idx], logp_ids[batch_idx])
                                 )
@@ -1025,11 +1022,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Insert probabilities into last timestep per sample
                         confidence = self._get_confidence(logp)
                         for batch_idx, is_blank in enumerate(blank_mask):
-                            if time_idx < out_len[batch_idx] and (not blank_mask_prev[batch_idx] or not is_blank):
+                            if time_idx < out_len[batch_idx] and (all_blanks or not is_blank):
                                 hypotheses[batch_idx].frame_confidence[-1].append(confidence[batch_idx])
                     del logp
-
-                    blank_mask_prev.bitwise_or_(blank_mask)
 
                     # If all samples predict / have predicted prior blanks, exit loop early
                     # This is equivalent to if single sample predicted k
