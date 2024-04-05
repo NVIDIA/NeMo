@@ -454,7 +454,6 @@ def save_weight_torch(tp_rank, saved_dir, split_factor, key, vals, storage_type,
             key = key.replace("attention.linear_proj.bias", "attention.dense.bias")
 
         save_tranpose(gpu_val, key, shared=True)
-
     elif (
         "attention.dense.weight" in key
         or "mlp.dense_4h_to_h.weight" in key
@@ -466,7 +465,6 @@ def save_weight_torch(tp_rank, saved_dir, split_factor, key, vals, storage_type,
         elif "mlp.linear_fc2.weight" in key:
             key = key.replace("mlp.linear_fc2.weight", "mlp.dense_4h_to_h.weight")
         save_tranpose(gpu_val, key)
-
     elif (
         "mlp.dense_h_to_4h.weight" in key
         or "mlp.dense_h_to_4h.bias" in key
@@ -475,9 +473,12 @@ def save_weight_torch(tp_rank, saved_dir, split_factor, key, vals, storage_type,
     ):
         if split_gated_activation:
             val, gate = torch.chunk(gpu_val, 2, axis=-1)
+        else:
+            val, gate = None, None
 
         if "mlp.linear_fc1" in key:
             key = key.replace("mlp.linear_fc1", "mlp.dense_h_to_4h")
+
         save_tranpose(val, key)
 
         if split_gated_activation:

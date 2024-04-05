@@ -29,11 +29,14 @@ except Exception as e:
     run_export_tests = False
 
 
-def get_accuracy_with_lambada(model, nq, task_ids, lora_uids):
+def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path=None):
     # lambada dataset based accuracy test, which includes more than 5000 sentences.
     # Use generated last token with original text's last token for accuracy comparison.
     # If the generated last token start with the original token, trtllm_correct make an increment.
     # It generates a CSV file for text comparison detail.
+
+    if test_data_path is None:
+        raise Exception("test_data_path cannot be None.")
 
     trtllm_correct = 0
     trtllm_deployed_correct = 0
@@ -42,7 +45,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids):
     all_expected_outputs = []
     all_trtllm_outputs = []
 
-    with open('/opt/NeMo/tests/deploy/lambada.json', 'r') as file:
+    with open(test_data_path, 'r') as file:
         records = json.load(file)
 
         for record in records:
@@ -132,6 +135,7 @@ def run_trt_llm_inference(
     streaming=False,
     stop_words_list=None,
     test_deployment=False,
+    test_data_path=None,
 ):
     if Path(checkpoint_path).exists():
         if n_gpu > torch.cuda.device_count():
@@ -257,7 +261,7 @@ def run_trt_llm_inference(
                 trtllm_deployed_accuracy_relaxed,
                 all_trtllm_outputs,
                 all_expected_outputs,
-            ) = get_accuracy_with_lambada(trt_llm_exporter, nq, task_ids, lora_uids,)
+            ) = get_accuracy_with_lambada(trt_llm_exporter, nq, task_ids, lora_uids, test_data_path)
             if test_deployment:
                 nm.stop()
             shutil.rmtree(trt_llm_model_dir)
@@ -282,6 +286,7 @@ def run_existing_checkpoints(
     run_accuracy=False,
     test_deployment=False,
     stop_words_list=None,
+    test_data_path=None,
 ):
     if n_gpus > torch.cuda.device_count():
         print("Skipping the test due to not enough number of GPUs")
@@ -295,7 +300,7 @@ def run_existing_checkpoints(
 
     if n_gpus < model_info["min_gpus"]:
         print("Min n_gpus for this model is {0}".format(n_gpus))
-        return None, None, None
+        return None, None, None, None
 
     p_tuning_checkpoint = None
     if ptuning:
@@ -335,6 +340,7 @@ def run_existing_checkpoints(
         streaming=streaming,
         stop_words_list=stop_words_list,
         test_deployment=test_deployment,
+        test_data_path=test_data_path,
     )
 
 
@@ -414,6 +420,9 @@ def get_args():
     parser.add_argument(
         "--ci_upload_test_results_to_cloud", default=False, action='store_true',
     )
+    parser.add_argument(
+        "--test_data_path", type=str, default=None,
+    )
 
     return parser.parse_args()
 
@@ -423,6 +432,10 @@ def run_inference_tests(args):
         args.test_deployment = False
     else:
         args.test_deployment = True
+
+    if args.run_accuracy:
+        if args.test_data_path is None:
+            raise Exception("test_data_path param cannot be None.")
 
     result_dic = {}
 
@@ -447,6 +460,7 @@ def run_inference_tests(args):
                 streaming=args.streaming,
                 test_deployment=args.test_deployment,
                 run_accuracy=args.run_accuracy,
+                test_data_path=args.test_data_path,
             )
             result_dic[n_gpus] = (
                 trtllm_accuracy,
@@ -491,6 +505,7 @@ def run_inference_tests(args):
                 debug=args.debug,
                 streaming=args.streaming,
                 test_deployment=args.test_deployment,
+                test_data_path=args.test_data_path,
             )
             result_dic[n_gpus] = (
                 trtllm_accuracy,
