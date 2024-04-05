@@ -19,7 +19,7 @@ ci:
   autofix_prs: true
   autoupdate_commit_msg: '[pre-commit.ci] pre-commit suggestions'
   autoupdate_schedule: quarterly
-  # ignore all hooks that can change the files, use GitHub Action "code-formatting.yml" for this
+  # skip all hooks that can change the files, use GitHub Action "code-formatting.yml" for this
   skip: [black,isort]
 
 repos:
