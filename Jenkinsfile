@@ -9,7 +9,6 @@ pipeline {
   environment {
         NVTE_FUSED_ATTN = 0
         NVTE_FLASH_ATTN = 0
-	PYTHONPATH = "${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH/Megatron-LM"
   }
 
   options {
@@ -64,7 +63,6 @@ pipeline {
       }
     }
 
-    // Transformer Engine 1.2.0
     stage('Transformer Engine installation') {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
@@ -76,7 +74,6 @@ pipeline {
       }
     }
 
-    // Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
     stage('Apex installation') {
       steps {
          sh 'git clone https://github.com/NVIDIA/apex.git && \
@@ -86,16 +83,6 @@ pipeline {
       }
     }
 
-    stage('Pytorch lightning installation') {
-      steps {
-         sh 'git clone -b bug_fix https://github.com/athitten/pytorch-lightning.git && \
-             cd pytorch-lightning && \
-             PACKAGE_NAME=pytorch pip install -e .'
-      }
-    }
-
-    // pip package should be working with main, if not we can update the commit here
-    // until the pip package is updated
     stage('Megatron Core installation') {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
@@ -104,6 +91,13 @@ pipeline {
              pip install . && \
              cd megatron/core/datasets && \
              make'
+      }
+    }
+
+    stage ('Add Megatron Core to PYTHONPATH') {
+      steps {
+        sh 'export PYTHONPATH="${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"'
+        sh 'echo "${PYTHONPATH}"'
       }
     }
 
@@ -127,6 +121,7 @@ pipeline {
 
     stage('Basic Import Checks') {
       steps {
+        sh 'echo "${PYTHONPATH}"'
         sh 'python -c "import nemo.collections.asr as nemo_asr"'
         sh 'python -c "import nemo.collections.nlp as nemo_nlp"'
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
