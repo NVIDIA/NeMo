@@ -27,11 +27,11 @@ Example
 ^^^^^^^
 The example below shows how to quantize the Llama2 70b model into FP8 precision, using tensor parallelism of 8 on a single DGX H100 node. The quantized model is designed for serving using 2 GPUs specified with the ``export.inference_tensor_parallel`` parameter.
 
-The script must be launched correctly with the number of processes equal to tensor parallelism. This is achieved with the ``mpirun`` command below.
+The script must be launched correctly with the number of processes equal to tensor parallelism. This is achieved with the ``torchrun`` command below.
 
 .. code-block:: bash
 
-    mpirun -n 8 python examples/nlp/language_modeling/megatron_llama_quantization.py \
+    torchrun --nproc-per-node 8 examples/nlp/language_modeling/megatron_llama_quantization.py \
         model_file=llama2-70b-base-bf16.nemo \
         tensor_model_parallel_size=8 \
         pipeline_model_parallel_size=1 \
