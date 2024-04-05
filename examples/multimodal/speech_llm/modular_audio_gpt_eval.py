@@ -121,14 +121,15 @@ def main(cfg) -> None:
 
     model.freeze()
     if cfg.get("save_as_nemo", None):
+        model.setup()  # need to call setup() to load adapters and prepare for saving
         model.save_to(cfg.save_as_nemo)
-        logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}")
+        logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}, exiting...")
+        exit(0)
 
     if not cfg.model.get('use_flash_attention', False):
         cfg.inference.compute_attention_mask = True
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
-    model.freeze()
 
     if cfg.evaluate_metric:
         trainer.test(model)

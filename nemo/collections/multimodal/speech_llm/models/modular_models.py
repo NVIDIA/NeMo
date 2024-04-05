@@ -880,8 +880,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             model_cfg.data.test_ds = cfg.model.data.test_ds
 
         with open_dict(cfg):
-            cfg.inference.add_BOS = model_cfg.data.test_ds.add_bos
-            cfg.inference.tokens_to_generate = model_cfg.data.test_ds.get("tokens_to_generate", 1)
+            if model_cfg.data.test_ds is not None:
+                cfg.inference.add_BOS = model_cfg.data.test_ds.get("add_BOS", False)
+                cfg.inference.tokens_to_generate = model_cfg.data.test_ds.get("tokens_to_generate", 1)
 
         model_cfg.megatron_amp_O2 = False  # always evaluate with O1
         return model_cfg
