@@ -219,14 +219,15 @@ class T5SpeechLMDataset(BasePromptLearningDataset):
             assert self.context_duration_min == self.context_duration_max, "For decoder conditioning, context_duration_min and context_duration_max should be same"
             self.decoder_context_len = int(self.context_duration_min * self.codebook_fps) #TODO: Just take from model var?
 
-        # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
+        # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type\
+        self.sup_data_path = None
         if sup_data_path is not None:
             Path(sup_data_path).mkdir(parents=True, exist_ok=True)
             self.sup_data_path = sup_data_path
 
         self.codec_folder = kwargs.pop('codec_folder', None)
         self.train_task = train_task
-        if self.codec_folder is None:
+        if self.codec_folder is None and self.sup_data_path is not None:
             self.codec_folder = Path(self.sup_data_path) / "codec"
         elif isinstance(self.codec_folder, str):
             self.codec_folder = Path(self.codec_folder)
