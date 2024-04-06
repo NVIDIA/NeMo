@@ -401,7 +401,7 @@ class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
             micro_batch_size=tensor_shape[1],
         )
 
-        output_tensor[0]['logits'] = output_tensor[0]['logits'][:, context_length-1:context_length, :]
+        output_tensor[0]['logits'] = output_tensor[0]['logits'][:, :context_length, :]
         return output_tensor
 
 
