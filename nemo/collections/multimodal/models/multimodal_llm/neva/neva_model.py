@@ -35,7 +35,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPVisionTransformer,
     MegatronCLIPModel,
 )
-from nemo.collections.multimodal.parts.utils import extend_instance, load_nemo_model_weights
+from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
