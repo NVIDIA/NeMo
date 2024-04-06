@@ -76,9 +76,7 @@ def get_args():
     )
     parser.add_argument("--path_to_save", type=str, default=None, required=True, help="Path to output ckpt files.")
     parser.add_argument(
-        "--save_to_nemo",
-        action="store_true",
-        help="If passed, output will be written as .nemo file.",
+        "--save_to_nemo", action="store_true", help="If passed, output will be written as .nemo file.",
     )
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
@@ -167,9 +165,11 @@ def convert(local_rank, rank, world_size, args):
     logging.info(
         f'rank: {rank}, local_rank: {local_rank}, is loading checkpoint: {checkpoint_path} for tp_rank: {app_state.tensor_model_parallel_rank} and pp_rank: {app_state.pipeline_model_parallel_rank}'
     )
-    
+
     kwargs = {"sharded_strategy": "torch_dist"}
-    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, **kwargs)
+    model = MegatronGPTModel.load_from_checkpoint(
+        checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, **kwargs
+    )
     model.cfg.torch_distributed_checkpoint = True
 
     model._save_restore_connector = NLPSaveRestoreConnector()
