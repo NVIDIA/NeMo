@@ -31,7 +31,7 @@ except (ImportError, ModuleNotFoundError) as e:
     TransformerLayer = TransformerLayerSubmodules = ApexGuardDefaults
     MLP = MLPSubmodules = ModuleSpec = IdentityOp = ApexGuardDefaults
     AttnMaskType = DotProductAttention = TENorm = ApexGuardDefaults
-    ColumnParallelLinear = RowParallelLinear = SelfAttention = SelfAttentionSubmodules
+    ColumnParallelLinear = RowParallelLinear = SelfAttention = SelfAttentionSubmodules = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
