@@ -115,7 +115,12 @@ class MegatronTrainerBuilder:
             if megatron_amp_O2 and not with_distributed_adam:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
-                plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+                if self.cfg.model.get('fsdp', False):
+                    plugins.append(FSDPPrecision(precision=plugin_precision, scaler=scaler))
+                else:
+                    plugins.append(
+                        PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
+                    )
             self.cfg.trainer.precision = None
 
         if self.cfg.get('cluster_type', None) == 'BCP':
@@ -153,6 +158,29 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
         if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
             callbacks.append(CustomProgressBar())
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
+
+
+class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
+    """Builder for SD model Trainer with overrides."""
+
+    def _training_strategy(self) -> NLPDDPStrategy:
+        """
+        Returns a ddp strategy passed to Trainer.strategy.
+        """
+        ddp_overlap = self.cfg.model.get("ddp_overlap", True)
+        if ddp_overlap:
+            return NLPDDPStrategy(
+                no_ddp_communication_hook=False,
+                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=True,
+                bucket_cap_mb=256,
+            )
+        else:
+            return NLPDDPStrategy(
+                no_ddp_communication_hook=True,
+                gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
+                find_unused_parameters=False,
+            )
 
 
 class MegatronLMPPTrainerBuilder(MegatronTrainerBuilder):
