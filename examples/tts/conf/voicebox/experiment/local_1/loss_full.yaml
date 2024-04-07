@@ -1,18 +1,15 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=ngc
+# python train.py experiment=local_1/loss_full
 
 defaults:
-  - ngc
+  - /experiment@_global_:
+    - local_1
+    - tricks/loss_full
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-model:
-  optim:
-    sched:
-      warmup_steps: 0
-
 # task name, determines output directory path
-task_name: "ngc-no_warmup"
+task_name: "local_1-loss_full"

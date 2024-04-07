@@ -4,53 +4,25 @@
 # python train.py experiment=local-1
 
 defaults:
-  - default
+  - /experiment@_global_:
+    - paper/default
+    - tricks/adam_warmup
+    # - tricks/gradient_clip
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  librilight_dir: /datasets/LibriLight/
-  manifests_dir: data/parsed/LibriHeavy
-  libriheavy_dir: data/download/LibriHeavy
-  textgrid_dir: data/aligned/textgrids
-    
-  corpus_dir: ${.librilight_dir}
-    
-  duration_predictor:
-    depth: 8  # for english
-
   freeze_updates:
     enabled: True
     modules:
       voicebox: -1  # steps to freeze from start (-1: to the end)
     
-  optim:
-    name: adam
-    lr: 1e-4
-
-    sched:
-      name: WarmupAnnealing
-      warmup_steps: 5000
-      max_steps: ${....trainer.max_steps}
-
   train_ds:
-    max_duration: 16 # ~1600 frames of paper settings
-    manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_large.jsonl.gz
     lhotse:
       batch_duration: 600 # ~ 60k phones per batch
 
-  validation_ds:
-    lhotse:
-      batch_duration: 300
-  
-  test_ds:
-    lhotse:
-      batch_duration: 300
-
 trainer:
-  devices: auto
-  max_epochs: null
   max_steps: 600000 # duration model steps
 
 exp_manager:
@@ -65,7 +37,7 @@ exp_manager:
   #   monitor: val_loss_total
 
 # task name, determines output directory path
-task_name: "paper"
+task_name: "paper_dp"
 
 # set False to skip model training
 train: True

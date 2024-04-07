@@ -1,0 +1,6 @@
+# @package _global_
+
+model:
+  voicebox:
+    loss_masked: True
+

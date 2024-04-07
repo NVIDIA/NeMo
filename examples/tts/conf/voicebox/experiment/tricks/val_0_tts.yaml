@@ -1,0 +1,10 @@
+# @package _global_
+
+model:
+  validation_ds:
+    min_duration: 4
+    max_duration: 8
+    lhotse:
+      batch_duration: 240
+
+  val_0_tts: True

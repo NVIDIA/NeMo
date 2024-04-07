@@ -1,21 +1,19 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=local_1
+# python train.py experiment=libritts/libritts-local_1
 
 defaults:
-  - default
-  - override /dataset@model: libritts
+  - /experiment@_global_:
+    - default
+    - tricks/no_diffusion
+    - tricks/loss_full
+  - override /dataset: libritts
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  manifests_dir: data/parsed/LibriTTS
-  textgrid_dir: data/aligned/LibriTTS/textgrid
-  
-  corpus_dir: data/download/LibriTTS/LibriTTS
-
   duration_predictor:
     depth: 4
     heads: 2
@@ -23,8 +21,6 @@ model:
   voicebox:
     depth: 4
     heads: 2
-    no_diffusion: True
-    loss_masked: False
     frac_lengths_mask: [0.3, 0.5]
 
   # cfm_wrapper:

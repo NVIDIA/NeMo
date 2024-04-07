@@ -1,14 +1,12 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=local-1
+# python train.py experiment=a100/fix_time_emb
 
 defaults:
-  - a100
-
-model:
-  voicebox:
-    fix_time_emb: True
+  - /experiment@_global_:
+    - a100
+    - tricks/fix_time_emb
 
 # task name, determines output directory path
 task_name: "a100-fix_time_emb"

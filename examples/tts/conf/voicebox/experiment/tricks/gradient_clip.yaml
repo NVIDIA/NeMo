@@ -1,0 +1,5 @@
+# @package _global_
+
+trainer:
+  gradient_clip_algorithm: norm
+  gradient_clip_val: .2

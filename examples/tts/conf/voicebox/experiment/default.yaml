@@ -1,7 +1,7 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=local-1
+# python train.py experiment=default
 
 defaults:
   - override /model: mfa
@@ -36,11 +36,6 @@ model:
 
   ds_kwargs:
     num_workers: 8
-
-trainer:
-  devices: auto
-  max_epochs: null
-  max_steps: 500000 # audio model steps
 
 exp_manager:
   # save_dir = ${exp_dir}/${name}/${version}

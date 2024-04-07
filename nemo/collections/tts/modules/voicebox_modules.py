@@ -43,6 +43,7 @@ from einops import rearrange, repeat, reduce, pack, unpack
 from voicebox_pytorch.voicebox_pytorch import AudioEncoderDecoder
 from voicebox_pytorch.voicebox_pytorch import MelVoco as _MelVoco
 from voicebox_pytorch.voicebox_pytorch import EncodecVoco as _EncodecVoco
+import dac
 
 from pytorch_lightning import LightningModule
 from nemo.utils import logging
@@ -159,6 +160,85 @@ class EncodecVoco(_EncodecVoco, LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.freeze()
+
+
+class DACVoco(AudioEncoderDecoder, LightningModule):
+    def __init__(
+        self,
+        *,
+        sampling_rate = 16000,
+        pretrained_path = '16khz',
+        bandwidth_id = None,
+        factorized_latent = False,
+        return_code = False,
+    ):
+        super().__init__()
+        model_path = dac.utils.download(model_type=pretrained_path)
+        self.model = dac.DAC.load(model_path)
+        self.sampling_rate = sampling_rate
+        assert self.sampling_rate == self.model.sample_rate
+
+        bandwidth_id = self.model.n_codebooks if not bandwidth_id else bandwidth_id
+        self.register_buffer('bandwidth_id', torch.tensor([bandwidth_id]))
+        self.register_buffer('factorized_latent', torch.BoolTensor([factorized_latent]))
+        self.register_buffer('return_code', torch.BoolTensor([return_code]))
+        self.freeze()
+
+    @property
+    def downsample_factor(self):
+        return self.model.hop_length
+
+    @property
+    def latent_dim(self):
+        if self.factorized_latent or self.return_code:
+            return self.model.codebook_dim * self.model.n_codebooks
+        else:
+            return self.model.latent_dim
+
+    @property
+    def masked_latent_dim(self):
+        if self.factorized_latent or self.return_code:
+            return self.model.codebook_dim * self.bandwidth_id
+        else:
+            return self.model.latent_dim
+
+    def encode(self, audio):
+        audio = rearrange(audio, 'b t -> b 1 t')
+        audio = self.model.preprocess(audio, self.sampling_rate)
+
+        if self.factorized_latent:
+            z, codes, latents, _, _ = self.model.encode(audio)
+            latents[:, self.masked_latent_dim:, :] = 0
+            return rearrange(latents, 'b d n -> b n d')
+
+        elif self.return_code:
+            z, codes, latents, _, _ = self.model.encode(audio)
+            codes[:, self.bandwidth_id:, :] = 0
+            return rearrange(codes, 'b d n -> b n d')
+
+        else:
+            z, codes, latents, _, _ = self.model.encode(
+                audio, self.bandwidth_id
+            )
+            return rearrange(z, 'b d n -> b n d')
+
+    def decode(self, latents):
+        latents = rearrange(latents, 'b n d -> b d n')
+
+        if self.factorized_latent:
+            latents = latents[:, :self.masked_latent_dim, :]
+            z_q, z_p, codes = self.model.quantizer.from_latents(latents)
+        elif self.return_code:
+            codes = latents[:, :self.bandwidth_id, :]
+            z_q, z_p, codes = self.model.quantizer.from_codes(codes)
+        else:
+            z = latents
+            z_q, codes, latents, _, _ = self.model.quantizer(z, self.bandwidth_id)
+
+        audio = self.model.decode(z_q)
+        audio = rearrange(audio, 'b 1 t -> b t')
+
+        return audio
 
 
 class Aligner(_Aligner):
@@ -926,13 +1006,40 @@ class VoiceBox(_VB, LightningModule):
         )
         self.audio_enc_dec.freeze()
         self.loss_masked = loss_masked
+
         self.no_diffusion = no_diffusion
-        self.fix_time_emb = fix_time_emb
         if self.no_diffusion:
+            # A3T-like regression model
             dim_in = default(dim_in, dim)
             self.to_embed = nn.Linear(dim_in + self.dim_cond_emb, dim)
+
+        self.fix_time_emb = fix_time_emb
         if self.fix_time_emb:
             self.sinu_pos_emb[0] = SinusoidalPosEmb(dim)
+        
+        self.code_project = isinstance(self.audio_enc_dec, DACVoco) and self.audio_enc_dec.return_code
+        if self.code_project:
+            assert self.no_diffusion
+            # assert code_project_dim == self.audio_enc_dec.model.codebook_dim
+            # codebook_size: 1024, codebook_dim: 8
+
+            # mask_token: codebook_size
+            self.mask_code_id = self.audio_enc_dec.model.codebook_size
+            # what about pad_token?? -> zero
+
+            # 8 -> proj_dim
+            self.to_code_embs = nn.ModuleList([
+                nn.Embedding(self.audio_enc_dec.model.codebook_size+1, self.audio_enc_dec.model.codebook_dim, padding_idx=self.mask_code_id, device=self.device)
+                for _ in range(self.audio_enc_dec.model.n_codebooks)
+            ])
+
+            # cond_emb + cond_token_emb -> dim
+            self.to_embed = nn.Linear(self.audio_enc_dec.latent_dim + self.dim_cond_emb, dim)
+
+            # self.to_pred: proj_dim -> 96
+            # to_code: 96 -> 12 cls heads
+            self.to_code = nn.Linear(self.audio_enc_dec.latent_dim, self.audio_enc_dec.model.n_codebooks * self.audio_enc_dec.model.codebook_size, device=self.device)
+
 
     def create_cond_mask(self, batch, seq_len, cond_token_ids=None, self_attn_mask=None, training=True, frac_lengths_mask=None):
         if training:
@@ -1040,24 +1147,60 @@ class VoiceBox(_VB, LightningModule):
         outputs = {}
 
         if self.no_diffusion:
-            # ignore xt
-            x = None
-            # target: x1
-            target = cond if self.training else None
+
+            # x = None, target = cond if training else None
+
+            pass
+
         else:
+
             # project in, in case codebook dim is not equal to model dimensions
+            
             x = self.proj_in(x)
 
         cond = default(cond, target)
         outputs["cond"] = cond
 
-        if exists(cond):
-            cond = self.proj_in(cond)
-
         # shapes
 
-        batch, seq_len, cond_dim = cond.shape
-        # assert cond_dim == x.shape[-1]
+        batch, seq_len, _ = cond.shape
+
+        # construct conditioning mask if not given
+
+        if not exists(cond_mask):
+            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, cond_token_ids=cond_token_ids, self_attn_mask=self_attn_mask, training=self.training)
+
+        cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
+        outputs["cond_mask"] = cond_mask_with_pad_dim
+
+        # discrete code input + regression
+
+        if self.code_project:
+            # inputs: x=None, cond = discrete code, (b,t,n)
+            # output: code classification
+
+            # mask -> mask token
+            cond = torch.where(
+                cond_mask_with_pad_dim,
+                self.mask_code_id,
+                cond
+            )
+
+            # to emb
+            conds = [
+                self.to_code_embs[i](cond[:, :, i]) * (i < self.audio_enc_dec.bandwidth_id)
+                for i in range(self.audio_enc_dec.model.n_codebooks)
+            ]
+            cond = torch.concat(conds, dim=-1)
+
+            # remove padding
+            cond = cond * rearrange(self_attn_mask, 'b t -> b t 1')
+
+        elif exists(cond):
+            cond = self.proj_in(cond)
+
+            # as described in section 3.2
+            cond = cond * ~cond_mask_with_pad_dim
 
         # auto manage shape of times, for odeint times
 
@@ -1070,48 +1213,37 @@ class VoiceBox(_VB, LightningModule):
         if self.no_diffusion:
             times = torch.zeros_like(times)
 
-        # construct conditioning mask if not given
-
-        if not exists(cond_mask):
-            cond_mask = self.create_cond_mask(batch=batch, seq_len=seq_len, cond_token_ids=cond_token_ids, self_attn_mask=self_attn_mask, training=self.training)
-
-        cond_mask_with_pad_dim = rearrange(cond_mask, '... -> ... 1')
-        outputs["cond_mask"] = cond_mask_with_pad_dim
-
-        # as described in section 3.2
-
-        cond = cond * ~cond_mask_with_pad_dim
-        # import pdb;pdb.set_trace()
-
-        # classifier free guidance
-
         cond_ids = cond_token_ids
 
-        if cond_drop_prob > 0. and not self.no_diffusion:
-            cond_drop_mask = prob_mask_like(cond.shape[:1], cond_drop_prob, self.device)
+        if not self.no_diffusion:
 
-            cond = torch.where(
-                rearrange(cond_drop_mask, '... -> ... 1 1'),
-                self.null_cond,
-                cond
-            )
+            # classifier free guidance
 
-            cond_ids = torch.where(
-                rearrange(cond_drop_mask, '... -> ... 1'),
-                self.null_cond_id,
-                cond_token_ids
-            )
+            if cond_drop_prob > 0.:
+                cond_drop_mask = prob_mask_like(cond.shape[:1], cond_drop_prob, self.device)
 
-        # spectrogram dropout
+                cond = torch.where(
+                    rearrange(cond_drop_mask, '... -> ... 1 1'),
+                    self.null_cond,
+                    cond
+                )
 
-        if self.training and not self.no_diffusion:
-            p_drop_mask = prob_mask_like(cond.shape[:1], self.p_drop_prob, self.device)
+                cond_ids = torch.where(
+                    rearrange(cond_drop_mask, '... -> ... 1'),
+                    self.null_cond_id,
+                    cond_token_ids
+                )
 
-            cond = torch.where(
-                rearrange(p_drop_mask, '... -> ... 1 1'),
-                self.null_cond,
-                cond
-            )
+            # spectrogram dropout
+            
+            if self.training:
+                p_drop_mask = prob_mask_like(cond.shape[:1], self.p_drop_prob, self.device)
+
+                cond = torch.where(
+                    rearrange(p_drop_mask, '... -> ... 1 1'),
+                    self.null_cond,
+                    cond
+                )
 
         # phoneme or semantic conditioning embedding
 
@@ -1150,12 +1282,19 @@ class VoiceBox(_VB, LightningModule):
         )
 
         x = self.to_pred(x)
-        outputs["pred"] = x
+
+        if self.code_project:
+            x = self.to_code(x).reshape(batch, seq_len, self.audio_enc_dec.model.n_codebooks, self.audio_enc_dec.model.codebook_size)
+            outputs["pred"] = torch.argmax(x, dim=-1)
+            x = rearrange(x, 'b t n c -> b c t n')
+            # TODO: classification loss
+        else:
+            outputs["pred"] = x
 
         # if no target passed in, just return logits
 
         if not exists(target):
-            return x
+            return outputs["pred"]
 
         if self.loss_masked:
             loss_mask = reduce_masks_with_and(cond_mask, self_attn_mask)
@@ -1163,10 +1302,21 @@ class VoiceBox(_VB, LightningModule):
             loss_mask = self_attn_mask
 
         if not exists(loss_mask):
-            return F.mse_loss(x, target), outputs
+            if self.code_project:
+                # x: (b,c,t,n), target: (b,t,n)
+                return F.cross_entropy(x[:, :, :, :self.audio_enc_dec.bandwidth_id], target[:, :, :self.audio_enc_dec.bandwidth_id]), outputs
+            else:
+                # (b,t,d)
+                return F.mse_loss(x[:, :, :self.audio_enc_dec.masked_latent_dim], target[:, :, :self.audio_enc_dec.masked_latent_dim]), outputs
 
-        loss = F.mse_loss(x, target, reduction = 'none')
+        if self.code_project:
+            # x: (b,c,t,n), target: (b,t,n)
+            loss = F.cross_entropy(x[:, :, :, :self.audio_enc_dec.bandwidth_id], target[:, :, :self.audio_enc_dec.bandwidth_id], reduction = 'none')
+        else:
+            # (b,t,d)
+            loss = F.mse_loss(x[:, :, :self.audio_enc_dec.masked_latent_dim], target[:, :, :self.audio_enc_dec.masked_latent_dim], reduction = 'none')
 
+        # TODO: weighted loss for different codes? or simply use less codes?
         loss = reduce(loss, 'b n d -> b n', 'mean')
         loss = loss.masked_fill(~loss_mask, 0.)
 
@@ -1242,7 +1392,6 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         )
         self.duration_predictor: DurationPredictor
 
-        
     @torch.inference_mode()
     def sample(
         self,
@@ -1468,42 +1617,64 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         else:
             assert not exists(phoneme_ids), 'no conditioning inputs should be given if not conditioning on text'
 
-        # main conditional flow logic is below
+        # regression
 
-        # x0 is gaussian noise
+        if self.voicebox.no_diffusion:
 
-        x0 = torch.randn_like(x1)
+            # zero times
 
-        # random times
+            times = torch.zeros((batch,), dtype = dtype, device = self.device)
 
-        times = torch.rand((batch,), dtype = dtype, device = self.device)
-        t = rearrange(times, 'b -> b 1 1')
+            # predict
 
-        # sample xt (w in the paper)
+            if not self.voicebox.training:
+                vb_pred = self.voicebox(
+                    x=None,
+                    cond = cond,
+                    cond_mask = cond_mask,
+                    times = times,
+                    target = None,
+                    self_attn_mask = self_attn_mask,
+                    cond_token_ids = cond_token_ids,
+                    cond_drop_prob = self.cond_drop_prob
+                )
+                return vb_pred
 
-        w = (1 - (1 - σ) * t) * x0 + t * x1
-
-        flow = x1 - (1 - σ) * x0
-
-        # predict
-
-        # self.voicebox.train()
-
-        if self.voicebox.no_diffusion and not self.voicebox.training:
-            # no_diffusion, eval
-            vb_pred = self.voicebox(
-                x=None,
-                cond = cond,
-                cond_mask = cond_mask,
-                times = times,
-                target = None,
-                self_attn_mask = self_attn_mask,
-                cond_token_ids = cond_token_ids,
-                cond_drop_prob = self.cond_drop_prob
-            )
-            return vb_pred
+            else:
+                loss, vb_outputs = self.voicebox(
+                    x=None,
+                    cond = cond,
+                    cond_mask = cond_mask,
+                    times = times,
+                    target = cond,
+                    self_attn_mask = self_attn_mask,
+                    cond_token_ids = cond_token_ids,
+                    cond_drop_prob = self.cond_drop_prob
+                )
+                # TODO: vb_outputs for plots
 
         else:
+            # main conditional flow logic is below
+
+            # x0 is gaussian noise
+
+            x0 = torch.randn_like(x1)
+
+            # random times
+
+            times = torch.rand((batch,), dtype = dtype, device = self.device)
+            t = rearrange(times, 'b -> b 1 1')
+
+            # sample xt (w in the paper)
+
+            w = (1 - (1 - σ) * t) * x0 + t * x1
+
+            flow = x1 - (1 - σ) * x0
+
+            # predict
+
+            # self.voicebox.train()
+
             loss, vb_outputs = self.voicebox(
                 w,
                 cond = cond,
@@ -1521,11 +1692,11 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
                 'flow': flow
             })
 
-            losses = {}
-            losses['vb'] = loss
+        losses = {}
+        losses['vb'] = loss
 
-            outputs = {
-                "vb": vb_outputs,
-            }
+        outputs = {
+            "vb": vb_outputs,
+        }
 
-            return loss, losses, outputs
+        return loss, losses, outputs

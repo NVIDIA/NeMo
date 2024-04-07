@@ -1,0 +1,36 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=a100/fix_time_emb
+
+defaults:
+  - /experiment@_global_:
+    - a100
+    - tricks/dac
+    - tricks/no_diffusion
+    - tricks/loss_masked
+  - /dataset:
+    - gigaspeech-XS
+
+model:
+  voicebox:
+    audio_enc_dec:
+      factorized_latent: True
+      # return_code: True
+      bandwidth_id: 2
+
+  duration_predictor:
+    audio_enc_dec: ${..voicebox.audio_enc_dec}
+
+  train_ds:
+    subset: XL
+  
+  optim:
+    lr: 0.001
+
+exp_manager:
+  wandb_logger_kwargs:
+    project: voicebox-GS_XL
+
+# task name, determines output directory path
+task_name: "a100-GS_XL-fDAC_2-masked"

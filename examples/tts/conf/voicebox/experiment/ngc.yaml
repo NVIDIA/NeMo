@@ -4,52 +4,24 @@
 # python train.py experiment=ngc
 
 defaults:
-  - default
+  - /experiment@_global_:
+    - default
+    - tricks/size/ngc
+    - tricks/adam_warmup
+    - tricks/gradient_clip
+  - override /dataset: libriheavy-small
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  librilight_dir: /datasets/LibriLight/
-  libriheavy_dir: data/download/LibriHeavy
-  manifests_dir: data/parsed/LibriHeavy
-  textgrid_dir: data/aligned/LibriHeavy/textgrids
-  
-  corpus_dir: ${.librilight_dir}
-  
-  duration_predictor:
-    # depth: 4
-    heads: 4
-
-  voicebox:
-    # depth: 12
-    heads: 8
-
-  optim:
-    name: adam
-    lr: 1e-4
-
-    sched:
-      name: WarmupAnnealing
-      warmup_steps: 5000
-      max_steps: ${....trainer.max_steps}
-
   train_ds:
     max_duration: 16
-    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 48
 
   ds_kwargs:
     num_workers: 8
-
-trainer:
-  devices: auto
-  max_epochs: null
-  max_steps: 500000 # audio model steps
-  
-  gradient_clip_algorithm: norm
-  gradient_clip_val: .2
 
 exp_manager:
   checkpoint_callback_params:

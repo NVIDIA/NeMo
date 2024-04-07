@@ -1,0 +1,6 @@
+# @package _global_
+
+defaults:
+  - override /model/audio_enc_dec@model.duration_predictor.audio_enc_dec: dac_voco
+  - override /model/audio_enc_dec@model.voicebox.audio_enc_dec: dac_voco
+

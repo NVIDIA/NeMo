@@ -4,26 +4,12 @@
 # python train.py experiment=ngc
 
 defaults:
-  - ngc
+  - /experiment@_global_:
+    - ngc
+    - tricks/less_mask
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-model:
-  
-  duration_predictor:
-    # depth: 4
-    heads: 2
-
-  voicebox:
-    # depth: 12
-    heads: 4
-
-  train_ds:
-    max_duration: 16
-    lhotse:
-      batch_duration: 64
-
-
 # task name, determines output directory path
-task_name: "ngc-large_batch-thin_model"
+task_name: "ngc-less_mask"

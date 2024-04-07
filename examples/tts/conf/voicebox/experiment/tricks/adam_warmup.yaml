@@ -1,0 +1,11 @@
+# @package _global_
+
+model:
+  optim:
+    name: adam
+    lr: 1e-4
+
+    sched:
+      name: WarmupAnnealing
+      warmup_steps: 5000
+      max_steps: ${....trainer.max_steps}

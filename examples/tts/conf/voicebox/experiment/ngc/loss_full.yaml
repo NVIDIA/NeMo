@@ -4,14 +4,12 @@
 # python train.py experiment=ngc
 
 defaults:
-  - local_1-loss_full
+  - /experiment@_global_:
+    - ngc
+    - tricks/loss_full
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-model:
-  voicebox:
-    no_diffusion: True
-
 # task name, determines output directory path
-task_name: "local_1-loss_full-no_diffusion"
+task_name: "ngc-loss_full"

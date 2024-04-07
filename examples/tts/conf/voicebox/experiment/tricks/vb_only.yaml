@@ -1,0 +1,8 @@
+# @package _global_
+
+model:
+  freeze_updates:
+    enabled: True
+    modules:
+      duration_predictor: -1  # steps to freeze from start (-1: to the end)
+

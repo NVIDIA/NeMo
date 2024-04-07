@@ -19,3 +19,4 @@ ds_kwargs:
   textgrid_dir: ${..textgrid_dir}
   use_word_postfix: True
   use_word_ghost_silence: True
+  sampling_rate: ${..voicebox.audio_enc_dec.sampling_rate}

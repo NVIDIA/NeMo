@@ -1,23 +1,29 @@
+# @package model
+
 # data_dir: ${paths.data_dir}
 
 ds_name: libritts
 
-corpus_dir: ???
-manifests_dir: ???  # parsed manifests (e.g. filtering, add alignments, etc.)
-subsets:
-  - train-clean-100
-  - train-clean-360
-  - train-other-500
-  - dev-clean
-  - dev-other
-  - test-clean
-  - test-other
+corpus_dir: data/download/LibriTTS/LibriTTS
+manifests_dir: data/parsed/LibriTTS  # parsed manifests (e.g. filtering, add alignments, etc.)
+textgrid_dir: data/aligned/LibriTTS/textgrid
+
+subsets: [
+  "dev-clean",
+  "dev-other",
+  "test-clean",
+  "test-other",
+  "train-clean-100",
+  "train-clean-360",
+  "train-other-500",
+]
 
 sample_rate: 16000
 
 train_ds:
+  subset: train-clean-100
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/libritts_cuts_train-clean-100.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
@@ -44,8 +50,9 @@ train_ds:
   ds_kwargs: ${..ds_kwargs}
 
 validation_ds:
+  subset: dev-clean
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/libritts_cuts_dev-clean.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false
@@ -72,8 +79,9 @@ validation_ds:
   ds_kwargs: ${..ds_kwargs}
 
 test_ds:
+  subset: test-clean
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/libritts_cuts_test-clean.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false

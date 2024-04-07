@@ -1,31 +1,23 @@
 # @package model
 
 # data_dir: ${paths.data_dir}
-ds_name: libriheavy
 
-librilight_dir: data/download/LibriLight
-libriheavy_dir: data/download/LibriHeavy # downloaded manifests
+ds_name: gigaspeech
 
-corpus_dir: ${.librilight_dir}
-manifests_dir: data/parsed/LibriHeavy  # parsed manifests (e.g. filtering, add alignments, etc.)
-textgrid_dir: data/aligned/LibriHeavy/textgrids
+# password: ???
 
-subsets:
-  - small
-  - medium
-  - large
-  - dev
-  - test_clean
-  - test_other
-  - test_clean_large
-  - test_other_large
+corpus_dir: data/download/GigaSpeech
+manifests_dir: data/parsed/GigaSpeech  # parsed manifests (e.g. filtering, add alignments, etc.)
+textgrid_dir: data/aligned/GigaSpeech/textgrid
+
+subsets: ["XL", "L", "M", "S", "XS", "DEV", "TEST"]
 
 sample_rate: 16000
 
 train_ds:
-  subset: medium
+  subset: "M"
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.speech.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16 # you may increase batch_size if your memory allows
   shuffle: true
@@ -52,9 +44,9 @@ train_ds:
   ds_kwargs: ${..ds_kwargs}
 
 validation_ds:
-  subset: dev
+  subset: "DEV"
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.speech.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false
@@ -81,9 +73,9 @@ validation_ds:
   ds_kwargs: ${..ds_kwargs}
 
 test_ds:
-  subset: test_clean
+  subset: "TEST"
   defer_setup: true
-  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.speech.jsonl.gz
   sample_rate: ${..sample_rate}
   batch_size: 16
   shuffle: false

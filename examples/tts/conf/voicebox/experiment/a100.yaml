@@ -1,64 +1,34 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=ngc
+# python train.py experiment=a100
 
 defaults:
-  - default
+  - /experiment@_global_:
+    - default
+    - tricks/size/a100
+    - tricks/loss_full
+    - tricks/vb_only
+    # - tricks/adam_warmup
+    - tricks/gradient_clip
+  - /logger:
+    - tensorboard
+    - wandb
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  librilight_dir: /datasets/LibriLight/
-  libriheavy_dir: data/download/LibriHeavy
-  manifests_dir: data/parsed/LibriHeavy
-  textgrid_dir: data/aligned/LibriHeavy/textgrids
-  
-  corpus_dir: ${.librilight_dir}
-  
-  duration_predictor:
-    depth: 8
-    heads: 8
-
-  voicebox:
-    depth: 24
-    heads: 16
-    loss_masked: False
-
   cfm_wrapper:
-    sigma: 1e-3
-
-  freeze_updates:
-    enabled: True
-    modules:
-      duration_predictor: -1  # steps to freeze from start (-1: to the end)
-
-  optim:
-    name: adam
-    lr: 1e-4
-
-    sched:
-      name: WarmupAnnealing
-      warmup_steps: 5000
-      max_steps: ${....trainer.max_steps}
+    sigma: 1e-5
 
   train_ds:
     max_duration: 16
-    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 64
 
   ds_kwargs:
     num_workers: 8
-
-trainer:
-  devices: auto
-  max_epochs: null
-  max_steps: 500000 # audio model steps
-  
-  gradient_clip_algorithm: norm
-  gradient_clip_val: .2
 
 exp_manager:
   checkpoint_callback_params:

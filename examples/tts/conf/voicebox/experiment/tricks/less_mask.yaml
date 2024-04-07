@@ -1,0 +1,5 @@
+# @package _global_
+
+model:
+  voicebox:
+    frac_lengths_mask: [0.3, 1.]

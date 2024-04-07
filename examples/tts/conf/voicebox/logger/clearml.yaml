@@ -1,3 +1,5 @@
+# @package exp_manager
+
 create_clearml_logger: True
 clearml_logger_kwargs:
   project: null  # name of the project

@@ -4,11 +4,9 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - dataset@model: libriheavy
+  - dataset: libriheavy
   - model: mfa
   - callbacks: null
-  - logger@exp_manager: # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
-    - tensorboard
   - trainer: ddp
   - paths: null
   - extras: null
@@ -18,6 +16,8 @@ defaults:
   # e.g. best hyperparameters for given model and datamodule
   - exp_manager: default
   - experiment: null
+  - logger: # set logger here or use command line (e.g. `python train.py logger=tensorboard`)
+    - tensorboard
 
   # config for hyperparameter optimization
   - hparams_search: null

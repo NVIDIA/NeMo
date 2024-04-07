@@ -1,38 +1,22 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=paper_eval
+# python train.py experiment=local-1
 
 defaults:
-  - default
+  - /experiment@_global_:
+    - default
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  librilight_dir: /datasets/LibriLight/
-  libriheavy_dir: data/download/LibriHeavy
-  manifests_dir: data/parsed/LibriHeavy
-  textgrid_dir: data/aligned/textgrids
-  
-  corpus_dir: ${.librilight_dir}
-  
   duration_predictor:
     depth: 8  # for english
 
-  init_from_ptl_ckpt:
-    model0:
-      path: ???
-      include:
-        - duration_predictor
-    model1:
-      path: ???
-      include:
-        - voicebox
-
   train_ds:
+    subset: large
     max_duration: 16 # ~1600 frames of paper settings
-    manifest_filepath: ${model.manifests_dir}/libriheavy_cuts_large.jsonl.gz
     lhotse:
       batch_duration: 300
 
@@ -44,20 +28,12 @@ model:
     lhotse:
       batch_duration: 300
 
-trainer:
-  devices: auto
-  max_epochs: null
-  max_steps: 500000 # audio model steps
-  
-  gradient_clip_algorithm: norm
-  gradient_clip_val: .2
-
 # task name, determines output directory path
 task_name: "paper"
 
 # set False to skip model training
-train: False
+train: True
 
 # evaluate on test set, using best model weights achieved during training
 # lightning chooses best weights based on the metric specified in checkpoint callback
-test: True
+test: False

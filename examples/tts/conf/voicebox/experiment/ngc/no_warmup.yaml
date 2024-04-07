@@ -4,16 +4,13 @@
 # python train.py experiment=ngc
 
 defaults:
-  - ngc
+  - /experiment@_global_:
+    - ngc
+    - tricks/adam_warmup
+    - tricks/no_warmup
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-model:
-  freeze_updates:
-    enabled: True
-    modules:
-      duration_predictor: -1  # steps to freeze from start (-1: to the end)
-
 # task name, determines output directory path
-task_name: "ngc_vb"
+task_name: "ngc-no_warmup"

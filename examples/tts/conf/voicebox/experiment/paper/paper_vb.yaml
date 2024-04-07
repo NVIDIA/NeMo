@@ -1,0 +1,24 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - /experiment@_global_:
+    - paper/default
+    - tricks/vb_only
+    - tricks/adam_warmup
+    - tricks/gradient_clip
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+# task name, determines output directory path
+task_name: "paper_vb"
+
+# set False to skip model training
+train: True
+
+# evaluate on test set, using best model weights achieved during training
+# lightning chooses best weights based on the metric specified in checkpoint callback
+test: False

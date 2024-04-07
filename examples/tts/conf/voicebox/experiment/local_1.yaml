@@ -4,37 +4,20 @@
 # python train.py experiment=local_1
 
 defaults:
-  - default
+  - /experiment@_global_:
+    - default
+    - tricks/vb_only
+    - tricks/size/small_model
+  - override /dataset: libriheavy-small
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
 model:
-  librilight_dir: /datasets/LibriLight/
-  libriheavy_dir: data/download/LibriHeavy
-  manifests_dir: data/parsed/LibriHeavy
-  textgrid_dir: data/aligned/LibriHeavy/textgrids
-  
-  corpus_dir: ${.librilight_dir}
-
-  duration_predictor:
-    depth: 2
-    heads: 2
-
-  voicebox:
-    depth: 2
-    heads: 2
-
   cfm_wrapper:
     sigma: 1e-5
 
-  freeze_updates:
-    enabled: True
-    modules:
-      duration_predictor: -1  # steps to freeze from start (-1: to the end)
-
   train_ds:
-    manifest_filepath: ${..manifests_dir}/libriheavy_cuts_small.jsonl.gz
     lhotse:
       batch_duration: 300
 
