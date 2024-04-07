@@ -91,7 +91,7 @@ try:
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
 
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
-    #from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
+    # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import (
         get_gpt_layer_local_spec,

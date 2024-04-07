@@ -19,11 +19,11 @@ try:
     from megatron.core.transformer.custom_layers.transformer_engine import TENorm
     from megatron.core.transformer.dot_product_attention import DotProductAttention
     from megatron.core.transformer.enums import AttnMaskType
+    from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
     from megatron.core.transformer.spec_utils import ModuleSpec
-    from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-    
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError) as e:
@@ -65,10 +65,7 @@ def get_gpt_layer_ammo_spec() -> ModuleSpec:
             self_attn_bda=get_bias_dropout_add,
             pre_mlp_layernorm=TENorm,
             mlp=ModuleSpec(
-                module=MLP,
-                submodules=MLPSubmodules(
-                    linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,
-                ),
+                module=MLP, submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear,),
             ),
             mlp_bda=get_bias_dropout_add,
             # Map TE-layernorm-fusion keys back
