@@ -388,10 +388,8 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
     Each new line is a different sample. Example below:
-    {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
-    ...
-    {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
-    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+    {"audio_filepath": "1.wav", "duration": 1.12, "question": "what is the capital of France?", "answer": "Paris"}
+    {"audio_filepath": "2.wav", "duration": 2.15, "question": "what is the capital of Italy?", "answer": "Rome"}
     Args:
         manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
         tokenizer: text tokenizer object
@@ -706,9 +704,9 @@ class TarredAudioLoopOffsets:
 
 class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
     """
-    A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
+    A similar Dataset to the AudioQuestionAnswerDataset, but which loads tarred audio files.
 
-    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset/AudioToBPEDataset),
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioQuestionAnswerDataset),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
     contain the information for one audio file, including at least the transcript and name of the audio
     file within the tarball.
@@ -729,9 +727,6 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
-
-    Notice that a few arguments are different from the AudioToCharDataset; for example, shuffle (bool) has been
-    replaced by shuffle_n (int).
 
     Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
     after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
@@ -809,6 +804,10 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
+        end_string: Optional[str] = None, if not None, add this string to the end of the answer.
+        --------------- additional args for misc purposes ----------------
+        question_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
+        sample_alpha: Optional[float] = None, for SPE subword sampling
     """
 
     def __init__(
