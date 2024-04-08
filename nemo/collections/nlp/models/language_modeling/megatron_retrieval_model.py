@@ -836,7 +836,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         load_cache=False,
         num_neighbors=2,
         retrieved_doc_len = 128,
-        add_top_1=True
+        add_top_1=True,
+        chat_type=False
     ):
         # task_template = {
         #     "boolq": {
@@ -869,7 +870,8 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             neighbors=num_neighbors,
             megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
             retrieved_doc_len = retrieved_doc_len,
-            add_top_1 = add_top_1
+            add_top_1 = add_top_1,
+            chat_type = chat_type
         )
 
         if get_dataset_only:

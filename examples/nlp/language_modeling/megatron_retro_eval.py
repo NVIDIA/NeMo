@@ -140,7 +140,8 @@ def main(cfg) -> None:
         num_workers=cfg.get("num_workers", 1),
         num_neighbors=int(cfg.retrieval_service.neighbors),
         retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len,
-        add_top_1=cfg.retrieval_service.get("add_top_1", True)
+        add_top_1=cfg.retrieval_service.get("add_top_1", True),
+        chat_type=cfg.task_templates.get("chat_type", False)
     )
 
 

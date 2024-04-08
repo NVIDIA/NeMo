@@ -95,7 +95,7 @@ def set_weights(P, lm_checkpoint, new_checkpoint, target_count):
                 del parts[1]
                 parts[3] = "layers"
                 new_checkpoint['.'.join(parts)] = lm_checkpoint['state_dict'][name]
-            elif parts[3] == 'final_layernorm':
+            elif parts[3] == 'final_layernorm' or parts[3] == 'final_norm':
                 parts[1] = 'post_decoder.model'
                 del parts[2]
                 # parts[1] = 'encoder'

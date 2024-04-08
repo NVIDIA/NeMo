@@ -536,7 +536,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         cache_data_path=None,
         load_cache=False,
         num_neighbors=2,
-        retrieved_doc_len = 128 
+        retrieved_doc_len = 128,
+        chat_type = False
     ):
        
         dataset = RetroPromptLearningDataset(
@@ -557,7 +558,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             seed=1234,
             neighbors=num_neighbors,
             megatron_lm_compatible=self.frozen_model.cfg.get('megatron_lm_compatible', False),
-            retrieved_doc_len = retrieved_doc_len
+            retrieved_doc_len = retrieved_doc_len,
+            chat_type=chat_type
         )
 
         if get_dataset_only:
