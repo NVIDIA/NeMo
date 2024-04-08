@@ -841,7 +841,7 @@ class AutocastTransformerLayer(TransformerLayer):
             "device": device,
             "bias": bias,
             "activation": activation,
-            "normalization": normalization
+            "normalization": normalization,
         }
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version > packaging.version.Version("1.5.0"):
@@ -1104,7 +1104,7 @@ class ParallelTransformer(MegatronModule):
                     "device": 'cpu' if config.use_cpu_initialization else 'cuda',
                     "bias": bias,
                     "activation": activation,
-                    "normalization": {"layernorm": "LayerNorm", "rmsnorm": "RMSNorm"}[normalization]
+                    "normalization": {"layernorm": "LayerNorm", "rmsnorm": "RMSNorm"}[normalization],
                 }
                 te_version = packaging.version.Version(version("transformer-engine"))
                 if te_version > packaging.version.Version("1.5.0"):
