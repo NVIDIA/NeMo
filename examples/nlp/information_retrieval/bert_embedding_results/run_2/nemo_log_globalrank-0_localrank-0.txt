@@ -1,0 +1,132 @@
+[NeMo W 2024-04-08 16:11:03 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+    See https://hydra.cc/docs/next/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+      ret = run_job(
+    
+[NeMo I 2024-04-08 16:11:03 megatron_bert_embedding_finetuning:31] 
+    
+    ************** Experiment configuration ***********
+[NeMo I 2024-04-08 16:11:03 megatron_bert_embedding_finetuning:32] 
+    name: megatron_bert
+    restore_from_path: /opt/NeMo/examples/nlp/language_modeling/bert_pretrain_results/megatron_bert/checkpoints/megatron_bert.nemo
+    trainer:
+      devices: 1
+      num_nodes: 1
+      accelerator: gpu
+      precision: 16
+      logger: false
+      enable_checkpointing: false
+      use_distributed_sampler: false
+      max_epochs: 36
+      max_steps: 12
+      log_every_n_steps: 10
+      val_check_interval: 4
+      limit_val_batches: 50
+      limit_test_batches: 500
+      accumulate_grad_batches: 1
+      gradient_clip_val: 1.0
+      benchmark: false
+      num_sanity_val_steps: 0
+    exp_manager:
+      explicit_log_dir: examples/nlp/information_retrieval/bert_embedding_results
+      exp_dir: null
+      name: megatron_bert
+      create_wandb_logger: false
+      wandb_logger_kwargs:
+        project: null
+        name: null
+      resume_if_exists: false
+      resume_ignore_no_checkpoint: true
+      create_checkpoint_callback: true
+      checkpoint_callback_params:
+        monitor: val_loss
+        save_top_k: 10
+        mode: min
+        always_save_nemo: false
+        filename: megatron_bert--{val_loss:.2f}-{step}-{consumed_samples}
+        model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    model:
+      mcore_bert: true
+      micro_batch_size: 1
+      global_batch_size: 2
+      tensor_model_parallel_size: 1
+      pipeline_model_parallel_size: 1
+      virtual_pipeline_model_parallel_size: null
+      encoder_seq_length: 512
+      max_position_embeddings: ${.encoder_seq_length}
+      position_embedding_type: learned_absolute
+      num_layers: 2
+      hidden_size: 64
+      ffn_hidden_size: 256
+      num_attention_heads: 2
+      transformer_block_type: post_ln
+      add_pooler: true
+      add_lm_head: false
+      init_method_std: 0.02
+      hidden_dropout: 0.1
+      kv_channels: null
+      apply_query_key_layer_scaling: false
+      normalization: layernorm
+      layernorm_epsilon: 1.0e-12
+      make_vocab_size_divisible_by: 128
+      pre_process: true
+      post_process: true
+      bert_binary_head: true
+      megatron_legacy: false
+      tokenizer:
+        library: huggingface
+        type: intfloat/e5-large-unsupervised
+        model: null
+        vocab_file: null
+        merge_file: null
+      native_amp_init_scale: 4294967296
+      native_amp_growth_interval: 1000
+      fp32_residual_connection: false
+      fp16_lm_cross_entropy: false
+      megatron_amp_O2: false
+      grad_allreduce_chunk_size_mb: 125
+      grad_div_ar_fusion: false
+      seed: 1234
+      use_cpu_initialization: false
+      onnx_safe: false
+      gradient_as_bucket_view: true
+      activations_checkpoint_granularity: null
+      activations_checkpoint_method: null
+      activations_checkpoint_num_layers: null
+      num_micro_batches_with_partial_activation_checkpoints: null
+      activations_checkpoint_layers_per_pipeline: null
+      sequence_parallel: false
+      data:
+        data_train: /home/data/dev-v1.1_gpt.json
+        data_validation: null
+        hard_negatives_to_train: 4
+        index_mapping_dir: null
+        data_impl: mmap
+        splits_string: 900,50,50
+        seq_length: ${model.encoder_seq_length}
+        skip_warmup: true
+        num_workers: 0
+        dataloader_type: single
+        reset_position_ids: false
+        reset_attention_mask: false
+        eod_mask_loss: false
+        masked_lm_prob: 0.15
+        short_seq_prob: 0.1
+      optim:
+        name: fused_adam
+        lr: 0.0005
+        weight_decay: 0.01
+        betas:
+        - 0.9
+        - 0.98
+        sched:
+          name: CosineAnnealing
+          warmup_steps: 500
+          constant_steps: 50000
+          min_lr: 2.0e-05
+    
+[NeMo W 2024-04-08 16:11:03 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/_graveyard/precision.py:49: The `MixedPrecisionPlugin` is deprecated. Use `pytorch_lightning.plugins.precision.MixedPrecision` instead.
+    
+[NeMo W 2024-04-08 16:11:03 exp_manager:708] Exp_manager is logging to examples/nlp/information_retrieval/bert_embedding_results, but it already exists.
+[NeMo I 2024-04-08 16:11:03 exp_manager:396] Experiments will be logged at examples/nlp/information_retrieval/bert_embedding_results
+[NeMo I 2024-04-08 16:11:03 exp_manager:856] TensorboardLogger has been set up
+[NeMo W 2024-04-08 16:11:03 exp_manager:966] The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to 12. Please ensure that max_steps will run for at least 1 epochs to ensure that checkpointing will not error out.
