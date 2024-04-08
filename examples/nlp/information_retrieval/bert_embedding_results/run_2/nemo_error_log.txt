@@ -1,8 +1,0 @@
-[NeMo W 2024-04-08 16:11:03 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
-    See https://hydra.cc/docs/next/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
-      ret = run_job(
-    
-[NeMo W 2024-04-08 16:11:03 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/_graveyard/precision.py:49: The `MixedPrecisionPlugin` is deprecated. Use `pytorch_lightning.plugins.precision.MixedPrecision` instead.
-    
-[NeMo W 2024-04-08 16:11:03 exp_manager:708] Exp_manager is logging to examples/nlp/information_retrieval/bert_embedding_results, but it already exists.
-[NeMo W 2024-04-08 16:11:03 exp_manager:966] The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to 12. Please ensure that max_steps will run for at least 1 epochs to ensure that checkpointing will not error out.
