@@ -967,6 +967,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
         if self.cfg.data.get("packed_sequence", False):
+            assert len(self.cfg.micro_batch_size) == 1, "Micro batch size must be 1 if using packed sequence"
             self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
             self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
         else:
