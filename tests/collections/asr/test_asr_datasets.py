@@ -962,8 +962,6 @@ class TestAudioDatasets:
             config_lhotse = {
                 'cuts_path': cuts_path,
                 'use_lhotse': True,
-                'input_key': data_key['input_signal'],
-                'target_key': data_key['target_signal'],
                 'sample_rate': sample_rate,
                 'batch_size': 1,
             }
@@ -1314,8 +1312,6 @@ class TestAudioDatasets:
             config_lhotse = {
                 'cuts_path': cuts_path,
                 'use_lhotse': True,
-                'input_key': data_key['input_signal'],
-                'target_key': data_key['target_signal'],
                 'sample_rate': sample_rate,
                 'batch_size': 1,
             }
@@ -1467,8 +1463,6 @@ class TestAudioDatasets:
             config_lhotse = {
                 'cuts_path': cuts_path,
                 'use_lhotse': True,
-                'input_key': data_key['input_signal'],
-                'target_key': None,
                 'sample_rate': sample_rate,
                 'batch_size': 1,
             }
@@ -1478,27 +1472,33 @@ class TestAudioDatasets:
             dataset_lhotse = [item for item in dl_lhotse]
 
             for n in range(num_examples):
-                item = dataset.__getitem__(n)
-                item_factory = dataset_factory.__getitem__(n)
 
-                # Check target is None
-                assert item['target_signal'].numel() == 0, 'target_signal is expected to be empty.'
-                assert item_factory['target_signal'].numel() == 0, 'target_signal is expected to be empty.'
+                for label in ['original', 'factory', 'lhotse']:
 
-                # Check valid signals
-                for signal in data:
-                    item_signal = item[signal]
-                    golden_signal = data[signal][n]
-                    assert (
-                        item_signal.shape == golden_signal.shape
-                    ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
-                    assert np.allclose(
-                        item_signal, golden_signal, atol=atol
-                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    if label == 'original':
+                        item = dataset.__getitem__(n)
+                    elif label == 'factory':
+                        item = dataset_factory.__getitem__(n)
+                    elif label == 'lhotse':
+                        item = dataset_lhotse[n]
+                    else:
+                        raise ValueError(f'Unknown label {label}')
 
-                    assert np.allclose(
-                        item_factory[signal], golden_signal, atol=atol
-                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    # Check target is None
+                    if 'target_signal' in item:
+                        assert item['target_signal'].numel() == 0, f'{label}: target_signal is expected to be empty.'
+
+                    # Check valid signals
+                    for signal in data:
+
+                        item_signal = item[signal].squeeze(0) if label == 'lhotse' else item[signal]
+                        golden_signal = data[signal][n]
+                        assert (
+                            item_signal.shape == golden_signal.shape
+                        ), f'{label} -- Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                        assert np.allclose(
+                            item_signal, golden_signal, atol=atol
+                        ), f'{label} -- Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
     @pytest.mark.unit
     def test_audio_to_target_with_reference_dataset(self):

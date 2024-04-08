@@ -13,21 +13,8 @@
 # limitations under the License.
 
 import argparse
-import os
-
-import numpy as np
-from lhotse import AudioSource, CutSet, MonoCut, Recording
-from lhotse.array import Array
-from lhotse.audio import info
-from lhotse.serialization import load_jsonl
 
 from nemo.collections.asr.data.audio_to_audio_lhotse import convert_manifest_nemo_to_lhotse
-
-INPUT_CHANNEL_SELECTOR = "input_channel_selector"
-TARGET_CHANNEL_SELECTOR = "target_channel_selector"
-REFERENCE_CHANNEL_SELECTOR = "reference_channel_selector"
-LHOTSE_TARGET_CHANNEL_SELECTOR = "target_recording_channel_selector"
-LHOTSE_REFERENCE_CHANNEL_SELECTOR = "reference_recording_channel_selector"
 
 
 def parse_args():
