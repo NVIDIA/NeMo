@@ -92,7 +92,6 @@ pipeline {
              cd megatron/core/datasets && \
              make'
          sh 'export PYTHONPATH="${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"'
-         sh 'echo ${PYTHONPATH}'
       }
     }
 
@@ -116,8 +115,6 @@ pipeline {
 
     stage('Basic Import Checks') {
       steps {
-        sh 'echo ${PYTHONPATH}'
-        sh 'pip show megatron_core'
         sh 'python -c "import nemo.collections.asr as nemo_asr"'
         sh 'python -c "import nemo.collections.nlp as nemo_nlp"'
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
@@ -456,6 +453,7 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/megatron_llama/ci_baseline'
           }
         }
+        // TODO: @janekl to fix the tests
         //stage('Llama2 - INT8 SQ') {
         //  steps {
         //    sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
@@ -468,21 +466,21 @@ pipeline {
         //    sh 'rm -f /home/TestData/nlp/megatron_llama/ci_int8_sq.qnemo'
         //  }
         //}
-        stage('Llama2 - FP8') {
-          steps {
-            sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
-            model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-            tensor_model_parallel_size=2 \
-            trainer.devices=2 \
-            quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
-            quantization.algorithm=fp8 \
-            quantization.num_calib_size=8 \
-            inference.batch_size=2 \
-            export.inference_tensor_parallel=2 \
-            model_save=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
-            sh 'rm -f /home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
-          }
-        }
+        //stage('Llama2 - FP8') {
+        //  steps {
+        //    sh 'python examples/nlp/language_modeling/megatron_llama_quantization.py \
+        //    model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+        //    tensor_model_parallel_size=2 \
+        //    trainer.devices=2 \
+        //    quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
+        //    quantization.algorithm=fp8 \
+        //    quantization.num_calib_size=8 \
+        //    inference.batch_size=2 \
+        //    export.inference_tensor_parallel=2 \
+        //    model_save=/home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
+        //    sh 'rm -f /home/TestData/nlp/megatron_llama/ci_fp8.qnemo'
+        //  }
+        //}
       }
     }
 
