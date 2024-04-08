@@ -98,6 +98,8 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.utils import get_model_config
+    from megatron.core.distributed import DistributedDataParallel as DDP
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -299,7 +301,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # TODO(akoumparouli): this is temporary and will be removed in the future.
         if self.cfg.get('expert_model_parallel_size', 1) > 1 and self.with_distributed_adam:
-            raise ValueError('Expert parallelism is currently not supporting distributed optimizer')
+            if not self.use_mcore_dist_optim:
+                raise ValueError('Expert parallelism is currently not supporting Apex distributed optimizer, use Mcore distributed optimizer instead')
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
@@ -322,7 +325,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 )
 
         # if we're not using interleaved, then self.model is a module.
-        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None and (not self.use_mcore_dist_optim):
             self.model = self.model[0]
 
         if self.megatron_amp_O2:
@@ -476,9 +479,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
+    
+    def setup_mcore_distributed_parallel(self):
+        if self.with_distributed_adam and self.use_mcore_dist_optim:
+            config = get_model_config(self.model[0])
+            self.model = [DDP(config,
+                    model_chunk,
+                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    accumulate_allreduce_grads_in_fp32=self.megatron_amp_O2,
+                    overlap_grad_reduce=self.cfg.optim.get('mcore_overlap_grad_sync', False),
+                    use_distributed_optimizer=True,
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0))
+                for (model_chunk_idx, model_chunk) in enumerate(self.model)]
+
+
 
     def configure_optimizers(self):
-
         if self.with_distributed_adam:
 
             # Disable overlapped grad sync for embedding grad when

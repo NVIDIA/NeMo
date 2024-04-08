@@ -147,6 +147,10 @@ class MegatronBaseModel(NLPModel):
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+        self.use_mcore_dist_optim = cfg.optim.get('use_mcore_dist_optim', False)
+        if self.use_mcore_dist_optim:
+            assert self.with_distributed_adam, "with_distributed_adam must be True when using mcore distributed optimizer"
+
         self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
@@ -299,7 +303,6 @@ class MegatronBaseModel(NLPModel):
         }
 
         args = mcore_args if is_mcore_model else nemo_args
-
         # Model wrapper to convert both model and inputs to half precision
         if isinstance(self.model, list):
             converted_model = []
@@ -310,7 +313,6 @@ class MegatronBaseModel(NLPModel):
         else:
             args['module'] = self.model
             self.model = Float16Wrapper(**args)
-
         args.pop('module')
 
     def get_model_module_list(self):

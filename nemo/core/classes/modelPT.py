@@ -651,6 +651,8 @@ class ModelPT(LightningModule, Model):
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
             optimizer_name = optim_config.get('name', 'adam')
+            if optimizer_name == "distributed_fused_adam" and self.use_mcore_dist_optim:
+                optimizer_name = "mcore_distributed_optim"
         else:
             if inspect.isclass(optimizer_cls):
                 optimizer_name = optimizer_cls.__name__.lower()

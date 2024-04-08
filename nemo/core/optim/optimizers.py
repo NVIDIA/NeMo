@@ -74,6 +74,14 @@ if HAVE_APEX:
     except (ImportError, ModuleNotFoundError):
         pass
 
+    try:
+        # import ChainedOptimizer
+        from megatron.core.optimizer.distrib_optimizer import DistributedOptimizer
+        HAVE_MCORE_DISTRIBUTED_OPTIM = True
+        AVAILABLE_OPTIMIZERS['mcore_distributed_optim'] = DistributedOptimizer
+    except:
+        HAVE_MCORE_DISTRIBUTED_OPTIM = False
+
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
 
