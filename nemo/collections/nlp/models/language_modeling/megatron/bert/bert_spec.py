@@ -74,7 +74,11 @@ bert_layer_local_spec_postln = ModuleSpec(
             module=SelfAttention,
             params={"attn_mask_type": AttnMaskType.padding},
             submodules=SelfAttentionSubmodules(
-                linear_qkv=ColumnParallelLinear, core_attention=DotProductAttention, linear_proj=RowParallelLinear, q_layernorm=IdentityOp, k_layernorm=IdentityOp,
+                linear_qkv=ColumnParallelLinear,
+                core_attention=DotProductAttention,
+                linear_proj=RowParallelLinear,
+                q_layernorm=IdentityOp,
+                k_layernorm=IdentityOp,
             ),
         ),
         self_attn_bda=get_bias_dropout_add,
