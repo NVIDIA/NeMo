@@ -138,7 +138,7 @@ def max_symbols_setup():
                 torch.where(mask.unsqueeze(0).unsqueeze(-1), src_substate, dst_substate, out=dst_substate)
 
         @classmethod
-        def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+        def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
             """
             Split states into a list of states.
             Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
