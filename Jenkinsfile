@@ -85,9 +85,9 @@ pipeline {
 
     stage('Megatron Core installation') {
       steps {
-         sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
+         sh 'git clone https://github.com/dimapihtar/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout ba773259dbe5735fbd91ca41e7f4ded60b335c52 && \
+             git checkout 1ce836fbc8dae8a86a6bc7b51c8decb821dc6e97 && \
              pip install . && \
              cd megatron/core/datasets && \
              make'
