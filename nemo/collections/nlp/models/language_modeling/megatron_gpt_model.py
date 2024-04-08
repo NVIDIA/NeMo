@@ -378,6 +378,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.use_loss_mask and self.transformer_config.sequence_parallel:
             raise ValueError('Loss mask is not supported with sequence parallelism.')
 
+        self.allreduce_sequence_parallel_grad_stream = torch.cuda.Stream()
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -751,6 +753,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     embedding_module.config, embedding_activation_buffer, grad_output_buffer, weight
                 )
 
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
+            'share_embeddings_and_output_weights', True
+        ):
+            self.megatron_timer_start('allreduce_first_last_embeddings', log_level=1)
+            # when using pipeline parallelism the first and last stage must keep embeddings in sync
+            self.allreduce_first_last_embeddings()
+            self.megatron_timer_stop('allreduce_first_last_embeddings')
+
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
@@ -776,14 +786,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
         self.megatron_timer_stop('gradient_allreduce')
-
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
-            'share_embeddings_and_output_weights', True
-        ):
-            self.megatron_timer_start('allreduce_first_last_embeddings', log_level=1)
-            # when using pipeline parallelism the first and last stage must keep embeddings in sync
-            self.allreduce_first_last_embeddings()
-            self.megatron_timer_stop('allreduce_first_last_embeddings')
 
         if self.log_memory_usage:
             mem_reserved = torch.cuda.max_memory_reserved()
@@ -879,10 +881,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not grads:
             # may be empty for PEFT training
             return
-        coalesced = torch._utils._flatten_dense_tensors(grads)
-        torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
-        for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
-            buf.copy_(synced)
+        # Enable overlap
+        with torch.cuda.stream(self.allreduce_sequence_parallel_grad_stream):
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
 
     def allreduce_fsdp_sharding_omitted_gradients(self):
         """ All-reduce gradients of FSDP-sharding-omitted parameters in sharding domain (data-parallel domain).
