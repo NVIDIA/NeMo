@@ -55,8 +55,8 @@ except (ImportError, ModuleNotFoundError):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--arch", type=str, default="huggingface")
-    parser.add_argument("--version", type=str, default="openai/clip-vit-base-patch32")
+    parser.add_argument("--arch", type=str, default="openai/clip-vit-base-patch32")
+    parser.add_argument("--version", type=str, default="huggingface")
 
     parser.add_argument(
         "--hparams_file",
