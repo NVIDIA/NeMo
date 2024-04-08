@@ -3381,7 +3381,7 @@ pipeline {
         model.data.knn_index='' \
         model.data.retrieval_prefix='' \
         model.tensor_model_parallel_size=2 \
-        model.micro_batch_size=4 \
+        model.micro_batch_size=1 \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=2 \
@@ -3411,7 +3411,7 @@ pipeline {
         model.data.knn_index='' \
         model.data.retrieval_prefix='' \
         model.tensor_model_parallel_size=2 \
-        model.micro_batch_size=4 \
+        model.micro_batch_size=1 \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=2 \
