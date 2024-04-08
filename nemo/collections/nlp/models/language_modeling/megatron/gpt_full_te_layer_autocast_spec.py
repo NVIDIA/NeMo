@@ -131,8 +131,8 @@ class AutocastTransformerLayer(TransformerLayer):
                 if ub_overlap_flag in kwargs:
                     transformer_layer_args[ub_overlap_flag] = kwargs[ub_overlap_flag]
                 else:
-                    transformer_layer_args[ub_overlap_flag] = (
-                        kwargs.get(split_gemm_flag, True) or kwargs.get(atomic_gemm_flag, False)
+                    transformer_layer_args[ub_overlap_flag] = kwargs.get(split_gemm_flag, True) or kwargs.get(
+                        atomic_gemm_flag, False
                     )
             transformer_layer_args["ub_overlap_rs_dgrad"] = kwargs.get("ub_overlap_rs_dgrad", False)
         else:
