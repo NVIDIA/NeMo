@@ -628,7 +628,8 @@ class TestEncDecRNNTModel:
             (greedy_decode.GreedyBatchedRNNTInfer, False),
         ],
     )
-    def test_greedy_decoding_stateless_decoder(self, greedy_class, loop_labels: Optional[bool]):
+    @pytest.mark.parametrize("context_size", [1, 2])
+    def test_greedy_decoding_stateless_decoder(self, greedy_class, loop_labels: Optional[bool], context_size: int):
         token_list = [" ", "a", "b", "c"]
         vocab_size = len(token_list)
 
@@ -636,7 +637,7 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1, 'context_size': context_size}
         jointnet_cfg = {
             'encoder_hidden': encoder_output_size,
             'pred_hidden': decoder_output_size,
