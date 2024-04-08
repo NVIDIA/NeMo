@@ -178,7 +178,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2, use_fsdp=False):
     clip_coeff_clamped = torch.clamp(clip_coeff, max=1.0)
     if len(grads) > 0 or len(sharded_grads) > 0:  # (@adithyare) grads can be empty for adapter training.
         grads += sharded_grads
-        torch._foreach_mul_(grads, clip_coeff_clamped)
+        torch._foreach_mul_(grads, clip_coeff_clamped.squeeze())
 
     return total_norm
 
