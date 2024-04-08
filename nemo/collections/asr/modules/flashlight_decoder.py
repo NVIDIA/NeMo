@@ -257,7 +257,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
 
     # @typecheck(ignore_collections=True)
     @torch.no_grad()
-    def forward(self, log_probs: Union[np.ndarray, torch.Tensor]):
+    def forward(self, log_probs: Union[np.ndarray, torch.Tensor], out_len: Optional[torch.Tensor] = None):
         if isinstance(log_probs, np.ndarray):
             log_probs = torch.from_numpy(log_probs).float()
         if log_probs.dim() == 2:
@@ -266,6 +266,14 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         emissions = log_probs.cpu().contiguous()
 
         B, T, N = emissions.size()
+        
+        # each sequence in the batch has either a length given by `out_len` or the maximum length given by `T`
+        # decoding should not continue beyond the maximum sequence length
+        if out_len:
+            seq_lens = out_len
+        else:
+            seq_lens = [T] * B
+
         hypos = []
         # we iterate over the batch dimension of our input tensor log probabilities
         for b in range(B):
@@ -273,7 +281,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             # which is what we obtain here. Then we pass it to pybinding method which
             # is bound to the underlying C++ code
             emissions_ptr = emissions.data_ptr() + 4 * b * emissions.stride(0)
-            results = self.decoder.decode(emissions_ptr, T, N)
+            results = self.decoder.decode(emissions_ptr, seq_lens[b], N)
 
             hypos.append(
                 [

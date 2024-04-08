@@ -528,7 +528,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         x = x.to('cpu')
 
         with typecheck.disable_checks():
-            beams_batch = self.flashlight_beam_scorer.forward(log_probs=x)
+            beams_batch = self.flashlight_beam_scorer.forward(log_probs=x, out_len=out_len)
 
         # For each sample in the batch
         nbest_hypotheses = []
