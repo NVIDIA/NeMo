@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import warnings
 from dataclasses import dataclass
 from functools import partial
@@ -33,6 +32,7 @@ from lhotse.utils import fastcopy
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
+from nemo.utils import logging
 
 
 @dataclass
