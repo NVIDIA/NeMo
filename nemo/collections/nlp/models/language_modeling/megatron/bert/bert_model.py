@@ -347,10 +347,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         # Output
         if self.post_process:
             # TODO: Make sure you are passing in the mpu_vocab_size properly
-            self.lm_head = MCoreBertLMHead(
-                self.config.hidden_size,
-                self.config,
-            )
+            self.lm_head = MCoreBertLMHead(self.config.hidden_size, self.config,)
 
             self.output_layer = tensor_parallel.ColumnParallelLinear(
                 self.config.hidden_size,
@@ -362,10 +359,8 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 gather_output=not self.parallel_output,
                 skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
-            
-            output_layer_state_dict = self.output_layer.state_dict(
-                prefix='', keep_vars=True
-            )
+
+            output_layer_state_dict = self.output_layer.state_dict(prefix='', keep_vars=True)
 
             self.binary_head = None
             if self.add_binary_head:
