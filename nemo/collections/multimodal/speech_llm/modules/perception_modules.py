@@ -21,19 +21,19 @@ import torch.nn as nn
 from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
-from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
+from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder, ConformerMultiLayerFeatureExtractor
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import align_feat_seq_list, get_nested_dict_value
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.utils.decorators import experimental
 
 
 __all__ = ["AudioPerceptionModule", "MultiAudioPerceptionModule"]
 
 
 class AudioPerceptionModule(NeuralModule, Exportable):
-    """Audio perception model with basic modality_adapter (some fc layers)."""
+    """Audio perception module that consists of audio encoder(s) and modality adapter."""
 
     def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
         batch_size = torch.randint(low=1, high=max_batch, size=[1]).item()
@@ -74,17 +74,13 @@ class AudioPerceptionModule(NeuralModule, Exportable):
         self.encoder = self.from_config_dict(cfg.encoder)
 
         if cfg.get("use_multi_layer_feat", False) and cfg.get("multi_layer_feat", None):
-            self.encoder = ConformerMultiLayerFeatureExtractor(cfg=cfg.multi_layer_feat, encoder=self.encoder)
-            if cfg.multi_layer_feat.aggregator.mode == "cat":
-                with open_dict(cfg.modality_adapter):
-                    if "feat_in" in cfg.modality_adapter:
-                        cfg.modality_adapter.feat_in = cfg.modality_adapter.feat_in * len(
-                            cfg.multi_layer_feat.layer_idx_list
-                        )
-                    if "input_dim" in cfg.modality_adapter:
-                        cfg.modality_adapter.input_dim = cfg.modality_adapter.input_dim * len(
-                            cfg.multi_layer_feat.layer_idx_list
-                        )
+            if "_target_" in cfg.multi_layer_feat.aggregator:
+                aggregator = self.from_config_dict(cfg.multi_layer_feat.aggregator)
+            else:
+                aggregator = MultiFeatureAggregator(cfg.multi_layer_feat.aggregator, channel_dim=1)
+            self.encoder = ConformerMultiLayerFeatureExtractor(
+                encoder=self.encoder, layer_idx_list=cfg.multi_layer_feat.layer_idx_list, aggregator=aggregator
+            )
 
         if 'spec_augment' in cfg and cfg.spec_augment is not None:
             self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
@@ -113,6 +109,7 @@ class AudioPerceptionModule(NeuralModule, Exportable):
             )
         return processed_signal, processed_signal_length
 
+    # disable type checks to avoid type-check errors when using Conformer as modality adapter
     @typecheck.disable_checks()
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
@@ -134,7 +131,11 @@ class AudioPerceptionModule(NeuralModule, Exportable):
         return encoded, encoded_len
 
 
-class Aggregator(nn.Module):
+class MultiFeatureAggregator(nn.Module):
+    """
+    A module used to aggregate multiple encoded features (from different encoders or different layers) into a single feature sequence.
+    """
+
     def __init__(self, cfg: DictConfig, channel_dim: int = 1):
         super().__init__()
         self.mode = cfg.get("mode", "cat")
@@ -153,6 +154,7 @@ class Aggregator(nn.Module):
         self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor], ref_idx: Optional[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if not self._have_same_length(encoded_len):
+            """Align the length of encoded features if they are different."""
             target_len = encoded[0].size(self.channel_dim)
             if ref_idx is not None:
                 target_len = encoded[ref_idx].size(self.channel_dim)
@@ -180,61 +182,65 @@ class Aggregator(nn.Module):
             raise ValueError(f"Unknown mode {self.mode}")
 
 
-class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin):
-    def __init__(self, cfg: DictConfig, encoder: ConformerEncoder):
-        super().__init__()
-        self.encoder = encoder
-        self.layer_idx_list = [int(l) for l in cfg.layer_idx_list]
-        for x in self.layer_idx_list:
-            if x < 0 or x >= len(encoder.layers):
-                raise ValueError(f"layer index {x} out of range [0, {len(encoder.layers)})")
-        self.enc_access_cfg = {
-            "interctc": {"capture_layers": self.layer_idx_list,},
-            "detach": cfg.get("detach", False),
-            "convert_to_cpu": cfg.get("convert_to_cpu", False),
-        }
-        self.aggregator = Aggregator(cfg.aggregator, channel_dim=1)
-
-    def forward(self, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
-        old_access_flag = self.is_access_enabled(guid=getattr(self, "model_guid", None))
-        self.update_access_cfg(self.enc_access_cfg, guid=getattr(self, "model_guid", None))
-        self.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
-
-        _ = self.encoder(*args, **kwargs)
-
-        total_registry = {}
-        for module_registry in self.get_module_registry(self.encoder).values():
-            for key in module_registry:
-                if key.startswith("interctc/") and key in total_registry:
-                    raise RuntimeError(f"layer {key} has been logged multiple times!")
-            total_registry.update(module_registry)
-
-        encoded_list = []
-        encoded_len_list = []
-        for layer_idx in self.layer_idx_list:
-            try:
-                layer_outputs = total_registry[f"interctc/layer_output_{layer_idx}"]
-                layer_lengths = total_registry[f"interctc/layer_length_{layer_idx}"]
-            except KeyError:
-                raise RuntimeError(
-                    f"Intermediate layer {layer_idx} was not captured! Check the layer index and the number of ConformerEncoder layers."
-                )
-            if len(layer_outputs) > 1 or len(layer_lengths) > 1:
-                raise RuntimeError("Make sure encoder.forward is called exactly one time")
-            encoded_list.append(layer_outputs[0])  # [B, D, T]
-            encoded_len_list.append(layer_lengths[0])  # [B]
-
-        self.encoder.reset_registry()
-        self.set_access_enabled(access_enabled=old_access_flag, guid=getattr(self, "model_guid", None))
-
-        return self.aggregator(encoded_list, encoded_len_list)
-
-
+@experimental
 class MultiAudioPerceptionModule(NeuralModule, Exportable):
+    """
+    Audio perception module that consists of multiple audio encoders and shared modality adapter.
+    This module is experimental. An example perception cfg is:
+    -------------------
+    perception:
+        modality_adapter: 
+            _target_: nemo.collections.multimodal.speechllm.modules.PoolingMLPConnectors
+            hidden_dim: 512
+            pooling: 'cat'
+            pooling_factor: 2
+            num_layers: 4
+            input_dim: -1
+            output_dim: -1
+
+        spec_augment:
+            _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+            freq_masks: 2 # set to zero to disable it
+            time_masks: 10 # set to zero to disable it
+            freq_width: 27
+            time_width: 0.05
+
+        encoders:
+            asr_model:
+                _target_: nemo.collections.asr.models.ASRModel
+                output_key: d_model
+                freeze: True
+                pretrained_model: stt_en_fastconformer_transducer_large
+            ssl_model:
+                _target_: nemo.collections.asr.models.SpeechEncDecSelfSupervisedModel
+                output_key: d_model
+                freeze: True
+                pretrained_model: ssl_en_conformer_large
+                use_multi_layer_feat: True
+                multi_layer_feat:
+                layer_idx_list: [0,16]
+                aggregator:
+                    mode: "cat"
+                    pooling: "avg"
+                    rounding: "floor"
+        
+            speaker_model:
+                segment_length_in_secs: 0.4
+                freeze: True
+                pretrained_model: titanet_large
+
+            ref_model: asr_model
+            aggregator:
+                mode: "cat"
+                pooling: "mean"
+                rounding: "floor"
+    -------------------
+    """
+
     def __init__(self, cfg: DictConfig):
         super().__init__()
         # Initialize components
-        self.aggregator = Aggregator(cfg.aggregator, channel_dim=1)
+        self.aggregator = MultiFeatureAggregator(cfg.aggregator, channel_dim=1)
         if 'spec_augment' in cfg and cfg.spec_augment is not None:
             self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
         else:
@@ -245,20 +251,22 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
             raise TypeError(f"cfg.encoders must be a DictConfig, got {type(cfg.encoders)}")
 
         preprocessor = {}
-        encoder_dim_dict = {}
         encoders = {}
         for key, enc_cfg in self.encoder_cfg.items():
             encoder = self.from_config_dict(enc_cfg.model)
-            encoder_dim = get_nested_dict_value(enc_cfg.model, enc_cfg['output_key'])
             if enc_cfg.get("use_multi_layer_feat", False) and enc_cfg.get("multi_layer_feat", None):
                 if not isinstance(encoder, ConformerEncoder):
                     raise TypeError(
                         f"Encoder {key} must be a ConformerEncoder when use_multi_layer_feat is True, got {type(encoder)}"
                     )
-                encoder = ConformerMultiLayerFeatureExtractor(cfg=enc_cfg.multi_layer_feat, encoder=encoder)
-                encoder_dim = encoder_dim * len(enc_cfg.multi_layer_feat.layer_idx_list)
+                if "_target_" in enc_cfg.multi_layer_feat.aggregator:
+                    aggregator = self.from_config_dict(enc_cfg.multi_layer_feat.aggregator)
+                else:
+                    aggregator = MultiFeatureAggregator(enc_cfg.multi_layer_feat.aggregator, channel_dim=1)
+                encoder = ConformerMultiLayerFeatureExtractor(
+                    encoder=encoder, layer_idx_list=enc_cfg.multi_layer_feat.layer_idx_list, aggregator=aggregator
+                )
             encoders[key] = encoder
-            encoder_dim_dict[key] = encoder_dim
             preprocessor[key] = (
                 self.from_config_dict(enc_cfg.get("preprocessor"))
                 if enc_cfg.get("preprocessor", None) is not None
@@ -273,7 +281,6 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
             self.speaker_model = EncDecSpeakerLabelModel(cfg=cfg.speaker_model.model)
             self.speaker_model.spec_augmentation = self.spec_augmentation
             self.speaker_seg_len = 1
-            encoder_dim_dict['speaker_model'] = cfg.speaker_model.model.decoder.emb_sizes
             if "preprocessor" in cfg.speaker_model.model:
                 self.speaker_seg_len = int(
                     cfg.speaker_model.segment_length_in_secs // cfg.speaker_model.model.preprocessor.window_stride
@@ -287,12 +294,6 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
                     raise ValueError(f"ref_model is `{self.ref_model}` but speaker_model is None")
                 raise ValueError(f"ref_model `{self.ref_model}` not found in encoders [{encoders.keys()}]")
 
-        input_dim = sum(encoder_dim_dict.values())
-        with open_dict(cfg.modality_adapter):
-            if 'feat_in' in cfg.modality_adapter:
-                cfg.modality_adapter.feat_in = input_dim
-            elif 'input_dim' in cfg.modality_adapter:
-                cfg.modality_adapter.input_dim = input_dim
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
         if 'output_dim' not in cfg.modality_adapter and "d_model" in cfg.modality_adapter:  # e.g., conformer encoder
             self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)

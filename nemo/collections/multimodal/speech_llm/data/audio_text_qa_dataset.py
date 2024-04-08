@@ -421,6 +421,14 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
+        end_string: Optional[str] = None, if not None, add this string to the end of the answer.
+        --------------- additional args for misc purposes ----------------
+        question_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
+        random_context_prob: Deprecated, for SALM paper, if provided, will use this probability to randomly select a sample for word boosting augmentation.
+        random_context_num: Deprecated, for SALM paper, if provided, will use this probability to randomly select a sample for word boosting augmentation.
+        random_context_positive_percent: Deprecated,  for SALM paper, if provided, will use this probability to randomly select a sample for word boosting augmentation.
+        sample_alpha: Optional[float] = None, for SPE subword sampling
+        audio_locator: Optional[str] = None, a special string to split the context into multiple audio segments.
     """
 
     def __init__(
@@ -913,9 +921,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         # Put together WebDataset
         self._dataset = wds.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
 
-        if shuffle_n > 0:
-            self._dataset = self._dataset.shuffle(shuffle_n)
-        else:
+        if shuffle_n == 0:
             logging.info("WebDataset will not shuffle files within the tar files.")
 
         # Put together WebDataset pipeline

@@ -126,7 +126,6 @@ class NLPAdapterModelMixin:
             peft_cfg, 'name_key_to_mcore_mixins'
         ), f"{peft_cfg.__class__.__name__} is not supported in megatron core mode yet."
         name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if self.use_mcore_gpt else None
-
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
             # self.mcore_gpt means is GPT and not T5
             if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
@@ -394,7 +393,10 @@ class NLPAdapterModelMixin:
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
             if not self.ptuning_only_and_non_first_stage:
-                assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
+                if set(state_dict.keys()) != self.adapter_keys.union(self.tunable_base_param_keys):
+                    logging.warning(
+                        f"Unexpected keys found in state_dict: {set(state_dict.keys()) - self.adapter_keys.union(self.tunable_base_param_keys)}, missing keys in state_dict: {self.adapter_keys.union(self.tunable_base_param_keys) - set(state_dict.keys())}"
+                    )
                 super().load_state_dict(state_dict, strict=False)
         else:
             super().load_state_dict(state_dict, strict=strict)

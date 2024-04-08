@@ -28,6 +28,10 @@ __all__ = ['PoolingMLPConnectors']
 
 
 class ConcatPooling(nn.Module):
+    """
+    A module that perform pooling by concatenating the features of every pooling_factor frames.
+    """
+
     def __init__(self, pooling_factor):
         super().__init__()
         self.pooling_factor = pooling_factor
@@ -42,6 +46,11 @@ class ConcatPooling(nn.Module):
 
 
 class PoolingMLPConnectors(NeuralModule, Exportable, AccessMixin):
+    """
+    A module that performs pooling and MLP on the input features.
+    Currently only supports mean pooling and concatenation pooling.
+    """
+
     def __init__(
         self,
         input_dim,

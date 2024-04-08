@@ -37,7 +37,11 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
     get_tarred_aqa_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speech_llm.modules.perception import AudioPerceptionModule, MultiAudioPerceptionModule
+from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
+    AudioPerceptionModule,
+    MultiAudioPerceptionModule,
+)
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import get_nested_dict_value
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -627,10 +631,32 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             if 'output_dim' in modality_adapter_cfg:
                 modality_adapter_cfg.output_dim = gpt_cfg.hidden_size
             if not use_multi_encoder:
-                if 'feat_in' in modality_adapter_cfg:  # conformer encoder
-                    modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
-                if 'input_dim' in modality_adapter_cfg:
-                    modality_adapter_cfg.input_dim = audio_cfg.encoder.d_model
+                model_dim_key = gpt_cfg.perception.get("model_dim_key", "d_model")
+                encoder_dim = get_nested_dict_value(audio_cfg.encoder, model_dim_key)
+                input_dim = encoder_dim
+                if (
+                    gpt_cfg.perception.get('use_multi_layer_feat', False)
+                    and gpt_cfg.perception.multi_layer_feat.aggregator.get("mode", "cat") == "cat"
+                ):
+                    input_dim = encoder_dim * len(gpt_cfg.perception.multi_layer_feat.layer_idx_list)
+            else:
+                input_dim = 0
+                if speaker_cfg is not None:
+                    input_dim += speaker_cfg.decoder.emb_sizes
+                for enc_cfg in gpt_cfg.perception.encoders.values():
+                    encoder_dim = get_nested_dict_value(enc_cfg.model, enc_cfg.get("model_dim_key", "d_model"))
+                    if (
+                        enc_cfg.get('use_multi_layer_feat', False)
+                        and enc_cfg.multi_layer_feat.aggregator.get("mode", "cat") == "cat"
+                    ):
+                        input_dim += encoder_dim * len(enc_cfg.multi_layer_feat.layer_idx_list)
+                    else:
+                        input_dim += encoder_dim
+
+            if 'feat_in' in modality_adapter_cfg:
+                modality_adapter_cfg.feat_in = input_dim
+            elif 'input_dim' in modality_adapter_cfg:
+                modality_adapter_cfg.input_dim = input_dim
 
     @classmethod
     def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False, speaker_cfg=None):
@@ -656,9 +682,13 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     @classmethod
     def get_pretraind_audio_model(cls, encoder_cfg: DictConfig) -> ModelPT:
         """load pretrained audio model from a given config"""
-        encoder_cls = (
-            get_class(encoder_cfg.get("_target_")) if encoder_cfg.get("_target_", None) is not None else ASRModel
-        )
+        if encoder_cfg.get("_target_", None) is not None:
+            encoder_cls = get_class(encoder_cfg.get("_target_"))
+        elif encoder_cfg.get("target", None) is not None:
+            encoder_cls = get_class(encoder_cfg.get("target"))
+        else:
+            encoder_cls = ASRModel
+
         pretrained_model = encoder_cfg.get('pretrained_model', None)
         if pretrained_model is None:
             return None
@@ -678,11 +708,13 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     @classmethod
     def get_speaker_model_and_config(cls, cfg):
         if 'speaker_model' in cfg.model.perception:
-            model_cls = (
-                get_class(cfg.model.get("_target_", None))
-                if cfg.model.get("_target_", None) is not None
-                else EncDecSpeakerLabelModel
-            )
+            if cfg.model.get("_target_", None) is not None:
+                model_cls = get_class(cfg.model.get("_target_"))
+            elif cfg.model.get("target", None) is not None:
+                model_cls = get_class(cfg.model.get("target"))
+            else:
+                model_cls = EncDecSpeakerLabelModel
+
             speaker_cfg = cfg.model.perception.speaker_model
             if speaker_cfg.get('pretrained_model', None) is not None:
                 if speaker_cfg.pretrained_model.endswith('.nemo'):

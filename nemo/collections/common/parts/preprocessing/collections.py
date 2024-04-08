@@ -512,7 +512,7 @@ class ALMAudioText(object):
 class ALMAudioTextCollection(ALMAudioText):
     """`ALMAudioText` collector from audio-LM json files.
     
-    This collector also keeps backward compatibility with ASRFeatureLabel.
+    This collector also keeps backward compatibility with ALMAudioText.
     """
 
     def __init__(
@@ -606,9 +606,7 @@ class ALMAudioTextCollection(ALMAudioText):
             item['answer'] = item.pop('text')
         elif 'text_filepath' in item:
             with open(item.pop('text_filepath'), 'r') as f:
-                item['answer'] = f.read().replace('\n', '')
-        elif 'normalized_text' in item:
-            item['answer'] = item['normalized_text']
+                item['answer'] = f.read()
         else:
             item['answer'] = "na"
 
@@ -617,9 +615,7 @@ class ALMAudioTextCollection(ALMAudioText):
             pass
         elif 'question_filepath' in item:
             with open(item.pop('text_filepath'), 'r') as f:
-                item['question'] = f.read().replace('\n', '')
-        elif 'normalized_text' in item:
-            item['question'] = item['normalized_text']
+                item['question'] = f.read()
         elif self.random_questions is None:
             item['question'] = "what does this audio mean"
         else:

@@ -143,7 +143,7 @@ model:
 
   perception:
     modality_adapter: 
-      _target_: nemo.collections.multimodal.speechllm.modules.PoolingMLPConnectors
+      _target_: nemo.collections.multimodal.speech_llm.modules.PoolingMLPConnectors
       hidden_dim: 512
       pooling: 'cat'
       pooling_factor: 2
@@ -159,14 +159,15 @@ model:
       time_width: 0.05
 
     encoders:
+    # use `target` instead of `_target_` to avoid auto initialization by hydra, need to do manual instantiation
       asr_model:
-        _target_: nemo.collections.asr.models.ASRModel
-        output_key: d_model
+        target: nemo.collections.asr.models.EncDecRNNTBPEModel
+        model_dim_key: d_model
         freeze: True
         pretrained_model: stt_en_fastconformer_transducer_large
       ssl_model:
-        _target_: nemo.collections.asr.models.SpeechEncDecSelfSupervisedModel
-        output_key: d_model
+        target: nemo.collections.asr.models.SpeechEncDecSelfSupervisedModel
+        model_dim_key: d_model
         freeze: True
         pretrained_model: ssl_en_conformer_large
         use_multi_layer_feat: True
