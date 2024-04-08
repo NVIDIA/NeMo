@@ -205,6 +205,7 @@ def _speechllm_multi_audio_text_collate_fn(
 class TextProcessing(object):
     """
     Text processing pipeline for AudioQuestionAnswerDataset and TarredAudioQuestionAnswerDataset.
+    This class is adapted from the one used in nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py
     """
 
     def __init__(
