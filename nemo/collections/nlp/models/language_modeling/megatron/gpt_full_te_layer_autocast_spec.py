@@ -131,7 +131,9 @@ class AutocastTransformerLayer(TransformerLayer):
                 if ub_overlap_flag in kwargs:
                     transformer_layer_args[ub_overlap_flag] = kwargs[ub_overlap_flag]
                 else:
-                    transformer_layer_args[ub_overlap_flag] = kwargs.get(split_gemm_flag, True) or kwargs.get(atomic_gemm_flag, False)
+                    transformer_layer_args[ub_overlap_flag] = kwargs.get(split_gemm_flag, True) or kwargs.get(
+                        atomic_gemm_flag, False
+                    )
             transformer_layer_args["ub_overlap_rs_dgrad"] = kwargs.get("ub_overlap_rs_dgrad", False)
         else:
             transformer_layer_args["ub_split_ag"] = kwargs.get("ub_split_ag", True)
@@ -213,9 +215,19 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version > packaging.version.Version("1.5.0"):
             # Use old overlap flags if they were supplied instead
-            transformer_layer_args["ub_overlap_ag"] = config.tp_comm_overlap_ag if hasattr(config, "tp_comm_overlap_ag") else config.tp_comm_split_ag or config.tp_comm_atomic_ag
-            transformer_layer_args["ub_overlap_rs"] = config.tp_comm_overlap_rs if hasattr(config, "tp_comm_overlap_rs") else config.tp_comm_split_rs or config.tp_comm_atomic_rs
-            transformer_layer_args["ub_overlap_rs_dgrad"] = config.tp_comm_overlap_rs_dgrad if hasattr(config, "tp_comm_overlap_rs_dgrad") else False
+            transformer_layer_args["ub_overlap_ag"] = (
+                config.tp_comm_overlap_ag
+                if hasattr(config, "tp_comm_overlap_ag")
+                else config.tp_comm_split_ag or config.tp_comm_atomic_ag
+            )
+            transformer_layer_args["ub_overlap_rs"] = (
+                config.tp_comm_overlap_rs
+                if hasattr(config, "tp_comm_overlap_rs")
+                else config.tp_comm_split_rs or config.tp_comm_atomic_rs
+            )
+            transformer_layer_args["ub_overlap_rs_dgrad"] = (
+                config.tp_comm_overlap_rs_dgrad if hasattr(config, "tp_comm_overlap_rs_dgrad") else False
+            )
         else:
             transformer_layer_args["ub_split_ag"] = config.tp_comm_split_ag
             transformer_layer_args["ub_split_rs"] = config.tp_comm_split_rs
