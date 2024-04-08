@@ -131,6 +131,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
+                order=app_state.parallel_initialize_order,
             )
 
             # assert that fake tp and pp rank match after model parallel init
