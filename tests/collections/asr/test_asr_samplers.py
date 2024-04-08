@@ -145,7 +145,7 @@ class TestASRSamplers:
                     dataloader_with_ssb_exception, dataloader_exception = False, False
 
                     try:
-                        list(dataloader)
+                        list(dataloader_with_ssb)
                     except:
                         dataloader_with_ssb_exception = True
 
