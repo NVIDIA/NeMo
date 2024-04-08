@@ -1,7 +1,7 @@
 ---
 title: "Investigating end-to-end ASR architectures for long form audio transcription"
 author: [Nithin Rao Koluguri, Samuel Kriman, Georgy Zelenfroind, Somshubra Majumdar, Dima Rekesh, Vahid Noroozi, Jagadeesh Balam, Boris Ginsburg]
-author_gh_user: []
+author_gh_user: [nithinraok]
 readtime: 30
 date: 2024-04-14
 
