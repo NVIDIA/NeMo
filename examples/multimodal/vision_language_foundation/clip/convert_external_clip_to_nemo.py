@@ -109,10 +109,9 @@ def mapping_openclip_state_dict(open_model):
         ".ln_pre.bias": ".preprocess_layernorm.bias",
         ".ln_post.weight": ".transformer.final_layernorm.weight",
         ".ln_post.bias": ".transformer.final_layernorm.bias",
-        ".positional_embedding": ".position_embeddings.weights",
+        ".positional_embedding": ".position_embeddings",
         ".backbone.proj": ".head.weight",
         ".class_embedding": ".cls_token",
-        ".conv1.weight": ".backbone.conv1.weight",
     }
 
     nemo_state_dict = {}
