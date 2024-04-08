@@ -372,7 +372,7 @@ def get_params_for_weight_decay_optimization(
                     list(filter(lambda p: p is not None, module_._parameters.values()))
                 )
             else:
-                for name, param in module_.named_parameters():
+                for name, param in module_._parameters.items():
                     if param is None:
                         continue
                     if name.endswith('bias'):
