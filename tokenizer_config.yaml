@@ -1,7 +1,0 @@
-library: sentencepiece
-type: null
-model: tokenizer.model
-vocab_file: null
-merge_file: null
-delimiter: null
-sentencepiece_legacy: false
