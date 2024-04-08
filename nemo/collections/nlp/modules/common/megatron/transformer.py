@@ -803,6 +803,9 @@ class AutocastTransformerLayer(TransformerLayer):
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
         device: str = 'cuda',
+        bias: bool = True,
+        activation: str = 'gelu',
+        normalization: str = "LayerNorm",
         **kwargs,
     ) -> None:
         transformer_layer_args = {
@@ -836,6 +839,9 @@ class AutocastTransformerLayer(TransformerLayer):
             "ub_bulk_wgrad": ub_bulk_wgrad,
             "ub_bulk_dgrad": ub_bulk_dgrad,
             "device": device,
+            "bias": bias,
+            "activation": activation,
+            "normalization": normalization
         }
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version > packaging.version.Version("1.5.0"):
@@ -1096,6 +1102,9 @@ class ParallelTransformer(MegatronModule):
                     "ub_bulk_dgrad": config.tp_comm_bulk_dgrad,
                     "zero_centered_gamma": normalization == 'layernorm1p',
                     "device": 'cpu' if config.use_cpu_initialization else 'cuda',
+                    "bias": bias,
+                    "activation": activation,
+                    "normalization": {"layernorm": "LayerNorm", "rmsnorm": "RMSNorm"}[normalization]
                 }
                 te_version = packaging.version.Version(version("transformer-engine"))
                 if te_version > packaging.version.Version("1.5.0"):
