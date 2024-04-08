@@ -424,9 +424,6 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         end_string: Optional[str] = None, if not None, add this string to the end of the answer.
         --------------- additional args for misc purposes ----------------
         question_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
-        random_context_prob: Deprecated, for SALM paper, if provided, will use this probability to randomly select a sample for word boosting augmentation.
-        random_context_num: Deprecated, for SALM paper, if provided, will use this probability to randomly select a sample for word boosting augmentation.
-        random_context_positive_percent: Deprecated,  for SALM paper, if provided, will use this probability to randomly select a sample for word boosting augmentation.
         sample_alpha: Optional[float] = None, for SPE subword sampling
         audio_locator: Optional[str] = None, a special string to split the context into multiple audio segments.
     """
@@ -463,9 +460,6 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         output_key: str = 'output',
         end_string: Optional[str] = None,
         question_file: Optional[Union[List[str], str]] = None,
-        random_context_prob: Optional[float] = None,
-        random_context_num: Optional[int] = 3,
-        random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
     ):
@@ -506,9 +500,6 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
             index_by_file_id=index_by_file_id,
             max_num_samples=max_num_samples,
             question_file=question_file,
-            random_context_num=random_context_num,
-            random_context_positive_percent=random_context_positive_percent,
-            random_context_prob=random_context_prob,
         )
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
@@ -854,9 +845,6 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         output_key: str = 'output',
         end_string: Optional[str] = None,
         question_file: Optional[Union[List[str], str]] = None,
-        random_context_prob: Optional[float] = None,
-        random_context_num: Optional[int] = 3,
-        random_context_positive_percent: Optional[float] = 0.1,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -901,9 +889,6 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
             max_duration=max_duration,
             index_by_file_id=True,
             question_file=question_file,
-            random_context_prob=random_context_prob,
-            random_context_num=random_context_num,
-            random_context_positive_percent=random_context_positive_percent,
         )
 
         self.len = self._compute_len()
@@ -1113,9 +1098,6 @@ def get_tarred_aqa_dataset(
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
             question_file=config.get('question_file', None),
-            random_context_num=config.get('random_context_num', 3),
-            random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
-            random_context_prob=config.get('random_context_prob', None),
         )
 
         if bucketing_weights:
@@ -1317,9 +1299,6 @@ def get_aqa_dataset_from_config(
             output_key=config.get('output_key', 'output'),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
-            random_context_prob=config.get('random_context_prob', None),
-            random_context_num=config.get('random_context_num', 3),
-            random_context_positive_percent=config.get('random_context_positive_percent', 0.1),
             question_file=question_file,
             audio_locator=config.get('audio_locator', None),
         )

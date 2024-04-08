@@ -519,9 +519,6 @@ class ALMAudioTextCollection(ALMAudioText):
         self,
         manifests_files: Union[str, List[str]],
         question_file: Optional[Union[List[str], str]] = None,
-        random_context_prob: Optional[float] = None,
-        random_context_num: Optional[int] = 3,
-        random_context_positive_percent: Optional[float] = 0.1,
         *args,
         **kwargs,
     ):
@@ -549,20 +546,17 @@ class ALMAudioTextCollection(ALMAudioText):
         )
         if question_file is not None:
             question_file_list = question_file.split(",") if isinstance(question_file, str) else question_file
-            self.random_questions = []
+            self.question_list = []
             for filepath in question_file_list:
                 with open(filepath, 'r') as f:
                     for line in f.readlines():
                         line = line.strip()
                         if line:
-                            self.random_questions.append(line)
+                            self.question_list.append(line)
             logging.info(f"Use random questions from {question_file} for {manifests_files}")
         else:
-            self.random_questions = None
-        self.random_context_prob = random_context_prob
-        self.random_context_num = random_context_num
-        self.random_context_positive_percent = random_context_positive_percent
-        self.random_context = []
+            self.question_list = None
+
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
@@ -616,24 +610,10 @@ class ALMAudioTextCollection(ALMAudioText):
         elif 'question_filepath' in item:
             with open(item.pop('text_filepath'), 'r') as f:
                 item['question'] = f.read()
-        elif self.random_questions is None:
+        elif self.question_list is None:
             item['question'] = "what does this audio mean"
         else:
-            question = np.random.choice(self.random_questions).strip()
-            if self.random_context_prob is not None and self.random_context_prob > 0:
-                current_words = item['answer'].strip().split()
-                if len(current_words) == 0:
-                    logging.warning(f"Empty answer for sample: {item}, in manifest file: {manifest_file}")
-                    current_words = ["empty"]
-                if np.random.random() < self.random_context_prob and self.random_context:
-                    positive_num = int(self.random_context_num * self.random_context_positive_percent)
-                    positives = np.random.choice(current_words, positive_num)
-                    negatives = np.random.choice(self.random_context, self.random_context_num - positive_num)
-                    candidate_words = np.concatenate((positives, negatives))
-                    np.random.shuffle(candidate_words)
-                    context = f"Following words may occur in audio: {candidate_words} ".replace('\n', '')
-                    question = context + question
-                self.random_context = current_words
+            question = np.random.choice(self.question_list).strip()
             item['question'] = question
 
         item = dict(
