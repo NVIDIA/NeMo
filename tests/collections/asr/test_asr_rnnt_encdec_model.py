@@ -90,22 +90,25 @@ def max_symbols_setup():
                 ],
             )
 
-        def initialize_state(self, y: torch.Tensor) -> Optional[List[torch.Tensor]]:
-            return None
+        def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
+            batch_size = y.shape[0]
+            # NB: .clone is necessary after .expand, since the decoding algorithm manipulates the state
+            # (replacing elements), and this requires the state to be a real full tensor
+            # (not an expanded view, in which different elements can refer to the same memory location)
+            return [
+                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :]
+                .expand([1, batch_size, -1])
+                .clone()
+            ]
 
         def score_hypothesis(
             self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]
         ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
             return torch.tensor(), [torch.tensor()], torch.tensor()
 
-        def batch_select_state(
-            self, batch_states: Optional[List[torch.Tensor]], idx: int
-        ) -> Optional[List[List[torch.Tensor]]]:
-            if batch_states is not None:
-                states = [batch_states[0][:, idx]]
-                return [states]
-            else:
-                return None
+        def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> Optional[List[List[torch.Tensor]]]:
+            states = [batch_states[0][:, idx]]
+            return [states]
 
         def batch_copy_states(
             self,
@@ -125,6 +128,22 @@ def max_symbols_setup():
             if states is None:
                 return None
             return [states[0][:, mask]]
+
+        @classmethod
+        def batch_replace_states_mask(
+            cls, src_states: list[torch.Tensor], dst_states: list[torch.Tensor], mask: torch.Tensor,
+        ):
+            """Replace states in dst_states with states from src_states using the mask"""
+            for src_substate, dst_substate in zip(src_states, dst_states):
+                torch.where(mask.unsqueeze(0).unsqueeze(-1), src_substate, dst_substate, out=dst_substate)
+
+        @classmethod
+        def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+            """
+            Split states into a list of states.
+            Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+            """
+            return [sub_state.split(1, dim=1) for sub_state in batch_states]
 
     class DummyRNNTJoint(AbstractRNNTJoint):
         def __init__(self, num_outputs: int):
