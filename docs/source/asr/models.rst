@@ -157,7 +157,7 @@ You may find more examples under ``<NeMo_git_root>/examples/asr/conf/fastconform
 Cache-aware Streaming Conformer
 -------------------------------
 
-Try real-time ASR with the Cache-aware Streaming Conformer `tutorial notebook <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_.
+Try real-time ASR with the `Cache-aware Streaming Conformer tutorial notebook <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Online_ASR_Microphone_Demo_Cache_Aware_Streaming.ipynb>`_.
 
 Buffered streaming uses overlapping chunks to make an offline ASR model usable for streaming with reasonable accuracy. However, it causes significant amount of duplication in computation due to the overlapping chunks.
 Also, there is an accuracy gap between the offline model and the streaming one, as there is inconsistency between how we train the model and how we perform inference for streaming.
