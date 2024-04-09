@@ -83,6 +83,7 @@ def set_weights(P, lm_checkpoint, new_checkpoint, target_count):
     for name in lm_checkpoint['state_dict'].keys():
         name = name.strip()
         parts = name.split('.')
+        parts = [element.replace('norm', 'layernorm') for element in parts]
         if parts[2] == 'embedding':
             # embedding layer
             parts[2] = 'encoder_embedding'
@@ -145,8 +146,8 @@ if __name__ == "__main__":
 
     if args.model == "800m":
         # 800m retro
-        lm_ckpt_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting'
-        result_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted/'
+        lm_ckpt_path = '/raid/aficek/retro_paper/models/retro_convert/gpt3-800m-pretraining-retro-fitting'
+        result_path = '/raid/aficek/retro_paper/models/retro_convert/gpt3-800m-pretraining-retro-fitting/converted/'
         P = [8, 11, 14, 17, 20, 23]
         count = 6
     elif args.model == "2b":
