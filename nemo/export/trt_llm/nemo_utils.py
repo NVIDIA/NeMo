@@ -33,6 +33,7 @@ from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
+from tensorrt_llm._utils import torch_dtype_to_np, np_dtype_to_trt, trt_dtype_to_str
 
 from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.decoder import DECODER_MODEL_TYPE

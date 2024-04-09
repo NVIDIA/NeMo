@@ -43,6 +43,13 @@ try:
 except Exception:
     use_deploy = False
 
+def print_mem(prefix):
+        torch.cuda.empty_cache()
+        pyt = torch.cuda.memory_allocated() / (1024**3)
+        el = (torch.cuda.mem_get_info()[1] - torch.cuda.mem_get_info()[0]) / (1024**3)
+        print(f"Mem Usage | {prefix} | {pyt} {el} | {el-pyt}")
+
+
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -269,11 +276,10 @@ class TensorRTLLM(ITritonDeployable):
         use_refit: bool = False,
         reshard_model: bool = False,
     ):  
-        from tensorrt_llm.bindings import MpiComm
+        from megatron.core import parallel_state
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
 
         gpus_per_node = 8
-        logger.set_level('info')
 
         self.use_refit = use_refit
         self.tokenizer = build_tokenizer(tokenizer)
@@ -296,7 +302,7 @@ class TensorRTLLM(ITritonDeployable):
 
         model_parallel_size = tp_size*pp_size
         model_parallel_rank = tp_size*pp_rank + tp_rank
-        MpiComm.split(dp_rank, model_parallel_rank)
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, model_parallel_rank)
 
         # Get the model parallel group using global ids from NeMo
         tp_groups = [[j*tp_size+i for i in range(tp_size)] for j in range(pp_size*dp_size)]
@@ -305,7 +311,7 @@ class TensorRTLLM(ITritonDeployable):
             mp_group+=tp_groups[dp_rank + idx*dp_size]
         device_ids = [i % gpus_per_node for i in mp_group]
 
-        mapping = Mapping(
+        mapping = tensorrt_llm.Mapping(
             world_size = tp_size*pp_size,
             rank = tp_size*pp_rank + tp_rank,
             gpus_per_node = gpus_per_node,
@@ -344,7 +350,7 @@ class TensorRTLLM(ITritonDeployable):
         torch.distributed.barrier()
         print_mem("post build_and_save_engine")
 
-        self.model_runner, self.session_params = load_dataparallel(
+        self.model_runner, self.session_params = load_refit(
             engine_dir=self.model_dir,
             device_ids=device_ids,
         )

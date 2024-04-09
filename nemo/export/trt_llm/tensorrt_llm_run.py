@@ -291,6 +291,21 @@ def load(
         add_bos=add_bos,
     )
 
+@dataclass 
+class GptSession_params:
+    session_config: GptSessionConfig
+    model_config: ModelConfig
+    world_config: WorldConfig
+    engine_data: bytearray
+
+def create_gpt_session(
+    session_params: GptSession_params, engine_data: bytearray = None):
+    if engine_data is None:
+        engine_data = session_params.engine_data
+    return GptSession(session_params.session_config,
+                            session_params.model_config,
+                            session_params.world_config,
+                            engine_data)
 
 def load_refit(engine_dir, device_ids):
     """Loaded the compiled LLM model and run it.
