@@ -347,10 +347,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         # Output
         if self.post_process:
             # TODO: Make sure you are passing in the mpu_vocab_size properly
-            self.lm_head = MCoreBertLMHead(
-                self.config.hidden_size,
-                self.config
-            )
+            self.lm_head = MCoreBertLMHead(self.config.hidden_size, self.config)
 
             self.output_layer = self.lm_head.output_layer
 
