@@ -26,7 +26,13 @@ from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import ModelConfig, SamplingConfig
+from tensorrt_llm.runtime import ModelConfig, SamplingConfig, ModelRunnerCpp
+
+from tensorrt_llm.bindings import (DataType, GenerationInput, GenerationOutput,
+                        GptJsonConfig, GptSession, GptSessionConfig,
+                        KvCacheConfig, PromptTuningParams, WorldConfig)
+from tensorrt_llm.bindings import SamplingConfig as GptSamplingConfig
+
 from transformers import PreTrainedTokenizer
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
@@ -309,6 +315,21 @@ def load(
         add_bos=add_bos,
     )
 
+@dataclass 
+class GptSession_params:
+    session_config: GptSessionConfig
+    model_config: ModelConfig
+    world_config: WorldConfig
+    engine_data: bytearray
+
+def create_gpt_session(
+    session_params: GptSession_params, engine_data: bytearray = None):
+    if engine_data is None:
+        engine_data = session_params.engine_data
+    return GptSession(session_params.session_config,
+                            session_params.model_config,
+                            session_params.world_config,
+                            engine_data)
 
 def load_refit(engine_dir, device_ids):
     """Loaded the compiled LLM model and run it.

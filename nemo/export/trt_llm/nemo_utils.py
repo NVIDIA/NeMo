@@ -28,6 +28,7 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
+from tensorrt_llm._utils import torch_dtype_to_np, np_dtype_to_trt, trt_dtype_to_str
 from transformers import AutoTokenizer, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
 from nemo.export.trt_llm.model_config import (

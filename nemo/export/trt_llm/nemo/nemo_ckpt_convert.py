@@ -22,6 +22,7 @@ import shutil
 import typing
 from collections import defaultdict
 from pathlib import Path
+from functools import cache
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
@@ -310,6 +311,20 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     return weights_dict, llm_config, tokenizer
 
 
+@cache
+def rename_layer_num(param_name, layer_num):
+    split_key = param_name.split(".")
+    layer_index = int(get_layer_index(split_key))
+    split_key[layer_index] = str(layer_num)
+
+    return ".".join(split_key)
+
+@cache
+def get_layer_num(param_name):
+    split_key = param_name.split(".")
+    layer_index = int(get_layer_index(split_key))
+    return int(split_key[layer_index])
+
 @torch.no_grad()
 def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, reshard_model=False, cpu=True):
     from megatron.core import parallel_state
@@ -343,7 +358,9 @@ def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, res
     if num_kv_heads == 0:
         num_kv_heads = 1 if multi_query_mode else num_attention_heads
     reshard_model = reshard_model and pp_size > 1
-    weights_dict = persistent_weight_dict if cpu else {}
+
+    from nemo.export.trt_llm.nemo.convert import weights_dict as persistent_weights_dict
+    weights_dict = persistent_weights_dict if cpu else {}
 
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
@@ -363,11 +380,13 @@ def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, res
     model_level_params = {}
     starmap_args = []
 
+    import time
     tic = time.time()
 
     layers_per_pp = num_layers // pp_size
     layers_per_chunk = layers_per_pp // vp_size
 
+    # ----------------Gather layers from other shards ----------------  
     if vp_size > 1: # consolidate params across model chunks
         for idx, model_chunk in enumerate(nemo_model):
             for key, val in model_chunk.state_dict().items():

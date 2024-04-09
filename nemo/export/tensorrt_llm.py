@@ -30,6 +30,7 @@ from nemo.deploy import ITritonDeployable
 from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
 from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config
+from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file, unpack_nemo_ckpt
 
@@ -38,6 +39,13 @@ try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
 except Exception:
     use_deploy = False
+
+def print_mem(prefix):
+        torch.cuda.empty_cache()
+        pyt = torch.cuda.memory_allocated() / (1024**3)
+        el = (torch.cuda.mem_get_info()[1] - torch.cuda.mem_get_info()[0]) / (1024**3)
+        print(f"Mem Usage | {prefix} | {pyt} {el} | {el-pyt}")
+
 
 
 @wrapt.decorator
@@ -240,11 +248,10 @@ class TensorRTLLM(ITritonDeployable):
         use_refit: bool = False,
         reshard_model: bool = False,
     ):  
-        from tensorrt_llm.bindings import MpiComm
+        from megatron.core import parallel_state
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
 
         gpus_per_node = 8
-        logger.set_level('info')
 
         self.use_refit = use_refit
         self.tokenizer = build_tokenizer(tokenizer)
@@ -267,7 +274,7 @@ class TensorRTLLM(ITritonDeployable):
 
         model_parallel_size = tp_size*pp_size
         model_parallel_rank = tp_size*pp_rank + tp_rank
-        MpiComm.split(dp_rank, model_parallel_rank)
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, model_parallel_rank)
 
         # Get the model parallel group using global ids from NeMo
         tp_groups = [[j*tp_size+i for i in range(tp_size)] for j in range(pp_size*dp_size)]
@@ -276,7 +283,7 @@ class TensorRTLLM(ITritonDeployable):
             mp_group+=tp_groups[dp_rank + idx*dp_size]
         device_ids = [i % gpus_per_node for i in mp_group]
 
-        mapping = Mapping(
+        mapping = tensorrt_llm.Mapping(
             world_size = tp_size*pp_size,
             rank = tp_size*pp_rank + tp_rank,
             gpus_per_node = gpus_per_node,
@@ -315,7 +322,7 @@ class TensorRTLLM(ITritonDeployable):
         torch.distributed.barrier()
         print_mem("post build_and_save_engine")
 
-        self.model_runner, self.session_params = load_dataparallel(
+        self.model_runner, self.session_params = load_refit(
             engine_dir=self.model_dir,
             device_ids=device_ids,
         )
