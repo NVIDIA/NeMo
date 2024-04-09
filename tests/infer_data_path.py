@@ -270,7 +270,8 @@ def get_infer_test_data():
     test_data["LLAMA2-13B-base-int4"]["location"] = "Local"
     test_data["LLAMA2-13B-base-int4"]["trt_llm_model_dir"] = "/tmp/LLAMA2-13B-base-int4/trt_llm_model-1/"
     test_data["LLAMA2-13B-base-int4"][
-        "checkpoint"] = "/opt/checkpoints/LLAMA2-13B-base-int4/LLAMA2-13B-base-int4-1-qnemo"
+        "checkpoint"
+    ] = "/opt/checkpoints/LLAMA2-13B-base-int4/LLAMA2-13B-base-int4-1-qnemo"
     test_data["LLAMA2-13B-base-int4"]["prompt_template"] = [
         "The capital of France is",
         "Largest animal in the sea is",
@@ -301,7 +302,8 @@ def get_infer_test_data():
     test_data["LLAMA2-70B-base-int4"]["location"] = "Local"
     test_data["LLAMA2-70B-base-int4"]["trt_llm_model_dir"] = "/tmp/LLAMA2-70B-base-int4/trt_llm_model-1/"
     test_data["LLAMA2-70B-base-int4"][
-        "checkpoint"] = "/opt/checkpoints/LLAMA2-70B-base-int4/LLAMA2-70B-base-int4-1-qnemo"
+        "checkpoint"
+    ] = "/opt/checkpoints/LLAMA2-70B-base-int4/LLAMA2-70B-base-int4-1-qnemo"
     test_data["LLAMA2-70B-base-int4"]["prompt_template"] = [
         "The capital of France is",
         "Largest animal in the sea is",
