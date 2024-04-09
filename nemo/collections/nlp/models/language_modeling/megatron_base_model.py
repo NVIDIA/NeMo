@@ -22,11 +22,13 @@ from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
+import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -65,7 +67,7 @@ try:
 
 except (ImportError, ModuleNotFoundError):
 
-    ModelParallelConfig = ApexGuardDefaults
+    ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
 
@@ -323,13 +325,44 @@ class MegatronBaseModel(NLPModel):
         else:
             return [self.model]
 
-    def _reconfigure_val_batches(self):
+    def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        if isinstance(self.trainer.limit_val_batches, int):
-            # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
-            self.trainer.limit_val_batches *= get_num_microbatches()
+        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
+        if isinstance(limit_batches, int):
+            limit_batches *= get_num_microbatches()
+        else:
+            assert isinstance(limit_batches, float)
+            # Don't reconfigure if limit_batches is 0.0 or if there's no dataloader
+            if limit_batches == 0.0 or dataloader is None:
+                return
+            # len(dataloader) returns len as num of microbatches
+            dl_len_in_micro_batches = len(dataloader)
+            if len(dataloader) != float("inf"):
+                if limit_batches == 1.0:
+                    limit_batches = dl_len_in_micro_batches
+                else:
+                    limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
+                    if limit_micro_batches == 0 and limit_batches > 0.0:
+                        min_percentage = 1.0 / len(dataloader)
+                        raise MisconfigurationException(
+                            f"You requested to check {limit_batches} of the val_dataloader but"
+                            f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
+                            f" `limit_val_batches` argument. Try at least"
+                            f" `limit_val_batches={min_percentage}`"
+                        )
+                    # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+                    if limit_micro_batches < get_num_microbatches():
+                        limit_batches = get_num_microbatches()
+                    else:
+                        limit_batches = limit_batches - limit_batches % get_num_microbatches()
+
+        if mode == 'train':
+            self.trainer.limit_train_batches = limit_batches
+        else:
+            self.trainer.limit_val_batches = limit_batches
+
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
@@ -393,6 +426,7 @@ class MegatronBaseModel(NLPModel):
             use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             special_tokens=self.cfg.tokenizer.get('special_tokens', None),
+            trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
             legacy=legacy,
         )
 
@@ -431,6 +465,7 @@ class MegatronBaseModel(NLPModel):
         model_parallel_config = self.build_model_parallel_config()
 
         add_bias_linear = self.cfg.get('bias', True)
+        add_qkv_bias = self.cfg.get('qkv_bias', False)
 
         activation = self.cfg.get('activation', 'gelu')
         gated_linear_unit = activation.endswith('glu')
@@ -452,6 +487,8 @@ class MegatronBaseModel(NLPModel):
         attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
         apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
 
+        rotary_interleaved = self.cfg.get('rotary_interleaved', False)
+
         fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
         if apply_query_key_layer_scaling:
             if fp16_enabled:
@@ -471,7 +508,8 @@ class MegatronBaseModel(NLPModel):
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
 
-        apply_rope_fusion = self.cfg.get('apply_rope_fusion', True)
+        # @chcui default rope fusion to false until #8590 is closed.
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', False)
 
         # TODO: need to check if recompute APIs are matching up properly
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
@@ -484,6 +522,7 @@ class MegatronBaseModel(NLPModel):
             'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
             'layernorm_zero_centered_gamma': False,
             'add_bias_linear': add_bias_linear,
+            'add_qkv_bias': add_qkv_bias,
             'gated_linear_unit': gated_linear_unit,
             'activation_func': activation_func,
             'normalization': normalization,
@@ -498,6 +537,7 @@ class MegatronBaseModel(NLPModel):
             'recompute_num_layers': recompute_num_layers,
             'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': None,
+            'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
         }
 
@@ -730,8 +770,28 @@ class MegatronBaseModel(NLPModel):
 
             # Make sure embedding grad reductions are in FP32
             if optim_dtype == torch.float32:
-                for name, param in self.named_parameters():
-                    if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
+                fp32_params = []
+                modules = self.get_model_module_list()
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                    if self.mcore_gpt:
+                        fp32_params.append(modules[0].shared_embedding_or_output_weight())
+                        fp32_params.append(modules[0].embedding.position_embeddings.weight)
+                    else:
+                        fp32_params.append(modules[0].word_embeddings_weight())
+                        fp32_params.append(modules[0].position_embeddings_weight())
+                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                    share_embeddings_and_output_weights = (
+                        modules[-1].share_embeddings_and_output_weights
+                        if self.mcore_gpt
+                        else modules[-1].share_token_embeddings
+                    )
+                    if share_embeddings_and_output_weights:
+                        if self.mcore_gpt:
+                            fp32_params.append(modules[-1].shared_embedding_or_output_weight())
+                        else:
+                            fp32_params.append(modules[-1].word_embeddings_weight())
+                for param in fp32_params:
+                    if param is not None:
                         param._with_fp32_optimizer = True
 
             # Match param allgather with model dtype
@@ -815,7 +875,7 @@ class MegatronBaseModel(NLPModel):
         if self.with_distributed_adam:
 
             # Initialize param buckets if explicitly provided
-            if getattr(self, 'distributed_adam_buckets', None):
+            if getattr(self, 'distributed_adam_buckets', None) is not None:
                 for bucket in self.distributed_adam_buckets:
                     self._optimizer.init_params_bucket(bucket)
                 self._optimizer.init_params_bucket(self.parameters())
@@ -865,6 +925,8 @@ class MegatronBaseModel(NLPModel):
 
     def _compute_consumed_samples_after_training_step(self):
         # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        if not hasattr(self, 'init_global_step'):
+            self.init_global_step = 0  # in case this method is called before training starts.
         return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
@@ -1093,6 +1155,7 @@ class MegatronBaseModel(NLPModel):
             "no_sync_func": None,  # set dynamically during training
             "grad_sync_func": None,  # set dynamically during training
             "param_sync_func": None,  # set dynamically during training
+            "tp_comm_overlap": self.cfg.get('ub_tp_comm_overlap', False),
         }
 
         # instantitate ModelParallelConfig from this dict
@@ -1177,12 +1240,29 @@ class MegatronBaseModel(NLPModel):
         return steps_per_epoch * self._trainer.max_epochs
 
     def configure_sharded_model(self):
+        def find_frozen_submodules(model):
+            frozen_submodules = []
+            frozen_submodule_names = []
+            for name, module in model.named_modules():
+                if (
+                    isinstance(module, nn.Module)
+                    and list(module.parameters())
+                    and all(not param.requires_grad for param in module.parameters())
+                ):
+                    frozen_submodule_names.append(name)
+                    frozen_submodules.append(module)
+            return frozen_submodule_names, frozen_submodules
+
         if self.use_fsdp:
             """ Top-evel FSDP model sharding """
             # Shard the top-level model hierarchically. We shard the strategy-unwrapped model not
             # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
             # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
             # extended to support lower precision main parameters.
+            frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
+            # FSDP requires uniform status of require_grads
+            # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
             self.model = self.trainer.strategy._setup_model(self.model)
             # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
             # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.

@@ -221,6 +221,7 @@ def setup_trainer_and_models_for_inference(
         else:
             raise ValueError(f"Unrecognized checkpoint type: {single_model_cfg.restore_from_path}")
 
+    # initialize apex DDP strategy
     def dummy():
         return
 
@@ -303,6 +304,7 @@ def setup_trainer_and_model_for_inference(
     else:
         raise ValueError(f"Unrecognized checkpoint type: {cfg.model.restore_from_path}")
 
+    # initialize apex DDP strategy
     def dummy():
         return
 
@@ -318,7 +320,7 @@ def setup_trainer_and_model_for_inference(
 
 
 def create_neva_model_and_processor(cfg):
-    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
+    from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
 
     plugins = []
     if cfg.get('cluster_type', None) == 'BCP':

@@ -66,10 +66,10 @@ WORKDIR /workspace/
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout 240a8ef7a21df201e47b5b2ae33cc5f4c5486849 && \
+  git checkout 36e9b6bf3d8034b10c9bbd9fc357c2df2bd1515c && \
   pip install .
 
-# Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
+# Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout f058162b215791b15507bb542f22ccfde49c872d && \
@@ -132,6 +132,8 @@ RUN for f in $(ls requirements*.txt); do pip3 install --disable-pip-version-chec
 RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
+# install ammo
+RUN pip install nvidia-ammo~=0.7.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src

@@ -124,7 +124,9 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
-    _set_random_seed(seed)
+    if seed is not None:
+        # @chcui not setting seed is for model conversion. always set seed for training/inference.
+        _set_random_seed(seed)
 
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
@@ -325,7 +327,7 @@ def fake_initialize_model_parallel(
                 end_rank = i * tensor_and_data_group_size + (j + 1) * tensor_and_expert_group_size
                 ranks = range(start_rank, end_rank)
                 if rank in ranks:
-                    expert_model_parallel_rank = list(ranks).index(rank)
+                    expert_model_parallel_rank = list(ranks).index(rank) // tensor_model_parallel_size
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).

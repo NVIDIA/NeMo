@@ -6,7 +6,10 @@ GPT is a decoder-only Transformer model.
 
 Quick start
 ^^^^^^^^^^^
-Steps below demonstrate training of a GPT style model with NeMo
+The steps below demonstrate training of a GPT-style model with NeMo
+
+.. note::
+    This example is best completed using the latest NeMo Framework NGC Container
 
 Data download & pre-processing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -16,12 +19,12 @@ Data download & pre-processing
 
 **Step 1: Download data**
 
-The step below will download Wikipedia data (around 20GB) and can take some several hours.
+The step below will download Wikipedia data (around 20GB) and can take several hours.
 
 .. code-block:: bash
 
     wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2
-    
+
 **Step 2: Extract raw data**
 
 .. code-block:: bash
@@ -35,12 +38,13 @@ Now, ``train_data.jsonl`` will contain our training data in the json line format
 
 **Step 3: Train tokenizer**
 
-Below we will condider 2 options for training data tokenizers: Using pre-built HuggingFace BPE and training and using your own Google Sentencepiece tokenizer.
-Note that only second option allows you to experiment with vocabulary size.
+Below we will consider 2 options for training data tokenizers: Using pre-built HuggingFace BPE and training and using your own Google Sentencepiece tokenizer.
+
+Note that only the second option allows you to experiment with vocabulary size.
 
 *Option 1:* Using HuggingFace GPT2 tokenizer files.
 
-With this option we will just download pre-built vocabulary and merge files for BPE tokenizer.
+With this option, we will download a pre-built vocabulary and merge the files for the BPE tokenizer.
 
 .. code-block:: bash
 
@@ -50,11 +54,11 @@ With this option we will just download pre-built vocabulary and merge files for 
 
 *Option 2:* Using `Google Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizer library. 
 
-It comes as dependency with NeMo, so if you have installed NeMo it should already be installed.
+It comes as a dependency with NeMo, so if you have installed NeMo it should already be installed.
 Note that training tokenizer model will also take some time.
 
 .. code-block:: bash
-   
+
    sudo apt install jq
    jq .text train_data.jsonl >> text_for_tokenizer.txt
    spm_train --input=text_for_tokenizer.txt \
@@ -64,13 +68,13 @@ Note that training tokenizer model will also take some time.
         --model_type=bpe \
         --byte_fallback=true \
         --pad_id=0 --unk_id=1 --bos_id=2 --eos_id=3 \
-        --split_digits true 
+        --split_digits true
 
-After this is done (will take a while), you'll have two files: ```spm_32k_wiki.model and spm_32k_wiki.vocab`` which correspond to model and vocabulary.
+After this is done (will take a while), you'll have two files: ```spm_32k_wiki.model``` and ```spm_32k_wiki.vocab``corresponding to the model and vocabulary.
 
 **Step 4: Convert training data into memory map format**
 
-This format makes training more efficient, especially with many nodes and GPUs. This step will also tokenize data using tokenizer model from Step 3.
+This format makes training more efficient, especially with many nodes and GPUs. This step will also tokenize data using the tokenizer model from Step 3.
 
 *Option 1:* Using HuggingFace GPT2 tokenizer files.
 
@@ -86,12 +90,12 @@ This format makes training more efficient, especially with many nodes and GPUs. 
     --merge-file gpt2-merges.txt \
     --output-prefix=hfbpe_gpt_training_data \
     --append-eod \
-    --workers=32 
+    --workers=32
 
-*Option 2:* Using `Google Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizer library.  
+*Option 2:* Using `Google Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizer library.
 
 .. code-block:: bash
-    
+
     python <NeMo_ROOT_FOLDER>/scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --input=train_data.jsonl \
     --json-keys=text \
@@ -99,22 +103,22 @@ This format makes training more efficient, especially with many nodes and GPUs. 
     --tokenizer-model=spm_32k_wiki.model \
     --output-prefix=gpt_training_data \
     --append-eod \
-    --workers=32 
+    --workers=32
 
 
 Train GPT-style Model
 ~~~~~~~~~~~~~~~~~~~~~
 
 Once you have prepared training data and tokenizer, you are ready to train the model.
-The configuration we present below has about 124M parameters and it should fit on a single 16GB GPU if using float16.
-Let's go!!!
+The configuration we present below has about 124M parameters and should fit on a single 16GB GPU using float16.
+Let's go!
 
 *Option 1:* Using HuggingFace GPT2 tokenizer files.
 
 .. code-block:: bash
 
-    python /home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
-	--config-path=/home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/conf \
+    python <NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
+	--config-path=<NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/conf \
 	--config-name=megatron_gpt_config \
 	trainer.devices=1 \
 	trainer.num_nodes=1 \
@@ -166,8 +170,8 @@ Let's go!!!
 
 .. code-block:: bash
 
-    python /home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
-	--config-path=/home/okuchaiev/repos/NeMo/examples/nlp/language_modeling/conf \
+    python <NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/megatron_gpt_pretraining.py  \
+	--config-path=<NeMo_ROOT_FOLDER>/examples/nlp/language_modeling/conf \
 	--config-name=megatron_gpt_config \
 	trainer.devices=1 \
 	trainer.num_nodes=1 \
@@ -215,7 +219,7 @@ Let's go!!!
 	exp_manager.checkpoint_callback_params.always_save_nemo=False
 
 
-Next, simply launch Tensorboard to monitor training like so:
+Next, you can launch Tensorboard to monitor training like so:
 
 .. code-block:: bash
 

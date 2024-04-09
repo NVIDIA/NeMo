@@ -1,4 +1,4 @@
-NeMo ASR collection API
+NeMo ASR Collection API
 =======================
 
 
@@ -120,6 +120,14 @@ Mixins
     :members:
 
 .. autoclass:: nemo.collections.asr.parts.mixins.mixins.ASRModuleMixin
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.mixins.transcription.TranscriptionMixin
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.mixins.transcription.TranscribeConfig
     :show-inheritance:
     :members:
 
@@ -317,6 +325,4 @@ Adapter Strategies
     :members:
     :member-order: bysource
     :undoc-members: adapter_module_names
-
------
 
