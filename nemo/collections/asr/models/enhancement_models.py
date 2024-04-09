@@ -411,9 +411,8 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             input_signal = batch['input_signal']
             input_length = batch['input_length']
             target_signal = batch['target_signal']
-            target_length = batch['target_length']
         else:
-            input_signal, input_length, target_signal, target_length = batch
+            input_signal, input_length, target_signal, _ = batch
 
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1
@@ -447,9 +446,8 @@ class EncMaskDecAudioToAudioModel(AudioToAudioModel):
             input_signal = batch['input_signal']
             input_length = batch['input_length']
             target_signal = batch['target_signal']
-            target_length = batch['target_length']
         else:
-            input_signal, input_length, target_signal, target_length = batch
+            input_signal, input_length, target_signal, _ = batch
 
         # Expand channel dimension, if necessary
         # For consistency, the model uses multi-channel format, even if the channel dimension is 1

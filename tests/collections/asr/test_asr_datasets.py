@@ -1019,8 +1019,6 @@ class TestAudioDatasets:
             config_lhotse = {
                 'cuts_path': cuts_path,
                 'use_lhotse': True,
-                'input_key': data_key['input_signal'],
-                'target_key': data_key['target_signal'],
                 'min_duration': min_duration,
                 'max_duration': max_duration,
                 'sample_rate': sample_rate,
@@ -1102,8 +1100,6 @@ class TestAudioDatasets:
                 config_lhotse = {
                     'cuts_path': cuts_path,
                     'use_lhotse': True,
-                    'input_key': data_key['input_signal'],
-                    'target_key': data_key['target_signal'],
                     'min_duration': audio_duration,
                     'truncate_duration': audio_duration,
                     'truncate_offset_type': 'random' if random_offset else 'start',
