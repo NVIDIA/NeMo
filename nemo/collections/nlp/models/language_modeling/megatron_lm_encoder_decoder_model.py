@@ -191,11 +191,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Make sure embedding grads are reduced in FP32
             for name, param in self.named_parameters():
-                if (
-                    'word_embedding' in name
-                    or 'position_embedding' in name
-                    or 'output_layer' in name
-                ):
+                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
                     param._with_fp32_optimizer = True
 
         return super().configure_optimizers()

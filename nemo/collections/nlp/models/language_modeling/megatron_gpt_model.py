@@ -504,14 +504,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # Word embeddings: use FP32 grads and disable
                 # overlapped grad sync with pipeline parallelism
                 word_embeddings = (
-                    module.shared_embedding_or_output_weight()
-                    if self.mcore_gpt
-                    else module.word_embeddings_weight()
+                    module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                 )
                 word_embeddings._with_fp32_optimizer = True
-                if (
-                    parallel_state.get_pipeline_model_parallel_world_size() > 1
-                    and self.cfg.get('share_embeddings_and_output_weights', True)
+                if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.get(
+                    'share_embeddings_and_output_weights', True
                 ):
                     word_embeddings._disable_greedy_grad_copy = not self.megatron_amp_O2
                     word_embeddings._disable_overlap_grad_sync = True
@@ -527,15 +524,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     position_embeddings._with_fp32_optimizer = True
 
             # Handle case where embeddings are used in output layer
-            if (
-                parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-                and self.cfg.get('share_embeddings_and_output_weights', True)
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.cfg.get(
+                'share_embeddings_and_output_weights', True
             ):
                 module = modules[-1]  # last virtual rank has the embeddings
                 word_embeddings = (
-                    module.shared_embedding_or_output_weight()
-                    if self.mcore_gpt
-                    else module.word_embeddings_weight()
+                    module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
                 )
                 word_embeddings._with_fp32_optimizer = True
                 if parallel_state.get_pipeline_model_parallel_world_size() > 1:
