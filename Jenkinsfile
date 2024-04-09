@@ -4646,7 +4646,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.pipeline_model_parallel_size=1 \
         model.tensor_model_parallel_size=2 \
         model.sequence_parallel=true \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         model.peft.peft_scheme='lora' \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \

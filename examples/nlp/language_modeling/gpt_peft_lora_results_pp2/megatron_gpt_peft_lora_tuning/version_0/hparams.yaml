@@ -1,0 +1,182 @@
+cfg:
+  micro_batch_size: 1
+  global_batch_size: 1
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 2
+  encoder_seq_length: 2048
+  max_position_embeddings: 2048
+  num_layers: 12
+  hidden_size: 768
+  ffn_hidden_size: 3072
+  num_attention_heads: 12
+  init_method_std: 0.023
+  hidden_dropout: 0.0
+  kv_channels: null
+  apply_query_key_layer_scaling: true
+  layernorm_epsilon: 1.0e-05
+  make_vocab_size_divisible_by: 128
+  pre_process: true
+  post_process: true
+  tokenizer:
+    library: megatron
+    type: GPT2BPETokenizer
+    model: null
+    vocab_file: /artifacts/vocab.json
+    merge_file: /artifacts/merges.txt
+  native_amp_init_scale: 4294967296
+  native_amp_growth_interval: 1000
+  fp32_residual_connection: false
+  fp16_lm_cross_entropy: false
+  seed: 1234
+  use_cpu_initialization: false
+  onnx_safe: false
+  apex_transformer_log_level: 30
+  activations_checkpoint_method: null
+  activations_checkpoint_num_layers: null
+  data:
+    train_ds:
+      file_names:
+      - /home/data/quarel.jsonl
+      global_batch_size: 1
+      micro_batch_size: 1
+      shuffle: true
+      num_workers: 0
+      memmap_workers: 2
+      pin_memory: true
+      max_seq_length: 2048
+      min_seq_length: 1
+      drop_last: true
+      concat_sampling_probabilities:
+      - 1.0
+      label_key: output
+      add_eos: true
+      add_sep: false
+      add_bos: false
+      truncation_field: input
+      index_mapping_dir: null
+      prompt_template: '{input} {output}'
+      truncation_method: right
+    validation_ds:
+      file_names:
+      - /home/data/quarel.jsonl
+      names:
+      - quarel
+      global_batch_size: 1
+      micro_batch_size: 1
+      shuffle: false
+      num_workers: 0
+      memmap_workers: 2
+      pin_memory: true
+      max_seq_length: 2048
+      min_seq_length: 1
+      drop_last: false
+      label_key: output
+      add_eos: true
+      add_sep: false
+      add_bos: false
+      write_predictions_to_file: false
+      output_file_path_prefix: null
+      truncation_field: input
+      index_mapping_dir: null
+      prompt_template: '{input} {output}'
+      tokens_to_generate: 32
+      truncation_method: right
+      metric:
+        name: loss
+        average: null
+        num_classes: null
+    test_ds:
+      file_names: null
+      names: null
+      global_batch_size: 1
+      micro_batch_size: 1
+      shuffle: false
+      num_workers: 0
+      memmap_workers: 2
+      pin_memory: true
+      max_seq_length: 2048
+      min_seq_length: 1
+      drop_last: false
+      label_key: output
+      add_eos: true
+      add_sep: false
+      add_bos: false
+      write_predictions_to_file: false
+      output_file_path_prefix: null
+      truncation_field: input
+      index_mapping_dir: null
+      prompt_template: '{input} {output}'
+      tokens_to_generate: 32
+      truncation_method: right
+      metric:
+        name: loss
+        average: null
+        num_classes: null
+  optim:
+    name: fused_adam
+    lr: 0.0001
+    weight_decay: 0.01
+    betas:
+    - 0.9
+    - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 50
+      min_lr: 0.0
+      constant_steps: 0
+      monitor: val_loss
+      reduce_on_plateau: false
+  precision: 16
+  restore_from_path: /home/models/gpt_pp2_tp1.nemo
+  resume_from_checkpoint: null
+  save_nemo_on_validation_end: false
+  sync_batch_comm: false
+  megatron_amp_O2: false
+  sequence_parallel: false
+  activations_checkpoint_granularity: null
+  activations_checkpoint_layers_per_pipeline: null
+  answer_only_loss: true
+  gradient_as_bucket_view: false
+  attention_dropout: 0.0
+  ffn_dropout: 0.0
+  fsdp: false
+  fsdp_sharding_strategy: full
+  fsdp_grad_reduce_dtype: fp32
+  fsdp_sharded_checkpoint: false
+  fsdp_use_orig_params: false
+  peft:
+    peft_scheme: lora
+    restore_from_path: null
+    adapter_tuning:
+      type: parallel_adapter
+      adapter_dim: 32
+      adapter_dropout: 0.0
+      norm_position: pre
+      column_init_method: xavier
+      row_init_method: zero
+      norm_type: mixedfusedlayernorm
+      layer_selection: null
+      weight_tying: false
+      position_embedding_strategy: null
+    lora_tuning:
+      target_modules:
+      - attention_qkv
+      adapter_dim: 32
+      alpha: 32
+      adapter_dropout: 0.0
+      column_init_method: xavier
+      row_init_method: zero
+      layer_selection: null
+      weight_tying: false
+      position_embedding_strategy: null
+    p_tuning:
+      virtual_tokens: 10
+      bottleneck_dim: 1024
+      embedding_dim: 1024
+      init_std: 0.023
+    ia3_tuning:
+      layer_selection: null
+    selective_tuning:
+      tunable_base_param_names:
+      - self_attention
+      - word_embeddings
