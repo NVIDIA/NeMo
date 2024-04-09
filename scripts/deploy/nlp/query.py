@@ -35,7 +35,7 @@ def get_args(argv):
     parser.add_argument("-nrns", "--no_repeat_ngram_size", type=int, help="No repeat ngram size")
     parser.add_argument("-mot", "--max_output_token", default=128, type=int, help="Max output token length")
     parser.add_argument("-tk", "--top_k", default=1, type=int, help="top_k")
-    parser.add_argument("-tp", "--top_p", default=0.0, type=float, help="top_p")
+    parser.add_argument("-tpp", "--top_p", default=0.0, type=float, help="top_p")
     parser.add_argument("-t", "--temperature", default=1.0, type=float, help="temperature")
     parser.add_argument("-ti", "--task_id", type=str, help="Task id for the prompt embedding tables")
     parser.add_argument(

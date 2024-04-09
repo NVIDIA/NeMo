@@ -31,7 +31,7 @@ def get_args(argv):
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
     parser.add_argument(
-        "-pnc",
+        "-ptnc",
         "--ptuning_nemo_checkpoint",
         nargs='+',
         type=str,
@@ -53,7 +53,7 @@ def get_args(argv):
     parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
     parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
     parser.add_argument(
-        "-tp", "--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
+        "-trp", "--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
     )
     parser.add_argument(
         "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
@@ -62,8 +62,6 @@ def get_args(argv):
         "-tmr", "--triton_model_repository", default=None, type=str, help="Folder for the trt-llm conversion"
     )
     parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
-    parser.add_argument("-tps", "--tensor_parallelism_size", type=int, help="Tensor parallelism size")
-    parser.add_argument("-pps", "--pipeline_parallelism_size", type=int, help="Pipeline parallelism size")
     parser.add_argument(
         "-dt",
         "--dtype",
@@ -206,8 +204,8 @@ def nemo_deploy(argv):
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
                 n_gpus=args.num_gpus,
-                tensor_parallel_size=args.tensor_parallelism_size,
-                pipeline_parallel_size=args.pipeline_parallelism_size,
+                tensor_parallel_size=args.num_gpus,
+                pipeline_parallel_size=1,
                 max_input_token=args.max_input_len,
                 max_output_token=args.max_output_len,
                 max_batch_size=args.max_batch_size,
