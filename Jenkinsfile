@@ -212,8 +212,51 @@ pipeline {
             model.unet_config.use_flash_attention=False \
             model.unet_config.attention_resolutions=[1] \
             model.unet_config.channel_mult=[1] \
+            model.ddp_overlap=False \
             "
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
+      }
+    }
+    stage('L2: Multimodal Stable Diffusion Train with Cuda Graph') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train_with_cuda_graphs"
+        sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
+            trainer.precision=16 \
+            trainer.num_nodes=1 \
+            trainer.devices=1 \
+            ++exp_manager.max_time_per_run=00:00:03:00 \
+            exp_manager.exp_dir=/home/TestData/multimodal/stable_diffusion_train_with_cuda_graph \
+            trainer.max_steps=20 \
+            model.micro_batch_size=1 \
+            model.global_batch_size=1 \
+            model.data.synthetic_data=True \
+            model.first_stage_key=images_moments \
+            model.cond_stage_key=clip_encoded \
+            model.optim.name=megatron_fused_adam \
+            +model.optim.capturable=True \
+            exp_manager.ema.enable=False \
+            model.cond_stage_config._target_=nemo.collections.multimodal.modules.stable_diffusion.encoders.modules.FrozenCLIPEmbedder \
+            ++model.cond_stage_config.version=openai/clip-vit-large-patch14 \
+            ++model.cond_stage_config.max_length=77 \
+            model.inductor=False \
+            ~model.cond_stage_config.restore_from_path \
+            ~model.cond_stage_config.freeze \
+            ~model.cond_stage_config.layer \
+            model.first_stage_config.from_pretrained=null \
+            model.ddp_overlap=False \
+            model.capture_cudagraph_iters=15 \
+            model.unet_config.use_flash_attention=False \
+            model.unet_config.attention_resolutions=[1] \
+            model.unet_config.channel_mult=[1] \
+            "
+        sh "rm -rf /home/TestData/multimodal/stable_diffusion_train_with_cuda_graphs"
       }
     }
 //     stage('L2: Multimodal ControlNet Train') {
@@ -2201,7 +2244,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Punctuation & Capitalization tarred dataset') {
       when {
         anyOf {
@@ -2261,7 +2304,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('Punctuation & Capitalization, Different ways of passing labels to model') {
       when {
         anyOf {
@@ -3843,6 +3886,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.optim.name=distributed_fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=1 \
+        model.transformer_engine=true \
         model.optim.sched.constant_steps=1 \
         model.optim.sched.min_lr=8e-5 \
         model.max_position_embeddings=128 \
@@ -3885,6 +3929,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.data.seq_length=128 \
         model.normalization=rmsnorm \
         model.bias=False \
+        model.transformer_engine=True \
         model.bias_activation_fusion=False \
         model.bias_dropout_add_fusion=False \
         model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
@@ -3984,6 +4029,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
        model.position_embedding_type=rope \
        model.rotary_percentage=0.5 \
        model.normalization=rmsnorm \
+       model.transformer_engine=True \
        model.bias=False \
        model.bias_activation_fusion=False \
        model.bias_dropout_add_fusion=False \
@@ -5582,7 +5628,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
       }
     }
-    
+
     stage('L2: Megatron Mock Data Generation') {
       when {
         anyOf {
