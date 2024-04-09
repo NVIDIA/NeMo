@@ -14,10 +14,9 @@
 
 import copy
 
-import numpy as np
-
 import torch
 import torch.nn as nn
+import numpy as np
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
@@ -65,10 +64,15 @@ class TransformerDecoderBlock(nn.Module):
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
-    def forward_preln(
-            self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask,
-            p_prior=None, regular_attn=False
-    ):
+    def forward_preln(self,
+                      decoder_query,
+                      decoder_mask,
+                      decoder_keys,
+                      encoder_states,
+                      encoder_mask,
+                      p_prior=None,
+                      regular_attn=False,
+                     ):
         """
         Pre-LayerNorm block
         Order of operations: LN -> Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN
@@ -82,7 +86,7 @@ class TransformerDecoderBlock(nn.Module):
         residual = self_attn_output
         self_attn_output = self.layer_norm_2(self_attn_output)
         enc_dec_attn_output, alphas, p_choose = self.second_sub_layer(
-            self_attn_output, encoder_states, encoder_states, encoder_mask)
+            self_attn_output, encoder_states, encoder_states, encoder_mask, p_prior=p_prior, regular_attn=regular_attn)
         enc_dec_attn_output += residual
 
         residual = enc_dec_attn_output
@@ -130,7 +134,7 @@ class TransformerDecoder(nn.Module):
         hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
-        mask_range: list =[7, 15]
+        mask_range: list = [7, 15],
     ):
         super().__init__()
 
@@ -162,7 +166,7 @@ class TransformerDecoder(nn.Module):
         else:
             memory_states = decoder_states
         return memory_states
-
+    
     def p_prior(self, decoder_mask, encoder_mask):
 
         dec_lens = decoder_mask.sum(dim=-1).long()
@@ -220,6 +224,7 @@ class TransformerDecoder(nn.Module):
             else:
                 cached_mems_list = memory_states.unsqueeze(0)
 
+        all_alphas, all_p_choose = [], []
         for i, layer in enumerate(self.layers):
             decoder_states, alphas, p_choose = layer(
                 decoder_states, decoder_attn_mask, memory_states,
@@ -236,10 +241,14 @@ class TransformerDecoder(nn.Module):
         if self.final_layer_norm is not None:
             decoder_states = self.final_layer_norm(decoder_states)
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 2)
-            if return_mems_as_list:
-                cached_mems_list.append(memory_states)
-            else:
-                cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
+            if return_mems:
+                if return_mems_as_list:
+                    cached_mems_list.append(memory_states)
+                else:
+                    cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
+                
+        all_alphas = torch.stack(all_alphas)
+        all_p_choose = torch.stack(all_p_choose)
 
         if return_mems:
             return cached_mems_list, all_alphas, all_p_choose

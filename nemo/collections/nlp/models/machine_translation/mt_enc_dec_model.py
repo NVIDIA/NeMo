@@ -1,3 +1,5 @@
+
+
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,7 +48,7 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MT
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
+from nemo.collections.nlp.modules.common.transformer import GreedySequenceGenerator, BeamSearchSequenceGenerator, TopKSequenceGenerator
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils, timers
@@ -54,6 +56,7 @@ from nemo.utils import logging, model_utils, timers
 __all__ = ['MTEncDecModel']
 
 
+# +
 class MTEncDecModel(EncDecNLPModel, Exportable):
     """
     Encoder-decoder machine translation model.
@@ -77,8 +80,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.multilingual_ids = []
         self.special_tokens = {}
 
-        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'sentencepiece')
-        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'sentencepiece')
+        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
+        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
         if self.multilingual:
@@ -88,7 +91,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 )
             elif isinstance(self.src_language, ListConfig):
                 pass
-            elif isinstance(self.tgt_language, ListConfig):
+            elif isip_losnstance(self.tgt_language, ListConfig):
                 for lng in self.tgt_language:
                     self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
             else:
@@ -219,16 +222,26 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             use_transformer_init=cfg.head.use_transformer_init,
         )
 
-        self.beam_search = BeamSearchSequenceGenerator(
+#         self.beam_search = BeamSearchSequenceGenerator(
+#             embedding=self.decoder.embedding,
+#             decoder=self.decoder.decoder,
+#             log_softmax=self.log_softmax,
+#             max_sequence_length=self.decoder.max_sequence_length,
+#             beam_size=cfg.beam_size,
+#             bos=self.decoder_tokenizer.bos_id,
+#             pad=self.decoder_tokenizer.pad_id,
+#             eos=self.decoder_tokenizer.eos_id,
+#             len_pen=cfg.len_pen,
+#             max_delta_length=cfg.max_generation_delta,
+#         )
+        self.beam_search = GreedySequenceGenerator(
             embedding=self.decoder.embedding,
             decoder=self.decoder.decoder,
             log_softmax=self.log_softmax,
             max_sequence_length=self.decoder.max_sequence_length,
-            beam_size=cfg.beam_size,
             bos=self.decoder_tokenizer.bos_id,
             pad=self.decoder_tokenizer.pad_id,
             eos=self.decoder_tokenizer.eos_id,
-            len_pen=cfg.len_pen,
             max_delta_length=cfg.max_generation_delta,
         )
 
@@ -268,6 +281,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
+        self.latency_coef = cfg.latency_coef
+        self.var_coef = cfg.var_coef
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
 
     @classmethod
@@ -356,7 +371,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         return not invalid_ids
 
-    @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         if self.validate_input_ids:
             # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
@@ -364,11 +378,33 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.test_decoder_ids(tgt, raise_error=True)
 
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-        tgt_hiddens = self.decoder(
+        tgt_hiddens, alphas, p_choose = self.decoder(
             input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
         )
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
-        return log_probs
+        return log_probs, alphas, p_choose
+    
+    def p_choose_loss(self, alphas, src_len, tgt_len):
+
+        n_layers, bsz, n_heads, tgt_max_len, src_max_len = alphas.size()
+        ids = torch.arange(src_max_len).to(alphas.dtype).to(alphas.device)
+        
+        delays = torch.einsum("lbhts,s->lbht", alphas, ids)
+        variances = torch.einsum("lbhts,s->lbht", alphas, ids.square()) - delays.square()
+
+        delays_prime = [delays[:, :, :, [0]]]
+        gamma = (src_len / tgt_len)[None, :, None, None]
+        for i in range(1, tgt_max_len):
+            delays_prime.append(torch.maximum(delays[:, :, :, [i]], delays_prime[i-1] + gamma))
+        delays_prime = torch.cat(delays_prime, dim=-1)
+
+        shift = torch.arange(tgt_max_len).to(delays.dtype).to(delays.device)[None, None, None, :] * gamma
+
+        delay_loss = (delays_prime - shift) / tgt_len[None, :, None, None]
+        delay_loss = delay_loss.sum(dim=-1).mean()
+        var_loss = variances.sum(dim=-1).mean()
+
+        return delay_loss, var_loss
 
     def training_step(self, batch, batch_idx):
         """
@@ -382,10 +418,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        log_probs, alphas, p_choose = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+
+        delay_loss, var_loss = self.p_choose_loss(alphas, src_mask.sum(dim=-1), tgt_mask.sum(dim=-1))
+        train_loss = train_loss + self.latency_coef * delay_loss + self.var_coef * var_loss
+        
         tensorboard_logs = {
             'train_loss': train_loss,
+            'delay_loss': delay_loss,
+            'var_loss': var_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
         }
 
@@ -403,7 +445,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.target_processor = self.target_processor_list[dataloader_idx]
 
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        log_probs, alphas, p_choose = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
         inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
@@ -568,7 +610,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         special_tokens={},
     ):
 
-        supported_tokenizers = ['huggingface', 'sentencepiece', 'megatron', 'byte-level']
+        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
         if (
             encoder_tokenizer_library not in supported_tokenizers
             or decoder_tokenizer_library not in supported_tokenizers

@@ -184,6 +184,31 @@ class MultiHeadAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
+    def monotonic_alignment(self, p):
+
+        bsz, num_heads, tgt_len, src_len = p.size()
+
+        p = p.view(-1, tgt_len, src_len)
+
+        p_ext = p.roll(1, [-1]).unsqueeze(-2).expand(-1, -1, src_len, -1).triu(1)
+
+        T = (1 - p_ext).cumprod(-1).triu()
+
+        alpha = [p[:, [0]] * T[:, 0, [0]]]
+
+        for i in range(1, tgt_len):
+            alpha.append(p[:, [i]] * torch.bmm(alpha[i - 1], T[:, i]))
+
+        alphas = torch.cat(alpha, dim=1).view(bsz, num_heads, tgt_len, src_len)
+
+        return alphas
+    
+    def ones_on_seq_len(self, attn_mask):
+        batch_size, dim1, dim2, max_length = attn_mask.shape
+        lens = attn_mask[:,0,0,:].eq(0).sum(dim=-1) - 1
+        mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) == lens[:, None]
+        return mask[:, None, None, :]
+
     def forward(self, queries, keys, values, attention_mask, p_prior=None, regular_attn=True):
 
         # attention_mask is needed to hide the tokens which correspond to [PAD]
