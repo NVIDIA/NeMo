@@ -683,6 +683,68 @@ def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler
     scheduler = partial(scheduler_cls, **kwargs)
     return scheduler
 
+def get_mcore_lr_scheduler(optimizer, scheduler_config):
+    #from megatron.training.optimizer_param_scheduler import OptimizerParamScheduler
+    from megatron.optimizer_param_scheduler import OptimizerParamScheduler
+    interval = 'step'
+    monitor = 'loss'
+    reduce_lr_on_plateau = False
+
+    # Iteration-based training.
+    if 'train_iters' in scheduler_config:
+        if 'lr_decay_iters' in scheduler_config:
+            lr_decay_iters = scheduler_config['lr_decay_iters']
+        else:
+            lr_decay_iters = scheduler_config['train_iters']
+        lr_decay_steps = lr_decay_iters * scheduler_config['global_batch_size']
+        if 'lr_warmup_fraction' in scheduler_config:
+            lr_warmup_steps = scheduler_config['lr_warmup_fraction'] * lr_decay_steps
+        elif 'lr_warmup_iters' in scheduler_config:
+            lr_warmup_steps = scheduler_config['lr_warmup_iters'] * scheduler_config['global_batch_size']
+        else:
+            raise Exception('either lr_warmup_fraction or lr_warmup_iters should be provided')
+    # Sample-based training.
+    elif 'train_samples' in scheduler_config:
+        # currently don't support rampup based training_samples
+        if 'lr_decay_samples' in scheduler_config:
+            lr_decay_samples = scheduler_config['lr_decay_samples']
+        else:
+            lr_decay_samples = scheduler_config['train_samples']
+        
+        lr_decay_steps = lr_decay_samples
+        if 'lr_warmup_fraction' in scheduler_config:
+            lr_warmup_steps = scheduler_config['lr_warmup_fraction'] * lr_decay_steps
+        elif 'lr_warmup_samples' in scheduler_config:
+            lr_warmup_steps = scheduler_config['lr_warmup_samples']
+        else:
+            raise Exception('either lr_warmup_fraction or lr_warmup_samples should be provided')
+
+    else:
+        raise Exception(
+        'either train_iters or train_samples should be provided.')
+
+    schedule = OptimizerParamScheduler(
+                optimizer,
+                init_lr=scheduler_config['lr_warmup_init'],
+                max_lr=scheduler_config['lr'],
+                min_lr=scheduler_config['min_lr'],
+                lr_warmup_steps=lr_warmup_steps,
+                lr_decay_steps=lr_decay_steps,
+                lr_decay_style= scheduler_config['lr_decay_style'],
+                start_wd=scheduler_config['weight_decay'],
+                end_wd=scheduler_config['weight_decay'],
+                wd_incr_steps=64000,
+                wd_incr_style='constant',
+                use_checkpoint_opt_param_scheduler=False,
+                override_opt_param_scheduler=False)
+    schedule_dict = {
+        'scheduler': schedule,
+        'interval': interval,
+        'frequency': 1,
+        'monitor': monitor,
+        'reduce_on_plateau': reduce_lr_on_plateau,
+        }
+    return schedule_dict 
 
 def prepare_lr_scheduler(
     optimizer: optim.Optimizer,

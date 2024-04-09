@@ -27,6 +27,7 @@ from nemo.core.optim.lr_scheduler import (
     WarmupHoldPolicy,
     WarmupPolicy,
     prepare_lr_scheduler,
+    get_mcore_lr_scheduler,
 )
 from nemo.core.optim.novograd import Novograd
 from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper

@@ -486,6 +486,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.model = [DDP(config,
                     model_chunk,
                     data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                     accumulate_allreduce_grads_in_fp32=self.megatron_amp_O2,
                     overlap_grad_reduce=self.cfg.optim.get('mcore_overlap_grad_sync', False),
                     use_distributed_optimizer=True,
@@ -493,12 +494,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # model chunks is overlapped with compute anyway.
                     disable_bucketing=(model_chunk_idx > 0))
                 for (model_chunk_idx, model_chunk) in enumerate(self.model)]
-
-
+            
+            # (TODO) Check if we need this
+            # # Broadcast params from data parallel src rank to other data parallel ranks.
+            # if args.data_parallel_random_init:
+            #     for model_module in model:
+            #         model_module.broadcast_params()
 
     def configure_optimizers(self):
-        if self.with_distributed_adam:
-
+        if self.with_distributed_adam and not self.use_mcore_dist_optim:
             # Disable overlapped grad sync for embedding grad when
             # pipeline parallelism is enabled
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
