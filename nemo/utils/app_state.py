@@ -55,7 +55,7 @@ class AppState(metaclass=Singleton):
         self._is_megatron_initialized = False
         self._data_parallel_size = None
         self._data_parallel_group = None
-        self._parallel_initialize_order = None
+        self._use_tp_pp_dp_mapping = False
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
         self._context_parallel_size = None
@@ -193,12 +193,12 @@ class AppState(metaclass=Singleton):
         self._pipeline_model_parallel_size = size
 
     @property
-    def parallel_initialize_order(self):
-        return self._parallel_initialize_order
+    def use_tp_pp_dp_mapping(self):
+        return self._use_tp_pp_dp_mapping
 
-    @parallel_initialize_order.setter
-    def parallel_initialize_order(self, order):
-        self._parallel_initialize_order = order
+    @use_tp_pp_dp_mapping.setter
+    def use_tp_pp_dp_mapping(self, use_new_mapping):
+        self._use_tp_pp_dp_mapping = use_new_mapping
 
     @property
     def virtual_pipeline_model_parallel_size(self):

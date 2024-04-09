@@ -68,7 +68,6 @@ def initialize_model_parallel_for_nemo(
     virtual_pipeline_model_parallel_size=None,
     pipeline_model_parallel_split_rank=None,
     context_parallel_size=1,
-    parallel_initialize_order='tp-dp-pp',
     micro_batch_size=None,
     global_batch_size=None,
     rampup_batch_size=None,
@@ -76,6 +75,7 @@ def initialize_model_parallel_for_nemo(
     init_mpi_proc_group=False,
     seed=1234,
     apex_transformer_log_level=30,
+    use_tp_pp_dp_mapping=False,
 ):
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -86,7 +86,7 @@ def initialize_model_parallel_for_nemo(
     app_state.global_rank = global_rank
     app_state.world_size = world_size
     app_state.local_rank = local_rank
-    app_state.parallel_initialize_order = parallel_initialize_order
+    app_state.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
     app_state.expert_model_parallel_size = expert_model_parallel_size
     app_state.tensor_model_parallel_size = tensor_model_parallel_size
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
@@ -111,7 +111,7 @@ def initialize_model_parallel_for_nemo(
         pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
         context_parallel_size_=context_parallel_size,
         expert_model_parallel_size_=expert_model_parallel_size,
-        parallel_initialize_order=parallel_initialize_order,
+        use_tp_pp_dp_mapping=use_tp_pp_dp_mapping,
     )
 
     # update apex.transformer globals
@@ -196,7 +196,7 @@ def fake_initialize_model_parallel(
     virtual_pipeline_model_parallel_size_=None,
     expert_model_parallel_size_=1,
     context_parallel_size_=1,
-    parallel_initialize_order='tp-dp-pp',
+    use_tp_pp_dp_mapping=False,
 ):
     """
     Fake initialize model data parallel groups so that we can instantiate model parallel models before DDP is initialized.
@@ -252,7 +252,7 @@ def fake_initialize_model_parallel(
         dp=data_parallel_size,
         pp=pipeline_model_parallel_size,
         cp=context_parallel_size,
-        order=parallel_initialize_order,
+        order= 'tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
     )
 
     # Build the data-parallel groups.
@@ -312,9 +312,10 @@ def fake_initialize_model_parallel(
 
     # EP rank
     expert_model_parallel_rank = 0
-    for ranks in rank_generator.get_ranks('ep', independent_ep=True):
-        if rank in ranks:
-            expert_model_parallel_rank = list(ranks).index(rank) // tensor_model_parallel_size
+    if expert_model_parallel_size_ is not None and expert_model_parallel_size_ > 1:
+        for ranks in rank_generator.get_ranks('ep', independent_ep=True):
+            if rank in ranks:
+                expert_model_parallel_rank = list(ranks).index(rank) // tensor_model_parallel_size
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).

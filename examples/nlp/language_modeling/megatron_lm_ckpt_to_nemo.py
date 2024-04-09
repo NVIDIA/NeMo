@@ -535,7 +535,6 @@ def convert(local_rank, rank, world_size, args):
                     pipeline_model_parallel_size=args.pipeline_model_parallel_size,
                     virtual_pipeline_model_parallel_size=None,
                     pipeline_model_parallel_split_rank=0,
-                    order=app_state.parallel_initialize_order,
                 )
             model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
         elif args.model_type == 'bert':
