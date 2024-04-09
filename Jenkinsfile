@@ -99,7 +99,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout a5415fcfacef2a37416259bd38b7c4b673583675 && \
+             git checkout 81dab6067a0ef4635270b7e6e56bdf79ccfd7731 && \
              pip install .'
       }
     }
@@ -134,6 +134,64 @@ pipeline {
         sh 'python tests/core_ptl/check_imports.py --domain "nlp"'
       }
     }
+    
+    stage('L2: Megatron RETRO Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
+            model.data.num_workers=4 \
+            model.micro_batch_size=1 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=20 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
+            trainer.max_steps=30"
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
+            model.data.num_workers=4 \
+            model.micro_batch_size=1 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=20 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
+            trainer.max_steps=50"
+        sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
+      }
+    }
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads'
@@ -3516,7 +3574,7 @@ pipeline {
         sh "rm -rf examples/nlp/information_retrieval/bert_embedding_results"
       }
     }
-    stage('L2: Megatron RETRO Pretraining and Resume Training') {
+    stage('L2: (Legacy) Megatron RETRO Pretraining and Resume Training') {
       when {
         anyOf {
           branch 'main'
