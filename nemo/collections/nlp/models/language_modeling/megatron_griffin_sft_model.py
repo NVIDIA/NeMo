@@ -100,7 +100,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGriffinSFTModel']
 
 
-class MegatronGriffinSFTModel(MegatronGriffinModel, MegatronGPTSFTModel):
+class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
     """
     Megatron Griffin Supervised Fine-Tuning
     """

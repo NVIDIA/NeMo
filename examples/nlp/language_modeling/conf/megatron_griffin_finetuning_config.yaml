@@ -1,5 +1,5 @@
 name: megatron_griffin
-restore_from_path: null # used when starting from a .nemo file
+restore_from_path: ${model.restore_from_path} # used when starting from a .nemo file
 
 trainer:
   devices: 1
