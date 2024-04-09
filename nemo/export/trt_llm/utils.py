@@ -111,7 +111,7 @@ def is_nemo_file(path):
 
     if path is not None:
         if len(path) > 5:
-            pc = Path(path)
+            pc = pathlib.Path(path)
             if pc.exists():
                 if pc.is_file():
                     if path[-5 : len(path)] == ".nemo":
@@ -123,7 +123,7 @@ def is_nemo_file(path):
 def get_prompt_embedding_table(prompt_checkpoint_path):
 
     with tempfile.TemporaryDirectory() as prompt_out_dir:
-        prompt_out_dir = Path(prompt_out_dir)
+        prompt_out_dir = pathlib.Path(prompt_out_dir)
         unpack_nemo_ckpt(prompt_checkpoint_path, prompt_out_dir)
 
         model_weights_ckpt = "model_weights.ckpt"
