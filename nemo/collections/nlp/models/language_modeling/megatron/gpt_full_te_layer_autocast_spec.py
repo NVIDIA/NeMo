@@ -264,7 +264,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         context = None
 
         # CUDA graph requires returned values to be Tensors
-        if self.config.cuda_graph and self.training:
+        if self.config.enable_cuda_graph and self.training:
             return hidden_states
         return hidden_states, context
 
