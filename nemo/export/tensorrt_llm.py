@@ -245,6 +245,7 @@ class TensorRTLLM(ITritonDeployable):
         max_input_len: int = 256,
         max_output_len: int = 256,
         max_batch_size: int = 8,
+        gpus_per_node: int = 8,
         use_refit: bool = False,
         reshard_model: bool = False,
     ):  
