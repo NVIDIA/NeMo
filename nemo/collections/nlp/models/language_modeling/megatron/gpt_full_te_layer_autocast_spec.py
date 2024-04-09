@@ -237,15 +237,6 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
             transformer_layer_args["ub_atomic_gemm_rs"] = config.tp_comm_atomic_rs
         super().__init__(**transformer_layer_args)
 
-    def reset_fp8_meta_tensors(self) -> None:
-        """Set TP group"""
-        # Deep iterate but skip self to avoid infinite recursion.
-        for index, child in enumerate(self.modules()):
-            if index == 0:
-                continue
-            if hasattr(child, "reset_fp8_meta_tensors"):
-                child.reset_fp8_meta_tensors()
-
     # Called by MCore's TransformerBlock.forward
     # megatron/core/transformer/transformer_block.py
     def forward(
@@ -259,6 +250,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         inference_params=None,
         packed_seq_params=None,  # TODO: handle this
     ):
+        # Use is_first_microbatch argument during CUDA graph capture. Use self.is_first_microbatch otherwise.
         hidden_states = super().forward(
             hidden_states,
             attention_mask=attention_mask,
@@ -271,7 +263,10 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         self.is_first_microbatch = False
         context = None
 
-        return hidden_states
+        # CUDA graph requires returned values to be Tensors
+        if self.config.cuda_graph and self.training:
+            return hidden_states
+        return hidden_states, context
 
     def _get_layer_offset(self):
 
