@@ -22,9 +22,8 @@ import torch
 import yaml
 from transformers import FalconConfig, GPT2Config, LlamaConfig
 
-from nemo.export.trt_llm.nemo.convert import cpu_map_location, gpu_map_location
 from nemo.export.tarutils import TarPath
-
+from nemo.export.trt_llm.nemo.convert import cpu_map_location, gpu_map_location
 
 LOGGER = logging.getLogger("NeMo")
 

@@ -27,12 +27,12 @@ import torch
 import wrapt
 
 from nemo.deploy import ITritonDeployable
+from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
 from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file
-from nemo.export.tarutils import TarPath
 
 use_deploy = True
 try:
@@ -595,7 +595,7 @@ class TensorRTLLM(ITritonDeployable):
                         "Please check the nemo checkpoint format for the prompt "
                         "embedding table.".format(mw_path)
                     )
-                
+
             with mw_path.open('rb') as mw_file:
                 weights = torch.load(mw_file)
 

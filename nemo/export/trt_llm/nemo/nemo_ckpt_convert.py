@@ -31,11 +31,10 @@ from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
+from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.trt_llm.nemo.convert import save_weight_torch, split_and_save_weight
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
 from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.export.tarutils import TarPath, ZarrPathStore
-
 
 LOGGER = logging.getLogger("NeMo")
 

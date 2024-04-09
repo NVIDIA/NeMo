@@ -30,6 +30,7 @@ import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
 from transformers import AutoTokenizer, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
+from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.model_config import (
     LAYERNORM_DEFAULT,
     LAYERNORM_RMS,
@@ -43,7 +44,6 @@ from nemo.export.trt_llm.model_config import (
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint, convert_nemo_model
 from nemo.export.trt_llm.tensor_utils import get_tensor_from_dict, get_tensor_parallel_group, split
-from nemo.export.tarutils import TarPath
 
 LOGGER = logging.getLogger("NeMo")
 
