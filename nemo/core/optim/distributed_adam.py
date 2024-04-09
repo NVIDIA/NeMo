@@ -481,6 +481,12 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         _multi_tensor_copy(
             buffers_in, buffers_out, dummy_overflow_buf=self._dummy_overflow_buf,
         )
+        # Update transpose caches
+        params = set(self.parameter(fragment) for fragment in fragments)
+        for param in params:
+            if is_float8tensor(param):
+                param._reset_caches()
+                param.transpose_2d(cache=True)
 
         # Update transpose caches
         params = set(self.parameter(fragment) for fragment in fragments)
