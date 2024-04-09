@@ -140,7 +140,7 @@ model:
     # scheduler setup
     sched:
       name: CosineAnnealing
-      warmup_ratio: 0.1
+      warmup_steps: 5000
       min_lr: 0.0001
 
 trainer:
