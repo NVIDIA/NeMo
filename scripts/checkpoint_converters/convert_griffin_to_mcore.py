@@ -8,10 +8,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import
 from nemo.utils import logging
 from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 
 
 '''
-CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_griffin_to_mcore.py --output_path /home/ataghibakhsh/griffin_it.nemo --hparams_file /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/conf/megatron_griffin_config.yaml --path_to_base /home/ataghibakhsh/deepmind/space_gemma_model/2b-it.pt
+CUDA_VISIBLE_DEVICES="0" python /home/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_griffin_to_mcore.py --output_path /home/ataghibakhsh/griffin_pretrained_tiny.nemo --hparams_file /home/ataghibakhsh/NeMo/examples/nlp/language_modeling/conf/megatron_griffin_config.yaml --path_to_base /home/ataghibakhsh/deepmind/space_gemma_model/2b.pt
 '''
 
 def get_args():
@@ -31,18 +32,13 @@ def get_args():
 
 def convert(args):
     # logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
-    trainer = Trainer(
-    strategy=NLPDDPStrategy(),
-    devices=-1,
-    accelerator="gpu",
-    num_nodes=1,
-    precision="bf16",
-    logger=False,
-    enable_checkpointing=False,
-    use_distributed_sampler=False,
-)
+    
     # exp_manager(trainer, cfg.exp_manager)
     cfg = OmegaConf.load(args.hparams_file)
+    precision = cfg.trainer.precision
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
+    cfg.trainer.precision = precision
+
     model = MegatronGriffinModel(cfg.model, trainer)
 
     new_state_dict = {}
@@ -51,7 +47,7 @@ def convert(args):
     new_state_dict['model.embedder.word_embeddings.weight'] = dm_model_weight['embedder.input_embedding']
     new_state_dict['model.final_norm.weight'] = dm_model_weight['final_norm.scale']
 
-    for l in range(26):
+    for l in range():
         print(f"Converting Layer {l}")
         print("********************")
         new_state_dict[f'model.layers.{l}.input_layernorm.weight'] = dm_model_weight[f'blocks.{l}.temporal_pre_norm.scale']
