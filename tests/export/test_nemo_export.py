@@ -145,7 +145,7 @@ def run_trt_llm_inference(
         if n_gpu > torch.cuda.device_count():
             print(
                 "Path: {0} and model: {1} with {2} gpus won't be tested since available # of gpus = {3}".format(
-                    model_info["checkpoint"], model_name, n_gpu, torch.cuda.device_count()
+                    checkpoint_path, model_name, n_gpu, torch.cuda.device_count()
                 )
             )
             return None, None, None, None, None
