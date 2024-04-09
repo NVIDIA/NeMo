@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from abc import abstractmethod
-from collections.abc import Iterable
-from functools import partial
-from typing import Iterable
-
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-
+from abc import abstractmethod
 from apex.contrib.group_norm import GroupNorm
+from collections.abc import Iterable
+from functools import partial
+from typing import Iterable
+
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     avg_pool_nd,
@@ -629,7 +628,7 @@ class UNetModel(nn.Module):
             linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
         )
 
-        self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps)).to('cuda')
+        self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps))
         if unet_precision == 'fp16-mixed' or unet_precision == 'fp16':
             self.time_embeddings = self.time_embeddings.to(torch.float16)
 
@@ -1173,7 +1172,8 @@ class UNetModel(nn.Module):
             if context is not None:
                 context = context.type(torch.float16)
 
-        t_emb = timestep_embedding(timesteps, self.model_channels, cached_embedding=self.time_embeddings)
+        t_emb = timestep_embedding(timesteps, self.model_channels,
+                                   cached_embedding=self.time_embeddings.to(timesteps.device))
         emb = self.time_embed(t_emb)
         if self.num_classes is not None:
             assert y.shape[0] == x.shape[0]
