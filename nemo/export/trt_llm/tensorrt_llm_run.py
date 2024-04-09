@@ -485,11 +485,11 @@ def prepare_input_tensors(
     input_texts: List[str],
     host_context: TensorrtLLMHostContext,
     prompt_table=None,
-    task_vtoken_counts: List[int]=None,
-    task_ids: List[int]=None
+    task_vtoken_counts: List[int] = None,
+    task_ids: List[int] = None,
 ):
     tokenizer = host_context.tokenizer
-    
+
     if host_context.add_bos:
         bos_tokens = [tokenizer.bos_token_id]
     else:
@@ -510,8 +510,8 @@ def prepare_input_tensors(
             # Create a tensor with vtokens, e.g. 32000, 32001, 32002... when vocab_size=32000
             # TRT-LLM will convert each vtoken into its corresponding embedding row from the prompt table.
             vocab_size = tokenizer.vocab_size
-            vtokens = list(range(vocab_size, vocab_size + num_vtokens)) 
-            
+            vtokens = list(range(vocab_size, vocab_size + num_vtokens))
+
             # Concatenate the vtokens with the real tokens
             real_tokens = input_tokens[prompt_index]
             input_tokens[prompt_index] = vtokens + real_tokens
@@ -531,7 +531,7 @@ def generate(
     temperature: float = 1.0,
     prompt_table=None,
     task_vocab_size=None,
-    task_vtoken_counts: List[int]=None,
+    task_vtoken_counts: List[int] = None,
     task_ids: List[int] = None,
     lora_uids: List[str] = None,
     stop_words_list=None,
@@ -610,7 +610,7 @@ def generate_streaming(
     temperature: float = 1.0,
     prompt_table=None,
     task_vocab_size=None,
-    task_vtoken_counts: List[int]=None,
+    task_vtoken_counts: List[int] = None,
     task_ids: List[int] = None,
     lora_uids: List[str] = None,
     stop_words_list=None,

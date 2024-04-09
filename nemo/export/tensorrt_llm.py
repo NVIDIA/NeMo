@@ -585,7 +585,9 @@ class TensorRTLLM(ITritonDeployable):
             actual_prompt_table_size = self.p_table.shape[0]
 
             if actual_prompt_table_size > max_prompt_embedding_table_size:
-                raise Exception(f"The size of the combined prompt embedding table ({actual_prompt_table_size}) is greater than max_prompt_embedding_table_size ({max_prompt_embedding_table_size}).")
+                raise Exception(
+                    f"The size of the combined prompt embedding table ({actual_prompt_table_size}) is greater than max_prompt_embedding_table_size ({max_prompt_embedding_table_size})."
+                )
         else:
             self.p_table = None
 
