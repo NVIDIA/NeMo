@@ -84,7 +84,9 @@ def main(cfg):
     # Initialize the weights of the model from another model, if provided via config
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
-    asr_model.encoder.freeze()
+    if cfg.model.get("freeze_encoder", False):
+        logging.info("Encoder is frozen for fine-tuning.")
+        asr_model.encoder.freeze()
 
     trainer.fit(asr_model)
 

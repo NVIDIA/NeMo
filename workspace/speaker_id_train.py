@@ -74,9 +74,6 @@ def load_ssl_encoder(model, cfg):
 
     model.load_state_dict(encoder_state_dict, strict=False)
 
-    import ipdb
-
-    ipdb.set_trace()
     return model
 
 
