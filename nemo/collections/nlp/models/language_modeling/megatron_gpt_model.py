@@ -36,15 +36,12 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import (
-    GPTFIMDataset,
-    GPTFIMDatasetConfig,
-    is_dataset_built_on_rank,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
     get_gpt_full_te_layer_autocast_spec,
 )
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_ammo_spec import get_gpt_layer_ammo_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -92,6 +89,9 @@ try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
+
+    # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
+    # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import (
         get_gpt_layer_local_spec,
@@ -101,11 +101,6 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import drain_embedding_wgrad_compute, init_method_normal, scaled_init_method_normal
-
-    try:
-        from megatron.core.deploy.gpt.model_specs import get_gpt_layer_ammo_spec
-    except (ImportError, ModuleNotFoundError):
-        from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
 
     HAVE_MEGATRON_CORE = True
 
@@ -1385,9 +1380,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 tokenizer=self.tokenizer,
             )
         else:
+            # Function needed for mcore GPTDataset
+            is_dataset_built_on_rank = lambda: True
+
             mock_dataset = True if self.cfg.data.get("data_impl", "mmap") == "mock" else False
             kwargs = {
-                "is_built_on_rank": is_dataset_built_on_rank,
                 "random_seed": self.cfg.seed,
                 "sequence_length": self.cfg.data.seq_length,
                 "path_to_cache": self.cfg.data.index_mapping_dir,
@@ -1409,17 +1406,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             if self.cfg.data.get('add_fim', False):
                 dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
-
-                self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    GPTFIMDataset, train_valid_test_num_samples, dataset_config,
-                ).build()
+                dataset_type = GPTFIMDataset
             else:
                 dataset_config = GPTDatasetConfig(**kwargs)
                 dataset_type = MockGPTDataset if mock_dataset else GPTDataset
 
-                self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-                    dataset_type, train_valid_test_num_samples, dataset_config,
-                ).build()
+            self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
+                dataset_type, train_valid_test_num_samples, is_dataset_built_on_rank, dataset_config,
+            ).build()
 
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
@@ -1756,7 +1750,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                         parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                     sync_embeddings = (
-                        module.initialize_last_stage_with_word_embeddings
+                        module.setup_embeddings_and_output_layer
                         if self.mcore_gpt
                         else module.sync_initial_word_embeddings
                     )
