@@ -19,7 +19,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     CustomProgressBar,
@@ -115,12 +114,7 @@ class MegatronTrainerBuilder:
             if megatron_amp_O2 and not with_distributed_adam:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
-                if self.cfg.model.get('fsdp', False):
-                    plugins.append(FSDPPrecision(precision=plugin_precision, scaler=scaler))
-                else:
-                    plugins.append(
-                        PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
-                    )
+                plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             self.cfg.trainer.precision = None
 
         if self.cfg.get('cluster_type', None) == 'BCP':
