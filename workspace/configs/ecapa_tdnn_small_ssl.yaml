@@ -65,7 +65,7 @@ model:
       freq_masks: 3
       freq_width: 4
       time_masks: 5
-      time_width: 0.03
+      time_width: 0.05
     
     encoder:
       _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -122,7 +122,7 @@ model:
   decoder:
     _target_: nemo.collections.asr.modules.SpeakerDecoder
     feat_in: 1536
-    num_classes: 7323
+    num_classes: 7205
     pool_mode: 'attention' #xvector,tap or attention
     attention_channels: 3072
     emb_sizes: 192
