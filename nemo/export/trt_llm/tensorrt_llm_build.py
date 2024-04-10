@@ -14,6 +14,7 @@
 
 
 import argparse
+from importlib.machinery import SourceFileLoader
 import logging
 import os
 import time
@@ -24,13 +25,19 @@ import tensorrt as trt
 import tensorrt_llm
 import torch
 from tensorrt_llm import str_dtype_to_trt
-from tensorrt_llm._utils import np_dtype_to_trt
-from tensorrt_llm.builder import Builder
+from tensorrt_llm._utils import np_dtype_to_trt, torch_dtype_to_np, np_dtype_to_trt, trt_dtype_to_str
+from tensorrt_llm.builder import Builder, BuildConfig
 from tensorrt_llm.logger import logger
 from tensorrt_llm.models.modeling_utils import add_lora
 from tensorrt_llm.network import net_guard
 from tensorrt_llm.plugin.plugin import ContextFMHAType
 from tensorrt_llm.quantization import QuantMode
+from tensorrt_llm.commands.build import build_model, build as build_trtllm
+from tensorrt_llm.plugin import PluginConfig
+from tensorrt_llm.models.llama.model import LLaMAForCausalLM
+from tensorrt_llm.models.modeling_utils import optimize_model, preprocess_weights
+
+
 
 MODEL_NAME = "NeMo"
 
@@ -356,15 +363,15 @@ def build_and_save_engine(
     model_dir=None,
     model_weights=None,
     model_config=None,
+    use_refit=True,
+    trt_model_type='LLaMAForCausalLM'
 ):
     '''Minimum implementation of TRTLLM 0.9's unified builder api'''
 
-    from tensorrt_llm.commands.build import build_model, build as build_trtllm
-    from tensorrt_llm.plugin import PluginConfig
-    from tensorrt_llm.builder import BuildConfig
-    from tensorrt_llm._utils import torch_dtype_to_np, np_dtype_to_trt, trt_dtype_to_str
-    from tensorrt_llm.models.llama.model import LLaMAForCausalLM
-    from tensorrt_llm.models.modeling_utils import optimize_model, preprocess_weights
+    try:
+        model_cls = getattr(tensorrt_llm.models, trt_model_type)
+    except:
+        raise AttributeError(f"Could not find TRTLLM model type: {trt_model_type}!")
 
     str_dtype = model_config.dtype
     plugin_config = PluginConfig()
@@ -384,11 +391,11 @@ def build_and_save_engine(
         'gather_generation_logits': False,
         'strongly_typed': False,
         'builder_opt': None,
-        'use_refit': True,
+        'use_refit': use_refit,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
-
-    model = LLaMAForCausalLM.from_config(model_config)
+        
+    model = model_cls.from_config(model_config)
     model = optimize_model(
         model,
         use_parallel_embedding=model_config.use_parallel_embedding,

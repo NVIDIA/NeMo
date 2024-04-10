@@ -241,18 +241,17 @@ class TensorRTLLM(ITritonDeployable):
         self,
         nemo_model,
         nemo_model_config,
+        trt_model_type,
         tokenizer,
         max_input_len: int = 256,
         max_output_len: int = 256,
         max_batch_size: int = 8,
         gpus_per_node: int = 8,
-        use_refit: bool = False,
+        use_refit: bool = True,
         reshard_model: bool = False,
     ):  
         from megatron.core import parallel_state
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
-
-        gpus_per_node = 8
 
         self.use_refit = use_refit
         self.tokenizer = build_tokenizer(tokenizer)
@@ -312,13 +311,15 @@ class TensorRTLLM(ITritonDeployable):
         )
 
         print_mem("pre build_and_save_engine")
-        self.engine = build_and_save_engine(
+        build_and_save_engine(
             max_input_len=max_input_len,
             max_output_len=max_output_len,
             max_batch_size=max_batch_size,
             model_config=model_config,
             model_weights=weights,
             model_dir=self.model_dir,
+            use_refit=self.use_refit,
+            trt_model_type=trt_model_type
         )
         torch.distributed.barrier()
         print_mem("post build_and_save_engine")
@@ -352,7 +353,7 @@ class TensorRTLLM(ITritonDeployable):
         nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
-        assert self.engine, "TRT-LLM model must be loaded with build() prior to refitting"
+        assert self.model_runner, "TRT-LLM model must be loaded with build() prior to refitting"
         
         from .trt_llm.nemo.nemo_ckpt_convert import convert_nemo_model
 
