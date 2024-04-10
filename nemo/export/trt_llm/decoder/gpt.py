@@ -16,8 +16,8 @@
 from typing import Optional
 
 from tensorrt_llm.layers import AttentionMaskType, PositionEmbeddingType
-from tensorrt_llm.models.modeling_utils import PretrainedConfig, QuantConfig
 from tensorrt_llm.models.gpt.model import GPTDecoderLayer
+from tensorrt_llm.models.modeling_utils import PretrainedConfig, QuantConfig
 from typing_extensions import override
 
 from nemo.export.trt_llm.decoder.decoder import DecoderLayerBuilder, DecoderLayerConfigBuilder
@@ -87,11 +87,7 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
     def build_decoder(self, layer):
         rotary_pct = layer.rotary_pct
 
-        position_embedding_type = (
-            "rope_gpt_neox"
-            if layer.position_embedding_type == "rope"
-            else "learned_absolute"
-        )
+        position_embedding_type = "rope_gpt_neox" if layer.position_embedding_type == "rope" else "learned_absolute"
 
         assert not (position_embedding_type == "rope_gpt_neox" and rotary_pct == 0.0)
 
@@ -154,4 +150,3 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
         '''
 
         return GPTDecoderLayer(config=config, layer_idx=self.layer_id,)
-
