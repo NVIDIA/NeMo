@@ -278,9 +278,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy') and hasattr(asr_model, 'decoding'):
         if isinstance(asr_model.decoding, MultiTaskDecoding):
-            cfg.multitask_decoding.strategy = "greedy"
-            cfg.multitask_decoding.greedy.temperature = 0.7
-            cfg.multitask_decoding.greedy.n_samples = 2
             cfg.multitask_decoding.compute_langs = cfg.compute_langs
             cfg.multitask_decoding.preserve_alignments = cfg.preserve_alignment
             if cfg.extract_nbest:

@@ -176,7 +176,7 @@ class GreedySequenceGenerator:
                 input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
             if self.temperature is None:
-                next_tokens = torch.argmax(logits[:, -1], dim=-1, keepdim=True)
+                next_tokens = torch.argmax(logits[:, -1], dim=-1)
             else:
                 next_tokens = Categorical(logits=logits[:, -1] / self.temperature).sample()
 
