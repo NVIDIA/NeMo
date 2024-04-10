@@ -19,7 +19,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     CustomProgressBar,
