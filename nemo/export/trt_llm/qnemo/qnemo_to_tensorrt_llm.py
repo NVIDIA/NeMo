@@ -3,8 +3,8 @@ import os
 import subprocess
 from typing import List, Optional
 
-from ..qnemo import align_config
-from ..tensorrt_llm_build import MODEL_NAME, get_engine_name
+from nemo.export.trt_llm.qnemo import align_config
+from nemo.export.trt_llm.tensorrt_llm_build import get_engine_name, MODEL_NAME
 
 CONFIG_NAME = "config.json"
 CONFIG_TRTLLM_BUILD_NAME = "config_trtllm_build.json"
