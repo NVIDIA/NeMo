@@ -101,6 +101,8 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import drain_embedding_wgrad_compute, init_method_normal, scaled_init_method_normal
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import ShardedObject, LocalNonpersitentObject
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -1721,6 +1723,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # reset vp rank
             if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+            def skip_fp8_load(x):
+                if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
+                    x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+                return x
+            if True: #if self.cfg.skip_attn_fp8_load:
+                dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
 
             return sharded_state_dict
 
