@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-          image 'nvcr.io/nvidia/pytorch:24.02-py3'
+          image 'nvcr.io/nvidia/pytorch:24.01-py3'
           args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1'
         }
   }
@@ -67,7 +67,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/TransformerEngine.git && \
              cd TransformerEngine && \
-             git fetch origin bfe21c3d68b0a9951e5716fb520045db53419c5e && \
+             git fetch origin 8c9abbb80dba196f086b8b602a7cf1bce0040a6a && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
              NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
@@ -78,7 +78,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/apex.git && \
              cd apex && \
-             git checkout 810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c && \
+             git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
              cp -R apex /usr/local/lib/python3.10/dist-packages'
       }
     }
@@ -87,7 +87,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout 7fe863f3d94f7b64a927b04b85f5c9339d3fb784 && \
+             git checkout 81dab6067a0ef4635270b7e6e56bdf79ccfd7731 && \
              pip install . && \
              cd megatron/core/datasets && \
              make'
