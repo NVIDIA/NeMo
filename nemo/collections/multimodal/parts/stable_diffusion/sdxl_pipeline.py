@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-
 from omegaconf import OmegaConf
+from typing import Optional
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling import (
     DPMPP2MSampler,
@@ -65,7 +64,7 @@ class SamplingPipeline:
             params.width,
             self.model.model.diffusion_model.in_channels,
             self.vae_scale_factor,
-            force_uc_zero_embeddings=["txt"] if not self.is_legacy else [],
+            force_uc_zero_embeddings=["txt", "captions"] if not self.is_legacy else [],
             return_latents=return_latents,
             filter=None,
             seed=seed,
@@ -99,7 +98,7 @@ class SamplingPipeline:
             sampler,
             value_dict,
             samples,
-            force_uc_zero_embeddings=["txt"] if not self.model.is_legacy else [],
+            force_uc_zero_embeddings=["txt", "captions"] if not self.model.is_legacy else [],
             return_latents=return_latents,
             filter=None,
             seed=seed,
