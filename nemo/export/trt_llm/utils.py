@@ -16,10 +16,11 @@
 import logging
 import os
 import pathlib
-from pathlib import Path
 import tarfile
 import tempfile
 import typing
+from pathlib import Path
+
 import numpy as np
 import torch
 import yaml
