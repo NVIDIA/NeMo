@@ -361,7 +361,6 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
 
-
             self.binary_head = None
             if self.add_binary_head:
                 # TODO: Shoudl switch this to TE ?
