@@ -249,11 +249,36 @@ class MegatronRetroModel(MegatronGPTModel):
                 inference_config['retro_inference'] = inference_config['retro_inference']
                 return generate(self, **inference_config)
 
+    def get_batch(self, data_iterator):
+        """Generate a batch."""
+
+        # Broadcast data.
+        if data_iterator is not None:
+            # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
+            data = next(data_iterator)
+            if isinstance(data, tuple):
+                data = data[0]
+        else:
+            data = None
+
+        batch = {
+            'tokens': data["tokens"],
+            'labels': data["labels"],
+            'loss_mask': data["loss_mask"],
+            'attention_mask': data["attention_mask"],
+            'position_ids': data["position_ids"],
+            'context_input_ids': data["context_input_ids"],
+            'context_attention_mask': data["context_attention_mask"],
+            'context_position_ids': data["context_position_ids"],
+        }
+
+        return batch
+
     def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
 
             # Get data batch
-            batch = next(dataloader_iter)
+            batch = self.get_batch(dataloader_iter)
 
             # Transfer needed data to GPU
             required_keys = set()
@@ -438,7 +463,7 @@ class MegatronRetroModel(MegatronGPTModel):
 
     def build_train_valid_test_datasets(self):
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_val_batches()
+        # self._reconfigure_val_batches()
         logging.info('Building mcore RETRO datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
@@ -519,7 +544,7 @@ class MegatronRetroModel(MegatronGPTModel):
             persistent_workers=True if self.cfg.data.num_workers > 0 else False,
         )
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
 
         # handle asynchronous grad reduction
         no_sync_func = None
@@ -580,17 +605,13 @@ class MegatronRetroModel(MegatronGPTModel):
 
         return loss_mean
 
-    def validation_step(self, dataloader_iter, batch_idx):
+    def validation_step(self, dataloader_iter, dataloader_idx=0):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
         mode = 'test' if self.trainer.testing else 'val'
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -599,6 +620,8 @@ class MegatronRetroModel(MegatronGPTModel):
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.eval()
+        else:
+            self.model.eval()
 
         if self.cfg.get('fp8', False):
             first_val_step = self.prev_step_training and not self.training
@@ -606,10 +629,25 @@ class MegatronRetroModel(MegatronGPTModel):
         else:
             first_val_step = None
 
-        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
+        with torch.no_grad():
+            loss = self.fwd_bwd_step(dataloader_iter, True)
 
         if isinstance(self.model, list):
             for model_module in self.model:
                 model_module.train()
-        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+        else:
+            self.model.train()
+
+        if mode == 'val':
+            # Append with the correct dataloader_idx in case of multiple dataloaders
+            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
+        else:
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
+
         return loss
