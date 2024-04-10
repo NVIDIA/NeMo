@@ -56,6 +56,7 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
     #                           conversion to .nemo
        
         self.tokenizer = clip.tokenize
+        
 
         # self.logit_scale = 
 
@@ -190,6 +191,7 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
                         image_size=tuple(map(int, self.cfg.data_config.image_size.split(','))),
                         mode=Mode.TRAIN,
                         )
+        
         train_sampler = DistributedSampler(
                         dataset=self._train_ds,
                         num_replicas=1,
@@ -205,5 +207,6 @@ class MegatronCLIPScoreFusionModel(MegatronCLIPModel):
                     shuffle=False,  # Note: since we use sampler, shuffle should be False
                     collate_fn=train_collector,
                     drop_last=True,
+                    persistent_workers=True if self.cfg.dataloader_config.num_workers > 0 else False,
                     )
         

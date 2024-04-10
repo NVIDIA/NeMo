@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+    # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 from torch.utils.data import DataLoader
 from torch.utils.data import DistributedSampler
+from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
+import os
 
 
 
@@ -56,6 +58,10 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
     
     model = MegatronCLIPScoreFusionModel(cfg.model, trainer)
+    
+    if cfg.model.restore_from_path.endswith(".nemo") or os.path.isdir(cfg.model.restore_from_path):
+        state_dict = load_nemo_model_weights(cfg.model.restore_from_path)[0]
+        model.load_state_dict(state_dict)
     trainer.fit(model)
 
 

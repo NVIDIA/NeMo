@@ -57,7 +57,7 @@ model:
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
-    #restore_from_path: /NeMo/clip_test/openaiclip.nemo 
+  restore_from_path: /NeMo/clip_test/vitb32.nemo 
   # multimodal configs
   output_dim: 512
   #  As the number of devices used to train increases, so does the space complexity of
@@ -71,7 +71,7 @@ model:
   vision:
     precision: ${trainer.precision}
     # vision configs
-    patch_dim: 16
+    patch_dim: 32
     img_h: 224
     img_w: 224
     image_mean: null
@@ -81,7 +81,7 @@ model:
     drop_path_rate: 0.0
     global_average_pool: False
     output_dim: ${model.output_dim}
-    class_token_length: 8
+    class_token_length: 1
     preprocess_layernorm: True # apply layer norm to embedded tokens
 
     # model architecture
@@ -205,7 +205,7 @@ model:
 
   tokenizer:
     library: 'huggingface'
-    type: 'openai/clip-vit-large-patch14'
+    type: 'openai/clip-vit-base-patch32'
     model: null
     vocab_file: null
     merge_file: null
@@ -234,15 +234,15 @@ model:
       returns: null
 
       # Relative to mbeir_data_dir
-      mbeir_data_dir: "/UniIR/M-BEIR"
+      mbeir_data_dir: "/data/M-BEIR"
       enable_query_instruct: True
       query_instruct_path: "instructions/query_instructions.tsv"
 
-      train_query_data_path: "/UniIR/M-BEIR/query/union_train/mbeir_union_up_train.jsonl"
-      train_cand_pool_path: "/UniIR/M-BEIR/cand_pool/global/mbeir_union_train_cand_pool.jsonl"
+      train_query_data_path: "/data/M-BEIR/query/union_train/mbeir_union_up_train.jsonl"
+      train_cand_pool_path: "/data/M-BEIR/cand_pool/global/mbeir_union_train_cand_pool.jsonl"
 
-      val_query_data_path: "/UniIR/M-BEIR/query/union_val/mbeir_union_val.jsonl"
-      val_cand_pool_path: "/UnIR/M-BEIR/cand_pool/global/mbeir_union_val_cand_pool.jsonl"
+      val_query_data_path: "/data/M-BEIR/query/union_val/mbeir_union_val.jsonl"
+      val_cand_pool_path: "/data/M-BEIR/cand_pool/global/mbeir_union_val_cand_pool.jsonl"
       
       
   # DataLoader settings

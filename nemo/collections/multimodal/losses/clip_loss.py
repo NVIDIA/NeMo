@@ -203,7 +203,7 @@ class InbatchContrastiveLoss(nn.Module):
         total_loss = self.loss_function(score, sim_targets)
         _max_score, max_idxs = torch.max(score, 1)
         accuracy = (max_idxs == sim_targets).sum() / bs
-        # print (accuracy)
+        print (accuracy)
         reduced_loss = average_losses_across_data_parallel_group([total_loss])
         return total_loss, {"loss": reduced_loss, "accuracy": accuracy}
 
