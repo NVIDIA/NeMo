@@ -349,6 +349,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
+        if encoded.isnan().any():
+            logging.warning("NaN detected in encoder output")
+
         return logits, embs
 
     # PTL-specific methods
@@ -356,6 +359,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss = self.loss(logits=logits, labels=labels)
+
+        if loss.isnan():
+            logging.warning(f"Received an NaN loss at step {batch_idx}")
+        if logits.isnan().any():
+            logging.warning(f"Received an NaN output at step {batch_idx}")
 
         self.log('loss', loss)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
