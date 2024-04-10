@@ -11,6 +11,7 @@ model:
     batch_size: 64
     num_workers: 8
     shuffle: True
+    drop_last: true
     augmentor:
       noise:
         manifest_path: ???
@@ -36,9 +37,9 @@ model:
     batch_size: 128
     num_workers: 8
     shuffle: False
+    drop_last: true
 
   preprocessor:
-    preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     normalize: "per_feature"
     window_size: 0.025
@@ -101,7 +102,7 @@ trainer:
   deterministic: False
   enable_checkpointing: False
   logger: False
-  log_every_n_steps: 1  # Interval of logging.
+  log_every_n_steps: 10  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   gradient_clip_val: 1.0
 

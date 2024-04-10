@@ -81,6 +81,9 @@ class AudioSegment(object):
         channel_selector=None,
         normalize_db: Optional[float] = None,
         ref_channel: Optional[int] = None,
+        audio_file: Optional[str] = None,
+        offset: Optional[float] = None,
+        duration: Optional[float] = None,
     ):
         """Create audio segment from samples.
         Samples are convert float32 internally, with int scaled to [-1, 1].
@@ -117,7 +120,9 @@ class AudioSegment(object):
         self._orig_sr = orig_sr if orig_sr is not None else sample_rate
         self._ref_channel = ref_channel
         self._normalize_db = normalize_db
-
+        self._audio_file = audio_file
+        self._offset = offset
+        self._duration = duration
         if normalize_db is not None:
             self.normalize_db(normalize_db, ref_channel)
 
@@ -232,6 +237,7 @@ class AudioSegment(object):
                 channel_selector=channel_selector,
                 normalize_db=normalize_db,
                 ref_channel=ref_channel,
+                audio_file=audio_file,
             )
 
         if not isinstance(audio_file, str) or os.path.splitext(audio_file)[-1] in sf_supported_formats:
@@ -290,6 +296,9 @@ class AudioSegment(object):
             channel_selector=channel_selector,
             normalize_db=normalize_db,
             ref_channel=ref_channel,
+            audio_file=audio_file,
+            offset=offset,
+            duration=duration,
         )
 
     @classmethod
@@ -476,6 +485,18 @@ class AudioSegment(object):
     @property
     def orig_sr(self):
         return self._orig_sr
+
+    @property
+    def offset(self):
+        return float(self._offset) if self._offset is not None else None
+
+    @property
+    def audio_file(self):
+        return str(self._audio_file) if self._audio_file is not None else None
+
+    def is_empty(self):
+        mean_square = np.sum(np.mean(self._samples ** 2, axis=0))
+        return self.num_samples == 0 or mean_square == 0
 
     def gain_db(self, gain):
         self._samples *= 10.0 ** (gain / 20.0)

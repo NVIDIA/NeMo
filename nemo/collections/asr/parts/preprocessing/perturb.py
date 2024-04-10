@@ -519,10 +519,17 @@ class NoisePerturbation(Perturbation):
         if data_rms is None:
             data_rms = data.rms_db
 
-        if data.num_channels > 1:
-            noise_gain_db = data_rms[ref_mic] - noise.rms_db[ref_mic] - snr_db
+        if noise.is_empty():
+            logging.warning(
+                f"Empty noise segment found for {noise.audio_file} with offset {noise.offset} and duration {noise.duration}."
+            )
+            noise_rms = -float("inf")
         else:
-            noise_gain_db = data_rms - noise.rms_db - snr_db
+            noise_rms = noise.rms_db
+        if data.num_channels > 1:
+            noise_gain_db = data_rms[ref_mic] - noise_rms[ref_mic] - snr_db
+        else:
+            noise_gain_db = data_rms - noise_rms - snr_db
         noise_gain_db = min(noise_gain_db, self._max_gain_db)
 
         # calculate noise segment to use

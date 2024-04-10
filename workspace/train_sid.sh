@@ -7,16 +7,17 @@ vox2_dir="/media/data2/datasets/speaker_datasets/voxceleb2"
 train_manifests="[${vox1_dir}/vox1_train_manifest_train_chunk3s.json,${vox2_dir}/vox2_all_manifest_train_chunk3s.json]"
 dev_manifests="[${vox1_dir}/vox1_train_manifest_val_chunk30s.json,${vox2_dir}/vox2_all_manifest_val_chunk30s.json]"
 
-noise_manifest="/media/data2/simulated_data/rir_noise_data/white_noise_1ch_37h.json"
+# noise_manifest="/media/data2/simulated_data/rir_noise_data/white_noise_1ch_37h.json"
+noise_manifest="/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json"
 rir_manifest="/media/data2/simulated_data/rir_noise_data/real_rirs_isotropic_noises_1ch.json"
 
 EXP_NAME="ecapa_tdnn_ssl_sid_ssl_WavLM"
-POSTFIX=epoch49
+POSTFIX=epoch49_debug2
 
 SSL_CKPT="/home/heh/codes/nemo-ssl/workspace/nemo_experiments/pretrained_checkpoints/oci_ll_unlab-60k_bs2048_adamwlr0.004_wd1e-3_warmup25000_epoch1000_mask0.01x40pre_conv_wavLM0.2x0.1_n16_r5--val_loss5.0808-epoch43-last.ckpt"
 
 batch_size=128
-num_workers=4
+num_workers=8
 
 CUDA_VISIBLE_DEVICES="0,1" python speaker_id_train.py \
     --config-path="configs" \
@@ -33,8 +34,9 @@ CUDA_VISIBLE_DEVICES="0,1" python speaker_id_train.py \
     model.validation_ds.batch_size=32 \
     model.train_ds.num_workers=$num_workers \
     model.validation_ds.num_workers=$num_workers \
+    trainer.val_check_interval=50 \
     exp_manager.checkpoint_callback_params.save_top_k=1 \
     exp_manager.name="$EXP_NAME-${POSTFIX}" \
-    exp_manager.create_wandb_logger=False \
+    exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="$EXP_NAME-${POSTFIX}" \
-    exp_manager.wandb_logger_kwargs.project="ssl_sid"
+    exp_manager.wandb_logger_kwargs.project="ssl_WavLM_spk_id"
