@@ -360,8 +360,6 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
 
-            output_layer_state_dict = self.output_layer.state_dict(prefix='', keep_vars=True)
-
             self.binary_head = None
             if self.add_binary_head:
                 # TODO: Shoudl switch this to TE ?
