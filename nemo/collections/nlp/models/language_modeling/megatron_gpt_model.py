@@ -89,6 +89,8 @@ try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
 
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
@@ -101,8 +103,6 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import drain_embedding_wgrad_compute, init_method_normal, scaled_init_method_normal
-    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-    from megatron.core.dist_checkpointing.mapping import ShardedObject, LocalNonpersitentObject
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -1728,7 +1728,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
                     x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
                 return x
-            if True: #if self.cfg.skip_attn_fp8_load:
+
+            if True:  # if self.cfg.skip_attn_fp8_load:
                 dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
 
             return sharded_state_dict
