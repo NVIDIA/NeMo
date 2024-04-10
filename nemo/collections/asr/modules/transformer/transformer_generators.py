@@ -15,6 +15,7 @@
 from contextlib import contextmanager
 
 import torch
+from torch.distributions import Categorical
 
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
 
@@ -58,6 +59,7 @@ class GreedySequenceGenerator:
         max_sequence_length=512,
         max_delta_length=20,
         batch_size=1,
+        temperature=None,
     ):
         super().__init__()
         self.embedding = embedding
@@ -67,6 +69,7 @@ class GreedySequenceGenerator:
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
+        self.temperature = temperature
 
     def _one_step_forward(
         self,
@@ -107,8 +110,8 @@ class GreedySequenceGenerator:
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        log_probs = self.log_softmax.forward(hidden_states=decoder_mems_list[-1][:, -1:])
-        return log_probs, decoder_mems_list
+        logits = decoder_mems_list[-1][:, -1]
+        return logits, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
         """
@@ -155,11 +158,15 @@ class GreedySequenceGenerator:
         decoder_mems_list = None
         for i in range(max_generation_length):
 
-            log_probs, decoder_mems_list = self._one_step_forward(
+            logits, decoder_mems_list = self._one_step_forward(
                 tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
+            # log_probs = self.log_softmax.forward(hidden_states=logits)
+            if self.temperature is None:
+                next_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+            else:
+                next_tokens = Categorical(logits=logits / self.temperature).sample()
 
-            next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)
             next_tokens = self.pad * pad_profile + next_tokens * (1 - pad_profile)
             pad_profile = torch.max(pad_profile, (next_tokens == self.eos).long())
             tgt = torch.cat((tgt, next_tokens), dim=-1)

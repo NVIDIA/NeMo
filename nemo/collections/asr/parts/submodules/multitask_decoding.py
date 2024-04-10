@@ -25,6 +25,10 @@ from nemo.collections.asr.parts.submodules.multitask_beam_decoding import (
     AEDBeamInferConfig,
     TransformerAEDBeamInfer,
 )
+from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import (
+    AEDGreedyInferConfig,
+    TransformerAEDGreedyInfer,
+)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -60,11 +64,11 @@ class AbstractMultiTaskDecoding(ABC):
 
             The config may further contain the following sub-dictionaries:
             "greedy":
-                max_symbols: int, describing the maximum number of target tokens to decode per
-                    timestep during greedy decoding. Setting to larger values allows longer sentences
-                    to be decoded, at the cost of increased execution time.
-                preserve_frame_confidence: Same as above, overrides above value.
-                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
+                temperature: None (disabled) or float, specifying this enables temperature sampling instead of greedy decoding.
+
+                max_generation_delta: int = -1  # -1 means up to the max length of the decoder
+
+                preserve_alignments: bool = False (unsupported)
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -118,8 +122,14 @@ class AbstractMultiTaskDecoding(ABC):
 
         if self.cfg.strategy == 'greedy' or self.cfg.strategy == 'greedy_batch':
 
-            # self.decoding = None
-            raise NotImplementedError("Greedy decoding is not implemented yet.")
+            self.decoding = TransformerAEDGreedyInfer(
+                transformer_decoder=transformer_decoder,
+                log_softmax_module=log_softmax_module,
+                tokenizer=tokenizer,
+                max_generation_delta=self.cfg.greedy.get('max_generation_delta', 50),
+                preserve_alignments=self.preserve_alignments,
+                temperature=self.cfg.greedy.temperature,
+            )
 
         elif self.cfg.strategy == 'beam':
 
@@ -476,9 +486,7 @@ class MultiTaskDecodingConfig:
     compute_langs: bool = False
 
     # greedy decoding config
-    # greedy: rnnt_greedy_decoding.GreedyBatchedRNNTInferConfig = field(
-    #     default_factory=rnnt_greedy_decoding.GreedyBatchedRNNTInferConfig
-    # )
+    greedy: AEDGreedyInferConfig = field(default_factory=AEDGreedyInferConfig)
 
     # beam decoding config
     beam: AEDBeamInferConfig = field(default_factory=lambda: AEDBeamInferConfig(beam_size=1))
