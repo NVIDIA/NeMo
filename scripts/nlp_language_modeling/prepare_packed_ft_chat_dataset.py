@@ -135,11 +135,28 @@ def create_hist(dataset, truncate_seq_len):
 
     sequences = collections.defaultdict(list)
     counts = [0] * truncate_seq_len
+    print(f"Truncating sequences to length {truncate_seq_len}")
 
     for item_dict in dataset:
+        item_dict = {
+            'input_ids': item_dict['input_ids'],
+            'mask': item_dict['mask'],
+            'metadata': item_dict['metadata'],
+        }
         seq_len = len(item_dict['input_ids']) - 1
+        if seq_len >= truncate_seq_len:
+            # truncate sequences that are too long
+            item_dict['input_ids'] = item_dict['input_ids'][:truncate_seq_len]
+            item_dict['mask'] = item_dict['mask'][:truncate_seq_len]
+            print(f"W: Truncated sequence of length {seq_len+1} to {truncate_seq_len}")
+            seq_len =  len(item_dict['input_ids']) - 1
+
         sequences[seq_len].append(item_dict)
-        counts[seq_len] += 1
+        try:
+            counts[seq_len] += 1
+        except IndexError as e:
+            logging.error(f"Sequence length {seq_len} is longer than the truncation length {truncate_seq_len}. This should not happen.")
+            raise e
 
     logging.info("Histogram of sequence lengths")
     logging.info(counts)
