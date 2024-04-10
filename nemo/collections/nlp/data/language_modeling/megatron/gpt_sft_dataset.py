@@ -504,6 +504,10 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         loss_mask = self.indexed_dataset[idx]['loss_mask']
         return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries, 'loss_mask': loss_mask}
 
+    def _maybe_validate_prompt_template(self):
+        # GPTSFTPackedDataset does not use prompt_template
+        pass
+
     def _load_dataset(self):
         try:
             self.indexed_dataset = np.load(self.file_path, allow_pickle=True)
