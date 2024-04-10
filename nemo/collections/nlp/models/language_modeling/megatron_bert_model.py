@@ -221,7 +221,7 @@ class MegatronBertModel(MegatronBaseModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                batch, batch_idx, dataloader_idx = next(dataloader_iter)
+                batch = next(dataloader_iter)
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = (
                     batch['text'].cuda(non_blocking=True),
                     batch['types'].cuda(non_blocking=True),
@@ -231,7 +231,7 @@ class MegatronBertModel(MegatronBaseModel):
                     batch['padding_mask'].cuda(non_blocking=True),
                 )
             else:
-                batch, batch_idx, dataloader_idx = next(dataloader_iter)
+                batch = next(dataloader_iter)
                 if parallel_state.is_pipeline_first_stage():
                     tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
@@ -248,9 +248,6 @@ class MegatronBertModel(MegatronBaseModel):
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
                     sentence_order = batch['is_random'].cuda(non_blocking=True)
                     tokens, types, loss_mask, lm_labels = None, None, None, None
-
-            dataloader_iter._dataloader_idx = dataloader_idx
-            dataloader_iter._batch_idx = batch_idx
 
             if not self.cfg.bert_binary_head:
                 types = None
@@ -327,7 +324,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         return output_tensor
 
-    def training_step(self, dataloader_iter):
+    def training_step(self, dataloader_iter, batch_idx):
 
         self._optimizer.zero_grad()
 
@@ -409,7 +406,7 @@ class MegatronBertModel(MegatronBaseModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        if (dataloader_iter._batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
+        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             self.log('reduced_train_loss', loss_mean[0], prog_bar=True, batch_size=1)
             if len(loss_mean) > 2:
@@ -515,7 +512,11 @@ class MegatronBertModel(MegatronBaseModel):
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
-    def validation_step(self, dataloader_iter):
+    def validation_step(self, dataloader_iter, batch_idx):
+        # Check if iterator is exhausted
+        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
+        if done:
+            return
         prefix = "test" if self.trainer.testing else "val"
         if self.cfg.data.dataloader_type == "LDDL":
             seq_length = dataloader_iter.iterator.get_seqlen()
@@ -556,8 +557,8 @@ class MegatronBertModel(MegatronBaseModel):
         self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory
 
-    def test_step(self, dataloader_iter):
-        return self.validation_step(dataloader_iter)
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
 
     def on_test_epoch_end(self):
         averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)

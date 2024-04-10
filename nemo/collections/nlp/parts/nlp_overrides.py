@@ -32,6 +32,7 @@ from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loops.fetchers import _DataFetcher
+from pytorch_lightning.overrides.base import _LightningModuleWrapperBase
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import FSDPPrecision, MixedPrecisionPlugin
@@ -222,7 +223,7 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
-            self._model = self.model
+            self._model = _LightningModuleWrapperBase(self.model)
         else:
             app_state = AppState()
 
@@ -239,7 +240,7 @@ class NLPDDPStrategy(DDPStrategy):
                 # self.pre_configure_ddp()
                 # device_ids = self.determine_ddp_device_ids()
                 self._model = DistributedDataParallel(
-                    self.model,
+                    _LightningModuleWrapperBase(self.model),
                     process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
                     **self._ddp_kwargs,
                 )
@@ -371,8 +372,7 @@ class NLPDDPStrategy(DDPStrategy):
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
-    # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
-    def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+    def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
         if (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -402,7 +402,7 @@ class NLPDDPStrategy(DDPStrategy):
                         new_state_dict[new_key] = checkpoint['state_dict'][key]
                     checkpoint['state_dict'] = new_state_dict
 
-            self.lightning_module.load_state_dict(checkpoint["state_dict"], strict=strict)
+            self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
     def _fix_tensors_device(self, ckpt: Dict) -> Dict:
         """ Ensure checkpoint tensors are on the correct device."""

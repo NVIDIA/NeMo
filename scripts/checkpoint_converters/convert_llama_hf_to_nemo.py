@@ -141,8 +141,7 @@ def convert(args):
     nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
 
-    # Remove precision arg, since with PTL >= 2.1 both precision and precision plugin cannot exist together.
-    trainer = Trainer(plugins=plugins, accelerator='cpu', strategy=NLPDDPStrategy())
+    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
 
     hidden_size = hf_config["hidden_size"]
     head_num = hf_config["num_attention_heads"]
