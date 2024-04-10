@@ -17,6 +17,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gpu-test:
     runs-on: self-hosted-azure
@@ -61,13 +65,6 @@ jobs:
 #        --env TRANSFORMERS_OFFLINE=0
 #        --env HYDRA_FULL_ERROR=1
     steps:
-    - name: Log into ACR (Azure Container Registry)  # this login is for the pushing step after
-      uses: azure/docker-login@v1
-      with:
-        login-server: nemoci.azurecr.io
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
-
     - name: Checkout repository
       uses: actions/checkout@v2
       with:
@@ -77,7 +74,7 @@ jobs:
       run: |
         # Pull base PyTorch container
         docker pull nvcr.io/nvidia/pytorch:24.01-py3
-        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
+        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /mnt/datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
             set -x
 
             # PyTorch version
@@ -179,9 +176,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -190,7 +184,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -205,9 +199,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -216,7 +207,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -235,9 +226,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -246,7 +234,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -263,9 +251,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -274,7 +259,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -290,9 +275,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -301,7 +283,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -317,9 +299,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -328,7 +307,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -345,9 +324,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -356,7 +332,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -376,9 +352,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -387,7 +360,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -410,9 +383,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -421,7 +391,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -442,9 +412,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -453,7 +420,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -476,9 +443,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -487,7 +451,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -526,9 +490,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -537,7 +498,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -563,9 +524,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -574,7 +532,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -600,9 +558,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -611,7 +566,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -640,7 +595,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -682,9 +637,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -693,7 +645,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -717,9 +669,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -728,7 +677,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -753,9 +702,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -764,7 +710,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -792,9 +738,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -803,7 +746,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -826,9 +769,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -837,7 +777,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -860,9 +800,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -871,7 +808,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -890,9 +827,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -901,7 +835,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -923,9 +857,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -934,7 +865,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -956,9 +887,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -967,7 +895,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -998,9 +926,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1009,7 +934,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1033,9 +958,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1044,7 +966,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1071,9 +993,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1082,7 +1001,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1101,9 +1020,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1112,7 +1028,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1126,9 +1042,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1137,7 +1050,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1161,9 +1074,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1172,7 +1082,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1198,9 +1108,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1209,7 +1116,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1267,9 +1174,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1278,7 +1182,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1320,7 +1224,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -1353,9 +1257,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1364,7 +1265,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1395,9 +1296,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1406,7 +1304,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1436,9 +1334,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1447,7 +1342,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1480,9 +1375,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1491,7 +1383,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1525,9 +1417,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1536,7 +1425,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1563,9 +1452,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1574,7 +1460,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1601,9 +1487,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1612,7 +1495,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1645,9 +1528,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1656,7 +1536,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1726,9 +1606,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1737,7 +1614,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1765,9 +1642,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1776,7 +1650,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1838,9 +1712,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1849,7 +1720,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1875,9 +1746,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1886,7 +1754,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1919,9 +1787,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1930,7 +1795,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1961,9 +1826,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -1972,7 +1834,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2005,9 +1867,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2016,7 +1875,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2047,9 +1906,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2058,7 +1914,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2091,9 +1947,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2102,7 +1955,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2133,9 +1986,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2144,7 +1994,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2166,9 +2016,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2177,7 +2024,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2305,9 +2152,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2316,7 +2160,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2339,9 +2183,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2350,7 +2191,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2378,9 +2219,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2389,7 +2227,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2410,9 +2248,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2421,7 +2256,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2437,9 +2272,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2448,7 +2280,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2471,9 +2303,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2482,7 +2311,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2534,9 +2363,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2545,7 +2371,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2602,9 +2428,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2613,7 +2436,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2676,7 +2499,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -2731,9 +2554,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2742,7 +2562,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2765,9 +2585,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2776,7 +2593,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2810,9 +2627,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2821,7 +2635,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2855,9 +2669,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2866,7 +2677,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2892,9 +2703,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2903,7 +2711,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2973,9 +2781,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -2984,7 +2789,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3016,9 +2821,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3027,7 +2829,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3058,9 +2860,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3069,7 +2868,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3089,9 +2888,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3100,7 +2896,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3135,9 +2931,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3146,7 +2939,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3179,9 +2972,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3190,7 +2980,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3213,9 +3003,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3224,7 +3011,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3325,9 +3112,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3336,7 +3120,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3646,9 +3430,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3657,7 +3438,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3730,9 +3511,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3741,7 +3519,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3815,9 +3593,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3826,7 +3601,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3902,9 +3677,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -3913,7 +3685,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3996,7 +3768,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -4082,9 +3854,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4093,7 +3862,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4112,9 +3881,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4123,7 +3889,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4208,9 +3974,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4219,7 +3982,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4401,9 +4164,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4412,7 +4172,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4500,9 +4260,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4511,7 +4268,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4599,9 +4356,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4610,7 +4364,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4702,9 +4456,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4713,7 +4464,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4786,9 +4537,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4797,7 +4545,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4833,9 +4581,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4844,7 +4589,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4882,9 +4627,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4893,7 +4635,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4947,9 +4689,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4958,7 +4697,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4976,9 +4715,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -4987,7 +4723,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5007,9 +4743,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5018,7 +4751,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5073,9 +4806,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5084,7 +4814,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5105,9 +4835,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5116,7 +4843,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5137,9 +4864,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5148,7 +4872,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5247,9 +4971,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5258,7 +4979,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5357,9 +5078,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5368,7 +5086,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5467,9 +5185,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5478,7 +5193,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5551,9 +5266,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5562,7 +5274,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5608,9 +5320,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5619,7 +5328,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5702,9 +5411,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5713,7 +5419,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5729,9 +5435,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5740,7 +5443,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5812,9 +5515,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5823,7 +5523,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5901,9 +5601,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5912,7 +5609,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5948,9 +5645,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -5959,7 +5653,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6000,9 +5694,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6011,7 +5702,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6068,9 +5759,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6079,7 +5767,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6098,9 +5786,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6109,7 +5794,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6131,9 +5816,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6142,7 +5824,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6172,9 +5854,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6183,7 +5862,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6209,9 +5888,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6220,7 +5896,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6256,9 +5932,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6267,7 +5940,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6300,9 +5973,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6311,7 +5981,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6341,9 +6011,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6352,7 +6019,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6388,7 +6055,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -6408,9 +6075,6 @@ jobs:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
-      credentials:
-        password: ${{ secrets.ACR_PASSWORD }}
-        username: nemoci
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
         # --user 0:128
@@ -6419,7 +6083,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
