@@ -253,9 +253,13 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         # TE requires that the first input dim is divisible by 8 and the second by 16 for fp8
         # When using sequence parallel, sequence will further be split by TP size
-        pad_seq_length_to_mult = (
-            8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
-        )
+        # When using context parallel, sequence is split by CP size instead
+        if self.cfg.get('sequence_parallel', False):
+            pad_seq_length_to_mult = 8 * self.cfg.get('tensor_model_parallel_size', 1)
+        elif self.cfg.get('context_parallel_size', 1) > 1:
+            pad_seq_length_to_mult = 16 * self.cfg.get('context_parallel_size', 1)
+        else:
+            pad_seq_length_to_mult = 16
 
         dataset_kwargs = {}
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
