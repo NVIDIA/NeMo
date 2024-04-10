@@ -107,36 +107,43 @@ class AbstractMultiTaskDecoding(ABC):
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.compute_langs = self.cfg.get('compute_langs', False)
         self.compute_hypothesis_token_set = self.cfg.get('compute_hypothesis_token_set', False)
+        self.transformer_decoder = transformer_decoder
+        self.log_softmax_module = log_softmax_module
+        self.tokenizer = tokenizer
+        self.change_strategy(self.cfg.strategy)
 
+    def change_strategy(self, strategy: str) -> "AbstractMultiTaskDecoding":
         possible_strategies = ['greedy', 'greedy_batch', 'beam']
-        if self.cfg.strategy not in possible_strategies:
+        if strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
+
+        self.cfg.strategy = strategy
 
         # Update preserve alignments
         if self.preserve_alignments is None:
-            if self.cfg.strategy in ['greedy', 'greedy_batch']:
+            if strategy in ['greedy', 'greedy_batch']:
                 self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
 
-            elif self.cfg.strategy in ['beam']:
+            elif strategy in ['beam']:
                 self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
-        if self.cfg.strategy == 'greedy' or self.cfg.strategy == 'greedy_batch':
+        if strategy == 'greedy' or strategy == 'greedy_batch':
 
             self.decoding = TransformerAEDGreedyInfer(
-                transformer_decoder=transformer_decoder,
-                log_softmax_module=log_softmax_module,
-                tokenizer=tokenizer,
+                transformer_decoder=self.transformer_decoder,
+                log_softmax_module=self.log_softmax_module,
+                tokenizer=self.tokenizer,
                 max_generation_delta=self.cfg.greedy.get('max_generation_delta', 50),
                 preserve_alignments=self.preserve_alignments,
                 temperature=self.cfg.greedy.temperature,
             )
 
-        elif self.cfg.strategy == 'beam':
+        elif strategy == 'beam':
 
             self.decoding = TransformerAEDBeamInfer(
-                transformer_decoder=transformer_decoder,
-                log_softmax_module=log_softmax_module,
-                tokenizer=tokenizer,
+                transformer_decoder=self.transformer_decoder,
+                log_softmax_module=self.log_softmax_module,
+                tokenizer=self.tokenizer,
                 search_type=self.cfg.beam.get('search_type', 'default'),
                 beam_size=self.cfg.beam.beam_size,
                 length_penalty=self.cfg.beam.get('length_penalty', 0.0),
@@ -149,8 +156,10 @@ class AbstractMultiTaskDecoding(ABC):
 
             raise ValueError(
                 f"Incorrect decoding strategy provided. Must be one of {possible_strategies}\n"
-                f"but was provided {self.cfg.strategy}"
+                f"but was provided {strategy}"
             )
+
+        return self
 
     def decode_predictions_tensor(
         self,
