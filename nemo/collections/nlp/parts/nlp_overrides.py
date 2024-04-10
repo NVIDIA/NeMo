@@ -59,7 +59,7 @@ except ImportError:
     # since PyTorch 2.3 the path has changed
     from torch.amp.grad_scaler import _refresh_per_optimizer_state
 
-# from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
+from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
 from nemo.collections.nlp.parts import utils_funcs
