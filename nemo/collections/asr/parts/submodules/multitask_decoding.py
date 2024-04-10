@@ -136,6 +136,7 @@ class AbstractMultiTaskDecoding(ABC):
                 max_generation_delta=self.cfg.greedy.get('max_generation_delta', 50),
                 preserve_alignments=self.preserve_alignments,
                 temperature=self.cfg.greedy.temperature,
+                n_samples=self.cfg.greedy.n_samples,
             )
 
         elif strategy == 'beam':

@@ -124,6 +124,7 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
         temperature: float | None = None,
         max_generation_delta: int = 50,
         preserve_alignments: bool = False,
+        n_samples: int = 1,
     ):
         super().__init__(
             transformer_decoder=transformer_decoder,
@@ -132,6 +133,7 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
             preserve_alignments=preserve_alignments,
         )
         self.temperature = temperature
+        self.n_samples = n_samples
         self.greedy_search = GreedySequenceGenerator(
             embedding=transformer_decoder.embedding,
             decoder=transformer_decoder.decoder,
@@ -142,6 +144,7 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
             eos=tokenizer.eos_id,
             max_delta_length=max_generation_delta,
             temperature=self.temperature,
+            n_samples=n_samples,
         )
 
         self.preserve_alignments = preserve_alignments
@@ -172,19 +175,30 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
             packed list containing batch number of sentences (Hypotheses).
         """
         with torch.inference_mode():
-            best_hypo = self.greedy_search(
+            best_hypo, topk_hypotheses = self.greedy_search(
                 encoder_hidden_states=encoder_hidden_states,
                 encoder_input_mask=encoder_input_mask,
                 decoder_input_ids=decoder_input_ids,
-                return_beam_scores=False,
             )
-            beam_scores = [None for _ in range(len(best_hypo))]
-            best_hypo = best_hypo.cpu()
-            hypotheses = [
-                Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(encoder_hidden_states.shape[0])
-            ]
-            # Pack results into Hypotheses
-            packed_result = pack_hypotheses(hypotheses, best_hypo, beam_scores)
+
+            if topk_hypotheses is not None:
+                topk_hypotheses = [x.detach().cpu() for x in topk_hypotheses]  # each item is [beam, seq_len]
+                beam_scores = [[None] * self.n_samples for _ in topk_hypotheses]  # each item is [beam,]
+                packed_result = []
+                for i in range(len(topk_hypotheses)):
+                    hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(self.n_samples)]
+                    # Pack results into Hypotheses
+                    packed_result.append(
+                        NBestHypotheses(pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i]))
+                    )
+            else:
+                beam_scores = [None for _ in range(len(best_hypo))]
+                best_hypo = best_hypo.cpu()
+                hypotheses = [
+                    Hypothesis(score=0.0, y_sequence=[], timestep=[]) for _ in range(encoder_hidden_states.shape[0])
+                ]
+                # Pack results into Hypotheses
+                packed_result = pack_hypotheses(hypotheses, best_hypo, beam_scores)
 
         return (packed_result,)
 
@@ -194,3 +208,4 @@ class AEDGreedyInferConfig:
     temperature: float | None = None
     max_generation_delta: int = -1  # -1 means up to the max length of the decoder
     preserve_alignments: bool = False
+    n_samples: int = 1

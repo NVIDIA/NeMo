@@ -59,16 +59,19 @@ class GreedySequenceGenerator:
         max_sequence_length=512,
         max_delta_length=20,
         batch_size=1,
+        n_samples=1,
         temperature=None,
     ):
         super().__init__()
         self.embedding = embedding
         self.decoder = decoder
         self.log_softmax = log_softmax
+        self.log_softmax.mlp.log_softmax = False
         self.pad, self.bos, self.eos = pad, bos, eos
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
+        self.n_samples = n_samples
         self.temperature = temperature
 
     def _one_step_forward(
@@ -110,7 +113,7 @@ class GreedySequenceGenerator:
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        logits = decoder_mems_list[-1][:, -1]
+        logits = self.log_softmax.forward(hidden_states=decoder_mems_list[-1][:, -1:])
         return logits, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
@@ -148,34 +151,49 @@ class GreedySequenceGenerator:
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
         assert not return_beam_scores
+        is_sampling = self.temperature is not None and self.n_samples > 1
+
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
+        if is_sampling:
+            tgt = torch.repeat_interleave(tgt, self.n_samples, dim=0)
+            encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, self.n_samples, dim=0)
+            encoder_input_mask = torch.repeat_interleave(encoder_input_mask, self.n_samples, dim=0)
+            orig_batch_size = batch_size
+            batch_size = batch_size * self.n_samples
 
         # pad profile tracks sequences ending with <eos> token to replace
         # everything after <eos> with <pad> token
         decoder_parameter = next(self.decoder.parameters())
-        pad_profile = torch.zeros(batch_size, 1).long().to(decoder_parameter.device)
+        pad_profile = torch.zeros(batch_size).long().to(decoder_parameter.device)
 
         decoder_mems_list = None
         for i in range(max_generation_length):
-
-            logits, decoder_mems_list = self._one_step_forward(
-                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
-            )
-            # log_probs = self.log_softmax.forward(hidden_states=logits)
-            if self.temperature is None:
-                next_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+            if i == 0:
+                input_ids = tgt
             else:
-                next_tokens = Categorical(logits=logits / self.temperature).sample()
+                input_ids = tgt[:, -1:]
+            logits, decoder_mems_list = self._one_step_forward(
+                input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
+            )
+            if self.temperature is None:
+                next_tokens = torch.argmax(logits[:, -1], dim=-1, keepdim=True)
+            else:
+                next_tokens = Categorical(logits=logits[:, -1] / self.temperature).sample()
 
             next_tokens = self.pad * pad_profile + next_tokens * (1 - pad_profile)
             pad_profile = torch.max(pad_profile, (next_tokens == self.eos).long())
-            tgt = torch.cat((tgt, next_tokens), dim=-1)
+            tgt = torch.cat((tgt, next_tokens.unsqueeze(1)), dim=-1)
 
             # abort generation if all sequences end with <eos>
             if pad_profile.sum() == batch_size:
                 break
 
-        return tgt
+        samples = None
+        if is_sampling:
+            samples = list(tgt.view(orig_batch_size, self.n_samples, -1))
+            tgt = tgt[:: self.n_samples]
+
+        return tgt, samples
 
     def __call__(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
