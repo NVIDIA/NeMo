@@ -30,7 +30,7 @@ from tensorrt_llm.logger import logger
 from tensorrt_llm.network import net_guard
 from tensorrt_llm.plugin.plugin import ContextFMHAType
 from tensorrt_llm.quantization import QuantMode
-
+from tensorrt_llm.models.modeling_utils import add_lora
 MODEL_NAME = "NeMo"
 
 LOGGER = logging.getLogger("NeMo")
@@ -169,6 +169,9 @@ def _build_impl(tensorrt_llm_model, args):
     args.output_dir.mkdir(parents=True, exist_ok=True)
     timing_cache_file = args.timing_cache if args.timing_cache else args.output_dir / "model.cache"
     timing_cache = timing_cache_file
+
+    if args.use_lora_plugin is not None:
+        add_lora(tensorrt_llm_model, args.max_lora_rank) 
 
     builder = Builder()
     apply_query_key_layer_scaling = False
