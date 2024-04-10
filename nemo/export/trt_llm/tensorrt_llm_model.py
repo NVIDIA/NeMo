@@ -153,7 +153,7 @@ class ModelBuilder(Module):
                 "kv_cache_params": KeyValueCacheParams(
                     past_key_value=[past],
                     host_past_key_value_lengths=kv_cache_params.host_past_key_value_lengths,
-                    kv_cache_block_pointers=[kv_cache_params.kv_cache_block_pointers],
+                    kv_cache_block_pointers=kv_cache_params.kv_cache_block_pointers,
                     host_max_attention_window_sizes=kv_cache_params.host_max_attention_window_sizes,
                     cache_indirection=kv_cache_params.cache_indirection,
                     host_sink_token_length=kv_cache_params.host_sink_token_length,
