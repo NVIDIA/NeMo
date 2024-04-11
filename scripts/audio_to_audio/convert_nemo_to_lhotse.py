@@ -50,6 +50,13 @@ def parse_args():
         default="embedding_filepath",
         help="Key of the embedding, mapped to Lhotse's 'Cut.embedding_vector'.",
     )
+    parser.add_argument(
+        "-a",
+        "--force_absolute_paths",
+        action='store_true',
+        default=False,
+        help="Force absolute paths in the generated manifests.",
+    )
     return parser.parse_args()
 
 
@@ -62,6 +69,7 @@ def main():
         target_key=args.target_key,
         reference_key=args.reference_key,
         embedding_key=args.embedding_key,
+        force_absolute_paths=args.force_absolute_paths,
     )
 
 

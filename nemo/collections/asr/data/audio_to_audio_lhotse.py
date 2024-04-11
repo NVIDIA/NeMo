@@ -112,13 +112,31 @@ def convert_manifest_nemo_to_lhotse(
     target_key: str = 'target_filepath',
     reference_key: str = 'reference_filepath',
     embedding_key: str = 'embedding_filepath',
+    force_absolute_paths: bool = False,
 ):
+    """
+    Convert an audio-to-audio manifest from NeMo format to Lhotse format.
+    
+    Args:
+        input_manifest: Path to the input NeMo manifest.
+        output_manifest: Path where we'll write the output Lhotse manifest (supported extensions: .jsonl.gz and .jsonl).
+        input_key: Key of the input recording, mapped to Lhotse's 'Cut.recording'.
+        target_key: Key of the target recording, mapped to Lhotse's 'Cut.target_recording'.
+        reference_key: Key of the reference recording, mapped to Lhotse's 'Cut.reference_recording'.
+        embedding_key: Key of the embedding, mapped to Lhotse's 'Cut.embedding_vector'.
+        force_absolute_paths: If True, the paths in the output manifest will be absolute.
+    """
     with CutSet.open_writer(output_manifest) as writer:
         for item in load_jsonl(input_manifest):
 
             # Create Lhotse recording and cut object, apply offset and duration slicing if present.
-            recording = create_recording(get_full_path(audio_file=item.pop(input_key), manifest_file=input_manifest))
+            item_input_key = item.pop(input_key)
+            recording = create_recording(get_full_path(audio_file=item_input_key, manifest_file=input_manifest))
             cut = recording.to_cut().truncate(duration=item.pop("duration"), offset=item.pop("offset", 0.0))
+
+            if not force_absolute_paths:
+                # Use the same format for paths as in the original manifest
+                cut.recording.sources[0].source = item_input_key
 
             if (channels := item.pop(INPUT_CHANNEL_SELECTOR, None)) is not None:
                 if cut.num_channels == 1:
@@ -129,9 +147,15 @@ def convert_manifest_nemo_to_lhotse(
                     cut = cut.with_channels(channels)
 
             if target_key in item:
+                item_target_key = item.pop(target_key)
                 cut.target_recording = create_recording(
-                    get_full_path(audio_file=item.pop(target_key), manifest_file=input_manifest)
+                    get_full_path(audio_file=item_target_key, manifest_file=input_manifest)
                 )
+
+                if not force_absolute_paths:
+                    # Use the same format for paths as in the original manifest
+                    cut.target_recording.sources[0].source = item_target_key
+
                 if (channels := item.pop(TARGET_CHANNEL_SELECTOR, None)) is not None:
                     if cut.target_recording.num_channels == 1:
                         assert (
@@ -141,9 +165,15 @@ def convert_manifest_nemo_to_lhotse(
                         cut = cut.with_custom(LHOTSE_TARGET_CHANNEL_SELECTOR, channels)
 
             if reference_key in item:
+                item_reference_key = item.pop(reference_key)
                 cut.reference_recording = create_recording(
-                    get_full_path(audio_file=item.pop(reference_key), manifest_file=input_manifest)
+                    get_full_path(audio_file=item_reference_key, manifest_file=input_manifest)
                 )
+
+                if not force_absolute_paths:
+                    # Use the same format for paths as in the original manifest
+                    cut.reference_recording.sources[0].source = item_reference_key
+
                 if (channels := item.pop(REFERENCE_CHANNEL_SELECTOR, None)) is not None:
                     if cut.reference_recording.num_channels == 1:
                         assert (
@@ -153,9 +183,15 @@ def convert_manifest_nemo_to_lhotse(
                         cut = cut.with_custom(LHOTSE_REFERENCE_CHANNEL_SELECTOR, channels)
 
             if embedding_key in item:
+                item_embedding_key = item.pop(embedding_key)
                 cut.embedding_vector = create_array(
-                    get_full_path(audio_file=item.pop(embedding_key), manifest_file=input_manifest)
+                    get_full_path(audio_file=item_embedding_key, manifest_file=input_manifest)
                 )
+
+                if not force_absolute_paths:
+                    # Use the same format for paths as in the original manifest
+                    parent, path = os.path.split(item_embedding_key)
+                    cut.embedding_vector.storage_path = parent
 
             if item:
                 cut.custom.update(item)  # any field that's still left goes to custom fields
