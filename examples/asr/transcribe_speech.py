@@ -407,17 +407,17 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
-                if isinstance(asr_model, EncDecHybridRNNTCTCModel):
-                    transcriptions = asr_model.transcribe(
-                        audio=filepaths,
-                        batch_size=cfg.batch_size,
-                        num_workers=cfg.num_workers,
-                        return_hypotheses=cfg.return_hypotheses,
-                        channel_selector=cfg.channel_selector,
-                        augmentor=augmentor,
-                    )
-                else:
-                    transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
+                # if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+                #     transcriptions = asr_model.transcribe(
+                #         audio=filepaths,
+                #         batch_size=cfg.batch_size,
+                #         num_workers=cfg.num_workers,
+                #         return_hypotheses=cfg.return_hypotheses,
+                #         channel_selector=cfg.channel_selector,
+                #         augmentor=augmentor,
+                #     )
+                # else:
+                transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
 
     if cfg.input_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.input_manifest}")

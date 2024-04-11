@@ -258,7 +258,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 confidence_method_cfg=self.confidence_method_cfg,
             )
 
-        elif self.cfg.strategy == 'beam' or self.cfg.strategy == 'pyctcdecode' or self.cfg.strategy == 'flashlight':
+        elif self.cfg.strategy in ['beam', 'pyctcdecode', 'flashlight']:
 
             self.decoding = ctc_beam_decoding.BeamCTCInfer(
                 blank_id=blank_id,
