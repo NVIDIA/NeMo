@@ -247,7 +247,7 @@ def run_griffin_server(path_to_nemo):
 
 if __name__ == "__main__":
     PATH_TO_MODEL = "/home/aficek/software/playground/griffin.nemo" # Set path for the .nemo converted checkpoint from the instruction-tuned model from /deepmind/space_gemma_model/2b-it.pt
-    # run_eval_harness(PATH_TO_MODEL)
-    run_griffin_server(PATH_TO_MODEL)
+    run_eval_harness(PATH_TO_MODEL)
+    # run_griffin_server(PATH_TO_MODEL)
 
     
