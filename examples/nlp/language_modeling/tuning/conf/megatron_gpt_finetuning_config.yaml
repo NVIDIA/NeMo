@@ -47,6 +47,7 @@ model:
   seed: 1234
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
+  expert_model_parallel_size: 1
 
   global_batch_size: 128
   micro_batch_size: 4
