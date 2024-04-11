@@ -42,7 +42,9 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
+from pathlib import Path
 
+torch.set_grad_enabled(False)
 
 def get_args():
     parser = ArgumentParser()
@@ -51,6 +53,8 @@ def get_args():
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument('--low-ram', action='store_true')
+    parser.add_argument('--tmp-dir', default='/tmp/mixtral_ckpt_parts/')
     args = parser.parse_args()
     return args
 
@@ -132,24 +136,27 @@ def load_config(mixtral_config, tokenizer_path):
     return nemo_config
 
 
-def load_mixtral_ckpt(in_dir):
+def load_hf_model_args(in_dir):
     params_file = os.path.join(in_dir, 'config.json')
     assert os.path.exists(params_file)
     with open(params_file, 'r') as fp:
         model_args = json.load(fp)
+    return model_args
 
-    model = AutoModelForCausalLM.from_pretrained(in_dir)
-    ckpt = model.state_dict()
+
+def load_mixtral_ckpt(in_dir, load_model=True):
+    model_args = load_hf_model_args(in_dir)
+    ckpt = None
+    if load_model:
+        model = AutoModelForCausalLM.from_pretrained(in_dir)
+        ckpt = model.state_dict()
 
     tokenizer = AutoTokenizer.from_pretrained(in_dir)
     assert tokenizer.vocab_size == model_args['vocab_size']
     return model_args, ckpt, tokenizer
 
-
-def convert(args):
-    logging.info(f"loading checkpoint {args.input_name_or_path}")
-
-    model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path)
+def make_trainer(args, nemo_config):
+    model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path, load_model=False)
     nemo_config = load_config(model_args, tokenizer.vocab_file)
 
     if args.precision in ["32", "16"]:
@@ -195,6 +202,14 @@ def convert(args):
     print(f"nemo_config: {nemo_config}")
 
     trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
+    return trainer, dtype
+
+def convert(args):
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
+
+    model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path)
+    nemo_config = load_config(model_args, tokenizer.vocab_file)
+    trainer, dtype = make_trainer(args, nemo_config)
 
     hidden_size = nemo_config.hidden_size
     head_num = nemo_config.num_attention_heads
@@ -207,7 +222,7 @@ def convert(args):
         'transformer_engine', False
     ), "mcore_gpt transformer_engine must be enabled (or disabled) together."
 
-    param_to_weights = lambda param: param.float()
+    param_to_weights = lambda param: param.type(dtype=dtype)
 
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
@@ -226,6 +241,11 @@ def convert(args):
         assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
     if mcore_gpt:
         assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
+
+
+    yield checkpoint
+    checkpoint = OrderedDict()
+    checkpoint['state_dict'] = OrderedDict()
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
@@ -305,6 +325,10 @@ def convert(args):
 
         print(f"done layer {l}")
 
+        yield checkpoint
+        checkpoint = OrderedDict()
+        checkpoint['state_dict'] = OrderedDict()
+
     final_ln_weight = ckpt[f'model.norm.weight']
     if mcore_gpt:
         final_ln_base_name = f'model.decoder.final_layernorm.weight'
@@ -320,8 +344,32 @@ def convert(args):
     checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
-
+    yield checkpoint
     del ckpt
+
+
+def merge(a: dict, b: dict, path=[]):
+    is_dict = lambda x: isinstance(x, OrderedDict) or isinstance(x, dict)
+    for key in b:
+        if key in a:
+            if is_dict(a[key]) and is_dict(b[key]):
+                merge(a[key], b[key], path + [str(key)])
+            elif a[key] != b[key]:
+                raise Exception('Value conflict: ' + '.'.join(path + [str(key)]))
+        else:
+            a[key] = b[key]
+    return a
+
+def save_to_nemo(args, checkpoint):
+
+    logging.info(f"loading checkpoint {args.input_name_or_path}")
+    model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path, load_model=False)
+    nemo_config = load_config(model_args, tokenizer.vocab_file)
+    trainer, dtype = make_trainer(args, nemo_config)
+
+    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
+    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY].use_cpu_initialization = True
+    checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY].perform_initialization = False
 
     if nemo_config.get('megatron_amp_O2', False):
         keys = list(checkpoint['state_dict'].keys())
@@ -342,5 +390,21 @@ def convert(args):
 
 if __name__ == '__main__':
     args = get_args()
+    if args.low_ram:
+        os.makedirs(args.tmp_dir, exist_ok=True)
+
     parallel_state.set_expert_model_parallel_world_size(1)
-    convert(args)
+    checkpoint = OrderedDict()
+    for i, ckpt_part in enumerate(convert(args)):
+        if args.low_ram:
+            torch.save(ckpt_part, f'/{args.tmp_dir}/nemo_ckpt_part_{i}.pth')
+        else:
+            checkpoint = merge(checkpoint, ckpt_part)
+
+    if args.low_ram:
+        print("Loading partial checkpoints")
+        for path in map(str, Path(args.tmp_dir).rglob("*.pth")):
+            print(f"Loading checkpoint: {path}")
+            checkpoint = merge(checkpoint, torch.load(path, mmap=True))
+
+    save_to_nemo(args, checkpoint)
