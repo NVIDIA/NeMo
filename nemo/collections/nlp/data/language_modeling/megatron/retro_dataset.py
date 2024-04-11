@@ -33,14 +33,15 @@ from nemo.utils import logging
 
 try:
     from megatron.core import mpu, tensor_parallel
-    from megatron.core.datasets.retro.config import RetroGPTChunkDatasets
-    from megatron.core.models.retro import RetroConfig
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+    from megatron.core.datasets.retro.config import RetroGPTChunkDatasets
     from megatron.core.datasets.retro.query.multi_split_gpt_dataset import (
         MultiSplitGPTDataset,
         MultiSplitGPTDatasetConfig,
     )
     from megatron.core.datasets.retro.query.retro_dataset import get_retro_datasets
+    from megatron.core.models.retro import RetroConfig
+
     from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
     HAVE_MEGATRON_CORE = True
