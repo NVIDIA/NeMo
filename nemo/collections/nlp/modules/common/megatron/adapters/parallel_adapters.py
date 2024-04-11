@@ -162,6 +162,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.alpha = alpha if alpha is not None else self.dim
         self.input_is_parallel = input_is_parallel
         self.dropout_position = dropout_position
+        self.tp_world_size = None
+        self.tp_group = None
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
@@ -206,6 +208,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             lin_out_gather_output = True if input_is_parallel else False
             if input_is_parallel and self._sequence_parallel:
                 lin_out_gather_output = False
+                self.tp_world_size = get_tensor_model_parallel_world_size()
+                self.tp_group = get_tensor_model_parallel_group()
             self.linear_out = ColumnParallelLinear(
                 dim,
                 out_features,
@@ -295,12 +299,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             # hence seq dim need to be scattered right after lora linear layers
             # this function also handles the backward pass correctly
             # all2all hidden_size / tp to seq_len / tp
-            tp_world_size = get_tensor_model_parallel_world_size()
-            tp_group = get_tensor_model_parallel_group()
-            send_list = list(x.chunk(tp_world_size, dim=0))
+            send_list = list(x.chunk(self.tp_world_size, dim=0))
             send_list = [tensor.contiguous() for tensor in send_list]
-            receive_list = [torch.empty_like(send_list[0]) for _ in range(tp_world_size)]
-            torch.distributed.all_to_all(receive_list, send_list, group=tp_group)
+            receive_list = [torch.empty_like(send_list[0]) for _ in range(self.tp_world_size)]
+            torch.distributed.all_to_all(receive_list, send_list, group=self.tp_group)
             x = torch.cat(receive_list, dim=-1)
 
         if self.norm_position == 'post':
