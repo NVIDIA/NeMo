@@ -12,7 +12,7 @@ noise_manifest="/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.
 rir_manifest="/media/data2/simulated_data/rir_noise_data/real_rirs_isotropic_noises_1ch.json"
 
 EXP_NAME="ecapa_tdnn_ssl_sid_ssl_WavLM"
-POSTFIX=epoch49_debug2
+POSTFIX=epoch49_debug3
 
 SSL_CKPT="/home/heh/codes/nemo-ssl/workspace/nemo_experiments/pretrained_checkpoints/oci_ll_unlab-60k_bs2048_adamwlr0.004_wd1e-3_warmup25000_epoch1000_mask0.01x40pre_conv_wavLM0.2x0.1_n16_r5--val_loss5.0808-epoch43-last.ckpt"
 
@@ -34,7 +34,7 @@ CUDA_VISIBLE_DEVICES="0,1" python speaker_id_train.py \
     model.validation_ds.batch_size=32 \
     model.train_ds.num_workers=$num_workers \
     model.validation_ds.num_workers=$num_workers \
-    trainer.val_check_interval=50 \
+    trainer.val_check_interval=1.0 \
     exp_manager.checkpoint_callback_params.save_top_k=1 \
     exp_manager.name="$EXP_NAME-${POSTFIX}" \
     exp_manager.create_wandb_logger=True \
