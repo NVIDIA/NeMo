@@ -1,7 +1,7 @@
 Common Configuration Files
 ==========================
 
-This section provides a detailed overview of the NeMo configuration file setup specific to models within the NeMo Multimodal Language Model collection. For foundational knowledge about setting up and executing experiments common to all NeMo models, such as the Experiment Manager and PyTorch Lightning trainer parameters, refer to the :doc:`../core/core` section.
+This section provides a detailed overview of the NeMo configuration file setup specific to models within the NeMo Multimodal Language Model collection. For foundational knowledge about setting up and executing experiments common to all NeMo models, such as the Experiment Manager and PyTorch Lightning trainer parameters, refer to the :doc:`core <../../core/core>` documentation.
 
 Within the configuration files of the NeMo Multimodal Language Model, details concerning dataset(s), augmentation, optimization parameters, and model architectural specifications are central. This page explores each of these aspects.
 
@@ -123,19 +123,19 @@ Each configuration file should detail the model architecture used for the experi
 
 The parameters commonly shared across most multimodal language models include:
 
-+---------------------------+--------------+---------------------------------------------------------------------------------------+
-| **Parameter**             | **Datatype** | **Description**                                                                       |
-+===========================+==============+=======================================================================================+
-| :code:`micro_batch_size`  | int          | micro batch size that fits on each GPU                                                |
-+---------------------------+--------------+---------------------------------------------------------------------------------------+
-| :code:`global_batch_size` | int          | global batch size that takes consideration of gradient accumulation, data parallelism |
-+---------------------------+--------------+---------------------------------------------------------------------------------------+
-| :code:`tensor_model_parallel_size`       | int         | intra-layer model parallelism                                                     |
-+---------------------------+--------------+---------------------------------------------------------------------------------------+
-| :code:`pipeline_model_parallel_size`     | int         | inter-layer model parallelism                                                           |
-+---------------------------+--------------+---------------------------------------------------------------------------------------+
-| :code:`seed`              | int          | seed used in training                                                                 |
-+---------------------------+--------------+---------------------------------------------------------------------------------------+
++------------------------------------------+--------------+---------------------------------------------------------------------------------------+
+| **Parameter**                            | **Datatype** | **Description**                                                                       |
++===========================+==============+==============+=======================================================================================+
+| :code:`micro_batch_size`                 | int          | micro batch size that fits on each GPU                                                |
++------------------------------------------+--------------+---------------------------------------------------------------------------------------+
+| :code:`global_batch_size`                | int          | global batch size that takes consideration of gradient accumulation, data parallelism |
++------------------------------------------+--------------+---------------------------------------------------------------------------------------+
+| :code:`tensor_model_parallel_size`       | int          | intra-layer model parallelism                                                         |
++------------------------------------------+--------------+---------------------------------------------------------------------------------------+
+| :code:`pipeline_model_parallel_size`     | int          | inter-layer model parallelism                                                         |
++------------------------------------------+--------------+---------------------------------------------------------------------------------------+
+| :code:`seed`                             | int          | seed used in training                                                                 |
++------------------------------------------+--------------+---------------------------------------------------------------------------------------+
 
 NeVA
 ~~~~~~~~

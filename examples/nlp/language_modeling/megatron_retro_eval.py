@@ -233,4 +233,6 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
+    main()
+
     main()  # noqa pylint: disable=no-value-for-parameter

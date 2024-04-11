@@ -219,7 +219,6 @@ setuptools.setup(
         'License :: OSI Approved :: Apache Software License',
         # Supported python versions
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         # Additional Setting
         'Environment :: Console',
@@ -235,7 +234,7 @@ setuptools.setup(
     extras_require=extras_require,
     # Add in any packaged data.
     include_package_data=True,
-    exclude=['tools', 'tests'],
+    exclude=['tools', 'tests', 'nemo.deploy', 'nemo.export'],
     package_data={'': ['*.tsv', '*.txt', '*.far', '*.fst', '*.cpp', 'Makefile']},
     zip_safe=False,
     # PyPI package information.

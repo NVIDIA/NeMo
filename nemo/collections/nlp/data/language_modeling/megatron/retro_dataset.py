@@ -33,11 +33,15 @@ from nemo.utils import logging
 
 try:
     from megatron.core import mpu, tensor_parallel
-    from megatron.core.datasets.retro.config import RetroGPTChunkDatasets
-    from megatron.core.models.retro import RetroConfig
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.retro.query.multi_split_gpt_dataset import MultiSplitGPTDataset, MultiSplitGPTDatasetConfig
+    from megatron.core.datasets.retro.config import RetroGPTChunkDatasets
+    from megatron.core.datasets.retro.query.multi_split_gpt_dataset import (
+        MultiSplitGPTDataset,
+        MultiSplitGPTDatasetConfig,
+    )
     from megatron.core.datasets.retro.query.retro_dataset import get_retro_datasets
+    from megatron.core.models.retro import RetroConfig
+
     from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
     HAVE_MEGATRON_CORE = True
@@ -184,7 +188,6 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
         ) and mpu.get_tensor_model_parallel_rank() == 0
 
     data_config = MultiSplitGPTDatasetConfig(
-        is_built_on_rank=is_dataset_built_on_rank,
         random_seed=cfg.seed,
         sequence_length=cfg.data.seq_length,
         blend=cfg.data.data_prefix,
@@ -201,7 +204,7 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
     print("> building train, validation, and test datasets for GPT ...")
 
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
-        MultiSplitGPTDataset, train_val_test_num_samples, data_config
+        MultiSplitGPTDataset, train_val_test_num_samples, is_dataset_built_on_rank, data_config
     ).build()
 
     print("> finished creating GPT datasets ...")

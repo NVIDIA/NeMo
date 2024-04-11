@@ -167,11 +167,13 @@ def remove_padded_prompts(response, nb_paddings):
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
+    callbacks = []
+    # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
+        callbacks.append(CustomProgressBar())
     # trainer required for restoring model parallel models
     trainer = Trainer(
-        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
-        **cfg.trainer,
-        callbacks=[CustomProgressBar()],
+        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)), **cfg.trainer, callbacks=callbacks,
     )
 
     if cfg.gpt_model_file is not None:
@@ -222,6 +224,7 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
             pretrained_cfg["use_flash_attention"] = cfg.inference.get("use_flash_attention", False)
+            pretrained_cfg["apply_rope_fusion"] = False
             if pretrained_cfg.get('mcore_gpt', False):
                 # with dist checkpointing we can use the model parallel config specified by the user
                 pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
