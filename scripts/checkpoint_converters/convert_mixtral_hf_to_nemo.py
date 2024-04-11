@@ -222,7 +222,6 @@ def convert(args):
         'transformer_engine', False
     ), "mcore_gpt transformer_engine must be enabled (or disabled) together."
 
-    param_to_weights = lambda param: param.type(dtype=dtype)
 
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
@@ -232,7 +231,7 @@ def convert(args):
         embed_weights_base_name = f'model.embedding.word_embeddings.weight'
     else:
         embed_weights_base_name = f'model.language_model.embedding.word_embeddings.weight'
-    checkpoint['state_dict'][embed_weights_base_name] = param_to_weights(embed_weight)
+    checkpoint['state_dict'][embed_weights_base_name] = embed_weight
 
     if nemo_config.num_query_groups is None or nemo_config.num_query_groups == head_num:
         num_query_groups = head_num
@@ -269,7 +268,7 @@ def convert(args):
             qkv_weights_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'
         else:
             qkv_weights_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.weight'
-        checkpoint['state_dict'][qkv_weights_base_name] = param_to_weights(qkv_weights)
+        checkpoint['state_dict'][qkv_weights_base_name] = qkv_weights
 
         # attention dense
         o_weight = ckpt[f'model.layers.{l}.self_attn.o_proj.weight']
@@ -277,7 +276,7 @@ def convert(args):
             o_weight_base_name = f'model.decoder.layers.{l}.self_attention.linear_proj.weight'
         else:
             o_weight_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
-        checkpoint['state_dict'][o_weight_base_name] = param_to_weights(o_weight)
+        checkpoint['state_dict'][o_weight_base_name] = o_weight
 
         # # MLP
         # Handle gate
@@ -286,7 +285,7 @@ def convert(args):
             moe_gate_name = f'model.decoder.layers.{l}.mlp.router.weight'
         else:
             raise Exception("not implemented")
-        checkpoint['state_dict'][moe_gate_name] = param_to_weights(moe_gate)
+        checkpoint['state_dict'][moe_gate_name] = moe_gate
         # Handle experts
         for i in range(nemo_config.num_moe_experts):
             gate_proj = ckpt[f'model.layers.{l}.block_sparse_moe.experts.{i}.w1.weight']
@@ -296,14 +295,14 @@ def convert(args):
             else:
                 raise Exception("not implemented")
             mlp_down_weight = torch.cat((gate_proj, up_proj), axis=0)
-            checkpoint['state_dict'][mlp_down_base_name] = param_to_weights(mlp_down_weight)
+            checkpoint['state_dict'][mlp_down_base_name] = mlp_down_weight
 
             mlp_up_weight = ckpt[f'model.layers.{l}.block_sparse_moe.experts.{i}.w2.weight']
             if mcore_gpt:
                 mlp_up_base_name = f'model.decoder.layers.{l}.mlp.experts.local_experts.{i}.linear_fc2.weight'
             else:
                 raise Exception("not implemented")
-            checkpoint['state_dict'][mlp_up_base_name] = param_to_weights(mlp_up_weight)
+            checkpoint['state_dict'][mlp_up_base_name] = mlp_up_weight
 
         # LayerNorm
         input_ln_weight = ckpt[f'model.layers.{l}.input_layernorm.weight']
@@ -312,7 +311,7 @@ def convert(args):
             input_ln_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'
         else:
             input_ln_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
-        checkpoint['state_dict'][input_ln_base_name] = param_to_weights(input_ln_weight)
+        checkpoint['state_dict'][input_ln_base_name] = input_ln_weight
 
         post_attn_ln_weight = ckpt[f'model.layers.{l}.post_attention_layernorm.weight']
         if mcore_gpt:
@@ -321,7 +320,7 @@ def convert(args):
             post_attn_ln_base_name = f'model.decoder.layers.{l}.pre_mlp_layernorm.weight'
         else:
             post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
-        checkpoint['state_dict'][post_attn_ln_base_name] = param_to_weights(post_attn_ln_weight)
+        checkpoint['state_dict'][post_attn_ln_base_name] = post_attn_ln_weight
 
         print(f"done layer {l}")
 
@@ -334,14 +333,14 @@ def convert(args):
         final_ln_base_name = f'model.decoder.final_layernorm.weight'
     else:
         final_ln_base_name = f'model.language_model.encoder.final_layernorm.weight'
-    checkpoint['state_dict'][final_ln_base_name] = param_to_weights(final_ln_weight)
+    checkpoint['state_dict'][final_ln_base_name] = final_ln_weight
 
     output_layer_weight = ckpt[f'lm_head.weight']
     if mcore_gpt:
         output_layer_base_name = f'model.output_layer.weight'
     else:
         output_layer_base_name = f'model.language_model.output_layer.weight'
-    checkpoint['state_dict'][output_layer_base_name] = param_to_weights(output_layer_weight)
+    checkpoint['state_dict'][output_layer_base_name] = output_layer_weight
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
     yield checkpoint
