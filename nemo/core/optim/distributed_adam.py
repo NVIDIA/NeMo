@@ -50,6 +50,11 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         disable_distributed_parameters (bool, optional): use standard
             data-parallel communication instead of ZeRO.
             (default: False)
+        distribute_within_nodes (bool, optional): distribute states
+            within the same node, e.g. DGX. This can improve performance
+            but requires larger memory than distributing within all
+            ranks, especially for pure data parallel models.
+            (default: False).
         **kwargs: keyword arguments to pass to Apex
             DistributedFusedAdam.
 
@@ -59,6 +64,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         self,
         params: Union[Iterable[torch.nn.Parameter], Iterable[dict]],
         disable_distributed_parameters: bool = False,
+        distribute_within_nodes: bool = False,
         **kwargs,
     ):
 
@@ -71,6 +77,29 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             self_groups = [torch.distributed.new_group(ranks=[i]) for i in range(world_size)]
             kwargs['distributed_process_group'] = self_groups[rank]
             kwargs['redundant_process_group'] = kwargs['process_group']
+        elif distribute_within_nodes:
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            devices = torch.cuda.device_count()
+            nodes = world_size // devices
+            assert nodes * devices == world_size, \
+                "Expected all nodes have teh same amout of devices."
+            node_id = rank // devices
+            device_id = rank % devices
+
+            distributed_pgs =[]
+            for i in range(nodes):
+                ranks = [i * devices + j for j in range(devices)]
+                pg = torch.distributed.new_group(ranks=ranks)
+                distributed_pgs.append(pg)
+            kwargs['distributed_process_group'] = distributed_pgs[node_id]
+
+            redundant_pgs = []
+            for i in range(devices):
+                ranks = [i + j * devices  for j in range(nodes)]
+                pg = torch.distributed.new_group(ranks=ranks)
+                redundant_pgs.append(pg)
+            kwargs['redundant_process_group'] = redundant_pgs[device_id]
 
         # Make sure dtypes are in right type
         for keyword in ('dtype', 'grad_sync_dtype', 'param_sync_dtype'):
