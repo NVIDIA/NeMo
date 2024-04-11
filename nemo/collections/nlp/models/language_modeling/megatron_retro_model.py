@@ -196,9 +196,9 @@ class MegatronRetroModel(MegatronGPTModel):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             )
 
+            return model
         else:
             assert self.mcore_gpt == True, "Currently only support mcore Retro."
-        return model
 
     def forward(
         self, tokens, text_position_ids, attention_mask, labels, context_input_ids, context_position_ids, context_mask
