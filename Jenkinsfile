@@ -189,6 +189,7 @@ pipeline {
             trainer.max_steps=20 \
             model.micro_batch_size=1 \
             model.global_batch_size=1 \
+            model.optim.name=megatron_fused_adam \
             model.data.synthetic_data=True \
             exp_manager.exp_dir=/home/TestData/multimodal/stable_diffusion_train \
             model.inductor=False \
