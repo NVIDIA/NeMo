@@ -14,13 +14,17 @@
 
 import logging
 import warnings
+from functools import partial
 from itertools import repeat
 from pathlib import Path
 from typing import Sequence, Tuple
 
-from lhotse import CutSet
+from lhotse import CutSet, Features, Recording
+from lhotse.array import Array, TemporalArray
+from lhotse.cut import Cut, MixedCut, PaddingCut
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator, LazyNeMoTarredIterator
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
 def read_cutset_from_config(config) -> Tuple[CutSet, bool]:
@@ -98,8 +102,43 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
             cuts = mux(*cutsets, weights=weights, max_open_streams=config.max_open_streams, seed=config.shard_seed)
     else:
         # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
-        cuts = CutSet.from_file(config.cuts_path)
+        path = config.cuts_path
+        cuts = CutSet.from_file(path).map(partial(resolve_relative_paths, manifest_path=path))
     return cuts
+
+
+def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
+    if isinstance(cut, PaddingCut):
+        return cut
+
+    if isinstance(cut, MixedCut):
+        for track in cut.tracks:
+            track.cut = resolve_relative_paths(track.cut, manifest_path)
+        return cut
+
+    def resolve_recording(value):
+        for audio_source in value.sources:
+            if audio_source.type == "file":
+                audio_source.source = get_full_path(audio_source.source, manifest_file=manifest_path)
+
+    def resolve_array(value):
+        if isinstance(value, TemporalArray):
+            value.array.storage_path = get_full_path(value.array.storage_path)
+        else:
+            value.storage_path = get_full_path(value.storage_path)
+
+    if cut.has_recording:
+        resolve_recording(cut.recording)
+    if cut.has_features:
+        resolve_array(cut.features)
+    if cut.custom is not None:
+        for key, value in cut.custom.items():
+            if isinstance(value, Recording):
+                resolve_recording(value)
+            elif isinstance(value, (Array, TemporalArray, Features)):
+                resolve_array(value)
+
+    return cut
 
 
 def read_nemo_manifest(config, is_tarred: bool) -> CutSet:

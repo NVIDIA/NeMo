@@ -17,13 +17,15 @@ from itertools import islice
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import lhotse
+import numpy as np
 import pytest
 import torch
+from lhotse import CutSet, Recording
+from lhotse.audio import AudioLoadingError
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-
-lhotse = pytest.importorskip("lhotse", reason="Lhotse + NeMo tests require Lhotse (pip install lhotse).")
 
 requires_torchaudio = pytest.mark.skipif(
     not lhotse.utils.is_torchaudio_available(), reason="Lhotse Shar format support requires torchaudio."
@@ -792,6 +794,7 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
 def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     import numpy as np
     import soundfile as sf
+
     from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
 
     # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
@@ -821,3 +824,37 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     assert cut.supervisions[0].text == "irrelevant"
     assert audio.shape == (1, 8000)
     np.testing.assert_equal(audio[0], expected_audio[:8000])
+
+
+def test_lhotse_cuts_resolve_relative_paths(tmp_path: Path):
+    cuts_path = tmp_path / "cuts.jsonl.gz"
+    audio_path = tmp_path / "_relative_test_audio_.wav"
+    lhotse.audio.save_audio(audio_path, np.random.rand(16000) - 0.5, 16000)
+    cut = Recording.from_file(audio_path).to_cut()
+    cut.recording.sources[0].source = str(audio_path.name)  # make the path relative
+    cut.target_recording = cut.recording  # assign a custom field with relative path
+
+    with pytest.raises(AudioLoadingError):
+        cut.load_audio()  # Lhotse doesn't know about what the path should be relative to
+        cut.load_target_recording()
+
+    CutSet([cut]).to_file(cuts_path)
+
+    config = OmegaConf.create(
+        {"cuts_path": cuts_path, "sample_rate": 16000, "use_lhotse": True, "num_workers": 0, "batch_size": 2,}
+    )
+
+    class _Identity(torch.utils.data.Dataset):
+        def __getitem__(self, x):
+            return x
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+
+    batches = [batch for batch in dl]
+    assert len(batches) == 1
+
+    for cut in batches[0]:
+        assert cut.has_recording
+        cut.load_audio()  # works
+        assert cut.has_custom("target_recording")
+        cut.load_target_recording()
