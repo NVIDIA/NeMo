@@ -1679,7 +1679,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             if not hasattr(self.cfg.unet_config, 'unet_precision') or not '16' in str(
                 self.cfg.unet_config.unet_precision
             ):
-                logging.info('trainer.precision was set but unet_config.unet_precision was not! Setting unet_precision to fp16.')
+                logging.info(
+                    'trainer.precision was set but unet_config.unet_precision was not! Setting unet_precision to fp16.'
+                )
                 self.cfg.unet_config.unet_precision = 'fp16'
 
         self.model = self.model_provider_func()
