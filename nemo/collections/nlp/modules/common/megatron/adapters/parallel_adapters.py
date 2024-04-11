@@ -47,14 +47,11 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig
+    from megatron.core.parallel_state import get_tensor_model_parallel_group, get_tensor_model_parallel_world_size
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
     from megatron.core.tensor_parallel.mappings import (
         gather_from_sequence_parallel_region,
         scatter_to_sequence_parallel_region,
-    )
-    from megatron.core.parallel_state import (
-        get_tensor_model_parallel_group,
-        get_tensor_model_parallel_world_size,
     )
 
     HAVE_MEGATRON_CORE = True
@@ -299,7 +296,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             # this function also handles the backward pass correctly
             # all2all hidden_size / tp to seq_len / tp
             tp_world_size = get_tensor_model_parallel_world_size()
-            tp_group=get_tensor_model_parallel_group()
+            tp_group = get_tensor_model_parallel_group()
             send_list = list(x.chunk(tp_world_size, dim=0))
             send_list = [tensor.contiguous() for tensor in send_list]
             receive_list = [torch.empty_like(send_list[0]) for _ in range(tp_world_size)]
