@@ -768,12 +768,6 @@ class MegatronBaseModel(NLPModel):
             optim_dtype = str_to_dtype(get_config_arg('dtype', torch.float32))
             optim_kwargs['dtype'] = optim_dtype
 
-            # Make sure embedding grad reductions are in FP32
-            if optim_dtype == torch.float32:
-                for name, param in self.named_parameters():
-                    if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
-                        param._with_fp32_optimizer = True
-
             # Match param allgather with model dtype
             model_dtype = torch.float32
             if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
@@ -1135,6 +1129,7 @@ class MegatronBaseModel(NLPModel):
             "no_sync_func": None,  # set dynamically during training
             "grad_sync_func": None,  # set dynamically during training
             "param_sync_func": None,  # set dynamically during training
+            "tp_comm_overlap": self.cfg.get('ub_tp_comm_overlap', False),
         }
 
         # instantitate ModelParallelConfig from this dict
