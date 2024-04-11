@@ -1724,11 +1724,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
+            # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
             def skip_fp8_load(x):
                 if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
                     x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
                 return x
-            if True: #if self.cfg.skip_attn_fp8_load:
+            if self.cfg.fp8_dot_product_attention:
                 dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
 
             return sharded_state_dict
