@@ -425,6 +425,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 buffers_in.append(buffer_in)
                 buffers_out.append(buffer_out)
             elif torch.is_floating_point(buffer_in) and torch.is_floating_point(param):
+                # Conv with NHWC layout, i.e. shape (N, C, H, W) and stride
+                # (HWC, 1, WC, C), can't `.view(-1)`. Here to turn it to
+                # tensor with shape (N, H, W, C) and stride (HWC, WC, C, 1).
+                # Note: https://github.com/NVIDIA/apex/pull/1794
+                if param.is_contiguous(memory_format=torch.channels_last):
+                    param = param.permute(0, 2, 3, 1)
+
                 # Cast between floating-point dtypes
                 buffer_out = param.detach().view(-1)[param_start:param_end]
                 buffers_in.append(buffer_in)
