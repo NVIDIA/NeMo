@@ -266,7 +266,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
         emissions = log_probs.cpu().contiguous()
 
         B, T, N = emissions.size()
-        
+
         # each sequence in the batch has either a length given by `out_len` or the maximum length given by `T`
         # decoding should not continue beyond the maximum sequence length
         if out_len:
