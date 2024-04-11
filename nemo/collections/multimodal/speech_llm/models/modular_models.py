@@ -1451,6 +1451,39 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         else:
             return super().sharded_state_dict(prefix=prefix)
 
+    def maybe_build_test(self):
+        # overwrite the parent class's maybe_build_test() method in MegatronGPTModel
+        if hasattr(self.cfg.data, 'test_ds'):
+            logging.info('Building test datasets...')
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
+            lengths = [len(x) for x in self._test_ds]
+            logging.info(f'Length of test datasets: {lengths}, total: {sum(lengths)}')
+        return
+
+    def maybe_setup_test(self):
+        # overwrite the parent class's maybe_build_test() method in MegatronGPTModel
+        if hasattr(self.cfg.data, 'test_ds'):
+            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+        return
+
+    def build_train_valid_test_datasets(self, stage):
+        if stage != 'test':
+            logging.info('Building validation datasets.')
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
+            lengths = [len(x) for x in self._validation_ds]
+            logging.info(f'Length of validation datasets: {lengths}, total: {sum(lengths)}')
+
+        if stage != 'validate':
+            self.maybe_build_test()
+
+        if stage == 'validate' or stage == 'test':
+            return
+        logging.info('Building training datasets.')
+        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
+        logging.info(f'Length training datasets: {len(self._train_ds)}')
+
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """

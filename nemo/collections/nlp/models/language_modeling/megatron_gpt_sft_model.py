@@ -162,7 +162,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return set(["f1", "accuracy", "average_precision"])
 
     def maybe_setup_test(self):
-        if hasattr(self.cfg.data, 'test_ds'):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
         return
 
@@ -793,12 +793,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 )
 
     def maybe_build_test(self):
-        if hasattr(self.cfg.data, 'test_ds'):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             logging.info('Building GPT SFT test datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-            lengths = [len(x) for x in self._test_ds]
-            logging.info(f'Length of test datasets: {lengths}, total: {sum(lengths)}')
+            logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
         return
 
     def build_train_valid_test_datasets(self, stage):
@@ -806,8 +805,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            lengths = [len(x) for x in self._validation_ds]
-            logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
+            logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
             self.maybe_build_test()

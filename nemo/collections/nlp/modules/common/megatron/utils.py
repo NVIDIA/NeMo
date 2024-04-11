@@ -22,6 +22,8 @@ import torch.nn as nn
 
 from torch import Tensor
 
+from nemo.utils import logging, logging_mode
+
 try:
     from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
@@ -415,7 +417,7 @@ def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatche
     if isinstance(batch, dict):
         discard_items = [k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))]
         if len(discard_items) > 0:
-            logging.warning(f"Discarding the following items from the batch: {discard_items}", mode=logging_mode.ONCE)
+            logging.warning(f"Discarding the following keys from the batch: {discard_items}", mode=logging_mode.ONCE)
 
         batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         tensor_items = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}

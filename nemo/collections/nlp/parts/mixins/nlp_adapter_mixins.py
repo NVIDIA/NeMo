@@ -126,6 +126,7 @@ class NLPAdapterModelMixin:
             peft_cfg, 'name_key_to_mcore_mixins'
         ), f"{peft_cfg.__class__.__name__} is not supported in megatron core mode yet."
         name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if self.use_mcore_gpt else None
+
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
             # self.mcore_gpt means is GPT and not T5
             if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
