@@ -82,12 +82,11 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             rank = torch.distributed.get_rank()
             devices = torch.cuda.device_count()
             nodes = world_size // devices
-            assert nodes * devices == world_size, \
-                "Expected all nodes have teh same amout of devices."
+            assert nodes * devices == world_size, "Expected all nodes have teh same amout of devices."
             node_id = rank // devices
             device_id = rank % devices
 
-            distributed_pgs =[]
+            distributed_pgs = []
             for i in range(nodes):
                 ranks = [i * devices + j for j in range(devices)]
                 pg = torch.distributed.new_group(ranks=ranks)
@@ -96,7 +95,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
             redundant_pgs = []
             for i in range(devices):
-                ranks = [i + j * devices  for j in range(nodes)]
+                ranks = [i + j * devices for j in range(nodes)]
                 pg = torch.distributed.new_group(ranks=ranks)
                 redundant_pgs.append(pg)
             kwargs['redundant_process_group'] = redundant_pgs[device_id]
