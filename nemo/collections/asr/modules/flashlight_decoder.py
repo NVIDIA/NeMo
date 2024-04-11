@@ -200,12 +200,10 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             )
         else:
             from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+            from flashlight.lib.text.dictionary import Dictionary
 
-            d = {
-                w: [[w]]
-                for w in self.tokenizer_wrapper.vocab + ([] if '<unk>' in self.tokenizer_wrapper.vocab else ['<unk>'])
-            }
-            self.word_dict = create_word_dict(d)
+            # Dictionary contains a mapping of our ASR model's output IDs to the tokens in the vocabulary
+            self.word_dict = Dictionary(self.tokenizer_wrapper.vocab)
             self.lm = KenLM(lm_path, self.word_dict)
             self.decoder_opts = LexiconFreeDecoderOptions(
                 beam_size=beam_size,
