@@ -1709,11 +1709,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_validation_model_zero_grad(self) -> None:
-         """
+        """
          Skip gradient zeroing at the beginning of validation routine.
          This is needed when overlapping the AllGather of the updated parameters with the following valdation step.
          """
-         if not self.validation_param_sync_overlap:
+        if not self.validation_param_sync_overlap:
             super().on_validation_model_zero_grad()
 
     def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
