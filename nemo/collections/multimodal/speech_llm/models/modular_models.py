@@ -116,13 +116,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
-        rate for the frozen model's params will always be zero effectively
-        freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        Override parent method to setup optimizer groups for training/freezing different parts of the model.
         """
         known_groups = []
         if self.cfg.get('freeze_llm', True):
@@ -391,7 +385,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 inference_max_sequence_len,
             ) = batch
             tokens = tokens.cuda()
-            position_ids = position_ids.cuda()
+
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
@@ -707,6 +701,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     @classmethod
     def get_speaker_model_and_config(cls, cfg):
+        """load speaker embedding model and config if present in the config."""
         if 'speaker_model' in cfg.model.perception:
             if cfg.model.get("_target_", None) is not None:
                 model_cls = get_class(cfg.model.get("_target_"))
@@ -1231,7 +1226,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
         if not outputs or (all([not x for x in outputs])):
-            return
+            return None
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]

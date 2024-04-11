@@ -43,7 +43,6 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
     ):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
-        micro_batch_size = context_tokens.shape[0]
 
         audio_feats, audio_feat_lens = self.model.perception(
             input_signal=audio_signal,

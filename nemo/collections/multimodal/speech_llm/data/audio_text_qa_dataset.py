@@ -44,18 +44,6 @@ from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
 
-try:
-    from megatron.core import parallel_state, tensor_parallel
-
-    # TODO @tmoon: Use once available in Megatron-LM
-    # from megatron.core.pipeline_parallel.schedules import DataIteratorList
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 
 __all__ = [
     'AudioQuestionAnswerDataset',
