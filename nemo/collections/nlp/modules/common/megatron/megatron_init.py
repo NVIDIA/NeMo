@@ -32,6 +32,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import tensor_parallel
     from megatron.core.parallel_state import (
+        RankGenerator,
         get_pipeline_model_parallel_rank,
         set_expert_model_parallel_rank,
         set_expert_model_parallel_world_size,
@@ -41,7 +42,6 @@ try:
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
         set_virtual_pipeline_model_parallel_rank,
-        RankGenerator,
     )
 
 except (ImportError, ModuleNotFoundError):
@@ -252,7 +252,7 @@ def fake_initialize_model_parallel(
         dp=data_parallel_size,
         pp=pipeline_model_parallel_size,
         cp=context_parallel_size,
-        order= 'tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+        order='tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
     )
 
     # Build the data-parallel groups.
