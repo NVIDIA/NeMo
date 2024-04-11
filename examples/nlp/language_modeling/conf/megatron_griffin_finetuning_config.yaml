@@ -5,13 +5,13 @@ trainer:
   devices: 1
   accelerator: gpu
   num_nodes: 1
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
   max_epochs: 9999
   max_steps: 10000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10 # frequency with which training steps are logged
+  log_every_n_steps: 1 # frequency with which training steps are logged
   val_check_interval: 200 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
   limit_val_batches: 1024
@@ -56,6 +56,7 @@ model:
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null
   vocab_size: 256128
+  apply_rope_fusion: True
   # model architecture
   encoder_seq_length: 512
   max_position_embeddings: ${.encoder_seq_length}
@@ -224,7 +225,7 @@ model:
         num_classes: null
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 2e-4
     weight_decay: 0.01 
     betas: 
