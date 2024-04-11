@@ -148,7 +148,7 @@ pipeline {
             model.optim.name=distributed_fused_adam \
             model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
             model.data.num_workers=4 \
-            model.micro_batch_size=4 \
+            model.micro_batch_size=1 \
             model.data.shuffle_documents=False \
             trainer.val_check_interval=15 \
             model.init_method_std=0.023 \
@@ -170,7 +170,7 @@ pipeline {
             model.optim.name=distributed_fused_adam \
             model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
             model.data.num_workers=4 \
-            model.micro_batch_size=4 \
+            model.micro_batch_size=1 \
             model.data.shuffle_documents=False \
             trainer.val_check_interval=20 \
             model.init_method_std=0.023 \
