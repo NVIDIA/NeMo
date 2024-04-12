@@ -165,8 +165,9 @@ Ideally you would have some 'true' CTM files to compare with your generated CTM 
 
 Alternatively (or additionally), you can visualize the quality of alignments using tools such as Gecko, which can play your audio file and display the predicted alignments at the same time. The Gecko tool requires you to upload an audio file and at least one CTM file. The Gecko tool can be accessed here: https://gong-io.github.io/gecko/. More information about the Gecko tool can be found on its Github page here: https://github.com/gong-io/gecko. 
 
-.. note:: the following may help improve your experience viewing the CTMs in Gecko:
+.. note:: 
+	The following may help improve your experience viewing the CTMs in Gecko:
 
-* setting ``minimum_timestamp_duration`` to a larger number, as Gecko may not display some tokens/words/segments properly if their timestamps are too short.
-* setting ``remove_blank_tokens_from_ctm=true`` if you are analyzing token-level CTMs, as it will make the Gecko visualization less cluttered.
+	* setting ``minimum_timestamp_duration`` to a larger number, as Gecko may not display some tokens/words/segments properly if their timestamps are too short.
+	* setting ``remove_blank_tokens_from_ctm=true`` if you are analyzing token-level CTMs, as it will make the Gecko visualization less cluttered.
 
