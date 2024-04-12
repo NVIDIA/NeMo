@@ -304,11 +304,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             if self.use_a2a:
                 # all2all hidden_size / tp to seq_len / tp
                 x = all2all_hp2sp(x, self.tp_world_size, self.tp_group)
-                #send_list = list(x.chunk(self.tp_world_size, dim=0))
-                #send_list = [tensor.contiguous() for tensor in send_list]
-                #receive_list = [torch.empty_like(send_list[0]) for _ in range(self.tp_world_size)]
-                #torch.distributed.all_to_all(receive_list, send_list, group=self.tp_group)
-                #x = torch.cat(receive_list, dim=-1)
+                # send_list = list(x.chunk(self.tp_world_size, dim=0))
+                # send_list = [tensor.contiguous() for tensor in send_list]
+                # receive_list = [torch.empty_like(send_list[0]) for _ in range(self.tp_world_size)]
+                # torch.distributed.all_to_all(receive_list, send_list, group=self.tp_group)
+                # x = torch.cat(receive_list, dim=-1)
             else:
                 x = scatter_to_sequence_parallel_region(x)
 
