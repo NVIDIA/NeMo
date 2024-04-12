@@ -633,8 +633,8 @@ Some other Lhotse related arguments we support:
 
 The full and always up-to-date list of supported options can be found in ``LhotseDataLoadingConfig`` class.
 
-Extended multi-dataset and multi-modal configuration format
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Extended multi-dataset configuration format
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Combining a large number of datasets and defining weights for them can be tricky.
 We offer an extended configuration format that allows you to explicitly define datasets,
@@ -647,6 +647,9 @@ is very useful when combining multiple datasets with different properties.
 The dataset class which converts these examples to tensors can partition the mini-batch and apply
 different processing to each group.
 For example, you may want to construct different prompts for the model using metadata in ``tags``.
+
+.. note:: When fine-tuning a model that was trained with ``input_cfg`` option, typically you'd only need
+    to override the following options: ``input_cfg=null`` and ``manifest_filepath=path/to/manifest.json``.
 
 Example 1. Combine two datasets with equal weights and attach custom metadata in ``tags`` to each cut:
 
@@ -715,8 +718,11 @@ The final weight is the product of outer and inner weight:
               source_lang: pl
               target_lang: en
 
-**Multi-modal data handling.** This format supports specifying data sources from other modalities than just audio.
-At this time, this support is extended to text-only data. We provide two parser types:
+Configuring multi-modal dataloading
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Our configuration format supports specifying data sources from other modalities than just audio.
+At this time, this support is extended to text-only data. We provide the following parser types:
 
 * ``txt`` for raw text files, sharded or unsharded. This can represent, for example, language modeling data.
 * ``txt_pair`` for pairs of raw text files, sharded or unsharded. This can represent, for example, machine translation data.
