@@ -238,11 +238,6 @@ class SentencePieceTokenizer(TokenizerSpec):
         return self.pad_id
 
     @property
-    def pad_token(self):
-        # pad_token introduced for consistency with HF tokenizers
-        return self.tokenizer.id_to_piece(self.pad_id)
-
-    @property
     def bos_id(self):
         if self.legacy:
             bos_id = self.tokens_to_ids([self.bos_token])[0]
@@ -262,11 +257,6 @@ class SentencePieceTokenizer(TokenizerSpec):
     def eos_token_id(self):
         # eos_token_id introduced for consistency with HF tokenizers
         return self.eos_id
-
-    @property
-    def eos_token(self):
-        # eos_token introduced for consistency with HF tokenizers
-        return self.tokenizer.id_to_piece(self.eos_id)
 
     @property
     def sep_id(self):
