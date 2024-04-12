@@ -913,7 +913,7 @@ def main():
 
     tmp_cfg = cls.restore_from(
         restore_path=args.model_file,
-        trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision),
+        trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu"),
         map_location=torch.device("cpu"),
         return_config=True,
     )
@@ -938,7 +938,7 @@ def main():
         # Set precision None after precision plugins are created as PTL >= 2.1 does not allow both
         # precision plugins and precision to exist
         precision = None
-    trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+    trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
     if tp_size < 0 or pp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
@@ -1206,7 +1206,7 @@ def main():
             set_virtual_parallel_rank_safely(None)
 
         trainer = Trainer(
-            plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
+            plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu"
         )
 
         with open_dict(model.cfg):
@@ -1414,7 +1414,7 @@ def main():
             )
 
             trainer = Trainer(
-                plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
+                plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu"
             )
             if args.tokenizer_model_path is not None:
                 with open_dict(model.cfg):
