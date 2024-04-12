@@ -1024,9 +1024,12 @@ class MegatronBaseModel(NLPModel):
                 and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
-                word_embeddings_weight = (
-                    model.shared_embedding_or_output_weight() if is_mcore_model else model.word_embeddings_weight()
-                )
+                word_embeddings_weight = None
+                if is_mcore_model:
+                    word_embeddings_weight = model.module.shared_embedding_or_output_weight() if isinstance(model, Float16Module) else model.shared_embedding_or_output_weight()
+                else:
+                    word_embeddings_weight = model.word_embeddings_weight()
+      
                 # substract the embedding weights on the last stage
                 num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
                 num_parameters_on_device -= num_word_embedding_parameters
