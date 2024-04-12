@@ -819,7 +819,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             return
         logging.info('Building GPT SFT traing datasets.')
         self._train_ds = self._build_dataset(self.cfg.data.train_ds)
-        logging.info(f'Length of train dataset: {len(self._train_ds)}')
+        # logging.info(f'Length of train dataset: {len(self._train_ds)}')
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
         """Buld dataloader given an input dataset."""

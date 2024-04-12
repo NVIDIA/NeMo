@@ -27,9 +27,14 @@ from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
-
+from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 
 __all__ = ["AudioPerceptionModule", "MultiAudioPerceptionModule"]
+
+def lens_to_mask(lens, max_length):
+    batch_size = lens.shape[0]
+    mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
+    return mask
 
 
 class AudioPerceptionModule(NeuralModule, Exportable):
@@ -69,6 +74,7 @@ class AudioPerceptionModule(NeuralModule, Exportable):
 
     def __init__(self, cfg: DictConfig):
         super().__init__()
+        self.cfg = cfg
         # Initialize components
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
         self.encoder = self.from_config_dict(cfg.encoder)

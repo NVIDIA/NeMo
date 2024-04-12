@@ -16,7 +16,7 @@ import logging
 import warnings
 from itertools import repeat
 from pathlib import Path
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, List
 
 from lhotse import CutSet
 
@@ -123,12 +123,11 @@ def sample_and_attach_question(cut, questions: List[str]):
     return cut
 
 
-def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
-    from lhotse import CutSet
+def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
 
     common_kwargs = {
-        "text_field": config.lhotse.get("text_field", "text"),
-        "lang_field": config.lhotse.get("lang_field", "lang"),
+        "text_field": config.get("text_field", "text"),
+        "lang_field": config.get("lang_field", "lang"),
     }
     shuffle = config.get("shuffle", False)
 
@@ -203,7 +202,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                 logging.info(f"- {manifest_path=} {weight=}")
                 cutsets.append(cs)
                 weights.append(weight)
-            if (max_open_streams := config.lhotse.get("max_open_streams", None)) is not None:
+            if (max_open_streams := config.get("max_open_streams", None)) is not None:
                 cuts = CutSet.infinite_mux(*cutsets, weights=weights, max_open_streams=max_open_streams, seed="trng")
             else:
                 cuts = CutSet.mux(*[cs.repeat() for cs in cutsets], weights=weights, seed="trng")
@@ -256,7 +255,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> LhotseCutSet:
                 logging.info(f"- {manifest_path=} {weight=}")
                 weights.append(weight)
                 cutsets.append(cs)
-            if (max_open_streams := config.lhotse.get("max_open_streams", None)) is not None:
+            if (max_open_streams := config.get("max_open_streams", None)) is not None:
                 cuts = CutSet.infinite_mux(*cutsets, weights=weights, max_open_streams=max_open_streams, seed="trng")
             else:
                 cuts = CutSet.mux(*[cs for cs in cutsets], weights=weights, seed="trng")
