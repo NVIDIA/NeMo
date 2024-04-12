@@ -35,8 +35,8 @@ class GreedySequenceGenerator:
     Args:
         embedding: nn.Module, transforms input_ids into vector embeddings
         decoder: nn.Module, takes embeddings and produces hidden_states
-        log_softmax: nn.Module, takes hidden_states and produces log_probs
-            which correspond to probability distribution of tokens (ids)
+        classifier: nn.Module, takes hidden_states and produces
+            logits or log-probability distribution of tokens (ids)
         pad: index of padding token in the vocabulary
         bos: index of beginning of sequence token in the vocabulary
         eos: index of end of sequence token in the vocabulary
@@ -52,7 +52,7 @@ class GreedySequenceGenerator:
         self,
         embedding,
         decoder,
-        log_softmax,
+        classifier,
         pad=0,
         bos=1,
         eos=2,
@@ -65,8 +65,7 @@ class GreedySequenceGenerator:
         super().__init__()
         self.embedding = embedding
         self.decoder = decoder
-        self.log_softmax = log_softmax
-        self.log_softmax.mlp.log_softmax = False
+        self.classifier = classifier.set_log_softmax_enabled(False)
         self.pad, self.bos, self.eos = pad, bos, eos
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
@@ -113,7 +112,7 @@ class GreedySequenceGenerator:
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        logits = self.log_softmax.forward(hidden_states=decoder_mems_list[-1][:, -1:])
+        logits = self.classifier.forward(hidden_states=decoder_mems_list[-1][:, -1:], temperature=self.temperature)
         return logits, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
@@ -221,9 +220,9 @@ class GreedySequenceGenerator:
         for param in self.decoder.parameters():
             param.requires_grad = False
         self.decoder.eval()
-        for param in self.log_softmax.parameters():
+        for param in self.classifier.parameters():
             param.requires_grad = False
-        self.log_softmax.eval()
+        self.classifier.eval()
 
     def unfreeze(self) -> None:
         """Unfreeze weights of embedding, decoder, and classification layers.
@@ -234,14 +233,14 @@ class GreedySequenceGenerator:
         for param in self.decoder.parameters():
             param.requires_grad = True
         self.decoder.train()
-        for param in self.log_softmax.parameters():
+        for param in self.classifier.parameters():
             param.requires_grad = True
-        self.log_softmax.train()
+        self.classifier.train()
 
     @contextmanager
     def as_frozen(self):
         """
-        Context manager which temporarily freezes embedding, decoder, and log_softmax modules,
+        Context manager which temporarily freezes embedding, decoder, and classifier modules,
         yields control and finally unfreezes the modules.
         """
         self.freeze()
