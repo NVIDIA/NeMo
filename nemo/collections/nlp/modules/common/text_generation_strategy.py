@@ -697,15 +697,16 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.model.model.config.retro_gpt_chunk_length = context_tokens_length  # set RetroConfig of M-LM's RETRO model
         # important, currently extra['neighbors_tokens'].shape is [k, 1, r]
         # we make it to [bs, l, k, r]
-        extra['neighbors_tokens'] = extra['neighbors_tokens'].permute(1,0,2)
-        extra['neighbors_tokens'] = extra['neighbors_tokens'].unsqueeze(0)
+        neighbors_tokens = extra['neighbors_tokens']
+        neighbors_tokens = neighbors_tokens.permute(1,0,2)
+        neighbors_tokens = neighbors_tokens.unsqueeze(0)
         # we then double the l to l*2
-        extra['neighbors_tokens'] = extra['neighbors_tokens'].repeat(1,2,1,1)
+        neighbors_tokens = neighbors_tokens.repeat(1,2,1,1)
 
         # Move to GPU.
         tokenizer = self.model.tokenizer
         tokens = context_tokens.contiguous().cuda()
-        extra['neighbors_tokens'] = extra['neighbors_tokens'].contiguous().cuda()
+        neighbors_tokens = neighbors_tokens.contiguous().cuda()
 
         # Get the attention mask and postition ids.
         self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
@@ -719,18 +720,18 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
 
         # Get the attention mask and postition ids for neighbors (retro_generation.retro_generate_tokens_probs_and_return_on_first_stage)
         # Reshape neighbors_tokens tensor to 2D for get_ltor_masks_and_position_ids and as forward arg of RETRO model, original shape is 3D ([bs, k, r])
-        [bs, l, k , r] = extra['neighbors_tokens'].shape
-        extra['neighbors_tokens'] = extra['neighbors_tokens'].view(-1, r).long()
+        [bs, l, k , r] = neighbors_tokens.shape
+        neighbors_tokens = neighbors_tokens.view(-1, r).long()
 
         _, _, self.neighbor_position_ids = get_ltor_masks_and_position_ids(
-            extra['neighbors_tokens'],
+            neighbors_tokens,
             tokenizer.eos_id,
             self.model.cfg.get('reset_position_ids', False),
             self.model.cfg.get('reset_attention_mask', False),
             self.model.cfg.get('eod_mask_loss', False),
         )
         self.neighbor_attention_mask = torch.zeros([1, 1])  # just a dummy values, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
-        self.neighbors_tokens = extra['neighbors_tokens']
+        self.neighbors_tokens = neighbors_tokens
 
         # RETRO specific: Updating the arguments inside RETRO model (retro_num_neighbors, retro_chunk_length) with the inference's sample
         inference_retro_num_neighbors = k

@@ -639,13 +639,10 @@ def generate(
         # tokenize neighbors and broadcast (for Mcore retrieval RETRO model)
         if 'neighbors' in strategy_args:
             # tokenize neighbors
-            if isinstance(strategy_args['neighbors'], tuple):
-                neighbors_tokens_tensor = strategy_args['neighbors']
-            else:
-                neighbors_tokens_tensor, neighbors_tokens_tensor_shape = inference_strategy.tokenize_neighbors_batch(
-                    strategy_args['neighbors'],
-                    strategy_args['retro_inference']
-                )
+            neighbors_tokens_tensor, neighbors_tokens_tensor_shape = inference_strategy.tokenize_neighbors_batch(
+                strategy_args['neighbors'],
+                strategy_args['retro_inference']
+            )
 
             # send neighbors tensors to all ranks 
             model_parallel_group = parallel_state.get_model_parallel_group()
@@ -679,6 +676,8 @@ def generate(
             torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
             neighbors_tokens_tensor = torch.empty(neighbors_tokens_tensor_shape[0], neighbors_tokens_tensor_shape[1], dtype=torch.int64, device=torch.cuda.current_device())
             torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+        else:
+            neighbors_tokens_tensor = None
 
     # add neighbors to strategy_args (for retrieval RETRO model)
     if 'neighbors' in strategy_args:
