@@ -303,11 +303,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             # this function also handles the backward pass correctly
             if self.use_a2a:
                 # all2all hidden_size / tp to seq_len / tp
-                send_list = list(x.chunk(self.tp_world_size, dim=0))
-                send_list = [tensor.contiguous() for tensor in send_list]
-                receive_list = [torch.empty_like(send_list[0]) for _ in range(self.tp_world_size)]
-                torch.distributed.all_to_all(receive_list, send_list, group=self.tp_group)
-                x = torch.cat(receive_list, dim=-1)
+                x = all2all_hp2sp(x, self.tp_world_size, self.tp_group)
+                #send_list = list(x.chunk(self.tp_world_size, dim=0))
+                #send_list = [tensor.contiguous() for tensor in send_list]
+                #receive_list = [torch.empty_like(send_list[0]) for _ in range(self.tp_world_size)]
+                #torch.distributed.all_to_all(receive_list, send_list, group=self.tp_group)
+                #x = torch.cat(receive_list, dim=-1)
             else:
                 x = scatter_to_sequence_parallel_region(x)
 
@@ -321,6 +322,34 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         x = x * (self.alpha / self.dim)
 
         return x
+
+
+class _All2AllHp2Sp(torch.autograd.Function):
+    """All-2-All from Hidden to Seq Len Dim"""
+
+    @staticmethod
+    def forward(ctx, input_, world_size, group):
+        ctx.world_size = world_size
+        ctx.group = group
+        send_list = list(input_.chunk(world_size, dim=0))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=group)
+        x = torch.cat(receive_list, dim=-1)
+        return x
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        send_list = list(grad_output.chunk(ctx.world_size, dim=-1))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(ctx.world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=ctx.group)
+        x = torch.cat(receive_list, dim=0)
+        return x, None, None
+
+
+def all2all_hp2sp(input_, world_size, group):
+    return _All2AllHp2Sp.apply(input_, world_size, group)
 
 
 @dataclass
