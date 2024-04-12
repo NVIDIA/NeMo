@@ -212,7 +212,6 @@ def convert(args):
 
     model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path)
     nemo_config = load_config(model_args, tokenizer.vocab_file)
-    trainer, dtype = make_trainer(args, nemo_config)
 
     hidden_size = nemo_config.hidden_size
     head_num = nemo_config.num_attention_heads
