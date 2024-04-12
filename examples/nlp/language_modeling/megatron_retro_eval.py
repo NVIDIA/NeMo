@@ -187,7 +187,9 @@ def main(cfg) -> None:
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
             checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronRetroModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+        model = MegatronRetroModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+        )
 
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")

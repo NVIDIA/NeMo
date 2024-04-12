@@ -473,7 +473,7 @@ def synced_generate(
     end_strings=[],
     min_tokens_to_generate=0,
     image_list=None,
-    **strategy_args
+    **strategy_args,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -490,7 +490,7 @@ def synced_generate(
         )
     else:
 
-        extra={
+        extra = {
             "top_p": top_p,
             "top_k": top_k,
             "greedy": greedy,
@@ -501,7 +501,6 @@ def synced_generate(
         # if input containing neighbors (for retrieval RETRO model)
         if "neighbors_tokens" in strategy_args:
             extra['neighbors_tokens'] = strategy_args['neighbors_tokens']
-
 
         batch_token_iterator = sample_sequence_batch(
             model,
@@ -640,11 +639,10 @@ def generate(
         if 'neighbors' in strategy_args:
             # tokenize neighbors
             neighbors_tokens_tensor, neighbors_tokens_tensor_shape = inference_strategy.tokenize_neighbors_batch(
-                strategy_args['neighbors'],
-                strategy_args['retro_inference']
+                strategy_args['neighbors'], strategy_args['retro_inference']
             )
 
-            # send neighbors tensors to all ranks 
+            # send neighbors tensors to all ranks
             model_parallel_group = parallel_state.get_model_parallel_group()
             src = get_model_parallel_src_rank()
             torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
@@ -671,12 +669,17 @@ def generate(
 
         # receive broadcast (for Mcore retrieval RETRO model)
         if 'neighbors' in strategy_args:
-            # receive neighbors tensors to all ranks 
+            # receive neighbors tensors to all ranks
             model_parallel_group = parallel_state.get_model_parallel_group()
             src = get_model_parallel_src_rank()
             neighbors_tokens_tensor_shape = torch.empty(2, dtype=torch.float32, device=torch.cuda.current_device())
             torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
-            neighbors_tokens_tensor = torch.empty(neighbors_tokens_tensor_shape[0], neighbors_tokens_tensor_shape[1], dtype=torch.int64, device=torch.cuda.current_device())
+            neighbors_tokens_tensor = torch.empty(
+                neighbors_tokens_tensor_shape[0],
+                neighbors_tokens_tensor_shape[1],
+                dtype=torch.int64,
+                device=torch.cuda.current_device(),
+            )
             torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
         else:
             neighbors_tokens_tensor = None
@@ -705,7 +708,7 @@ def generate(
         end_strings=end_strings,
         min_tokens_to_generate=min_tokens_to_generate,
         image_list=image_list,
-        **strategy_args
+        **strategy_args,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -814,10 +817,12 @@ def sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        if 'neighbors_tokens' in extra: # for Mcore retrieval RETRO model
+        if 'neighbors_tokens' in extra:  # for Mcore retrieval RETRO model
 
             # For RETRO, context_tokens tensors are updated after init_batch() (the length is doubled)
-            context_tokens = inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask, **extra)
+            context_tokens = inference_strategy.init_batch(
+                context_tokens, context_length, compute_attention_mask, **extra
+            )
 
         else:
             inference_strategy.init_batch(context_tokens, context_length, compute_attention_mask)
@@ -858,11 +863,11 @@ def sample_sequence_batch(
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 else:
-                    if 'neighbors_tokens' in extra: # for Mcore retrieval RETRO model
+                    if 'neighbors_tokens' in extra:  # for Mcore retrieval RETRO model
                         # for Mcore RETRO inference, disimilar to GPT, we will get the logits of the (context_length - 1)th token, instead of the last token
                         logits = output[0]['logits'][:, context_length - 1].contiguous()
                     else:
-                        logits = output[0]['logits'][:, -1].contiguous()                    
+                        logits = output[0]['logits'][:, -1].contiguous()
                     logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
                     assert logits is not None
                     logits = logits.view(batch_size, -1)
