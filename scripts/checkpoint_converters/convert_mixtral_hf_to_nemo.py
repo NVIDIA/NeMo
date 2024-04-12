@@ -24,6 +24,7 @@ import json
 import os
 from argparse import ArgumentParser
 from collections import OrderedDict
+from pathlib import Path
 
 import megatron.core.parallel_state as parallel_state
 import torch
@@ -42,9 +43,9 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-from pathlib import Path
 
 torch.set_grad_enabled(False)
+
 
 def get_args():
     parser = ArgumentParser()
@@ -158,6 +159,7 @@ def load_mixtral_ckpt(in_dir, load_model=True):
     assert tokenizer.vocab_size == model_args['vocab_size']
     return model_args, ckpt, tokenizer
 
+
 def make_trainer(args, nemo_config):
     model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path, load_model=False)
     nemo_config = load_config(model_args, tokenizer.vocab_file)
@@ -207,6 +209,7 @@ def make_trainer(args, nemo_config):
     trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
     return trainer, dtype
 
+
 def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
 
@@ -223,7 +226,6 @@ def convert(args):
     assert mcore_gpt == nemo_config.get(
         'transformer_engine', False
     ), "mcore_gpt transformer_engine must be enabled (or disabled) together."
-
 
     checkpoint = OrderedDict()
     checkpoint['state_dict'] = OrderedDict()
@@ -242,7 +244,6 @@ def convert(args):
         assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
     if mcore_gpt:
         assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
-
 
     yield checkpoint
     checkpoint = OrderedDict()
@@ -360,6 +361,7 @@ def merge(a: dict, b: dict, path=[]):
         else:
             a[key] = b[key]
     return a
+
 
 def save_to_nemo(args, checkpoint):
 
