@@ -61,6 +61,7 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.distributed import DistributedDataParallel as DDP
 
     HAVE_MEGATRON_CORE = True
 
@@ -318,7 +319,7 @@ class MegatronBaseModel(NLPModel):
     def get_model_module_list(self):
         if isinstance(self.model, list):
             return [
-                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
+                model.module if isinstance(model, (Float16Module, MCoreFloat16Module, DDP)) else model
                 for model in self.model
             ]
         elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
@@ -617,17 +618,21 @@ class MegatronBaseModel(NLPModel):
             # use the default behavior
             return super().configure_gradient_clipping(*args, **kwargs)
 
-        if self.with_distributed_adam:
-            grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
+        if self.use_mcore_dist_optim:
+            # set this to None just for now
+            grad_norm = None
         else:
-            if self.megatron_amp_O2:
-                # grep fp32 master parameters for gradient clipping
-                parameters = self._optimizer.get_parameters_with_grad()
+            if self.with_distributed_adam:
+                grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
             else:
-                parameters = self.get_parameters_with_grad()
-            grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val, use_fsdp=self.use_fsdp,)
+                if self.megatron_amp_O2:
+                    # grep fp32 master parameters for gradient clipping
+                    parameters = self._optimizer.get_parameters_with_grad()
+                else:
+                    parameters = self.get_parameters_with_grad()
+                grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val, use_fsdp=self.use_fsdp,)
 
-        self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
+            self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
@@ -850,7 +855,7 @@ class MegatronBaseModel(NLPModel):
             )
 
         # Configure distributed optimizer
-        if self.with_distributed_adam:
+        if self.with_distributed_adam and not self.use_mcore_dist_optim:
 
             # Initialize param buckets if explicitly provided
             if getattr(self, 'distributed_adam_buckets', None) is not None:

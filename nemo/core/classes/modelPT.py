@@ -634,12 +634,12 @@ class ModelPT(LightningModule, Model):
         if self._trainer is None:
             logging.warning(f"Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
 
-        if 'sched' in optim_config and self.use_mcore_dist_optim:
-            if 'lr_warmup_init' not in optim_config['sched']:
-                optim_config['sched']['lr_warmup_init'] = 0.0
-            optim_config['sched']['lr'] = optim_config['lr']
-            optim_config['sched']['weight_decay'] = optim_config['weight_decay']
-            optim_config['sched']['global_batch_size'] = self.cfg.get('global_batch_size')
+        # if 'sched' in optim_config and self.use_mcore_dist_optim:
+        #     if 'lr_warmup_init' not in optim_config['sched']:
+        #         optim_config['sched']['lr_warmup_init'] = 0.0
+        #     optim_config['sched']['lr'] = optim_config['lr']
+        #     optim_config['sched']['weight_decay'] = optim_config['weight_decay']
+        #     optim_config['sched']['global_batch_size'] = self.cfg.get('global_batch_size')
 
 
         elif 'sched' in optim_config and self._trainer is not None:
@@ -764,14 +764,14 @@ class ModelPT(LightningModule, Model):
             self._optimizer = optimizer
 
         # Try to instantiate scheduler for optimizer
-        if optimizer_name == 'mcore_distributed_optim':
-            self._scheduler = get_mcore_lr_scheduler(
-                optimizer=self._optimizer, scheduler_config=scheduler_config
-            )
-        else:
-            self._scheduler = prepare_lr_scheduler(
-                optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
-            )
+        # if optimizer_name == 'mcore_distributed_optim':
+        #     self._scheduler = get_mcore_lr_scheduler(
+        #         optimizer=self._optimizer, scheduler_config=scheduler_config
+        #     )
+        # else:
+        self._scheduler = prepare_lr_scheduler(
+            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
+        )
 
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created

@@ -100,6 +100,8 @@ try:
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
     from megatron.core.utils import get_model_config
     from megatron.core.distributed import DistributedDataParallel as DDP
+    from megatron.core.distributed import finalize_model_grads
+
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
@@ -129,7 +131,7 @@ def mcore_supports_moe() -> bool:
         return False
     try:
         from megatron.core.transformer.moe.router import TopKRouter
-
+        
         return True
     except ImportError:
         return False
@@ -582,6 +584,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
+
+
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
@@ -589,15 +593,30 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         grad_sync_func = None
         param_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
-            grad_sync_func = self.reduce_overlap_gradients
-            param_sync_func = self.sync_overlap_parameters
+            if not self.use_mcore_dist_optim:
+                no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+                grad_sync_func = self.reduce_overlap_gradients
+                param_sync_func = self.sync_overlap_parameters
+            else:
+                if self.cfg.optim.get("mcore_overlap_grad_sync", False):
+                    no_sync_func =  [model_chunk.no_sync for model_chunk in self.model]
+                    no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
+
+                    if self.cfg.optim.get("mcore_delay_grad_reduce", True):
+                        grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
+                        grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
+                if self.cfg.optim.get("mcore_overlap_param_sync", False) and self.cfg.optim.get("mcore_delay_param_gather", False):
+                    param_sync_func = [lambda x: self._optimizer.finish_param_sync(model_index, x)
+                                  for model_index in range(len(self.model))]
+                    param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
+
 
         # pipeline schedules will get these from self.model.config
         for module in self.get_model_module_list():
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
             module.config.param_sync_func = param_sync_func
+            module.config.finalize_model_grads_func = finalize_model_grads
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -690,11 +709,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
                 self.trainer.should_stop = True
+        
+        # zero the grad buf
+        for model_chunk in self.model:
+            model_chunk.zero_grad_buffer()
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
-        if self.with_distributed_adam:
+        if self.with_distributed_adam and not self.use_mcore_dist_optim:
             # hack to enable overlapping param sync and forward compute
             # note: the distributed optimizer monkey-patches each
             # parameter's __getattribute__ function so that it can
@@ -725,7 +748,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
 
         self.megatron_timer_start('gradient_allreduce', log_level=1)
-        if self.use_fsdp:
+        if self.use_mcore_dist_optim:
+            pass
+        elif self.use_fsdp:
             # Reduce the gradients omitted from FSDP-sharding
             self.allreduce_fsdp_sharding_omitted_gradients()
         elif self.with_distributed_adam:
@@ -744,7 +769,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
         self.megatron_timer_stop('gradient_allreduce')
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
+        if not self.use_mcore_dist_optim and self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
             'share_embeddings_and_output_weights', True
         ):
             self.megatron_timer_start('allreduce_first_last_embeddings', log_level=1)
