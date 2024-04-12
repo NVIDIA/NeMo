@@ -22,6 +22,9 @@ __all__ = ['TokenizerSpec']
 class TokenizerSpec(ABC):
     """
     Inherit this class to implement a new tokenizer.
+
+    Methods encode, batch_encode_plus, decode and batch_decode
+    are introduced for HuggingFace tokenizers API consistency.
     """
 
     @abstractmethod
@@ -48,8 +51,20 @@ class TokenizerSpec(ABC):
     def ids_to_text(self, ids):
         pass
 
+    def encode(self, text, *args, **kwargs):
+        raise NotImplementedError
+
+    def batch_encode_plus(self, texts, *args, **kwargs):
+        raise NotImplementedError
+
+    def decode(self, ids, *args, **kwargs):
+        raise NotImplementedError
+
+    def batch_decode(self, ids, *args, **kwargs):
+        raise NotImplementedError
+
     def add_special_tokens(self, special_tokens: List[str]):
-        raise NotImplementedError("To be implemented")
+        raise NotImplementedError
 
     @property
     def name(self):
