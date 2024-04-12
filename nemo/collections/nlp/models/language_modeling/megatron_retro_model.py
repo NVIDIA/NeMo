@@ -377,17 +377,11 @@ class MegatronRetroModel(MegatronGPTModel):
                 # Transfer needed data to GPU
                 tokens = tokens.cuda()
                 position_ids = position_ids.cuda()
-                ## DEBUGGING (hacking)
-                # if attention_mask is not None:
-                #     attention_mask = attention_mask.cuda()
-                #     attention_mask = attention_mask[0:1]
                 context_input_ids = context_input_ids.cuda()
                 context_position_ids = context_position_ids.cuda()
                 context_mask = None
                 if self.mcore_gpt:
-                    ## DEBUGGING (hacking)
-                    # not caching key, value because currently it's not supported for RETRO
-                    # print("Not caching key, value because currently it's not supported for RETRO.")
+                    # No caching key, value because currently it's not supported for RETRO
                     pass
 
                 else:

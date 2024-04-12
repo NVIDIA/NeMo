@@ -263,14 +263,6 @@ def main(cfg) -> None:
         neighbors.append(processed_neighbors)
         ground_truths.append(sample['answers'][0])  # Boxin only takes the first value of sample['answers'] (https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/boxin/instructretro-internal-test/tools/retro/text_generation/evaluate.py?ref_type=heads#L85)
 
-
-    # DEBUGGING
-    n = 20
-    prompts = prompts[:n]
-    neighbors = neighbors[:n]
-    ground_truths = ground_truths[:n]
-    print("prompts[0]: ", prompts[0])
-
     # Running prediction
     bs = 1
     ds = RequestDataSet(prompts, neighbors)
