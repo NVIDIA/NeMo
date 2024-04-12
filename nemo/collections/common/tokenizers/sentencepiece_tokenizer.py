@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import sentencepiece
+import torch
 
 from nemo.collections.common.parts.utils import if_exist
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -28,7 +29,7 @@ __all__ = ['SentencePieceTokenizer', 'create_spt_model']
 class SentencePieceTokenizer(TokenizerSpec):
     """
     Sentencepiecetokenizer https://github.com/google/sentencepiece.
-    
+
     Args:
         model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
         special_tokens: either list of special tokens or dictionary of token name to token value
@@ -165,6 +166,40 @@ class SentencePieceTokenizer(TokenizerSpec):
             ids.append(self.token_to_id(token))
         return ids
 
+    def encode(self, text: Union[str, List[str]], return_tensors: Optional[str] = None, max_length: Optional[int] = None, *args, **kwargs):
+        # Note: keyword arguments other than return_tensors and max_length are ignored.
+        assert not self.legacy, "Legacy implementation is not available."
+        output = self.tokenizer.encode_as_ids(text)
+        if max_length is not None:
+            if isinstance(text, str):
+                output = output[:max_length]
+            if isinstance(text, list):
+                output = [x[:max_length] for x in output]
+        if return_tensors == "pt":
+            # Only plain text input is supported since for list of strings some padding needs to be introduced
+            assert isinstance(
+                text, str
+            ), "Returning 'pt' tensors is only supported for simple text input"
+            output = torch.LongTensor(output).reshape((1, -1))
+        return output
+
+    def batch_encode_plus(self, texts, *args, **kwargs):
+        # Note: keyword arguments are ignored.
+        assert not self.legacy, "Legacy implementation is not available."
+        assert isinstance(texts, list), f"Expected list of texts, got {type(texts).__name__}: {texts}"
+        return {"input_ids": self.tokenizer.encode_as_ids(texts)}
+
+    def decode(self, ids: Union[List[int], List[List[int]], np.ndarray, torch.Tensor], *args, **kwargs):
+        # Note: keyword arguments are ignored.
+        assert not self.legacy, "Legacy implementation is not available."
+        if isinstance(ids, np.ndarray) or torch.is_tensor(ids):
+            ids = ids.tolist()
+        return self.tokenizer.decode(ids)
+
+    def batch_decode(self, ids: List[List[int]], *args, **kwargs):
+        assert not self.legacy, "Legacy implementation is not available."
+        return self.decode(ids, **kwargs)
+
     def add_special_tokens(self, special_tokens):
         if not self.legacy:
             raise AttributeError("Special Token addition does not work when legacy is set to False.")
@@ -198,6 +233,16 @@ class SentencePieceTokenizer(TokenizerSpec):
         return pad_id
 
     @property
+    def pad_token_id(self):
+        # pad_token_id introduced for consistency with HF tokenizers
+        return self.pad_id
+
+    @property
+    def pad_token(self):
+        # pad_token introduced for consistency with HF tokenizers
+        return self.tokenizer.id_to_piece(self.pad_id)
+
+    @property
     def bos_id(self):
         if self.legacy:
             bos_id = self.tokens_to_ids([self.bos_token])[0]
@@ -212,6 +257,16 @@ class SentencePieceTokenizer(TokenizerSpec):
         else:
             eos_id = self.tokenizer.eos_id()
         return eos_id
+
+    @property
+    def eos_token_id(self):
+        # eos_token_id introduced for consistency with HF tokenizers
+        return self.eos_id
+
+    @property
+    def eos_token(self):
+        # eos_token introduced for consistency with HF tokenizers
+        return self.tokenizer.id_to_piece(self.eos_id)
 
     @property
     def sep_id(self):
