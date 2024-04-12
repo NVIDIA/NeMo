@@ -649,6 +649,8 @@ def generate(
             src = get_model_parallel_src_rank()
             torch.distributed.broadcast(neighbors_tokens_tensor_shape, src, model_parallel_group)
             torch.distributed.broadcast(neighbors_tokens_tensor, src, model_parallel_group)
+        else:
+            neighbors_tokens_tensor = None
 
     else:
         (
