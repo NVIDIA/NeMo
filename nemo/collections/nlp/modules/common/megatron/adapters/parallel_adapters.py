@@ -147,7 +147,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
         dropout_position: str = 'post',
-        a2a_experimental: bool = False,
+        a2a_experimental: bool = False, #TODO: should rename this or make it a default feature
         **kwargs,
     ):
         super().__init__()
@@ -302,13 +302,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             # hence seq dim need to be scattered right after lora linear layers
             # this function also handles the backward pass correctly
             if self.use_a2a:
-                # all2all hidden_size / tp to seq_len / tp
+                # all2all hidden_size / TP to seq_len / TP
                 x = all2all_hp2sp(x, self.tp_world_size, self.tp_group)
-                # send_list = list(x.chunk(self.tp_world_size, dim=0))
-                # send_list = [tensor.contiguous() for tensor in send_list]
-                # receive_list = [torch.empty_like(send_list[0]) for _ in range(self.tp_world_size)]
-                # torch.distributed.all_to_all(receive_list, send_list, group=self.tp_group)
-                # x = torch.cat(receive_list, dim=-1)
             else:
                 x = scatter_to_sequence_parallel_region(x)
 
@@ -325,7 +320,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
 
 class _All2AllHp2Sp(torch.autograd.Function):
-    """All-2-All from Hidden to Seq Len Dim"""
+    """
+    All-2-All from Hidden Parallel to Sequence Parallel
+    This is a temporary workaround and can be updated in the future
+    TODO: Move the functionality to MCore
+    """
 
     @staticmethod
     def forward(ctx, input_, world_size, group):
