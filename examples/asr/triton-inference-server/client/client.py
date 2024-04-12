@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@ import soundfile as sf
 import argparse
 import os
 import json
-from multiprocessing import Pool
+import time
 
-import tritonclient.grpc as grpcclient
+import tritonclient.grpc.aio as grpcclient
 from tritonclient.utils import np_to_triton_dtype
 
+import asyncio
+from asyncio_pool import AioPool
+import hashlib
 
 
 class OfflineSpeechClient(object):
@@ -32,11 +35,11 @@ class OfflineSpeechClient(object):
         self.protocol_client = protocol_client
         self.model_name = model_name
 
-    def recognize(self, wav_file, idx=0):
-        waveform, sample_rate = sf.read(wav_file)
+    async def recognize(self, wav_file):
+        waveform, sample_rate = sf.read(wav_file, dtype=np.float32)
         samples = np.array([waveform], dtype=np.float32)
         lengths = np.array([[len(waveform)]], dtype=np.int32)
-        sequence_id = 10086 + idx
+        sequence_id = int(hashlib.sha1(wav_file.encode("utf-8")).hexdigest(), 16) % (10 ** 5)
         result = ""
         inputs = [
             self.protocol_client.InferInput("WAV", samples.shape,
@@ -47,19 +50,81 @@ class OfflineSpeechClient(object):
         inputs[0].set_data_from_numpy(samples)
         inputs[1].set_data_from_numpy(lengths)
         outputs = [self.protocol_client.InferRequestedOutput("TRANSCRIPTS")]
-        response = self.triton_client.infer(
+        start = time.time()
+        response = await self.triton_client.infer(
             self.model_name,
             inputs,
             request_id=str(sequence_id),
             outputs=outputs,
         )
+        latency = time.time() - start
         decoding_results = response.as_numpy("TRANSCRIPTS")[0]
         if type(decoding_results) == np.ndarray:
             result = b" ".join(decoding_results).decode("utf-8")
         else:
             result = decoding_results.decode("utf-8")
-        return [result]
+        print("Recognized: ", wav_file, result)
+        return (wav_file, result, latency)
 
+
+async def main(args):
+    filepaths = []
+    transcripts = []
+    if args.audio_file is not None:
+        path = args.audio_file
+        if os.path.exists(path):
+            filepaths = [path]
+    elif args.manifest is not None:
+        with open(args.manifest, "r") as f:
+            for line in f:
+                item = json.loads(line)
+                filepaths.append(item["audio_filepath"])
+                transcripts.append(item["text"])
+    
+    
+    triton_client = grpcclient.InferenceServerClient(
+        url=args.url, verbose=args.verbose)
+    
+    speech_client = OfflineSpeechClient(triton_client, args.model_name, grpcclient)
+    concurrency = args.concurrency
+    pool = AioPool(size=concurrency)
+    print(f'=== Parallel Generation Requests Start - Total number of Tasks:{len(filepaths)} - Concurrency Rate:{pool.size} ===')
+    start = time.time()
+    responses = await pool.map(speech_client.recognize, filepaths)
+    end = time.time()
+    print(f"Time taken is {(end - start):.2f}% seconds")
+    print(f"Avg latency per audio is {(end-start)*1000/len(responses):.2f}% ms")
+    
+    predictions = []
+    server_latency = []
+    for response in responses:
+        predictions.append((response[0], response[1]))
+        server_latency.append(response[2])
+    print(f"Avg latency per request: \
+        {np.mean(server_latency)*1000:.2f}% ms")
+    
+    predictions = [(id, predict_text) for (id, predict_text) in predictions]
+    # dump prediction
+    if args.output_file is not None:
+        with open(args.output_file, "w") as f:
+            for item in predictions:
+                filepath = item[0]
+                predict_text = item[1]
+                f.write(filepath + "\t" + predict_text + "\n")
+    
+    # calculate WER
+    if args.do_wer_cer > 0 and args.manifest is not None:
+        # you need to install nemo asr
+        try:
+            from nemo.collections.asr.metrics.wer import word_error_rate
+        except:
+            raise ImportError("Please install nemo asr to calculate WER/CER")
+        
+        use_cer = args.do_wer_cer == 2
+        predict_text = [li[1] for li in predictions]
+        wer = word_error_rate(hypotheses=predict_text, references=transcripts, use_cer=use_cer)
+        print(f'WER/CER: {wer * 100:.2f}%')
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -100,67 +165,28 @@ if __name__ == "__main__":
         help="single wav file path",
     )
     parser.add_argument(
+        "--concurrency",
+        type=int,
+        required=False,
+        default=1,
+        help="number of tasks to be processed together",
+    )
+    parser.add_argument(
         "--output_file",
         type=str,
         required=False,
         default=None,
-        help="the file to dump predicted text",
+        help="output file to save the recognition result",
     )
     parser.add_argument(
-        "--num_workers",
+        "--do_wer_cer",
         type=int,
+        default=0,
+        choices=[0, 1, 2],
         required=False,
-        default=1,
-        help="number of workers to send requests together",
+        help="0 for no wer/cer calculation, 1 for wer, 2 for cer",
     )
 
     args = parser.parse_args()
-    filepaths = []
-    if args.audio_file is not None:
-        path = args.audio_file
-        if os.path.exists(path):
-            filepaths = [path]
-    elif args.manifest is not None:
-        with open(args.manifest, "r") as f:
-            for line in f:
-                item = json.loads(line)
-                filepaths.append(item["audio_filepath"])
-    
-    speech_client_cls = OfflineSpeechClient
-    def single_job(client_files):
-        with grpcclient.InferenceServerClient(
-                url=args.url, verbose=args.verbose) as triton_client:
-            protocol_client = grpcclient
-            speech_client = speech_client_cls(triton_client, args.model_name,
-                                              protocol_client)
-            idx, audio_files = client_files
-            predictions = []
-            for li in audio_files:
-                result = speech_client.recognize(li, idx)
-                print("Recognized {}:{}".format(li, result[0]))
-                predictions += result
-        return predictions
-    
-    # start to do inference
-    # Group requests in batches
-    predictions = []
-    tasks = []
-    num_workers = args.num_workers
-    splits = np.array_split(filepaths, num_workers)
-
-    for idx, per_split in enumerate(splits):
-        cur_files = per_split.tolist()
-        tasks.append((idx, cur_files))
-
-    #with Pool(processes=num_workers) as pool:
-    #    predictions = pool.map(single_job, tasks)
-    # remove pool to better debug 
-    predictions = single_job(tasks[0])
-    
-    predictions = [item for sublist in predictions for item in sublist]
-    # dump prediction
-    if args.output_file is not None:
-        with open(args.output_file, "w") as f:
-            for item in predictions:
-                f.write(item + "\n")
+    asyncio.run(main(args))
     

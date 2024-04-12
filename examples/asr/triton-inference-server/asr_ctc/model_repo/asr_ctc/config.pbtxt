@@ -48,6 +48,7 @@ input [
     name: "WAV"
     data_type: TYPE_FP32
     dims: [-1]
+    allow_ragged_batch: true
   },
   {
     name: "WAV_LENS"
