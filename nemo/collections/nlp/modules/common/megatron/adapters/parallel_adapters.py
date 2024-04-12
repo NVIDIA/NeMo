@@ -147,7 +147,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
         dropout_position: str = 'post',
-        a2a_experimental: bool = False, #TODO: should rename this or make it a default feature
+        a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
         **kwargs,
     ):
         super().__init__()
