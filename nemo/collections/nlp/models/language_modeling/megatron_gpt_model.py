@@ -1339,9 +1339,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
         if parallel_state.get_context_parallel_world_size() > 1:
             if self.cfg.data.get('sample_weight', 'token') == 'constant':
-              loss = loss * num_valid_tokens_in_ub
-              torch.distributed.all_reduce(num_valid_tokens_in_ub, group=parallel_state.get_context_parallel_group())
-              loss = loss / num_valid_tokens_in_ub
+                loss = loss * num_valid_tokens_in_ub
+                torch.distributed.all_reduce(num_valid_tokens_in_ub, group=parallel_state.get_context_parallel_group())
+                loss = loss / num_valid_tokens_in_ub
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         return loss
 
