@@ -47,56 +47,10 @@ def old_fake_initialize_model_parallel(
     if virtual_pipeline_model_parallel_size_ is not None:
         virtual_pipeline_model_parallel_rank = 0
 
-    # Build the data-parallel groups.
-    all_data_parallel_group_ranks_with_cp = []
-    for i in range(pipeline_model_parallel_size):
-        start_rank = i * num_pipeline_model_parallel_groups
-        end_rank = (i + 1) * num_pipeline_model_parallel_groups
-        for j in range(context_parallel_size * tensor_model_parallel_size):
-            ranks = range(start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size)
-            if rank in ranks:
-                data_parallel_group = list(ranks)
-        for j in range(tensor_model_parallel_size):
-            ranks_with_cp = range(start_rank + j, end_rank, tensor_model_parallel_size)
-            all_data_parallel_group_ranks_with_cp.append(list(ranks_with_cp))
-            if rank in ranks_with_cp:
-                data_parallel_group_with_cp = list(ranks_with_cp)
-
-    data_parallel_rank = data_parallel_group.index(rank)
-
-    # Build the context-parallel groups.
-    all_context_parallel_group_ranks = []
-    for i in range(pipeline_model_parallel_size):
-        for j in range(data_parallel_size):
-            start_rank = (
-                i * num_pipeline_model_parallel_groups + j * tensor_model_parallel_size * context_parallel_size
-            )
-            end_rank = (
-                i * num_pipeline_model_parallel_groups + (j + 1) * tensor_model_parallel_size * context_parallel_size
-            )
-            for k in range(tensor_model_parallel_size):
-                ranks = range(start_rank + k, end_rank, tensor_model_parallel_size)
-                all_context_parallel_group_ranks.append(list(ranks))
-                if rank in ranks:
-                    context_parallel_group = list(ranks)
-
-    context_parallel_rank = context_parallel_group.index(rank)
-
-    # Build the model-parallel groups.
-    all_model_parallel_group_ranks = []
-    for i in range(data_parallel_size * context_parallel_size):
-        ranks = [
-            data_parallel_group_ranks_with_cp[i]
-            for data_parallel_group_ranks_with_cp in all_data_parallel_group_ranks_with_cp
-        ]
-        all_model_parallel_group_ranks.append(ranks)
-
     # Build the tensor model-parallel groups.
-    all_tensor_model_parallel_group_ranks = []
     tensor_model_parallel_group = None
     for i in range(num_tensor_model_parallel_groups):
         ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
-        all_tensor_model_parallel_group_ranks.append(list(ranks))
         if rank in ranks:
             tensor_model_parallel_group = list(ranks)
 
@@ -119,31 +73,13 @@ def old_fake_initialize_model_parallel(
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
-    all_pipeline_model_parallel_group_ranks = []
-    all_embedding_group_ranks = []
     pipeline_model_parallel_group = None
-    embedding_group = None
-    embedding_rank = None
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-        all_pipeline_model_parallel_group_ranks.append(list(ranks))
         if rank in ranks:
             pipeline_model_parallel_group = list(ranks)
 
-        # Setup embedding group (to exchange gradients between
-        # first and last stages).
-        if len(ranks) > 1:
-            embedding_ranks = [ranks[0], ranks[-1]]
-            all_embedding_group_ranks.append(embedding_ranks)
-        else:
-            embedding_ranks = ranks
-            all_embedding_group_ranks.append(list(embedding_ranks))
-        if rank in embedding_ranks:
-            embedding_group = list(embedding_ranks)
-
     pipeline_model_parallel_rank = pipeline_model_parallel_group.index(rank)
-    if embedding_group is not None:
-        embedding_rank = embedding_group.index(rank)
 
     return (
         tensor_model_parallel_rank,
