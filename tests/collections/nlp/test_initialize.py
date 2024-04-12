@@ -102,7 +102,6 @@ def old_fake_initialize_model_parallel(
 
     tensor_model_parallel_rank = tensor_model_parallel_group.index(rank)
 
-
     # EP rank
     expert_model_parallel_rank = 0
     if expert_model_parallel_size_ is not None and expert_model_parallel_size_ > 1:
@@ -146,7 +145,6 @@ def old_fake_initialize_model_parallel(
     if embedding_group is not None:
         embedding_rank = embedding_group.index(rank)
 
-
     return (
         tensor_model_parallel_rank,
         pipeline_model_parallel_rank,
@@ -180,16 +178,7 @@ def test_fake_initialize(nodes, num_gpu, tp, pp, cp, ep):
         data_parallel_size,
         pipeline_model_parallel_split_rank,
         virtual_pipeline_model_parallel_rank,
-    ) = old_fake_initialize_model_parallel(
-        nodes * num_gpu,
-        0,
-        tp,
-        pp,
-        None,
-        None,
-        ep,
-        cp
-    )
+    ) = old_fake_initialize_model_parallel(nodes * num_gpu, 0, tp, pp, None, None, ep, cp)
 
     (
         m_tensor_model_parallel_rank,
@@ -199,16 +188,7 @@ def test_fake_initialize(nodes, num_gpu, tp, pp, cp, ep):
         n_data_parallel_size,
         n_pipeline_model_parallel_split_rank,
         n_virtual_pipeline_model_parallel_rank,
-    ) = fake_initialize_model_parallel(
-        nodes * num_gpu,
-        0,
-        tp,
-        pp,
-        None,
-        None,
-        ep,
-        cp
-    )
+    ) = fake_initialize_model_parallel(nodes * num_gpu, 0, tp, pp, None, None, ep, cp)
     assert m_tensor_model_parallel_rank == tensor_model_parallel_rank
     assert n_pipeline_model_parallel_rank == pipeline_model_parallel_rank
     assert n_expert_model_parallel_rank == expert_model_parallel_rank
