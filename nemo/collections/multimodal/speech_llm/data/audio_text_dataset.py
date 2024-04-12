@@ -44,12 +44,19 @@ from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
 
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE = False
 
 __all__ = [
-    'AudioQuestionAnswerDataset',
-    'TarredAudioQuestionAnswerDataset',
-    'get_tarred_aqa_dataset_from_config',
-    'get_aqa_dataset_from_config',
+    'AudioTextDataset',
+    'TarredAudioTextDataset',
+    'get_tarred_audio_text_dataset_from_config',
+    'get_audio_text_dataset_from_config',
 ]
 
 
@@ -192,7 +199,7 @@ def _speechllm_multi_audio_text_collate_fn(
 
 class TextProcessing(object):
     """
-    Text processing pipeline for AudioQuestionAnswerDataset and TarredAudioQuestionAnswerDataset.
+    Text processing pipeline for AudioTextDataset and TarredAudioTextDataset.
     This class is adapted from the one used in nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py
     """
 
@@ -373,7 +380,7 @@ class TextProcessing(object):
         return processed_example
 
 
-class AudioQuestionAnswerDataset(TextProcessing, Dataset):
+class AudioTextDataset(TextProcessing, Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
     Each new line is a different sample. Example below:
@@ -549,7 +556,7 @@ class AudioQuestionAnswerDataset(TextProcessing, Dataset):
         return self._collate_fn(batch)
 
 
-class MultiAudioQuestionAnswerDataset(AudioQuestionAnswerDataset):
+class MultiAudioTextDataset(AudioTextDataset):
     """
     Dataset for having multi audios per sample, for example in few-shot in-context learning.
     To use this dataset, you need to specify the `audio_locator` field in the dataset config,
@@ -691,11 +698,11 @@ class TarredAudioLoopOffsets:
         return self.current_bytes, self.current_fn, self.offset_id
 
 
-class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
+class TarredAudioTextDataset(TextProcessing, IterableDataset):
     """
-    A similar Dataset to the AudioQuestionAnswerDataset, but which loads tarred audio files.
+    A similar Dataset to the AudioTextDataset, but which loads tarred audio files.
 
-    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioQuestionAnswerDataset),
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioTextDataset),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
     contain the information for one audio file, including at least the transcript and name of the audio
     file within the tarball.
@@ -1009,7 +1016,7 @@ class TarredAudioQuestionAnswerDataset(TextProcessing, IterableDataset):
         return self.len
 
 
-def get_tarred_aqa_dataset(
+def get_tarred_audio_text_dataset(
     config,
     tokenizer,
     augmentor,
@@ -1051,7 +1058,7 @@ def get_tarred_aqa_dataset(
         if len(manifest_filepath) == 1:
             manifest_filepath = manifest_filepath[0]
 
-        dataset = TarredAudioQuestionAnswerDataset(
+        dataset = TarredAudioTextDataset(
             audio_tar_filepaths=tarred_audio_filepath,
             manifest_filepath=manifest_filepath,
             tokenizer=tokenizer,
@@ -1098,7 +1105,7 @@ def get_tarred_aqa_dataset(
     return get_chain_dataset(datasets=datasets, ds_config=config, rank=global_rank)
 
 
-def get_concat_tarred_aqa_dataset(
+def get_concat_tarred_audio_text_dataset(
     config,
     tokenizer,
     augmentor,
@@ -1123,7 +1130,7 @@ def get_concat_tarred_aqa_dataset(
             conf['question_file'] = question_files[dataset_idx]
         else:
             conf['question_file'] = question_files
-        dataset = get_tarred_aqa_dataset(
+        dataset = get_tarred_audio_text_dataset(
             config=conf,
             tokenizer=tokenizer,
             shuffle_n=shuffle_n,
@@ -1159,7 +1166,7 @@ def get_concat_tarred_aqa_dataset(
     return dataset
 
 
-def get_tarred_aqa_dataset_from_config(
+def get_tarred_audio_text_dataset_from_config(
     config: DictConfig,
     tokenizer,
     augmentor,
@@ -1183,7 +1190,7 @@ def get_tarred_aqa_dataset_from_config(
     shuffle = config['shuffle']
     shuffle_n = config.get('shuffle_n', 4 * global_batch_size_on_this_data_parallel_rank) if shuffle else 0
     if is_concat:
-        dataset = get_concat_tarred_aqa_dataset(
+        dataset = get_concat_tarred_audio_text_dataset(
             config=config,
             tokenizer=tokenizer,
             augmentor=augmentor,
@@ -1195,7 +1202,7 @@ def get_tarred_aqa_dataset_from_config(
             virtual_tokens=virtual_tokens,
         )
     else:
-        dataset = get_tarred_aqa_dataset(
+        dataset = get_tarred_audio_text_dataset(
             config=config,
             tokenizer=tokenizer,
             augmentor=augmentor,
@@ -1209,7 +1216,7 @@ def get_tarred_aqa_dataset_from_config(
     return dataset
 
 
-def get_aqa_dataset_from_config(
+def get_audio_text_dataset_from_config(
     manifest_filepath: str,
     config: DictConfig,
     tokenizer,
@@ -1224,7 +1231,7 @@ def get_aqa_dataset_from_config(
     else:
         manifest_filepath = config.manifest_filepath
 
-    data_cls = MultiAudioQuestionAnswerDataset if config.get('audio_locator', None) else AudioQuestionAnswerDataset
+    data_cls = MultiAudioTextDataset if config.get('audio_locator', None) else AudioTextDataset
     datasets = []
     if is_train:
         # Construct the data prefix list for `get_datasets_weights_and_num_samples()`

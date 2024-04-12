@@ -32,9 +32,9 @@ from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
-    get_aqa_dataset_from_config,
-    get_tarred_aqa_dataset_from_config,
+from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
+    get_audio_text_dataset_from_config,
+    get_tarred_audio_text_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
@@ -531,7 +531,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get('is_tarred', False):
-            return get_tarred_aqa_dataset_from_config(
+            return get_tarred_audio_text_dataset_from_config(
                 config=data_cfg,
                 tokenizer=self.tokenizer,
                 augmentor=augmentor,
@@ -542,7 +542,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 world_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
-            return get_aqa_dataset_from_config(
+            return get_audio_text_dataset_from_config(
                 manifest_filepath=data_cfg.manifest_filepath,
                 config=data_cfg,
                 tokenizer=self.tokenizer,
