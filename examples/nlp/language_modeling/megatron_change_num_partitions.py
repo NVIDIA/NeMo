@@ -1205,9 +1205,7 @@ def main():
         if vp_size > 1:
             set_virtual_parallel_rank_safely(None)
 
-        trainer = Trainer(
-            plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu"
-        )
+        trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
         with open_dict(model.cfg):
             if args.tokenizer_model_path is not None:
@@ -1413,9 +1411,7 @@ def main():
                 app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
             )
 
-            trainer = Trainer(
-                plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu"
-            )
+            trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
             if args.tokenizer_model_path is not None:
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = args.tokenizer_model_path
