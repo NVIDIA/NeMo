@@ -112,6 +112,9 @@ def load_config(mixtral_config, tokenizer_path):
     # RMSNorm's epsilon.
     nemo_config.layernorm_epsilon = mixtral_config['rms_norm_eps']
     nemo_config.normalization = 'rmsnorm'
+    nemo_config.micro_batch_size = 1
+    nemo_config.global_batch_size = 1
+    nemo_config.expert_model_parallel_size = 1
 
     if 'num_key_value_heads' in mixtral_config:
         nemo_config.num_query_groups = mixtral_config['num_key_value_heads']
@@ -148,7 +151,7 @@ def load_mixtral_ckpt(in_dir, load_model=True):
     model_args = load_hf_model_args(in_dir)
     ckpt = None
     if load_model:
-        model = AutoModelForCausalLM.from_pretrained(in_dir)
+        model = AutoModelForCausalLM.from_pretrained(in_dir, torch_dtype='auto')
         ckpt = model.state_dict()
 
     tokenizer = AutoTokenizer.from_pretrained(in_dir)
@@ -396,7 +399,7 @@ if __name__ == '__main__':
     checkpoint = OrderedDict()
     for i, ckpt_part in enumerate(convert(args)):
         if args.low_ram:
-            torch.save(ckpt_part, f'/{args.tmp_dir}/nemo_ckpt_part_{i}.pth')
+            torch.save(ckpt_part, f'{args.tmp_dir}/nemo_ckpt_part_{i}.pth')
         else:
             checkpoint = merge(checkpoint, ckpt_part)
 
