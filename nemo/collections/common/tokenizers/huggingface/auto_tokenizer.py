@@ -258,7 +258,7 @@ class AutoTokenizer(TokenizerSpec):
         return self.pad_id
 
     @pad_token_id.setter
-    def pad_token_id(self, value):
+    def pad_token_id(self, value: int):
         self.pad_token = self.ids_to_tokens(value)
         self.add_special_tokens({'pad_token': self.pad_token})
 
