@@ -21,7 +21,7 @@ import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse import CutSet, Recording
+from lhotse import CutSet, NumpyFilesWriter, Recording
 from lhotse.audio import AudioLoadingError
 from omegaconf import OmegaConf
 
@@ -833,6 +833,9 @@ def test_lhotse_cuts_resolve_relative_paths(tmp_path: Path):
     cut = Recording.from_file(audio_path).to_cut()
     cut.recording.sources[0].source = str(audio_path.name)  # make the path relative
     cut.target_recording = cut.recording  # assign a custom field with relative path
+    with NumpyFilesWriter(tmp_path) as w:
+        cut.some_array = w.store_array(cut.id, np.random.randn(32))
+        cut.some_array.storage_path = ""  # relative path
 
     with pytest.raises(AudioLoadingError):
         cut.load_audio()  # Lhotse doesn't know about what the path should be relative to
@@ -858,3 +861,5 @@ def test_lhotse_cuts_resolve_relative_paths(tmp_path: Path):
         cut.load_audio()  # works
         assert cut.has_custom("target_recording")
         cut.load_target_recording()
+        assert cut.has_custom("some_array")
+        cut.load_some_array()

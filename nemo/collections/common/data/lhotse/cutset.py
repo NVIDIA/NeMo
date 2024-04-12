@@ -123,9 +123,23 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
 
     def resolve_array(value):
         if isinstance(value, TemporalArray):
-            value.array.storage_path = get_full_path(value.array.storage_path)
+            value.array = resolve_array(value.array)
         else:
-            value.storage_path = get_full_path(value.storage_path)
+            if value.storage_type in ("numpy_files", "lilcom_files"):
+                abspath = Path(
+                    get_full_path(str(Path(value.storage_path) / value.storage_key), manifest_file=manifest_path)
+                )
+                value.storage_path = str(abspath.parent)
+                value.storage_key = str(abspath.name)
+            elif value.storage_type in (
+                "kaldiio",
+                "chunked_lilcom_hdf5",
+                "lilcom_chunky",
+                "lilcom_hdf5",
+                "numpy_hdf5",
+            ):
+                value.storage_path = get_full_path(value.storage_path, manifest_file=manifest_path)
+            # ignore others i.e. url, in-memory data, etc.
 
     if cut.has_recording:
         resolve_recording(cut.recording)
