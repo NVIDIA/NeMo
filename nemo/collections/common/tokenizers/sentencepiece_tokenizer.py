@@ -166,7 +166,14 @@ class SentencePieceTokenizer(TokenizerSpec):
             ids.append(self.token_to_id(token))
         return ids
 
-    def encode(self, text: Union[str, List[str]], return_tensors: Optional[str] = None, max_length: Optional[int] = None, *args, **kwargs):
+    def encode(
+        self,
+        text: Union[str, List[str]],
+        return_tensors: Optional[str] = None,
+        max_length: Optional[int] = None,
+        *args,
+        **kwargs,
+    ):
         # Note: keyword arguments other than return_tensors and max_length are ignored.
         assert not self.legacy, "Legacy implementation is not available."
         output = self.tokenizer.encode_as_ids(text)
@@ -177,9 +184,7 @@ class SentencePieceTokenizer(TokenizerSpec):
                 output = [x[:max_length] for x in output]
         if return_tensors == "pt":
             # Only plain text input is supported since for list of strings some padding needs to be introduced
-            assert isinstance(
-                text, str
-            ), "Returning 'pt' tensors is only supported for simple text input"
+            assert isinstance(text, str), "Returning 'pt' tensors is only supported for simple text input"
             output = torch.LongTensor(output).reshape((1, -1))
         return output
 
