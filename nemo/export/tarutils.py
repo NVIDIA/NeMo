@@ -197,7 +197,7 @@ class ZarrPathStore(zarr.storage.BaseStore):
     def __setitem__(self, key, value):
         raise NotImplementedError()
 
-    def __delitem__(self):
+    def __delitem__(self, key):
         raise NotImplementedError()
 
     def keys(self):
