@@ -316,9 +316,9 @@ To install NeMo on Windows:
   .. code-block:: shell
 
       git clone https://github.com/NVIDIA/NeMo.git
-      pip install -r NeMo/requirements/win/win_reqs.txt
+      pip install ./NeMo/requirements/win/
     
-  
+  Note: The triton placeholder installed does nothing and is only included to satisfy package dependencies without actual functionality.
 
 - If not installed already, download and install Visual Studio build tools `from official website <https://visualstudio.microsoft.com/en/visual-cpp-build-tools/>`_.
   - Or use the following command:
