@@ -913,7 +913,7 @@ def main():
 
     tmp_cfg = cls.restore_from(
         restore_path=args.model_file,
-        trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu"),
+        trainer=Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision),
         map_location=torch.device("cpu"),
         return_config=True,
     )
