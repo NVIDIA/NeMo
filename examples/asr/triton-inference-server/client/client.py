@@ -92,8 +92,8 @@ async def main(args):
     start = time.time()
     responses = await pool.map(speech_client.recognize, filepaths)
     end = time.time()
-    print(f"Time taken is {(end - start):.2f}% seconds")
-    print(f"Avg latency per audio is {(end-start)*1000/len(responses):.2f}% ms")
+    print(f"Time taken is {(end - start):.2f} seconds")
+    print(f"Avg latency per audio is {(end-start)*1000/len(responses):.2f} ms")
     
     predictions = []
     server_latency = []
@@ -101,7 +101,7 @@ async def main(args):
         predictions.append((response[0], response[1]))
         server_latency.append(response[2])
     print(f"Avg latency per request: \
-        {np.mean(server_latency)*1000:.2f}% ms")
+        {np.mean(server_latency)*1000:.2f} ms")
     
     predictions = [(id, predict_text) for (id, predict_text) in predictions]
     # dump prediction
