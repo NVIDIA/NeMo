@@ -1011,7 +1011,7 @@ class MegatronBaseModel(NLPModel):
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 word_embeddings_weight = (
-                    model[-1].module.shared_embedding_or_output_weight()
+                    model[-1].shared_embedding_or_output_weight()
                     if is_mcore_model
                     else model[-1].word_embeddings_weight()
                 )
