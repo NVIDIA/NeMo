@@ -8,25 +8,28 @@ train_manifests="[${vox1_dir}/vox1_train_manifest_train_chunk3s.json,${vox2_dir}
 dev_manifests="[${vox1_dir}/vox1_train_manifest_val_chunk30s.json,${vox2_dir}/vox2_all_manifest_val_chunk30s.json]"
 
 # noise_manifest="/media/data2/simulated_data/rir_noise_data/white_noise_1ch_37h.json"
-noise_manifest="/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json"
+noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json,/media/data3/datasets/noise_data/freesound/freesound_noise_manifest_filtered.json]"
 rir_manifest="/media/data2/simulated_data/rir_noise_data/real_rirs_isotropic_noises_1ch.json"
 
 EXP_NAME="ecapa_tdnn_ssl_sid_ssl_WavLM"
-POSTFIX=epoch49_debug3
+POSTFIX=epoch49_debug4_noise
 
 SSL_CKPT="/home/heh/codes/nemo-ssl/workspace/nemo_experiments/pretrained_checkpoints/oci_ll_unlab-60k_bs2048_adamwlr0.004_wd1e-3_warmup25000_epoch1000_mask0.01x40pre_conv_wavLM0.2x0.1_n16_r5--val_loss5.0808-epoch43-last.ckpt"
 
 batch_size=128
 num_workers=8
 
-CUDA_VISIBLE_DEVICES="0,1" python speaker_id_train.py \
+# model.train_ds.augmentor.impulse.manifest_path=$rir_manifest \
+
+CUDA_VISIBLE_DEVICES="1" python speaker_id_train.py \
     --config-path="configs" \
     --config-name="ecapa_tdnn_small_ssl" \
     ++init_from_ptl_ckpt=$SSL_CKPT \
     trainer.log_every_n_steps=10 \
     model.train_ds.manifest_filepath=$train_manifests \
     model.train_ds.augmentor.noise.manifest_path=$noise_manifest \
-    model.train_ds.augmentor.impulse.manifest_path=$rir_manifest \
+    ~model.train_ds.augmentor.impulse \
+    ~model.train_ds.augmentor.speed \
     ++model.train_ds.min_duration=0.3 \
     ++model.validation_ds.min_duration=0.3 \
     model.validation_ds.manifest_filepath=$dev_manifests \
