@@ -83,6 +83,9 @@ def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+
+    cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
+
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
 
     speaker_model = load_ssl_encoder(speaker_model, cfg)

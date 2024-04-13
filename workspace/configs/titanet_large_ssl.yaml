@@ -1,10 +1,11 @@
 name: &name "TitaNet-L"
-sample_rate: &sample_rate 16000
 
 model:
+  sample_rate: 16000
+
   train_ds:
     manifest_filepath: ???
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     labels: null
     batch_size: 64
     shuffle: True
@@ -20,14 +21,14 @@ model:
 
       speed:
         prob: 0.3
-        sr: *sample_rate
+        sr: ${model.sample_rate}
         resample_type: 'kaiser_fast'
         min_speed_rate: 0.95
         max_speed_rate: 1.05
 
   validation_ds:
     manifest_filepath: ???
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     labels: null
     batch_size: 128
     shuffle: False

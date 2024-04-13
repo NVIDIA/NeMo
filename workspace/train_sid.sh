@@ -12,7 +12,7 @@ noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest
 rir_manifest="/media/data2/simulated_data/rir_noise_data/real_rirs_isotropic_noises_1ch.json"
 
 EXP_NAME="ecapa_tdnn_ssl_sid_ssl_WavLM"
-POSTFIX=epoch49_debug4_noise
+POSTFIX=epoch49_debug5_noise
 
 SSL_CKPT="/home/heh/codes/nemo-ssl/workspace/nemo_experiments/pretrained_checkpoints/oci_ll_unlab-60k_bs2048_adamwlr0.004_wd1e-3_warmup25000_epoch1000_mask0.01x40pre_conv_wavLM0.2x0.1_n16_r5--val_loss5.0808-epoch43-last.ckpt"
 
@@ -23,23 +23,21 @@ num_workers=8
 
 CUDA_VISIBLE_DEVICES="1" python speaker_id_train.py \
     --config-path="configs" \
-    --config-name="ecapa_tdnn_small_ssl" \
+    --config-name="titanet_large_ssl" \
     ++init_from_ptl_ckpt=$SSL_CKPT \
     trainer.log_every_n_steps=10 \
     model.train_ds.manifest_filepath=$train_manifests \
     model.train_ds.augmentor.noise.manifest_path=$noise_manifest \
-    ~model.train_ds.augmentor.impulse \
-    ~model.train_ds.augmentor.speed \
     ++model.train_ds.min_duration=0.3 \
     ++model.validation_ds.min_duration=0.3 \
     model.validation_ds.manifest_filepath=$dev_manifests \
     model.train_ds.batch_size=$batch_size \
     model.validation_ds.batch_size=32 \
-    model.train_ds.num_workers=$num_workers \
-    model.validation_ds.num_workers=$num_workers \
+    ++model.train_ds.num_workers=$num_workers \
+    ++model.validation_ds.num_workers=$num_workers \
     trainer.val_check_interval=1.0 \
-    exp_manager.checkpoint_callback_params.save_top_k=1 \
+    ++exp_manager.checkpoint_callback_params.save_top_k=1 \
     exp_manager.name="$EXP_NAME-${POSTFIX}" \
-    exp_manager.create_wandb_logger=True \
-    exp_manager.wandb_logger_kwargs.name="$EXP_NAME-${POSTFIX}" \
-    exp_manager.wandb_logger_kwargs.project="ssl_WavLM_spk_id"
+    ++exp_manager.create_wandb_logger=False \
+    ++exp_manager.wandb_logger_kwargs.name="$EXP_NAME-${POSTFIX}" \
+    ++exp_manager.wandb_logger_kwargs.project="ssl_WavLM_spk_id"
