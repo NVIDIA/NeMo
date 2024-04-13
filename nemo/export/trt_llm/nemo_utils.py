@@ -22,12 +22,14 @@ import os
 import shutil
 import sys
 import tempfile
+import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
+from tensorrt_llm._utils import pad_vocab_size
 from transformers import AutoTokenizer, LlamaConfig, PretrainedConfig, PreTrainedTokenizer
 
 from nemo.export.trt_llm.model_config import (
@@ -55,6 +57,7 @@ def _nemo_llm_decode(
     storage_type: str = "bfloat16",
     load_checkpoints_on_gpu: bool = False,
     decoder_type: str = "gptnext",
+    use_parallel_embedding: bool = False,
     save_nemo_model_config: bool = False,
 ) -> Tuple[Dict[str, np.ndarray], PretrainedConfig, PreTrainedTokenizer]:
     """Decodes the NEMO file and returns the weights dict, llm config and tokenizer."""
@@ -67,6 +70,7 @@ def _nemo_llm_decode(
     args.load_checkpoints_on_gpu = load_checkpoints_on_gpu
     args.verbose = False
     args.decoder_type = decoder_type
+    args.use_parallel_embedding = use_parallel_embedding
 
     input_path = Path(args.in_file)
     if not input_path.exists():
@@ -299,8 +303,8 @@ def nemo_llm_model_to_model_config(
 
     LOGGER.info(
         f'''Resharing: Rank {tensorrt_llm.mpi_rank()} mapping:
-        tp_rank  {parallel_state.get_tensor_model_parallel_rank()} -> {model_config.mapping.tp_rank}, 
-        pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {model_config.mapping.pp_rank}, 
+        tp_rank  {parallel_state.get_tensor_model_parallel_rank()} -> {model_config.mapping.tp_rank},
+        pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {model_config.mapping.pp_rank},
         tp_group {model_config.mapping.tp_group}'''
     )
 
@@ -323,3 +327,141 @@ def nemo_llm_model_to_model_config(
     model_config.lm_head.weight = lm_head_weight
 
     return [model_config]
+
+def nemo_to_trtllm(
+    in_file: str,
+    decoder_type: str,
+    nemo_export_dir: Union[str, Path],
+    dtype: str = "bfloat16",
+    tensor_parallel_size: int = 1,
+    pipeline_parallel_size: int = 1,
+    use_parallel_embedding: bool = False,
+    save_nemo_model_config: bool = False,
+) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
+    """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
+    dtype_str = dtype
+
+    weights_dict, llm_model_config, tokenizer = _nemo_llm_decode(
+        in_file=in_file,
+        out_dir=nemo_export_dir,
+        tensor_parallelism=tensor_parallel_size,
+        processes=1,
+        storage_type=dtype_str,
+        use_parallel_embedding=use_parallel_embedding,
+        load_checkpoints_on_gpu=False,
+        decoder_type=decoder_type,
+        save_nemo_model_config=save_nemo_model_config,
+    )
+
+    world_size = tensor_parallel_size*pipeline_parallel_size
+
+    lm_head_weight = weights_dict["lm_head.weight"]
+
+    vocab_size = weights_dict["transformer.vocab_embedding.weight"].shape[0]
+    vocab_size_padded = pad_vocab_size(vocab_size, tensor_parallel_size)
+
+    if vocab_size_padded != vocab_size:
+        pad_width = vocab_size_padded - vocab_size
+        lm_head_weight = np.pad(
+            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
+        )
+
+    config = {
+        'architecture':
+        'GPTForCausalLM',
+        'dtype':
+        dtype_str,
+        'num_hidden_layers':
+        llm_model_config.n_layer,
+        'num_attention_heads':
+        llm_model_config.n_head,
+        'num_key_value_heads':
+        llm_model_config.num_kv_heads,
+        'hidden_size':
+        llm_model_config.n_embd,
+        'intermediate_size':
+        llm_model_config.intermediate_size,
+        'norm_epsilon':
+        llm_model_config.layer_norm_epsilon,
+        'vocab_size':
+        vocab_size_padded,
+        'position_embedding_type':
+        "rope_gpt_neox" if llm_model_config.position_embedding_type == "rope" else "learned_absolute",
+        'max_position_embeddings':
+        llm_model_config.n_positions,
+        'hidden_act':
+        llm_model_config.activation_function,
+        'use_parallel_embedding':
+        use_parallel_embedding,
+        'embedding_sharding_dim':
+        0,
+        'share_embedding_table':
+        False,
+        'quantization': {
+            'quant_algo': None,
+            'kv_cache_quant_algo': None,
+        },
+        'mapping': {
+            'world_size': world_size,
+            'tp_size': tensor_parallel_size,
+            'pp_size': pipeline_parallel_size,
+        },
+        'bias':
+        llm_model_config.bias,
+        'apply_query_key_layer_scaling':
+        False,
+        'rotary_pct':
+        llm_model_config.rotary_pct,
+    }
+
+    with open(os.path.join(nemo_export_dir, 'config.json'), 'w') as f:
+        json.dump(config, f, indent=4)
+
+    model_configs = []
+    for i in range(world_size):
+        weights_dict_local = weights_dict.copy()
+
+        mapping = tensorrt_llm.Mapping(
+            world_size=world_size,
+            rank=i,
+            tp_size=tensor_parallel_size,
+            pp_size=pipeline_parallel_size
+        )
+
+        embedding_weight = np.ascontiguousarray(
+            split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
+        ) if use_parallel_embedding else weights_dict["transformer.vocab_embedding.weight"]
+
+        weights_dict_local["transformer.vocab_embedding.weight"] = embedding_weight
+
+        weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
+            split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
+        )
+
+        # save to file for trtllm-build, move to build_trtllm API for the future
+        from safetensors.numpy import save_file
+        save_file(
+            weights_dict_local, os.path.join(nemo_export_dir, f'rank{i}.safetensors')
+        )
+
+        # config = PretrainedConfig(
+        #     architecture='GPTForCausalLM',
+        #     dtype=dtype_str,
+        #     num_hidden_layers=llm_model_config.get('n_layer'),
+        #     num_attention_heads=llm_model_config.get('n_head'),
+        #     num_key_value_heads=llm_model_config.get('n_kv_head'),
+        #     hidden_size=llm_model_config.get('n_embd'),
+        #     intermediate_size=llm_model_config.get('n_inner'),
+        #     norm_epsilon=llm_model_config.get('layer_norm_epsilon'),
+        #     vocab_size=tokenizer.vocab_size,
+        #     position_embedding_type=llm_model_config.get('position_embedding_type'),
+        #     max_position_embeddings=llm_model_config.get('n_positions'),
+        #     hidden_act=llm_model_config.get('activation_function'),
+        #     use_parallel_embedding=use_parallel_embedding,
+        #     bias=llm_model_config.get('bias'),
+        #     rotary_pct=llm_model_config.get('rotary_pct')
+        # )
+        # config.mapping = mapping
+        # model_configs.append(config)
+
+    return weights_dict, model_configs, tokenizer

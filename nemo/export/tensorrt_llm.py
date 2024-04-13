@@ -29,7 +29,7 @@ import wrapt
 from nemo.deploy import ITritonDeployable
 from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
-from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config
+from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config, nemo_to_trtllm
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file, unpack_nemo_ckpt
 
@@ -228,6 +228,60 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
+
+    def convert_to_tllm_file(
+        self,
+        nemo_checkpoint_path: str,
+        model_type: str,
+        delete_existing_files: bool = True,
+        n_gpus: int = 1,
+        tensor_parallel_size: int = None,
+        pipeline_parallel_size: int = None,
+        max_input_token: int = 256,
+        max_output_token: int = 256,
+        max_batch_size: int = 8,
+        max_prompt_embedding_table_size=None,
+        use_inflight_batching: bool = False,
+        enable_context_fmha: bool = True,
+        paged_kv_cache: bool = False,
+        dtype: str = "bfloat16",
+        load_model: bool = True,
+        enable_multi_block_mode: bool = False,
+        use_lora_plugin: str = None,
+        lora_target_modules: List[str] = None,
+        max_lora_rank: int = 64,
+        use_parallel_embedding: bool = False,
+        save_nemo_model_config: bool = False,
+    ):
+        nemo_export_dir = self.model_dir
+
+        if pipeline_parallel_size is None:
+            tensor_parallel_size = n_gpus
+            pipeline_parallel_size = 1
+        elif tensor_parallel_size is None:
+            tensor_parallel_size = 1
+            pipeline_parallel_size = n_gpus
+
+        weight_dict, model_configs, self.tokenizer = nemo_to_trtllm(
+            in_file=nemo_checkpoint_path,
+            decoder_type=model_type,
+            dtype=dtype,
+            tensor_parallel_size=tensor_parallel_size,
+            pipeline_parallel_size=pipeline_parallel_size,
+            use_parallel_embedding=use_parallel_embedding,
+            nemo_export_dir=nemo_export_dir,
+            save_nemo_model_config=save_nemo_model_config,
+        )
+
+        # tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
+        # if os.path.exists(tokenizer_path):
+        #     shutil.copy(tokenizer_path, self.model_dir)
+        # else:
+        #     self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+
+        # nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
+        # if os.path.exists(nemo_model_config):
+        #     shutil.copy(nemo_model_config, self.model_dir)
 
     def build(
         self,
