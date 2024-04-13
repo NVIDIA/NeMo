@@ -367,6 +367,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
         self.loss_broadcast_src_rank = None
+        self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
 
         self.inference_params = None
 
@@ -587,10 +588,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         no_sync_func = None
         grad_sync_func = None
         param_sync_func = None
-        if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
-            grad_sync_func = self.reduce_overlap_gradients
-            param_sync_func = self.sync_overlap_parameters
+        if self.with_distributed_adam:
+            if forward_only:
+                if self.validation_param_sync_overlap:
+                    param_sync_func = self.sync_overlap_parameters
+            else:
+                no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+                grad_sync_func = self.reduce_overlap_gradients
+                param_sync_func = self.sync_overlap_parameters
 
         # pipeline schedules will get these from self.model.config
         for module in self.get_model_module_list():
@@ -1305,13 +1310,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # it should be casted to other pipeline stages for logging.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.loss_broadcast_src_rank is None:
-                dp_size = parallel_state.get_data_parallel_world_size()
-                cp_size = parallel_state.get_context_parallel_world_size()
-                tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * cp_size * tp_size)
-                last_pipeline_stage_offset = (tp_size * cp_size * dp_size) * (pp_size - 1)
-                self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
+                self.loss_broadcast_src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
             torch.distributed.broadcast(
                 averaged_loss, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
             )
@@ -1476,9 +1475,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
-            self.model
-        )
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert()
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
@@ -1567,7 +1564,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return
@@ -1704,6 +1701,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+    def on_validation_model_zero_grad(self) -> None:
+        """
+         Skip gradient zeroing at the beginning of validation routine.
+         This is needed when overlapping the AllGather of the updated parameters with the following valdation step.
+         """
+        if not self.validation_param_sync_overlap:
+            super().on_validation_model_zero_grad()
 
     def sharded_state_dict(self, prefix: str = '') -> Dict[str, Any]:
         """
