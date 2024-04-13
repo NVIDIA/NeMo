@@ -321,7 +321,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     with config_path.open("w") as config_file:
         config.write(config_file)
 
-    return weights_dict, llm_config, tokenizer
+    return weights_dict, nemo_model_config, tokenizer
 
 
 @torch.no_grad()

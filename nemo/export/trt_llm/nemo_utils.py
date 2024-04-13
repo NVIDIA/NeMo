@@ -341,7 +341,7 @@ def nemo_to_trtllm(
     """Converts the NEMO file and construct the `ModelConfig` before tensorrt_llm deployment."""
     dtype_str = dtype
 
-    weights_dict, llm_model_config, tokenizer = _nemo_llm_decode(
+    weights_dict, nemo_model_config, tokenizer = _nemo_llm_decode(
         in_file=in_file,
         out_dir=nemo_export_dir,
         tensor_parallelism=tensor_parallel_size,
@@ -372,25 +372,25 @@ def nemo_to_trtllm(
         'dtype':
         dtype_str,
         'num_hidden_layers':
-        llm_model_config.n_layer,
+        nemo_model_config.get('num_layers'),
         'num_attention_heads':
-        llm_model_config.n_head,
+        nemo_model_config.get('num_attention_heads'),
         'num_key_value_heads':
-        llm_model_config.num_kv_heads,
+        nemo_model_config.get('num_query_groups'),
         'hidden_size':
-        llm_model_config.n_embd,
+        nemo_model_config.get('hidden_size'),
         'intermediate_size':
-        llm_model_config.intermediate_size,
+        nemo_model_config.get('ffn_hidden_size'),
         'norm_epsilon':
-        llm_model_config.layer_norm_epsilon,
+        nemo_model_config.get('layernorm_epsilon'),
         'vocab_size':
         vocab_size_padded,
         'position_embedding_type':
-        "rope_gpt_neox" if llm_model_config.position_embedding_type == "rope" else "learned_absolute",
+        "rope_gpt_neox" if nemo_model_config.get('position_embedding_type') == "rope" else "learned_absolute",
         'max_position_embeddings':
-        llm_model_config.n_positions,
+        nemo_model_config.get('max_position_embeddings'),
         'hidden_act':
-        llm_model_config.activation_function,
+        nemo_model_config.get('activation'),
         'use_parallel_embedding':
         use_parallel_embedding,
         'embedding_sharding_dim':
@@ -407,11 +407,11 @@ def nemo_to_trtllm(
             'pp_size': pipeline_parallel_size,
         },
         'bias':
-        llm_model_config.bias,
+        nemo_model_config.get('bias'),
         'apply_query_key_layer_scaling':
         False,
         'rotary_pct':
-        llm_model_config.rotary_pct,
+        nemo_model_config.get('rotary_percentage'),
     }
 
     with open(os.path.join(nemo_export_dir, 'config.json'), 'w') as f:
