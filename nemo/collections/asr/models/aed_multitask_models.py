@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
@@ -106,7 +106,15 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     text_field: str = "answer"
     lang_field: str = "target_lang"
 
-    _internal: Optional[MultiTaskTranscriptionInternalConfig] = None
+    _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
+        default_factory=lambda: MultiTaskTranscriptionInternalConfig()
+    )
+
+    def __post_init__(self):
+        required_fields = ['task', 'pnc', 'source_lang', 'target_lang', 'text_field', 'lang_field']
+        for field in required_fields:
+            if not hasattr(self, field):
+                raise ValueError(f"`{field}` must be present in the transcription config: {self}")
 
 
 class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTranscriptionMixin):
@@ -749,7 +757,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         manifest_filepath = None
         if len(audio_files) == 1 and isinstance(audio_files[0], str):
             # Check if manifest file is provided
-            if hasattr(trcfg._internal, 'manifest_filepath'):
+            if (
+                hasattr(trcfg._internal, 'manifest_filepath')
+                and getattr(trcfg._internal, 'manifest_filepath') is not None
+            ):
                 manifest_filepath = trcfg._internal.manifest_filepath
 
             elif audio_files[0].endswith('.json') or audio_files[0].endswith('.jsonl'):
@@ -903,7 +914,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                     'taskname': 'asr' if trcfg.task is None else trcfg.task,
                     'target_lang': 'en' if trcfg.target_lang is None else trcfg.target_lang,
                     'pnc': 'yes' if trcfg.pnc is None else 'yes' if trcfg.pnc else 'no',
-                    'answer': 'nothing',
+                    trcfg.text_field: 'nothing',
                 }
             elif isinstance(item, dict):
                 entry = item
@@ -917,6 +928,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                     entry['target_lang'] = 'en' if trcfg.target_lang is None else trcfg.target_lang
                 if 'pnc' not in entry:
                     entry['pnc'] = 'yes' if trcfg.pnc is None else 'yes' if trcfg.pnc else 'no'
+                if trcfg.text_field not in entry:
+                    entry[trcfg.text_field] = 'nothing'
             else:
                 raise ValueError(f"Expected str or dict, got {type(item)}")
             out_json_items.append(entry)

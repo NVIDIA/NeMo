@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
-from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils import manifest_utils, rnnt_utils
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchMultiTaskAED
 from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
@@ -295,11 +295,10 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
     return filepaths, partial_audio
 
 
-def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> list[dict]:
+def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> List[dict]:
     """Sorts the manifest if duration key is available for every utterance."""
-    with open(path) as f:
-        items = [json.loads(l) for l in f]
-    if try_sort and all("duration" in item for item in items):
+    items = manifest_utils.read_manifest(path)
+    if try_sort and all("duration" in item and item["duration"] is not None for item in items):
         items = sorted(items, reverse=True, key=lambda item: item["duration"])
     return items
 
@@ -307,7 +306,7 @@ def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> list[dict
 def restore_transcription_order(manifest_path: str, transcriptions: list) -> list:
     with open(manifest_path) as f:
         items = [(idx, json.loads(l)) for idx, l in enumerate(f)]
-    if not all("duration" in item[1] for item in items):
+    if not all("duration" in item[1] and item[1]["duration"] is not None for item in items):
         return transcriptions
     new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]
     del items  # free up some memory
@@ -391,7 +390,8 @@ def write_transcription(
             if not cfg.decoding.beam.return_best_hypothesis:
                 beam = []
                 for hyp in hyps:
-                    beam.append((hyp.text, hyp.score))
+                    score = hyp.score.numpy().item() if isinstance(hyp.score, torch.Tensor) else hyp.score
+                    beam.append((hyp.text, score))
                 beams.append(beam)
     else:
         raise TypeError
@@ -563,8 +563,8 @@ def compute_metrics_per_sample(
     manifest_path: str,
     reference_field: str = "text",
     hypothesis_field: str = "pred_text",
-    metrics: list[str] = ["wer"],
-    punctuation_marks: list[str] = [".", ",", "?"],
+    metrics: List[str] = ["wer"],
+    punctuation_marks: List[str] = [".", ",", "?"],
     output_manifest_path: str = None,
 ) -> dict:
 

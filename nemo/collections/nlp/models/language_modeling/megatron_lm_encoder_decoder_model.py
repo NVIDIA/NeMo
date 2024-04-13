@@ -21,6 +21,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -188,6 +189,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 param._disable_greedy_grad_copy = not self.megatron_amp_O2
                 param._disable_overlap_grad_sync = True
 
+            # Make sure embedding grads are reduced in FP32
+            for name, param in self.named_parameters():
+                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
+                    param._with_fp32_optimizer = True
+
         return super().configure_optimizers()
 
     def _handle_bias_activation_fusion_args(self, cfg):
@@ -338,7 +344,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return mean_loss_dict
 
-    def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
+    def fwd_bwd_step(self, dataloader_iter, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
@@ -353,7 +359,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length=self.max_decoder_seq_length,
         )
 
-    def training_step(self, dataloader_iter, batch_idx):
+    def training_step(self, dataloader_iter):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -365,7 +371,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron fwd/bwd functions
         self._optimizer.zero_grad()
 
-        loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, False)
+        loss_dict = self.fwd_bwd_step(dataloader_iter, False)
 
         if self.with_distributed_adam:
             # synchronize asynchronous grad reductions
@@ -566,7 +572,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model):
+            # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
             batch = next(dataloader_iter)
+            if isinstance(batch, tuple):
+                batch = batch[0]
             # convert to list if not already converted.
             if isinstance(batch, dict):
                 # convert to list if not already converted.
@@ -679,7 +688,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
 
         def fwd_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
+            # Extract batch, batch_idx, dataloader_idx only if dataloader_iter is an object of PTL's _DataFetcherWrapper
+            if isinstance(dataloader_iter, _DataFetcherWrapper):
+                batch, _, _ = next(dataloader_iter)
+            else:
+                batch = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) if torch.is_tensor(x) else x for x in batch]
 
             # map batch and shared args into forward args
@@ -697,50 +710,31 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-    ##########
-
-    def _test_validation_step(self, step_outputs, dataloader_iter, batch_idx, dataloader_idx=0):
+    def _test_validation_step(self, dataloader_iter):
         """
         Shared code for validation and test step
         """
-        # Check if iterator is exhausted
-        dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        if done:
-            return
 
-        loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
-        step_outputs.append(loss_dict)
+        loss_dict = self.fwd_bwd_step(dataloader_iter, True)
 
         return loss_dict
 
-    def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+    def validation_step(self, dataloader_iter):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
+        outputs = self._test_validation_step(dataloader_iter=dataloader_iter)
         if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            step_outputs = self.validation_step_outputs[dataloader_idx]
+            self.validation_step_outputs[dataloader_iter.dataloader_idx].append(outputs)
         else:
-            step_outputs = self.validation_step_outputs
+            self.validation_step_outputs.append(outputs)
 
-        return self._test_validation_step(
-            step_outputs=step_outputs,
-            dataloader_iter=dataloader_iter,
-            batch_idx=batch_idx,
-            dataloader_idx=dataloader_idx,
-        )
-
-    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            step_outputs = self.test_step_outputs[dataloader_idx]
+    def test_step(self, dataloader_iter):
+        outputs = self._test_validation_step(dataloader_iter=dataloader_iter)
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_iter.dataloader_idx].append(outputs)
         else:
-            step_outputs = self.test_step_outputs
-
-        return self._test_validation_step(
-            step_outputs=step_outputs,
-            dataloader_iter=dataloader_iter,
-            batch_idx=batch_idx,
-            dataloader_idx=dataloader_idx,
-        )
+            self.test_step_outputs.append(outputs)
 
     def _test_validation_epoch_end(self, step_outputs, prefix):
         """
@@ -1012,7 +1006,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 Format is not defined and should match the expected format of the used hiddens modules.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return

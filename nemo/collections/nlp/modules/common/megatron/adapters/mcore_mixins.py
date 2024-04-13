@@ -68,9 +68,14 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
             [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
-        if self.config.sequence_parallel and hasattr(self.linear_qkv, "return_layernorm_output_gathered"):
+        if (
+            self.config.sequence_parallel
+            and hasattr(self.linear_qkv, "return_layernorm_output_gathered")
+            and not self.config.tp_comm_overlap
+        ):
             # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
-            # to perform the redundant gather in the adapter module.
+            # to perform the redundant gather in the adapter module, unless TP communication
+            # overlap is used.
             self.linear_qkv.return_layernorm_output_gathered = True
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
@@ -248,16 +253,30 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         self.set_accepted_adapter_types(
             [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
         )  # only self attn (packed qkv) for now
+        self.linear_fc1.return_layernorm_output = True  # need layernorm output for lora mlp
+        if (
+            self.config.sequence_parallel
+            and hasattr(self.linear_fc1, "return_layernorm_output_gathered")
+            and not self.config.tp_comm_overlap
+        ):
+            # for LoRA SP, TE v1.5 can return layernorm output gathered so there is no need
+            # to perform the redundant gather in the adapter module, unless TP communication
+            # overlap is used.
+            self.linear_fc1.return_layernorm_output_gathered = True
 
     def forward(self, hidden_states):
         # [s, b, 4 * h/p]
-        intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+        if self.linear_fc1.te_return_bias:
+            intermediate_parallel, bias_parallel, layernorm_output = self.linear_fc1(hidden_states)
+        else:
+            # bias_parallel is None
+            (intermediate_parallel, layernorm_output), bias_parallel = self.linear_fc1(hidden_states)
 
         # LoRA logic
         if self.is_adapter_available():
             lora_linear_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
             if lora_linear_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
-                lora_output = lora_linear_fc1_adapter(hidden_states)
+                lora_output = lora_linear_fc1_adapter(layernorm_output)
                 intermediate_parallel = intermediate_parallel + lora_output
 
         if self.config.bias_activation_fusion:
@@ -294,6 +313,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
             if lora_linear_fc2_adapter and self.adapter_cfg[AdapterName.LORA_4HtoH_ADAPTER]['enabled']:
                 lora_output = lora_linear_fc2_adapter(intermediate_parallel)
                 output = output + lora_output
+
         return output, output_bias
 
 
