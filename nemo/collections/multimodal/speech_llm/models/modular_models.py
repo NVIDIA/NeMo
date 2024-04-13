@@ -130,6 +130,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         and/or prompt table will use the learning rate set by the user. 
         """
         known_groups = []
+        self.unfreeze()
         freeze_llm = self.cfg.get('freeze_llm', True)
         if freeze_llm:
             known_groups.append('model.')
