@@ -24,6 +24,7 @@ thanks!
 '''
 
 import math
+from inspect import isfunction
 
 import numpy as np
 import torch
@@ -176,7 +177,19 @@ def get_idx(end, device):
     return torch.arange(start=0, end=end, dtype=torch.float32, device=device)
 
 
-def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
+def build_timestep_embedding(dim, max_timesteps, max_period=10000):
+    timesteps = np.arange(start=0, stop=max_timesteps, dtype=np.float32)
+    half = dim // 2
+    idx = np.arange(start=0, stop=half, dtype=np.float32)
+    freqs = np.exp(-math.log(max_period) / half * idx)
+    args = timesteps[:, None] * freqs[None]
+    embedding = np.concatenate([np.cos(args), np.sin(args)], axis=-1)
+    if dim % 2:
+        embedding = np.concatenate([embedding, np.zeros_like(embedding[:, :1])], axis=-1)
+    return embedding
+
+
+def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False, cached_embedding=None):
     """
     Create sinusoidal timestep embeddings.
 
@@ -192,13 +205,17 @@ def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
     """
 
     if not repeat_only:
-        half = dim // 2
-        idx = get_idx(half, timesteps.device)
-        freqs = torch.exp(-math.log(max_period) / half * idx)
-        args = timesteps[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-        if dim % 2:
-            embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+        if cached_embedding is not None:
+            # using cached embedding and lookup in the cache
+            embedding = cached_embedding[timesteps, :]
+        else:
+            half = dim // 2
+            idx = get_idx(half, timesteps.device)
+            freqs = torch.exp(-math.log(max_period) / half * idx)
+            args = timesteps[:, None].float() * freqs[None]
+            embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+            if dim % 2:
+                embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
     else:
         embedding = repeat(timesteps, "b -> b d", d=dim)
     return embedding
@@ -317,3 +334,13 @@ def expand_dims(v, dims):
     Expand the tensor `v` to the dim `dims`.
     """
     return v[(...,) + (None,) * (dims - 1)]
+
+
+def exists(x):
+    return x is not None
+
+
+def default(val, d):
+    if exists(val):
+        return val
+    return d() if isfunction(d) else d
