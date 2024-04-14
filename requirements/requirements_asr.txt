@@ -19,3 +19,6 @@ scipy>=0.14
 soundfile
 sox
 texterrors
+kaldifst
+kaldilm
+riva-asrlib-decoder
