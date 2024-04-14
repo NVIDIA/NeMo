@@ -1,6 +1,7 @@
-from typing import Any, Dict, Union
 import copy
 from functools import partial
+from typing import Any, Dict, Union
+
 import torch
 import torch.optim as optim
 from omegaconf import DictConfig, OmegaConf
@@ -41,6 +42,7 @@ except ModuleNotFoundError:
 if HAVE_APEX:
     try:
         from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
+
         HAVE_APEX_DISTRIBUTED_ADAM = True
         AVAILABLE_OPTIMIZERS['distributed_fused_adam'] = MegatronDistributedFusedAdam
     except (ImportError, ModuleNotFoundError):
@@ -49,6 +51,7 @@ if HAVE_APEX:
     # Check for APEX FusedAdam optimizer
     try:
         from nemo.core.optim.megatron_fused_adam import MegatronFusedAdam
+
         AVAILABLE_OPTIMIZERS['megatron_fused_adam'] = MegatronFusedAdam
     except (ImportError, ModuleNotFoundError):
         pass
@@ -172,4 +175,3 @@ def init_optimizer_states(optimizer: optim.Optimizer):
         for group in optimizer.param_groups:
             for p in group['params']:
                 state = optimizer.state[p]
-               
