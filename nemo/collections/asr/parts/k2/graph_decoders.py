@@ -21,10 +21,15 @@ import torch
 from jiwer import wer as word_error_rate
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.submodules.wfst_decoder import AbstractWFSTDecoder, WfstNbestHypothesis
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin, RnntK2Mixin
-from nemo.collections.asr.parts.k2.utils import create_supervision, invert_permutation, levenshtein_graph_k2, load_graph
+from nemo.collections.asr.parts.k2.utils import (
+    create_supervision,
+    invert_permutation,
+    levenshtein_graph_k2,
+    load_graph,
+)
+from nemo.collections.asr.parts.submodules.wfst_decoder import AbstractWFSTDecoder, WfstNbestHypothesis
 from nemo.core.utils.k2_guard import k2
 from nemo.utils import logging
 
@@ -347,12 +352,12 @@ class K2WfstDecoder(AbstractWFSTDecoder):
     def __init__(
         self,
         lm_fst: Union['k2.Fsa', Path, str],
-        decoding_mode: str = 'nbest', # 'nbest', 'mbr', 'lattice'
+        decoding_mode: str = 'nbest',  # 'nbest', 'mbr', 'lattice'
         beam_size: float = 10.0,
         config: Optional[GraphIntersectDenseConfig] = None,
-        tokenword_disambig_id: int = -1, # used in post-processing for decoding with open vocabulary
+        tokenword_disambig_id: int = -1,  # used in post-processing for decoding with open vocabulary
         lm_weight: float = 1.0,
-        nbest_size: int = 1, # for decoding_mode == nbest
+        nbest_size: int = 1,  # for decoding_mode == nbest
         device: str = "cuda",
     ):
         self._nbest_size = nbest_size
@@ -379,14 +384,19 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         self._lm_fst = lm_fst.to(device=self._device)
 
         if self._id2word is None:
-            self._id2word = {int(line.split()[1]): line.split()[0] for line in self._lm_fst.aux_labels_sym.to_str().strip().split("\n")}
+            self._id2word = {
+                int(line.split()[1]): line.split()[0]
+                for line in self._lm_fst.aux_labels_sym.to_str().strip().split("\n")
+            }
             word2id = self._id2word.__class__(map(reversed, self._id2word.items()))
             word_unk_id = word2id["<unk>"]
             self._word2id = defaultdict(lambda: word_unk_id)
             for k, v in word2id.items():
                 self._word2id[k] = v
         if self._id2token is None:
-            self._id2token = {int(line.split()[1]): line.split()[0] for line in self._lm_fst.labels_sym.to_str().strip().split("\n")}
+            self._id2token = {
+                int(line.split()[1]): line.split()[0] for line in self._lm_fst.labels_sym.to_str().strip().split("\n")
+            }
             token2id = self._id2token.__class__(map(reversed, self._id2token.items()))
             token_unk_id = token2id["<unk>"]
             self._token2id = defaultdict(lambda: token_unk_id)
@@ -440,7 +450,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         return lats
 
     @torch.inference_mode(False)
-    def decode(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
+    def decode(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
+    ) -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
         """TBD"""
         supervisions = create_supervision(log_probs_length).to(device=self._device)
         order = supervisions[:, 0]
@@ -473,7 +485,11 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                     timesteps_right[timesteps_right_zero_mask] = timesteps_left[timesteps_right_zero_mask]
                     timesteps[1:] = timesteps_right
                     timesteps = timesteps.tolist()
-                    hypotheses.append(WfstNbestHypothesis(tuple([tuple([tuple(words), tuple(timesteps), tuple(alignment), -scores[i]]),])))
+                    hypotheses.append(
+                        WfstNbestHypothesis(
+                            tuple([tuple([tuple(words), tuple(timesteps), tuple(alignment), -scores[i]]),])
+                        )
+                    )
             else:
                 nbest_fsas = k2.Nbest.from_lattice(lats, self._nbest_size)
                 nbest_fsas.fsa.frame_idx = k2.index_select(lats.frame_idx, nbest_fsas.kept_path.values)
@@ -495,12 +511,18 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                     nbest_hypothesis_list[j].append(tuple([words, timesteps, alignment, -scores[i]]))
                 for nbest_hypothesis in nbest_hypothesis_list:
                     hypotheses.append(WfstNbestHypothesis(tuple(nbest_hypothesis)))
-            return collapse_tokenword_hypotheses(hypotheses, self._id2word[self._tokenword_disambig_id]) if self._open_vocabulary_decoding else hypotheses
+            return (
+                collapse_tokenword_hypotheses(hypotheses, self._id2word[self._tokenword_disambig_id])
+                if self._open_vocabulary_decoding
+                else hypotheses
+            )
         else:
             return hypotheses
 
     @torch.inference_mode(False)
-    def calibrate_lm_weight(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]) -> Tuple[float, float]:
+    def calibrate_lm_weight(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+    ) -> Tuple[float, float]:
         """TBD"""
         assert len(log_probs) == len(reference_texts)
         decoding_mode_backup = self.decoding_mode
@@ -511,7 +533,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         best_lm_weight, best_wer = -1.0, float('inf')
         self.decoding_mode = "nbest"
         self.nbest_size = 1
-        for lm_weight in range(1, 21): # enough for most cases
+        for lm_weight in range(1, 21):  # enough for most cases
             lm_weight_act = lm_weight / 10
             for lat in lattices:
                 lat.scores = lat.am_scores + lm_weight_act * lat.lm_scores
@@ -525,7 +547,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         return best_lm_weight, best_wer
 
     @torch.inference_mode(False)
-    def calculate_oracle_wer(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]) -> Tuple[float, List[float]]:
+    def calculate_oracle_wer(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+    ) -> Tuple[float, List[float]]:
         """TBD"""
         if self._open_vocabulary_decoding:
             raise NotImplementedError
@@ -554,7 +578,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
             alignment = k2.shortest_path(ali_lats, use_double_scores=True)
         except RuntimeError as e:
             logging.warning("calculate_oracle_wer failed")
-            return -1., []
+            return -1.0, []
         scores = -alignment.get_tot_scores(True, True).to(dtype=torch.int64)
         wer_per_utt = scores / counts
         return (scores.sum() / counts.sum()).item(), wer_per_utt.tolist()
