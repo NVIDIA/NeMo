@@ -486,7 +486,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         for param in params:
             if is_float8tensor(param):
                 param._reset_caches()
-                param.transpose_2d(cache=True)
 
         # Update transpose caches
         params = set(self.parameter(fragment) for fragment in fragments)
