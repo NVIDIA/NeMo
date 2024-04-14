@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+# Define version information
 MAJOR = 2
 MINOR = 0
 PATCH = 0
@@ -21,9 +21,11 @@ PRE_RELEASE = 'rc0'
 # Use the following formatting: (major, minor, patch, pre-release)
 VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)
 
+# Define version strings
 __shortversion__ = '.'.join(map(str, VERSION[:3]))
 __version__ = '.'.join(map(str, VERSION[:3])) + ''.join(VERSION[3:])
 
+# Define package metadata
 __package_name__ = 'nemo_toolkit'
 __contact_names__ = 'NVIDIA'
 __contact_emails__ = 'nemo-toolkit@nvidia.com'
