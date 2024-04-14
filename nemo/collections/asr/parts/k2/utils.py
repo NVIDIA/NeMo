@@ -324,3 +324,41 @@ def apply_rnnt_prune_ranges(
         index=ranges.reshape((B, T, window_size_with_blank, 1)).expand((B, T, window_size_with_blank, D2)),
     )
     return encoder_outputs_pruned, decoder_outputs_pruned
+
+
+def levenshtein_graph_k2(fsa: 'k2.Fsa', ins_del_score: float = -0.501) -> 'k2.Fsa':
+    """
+    TBD
+    """
+    sub_score = -0.5
+    sub_score_int = struct.unpack('@i', struct.pack('@f', sub_score))[0]
+    arcs = fsa.arcs.values()
+    final_indices = (fsa.labels == -1).nonzero()
+    template_mask = ~ torch.zeros(len(arcs) * 2, dtype=bool)
+    no_duplicate_final_mask = template_mask.clone()
+    no_duplicate_final_mask[final_indices * 2 + 1] = False
+    new_mask = ~ template_mask
+    new_mask[1::2] = True
+    new_mask = new_mask[no_duplicate_final_mask]
+    duplicate_indices = torch.arange(len(arcs)).repeat_interleave(2)[no_duplicate_final_mask]
+    new_arcs = arcs[duplicate_indices]
+    new_arcs[:, -1] = torch.where(new_mask, sub_score_int, 0)
+    if len(fsa.shape) == 3:
+        new_shape, _ = fsa.arcs.shape().index(2, duplicate_indices.to(dtype=torch.int32))
+        # apparently k2 does not support indexing RaggedArc with RaggedShape
+        new_splits = new_shape.row_splits(2)[new_shape.row_splits(1)]
+        levenshtein_fsa = k2.create_fsa_vec([k2.Fsa(new_arcs[i:j]) for i, j in zip(new_splits[:-1], new_splits[1:])])
+    else:
+        levenshtein_fsa = k2.Fsa(new_arcs)
+    levenshtein_fsa.aux_labels = levenshtein_fsa.labels.clone()
+    labels = levenshtein_fsa.labels.clone()
+    labels[new_mask] = 0
+    levenshtein_fsa.labels = labels
+    levenshtein_fsa.__dict__["_properties"] = None
+    levenshtein_fsa, arc_map = k2.add_epsilon_self_loops(levenshtein_fsa, ret_arc_map=True)
+    scores = levenshtein_fsa.scores.clone()
+    scores[arc_map == -1] = ins_del_score
+    levenshtein_fsa.scores = scores
+    levenshtein_fsa.__dict__["_properties"] = None
+    levenshtein_fsa = k2.arc_sort(levenshtein_fsa)
+    return levenshtein_fsa
