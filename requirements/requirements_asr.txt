@@ -4,7 +4,9 @@ g2p_en
 ipywidgets
 jiwer
 kaldi-python-io
+kaldifst
 kaldiio
+kaldilm
 lhotse>=1.20.0
 librosa>=0.10.0
 marshmallow
@@ -15,11 +17,9 @@ pyannote.metrics
 pydub
 pyloudnorm
 resampy
+riva-asrlib-decoder
 ruamel.yaml
 scipy>=0.14
 soundfile
 sox
 texterrors
-kaldifst
-kaldilm
-riva-asrlib-decoder

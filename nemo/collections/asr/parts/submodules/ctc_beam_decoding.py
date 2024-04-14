@@ -62,7 +62,7 @@ def pack_wfst_hypotheses(
     new_hypotheses = []
     for idx, nbest_hyp in enumerate(hypotheses):  # type: WfstNbestHypothesis
         new_hyp = []
-        y_sequence = logits[idx, :logitlen[idx]].to('cpu')
+        y_sequence = logits[idx, : logitlen[idx]].to('cpu')
         length = logitlen_cpu[idx]
         for candidate_idx, cand in enumerate(nbest_hyp):
             cand_hyp = rnnt_utils.Hypothesis(
@@ -70,7 +70,7 @@ def pack_wfst_hypotheses(
                 score=cand.score,
                 text=" ".join(cand.words),
                 timestep=list(cand.timesteps),
-                alignments=list(cand.alignment)
+                alignments=list(cand.alignment),
             )
             cand_hyp.y_sequence = y_sequence
 
@@ -615,11 +615,11 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         self,
         blank_id: int,
         beam_size: int,
-        backend: str = "riva", # 'riva', 'k2'
+        backend: str = "riva",  # 'riva', 'k2'
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
-        decoding_mode: str = 'nbest', # 'nbest', 'mbr' ('mbr' works only for backend == 'riva' and beam_size == 1)
+        decoding_mode: str = 'nbest',  # 'nbest', 'mbr' ('mbr' works only for backend == 'riva' and beam_size == 1)
         open_vocabulary_decoding: bool = False,
         beam_width: float = 10.0,
         lm_weight: float = 1.0,
@@ -744,14 +744,12 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 f"This procedure will take some time."
             )
             if self.wfst_lm_path is not None:
-                logging.info(
-                    f"WFST LM will be buffered at `{self.wfst_lm_path}`."
-                )
+                logging.info(f"WFST LM will be buffered at `{self.wfst_lm_path}`.")
                 write_tlg_path = self.wfst_lm_path
             else:
                 logging.warning("Consider providing a write-permitted `wfst_lm_path` for WFST LM buffering.")
                 write_tlg_path = None
-            ctc_topology = "default" # there is no way to indicate the need of other topologies
+            ctc_topology = "default"  # there is no way to indicate the need of other topologies
             target = "kaldi" if self.backend == "riva" else "k2"
 
             from nemo.collections.asr.parts.utils.wfst_utils import mkgraph_ctc_ov
@@ -769,9 +767,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         return lm_fst
 
     @torch.no_grad()
-    def _riva_decoding(
-        self, x: torch.Tensor, out_len: torch.Tensor
-    ) -> List['WfstNbestHypothesis']:
+    def _riva_decoding(self, x: torch.Tensor, out_len: torch.Tensor) -> List['WfstNbestHypothesis']:
         """
         Riva Asrlib WFST decoder Algorithm.
 
@@ -819,9 +815,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         return self.riva_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
 
     @torch.no_grad()
-    def _k2_decoding(
-        self, x: torch.Tensor, out_len: torch.Tensor
-    ) -> List['WfstNbestHypothesis']:
+    def _k2_decoding(self, x: torch.Tensor, out_len: torch.Tensor) -> List['WfstNbestHypothesis']:
         """
         K2 WFST decoder Algorithm.
 
@@ -902,11 +896,11 @@ class BeamCTCInferConfig:
 @dataclass
 class WfstCTCInferConfig:
     beam_size: int
-    backend: str = "riva" # 'riva', 'k2'
+    backend: str = "riva"  # 'riva', 'k2'
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False
     compute_timestamps: bool = False
-    decoding_mode: str = 'nbest' # 'nbest', 'mbr' ('mbr' works only for backend == 'riva' and beam_size == 1)
+    decoding_mode: str = 'nbest'  # 'nbest', 'mbr' ('mbr' works only for backend == 'riva' and beam_size == 1)
     open_vocabulary_decoding: bool = False
     beam_width: float = 10.0
     lm_weight: float = 1.0
