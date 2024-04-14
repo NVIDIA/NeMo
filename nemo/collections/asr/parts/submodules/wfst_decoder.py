@@ -30,7 +30,9 @@ def _riva_config_to_dict(conf: Any) -> Dict[str, Any]:
     for name in conf.__dir__():
         if not name.startswith("__"):
             attribute = getattr(conf, name)
-            result[name] = attribute if attribute.__class__.__module__ == 'builtins' else _riva_config_to_dict(attribute)
+            result[name] = (
+                attribute if attribute.__class__.__module__ == 'builtins' else _riva_config_to_dict(attribute)
+            )
     return result
 
 
@@ -48,14 +50,14 @@ class RivaDecoderConfig(DictConfig):
             from riva.asrlib.decoder.python_decoder import BatchedMappedDecoderCudaConfig
 
             config = BatchedMappedDecoderCudaConfig()
-            config.online_opts.lattice_postprocessor_opts.acoustic_scale=10.0
+            config.online_opts.lattice_postprocessor_opts.acoustic_scale = 10.0
             config.n_input_per_chunk = 50
             config.online_opts.decoder_opts.default_beam = 20.0
             config.online_opts.decoder_opts.max_active = 10000
             config.online_opts.determinize_lattice = True
             config.online_opts.max_batch_size = 800
             config.online_opts.num_channels = 800
-            config.online_opts.frame_shift_seconds = 1 # not actual frame shift
+            config.online_opts.frame_shift_seconds = 1  # not actual frame shift
             config.online_opts.lattice_postprocessor_opts.word_ins_penalty = 0.0
 
             content = _riva_config_to_dict(config)
@@ -66,6 +68,7 @@ class RivaDecoderConfig(DictConfig):
 
 class WfstNbestUnit(NamedTuple):
     """TBD"""
+
     words: Tuple[str]
     timesteps: Tuple[int]
     alignment: Tuple[int]
@@ -92,10 +95,23 @@ class WfstNbestHypothesis:
     def __len__(self):
         return self.shape0
 
-    def replace_unit_(self, index: int, new_unit: Union[WfstNbestUnit, Tuple[Tuple[str], Tuple[int], Tuple[int], float]]):
+    def replace_unit_(
+        self, index: int, new_unit: Union[WfstNbestUnit, Tuple[Tuple[str], Tuple[int], Tuple[int], float]]
+    ):
         assert 0 <= index < self.shape0
-        assert self.has_timesteps and len(new_unit[0]) == len(new_unit[1]) or not self.has_timesteps and len(new_unit[1]) == 0
-        assert index == 0 and (len(self._hypotheses) == 1 or new_unit[3] <= self._hypotheses[index+1].score) or index == self.shape0 - 1 and self._hypotheses[index-1].score <= new_unit[3] or self._hypotheses[index-1].score <= new_unit[3] <= self._hypotheses[index+1].score
+        assert (
+            self.has_timesteps
+            and len(new_unit[0]) == len(new_unit[1])
+            or not self.has_timesteps
+            and len(new_unit[1]) == 0
+        )
+        assert (
+            index == 0
+            and (len(self._hypotheses) == 1 or new_unit[3] <= self._hypotheses[index + 1].score)
+            or index == self.shape0 - 1
+            and self._hypotheses[index - 1].score <= new_unit[3]
+            or self._hypotheses[index - 1].score <= new_unit[3] <= self._hypotheses[index + 1].score
+        )
 
         if not isinstance(new_unit, WfstNbestUnit):
             new_unit = WfstNbestUnit(*new_unit)
@@ -119,7 +135,9 @@ class WfstNbestHypothesis:
         return self._has_alignment
 
 
-def collapse_tokenword_hypotheses(hypotheses: List[WfstNbestHypothesis], tokenword_disambig_str: str) -> List[WfstNbestHypothesis]:
+def collapse_tokenword_hypotheses(
+    hypotheses: List[WfstNbestHypothesis], tokenword_disambig_str: str
+) -> List[WfstNbestHypothesis]:
     new_hypotheses = copy.deepcopy(hypotheses)
     for hyp in new_hypotheses:
         for k, h_unit in enumerate(hyp):
@@ -137,15 +155,17 @@ def collapse_tokenword_hypotheses(hypotheses: List[WfstNbestHypothesis], tokenwo
                 new_words, new_timesteps = [], []
                 j_prev = 0
                 for i, j in zip(twds_list[::2], twds_list[1::2]):
-                    new_words += old_words[j_prev: i]
+                    new_words += old_words[j_prev:i]
                     # drop tokenword disambig -> remove token disanbig suffix -> remove word begin mark
-                    new_word = "".join(old_words[i+1: j]).replace(f"_{tokenword_disambig_str}", "")[1:]
+                    new_word = "".join(old_words[i + 1 : j]).replace(f"_{tokenword_disambig_str}", "")[1:]
                     new_words.append(new_word)
-                    new_timesteps += old_timesteps[j_prev: i] + [old_timesteps[i],]
+                    new_timesteps += old_timesteps[j_prev:i] + [
+                        old_timesteps[i],
+                    ]
                     j_prev = j + 1
                 if j_prev < words_len:
-                    new_words += old_words[j_prev: words_len]
-                    new_timesteps += old_timesteps[j_prev: words_len]
+                    new_words += old_words[j_prev:words_len]
+                    new_timesteps += old_timesteps[j_prev:words_len]
                 hyp.replace_unit_(k, (tuple(new_words), tuple(new_timesteps), h_unit.alignment, h_unit.score))
     return new_hypotheses
 
@@ -243,12 +263,16 @@ class AbstractWFSTDecoder(ABC):
         pass
 
     @abstractmethod
-    def calibrate_lm_weight(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]) -> Tuple[float, float]:
+    def calibrate_lm_weight(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+    ) -> Tuple[float, float]:
         """TBD"""
         pass
 
     @abstractmethod
-    def calculate_oracle_wer(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]) -> Tuple[float, List[float]]:
+    def calculate_oracle_wer(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+    ) -> Tuple[float, List[float]]:
         """TBD"""
         pass
 
@@ -257,12 +281,12 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def __init__(
         self,
         lm_fst: Union['kaldifst.StdFst', Path, str],
-        decoding_mode: str = 'mbr', # 'nbest', 'mbr', 'lattice'
+        decoding_mode: str = 'mbr',  # 'nbest', 'mbr', 'lattice'
         beam_size: float = 10.0,
         config: Optional['RivaDecoderConfig'] = None,
-        tokenword_disambig_id: int = -1, # used in post-processing for decoding with open vocabulary
+        tokenword_disambig_id: int = -1,  # used in post-processing for decoding with open vocabulary
         lm_weight: float = 1.0,
-        nbest_size: int = 1, # for decoding_mode == nbest
+        nbest_size: int = 1,  # for decoding_mode == nbest
     ):
         self._nbest_size = nbest_size
         self._load_word_lattice = None
@@ -272,7 +296,9 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         if config is None or len(config) == 0:
             config = RivaDecoderConfig()
         config.online_opts.decoder_opts.lattice_beam = self._beam_size
-        config.online_opts.lattice_postprocessor_opts.lm_scale = self._lm_weight * config.online_opts.lattice_postprocessor_opts.acoustic_scale
+        config.online_opts.lattice_postprocessor_opts.lm_scale = (
+            self._lm_weight * config.online_opts.lattice_postprocessor_opts.acoustic_scale
+        )
         config.online_opts.lattice_postprocessor_opts.nbest = self._nbest_size
         self._config = config
 
@@ -301,14 +327,20 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         # we assume that lm_fst has at least one disambig after real tokens
         num_tokens_with_blank = tmp_fst.input_symbols.find('#0') - 1
         if self._id2word is None:
-            self._id2word = {int(line.split("\t")[1]): line.split("\t")[0] for line in str(tmp_fst.output_symbols).strip().split("\n")}
+            self._id2word = {
+                int(line.split("\t")[1]): line.split("\t")[0]
+                for line in str(tmp_fst.output_symbols).strip().split("\n")
+            }
             word2id = self._id2word.__class__(map(reversed, self._id2word.items()))
             word_unk_id = word2id["<unk>"]
             self._word2id = defaultdict(lambda: word_unk_id)
             for k, v in word2id.items():
                 self._word2id[k] = v
         if self._id2token is None:
-            self._id2token = {int(line.split("\t")[1]): line.split("\t")[0] for line in str(tmp_fst.input_symbols).strip().split("\n")}
+            self._id2token = {
+                int(line.split("\t")[1]): line.split("\t")[0]
+                for line in str(tmp_fst.input_symbols).strip().split("\n")
+            }
             token2id = self._id2token.__class__(map(reversed, self._id2token.items()))
             token_unk_id = token2id["<unk>"]
             self._token2id = defaultdict(lambda: token_unk_id)
@@ -343,7 +375,9 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
     def _lm_weight_setter(self, value: float):
         if self._lm_weight != value:
             self._release_gpu_memory()
-            self._config.online_opts.lattice_postprocessor_opts.lm_scale = value * self._config.online_opts.lattice_postprocessor_opts.acoustic_scale
+            self._config.online_opts.lattice_postprocessor_opts.lm_scale = (
+                value * self._config.online_opts.lattice_postprocessor_opts.acoustic_scale
+            )
             self._init_decoder()
             self._lm_weight = value
 
@@ -366,28 +400,58 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
             self._init_decoder()
             self._nbest_size = value
 
-    def _decode_nbest(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> List[WfstNbestHypothesis]: # words, timesteps, alignment, score
+    def _decode_nbest(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
+    ) -> List[WfstNbestHypothesis]:  # words, timesteps, alignment, score
         """TBD"""
         hypotheses_nbest = self._decoder.decode_nbest(log_probs, log_probs_length)
-        hypotheses = [WfstNbestHypothesis(tuple((*zip(*[(self._id2word[w], int(t)) for w, t in zip(h.words, h.word_start_times_seconds) if w != 0]), tuple([ilabel - 1 for ilabel in h.ilabels]), h.score) for h in nh)) for nh in hypotheses_nbest]
+        hypotheses = [
+            WfstNbestHypothesis(
+                tuple(
+                    (
+                        *zip(
+                            *[
+                                (self._id2word[w], int(t))
+                                for w, t in zip(h.words, h.word_start_times_seconds)
+                                if w != 0
+                            ]
+                        ),
+                        tuple([ilabel - 1 for ilabel in h.ilabels]),
+                        h.score,
+                    )
+                    for h in nh
+                )
+            )
+            for nh in hypotheses_nbest
+        ]
         return hypotheses
 
-    def _decode_mbr(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> List[WfstNbestHypothesis]: # words, timesteps, alignment (empty), score (trivial)
+    def _decode_mbr(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
+    ) -> List[WfstNbestHypothesis]:  # words, timesteps, alignment (empty), score (trivial)
         """TBD"""
         hypotheses_mbr = self._decoder.decode_mbr(log_probs, log_probs_length)
-        hypotheses = [WfstNbestHypothesis(((*tuple(zip(*[(e[0], int(e[1])) for e in h])), (), 0.0),)) for h in hypotheses_mbr]
+        hypotheses = [
+            WfstNbestHypothesis(((*tuple(zip(*[(e[0], int(e[1])) for e in h])), (), 0.0),)) for h in hypotheses_mbr
+        ]
         return hypotheses
 
     def _decode_lattice(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> List['KaldiWordLattice']:
         """TBD"""
         with tempfile.NamedTemporaryFile() as tmp_lat:
             tmp_lat_name = f"{tmp_lat.name}.lats"
-            self._decoder.decode_write_lattice(log_probs, log_probs_length, [str(i) for i in range(len(log_probs))], f"ark,t:{tmp_lat_name}")
-            hypotheses_lattice = self._load_word_lattice(tmp_lat_name, self._id2word, self._id2word) # input and output token ids are the same
+            self._decoder.decode_write_lattice(
+                log_probs, log_probs_length, [str(i) for i in range(len(log_probs))], f"ark,t:{tmp_lat_name}"
+            )
+            hypotheses_lattice = self._load_word_lattice(
+                tmp_lat_name, self._id2word, self._id2word
+            )  # input and output token ids are the same
             hypotheses = [hypotheses_lattice[str(i)] for i in range(len(log_probs))]
         return hypotheses
 
-    def decode(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor) -> Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]:
+    def decode(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
+    ) -> Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]:
         """TBD"""
         log_probs = log_probs.contiguous()
         log_probs_length = log_probs_length.to(torch.long).to('cpu').contiguous()
@@ -395,20 +459,24 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         hypotheses = self._post_decode(hypotheses)
         return hypotheses
 
-    def _post_decode(self, hypotheses: Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]) -> Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]:
+    def _post_decode(
+        self, hypotheses: Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]
+    ) -> Union[List[WfstNbestHypothesis], List['KaldiWordLattice']]:
         if self._open_vocabulary_decoding and self._decoding_mode in ('nbest', 'mbr'):
             return collapse_tokenword_hypotheses(hypotheses, self._id2word[self._tokenword_disambig_id])
         else:
             return hypotheses
 
-    def calibrate_lm_weight(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]) -> Tuple[float, float]:
+    def calibrate_lm_weight(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+    ) -> Tuple[float, float]:
         """TBD"""
         assert len(log_probs) == len(reference_texts)
         decoding_mode_backup = self.decoding_mode
         lm_weight_backup = self.lm_weight
         self.decoding_mode = "mbr"
         best_lm_weight, best_wer = -1.0, float('inf')
-        for lm_weight in range(1, 21): # enough for most cases
+        for lm_weight in range(1, 21):  # enough for most cases
             self.lm_weight = lm_weight / 10
             hypotheses = self.decode(log_probs, log_probs_length)
             wer = word_error_rate([" ".join(h[0].words) for h in hypotheses], reference_texts)
@@ -419,7 +487,9 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         self.lm_weight = lm_weight_backup
         return best_lm_weight, best_wer
 
-    def calculate_oracle_wer(self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]) -> Tuple[float, List[float]]:
+    def calculate_oracle_wer(
+        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+    ) -> Tuple[float, List[float]]:
         """TBD"""
         if self._open_vocabulary_decoding:
             raise NotImplementedError

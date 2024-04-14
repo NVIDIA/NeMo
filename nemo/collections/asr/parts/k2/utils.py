@@ -334,10 +334,10 @@ def levenshtein_graph_k2(fsa: 'k2.Fsa', ins_del_score: float = -0.501) -> 'k2.Fs
     sub_score_int = struct.unpack('@i', struct.pack('@f', sub_score))[0]
     arcs = fsa.arcs.values()
     final_indices = (fsa.labels == -1).nonzero()
-    template_mask = ~ torch.zeros(len(arcs) * 2, dtype=bool)
+    template_mask = ~torch.zeros(len(arcs) * 2, dtype=bool)
     no_duplicate_final_mask = template_mask.clone()
     no_duplicate_final_mask[final_indices * 2 + 1] = False
-    new_mask = ~ template_mask
+    new_mask = ~template_mask
     new_mask[1::2] = True
     new_mask = new_mask[no_duplicate_final_mask]
     duplicate_indices = torch.arange(len(arcs)).repeat_interleave(2)[no_duplicate_final_mask]
