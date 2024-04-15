@@ -72,7 +72,7 @@ For more information, browse the developer docs for your area of interest in the
    :name: Collections
    :titlesonly:
 
-   collection/collection_index
+   collections/intro
 
 .. toctree::
    :maxdepth: 2
@@ -81,6 +81,14 @@ For more information, browse the developer docs for your area of interest in the
    :titlesonly:
 
    tools/intro
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Scripts
+   :name: Scripts
+   :titlesonly:
+
+   scripts/intro
 
 .. toctree::
    :maxdepth: 2
