@@ -144,12 +144,12 @@ def create_hist(dataset, truncate_seq_len):
             'metadata': item_dict['metadata'],
         }
         seq_len = len(item_dict['input_ids']) - 1
-        if seq_len >= truncate_seq_len:
+        if seq_len + 1 >= truncate_seq_len:
             # truncate sequences that are too long
             item_dict['input_ids'] = item_dict['input_ids'][:truncate_seq_len]
             item_dict['mask'] = item_dict['mask'][:truncate_seq_len]
             print(f"W: Truncated sequence of length {seq_len+1} to {truncate_seq_len}")
-            seq_len =  len(item_dict['input_ids']) - 1
+            seq_len = len(item_dict['input_ids']) - 1
 
         sequences[seq_len].append(item_dict)
         try:
