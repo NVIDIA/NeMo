@@ -5,6 +5,8 @@ NVIDIA NeMo Framework is an end-to-end, cloud-native framework to build, customi
 
 `NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
 
+`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
+
 * :doc:`Large Language Models (LLMs) <nlp/nemo_megatron/intro>`
 
 * :doc:`Automatic Speech Recognition (ASR) <asr/intro>`
@@ -29,8 +31,8 @@ For quick guides and tutorials, see the "Getting started" section below.
    :titlesonly:
 
    starthere/intro
-   starthere/tutorials
    starthere/best-practices
+   starthere/tutorials
 
 For more information, browse the developer docs for your area of interest in the contents section below or on the left sidebar.
 
