@@ -340,6 +340,8 @@ class NLPDDPStrategy(DDPStrategy):
             if not is_save_top_k():
                 # converts the optimizer states to their sharded equivalents
                 checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            else:
+                checkpoint['optimizer_states'] = {}
 
             # dist_checkpointing expects a directory so we will name the directory
             # using the path with the file extension removed
