@@ -137,8 +137,8 @@ def mcore_supports_moe() -> bool:
 
 def get_specs(spec_name, transformer_config=None, use_te=True):
     # else cases for backwards compatibility with neva
-    num_experts=transformer_config.num_moe_experts if transformer_config else  None
-    moe_grouped_gemm=transformer_config.moe_grouped_gemm if transformer_config else False
+    num_experts = transformer_config.num_moe_experts if transformer_config else None
+    moe_grouped_gemm = transformer_config.moe_grouped_gemm if transformer_config else False
 
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
@@ -395,11 +395,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=get_specs(
-                    self.spec_name,
-                    self.transformer_config,
-                    self.transformer_engine,
-                ),
+                transformer_layer_spec=get_specs(self.spec_name, self.transformer_config, self.transformer_engine,),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
