@@ -1,9 +1,8 @@
 import math
-import time
-
 import numpy as np
 import open_clip
 import tensorrt as trt
+import time
 import torch
 from cuda import cudart
 from transformers import CLIPTokenizer
@@ -92,7 +91,7 @@ class StableDiffusionXLTRTPipeline(Serialization):
         elif model_name == 'clip2':
             feed_dict = {"input_ids": (batch_size, 77), "z": (batch_size, 80, 1280), "z_pooled": (batch_size, 1280)}
         else:
-            raise NotImplemented(f"{model_name} is not supported")
+            raise NotImplementedError(f"{model_name} is not supported")
 
         return feed_dict
 

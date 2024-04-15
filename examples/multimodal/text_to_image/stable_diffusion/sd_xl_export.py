@@ -99,7 +99,7 @@ def main(cfg):
             input_names = ["input_ids"]
             output_names = ["z", "z_pooled"]
         else:
-            raise NotImplemented(f"{model_name} is not supported")
+            raise NotImplementedError(f"{model_name} is not supported")
         return input_names, output_names
 
     def get_dynamic_axis(model_name):
@@ -115,7 +115,7 @@ def main(cfg):
         elif 'clip' in model_name:
             dynamic_axes = {"input_ids": {0: 'batch_size'}, "z": {0: 'batch_size'}, "z_pooled": {0: 'batch_size'}}
         else:
-            raise NotImplemented(f"{model_name} is not supported")
+            raise NotImplementedError(f"{model_name} is not supported")
         return dynamic_axes
 
     # Unet Export
