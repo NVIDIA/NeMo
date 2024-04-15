@@ -3,7 +3,21 @@ NVIDIA NeMo Framework Developer Docs
 
 NVIDIA NeMo Framework is an end-to-end, cloud-native framework to build, customize, and deploy generative AI models anywhere.
 
-`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
+`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_  highlights supports of large scale training features:
+
+Mixed Precision Training
+Parallelism
+Distributed Optimizer
+FSDP
+Flash Attention
+Gradient Checkpointing
+Positional Embeddings and Positional Interpolation
+PTQ with Ammo
+Sequence Packing
+Distributed Checkpoint Format
+PEFT?
+MCore customization
+Migrating from MLM
 
 `NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
 
@@ -38,14 +52,6 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
-   :caption: NeMo Core
-   :name: core
-   :titlesonly:
-
-   core/core_index
-
-.. toctree::
-   :maxdepth: 2
    :caption: Community Model Converters
    :name: CheckpointConverters
 
@@ -54,73 +60,24 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
-   :caption: Large Language Models (LLMs)
-   :name: Large Language Models
+   :caption: APIs
+   :name: APIs
    :titlesonly:
 
-   nlp/nemo_megatron/intro
-   nlp/models
-   nlp/machine_translation/machine_translation
-   nlp/megatron_onnx_export
-   nlp/api
-
+   core/core_index
 
 .. toctree::
    :maxdepth: 1
-   :caption: Speech AI
-   :name: Speech AI
+   :caption: Collections
+   :name: Collections
    :titlesonly:
 
-   asr/intro
-   asr/speech_classification/intro
-   asr/speaker_recognition/intro
-   asr/speaker_diarization/intro
-   asr/ssl/intro
-   asr/speech_intent_slot/intro
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Multimodal (MM)
-   :name: Multimodal
-   :titlesonly:
-
-   multimodal/mllm/intro
-   multimodal/vlm/intro
-   multimodal/text2img/intro
-   multimodal/nerf/intro
-   multimodal/api
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Text To Speech (TTS)
-   :name: Text To Speech
-   :titlesonly:
-
-   tts/intro
+   collection/collection_index
 
 .. toctree::
    :maxdepth: 2
-   :caption: Vision (CV)
-   :name: vision
-   :titlesonly:
-
-   vision/intro
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Common
-   :name: Common
-   :titlesonly:
-
-   common/intro
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Speech Tools
-   :name: Speech Tools
+   :caption: Tools
+   :name: Tools
    :titlesonly:
 
    tools/intro
