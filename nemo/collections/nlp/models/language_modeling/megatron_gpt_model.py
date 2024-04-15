@@ -1566,7 +1566,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return
