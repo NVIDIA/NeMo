@@ -126,27 +126,4 @@ class GPTDecoderLayerBuilder(DecoderLayerBuilder):
         config.set_if_not_exist('rotary_pct', rotary_pct)
         config.set_if_not_exist('moe_num_experts', 0)
 
-        '''
-                return GPTDecoderLayer(
-                    hidden_size=self.hidden_size,
-                    num_attention_heads=self.num_attention_heads,
-                    max_position_embeddings=self.max_position_embeddings,
-                    num_layers=self.num_layers,
-                    dtype=self.dtype,
-                    apply_query_key_layer_scaling=False,
-                    attention_mask_type=AttentionMaskType.causal,
-                    hidden_act=self.hidden_act,
-                    position_embedding_type=position_embedding_type,
-                    rotary_embedding_percentage=rotary_pct,
-                    rotary_base=layer.rotary_base,
-                    rotary_scaling=rotary_scaling,
-                    inter_size=layer.ffn_hidden_size_local * self.tensor_parallel,
-                    bias=bias_qkv,
-                    num_kv_heads=self.num_kv_heads,
-                    tp_group=self.tp_group,
-                    tp_size=self.tensor_parallel,
-                    max_lora_rank=layer.max_lora_rank,
-                )
-        '''
-
         return GPTDecoderLayer(config=config, layer_idx=self.layer_id,)
