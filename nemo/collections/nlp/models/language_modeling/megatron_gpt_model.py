@@ -137,7 +137,7 @@ def mcore_supports_moe() -> bool:
 
 def get_specs(spec_name, transformer_config=None, use_te=True):
     # else cases for backwards compatibility with neva
-    num_experts=transformer_config.num_experts if transformer_config else  None
+    num_experts=transformer_config.num_moe_experts if transformer_config else  None
     moe_grouped_gemm=transformer_config.moe_grouped_gemm if transformer_config else False
 
     if num_experts is not None:

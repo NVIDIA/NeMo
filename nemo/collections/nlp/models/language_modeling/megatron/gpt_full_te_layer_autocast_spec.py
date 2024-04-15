@@ -39,7 +39,7 @@ try:
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
     from megatron.core.transformer.transformer_block import get_num_layers_to_build, TransformerBlockSubmodules
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
-    from megatron.core.fusions import FusedLayerNorm
+    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 
 
     HAVE_MEGATRON_CORE = True
