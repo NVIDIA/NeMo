@@ -53,7 +53,7 @@ Documentation for the individual collections
    tts/intro
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Vision (CV)
    :name: vision
    :titlesonly:
@@ -61,7 +61,7 @@ Documentation for the individual collections
    vision/intro
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Common
    :name: Common
    :titlesonly:
