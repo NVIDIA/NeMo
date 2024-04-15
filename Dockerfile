@@ -73,7 +73,7 @@ RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
 RUN git clone https://github.com/NVIDIA/apex.git && \
   cd apex && \
   git checkout f058162b215791b15507bb542f22ccfde49c872d && \
-  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam --group_norm" ./
 
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
