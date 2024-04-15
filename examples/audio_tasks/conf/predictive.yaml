@@ -12,7 +12,7 @@ model:
     manifest_filepath: ???
     input_key: noisy_filepath
     target_key: clean_filepath
-    audio_duration: 2.04 # 256 frames
+    audio_duration: 2.04 # Number of STFT time frames = 1 + audio_duration // encoder.hop_length = 256
     random_offset: true
     normalization_signal: input_signal
     batch_size: 8 # batch size may be increased based on the available memory
@@ -31,7 +31,7 @@ model:
 
   encoder:
     _target_: nemo.collections.asr.modules.audio_preprocessing.AudioToSpectrogram
-    fft_length: 510
+    fft_length: 510 # Number of subbands in the STFT = fft_length // 2 + 1 = 256
     hop_length: 128
     magnitude_power: 0.5
     scale: 0.33

@@ -160,7 +160,7 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
         """
         pass
 
-    def __str__(self):
+    def __repr__(self):
         desc = f'{self.__class__.__name__}(time_min={self.time_min}, time_max={self.time_max}, num_steps={self.num_steps})'
         desc += f'\n\tdt:         {self.dt}'
         desc += f'\n\ttime_delta: {self.time_delta}'
@@ -388,7 +388,7 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
             eps=self.eps,
         )
 
-    def __str__(self):
+    def __repr__(self):
         desc = f'{self.__class__.__name__}(stiffness={self.stiffness}, std_min={self.std_min}, std_max={self.std_max}, num_steps={self.num_steps}, time_min={self.time_min}, time_max={self.time_max}, eps={self.eps})'
         desc += f'\n\tdt:         {self.dt}'
         desc += f'\n\ttime_delta: {self.time_delta}'
@@ -477,7 +477,7 @@ class ReverseStochasticDifferentialEquation(StochasticDifferentialEquation):
     def copy(self):
         return ReverseStochasticDifferentialEquation(sde=self.forward_sde.copy(), score_estimator=self.score_estimator)
 
-    def __str__(self):
+    def __repr__(self):
         desc = f'{self.__class__.__name__}(sde={self.forward_sde}, score_estimator={self.score_estimator})'
         return desc
 

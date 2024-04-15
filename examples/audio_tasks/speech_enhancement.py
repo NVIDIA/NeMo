@@ -72,7 +72,7 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     # Get model class
-    model_type = cfg.get('model_type')
+    model_type = cfg.model.get('type')
     if model_type is None:
         model_type = ModelType.MaskBased
         logging.warning('model_type not found in config. Using default: %s', model_type)

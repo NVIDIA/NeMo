@@ -831,7 +831,8 @@ class AudioToTargetDataset(BaseAudioDataset):
         target_channel_selector: Optional, select subset of channels from each input audio file.
                                  If `None`, all channels will be loaded.
         normalization_signal: Normalize audio signals with a scale that ensures the normalization signal is in range [-1, 1].
-                              All audio signals are scaled by the same factor. No normalization if set to `None`.
+                              All audio signals are scaled by the same factor. Supported values are `None` (no normalization),
+                              'input_signal', 'target_signal'.
     """
 
     def __init__(
@@ -956,7 +957,8 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         reference_duration: Optional, can be used to set a fixed duration of the reference utterance. If `None`,
                             complete audio file will be loaded.
         normalization_signal: Normalize audio signals with a scale that ensures the normalization signal is in range [-1, 1].
-                              All audio signals are scaled by the same factor.
+                              All audio signals are scaled by the same factor. Supported values are `None` (no normalization),
+                              'input_signal', 'target_signal', 'reference_signal'.
     """
 
     def __init__(
@@ -1092,7 +1094,8 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
         target_channel_selector: Optional, select subset of channels from each input audio file.
                                  If `None`, all channels will be loaded.
         normalization_signal: Normalize audio signals with a scale that ensures the normalization signal is in range [-1, 1].
-                              All audio signals are scaled by the same factor.
+                              All audio signals are scaled by the same factor. Supported values are `None` (no normalization),
+                              'input_signal', 'target_signal'.
     """
 
     def __init__(
