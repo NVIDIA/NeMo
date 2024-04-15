@@ -1310,13 +1310,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # it should be casted to other pipeline stages for logging.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.loss_broadcast_src_rank is None:
-                dp_size = parallel_state.get_data_parallel_world_size()
-                cp_size = parallel_state.get_context_parallel_world_size()
-                tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * cp_size * tp_size)
-                last_pipeline_stage_offset = (tp_size * cp_size * dp_size) * (pp_size - 1)
-                self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
+                self.loss_broadcast_src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
             torch.distributed.broadcast(
                 averaged_loss, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
             )
@@ -1747,7 +1741,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
                 return x
 
-            if self.cfg.get('fp8_dot_product_attention', False) or self.cfg.get('fp8_multi_head_attention', False):
+            if self.cfg.get('skip_fp8_attention_checkpoint_load', True):
                 dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
 
             return sharded_state_dict
