@@ -39,10 +39,10 @@ General Tutorials
 Multimodal Tutorials
 ~~~~~~~~~~~~~~~~~~~~
 * Preparations and Advanced Applications
-  - `Multimodal Data Preparation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/Multimodal%20Data%20Preparation.ipynb>`_
-  - `NeVA (LLaVA) Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/NeVA%20Tutorial.ipynb>`_
-  - `Stable Diffusion Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/Stable%20Diffusion%20Tutorial.ipynb>`_
-  - `DreamBooth Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/multimodal/DreamBooth%20Tutorial.ipynb>`_
+  - `Multimodal Data Preparation <https://github.com/NVIDIA/NeMo/blob/main/tutorials/multimodal/Multimodal%20Data%20Preparation.ipynb>`_
+  - `NeVA (LLaVA) Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/multimodal/NeVA%20Tutorial.ipynb>`_
+  - `Stable Diffusion Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/multimodal/Stable%20Diffusion%20Tutorial.ipynb>`_
+  - `DreamBooth Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/multimodal/DreamBooth%20Tutorial.ipynb>`_
 
 Automatic Speech Recognition (ASR) Tutorials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
