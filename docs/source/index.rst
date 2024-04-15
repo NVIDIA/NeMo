@@ -52,6 +52,13 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
+   :caption: Optimization Methods
+   :name: Optimization Methods
+
+   optimizations/intro
+
+.. toctree::
+   :maxdepth: 1
    :caption: Community Model Converters
    :name: CheckpointConverters
 
@@ -75,7 +82,7 @@ For more information, browse the developer docs for your area of interest in the
    collections/intro
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Tools
    :name: Tools
    :titlesonly:
@@ -83,7 +90,7 @@ For more information, browse the developer docs for your area of interest in the
    tools/intro
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Scripts
    :name: Scripts
    :titlesonly:
@@ -91,9 +98,9 @@ For more information, browse the developer docs for your area of interest in the
    scripts/intro
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Upgrade Guide
-   :name: Upgrade Guide
+   :maxdepth: 1
+   :caption: Migrate from Megatron-LM
+   :name: Migrate from Megatron-LM
    :titlesonly:
 
-   starthere/migration-guide
+   mlm_migrate/migration-guide
