@@ -182,7 +182,7 @@ pipeline {
       steps {
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
         sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
             trainer.num_nodes=1 \
             trainer.devices=1 \
             ++exp_manager.max_time_per_run=00:00:03:00 \
@@ -220,7 +220,7 @@ pipeline {
       steps {
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train_with_cuda_graphs"
         sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
             trainer.num_nodes=1 \
             trainer.devices=1 \
             ++exp_manager.max_time_per_run=00:00:03:00 \
