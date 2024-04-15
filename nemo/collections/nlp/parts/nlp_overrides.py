@@ -336,8 +336,10 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         ):
-            # converts the optimizer states to their sharded equivalents
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            from nemo_aligner.utils.utils import is_save_top_k
+            if not is_save_top_k():
+                # converts the optimizer states to their sharded equivalents
+                checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
             # dist_checkpointing expects a directory so we will name the directory
             # using the path with the file extension removed
