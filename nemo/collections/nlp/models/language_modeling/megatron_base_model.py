@@ -150,7 +150,9 @@ class MegatronBaseModel(NLPModel):
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
         self.use_mcore_dist_optim = cfg.optim.get('use_mcore_dist_optim', False)
         if self.use_mcore_dist_optim:
-            assert self.with_distributed_adam, "with_distributed_adam must be True when using mcore distributed optimizer"
+            assert (
+                self.with_distributed_adam
+            ), "with_distributed_adam must be True when using mcore distributed optimizer"
 
         self.with_megatron_fused_adam = cfg.optim.get('name') == 'megatron_fused_adam'
 

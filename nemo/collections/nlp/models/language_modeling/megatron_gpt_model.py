@@ -102,7 +102,6 @@ try:
     from megatron.core.distributed import DistributedDataParallel as DDP
     from megatron.core.distributed import finalize_model_grads
 
-
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList
 
@@ -131,7 +130,7 @@ def mcore_supports_moe() -> bool:
         return False
     try:
         from megatron.core.transformer.moe.router import TopKRouter
-        
+
         return True
     except ImportError:
         return False
@@ -304,7 +303,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # TODO(akoumparouli): this is temporary and will be removed in the future.
         if self.cfg.get('expert_model_parallel_size', 1) > 1 and self.with_distributed_adam:
             if not self.use_mcore_dist_optim:
-                raise ValueError('Expert parallelism is currently not supporting Apex distributed optimizer, use Mcore distributed optimizer instead')
+                raise ValueError(
+                    'Expert parallelism is currently not supporting Apex distributed optimizer, use Mcore distributed optimizer instead'
+                )
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
@@ -481,11 +482,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
-    
+
     def setup_mcore_distributed_parallel(self):
         if self.with_distributed_adam and self.use_mcore_dist_optim:
             config = get_model_config(self.model[0])
-            self.model = [DDP(config,
+            self.model = [
+                DDP(
+                    config,
                     model_chunk,
                     data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
                     expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
@@ -494,9 +497,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     use_distributed_optimizer=True,
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
-                    disable_bucketing=(model_chunk_idx > 0))
-                for (model_chunk_idx, model_chunk) in enumerate(self.model)]
-            
+                    disable_bucketing=(model_chunk_idx > 0),
+                )
+                for (model_chunk_idx, model_chunk) in enumerate(self.model)
+            ]
+
             # (TODO) Check if we need this
             # # Broadcast params from data parallel src rank to other data parallel ranks.
             # if args.data_parallel_random_init:
@@ -584,8 +589,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
-
-
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
 
         # handle asynchronous grad reduction
@@ -599,17 +602,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 param_sync_func = self.sync_overlap_parameters
             else:
                 if self.cfg.optim.get("mcore_overlap_grad_sync", False):
-                    no_sync_func =  [model_chunk.no_sync for model_chunk in self.model]
+                    no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
                     no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
 
                     if self.cfg.optim.get("mcore_delay_grad_reduce", True):
                         grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
                         grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
-                if self.cfg.optim.get("mcore_overlap_param_sync", False) and self.cfg.optim.get("mcore_delay_param_gather", False):
-                    param_sync_func = [lambda x: self._optimizer.finish_param_sync(model_index, x)
-                                  for model_index in range(len(self.model))]
+                if self.cfg.optim.get("mcore_overlap_param_sync", False) and self.cfg.optim.get(
+                    "mcore_delay_param_gather", False
+                ):
+                    param_sync_func = [
+                        lambda x: self._optimizer.finish_param_sync(model_index, x)
+                        for model_index in range(len(self.model))
+                    ]
                     param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
-
 
         # pipeline schedules will get these from self.model.config
         for module in self.get_model_module_list():
@@ -709,7 +715,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
                 self.trainer.should_stop = True
-        
+
         # zero the grad buf
         for model_chunk in self.model:
             model_chunk.zero_grad_buffer()
@@ -769,8 +775,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
         self.megatron_timer_stop('gradient_allreduce')
 
-        if not self.use_mcore_dist_optim and self.cfg.get('pipeline_model_parallel_size', 1) > 1 and self.cfg.get(
-            'share_embeddings_and_output_weights', True
+        if (
+            not self.use_mcore_dist_optim
+            and self.cfg.get('pipeline_model_parallel_size', 1) > 1
+            and self.cfg.get('share_embeddings_and_output_weights', True)
         ):
             self.megatron_timer_start('allreduce_first_last_embeddings', log_level=1)
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
