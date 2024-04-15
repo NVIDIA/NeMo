@@ -62,8 +62,7 @@ def main(cfg):
         elif 'vae' in model_name:
             dummy_input["z"] = torch.ones(2, in_channels, cfg.infer.height // 8, cfg.infer.width // 8, device="cuda")
         elif 'clip' in model_name:
-            dummy_input["input_ids"] = torch.randint(high=10, size=(2, seq_length),
-                                                     device='cuda')
+            dummy_input["input_ids"] = torch.randint(high=10, size=(2, seq_length), device='cuda')
         return dummy_input
 
     def get_input_profile(model_name, batch_size, static_batch=False, min_batch_size=1, max_batch_size=8):
@@ -74,13 +73,21 @@ def main(cfg):
         input_profile = {}
         dummy_input = get_dummy_inputs(model_name)
         for key, value in dummy_input.items():
-            input_profile[key] = [(min_batch_size, *(value.shape[1:])), (batch_size, *(value.shape[1:])),
-                                  (max_batch_size, *(value.shape[1:]))]
+            input_profile[key] = [
+                (min_batch_size, *(value.shape[1:])),
+                (batch_size, *(value.shape[1:])),
+                (max_batch_size, *(value.shape[1:])),
+            ]
         return input_profile
 
     def get_input_output_names(model_name):
         if model_name == 'unet_xl':
-            input_names = ["x", "timesteps", "context", "y", ]
+            input_names = [
+                "x",
+                "timesteps",
+                "context",
+                "y",
+            ]
             output_names = ["out"]
         elif model_name == 'vae':
             input_names = ["z"]
@@ -99,7 +106,7 @@ def main(cfg):
                 "x": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
                 "timesteps": {0: "steps"},
                 "y": {0: "batch_size", 1: "adm_in"},
-                "context": {0: "batch_size", 1: "sequence_length"}
+                "context": {0: "batch_size", 1: "sequence_length"},
             }
         elif 'vae' in model_name:
             dynamic_axes = {"z": {0: 'batch_size'}, "dec": {0: 'batch_size'}}
@@ -222,15 +229,20 @@ def main(cfg):
     min_batch_size = cfg.trt.min_batch_size
     max_batch_size = cfg.trt.max_batch_size
     static_batch = cfg.trt.static_batch
-    fp16 = (cfg.trainer.precision in ['16', '16-mixed', 16])
+    fp16 = cfg.trainer.precision in ['16', '16-mixed', 16]
     for model_name in ['unet_xl', 'vae', 'clip1', 'clip2']:
         if not os.path.exists(f"{output_dir}/plan/{model_name}.plan"):
             build_engine(
                 f"{output_dir}/onnx/{model_name}/{model_name}.onnx",
                 f"{output_dir}/plan/{model_name}.plan",
                 fp16=fp16 if model_name != 'vae' else False,
-                input_profile=get_input_profile(model_name, batch_size, static_batch=static_batch,
-                                                min_batch_size=min_batch_size, max_batch_size=max_batch_size),
+                input_profile=get_input_profile(
+                    model_name,
+                    batch_size,
+                    static_batch=static_batch,
+                    min_batch_size=min_batch_size,
+                    max_batch_size=max_batch_size,
+                ),
                 timing_cache=None,
             )
 

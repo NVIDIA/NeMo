@@ -1,14 +1,15 @@
 import math
+import time
+
 import numpy as np
 import open_clip
 import tensorrt as trt
-import time
 import torch
 from cuda import cudart
 from transformers import CLIPTokenizer
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.denoiser import DiscreteDenoiser
-from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.trt_engine import Engine, TRT_LOGGER
+from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.trt_engine import TRT_LOGGER, Engine
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import get_sampler_config
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
@@ -69,25 +70,27 @@ class StableDiffusionXLTRTPipeline(Serialization):
         for model_name in self.modules:
             self.engine[model_name].allocate_buffers(
                 shape_dict=self.get_shape_dict(batch_size, image_height, image_width, adm_in_channels, model_name),
-                device=self.device)
+                device=self.device,
+            )
 
     def get_shape_dict(self, batch_size, image_height, image_width, adm_in_channels, model_name):
         if model_name == 'unet_xl':
-            feed_dict = {'x': (batch_size * 2, 4, image_height // 8, image_width // 8),
-                         'y': (batch_size * 2, adm_in_channels),
-                         'timesteps': (batch_size * 2,),
-                         'context': (batch_size * 2, 80, 2048),
-                         'out': (batch_size * 2, 4, image_height // 8, image_width // 8)}
+            feed_dict = {
+                'x': (batch_size * 2, 4, image_height // 8, image_width // 8),
+                'y': (batch_size * 2, adm_in_channels),
+                'timesteps': (batch_size * 2,),
+                'context': (batch_size * 2, 80, 2048),
+                'out': (batch_size * 2, 4, image_height // 8, image_width // 8),
+            }
         elif model_name == 'vae':
-            feed_dict = {'z': (batch_size, 4, image_height // 8, image_width // 8),
-                         'dec': (batch_size, 3, image_height, image_width)}
+            feed_dict = {
+                'z': (batch_size, 4, image_height // 8, image_width // 8),
+                'dec': (batch_size, 3, image_height, image_width),
+            }
         elif model_name == 'clip1':
-            feed_dict = {"input_ids": (batch_size, 77),
-                         "z": (batch_size, 80, 768)}
+            feed_dict = {"input_ids": (batch_size, 77), "z": (batch_size, 80, 768)}
         elif model_name == 'clip2':
-            feed_dict = {"input_ids": (batch_size, 77),
-                         "z": (batch_size, 80, 1280),
-                         "z_pooled": (batch_size, 1280)}
+            feed_dict = {"input_ids": (batch_size, 77), "z": (batch_size, 80, 1280), "z_pooled": (batch_size, 1280)}
 
         return feed_dict
 
@@ -142,13 +145,9 @@ class StableDiffusionXLTRTPipeline(Serialization):
 
         return self.runEngine(model_name="vae", feed_dict=feed_dict)["dec"]
 
-    def run(self,
-            prompt,
-            negative_prompt,
-            image_height,
-            image_width,
-            num_samples,
-            ):
+    def run(
+        self, prompt, negative_prompt, image_height, image_width, num_samples,
+    ):
 
         # Spatial dimensions of latent tensor
         latent_height = image_height // 8

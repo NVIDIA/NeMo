@@ -1,7 +1,8 @@
+from collections import OrderedDict
+
 import numpy as np
 import tensorrt as trt
 import torch
-from collections import OrderedDict
 from polygraphy.backend.common import bytes_from_path
 from polygraphy.backend.trt import (
     CreateConfig,
@@ -10,7 +11,7 @@ from polygraphy.backend.trt import (
     engine_from_bytes,
     engine_from_network,
     network_from_onnx_path,
-    save_engine
+    save_engine,
 )
 
 TRT_LOGGER = trt.Logger(trt.Logger.ERROR)
@@ -26,14 +27,13 @@ numpy_to_torch_dtype_dict = {
     np.float32: torch.float32,
     np.float64: torch.float64,
     np.complex64: torch.complex64,
-    np.complex128: torch.complex128
+    np.complex128: torch.complex128,
 }
 
 
-class Engine():
+class Engine:
     def __init__(
-            self,
-            engine_path,
+        self, engine_path,
     ):
         self.engine_path = engine_path
         self.engine = None
@@ -65,10 +65,12 @@ class Engine():
                 trt_datatype = trt.DataType.HALF
 
             # trt.Weight and trt.TensorLocation
-            trt_wt_tensor = trt.Weights(trt_datatype, refit_weights[trt_weight_name].data_ptr(),
-                                        torch.numel(refit_weights[trt_weight_name]))
-            trt_wt_location = trt.TensorLocation.DEVICE if refit_weights[
-                trt_weight_name].is_cuda else trt.TensorLocation.HOST
+            trt_wt_tensor = trt.Weights(
+                trt_datatype, refit_weights[trt_weight_name].data_ptr(), torch.numel(refit_weights[trt_weight_name])
+            )
+            trt_wt_location = (
+                trt.TensorLocation.DEVICE if refit_weights[trt_weight_name].is_cuda else trt.TensorLocation.HOST
+            )
 
             # apply refit
             refitter.set_named_weights(trt_weight_name, trt_wt_tensor, trt_wt_location)
@@ -81,16 +83,17 @@ class Engine():
 
         print(f"[I] Total refitted weights {len(refitted_weights)}.")
 
-    def build(self,
-              onnx_path,
-              fp16=True,
-              tf32=False,
-              input_profile=None,
-              enable_refit=False,
-              enable_all_tactics=False,
-              timing_cache=None,
-              update_output_names=None
-              ):
+    def build(
+        self,
+        onnx_path,
+        fp16=True,
+        tf32=False,
+        input_profile=None,
+        enable_refit=False,
+        enable_all_tactics=False,
+        timing_cache=None,
+        update_output_names=None,
+    ):
         print(f"Building TensorRT engine for {onnx_path}: {self.engine_path}")
         p = Profile()
         if input_profile:
@@ -108,14 +111,15 @@ class Engine():
             network = ModifyNetworkOutputs(network, update_output_names)
         engine = engine_from_network(
             network,
-            config=CreateConfig(fp16=fp16,
-                                tf32=tf32,
-                                refittable=enable_refit,
-                                profiles=[p],
-                                load_timing_cache=timing_cache,
-                                **config_kwargs
-                                ),
-            save_timing_cache=timing_cache
+            config=CreateConfig(
+                fp16=fp16,
+                tf32=tf32,
+                refittable=enable_refit,
+                profiles=[p],
+                load_timing_cache=timing_cache,
+                **config_kwargs,
+            ),
+            save_timing_cache=timing_cache,
         )
         save_engine(engine, path=self.engine_path)
 
@@ -162,7 +166,8 @@ class Engine():
                     raise ValueError(f"ERROR: inference failed.")
                 # capture cuda graph
                 CUASSERT(
-                    cudart.cudaStreamBeginCapture(stream, cudart.cudaStreamCaptureMode.cudaStreamCaptureModeGlobal))
+                    cudart.cudaStreamBeginCapture(stream, cudart.cudaStreamCaptureMode.cudaStreamCaptureModeGlobal)
+                )
                 self.context.execute_async_v3(stream)
                 self.graph = CUASSERT(cudart.cudaStreamEndCapture(stream))
                 self.cuda_graph_instance = CUASSERT(cudart.cudaGraphInstantiate(self.graph, 0))

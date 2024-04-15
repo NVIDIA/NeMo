@@ -12,20 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import re
+from pathlib import Path
+
 import ammo.torch.opt as ato
 import ammo.torch.quantization as atq
 import onnx
-import os
-import re
 import torch
 from ammo.torch.quantization.nn import QuantModuleRegistry
-from pathlib import Path
 from torch.onnx import export as onnx_export
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
-from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.utils import _QuantNeMoLinearWrapper, \
-    generate_dummy_inputs, get_int8_config, load_calib_prompts, AXES_NAME, quantize_lvl
+from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.utils import (
+    AXES_NAME,
+    _QuantNeMoLinearWrapper,
+    generate_dummy_inputs,
+    get_int8_config,
+    load_calib_prompts,
+    quantize_lvl,
+)
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
@@ -69,8 +76,10 @@ def main(cfg):
     if cfg.run_quantization:
         # Start quantization with ammo
 
-        cali_prompts = load_calib_prompts(cfg.quantize.batch_size,
-                                          "../../../../nemo/collections/multimodal/modules/stable_diffusion/quantization_utils/calib_prompts.txt")
+        cali_prompts = load_calib_prompts(
+            cfg.quantize.batch_size,
+            "../../../../nemo/collections/multimodal/modules/stable_diffusion/quantization_utils/calib_prompts.txt",
+        )
         extra_step = 0  # Following sdxl example
 
         if cfg.quantize.format == "int8":
@@ -112,7 +121,12 @@ def main(cfg):
         base.model.model.diffusion_model.to(torch.float32).to("cpu")
         base.device = 'cpu'
 
-        input_names = ["x", "timesteps", "context", "y", ]
+        input_names = [
+            "x",
+            "timesteps",
+            "context",
+            "y",
+        ]
         output_names = ["out"]
         sd_version = "nemo"
 

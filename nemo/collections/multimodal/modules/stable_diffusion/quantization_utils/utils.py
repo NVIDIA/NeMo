@@ -1,8 +1,10 @@
 import re
+
 import torch
-from ammo.torch.quantization.nn import QuantLinearConvBase, QuantLinear
+from ammo.torch.quantization.nn import QuantLinear, QuantLinearConvBase
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+
 from .plugin_calib import PercentileCalibrator
 
 
@@ -20,7 +22,7 @@ AXES_NAME = {
         "x": {0: "batch_size", 1: "num_channels", 2: "height", 3: "width"},
         "timesteps": {0: "steps"},
         "y": {0: "batch_size"},
-        "context": {0: "batch_size", 1: "sequence_length"}
+        "context": {0: "batch_size", 1: "sequence_length"},
     }
 }
 
@@ -41,12 +43,10 @@ def generate_dummy_inputs(sd_version, device):
 def load_calib_prompts(batch_size, calib_data_path="./calib_prompts.txt"):
     with open(calib_data_path, "r") as file:
         lst = [line.rstrip("\n") for line in file]
-    return [lst[i: i + batch_size] for i in range(0, len(lst), batch_size)]
+    return [lst[i : i + batch_size] for i in range(0, len(lst), batch_size)]
 
 
-def get_int8_config(
-        model, quant_level=3, alpha=0.8, percentile=1.0, num_inference_steps=20, global_min=False
-):
+def get_int8_config(model, quant_level=3, alpha=0.8, percentile=1.0, num_inference_steps=20, global_min=False):
     quant_config = {
         "quant_cfg": {
             "*lm_head*": {"enable": False},
@@ -65,9 +65,9 @@ def get_int8_config(
             continue
         if isinstance(module, (torch.nn.Linear, LinearWrapper)):
             if (
-                    (quant_level >= 2 and "ff.net" in name)
-                    or (quant_level >= 2.5 and ("to_q" in name or "to_k" in name or "to_v" in name))
-                    or quant_level == 3
+                (quant_level >= 2 and "ff.net" in name)
+                or (quant_level >= 2.5 and ("to_q" in name or "to_k" in name or "to_v" in name))
+                or quant_level == 3
             ):
                 quant_config["quant_cfg"][w_name] = {"num_bits": 8, "axis": 0}
                 quant_config["quant_cfg"][i_name] = {"num_bits": 8, "axis": -1}
@@ -103,9 +103,9 @@ def quantize_lvl(unet, quant_level=2.5):
             module.weight_quantizer.enable()
         elif isinstance(module, (torch.nn.Linear, LinearWrapper)):
             if (
-                    (quant_level >= 2 and "ff.net" in name)
-                    or (quant_level >= 2.5 and ("to_q" in name or "to_k" in name or "to_v" in name))
-                    or quant_level == 3
+                (quant_level >= 2 and "ff.net" in name)
+                or (quant_level >= 2.5 and ("to_q" in name or "to_k" in name or "to_v" in name))
+                or quant_level == 3
             ):
                 module.input_quantizer.enable()
                 module.weight_quantizer.enable()

@@ -24,12 +24,13 @@ thanks!
 '''
 
 import math
+from inspect import isfunction
+
 import numpy as np
 import torch
 import torch.nn as nn
 from apex.contrib.group_norm import GroupNorm
 from einops import repeat
-from inspect import isfunction
 from torch._dynamo import disable
 from torch.cuda.amp import custom_bwd, custom_fwd
 
