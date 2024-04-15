@@ -60,7 +60,7 @@ prompts:
 
 
 
-unet_xl: sdxl_export/plan/nemo_unet_xl.plan
+unet_xl: sdxl_export/plan/unet_xl.plan
 vae: sdxl_export/plan/vae.plan
 clip1: sdxl_export/plan/clip1.plan
 clip2: sdxl_export/plan/clip2.plan

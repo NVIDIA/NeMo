@@ -5,10 +5,10 @@ import tensorrt as trt
 import time
 import torch
 from cuda import cudart
-from demo.Diffusion.utilities import Engine, TRT_LOGGER
 from transformers import CLIPTokenizer
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.denoiser import DiscreteDenoiser
+from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.trt_engine import Engine, TRT_LOGGER
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import get_sampler_config
 from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
