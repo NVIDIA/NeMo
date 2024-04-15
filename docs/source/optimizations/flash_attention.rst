@@ -22,7 +22,7 @@ To enable Flash Attention while Megatron T5 model training, modify the following
 References
 ----------
 
-.. bibliography:: ../nlp_all.bib
+.. bibliography:: nlp_all.bib
     :style: plain
     :labelprefix: nlp-megatron
     :keyprefix: nlp-megatron-
