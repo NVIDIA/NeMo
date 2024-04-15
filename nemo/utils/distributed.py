@@ -81,7 +81,7 @@ def gather_objects(partial_results_list, main_rank=None):
         pickle.dump(predictions, open(output_fname, "wb"))
     """
     # do not fail when DDP is not initialized
-    if parallel_state.is_unitialized():
+    if not parallel_state.is_initialized():
         return partial_results_list
 
     rank = parallel_state.get_data_parallel_rank()
@@ -123,3 +123,23 @@ def temporary_directory():
     # We use barrier below to make sure that rank zero won't exit
     # and delete tmp_dir while other ranks may still use it
     dist.barrier()
+
+
+def webdataset_split_by_workers(src):
+    """
+    This is for latest webdataset>=0.2.6 
+    This function will make sure that each worker gets a different subset of the dataset.
+    """
+    # group = torch.distributed.group.WORLD
+    # rank = torch.distributed.get_rank(group=group)
+    # world_size = torch.distributed.get_world_size(group=group)
+    worker_info = torch.utils.data.get_worker_info()
+    num_workers = 1
+    if worker_info is not None:
+        worker = worker_info.id
+        num_workers = worker_info.num_workers
+
+    if num_workers > 1:
+        yield from list(src)[worker::num_workers]
+    else:
+        yield from src

@@ -95,7 +95,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
             self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
 
-        self._reset_activation_checkpointing_args()
         self.virtual_tokens = 0
         self.init_global_step = 0
 
@@ -195,6 +194,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
             self.setup_transformer_engine_tp_groups()
+            self.setup_transformer_engine_cp_groups()
         self.setup_complete = True
 
     def _build_dataset(self, data_cfg, is_train=True):
@@ -257,11 +257,13 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
         )
 
+        dataset_kwargs = {}
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
             if self.cfg.data.get("chat", False):
                 dataset_cls = GPTSFTChatDataset
             elif packed_sequence:
                 dataset_cls = GPTSFTPackedDataset
+                dataset_kwargs = {'return_cu_seqlen': data_cfg.get("packed_sequence_return_cu_seqlen", True)}
                 assert data_cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
             else:
                 dataset_cls = GPTSFTDataset
@@ -280,7 +282,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 add_eos=data_cfg.get('add_eos', True),
                 add_sep=data_cfg.get('add_sep', False),
                 sep_id=self.sep_id,
-                max_num_samples=num_samples[0] if not packed_sequence else None,
+                max_num_samples=num_samples[0],
                 seed=data_cfg.get('seed', 1234),
                 label_key=data_cfg.get('label_key', 'answer'),
                 answer_only_loss=self.cfg.get('answer_only_loss', True),
@@ -305,6 +307,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
                 is_test=not is_train,
+                **dataset_kwargs,
             )
             datasets.append(dataset)
         if is_train:
@@ -369,7 +372,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(tuning=True),
+            forward_step_func=self.get_forward_output_and_loss_func(tuning=True, validation_step=forward_only),
             data_iterator=self._make_data_iterator_list(data_iter),
             model=self.model,
             num_microbatches=get_num_microbatches(),
