@@ -37,7 +37,10 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
+    from megatron.core.transformer.transformer_block import get_num_layers_to_build, TransformerBlockSubmodules
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
+    from megatron.core.fusions import FusedLayerNorm
+
 
     HAVE_MEGATRON_CORE = True
 
@@ -322,8 +325,9 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
 
 # Use this spec to use the full Transformer layer from Transformer Engine
-def get_gpt_full_te_layer_autocast_spec() -> ModuleSpec:
+def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
     if not HAVE_MEGATRON_CORE or not HAVE_TE:
         raise ImportError(IMPORT_ERROR)
-
-    return ModuleSpec(module=TETransformerLayerAutocast)
+    num_layers = get_num_layers_to_build(transformer_config)
+    return TransformerBlockSubmodules(layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers,
+                                      layer_norm=FusedLayerNorm)
