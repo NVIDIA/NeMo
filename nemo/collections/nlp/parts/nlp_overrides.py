@@ -137,6 +137,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
+                order='tp-pp-dp' if app_state.use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -869,7 +870,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                     sharded_state_dict = model.sharded_state_dict()
                     # dist checkpoint needs torch.distributed to save the checkpoint
-                    if parallel_state.is_unitialized():
+                    if not parallel_state.is_initialized():
 
                         def dummy():
                             return
@@ -1110,7 +1111,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # if we're using dist checkpointing then state_dict will be None
         if state_dict is None:
             # dist checkpointing needs torch.distributed to load the checkpoint
-            if parallel_state.is_unitialized():
+            if not parallel_state.is_initialized():
 
                 def dummy():
                     return

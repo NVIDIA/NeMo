@@ -206,7 +206,7 @@ def make_trainer(args, nemo_config):
     nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
 
-    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
+    trainer = Trainer(plugins=plugins, accelerator='cpu', strategy=NLPDDPStrategy())
     return trainer, dtype
 
 

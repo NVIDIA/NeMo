@@ -89,6 +89,8 @@ try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
+    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
 
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
@@ -1308,13 +1310,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # it should be casted to other pipeline stages for logging.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.loss_broadcast_src_rank is None:
-                dp_size = parallel_state.get_data_parallel_world_size()
-                cp_size = parallel_state.get_context_parallel_world_size()
-                tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * cp_size * tp_size)
-                last_pipeline_stage_offset = (tp_size * cp_size * dp_size) * (pp_size - 1)
-                self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
+                self.loss_broadcast_src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
             torch.distributed.broadcast(
                 averaged_loss, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
             )
@@ -1479,9 +1475,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
-            self.model
-        )
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert()
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
@@ -1570,7 +1564,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return
@@ -1740,6 +1734,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # reset vp rank
             if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+            # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
+            def skip_fp8_load(x):
+                if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
+                    x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+                return x
+
+            if self.cfg.get('skip_fp8_attention_checkpoint_load', True):
+                dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
 
             return sharded_state_dict
 
