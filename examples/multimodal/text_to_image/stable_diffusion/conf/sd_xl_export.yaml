@@ -24,8 +24,8 @@ model:
 
 infer:
   out_path: sdxl_export
-  width: 256
-  height: 256
+  width: 1024
+  height: 1024
   batch_size: 2
 
 trt:

@@ -42,13 +42,17 @@ steps: 40
 scale: 5.0
 scale_factor: 0.13025
 
-width: 256
-height: 256
+width: 1024
+height: 1024
 num_warmup_runs: 2
-adm_in_channels: 1280
+adm_in_channels: 2816
 in_channels: 4
 seed: 123
 num_samples: 4
+orig_width: 1024
+orig_height: 1024
+crop_coords_top: 0
+crop_coords_left: 0
 
 
 prompts:
