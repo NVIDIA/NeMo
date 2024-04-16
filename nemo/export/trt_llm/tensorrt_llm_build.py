@@ -348,3 +348,56 @@ def build(
     tok = time.time()
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
     logger.info(f"Total time of building all {args.mapping.world_size} engines: {t}")
+
+def build_and_save_engine(
+    max_input_len=1024,
+    max_output_len=1024,
+    max_batch_size=4,
+    model_dir=None,
+    model_weights=None,
+    model_config=None,
+):
+    '''Minimum implementation of TRTLLM 0.9's unified builder api'''
+
+    from tensorrt_llm.commands.build import build_model, build as build_trtllm
+    from tensorrt_llm.plugin import PluginConfig
+    from tensorrt_llm.builder import BuildConfig
+    from tensorrt_llm._utils import torch_dtype_to_np, np_dtype_to_trt, trt_dtype_to_str
+    from tensorrt_llm.models.llama.model import LLaMAForCausalLM
+    from tensorrt_llm.models.modeling_utils import optimize_model, preprocess_weights
+
+    str_dtype = model_config.dtype
+    plugin_config = PluginConfig()
+    plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
+    plugin_config.set_gemm_plugin(dtype=str_dtype)
+    max_num_tokens = max_batch_size*max_input_len
+
+    build_dict = {
+        'max_input_len': max_input_len,
+        'max_output_len': max_output_len,
+        'max_batch_size': max_batch_size,
+        'max_beam_width': 1,
+        'max_num_tokens': max_num_tokens,
+        'opt_num_tokens': None,
+        'max_prompt_embedding_table_size': 0,
+        'gather_context_logits': False,
+        'gather_generation_logits': False,
+        'strongly_typed': False,
+        'builder_opt': None,
+        'use_refit': True,
+    }
+    build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
+
+    model = LLaMAForCausalLM.from_config(model_config)
+    model = optimize_model(
+        model,
+        use_parallel_embedding=model_config.use_parallel_embedding,
+        share_embedding_table=model_config.share_embedding_table,
+    )
+    preprocess_weights(model_weights, model_config)
+    model.load(model_weights)
+    engine = build_trtllm(model, build_config) 
+    engine.save(model_dir)        
+    
+    return engine
+

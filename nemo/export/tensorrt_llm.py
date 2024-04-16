@@ -233,61 +233,151 @@ class TensorRTLLM(ITritonDeployable):
         self,
         nemo_model,
         nemo_model_config,
-        tokenizer=None,
-        max_input_token: int = 256,
-        max_output_token: int = 256,
+        tokenizer,
+        max_input_len: int = 256,
+        max_output_len: int = 256,
         max_batch_size: int = 8,
         use_refit: bool = False,
-        model_type: str = "gptnext",
-    ):
-        from megatron.core import parallel_state
+        reshard_model: bool = False,
+    ):  
+        from tensorrt_llm.bindings import MpiComm
+        assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
+
+        gpus_per_node = 8
+        logger.set_level('info')
 
         self.use_refit = use_refit
-        self.stream = torch.cuda.Stream()
-        self.model_type = model_type
         self.tokenizer = build_tokenizer(tokenizer)
 
-        # Each model shard has its own directory
-        if parallel_state.get_data_parallel_world_size() > 1:
-            self.model_dir = os.path.join(self.model_dir, f"dp{parallel_state.get_data_parallel_rank()}")
-        if parallel_state.get_tensor_model_parallel_world_size() > 1:
-            self.model_dir = os.path.join(self.model_dir, f"tp{parallel_state.get_tensor_model_parallel_rank()}")
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            self.model_dir = os.path.join(self.model_dir, f"pp{parallel_state.get_pipeline_model_parallel_rank()}")
+        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+        tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        dp_size = parallel_state.get_data_parallel_world_size()
+        tp_rank = parallel_state.get_tensor_model_parallel_rank()
+        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+        dp_rank = parallel_state.get_data_parallel_rank()
 
-        # Build or refit TRT-LLM engine from a nemo model.
-        model_configs = nemo_llm_model_to_model_config(
-            nemo_model=nemo_model, decoder_type=model_type, nemo_model_config=nemo_model_config,
+        if reshard_model and pp_size > 1:
+            self.reshard_model = True
+            dp_size = dp_size*pp_size
+            dp_rank = torch.distributed.get_rank() // tp_size
+            pp_rank = 0
+            pp_size = 1
+        else:
+            self.reshard_model = False
+
+        model_parallel_size = tp_size*pp_size
+        model_parallel_rank = tp_size*pp_rank + tp_rank
+        MpiComm.split(dp_rank, model_parallel_rank)
+
+        # Get the model parallel group using global ids from NeMo
+        tp_groups = [[j*tp_size+i for i in range(tp_size)] for j in range(pp_size*dp_size)]
+        mp_group = []
+        for idx in range(pp_size):
+            mp_group+=tp_groups[dp_rank + idx*dp_size]
+        device_ids = [i % gpus_per_node for i in mp_group]
+
+        mapping = Mapping(
+            world_size = tp_size*pp_size,
+            rank = tp_size*pp_rank + tp_rank,
+            gpus_per_node = gpus_per_node,
+            tp_size = tp_size,
+            pp_size = pp_size
         )
 
-        model_config_to_tensorrt_llm(
-            model_configs,
-            self.model_dir,
-            max_input_len=max_input_token,
-            max_output_len=max_output_token,
+        if dp_size > 1:
+            self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
+
+        LOGGER.info(
+            f'''TRT-LLM rank mapping: Rank {torch.distributed.get_rank()} -> {model_parallel_rank}:
+            tp_rank  {parallel_state.get_tensor_model_parallel_rank()} -> {mapping.tp_rank}, 
+            pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {mapping.pp_rank}'''
+        )
+        print(f"{torch.distributed.get_rank()} color {dp_rank} rank {model_parallel_rank} nemo_mp_group {mp_group} {device_ids} ")
+        assert torch.cuda.current_device() == device_ids[model_parallel_rank]
+
+        model_config, weights = nemo_llm_model_to_model_config(
+            nemo_model=nemo_model,
+            tokenizer=self.tokenizer,
+            nemo_model_config=nemo_model_config,
+            reshard_model=self.reshard_model,
+            mapping=mapping,
+        )
+
+        print_mem("pre build_and_save_engine")
+        self.engine = build_and_save_engine(
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
             max_batch_size=max_batch_size,
-            max_beam_width=1,
-            max_prompt_embedding_table_size=0,
-            use_refit=self.use_refit,
+            model_config=model_config,
+            model_weights=weights,
+            model_dir=self.model_dir,
         )
-        # Use load_refit to handle multiprocessed environment
-        self.model = load_refit(
-            tokenizer=self.tokenizer, engine_dir=self.model_dir, model_configs=model_configs, stream=self.stream
+        torch.distributed.barrier()
+        print_mem("post build_and_save_engine")
+
+        self.model_runner, self.session_params = load_dataparallel(
+            engine_dir=self.model_dir,
+            device_ids=device_ids,
         )
+
+        # sampling_config = tensorrt_llm.runtime.SamplingConfig(
+        #     end_id=self.tokenizer.eos_id, 
+        #     pad_id=self.tokenizer.eos_id, #TODO
+        # )
+
+        # data = [529,17833,29918,333,29918,29900,29958,3924,13,13,29966,17833,29918,333,29918,29896,29958,2659,13,22110,8906,341,18219,25992,29973,13,29966,17833,29918,333,29918,29896,29958,7900,22137,13]
+        # inputdata = [torch.IntTensor(data)]
+        # resp = self.model_runner.generate(inputdata, sampling_config=sampling_config)
+        # resp = resp[0][0].tolist()
+        # resp = tokenizer.ids_to_text(resp)
+        # print(f"@@@@@@@@ {torch.cuda.current_device()} {orig_dev} {resp}")
+
+        # if torch.cuda.current_device() == 0:
+        #     import pdb
+        #     pdb.set_trace()
+        # torch.distributed.barrier()
+
 
     def refit(
-        self, nemo_model, nemo_model_config,
+        self,
+        nemo_model,
+        nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
+        assert self.engine, "TRT-LLM model must be loaded with build() prior to refitting"
+        
+        from .trt_llm.nemo.nemo_ckpt_convert import convert_nemo_model
 
-        # Build or refit TRT-LLM engine from a nemo model.
-        model_configs = nemo_llm_model_to_model_config(
-            nemo_model=nemo_model, decoder_type=self.model_type, nemo_model_config=nemo_model_config
+        print_mem("pre refit")
+
+        import time
+        tic = time.time()
+        
+        # Build or refit TRT-LLM engine from a nemo model. 
+        weights = convert_nemo_model(
+            nemo_model=nemo_model,
+            nemo_model_config=nemo_model_config,
+            tokenizer_vocab_size=self.tokenizer.vocab_size,
+            reshard_model=self.reshard_model,
         )
 
-        self.model = load_refit(
-            tokenizer=self.tokenizer, engine_dir=self.model_dir, model_configs=model_configs, stream=self.stream
-        )
+        toc = time.time()
+        print_mem("post nemo_model_to_model_config")
+        print(f"    nemo_model_to_model_config took {toc-tic}")
+
+        if not hasattr(self.model_runner, "session"):
+            tic = time.time()
+            self.model_runner.session = create_gpt_session(self.session_params)
+            toc = time.time()
+            print(f"    session load took f{toc-tic}")
+
+        tic = time.time()
+        session = self.model_runner.session
+        session.refit_engine(weights, self.session_params.model_config.data_type) 
+        toc = time.time()
+        print(f"refit_runtime_engine took f{toc-tic}")
+
+        print_mem("post refit")
 
     def forward(
         self,

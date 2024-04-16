@@ -252,74 +252,83 @@ def to_word_list_format(word_dict: List[List[str]], tokenizer=None):
 
 
 def nemo_llm_model_to_model_config(
-    nemo_model: str, decoder_type: str, nemo_model_config: str, dtype_str: str = "float32",
-) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
+    nemo_model, 
+    tokenizer,
+    nemo_model_config, 
+    reshard_model,
+    mapping
+) -> Tuple[PretrainedConfig, dict]:
     """Converts the NEMO model object and construct the `ModelConfig` before tensorrt_llm deployment."""
     from megatron.core import parallel_state
+    from tensorrt_llm.models.modeling_utils import PretrainedConfig
+    from tensorrt_llm import Mapping
 
-    assert nemo_model_config is not None, "gpt_model_config must be provided when in is a nemo model"
+    weights_dict = convert_nemo_model(
+        nemo_model=nemo_model, 
+        nemo_model_config=nemo_model_config,
+        tokenizer_vocab_size=tokenizer.vocab_size,
+        reshard_model=reshard_model)
 
-    weights_dict, llm_model_config = convert_nemo_model(nemo_model, nemo_model_config, dtype_str, decoder_type)
-    is_mcore = nemo_model_config.get("mcore_gpt", False)
-    llm_model_config.is_mcore = is_mcore
+    # print(f"{torch.cuda.current_device()} {weights_dict.keys()}")
+    # rank = torch.cuda.current_device() % 4
+    # import safetensors
+    # ckpt_dir = '/lustre/fsw/coreai_dlalgo_llm/jiemingz/tekit/examples/llama/2tllm_checkpoint_pp4_bf16'
+    # model_path = os.path.join(ckpt_dir, f'rank{rank}.safetensors')
+    # ref_weights = {}
+    # with safetensors.safe_open(model_path, framework='pt', device='cpu') as f:
+    #     for key in f.keys():
+    #         ref_weights[key] = f.get_tensor(key)
 
-    model_config = ModelConfig()
-    model_config.use_prompt_tuning = False
-    model_config.dtype = dtype_str
-    model_config.use_parallel_embedding = True
-    str_dtype_to_trt(dtype_str)
+    # for k in ref_weights.keys():
+    #     v = ref_weights[k]
+    #     v2 = weights_dict[k]
+    #     if not torch.equal(v,v2):
+    #         print(f"NE {rank} {k} {torch.sum(v)} {torch.sum(v2)}")
+    # if torch.cuda.current_device() == 0:
+    #     import pdb
+    #     pdb.set_trace()
+    # torch.distributed.barrier()
 
-    model_config.vocab_embedding = EmbeddingConfig(weight=get_tensor_from_dict(weights_dict, "wte"), is_local=True)
+    if isinstance(nemo_model, list):
+        torch_dtype = next(iter(nemo_model[0].state_dict().values())).dtype
+    else:
+        torch_dtype = next(iter(nemo_model.state_dict().values())).dtype
 
-    model_config.positional_embedding = EmbeddingConfig(
-        weight=get_tensor_from_dict(weights_dict, "wpe"), is_local=True
+    str_dtype = trt_dtype_to_str(np_dtype_to_trt(torch_dtype_to_np(torch_dtype)))
+    model_config = PretrainedConfig(
+        architecture='LlamaForCausalLM',
+        dtype=str_dtype,
+        logits_dtype='float32',
+        vocab_size=tokenizer.vocab_size,
+        max_position_embeddings=nemo_model_config.get('max_position_embeddings'),
+        hidden_size=nemo_model_config.get('hidden_size'),
+        num_hidden_layers=nemo_model_config.get('num_layers'),
+        num_attention_heads=nemo_model_config.get('num_attention_heads'),
+        num_key_value_heads=nemo_model_config.get('num_query_groups'),
+        hidden_act='silu',
+        intermediate_size=nemo_model_config.get('ffn_hidden_size'),
+        norm_epsilon=nemo_model_config.get('layernorm_epsilon'),
+        position_embedding_type="rope_gpt_neox",
+        world_size=mapping.world_size,
+        tp_size=mapping.tp_size,
+        pp_size=mapping.pp_size,
+        quantization = {
+            'quant_algo': None, 
+            'kv_cache_quant_algo': None,
+            'group_size': 128, 
+            'has_zero_point': False, 
+            'pre_quant_scale': False, 
+            'exclude_modules': None}, 
+        kv_dtype=str_dtype, 
+        rotary_scaling=None,
+        moe_normalization_mode=None, 
+        rotary_base=10000.0, 
+        moe_num_experts=0, 
+        moe_top_k=0, 
+        moe_tp_mode=2, 
+        attn_bias=False, 
+        disable_weight_only_quant_plugin=False, 
+        mlp_bias=False
     )
-
-    model_config.final_layernorm = LayernormConfig(
-        weight=get_tensor_from_dict(weights_dict, "final_layernorm.weight"),
-        bias=get_tensor_from_dict(weights_dict, "final_layernorm.bias"),
-    )
-    model_config.final_layernorm.layernorm_type = (
-        LAYERNORM_RMS if isinstance(llm_model_config, LlamaConfig) else LAYERNORM_DEFAULT
-    )
-
-    tensor_parallel_size = nemo_model_config.tensor_model_parallel_size
-    pipeline_parallel_size = 1
-    world_size = tensor_parallel_size * pipeline_parallel_size
-
-    # hack since tensorrt_llm doesnt support DP natively so init all ranks with DP=1
-    model_config.mapping = tensorrt_llm.Mapping(
-        world_size=tensor_parallel_size * pipeline_parallel_size,
-        rank=tensorrt_llm.mpi_rank() % world_size,
-        tp_size=tensor_parallel_size,
-        pp_size=pipeline_parallel_size,
-    )
-    model_config.mapping.rank = tensorrt_llm.mpi_rank()
-    model_config.mapping.tp_group = get_tensor_parallel_group(tensor_parallel_size)
-
-    LOGGER.info(
-        f'''Resharing: Rank {tensorrt_llm.mpi_rank()} mapping:
-        tp_rank  {parallel_state.get_tensor_model_parallel_rank()} -> {model_config.mapping.tp_rank}, 
-        pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {model_config.mapping.pp_rank}, 
-        tp_group {model_config.mapping.tp_group}'''
-    )
-
-    for i in range(llm_model_config.n_layer):
-        model_config.layers.append(
-            DecoderLayerConfig.from_nemo(
-                weights_dict=weights_dict,
-                llm_config=llm_model_config,
-                decoder_type=decoder_type,
-                layer_id=i,
-                rank=model_config.mapping.tp_rank,
-                is_mcore=llm_model_config.is_mcore,
-            )
-        )
-    lm_head_weight = get_tensor_from_dict(weights_dict, "lm_head.weight")
-
-    assert model_config.vocab_size_padded == model_config.vocab_size
-
-    model_config.lm_head = LinearConfig(linear_type=LINEAR_COLUMN)
-    model_config.lm_head.weight = lm_head_weight
-
-    return [model_config]
+    model_config.mapping = mapping
+    return model_config, weights_dict

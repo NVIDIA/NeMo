@@ -310,103 +310,60 @@ def load(
     )
 
 
-def load_refit(
-    tokenizer,
-    engine_dir: str,
-    lora_ckpt_list: List[str] = None,
-    num_beams: int = 1,
-    model_configs: List = None,
-    stream=None,
-) -> TensorrtLLMHostContext:
+def load_refit(engine_dir, device_ids):
     """Loaded the compiled LLM model and run it.
 
     It also supports running the TRT LLM model on multi-GPU.
     """
 
-    config_path = os.path.join(engine_dir, "config.json")
-    with open(config_path, "r") as f:
-        config = json.load(f)
-    """The impl of `load` API for on a single GPU worker."""
-    tensorrt_llm.logger.set_level("error")
+    config_path = Path(engine_dir) / "config.json"
+    json_config = GptJsonConfig.parse_file(config_path)
+    model_config = json_config.model_config
 
-    engine_dir = Path(engine_dir)
-    config_path = engine_dir / "config.json"
+    tp_size = json_config.tensor_parallelism
+    pp_size = json_config.pipeline_parallelism
+    world_config = WorldConfig.mpi(tensor_parallelism=tp_size,
+                                    pipeline_parallelism=pp_size,
+                                    device_ids=device_ids)
 
-    (
-        model_config,
-        world_size,
-        tensor_parallel_size,
-        pipeline_parallel_size,
-        dtype,
-        max_input_len,
-        max_batch_size,
-    ) = _read_config(config_path)
+    assert tensorrt_llm.bindings.MpiComm.getRank() == world_config.rank
+    engine_filename = json_config.engine_filename(world_config)
+    serialize_path = Path(engine_dir) / engine_filename
 
-    runtime_rank = torch.cuda.current_device()
-    assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
+    model_config = json_config.model_config
+    max_beam_width = model_config.max_beam_width
+    max_batch_size = model_config.max_batch_size
+    max_input_len = model_config.max_input_len
+    max_seq_len = model_config.max_seq_len
 
-    # Manipulate the tensorrt_llm mapping to make it compatible with the multiprocessed env.
-    assert tensorrt_llm.mpi_world_size() == torch.distributed.get_world_size(), "MPI world size mismatch"
-    runtime_mapping = tensorrt_llm.Mapping(
-        world_size=tensorrt_llm.mpi_world_size(), rank=runtime_rank, tp_size=tensorrt_llm.mpi_world_size(), pp_size=1,
+    session_config = GptSessionConfig(max_batch_size=max_batch_size,
+                                        max_beam_width=max_beam_width,
+                                        max_sequence_length=max_seq_len)
+    session_config.kv_cache_config = KvCacheConfig(
+        max_tokens=max_seq_len*max_batch_size,
+        max_attention_window=max_seq_len
     )
 
-    engine_name = get_engine_name(
-        MODEL_NAME, dtype, tensor_parallel_size, pipeline_parallel_size, tensorrt_llm.mpi_rank()
-    )
-
-    logger.info(f"Loading engine: Rank ({tensorrt_llm.mpi_rank()} -> {engine_dir}/{engine_name}")
-
-    serialize_path = os.path.join(engine_dir, engine_name)
     with open(serialize_path, "rb") as f:
-        engine_buffer = f.read()
+        engine_data = bytearray(f.read())
 
-    decoder = tensorrt_llm.runtime.GenerationSession(
-        model_config, engine_buffer, runtime_mapping, debug_mode=False, stream=stream
+    session_params = GptSession_params(
+        session_config=session_config,
+        model_config=model_config,
+        world_config=world_config,
+        engine_data=engine_data
     )
-    runtime_mapping.rank = runtime_rank
-    runtime_mapping.tp_group = get_tensor_parallel_group(
-        tensor_parallel_size
-    )  # Override the tp_group to support TP+DP
-    runtime_mapping.tp_rank = runtime_rank
-    runtime_mapping.tp_size = tensor_parallel_size
-    runtime_mapping.pp_group = [runtime_rank]
-    runtime_mapping.pp_rank = 0
+    session = create_gpt_session(session_params, engine_data)
+    
+    model_runner = ModelRunnerCpp(session,
+                lora_manager=None,
+                max_batch_size=max_batch_size,
+                max_input_len=max_input_len,
+                max_seq_len=max_seq_len,
+                max_beam_width=max_beam_width)
 
-    sampling_config = SamplingConfig(end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams)
+    return model_runner, session_params
 
-    if decoder.use_lora_plugin:
-        lora_manager = LoraManager()
-        if lora_ckpt_list is not None:
-            lora_manager.load_from_nemo(
-                model_files=lora_ckpt_list, model_config=model_config, runtime_mapping=runtime_mapping,
-            )
-    else:
-        lora_manager = None
-
-    # create a new builder and refit the current engine
-    new_builder = LMHeadModelBuilder(model_configs[0])
-    engine = decoder.runtime.engine
-    refit_runtime_engine(new_builder.named_parameters(), engine)
-
-    # Initialize the global context so it can be used during `run` API.
-    global tensorrt_llm_worker_context
-    tensorrt_llm_worker_context.decoder = decoder
-    tensorrt_llm_worker_context.sampling_config = sampling_config
-    tensorrt_llm_worker_context.lora_manager = lora_manager
-    tensorrt_llm_worker_context.max_batch_size = max_batch_size
-    tensorrt_llm_worker_context.max_input_len = max_input_len
-
-    max_batch_size = config["builder_config"]["max_batch_size"]
-    max_input_len = config["builder_config"]["max_input_len"]
-
-    return TensorrtLLMHostContext(
-        executor=None,
-        world_size=world_size,
-        tokenizer=tokenizer,
-        max_batch_size=max_batch_size,
-        max_input_len=max_input_len,
-    )
 
 
 def forward(

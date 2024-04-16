@@ -311,201 +311,229 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
 
 @torch.no_grad()
-def convert_nemo_model(nemo_model, nemo_model_config, storage_type_str, decoder_type=None):
+def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, reshard_model=False, cpu=True):
     from megatron.core import parallel_state
-
-    is_mcore = nemo_model_config.get("mcore_gpt", False)
-
-    nemo_model_state_dict = nemo_model.state_dict()
-    prefix, transformer_layer_prefix = get_layer_prefix(nemo_model_state_dict, is_mcore)
-    has_position_embedding = get_layer_name("position_embedding", prefix) in nemo_model_state_dict
-    has_lm_head = get_layer_name("output_layer", prefix) in nemo_model_state_dict
-    has_final_layer_bias = get_layer_name("final_layernorm.bias", transformer_layer_prefix) in nemo_model_state_dict
+    from megatron.core.tensor_parallel.utils import VocabUtility
 
     tp_rank = parallel_state.get_tensor_model_parallel_rank()
     tp_size = parallel_state.get_tensor_model_parallel_world_size()
+    tp_group = parallel_state.get_tensor_model_parallel_group()
     pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+    pp_first_rank = parallel_state.get_pipeline_model_parallel_first_rank()
+    pp_last_rank = parallel_state.get_pipeline_model_parallel_last_rank()
     pp_size = parallel_state.get_pipeline_model_parallel_world_size()
     pp_group = parallel_state.get_pipeline_model_parallel_group()
-    # split_factor = 1
-    storage_type = str_dtype_to_torch(storage_type_str)
+    vp_size = parallel_state.get_virtual_pipeline_model_parallel_world_size()
+    if not vp_size: vp_size = 1
 
     num_layers = nemo_model_config["num_layers"]
-    training_tp_size = nemo_model_config.get("tensor_model_parallel_size", 1)
     training_pp_size = nemo_model_config.get("pipeline_model_parallel_size", 1)
     num_kv_heads = nemo_model_config.get("num_query_groups", 0)
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
+    is_mcore = nemo_model_config.get("mcore_gpt", False)
 
-    # pp currently unsupported so reshard away PP
-    is_pp_resharding = False
-    if pp_size > 1:
-        is_pp_resharding = True
+    if vp_size > 1:
+        state_dict = nemo_model[0].state_dict()
+    else:
+        state_dict = nemo_model.state_dict()
+    storage_type = next(iter(state_dict.values())).dtype
+    prefix, transformer_layer_prefix = get_layer_prefix(state_dict, is_mcore)
 
     if num_kv_heads == 0:
-        if multi_query_mode:
-            num_kv_heads = 1
-        else:
-            num_kv_heads = num_attention_heads
+        num_kv_heads = 1 if multi_query_mode else num_attention_heads
+    reshard_model = reshard_model and pp_size > 1
+    weights_dict = persistent_weight_dict if cpu else {}
 
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
-        "tp_size": training_tp_size,
-        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu")
-        and (decoder_type == "gptnext" or is_mcore),
+        "tp_size": tp_size,
+        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu"),
         "num_attention_heads": nemo_model_config["num_attention_heads"],
         "num_kv_heads": num_kv_heads,
-        "use_attention_nemo_shape": True,
         "transpose_weights": True,
-        "from_nemo_model": True,
+        "num_layers": num_layers,
+        "storage_type": storage_type,
+        "move_to_cpu": cpu,
+        "save_dict": weights_dict,
+        "tp_rank": tp_rank
     }
 
-    # Gather meta data from first and last PP stage
-    if is_pp_resharding:
-        has_lm_head = torch.tensor(has_lm_head).cuda()
-        src_rank = torch.distributed.get_global_rank(pp_group, pp_size - 1)
-        torch.distributed.broadcast(has_lm_head, src_rank, group=pp_group)
-        has_lm_head = has_lm_head.item()
-
-        has_position_embedding = torch.tensor(has_position_embedding).cuda()
-        src_rank = torch.distributed.get_global_rank(pp_group, 0)
-        torch.distributed.broadcast(has_position_embedding, src_rank, group=pp_group)
-        has_position_embedding = has_position_embedding.item()
-
-        has_final_layer_bias = torch.tensor(has_final_layer_bias).cuda()
-        src_rank = torch.distributed.get_global_rank(pp_group, pp_size - 1)
-        torch.distributed.broadcast(has_final_layer_bias, src_rank, group=pp_group)
-        has_final_layer_bias = has_final_layer_bias.item()
-
-    trt_inflight_weights = {}
+    tl_params = {}
+    model_level_params = {}
     starmap_args = []
 
-    def handle_model_level_weights(model, tp_idx: int, pp_idx: int):
-        def _handle_weights(src_key: str, dst_key: str, pp_src_idx: int, tensor_dim: int):
-            src_pp_global_rank = torch.distributed.get_global_rank(pp_group, pp_src_idx)
-            # Broadcast the shape
-            if pp_idx == pp_src_idx:
-                gathered_tensor = model.get("state_dict", model)[src_key].type(storage_type).cuda()
-                shape = torch.IntTensor(list(gathered_tensor.shape)).cuda()
+    tic = time.time()
+
+    layers_per_pp = num_layers // pp_size
+    layers_per_chunk = layers_per_pp // vp_size
+
+    if vp_size > 1: # consolidate params across model chunks
+        for idx, model_chunk in enumerate(nemo_model):
+            for key, val in model_chunk.state_dict().items():
+                if '_extra_state' in key:
+                    continue
+                elif 'decoder.layers' in key:
+                    key2 = rename_layer_num(key, get_layer_num(key) + idx*pp_size*layers_per_chunk)
+                    tl_params[key2] = val
+                else:
+                    model_level_params[key] = val
+    else:
+        for key, val in nemo_model.state_dict().items():
+            if '_extra_state' in key:
+                continue
+            elif 'decoder.layers' in key:
+                tl_params[key] = val
             else:
-                shape = torch.zeros(tensor_dim, dtype=torch.int32).cuda()
-            torch.distributed.broadcast(shape, src_pp_global_rank, group=pp_group)
+                model_level_params[key] = val  
 
-            # Collect the tensor
-            if pp_idx != pp_src_idx:
-                gathered_tensor = torch.zeros(*shape, dtype=storage_type).cuda()
-            torch.distributed.broadcast(gathered_tensor, src_pp_global_rank, group=pp_group)
+    if vp_size > 1 or reshard_model:
+        # gather layers across pp ranks
+        gathered_params = {}
+        for key, val in tl_params.items():
+            weight_list = [torch.zeros_like(val) for _ in range(pp_size)]
+            torch.distributed.all_gather(weight_list, val, group=pp_group)
+            for idx in range(pp_size):  
+                layer_num = get_layer_num(key) + idx*layers_per_chunk
+                key2 = rename_layer_num(key, layer_num)
+                if not reshard_model: #Save only layers of 1 single PP stage
+                    layers_start = layers_per_pp*pp_rank
+                    layers_end = layers_per_pp*(pp_rank+1) -1
+                    if layer_num >= layers_start and layer_num <= layers_end:
+                        key2 = rename_layer_num(key, layer_num % layers_per_pp)
+                        gathered_params[key2] = weight_list[idx]
+                else:
+                    gathered_params[key2] = weight_list[idx]
+        tl_params = gathered_params
 
-            if "final_layernorm" not in src_key:
-                gathered_tensor = gathered_tensor.to(storage_type).cpu()
-                trt_inflight_weights[dst_key] = torch_to_numpy(gathered_tensor)
-            else:
-                starmap_args.append(
-                    {
-                        "tp_rank": tp_idx,
-                        "saved_dir": trt_inflight_weights,
-                        "split_factor": 1,
-                        "key": dst_key,
-                        "vals": [gathered_tensor],
-                        "storage_type": storage_type,
-                        "act_range": None,
-                        "config": export_config,
-                    }
-                )
+    toc = time.time()
+    print(f"    PP Reshard save took {toc-tic}")
 
-        if has_lm_head:
-            _handle_weights(get_layer_name("output_layer", prefix), "model.lm_head.weight.bin", pp_size - 1, 2)
-        if has_position_embedding:
-            _handle_weights(get_layer_name("position_embedding", prefix), "model.wpe.bin", 0, 2)
-
-        _handle_weights(get_layer_name("word_embedding", prefix), "model.wte.bin", 0, 2)
-        _handle_weights(
-            get_layer_name("final_layernorm.weight", transformer_layer_prefix),
-            "final_layernorm.weight",
-            pp_size - 1,
-            1,
+    # ----------------Convert layer level weights----------------  
+    layer_params = extract_layers_with_prefix(tl_params, transformer_layer_prefix)
+    layer_params = {
+        k: v for k, v in layer_params.items() if k.startswith("layers.")
+    }
+    for key, val in layer_params.items():
+        starmap_args.append(
+            {
+                "key": key,
+                "val": val,
+                "config": export_config,
+            }
         )
 
-        if has_final_layer_bias:
-            _handle_weights(
-                get_layer_name("final_layernorm.bias", transformer_layer_prefix),
-                "final_layernorm.bias",
-                pp_size - 1,
-                1,
-            )
+    def broadcast_item(item, group, src_rank):
+        item = [item]
+        torch.distributed.broadcast_object_list(item, src_rank, group=group)
+        return item[0]
 
-        torch.cuda.empty_cache()
+    #broadcast a tensor across PP group and save it
+    def broadcast_save_weight(
+        src_key_or_tensor, dst_key, pp_src_idx, transpose_weights=False):
 
-    models = []
+        if (not reshard_model) or (reshard_model and torch.distributed.get_rank() == pp_src_idx):
+            if torch.is_tensor(src_key_or_tensor):
+                tensor = src_key_or_tensor
+            else:
+                tensor = model_level_params[src_key_or_tensor]
 
-    handle_model_level_weights(nemo_model_state_dict, tp_rank, pp_rank)
-    layers = extract_layers_with_prefix(nemo_model_state_dict, transformer_layer_prefix)
-    models.append(layers)
+        if reshard_model:
+            if torch.distributed.get_rank() == pp_src_idx:
+                shape = tensor.shape
+            else:
+                shape = [None]
+            shape = broadcast_item(shape, pp_group, pp_src_idx)
+            
+            if torch.distributed.get_rank() != pp_src_idx:
+                tensor = torch.zeros(shape, dtype=storage_type).cuda()
+            torch.distributed.broadcast(tensor, pp_src_idx, group=pp_group)
 
-    for key in models[0].keys():
-        # Skip final_layernorm.
-        if not key.startswith("layers."):
-            continue
-        if "_extra_state" not in key:
-            starmap_args.append(
+        temp_config = dict(export_config)
+        temp_config['transpose_weights'] = transpose_weights
+        starmap_args.append(
                 {
-                    "tp_rank": tp_rank,
-                    "saved_dir": trt_inflight_weights,
-                    "split_factor": 1,
-                    "key": rename_key(key, pp_rank, num_layers, training_pp_size),
-                    "vals": [model[key] for model in models],
-                    "storage_type": storage_type,
-                    "act_range": None,
-                    "config": export_config,
+                    "key": dst_key,
+                    "val": tensor,
+                    "config": temp_config,
                 }
             )
-    starmap_args = tqdm(starmap_args, desc="saving weights")
-    for starmap_arg in starmap_args:
+
+    # ----------------Convert Final Layernorm----------------  
+    if torch.distributed.get_rank() == pp_last_rank or reshard_model:
+        broadcast_save_weight(
+            get_layer_name("final_layernorm.weight", transformer_layer_prefix), 
+            "ln_f.weight", 
+            pp_last_rank, 
+            transpose_weights=True
+        )
+
+    has_final_layer_bias = get_layer_name("final_layernorm.bias", transformer_layer_prefix) in model_level_params
+    if reshard_model:
+        has_final_layer_bias = broadcast_item(has_final_layer_bias, pp_group, pp_last_rank)
+    if has_final_layer_bias:
+        broadcast_save_weight(
+            get_layer_name("final_layernorm.bias", transformer_layer_prefix), 
+            "ln_f.bias", 
+            pp_last_rank, 
+            transpose_weights=True
+        )
+
+    # ----------------Convert Embeddings----------------  
+    def remove_vocab_padding(tensor):
+        vocab_size_per_tp = tensor.shape[0]
+        vocab_size_padded = vocab_size_per_tp*tp_size
+        vocab_start_index, vocab_end_index = VocabUtility.vocab_range_from_global_vocab_size(
+        vocab_size_padded, tp_rank, tp_size)
+
+        dim_size = list(tensor.size())
+        dim_size[0] = vocab_size_padded
+
+        gathered_tensor = torch.zeros(dim_size, dtype=tensor.dtype).cuda()
+        gathered_tensor[vocab_start_index:vocab_end_index] = tensor
+        torch.distributed.all_reduce(gathered_tensor, group=tp_group)
+        return gathered_tensor[:tokenizer_vocab_size]
+
+    if torch.distributed.get_rank() == pp_first_rank:
+        world_embed = model_level_params[get_layer_name("word_embedding", prefix)]
+        if tp_size > 1:
+            world_embed = remove_vocab_padding(world_embed)
+    else:
+        world_embed = None
+
+    if torch.distributed.get_rank() == pp_first_rank or reshard_model:
+        broadcast_save_weight(
+            world_embed, 
+            "transformer.vocab_embedding.weight", 
+            pp_first_rank, 
+            transpose_weights=False, 
+        )
+
+    if torch.distributed.get_rank() == pp_last_rank:
+        lm_head = model_level_params[get_layer_name("output_layer", prefix)]
+        if tp_size > 1:
+            lm_head = remove_vocab_padding(lm_head)
+
+            vocab_start_index, vocab_end_index = VocabUtility.vocab_range_from_global_vocab_size(
+                tokenizer_vocab_size, tp_rank, tp_size)
+            lm_head = lm_head[vocab_start_index:vocab_end_index]
+    else:
+        lm_head = None
+
+    if torch.distributed.get_rank() == pp_last_rank or reshard_model:
+        broadcast_save_weight(
+            lm_head, 
+            "lm_head.weight", 
+            pp_last_rank,
+            transpose_weights=False, 
+        )
+    tic = time.time()
+    for starmap_arg in tqdm(starmap_args, desc="saving weights"):
         save_weight_torch(**starmap_arg)
+    toc = time.time()
+    print(f"     weight save took {toc-tic}")
+    return weights_dict
 
-    # Collect weights from different pp stages
-    # Assume each rank has the same number of layers
-    if is_pp_resharding:
-        collect_pp_weights = {}
-        for key, val in trt_inflight_weights.items():
-            # Skip embedding and final layer
-            if not key.startswith("model.layers"):
-                continue
-            # Convert numpy array to torch tensor and gather weights
-            curr_weight = trt_inflight_weights[key]
-            if curr_weight.dtype != np_bfloat16:
-                curr_weight = torch.tensor(curr_weight).cuda()
-            else:
-                curr_weight = torch.tensor(curr_weight.view(np.int16)).view(torch.bfloat16).cuda()
-            weight_list = [torch.zeros_like(curr_weight) for _ in range(pp_size)]
-            torch.distributed.all_gather(weight_list, curr_weight, group=pp_group)
-            # Collect weights name
-            for rank in range(pp_size):
-                split_key = key.split(".")
-                layer_index = get_layer_index(split_key)
-                split_key[layer_index] = str(int(split_key[layer_index]) + (rank - pp_rank) * num_layers // pp_size)
-                new_key = ".".join(split_key)
-                collect_pp_weights[new_key] = torch_to_numpy(weight_list[rank].to(storage_type).cpu())
-
-        trt_inflight_weights.update(collect_pp_weights)
-
-    vocab_size = trt_inflight_weights["model.wte.bin"].shape[0] * tp_size
-
-    llm_config = nemo_to_llm_config(
-        nemo_model_config,
-        vocab_size,
-        None,
-        None,
-        decoder_type=decoder_type,  # how to get eos_id and bos_id from different tokenizer?
-    )
-    llm_config.is_mcore = is_mcore
-
-    config = configparser.ConfigParser()
-    model_name = "llama" if isinstance(llm_config, LlamaConfig) else "gpt"
-    config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
-    config[model_name]["storage_dtype"] = storage_type_str
-
-    return trt_inflight_weights, llm_config
 
 
 def create_out_dir(args):
