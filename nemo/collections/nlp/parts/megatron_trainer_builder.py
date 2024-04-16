@@ -19,7 +19,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     CustomProgressBar,
@@ -29,6 +28,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPDDPStrategyNotebook,
     NLPFSDPStrategy,
     PipelineMixedPrecisionPlugin,
+    FSDPMixedPrecisionPlugin,
 )
 from nemo.utils import logging
 
@@ -116,7 +116,7 @@ class MegatronTrainerBuilder:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
                 if self.cfg.model.get('fsdp', False):
-                    plugins.append(FSDPPrecision(precision=plugin_precision, scaler=scaler))
+                    plugins.append(FSDPMixedPrecisionPlugin(precision=plugin_precision, scaler=scaler))
                 else:
                     plugins.append(
                         PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
