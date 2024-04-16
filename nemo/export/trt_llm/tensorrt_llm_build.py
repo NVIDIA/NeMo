@@ -356,7 +356,10 @@ def build(
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
     logger.info(f"Total time of building all {args.mapping.world_size} engines: {t}")
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 315aad382 (move refit 0.9)
 def build_and_save_engine(
     max_input_len=1024,
     max_output_len=1024,
