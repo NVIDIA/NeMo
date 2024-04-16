@@ -501,14 +501,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return emb, logits
 
     def get_label(
-        self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1, random_seed: int = None
+        self, path2audio_file: str, segment_duration: float = np.inf, max_num_segments: int = 1, random_seed: int = None
     ):
         """
         Returns label of path2audio_file from classes the model was trained on.
         Args:
             path2audio_file (str): Path to audio wav file.
             segment_duration (float): Random sample duration in seconds.
-            num_segments (int): Number of segments of file to use for majority vote.
+            max_num_segments (int): Number of segments of file to use for majority vote.
             random_seed (int): Seed for generating the starting position of the segment.
 
         Returns:
@@ -520,17 +520,37 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
         audio_length = audio.shape[0]
 
-        duration = target_sr * segment_duration
-        if duration > audio_length:
-            duration = audio_length
+        audio_segment_samples = target_sr * segment_duration
+
+        segments_in_audio = int(audio_length / audio_segment_samples)
+       
+        segment_starts = []
+        segment_ends = []    
+        
+        np.random.seed(random_seed)
+
+        if segments_in_audio <= 1:
+            segment_starts = [0]
+            segment_ends = [audio_length]
+        else:
+            if segments_in_audio > max_num_segments:
+                segments_in_audio = max_num_segments
+            
+            long_segment_duration = int(audio_length / segments_in_audio)
+
+            for segment_no in range(segments_in_audio):
+                long_start_segment = long_segment_duration * segment_no
+                long_end_segment = long_segment_duration * (segment_no + 1)
+                segment_start = np.random.randint(long_start_segment,  long_end_segment - audio_segment_samples)
+                segment_end = segment_start + audio_segment_samples
+                segment_starts.append(segment_start)
+                segment_ends.append(segment_end)
 
         label_id_list = []
-        np.random.seed(random_seed)
-        starts = np.random.randint(0, audio_length - duration + 1, size=num_segments)
-        for start in starts:
-            audio_segment = audio[start : start + duration]
+        for segment_start, segment_end in zip(segment_starts, segment_ends):
+            audio_segement = audio[segment_start : segment_end]
 
-            _, logits = self.infer_segment(audio_segment)
+            _, logits = self.infer_segment(audio_segement)
             label_id = logits.argmax(axis=1)
             label_id_list.append(int(label_id[0]))
 
