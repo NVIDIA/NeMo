@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import sys
-
 from typing import Union
+
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
@@ -22,13 +22,13 @@ from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     CustomProgressBar,
+    FSDPMixedPrecisionPlugin,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPDDPStrategyNotebook,
     NLPFSDPStrategy,
     PipelineMixedPrecisionPlugin,
-    FSDPMixedPrecisionPlugin,
 )
 from nemo.utils import logging
 
