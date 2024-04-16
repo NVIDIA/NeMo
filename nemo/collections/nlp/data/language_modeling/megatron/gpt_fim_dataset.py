@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from typing import Tuple
+from omegaconf.dictconfig import DictConfig
+from omegaconf.listconfig import ListConfig
 
 import numpy as np
 
@@ -305,3 +307,20 @@ class GPTFIMDataset(GPTDataset):
             new_sample = sample
 
         return new_sample
+
+
+def convert_data_input(data_input):
+    data_prefix = [[], []]
+    if isinstance (data_input, ListConfig):
+        for index, value in enumerate(data_input):
+            if index % 2 == 0:
+                data_prefix[1].append(value)
+            else:
+                data_prefix[0].append(value)
+
+    #elif isinstance (data_input, DictConfig):
+
+    #print(f"DATA PREFIX TYPE: {type(data_prefix)}")
+
+    print(data_prefix)
+    return data_prefix

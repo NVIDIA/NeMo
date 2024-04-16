@@ -36,7 +36,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig, convert_data_input
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
     get_gpt_full_te_layer_autocast_spec,
@@ -1398,9 +1398,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             }
 
             # support for dict data input type
-            if isinstance(self.cfg.data.data_prefix, DictConfig):
-                _pref = self.cfg.data.data_prefix
-                kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+            convert_data_input(self.cfg.data.data_prefix)
+            #if isinstance(self.cfg.data.data_prefix, DictConfig):
+            #    _pref = self.cfg.data.data_prefix
+            #    kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
             else:
                 kwargs['blend'] = self.cfg.data.data_prefix
                 kwargs["split"] = self.cfg.data.splits_string
