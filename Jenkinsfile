@@ -87,7 +87,7 @@ pipeline {
       steps {
          sh 'git clone https://github.com/NVIDIA/Megatron-LM.git && \
              cd Megatron-LM && \
-             git checkout 7fe863f3d94f7b64a927b04b85f5c9339d3fb784 && \
+             git checkout fbb375d4b5e88ce52f5f7125053068caff47f93f && \
              pip install . && \
              cd megatron/core/datasets && \
              make'
@@ -123,219 +123,6 @@ pipeline {
     stage('Import Checks'){
       steps {
         sh 'python tests/core_ptl/check_imports.py --domain "nlp"'
-      }
-    }
-    stage('L2: Megatron RETRO Pretraining and Resume Training') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
-            trainer.num_nodes=1 \
-            trainer.devices=2 \
-            trainer.precision=bf16 \
-            trainer.accelerator=gpu \
-            model.data.data_prefix=['none'] \
-            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
-            model.mcore_gpt=True \
-            model.tensor_model_parallel_size=1 \
-            model.pipeline_model_parallel_size=1 \
-            model.optim.name=distributed_fused_adam \
-            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
-            model.data.num_workers=4 \
-            model.micro_batch_size=1 \
-            model.data.shuffle_documents=False \
-            trainer.val_check_interval=30 \
-            +trainer.num_sanity_val_steps=0 \
-            model.init_method_std=0.023 \
-            model.optim.lr=6.0e-4 \
-            model.megatron_amp_O2=True \
-            model.data.splits_string=\'\"98,2,0\"\' \
-            model.data.dataloader_type=cyclic \
-            trainer.max_steps=10"
-        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
-            trainer.num_nodes=1 \
-            trainer.devices=2 \
-            trainer.precision=bf16 \
-            trainer.accelerator=gpu \
-            model.data.data_prefix=['none'] \
-            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
-            model.mcore_gpt=True \
-            model.tensor_model_parallel_size=1 \
-            model.pipeline_model_parallel_size=1 \
-            model.optim.name=distributed_fused_adam \
-            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
-            model.data.num_workers=4 \
-            model.micro_batch_size=1 \
-            model.data.shuffle_documents=False \
-            trainer.val_check_interval=30 \
-            +trainer.num_sanity_val_steps=0 \
-            model.init_method_std=0.023 \
-            model.optim.lr=6.0e-4 \
-            model.megatron_amp_O2=True \
-            model.data.splits_string=\'\"98,2,0\"\' \
-            model.data.dataloader_type=cyclic \
-            trainer.max_steps=20"
-        sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
-      }
-    }
-    stage('L2: (Legacy) Megatron RETRO Pretraining and Resume Training') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
-        trainer.devices=2 \
-        trainer.num_nodes=1 \
-        trainer.accelerator=gpu \
-        trainer.accumulate_grad_batches=1 \
-        trainer.limit_val_batches=2 \
-        exp_manager.resume_if_exists=True \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        trainer.val_check_interval=10 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
-        model.data.data_prefix='' \
-        model.data.knn_index='' \
-        model.data.retrieval_prefix='' \
-        model.tensor_model_parallel_size=2 \
-        model.micro_batch_size=4 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.chunk_size=32 \
-        model.enc_num_layers=2 \
-        model.dec_num_layers=2 \
-        model.enc_cross_attention=[1] \
-        model.dec_cross_attention=[1] \
-        +model.data.mock=True"
-        sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
-        trainer.devices=2 \
-        trainer.num_nodes=1 \
-        trainer.accelerator=gpu \
-        trainer.accumulate_grad_batches=1 \
-        trainer.limit_val_batches=2 \
-        exp_manager.resume_if_exists=True \
-        trainer.max_steps=20 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        trainer.val_check_interval=10 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
-        model.data.data_prefix='' \
-        model.data.knn_index='' \
-        model.data.retrieval_prefix='' \
-        model.tensor_model_parallel_size=2 \
-        model.micro_batch_size=4 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.chunk_size=32 \
-        model.enc_num_layers=2 \
-        model.dec_num_layers=2 \
-        model.enc_cross_attention=[1] \
-        model.dec_cross_attention=[1] \
-        +model.data.mock=True"
-        sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
-      }
-    }
-    stage('L2: (Legacy) Megatron RETRO muTransfer Pretraining Performance') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-            sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
-                trainer.devices=2 \
-                trainer.num_nodes=1 \
-                trainer.accelerator=gpu \
-                trainer.accumulate_grad_batches=1 \
-                trainer.max_steps=100 \
-                trainer.log_every_n_steps=1 \
-                trainer.precision=16 \
-                trainer.val_check_interval=100 \
-                trainer.limit_val_batches=0 \
-                trainer.gradient_clip_val=1.0 \
-                +trainer.num_sanity_val_steps=0 \
-                exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results/ \
-                +exp_manager.version=smalltest \
-                model.data.neighbors=2 \
-                model.megatron_amp_O2=False \
-                model.apply_query_key_layer_scaling=False \
-                model.tensor_model_parallel_size=1 \
-                model.optim.name=muadamw \
-                model.optim.weight_decay=0.1 \
-                model.optim.betas=[0.9,0.95] \
-                model.optim.lr=6e-4 \
-                model.optim.sched.warmup_steps=1000 \
-                model.optim.sched.constant_steps=0 \
-                model.optim.sched.min_lr=6e-5 \
-                model.add_position_embedding=False \
-                model.enc_num_layers=2 \
-                model.dec_num_layers=6 \
-                model.enc_cross_attention=[0] \
-                model.dec_cross_attention=[3,5] \
-                model.hidden_size=96 \
-                model.ffn_hidden_size=384 \
-                model.init_method_std=0.023 \
-                model.num_attention_heads=12 \
-                model.max_position_embeddings=1024 \
-                model.encoder_seq_length=1024 \
-                model.tokenizer.library=megatron \
-                model.tokenizer.type=GPT2BPETokenizer \
-                model.tokenizer.merge_file=/home/TestData/nlp/megatron_retro/gpt2-merges.txt \
-                model.tokenizer.vocab_file=/home/TestData/nlp/megatron_retro/gpt2-vocab.json \
-                model.data.data_prefix=[/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document] \
-                model.data.knn_index=[/home/TestData/nlp/megatron_retro/knn2_map_wiki_test.idx] \
-                model.data.retrieval_prefix=/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document \
-                model.data.index_mapping_dir=/home/TestData/nlp/megatron_retro \
-                model.data.num_workers=8 \
-                model.micro_batch_size=8 \
-                model.normalization=rmsnorm \
-                model.transformer_block_type=pre_ln \
-                model.bias_activation_fusion=True \
-                model.bias_dropout_add_fusion=False \
-                model.masked_softmax_fusion=True \
-                model.hidden_dropout=0 \
-                model.attention_dropout=0 \
-                model.fp32_residual_connection=True \
-                model.shape_file=/home/TestData/nlp/megatron_retro/o1_rel_shape_info_tiny.yaml"
-        sh '''python -c "import pandas as pd
-import pathlib
-from pandas.testing import assert_frame_equal
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-import torch
-if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
-    import sys
-    sys.exit(0)
-event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_legacy_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
-ea = EventAccumulator(str(event_file)).Reload()
-vals = []
-for i in ea.Scalars('reduced_train_loss'):
-    vals.append(i.value)
-training_curve = pd.DataFrame({'loss': vals})
-gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
-assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
-        sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
       }
     }
 
@@ -3721,217 +3508,219 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/information_retrieval/bert_embedding_results"
       }
     }
-    // stage('L2: Megatron RETRO Pretraining and Resume Training') {
-    //   when {
-    //     anyOf {
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   failFast true
-    //   steps {
-    //     sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
-    //         trainer.num_nodes=1 \
-    //         trainer.devices=2 \
-    //         trainer.precision=bf16 \
-    //         trainer.accelerator=gpu \
-    //         model.data.data_prefix=['none'] \
-    //         exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
-    //         model.mcore_gpt=True \
-    //         model.tensor_model_parallel_size=1 \
-    //         model.pipeline_model_parallel_size=1 \
-    //         model.optim.name=distributed_fused_adam \
-    //         model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
-    //         model.data.num_workers=4 \
-    //         model.micro_batch_size=1 \
-    //         model.data.shuffle_documents=False \
-    //         trainer.val_check_interval=15 \
-    //         model.init_method_std=0.023 \
-    //         model.optim.lr=6.0e-4 \
-    //         model.megatron_amp_O2=True \
-    //         model.data.splits_string=\'\"98,2,0\"\' \
-    //         model.data.dataloader_type=cyclic \
-    //         trainer.max_steps=30"
-    //     sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
-    //         trainer.num_nodes=1 \
-    //         trainer.devices=2 \
-    //         trainer.precision=bf16 \
-    //         trainer.accelerator=gpu \
-    //         model.data.data_prefix=['none'] \
-    //         exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
-    //         model.mcore_gpt=True \
-    //         model.tensor_model_parallel_size=1 \
-    //         model.pipeline_model_parallel_size=1 \
-    //         model.optim.name=distributed_fused_adam \
-    //         model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
-    //         model.data.num_workers=4 \
-    //         model.micro_batch_size=1 \
-    //         model.data.shuffle_documents=False \
-    //         trainer.val_check_interval=20 \
-    //         model.init_method_std=0.023 \
-    //         model.optim.lr=6.0e-4 \
-    //         model.megatron_amp_O2=True \
-    //         model.data.splits_string=\'\"98,2,0\"\' \
-    //         model.data.dataloader_type=cyclic \
-    //         trainer.max_steps=50"
-    //     sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
-    //   }
-    // }
-//     stage('L2: (Legacy) Megatron RETRO Pretraining and Resume Training') {
-//       when {
-//         anyOf {
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       steps {
-//         sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
-//         trainer.devices=2 \
-//         trainer.num_nodes=1 \
-//         trainer.accelerator=gpu \
-//         trainer.accumulate_grad_batches=1 \
-//         trainer.limit_val_batches=2 \
-//         exp_manager.resume_if_exists=True \
-//         trainer.max_steps=10 \
-//         trainer.precision=16 \
-//         trainer.gradient_clip_val=1.0 \
-//         trainer.val_check_interval=10 \
-//         exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
-//         model.data.data_prefix='' \
-//         model.data.knn_index='' \
-//         model.data.retrieval_prefix='' \
-//         model.tensor_model_parallel_size=2 \
-//         model.micro_batch_size=4 \
-//         model.optim.name=fused_adam \
-//         model.optim.lr=2e-4 \
-//         model.optim.sched.warmup_steps=2 \
-//         model.optim.sched.constant_steps=2 \
-//         model.optim.sched.min_lr=8e-5 \
-//         model.max_position_embeddings=128 \
-//         model.encoder_seq_length=128 \
-//         model.chunk_size=32 \
-//         model.enc_num_layers=2 \
-//         model.dec_num_layers=2 \
-//         model.enc_cross_attention=[1] \
-//         model.dec_cross_attention=[1] \
-//         +model.data.mock=True"
-//         sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
-//         trainer.devices=2 \
-//         trainer.num_nodes=1 \
-//         trainer.accelerator=gpu \
-//         trainer.accumulate_grad_batches=1 \
-//         trainer.limit_val_batches=2 \
-//         exp_manager.resume_if_exists=True \
-//         trainer.max_steps=20 \
-//         trainer.precision=16 \
-//         trainer.gradient_clip_val=1.0 \
-//         trainer.val_check_interval=10 \
-//         exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
-//         model.data.data_prefix='' \
-//         model.data.knn_index='' \
-//         model.data.retrieval_prefix='' \
-//         model.tensor_model_parallel_size=2 \
-//         model.micro_batch_size=4 \
-//         model.optim.name=fused_adam \
-//         model.optim.lr=2e-4 \
-//         model.optim.sched.warmup_steps=2 \
-//         model.optim.sched.constant_steps=2 \
-//         model.optim.sched.min_lr=8e-5 \
-//         model.max_position_embeddings=128 \
-//         model.encoder_seq_length=128 \
-//         model.chunk_size=32 \
-//         model.enc_num_layers=2 \
-//         model.dec_num_layers=2 \
-//         model.enc_cross_attention=[1] \
-//         model.dec_cross_attention=[1] \
-//         +model.data.mock=True"
-//         sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
-//       }
-//     }
-//     stage('L2: (Legacy) Megatron RETRO muTransfer Pretraining Performance') {
-//       when {
-//         anyOf {
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       steps {
-//             sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
-//                 trainer.devices=2 \
-//                 trainer.num_nodes=1 \
-//                 trainer.accelerator=gpu \
-//                 trainer.accumulate_grad_batches=1 \
-//                 trainer.max_steps=100 \
-//                 trainer.log_every_n_steps=1 \
-//                 trainer.precision=16 \
-//                 trainer.val_check_interval=100 \
-//                 trainer.limit_val_batches=0 \
-//                 trainer.gradient_clip_val=1.0 \
-//                 +trainer.num_sanity_val_steps=0 \
-//                 exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results/ \
-//                 +exp_manager.version=smalltest \
-//                 model.data.neighbors=2 \
-//                 model.megatron_amp_O2=False \
-//                 model.apply_query_key_layer_scaling=False \
-//                 model.tensor_model_parallel_size=1 \
-//                 model.optim.name=muadamw \
-//                 model.optim.weight_decay=0.1 \
-//                 model.optim.betas=[0.9,0.95] \
-//                 model.optim.lr=6e-4 \
-//                 model.optim.sched.warmup_steps=1000 \
-//                 model.optim.sched.constant_steps=0 \
-//                 model.optim.sched.min_lr=6e-5 \
-//                 model.add_position_embedding=False \
-//                 model.enc_num_layers=2 \
-//                 model.dec_num_layers=6 \
-//                 model.enc_cross_attention=[0] \
-//                 model.dec_cross_attention=[3,5] \
-//                 model.hidden_size=96 \
-//                 model.ffn_hidden_size=384 \
-//                 model.init_method_std=0.023 \
-//                 model.num_attention_heads=12 \
-//                 model.max_position_embeddings=1024 \
-//                 model.encoder_seq_length=1024 \
-//                 model.tokenizer.library=megatron \
-//                 model.tokenizer.type=GPT2BPETokenizer \
-//                 model.tokenizer.merge_file=/home/TestData/nlp/megatron_retro/gpt2-merges.txt \
-//                 model.tokenizer.vocab_file=/home/TestData/nlp/megatron_retro/gpt2-vocab.json \
-//                 model.data.data_prefix=[/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document] \
-//                 model.data.knn_index=[/home/TestData/nlp/megatron_retro/knn2_map_wiki_test.idx] \
-//                 model.data.retrieval_prefix=/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document \
-//                 model.data.index_mapping_dir=/home/TestData/nlp/megatron_retro \
-//                 model.data.num_workers=8 \
-//                 model.micro_batch_size=8 \
-//                 model.normalization=rmsnorm \
-//                 model.transformer_block_type=pre_ln \
-//                 model.bias_activation_fusion=True \
-//                 model.bias_dropout_add_fusion=False \
-//                 model.masked_softmax_fusion=True \
-//                 model.hidden_dropout=0 \
-//                 model.attention_dropout=0 \
-//                 model.fp32_residual_connection=True \
-//                 model.shape_file=/home/TestData/nlp/megatron_retro/o1_rel_shape_info_tiny.yaml"
-//         sh '''python -c "import pandas as pd
-// import pathlib
-// from pandas.testing import assert_frame_equal
-// from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-// import torch
-// if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
-//     import sys
-//     sys.exit(0)
-// event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_legacy_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
-// ea = EventAccumulator(str(event_file)).Reload()
-// vals = []
-// for i in ea.Scalars('reduced_train_loss'):
-//     vals.append(i.value)
-// training_curve = pd.DataFrame({'loss': vals})
-// gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
-// assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
-//         sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
-//       }
-//     }
+    stage('L2: Megatron RETRO Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
+            model.data.num_workers=4 \
+            model.micro_batch_size=1 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
+            trainer.max_steps=10"
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
+            model.data.num_workers=4 \
+            model.micro_batch_size=1 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
+            trainer.max_steps=20"
+        sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
+      }
+    }
+    stage('L2: (Legacy) Megatron RETRO Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
+        trainer.devices=2 \
+        trainer.num_nodes=1 \
+        trainer.accelerator=gpu \
+        trainer.accumulate_grad_batches=1 \
+        trainer.limit_val_batches=2 \
+        exp_manager.resume_if_exists=True \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        trainer.val_check_interval=10 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
+        model.data.data_prefix='' \
+        model.data.knn_index='' \
+        model.data.retrieval_prefix='' \
+        model.tensor_model_parallel_size=2 \
+        model.micro_batch_size=4 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.chunk_size=32 \
+        model.enc_num_layers=2 \
+        model.dec_num_layers=2 \
+        model.enc_cross_attention=[1] \
+        model.dec_cross_attention=[1] \
+        +model.data.mock=True"
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
+        trainer.devices=2 \
+        trainer.num_nodes=1 \
+        trainer.accelerator=gpu \
+        trainer.accumulate_grad_batches=1 \
+        trainer.limit_val_batches=2 \
+        exp_manager.resume_if_exists=True \
+        trainer.max_steps=20 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        trainer.val_check_interval=10 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
+        model.data.data_prefix='' \
+        model.data.knn_index='' \
+        model.data.retrieval_prefix='' \
+        model.tensor_model_parallel_size=2 \
+        model.micro_batch_size=4 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.chunk_size=32 \
+        model.enc_num_layers=2 \
+        model.dec_num_layers=2 \
+        model.enc_cross_attention=[1] \
+        model.dec_cross_attention=[1] \
+        +model.data.mock=True"
+        sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
+      }
+    }
+    stage('L2: (Legacy) Megatron RETRO muTransfer Pretraining Performance') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+            sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
+                trainer.devices=2 \
+                trainer.num_nodes=1 \
+                trainer.accelerator=gpu \
+                trainer.accumulate_grad_batches=1 \
+                trainer.max_steps=100 \
+                trainer.log_every_n_steps=1 \
+                trainer.precision=16 \
+                trainer.val_check_interval=100 \
+                trainer.limit_val_batches=0 \
+                trainer.gradient_clip_val=1.0 \
+                +trainer.num_sanity_val_steps=0 \
+                exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results/ \
+                +exp_manager.version=smalltest \
+                model.data.neighbors=2 \
+                model.megatron_amp_O2=False \
+                model.apply_query_key_layer_scaling=False \
+                model.tensor_model_parallel_size=1 \
+                model.optim.name=muadamw \
+                model.optim.weight_decay=0.1 \
+                model.optim.betas=[0.9,0.95] \
+                model.optim.lr=6e-4 \
+                model.optim.sched.warmup_steps=1000 \
+                model.optim.sched.constant_steps=0 \
+                model.optim.sched.min_lr=6e-5 \
+                model.add_position_embedding=False \
+                model.enc_num_layers=2 \
+                model.dec_num_layers=6 \
+                model.enc_cross_attention=[0] \
+                model.dec_cross_attention=[3,5] \
+                model.hidden_size=96 \
+                model.ffn_hidden_size=384 \
+                model.init_method_std=0.023 \
+                model.num_attention_heads=12 \
+                model.max_position_embeddings=1024 \
+                model.encoder_seq_length=1024 \
+                model.tokenizer.library=megatron \
+                model.tokenizer.type=GPT2BPETokenizer \
+                model.tokenizer.merge_file=/home/TestData/nlp/megatron_retro/gpt2-merges.txt \
+                model.tokenizer.vocab_file=/home/TestData/nlp/megatron_retro/gpt2-vocab.json \
+                model.data.data_prefix=[/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document] \
+                model.data.knn_index=[/home/TestData/nlp/megatron_retro/knn2_map_wiki_test.idx] \
+                model.data.retrieval_prefix=/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document \
+                model.data.index_mapping_dir=/home/TestData/nlp/megatron_retro \
+                model.data.num_workers=8 \
+                model.micro_batch_size=8 \
+                model.normalization=rmsnorm \
+                model.transformer_block_type=pre_ln \
+                model.bias_activation_fusion=True \
+                model.bias_dropout_add_fusion=False \
+                model.masked_softmax_fusion=True \
+                model.hidden_dropout=0 \
+                model.attention_dropout=0 \
+                model.fp32_residual_connection=True \
+                model.shape_file=/home/TestData/nlp/megatron_retro/o1_rel_shape_info_tiny.yaml"
+        sh '''python -c "import pandas as pd
+import pathlib
+from pandas.testing import assert_frame_equal
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+import torch
+if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
+    import sys
+    sys.exit(0)
+event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_legacy_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
+ea = EventAccumulator(str(event_file)).Reload()
+vals = []
+for i in ea.Scalars('reduced_train_loss'):
+    vals.append(i.value)
+training_curve = pd.DataFrame({'loss': vals})
+gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
+assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
+        sh "rm -rf examples/nlp/language_modeling/retro_legacy_results"
+      }
+    }
     stage('L2: BioMegatron Bert NER Task') {
       when {
         anyOf {
