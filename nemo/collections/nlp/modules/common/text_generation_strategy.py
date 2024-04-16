@@ -380,8 +380,8 @@ class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
 
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = None
-        if compute_attention_mask:
-            attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+        # if compute_attention_mask:
+        #     attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
 
         batch = [tokens2use, attention_mask_repeat]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]

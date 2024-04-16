@@ -267,7 +267,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
     def forward(self, hidden_states):
         # [s, b, 4 * h/p]
         if self.linear_fc1.te_return_bias:
-            intermediate_parallel, bias_parallel, layernorm_output = self.linear_fc1(hidden_states)
+            intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
         else:
             # bias_parallel is None
             (intermediate_parallel, layernorm_output), bias_parallel = self.linear_fc1(hidden_states)
@@ -276,13 +276,19 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         if self.is_adapter_available():
             lora_linear_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
             if lora_linear_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
-                lora_output = lora_linear_fc1_adapter(layernorm_output)
+                lora_output = lora_linear_fc1_adapter(hidden_states)
                 intermediate_parallel = intermediate_parallel + lora_output
-
+        # print(f"peft intermediate_parallel: {intermediate_parallel.shape}")
         if self.config.bias_activation_fusion:
             if self.activation_func == F.gelu:
-                assert self.config.add_bias_linear is True
-                intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+                if self.config.gated_linear_unit:
+                    from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
+
+                    intermediate_parallel = bias_geglu_impl(intermediate_parallel, bias_parallel)
+                    # print(f"mlp intermediate_parallel: {intermediate_parallel.shape}")
+                else:
+                    assert self.config.add_bias_linear is True
+                    intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
             elif self.activation_func == F.silu and self.config.gated_linear_unit:
                 intermediate_parallel = bias_swiglu_impl(intermediate_parallel, bias_parallel)
             else:
