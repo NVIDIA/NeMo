@@ -501,11 +501,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return emb, logits
 
     def get_label(
-        self,
-        path2audio_file: str,
-        segment_duration: float = np.inf,
-        num_segments: int = 1,
-        random_seed: int = None,
+        self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1, random_seed: int = None,
     ):
         """
         Returns label of the audio file specified by path2audio_file, based on the classes the model was trained on.
