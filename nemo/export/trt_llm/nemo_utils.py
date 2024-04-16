@@ -212,8 +212,7 @@ def to_word_list_format(
 
     flat_ids = []
     offsets = []
-    # We use a similar trick as in NeMo to deal with the fact that the encoding of a single word
-    # can't always be trusted. See
+    # The encoding of a single word can't always be trusted. See
     #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229
     ids_ref = tokenizer.encode(ref_str)
     for word_dict_item in word_dict:
