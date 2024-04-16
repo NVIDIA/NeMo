@@ -287,8 +287,9 @@ class RetroPromptLearningDataset(RetroQAFineTuneDataset, BasePromptLearningDatas
         ## Add newlines
         if self.chat_type:
             input_example = "\n\n" + input_example
-
-        input_ids = self.tokenizer.text_to_ids(input_example)
+            input_ids = self.tokenizer.text_to_ids(input_example)[1:]
+        else:
+            input_ids = self.tokenizer.text_to_ids(input_example)
 
         chunks = []
         contexts = example['ctxs'] # are these neighbors ordered???????????????????????????????????????????????
