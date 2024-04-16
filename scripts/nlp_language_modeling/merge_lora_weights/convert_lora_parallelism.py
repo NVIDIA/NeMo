@@ -1,5 +1,5 @@
-import tempfile
 import re
+import tempfile
 from argparse import ArgumentParser
 
 import torch
@@ -21,9 +21,12 @@ def get_args():
     parser.add_argument(
         "--input_path", type=str, default=None, required=True, help="Path to TPx PPx LoRA checkpoint",
     )
-    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output TP1 PP1 LoRA checkpoint")
+    parser.add_argument(
+        "--output_path", type=str, default=None, required=True, help="Path to output TP1 PP1 LoRA checkpoint"
+    )
     args = parser.parse_args()
     return args
+
 
 def replace_number_add_offset(key, offset_value):
     # This function uses regular expression to find layer number in the state dict key
@@ -45,6 +48,7 @@ def replace_number_add_offset(key, offset_value):
 
     return result_string
 
+
 def convert_lora_ckpt(lora_nemo, tp_size=None, pp_size=None):
     """
     Convert a lora checkpoint to TP1 PP1
@@ -59,7 +63,7 @@ def convert_lora_ckpt(lora_nemo, tp_size=None, pp_size=None):
             # todo TP not supported yet
             tp_size = config.tensor_model_parallel_size
         if pp_size is None:
-            pp_size =config.pipeline_model_parallel_size
+            pp_size = config.pipeline_model_parallel_size
 
         num_layers_per_pp_rank = config.num_layers // pp_size
 
@@ -72,6 +76,7 @@ def convert_lora_ckpt(lora_nemo, tp_size=None, pp_size=None):
                 lora_state_dict[new_key] = value
 
         return lora_state_dict
+
 
 if __name__ == '__main__':
     args = get_args()

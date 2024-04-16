@@ -34,6 +34,7 @@ from typing import Any, Dict, List
 import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from scripts.nlp_language_modeling.merge_lora_weights.convert_lora_parallelism import replace_number_add_offset
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -45,7 +46,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from scripts.nlp_language_modeling.merge_lora_weights.convert_lora_parallelism import replace_number_add_offset
 
 try:
     from megatron.core import parallel_state
@@ -155,8 +155,12 @@ def merge(
                 if key_lora_in in lora_state_dicts[0] and key_lora_out in lora_state_dicts[0]:
                     tp_dim_lora_in = 0 if key in ["attention_qkv", 'mlp_fc1'] else 1
 
-                    wt_lora_in = torch.cat([state_dict[key_lora_in] for state_dict in lora_state_dicts], dim=tp_dim_lora_in).float()
-                    wt_lora_out = torch.cat([state_dict[key_lora_out] for state_dict in lora_state_dicts], dim=0).float()
+                    wt_lora_in = torch.cat(
+                        [state_dict[key_lora_in] for state_dict in lora_state_dicts], dim=tp_dim_lora_in
+                    ).float()
+                    wt_lora_out = torch.cat(
+                        [state_dict[key_lora_out] for state_dict in lora_state_dicts], dim=0
+                    ).float()
                     wt_base = base_model_state_dict[key_base]
                     wt_lora = wt_lora_out @ wt_lora_in
                     base_model_state_dict[key_base] = (wt_base.float() + wt_lora.to(wt_base.device)).type_as(wt_base)
