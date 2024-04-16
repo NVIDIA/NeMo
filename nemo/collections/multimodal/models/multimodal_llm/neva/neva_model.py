@@ -392,18 +392,15 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
     def freeze_llm(self, mm_cfg):
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             embedding_parameters = self.embedding.parameters()
-            self.embedding = self.embedding.eval()
         else:
             embedding_parameters = {}
         if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             output_layer_parameters = self.output_layer.parameters()
-            self.output_layer = self.output_layer.eval()
         else:
             output_layer_parameters = {}
 
         for param in chain(embedding_parameters, self.decoder.parameters(), output_layer_parameters,):
             param.requires_grad = False
-        self.decoder = self.decoder.eval()
 
     def forward(
         self, *args, **kwargs,
@@ -477,7 +474,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         media_end_id = self.tokenizer.token_to_id(DEFAULT_IM_END_TOKEN)
 
         if self.mcore_gpt:
-            if parallel_state.is_unitialized():
+            if not parallel_state.is_initialized():
 
                 def dummy():
                     return
@@ -897,9 +894,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
-            self.model
-        )
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert()
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
@@ -1100,7 +1095,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return

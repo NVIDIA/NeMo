@@ -568,9 +568,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
         loop_labels: Switching between decoding algorithms. Both algorithms produce equivalent results.
-            loop_labels=True algorithm is faster (especially for large batches) but can use a bit more memory
+            loop_labels=True (default) algorithm is faster (especially for large batches) but can use a bit more memory
             (negligible overhead compared to the amount of memory used by the encoder).
-            loop_labels=False (default) is an implementation of a traditional decoding algorithm, which iterates over
+            loop_labels=False is an implementation of a traditional decoding algorithm, which iterates over
             frames (encoder output vectors), and in the inner loop, decodes labels for the current frame one by one,
             stopping when <blank> is found.
             loop_labels=True iterates over labels, on each step finding the next non-blank label
@@ -588,7 +588,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        loop_labels: bool = False,
+        loop_labels: bool = True,
         use_cuda_graph_decoder: bool = False,
     ):
         super().__init__(
@@ -607,9 +607,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # switch between more efficient batch decoding technique
         self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            if loop_labels and use_cuda_graph_decoder:
-                raise ValueError("loop_labels and use_cuda_graph_decoder is unsupported configuration")
-            elif loop_labels:
+            if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
                 self._decoding_computer = GreedyBatchedRNNTLoopLabelsComputer(
@@ -620,6 +618,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     preserve_alignments=preserve_alignments,
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
+                    allow_cuda_graphs=use_cuda_graph_decoder,
                 )
             elif use_cuda_graph_decoder:
                 from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import (
@@ -695,7 +694,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
-        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
@@ -2300,7 +2299,7 @@ class GreedyBatchedRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
-    loop_labels: bool = False
+    loop_labels: bool = True
     use_cuda_graph_decoder: bool = False
 
     def __post_init__(self):
@@ -2638,6 +2637,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        use_cuda_graph_decoder: bool = False,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2664,6 +2664,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                 preserve_alignments=preserve_alignments,
                 preserve_frame_confidence=preserve_frame_confidence,
                 confidence_method_cfg=confidence_method_cfg,
+                allow_cuda_graphs=use_cuda_graph_decoder,
             )
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:
@@ -2737,7 +2738,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
-        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
