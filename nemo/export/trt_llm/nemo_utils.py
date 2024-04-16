@@ -376,7 +376,7 @@ def nemo_to_trtllm(
         'num_attention_heads':
         nemo_model_config.get('num_attention_heads'),
         'num_key_value_heads':
-        nemo_model_config.get('num_query_groups'),
+        nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
         'hidden_size':
         nemo_model_config.get('hidden_size'),
         'intermediate_size':
