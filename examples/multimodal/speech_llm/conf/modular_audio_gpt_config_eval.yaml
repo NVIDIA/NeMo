@@ -107,7 +107,7 @@ model:
       drop_last: False
       end_string: ${data.train_ds.end_string}  # don't change, let hydra resolve from saved config
       context_key: ${data.train_ds.context_key} # don't change, let hydra resolve from saved config
-      label_key: ${data.train_ds.label_key} # don't change, let hydra resolve from saved config
+      answer_key: ${data.train_ds.answer_key} # don't change, let hydra resolve from saved config
       add_eos: ${data.train_ds.add_eos} # don't change, let hydra resolve from saved config
       add_sep: ${data.train_ds.add_sep} # don't change, let hydra resolve from saved config
       add_bos: ${data.train_ds.add_bos} # don't change, let hydra resolve from saved config
@@ -128,7 +128,7 @@ model:
         num_classes: null
 
 save_as_nemo: null  # optional string, set to save the whole model into a single nemo file
-evaluate_metric: True  # set 'true' to calculate metrics (must have labels in data), 'false' to use trainer.predict() to do inference only
+evaluate_metric: false  # set 'true' to calculate metrics (must have labels in data), 'false' to use trainer.predict() to do inference only
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.

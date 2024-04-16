@@ -41,7 +41,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 from nemo.utils.distributed import webdataset_split_by_workers
 
 try:
@@ -220,14 +220,14 @@ class TextProcessing(object):
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
-        input_key: str = 'input',
-        output_key: str = 'output',
+        context_key: str = 'context',
+        answer_key: str = 'answer',
         end_string: Optional[str] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
     ):
-        self.input_key = input_key
-        self.output_key = output_key
+        self.context_key = context_key
+        self.answer_key = answer_key
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -277,22 +277,30 @@ class TextProcessing(object):
         function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
         """
         if self.prompt_template is not None:
-            assert f'{{{self.input_key}}}' in self.prompt_template
-            assert f'{{{self.output_key}}}' in self.prompt_template
+            if self.context_key not in self.prompt_template or self.answer_key not in self.prompt_template:
+                if "input" in self.prompt_template and "output" in self.prompt_template:
+                    logging.warning(
+                        f"Using 'input' and 'output' as context and answer keys, since given ones ({self.context_key}, {self.answer_key}) are not found in the prompt template: {self.prompt_template}.",
+                        mode=logging_mode.ONCE,
+                    )
+                    self.context_key = "input"
+                    self.answer_key = "output"
+            assert f'{{{self.context_key}}}' in self.prompt_template
+            assert f'{{{self.answer_key}}}' in self.prompt_template
             # Make sure that '{output}' always occurs at the end of the prompt template string
-            assert self.prompt_template.index(f'{{{self.output_key}}}') == len(self.prompt_template) - len(
-                f'{{{self.output_key}}}'
+            assert self.prompt_template.index(f'{{{self.answer_key}}}') == len(self.prompt_template) - len(
+                f'{{{self.answer_key}}}'
             )
             # Get the context by replacing only the input
             original_context = context
             context = (
-                self.prompt_template.replace(f'{{{self.input_key}}}', context)
-                .replace(f'{{{self.output_key}}}', '')
+                self.prompt_template.replace(f'{{{self.context_key}}}', context)
+                .replace(f'{{{self.answer_key}}}', '')
                 .strip(' ')
             )
             # Replace the input and output placeholders with the actual input and output
-            text = self.prompt_template.replace(f'{{{self.input_key}}}', original_context).replace(
-                f'{{{self.output_key}}}', output
+            text = self.prompt_template.replace(f'{{{self.context_key}}}', original_context).replace(
+                f'{{{self.answer_key}}}', output
             )
 
         elif self.separate_prompt_and_response_with_newline:
@@ -408,8 +416,8 @@ class AudioTextDataset(TextProcessing, Dataset):
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         seed: int = 1234,
-        input_key: Key to use for the context in your JSONL file
-        output_key: Key to use for the label in your JSONL file
+        context_key: Key to use for the context in your JSONL file
+        answer_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
@@ -417,7 +425,7 @@ class AudioTextDataset(TextProcessing, Dataset):
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
         end_string: Optional[str] = None, if not None, add this string to the end of the answer.
         --------------- additional args for misc purposes ----------------
-        question_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
+        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
         sample_alpha: Optional[float] = None, for SPE subword sampling
         audio_locator: Optional[str] = None, a special string to split the context into multiple audio segments.
     """
@@ -450,10 +458,10 @@ class AudioTextDataset(TextProcessing, Dataset):
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
         index_by_file_id: bool = False,
-        input_key: str = 'input',
-        output_key: str = 'output',
+        context_key: str = 'context',
+        answer_key: str = 'answer',
         end_string: Optional[str] = None,
-        question_file: Optional[Union[List[str], str]] = None,
+        context_file: Optional[Union[List[str], str]] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
     ):
@@ -473,8 +481,8 @@ class AudioTextDataset(TextProcessing, Dataset):
             prompt_template=prompt_template,
             virtual_tokens=virtual_tokens,
             tokens_to_generate=tokens_to_generate,
-            input_key=input_key,
-            output_key=output_key,
+            context_key=context_key,
+            answer_key=answer_key,
             end_string=end_string,
             sample_alpha=sample_alpha,
             audio_locator=audio_locator,
@@ -486,14 +494,16 @@ class AudioTextDataset(TextProcessing, Dataset):
         # If necessary, cache manifests and audio from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
 
-        self.collection = collections.ALMAudioTextCollection(
+        self.collection = collections.SpeechLLMAudioTextCollection(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
             max_num_samples=max_num_samples,
-            question_file=question_file,
+            context_file=context_file,
+            context_key=context_key,
+            answer_key=answer_key,
         )
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
@@ -529,7 +539,7 @@ class AudioTextDataset(TextProcessing, Dataset):
             # accomodates normalize_batch
             output["audio_length"] = torch.tensor(80)
 
-        text_data = self._process_example(context=sample.question, output=sample.answer)
+        text_data = self._process_example(context=sample.context, output=sample.answer)
 
         output.update(text_data)
         output['metadata'] = {
@@ -638,7 +648,7 @@ class MultiAudioTextDataset(AudioTextDataset):
             # accomodates normalize_batch
             output["audio_length"] = [torch.tensor(8)]
 
-        text_data = self._process_example(context=sample.question, output=sample.answer)
+        text_data = self._process_example(context=sample.context, output=sample.answer)
 
         if isinstance(output["audio_signal"], list) and len(output["audio_signal"]) + 1 != len(
             text_data['context_start_idx']
@@ -793,8 +803,8 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         tokens_to_generate (int): (inference only) Number of tokens to generate during inference
         seed: Random seed for data shuffling.
         seed: int = 1234,
-        input_key: Key to use for the context in your JSONL file
-        output_key: Key to use for the label in your JSONL file
+        context_key: Key to use for the context in your JSONL file
+        answer_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
         answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
         truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
@@ -802,7 +812,7 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
         end_string: Optional[str] = None, if not None, add this string to the end of the answer.
         --------------- additional args for misc purposes ----------------
-        question_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
+        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
         sample_alpha: Optional[float] = None, for SPE subword sampling
     """
 
@@ -831,15 +841,15 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         seed: int = 1234,
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
-        truncation_field: str = "answer",
+        truncation_field: str = "answer",  # choices=["answer", "context"]
         pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
-        input_key: str = 'input',
-        output_key: str = 'output',
+        context_key: str = 'context',
+        answer_key: str = 'answer',
         end_string: Optional[str] = None,
-        question_file: Optional[Union[List[str], str]] = None,
+        context_file: Optional[Union[List[str], str]] = None,
         sample_alpha: Optional[float] = None,
     ):
         super().__init__(
@@ -858,8 +868,8 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
             prompt_template=prompt_template,
             virtual_tokens=virtual_tokens,
             tokens_to_generate=tokens_to_generate,
-            input_key=input_key,
-            output_key=output_key,
+            context_key=context_key,
+            answer_key=answer_key,
             end_string=end_string,
             sample_alpha=sample_alpha,
         )
@@ -878,12 +888,14 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         # If necessary, cache manifests from object store
         cache_datastore_manifests(manifest_filepaths=manifest_filepath)
 
-        self.collection = collections.ALMAudioTextCollection(
+        self.collection = collections.SpeechLLMAudioTextCollection(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
             index_by_file_id=True,
-            question_file=question_file,
+            context_file=context_file,
+            context_key=context_key,
+            answer_key=answer_key,
         )
 
         self.len = self._compute_len()
@@ -973,9 +985,8 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
             audio_filestream.close()
 
             # Audio features
-            f, fl = features, torch.tensor(features.shape[0]).long()
-            output["audio_signal"] = f
-            output["audio_length"] = fl
+            output["audio_signal"] = features
+            output["audio_length"] = torch.tensor(features.shape[0]).long()
         else:
             # dummy features
             output["audio_signal"] = torch.zeros([80])
@@ -983,7 +994,7 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
             output["audio_length"] = torch.tensor(80)
 
         # Text features
-        text_data = self._process_example(context=manifest_entry.question, output=manifest_entry.answer)
+        text_data = self._process_example(context=manifest_entry.context, output=manifest_entry.answer)
 
         output.update(text_data)
 
@@ -1088,11 +1099,11 @@ def get_tarred_audio_text_dataset(
             tokens_to_generate=config.get(
                 'tokens_to_generate', 0
             ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
-            input_key=config.get('input_key', 'input'),
-            output_key=config.get('output_key', 'output'),
+            context_key=config.get('context_key', 'context'),
+            answer_key=config.get('answer_key', 'answer'),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
-            question_file=config.get('question_file', None),
+            context_file=config.get('context_file', None),
         )
 
         if bucketing_weights:
@@ -1125,11 +1136,11 @@ def get_concat_tarred_audio_text_dataset(
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
         conf['tarred_audio_filepaths'] = tarred_audio_filepath
-        question_files = config.get('question_file', None)
-        if isinstance(question_files, ListConfig) and len(question_files) == len(manifest_filepaths):
-            conf['question_file'] = question_files[dataset_idx]
+        context_files = config.get('context_file', None)
+        if isinstance(context_files, ListConfig) and len(context_files) == len(manifest_filepaths):
+            conf['context_file'] = context_files[dataset_idx]
         else:
-            conf['question_file'] = question_files
+            conf['context_file'] = context_files
         dataset = get_tarred_audio_text_dataset(
             config=conf,
             tokenizer=tokenizer,
@@ -1259,9 +1270,9 @@ def get_audio_text_dataset_from_config(
         num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
 
     for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
-        question_file = config.get('question_file', None)
-        if isinstance(question_file, ListConfig) and len(question_file) == len(manifest_filepath):
-            question_file = question_file[dataset_idx]
+        context_file = config.get('context_file', None)
+        if isinstance(context_file, ListConfig) and len(context_file) == len(manifest_filepath):
+            context_file = context_file[dataset_idx]
         dataset = data_cls(
             manifest_filepath=file_path,
             tokenizer=tokenizer,
@@ -1290,11 +1301,11 @@ def get_audio_text_dataset_from_config(
             tokens_to_generate=config.get(
                 'tokens_to_generate', 0
             ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
-            input_key=config.get('input_key', 'input'),
-            output_key=config.get('output_key', 'output'),
+            context_key=config.get('context_key', 'context'),
+            answer_key=config.get('answer_key', 'answer'),
             end_string=config.get('end_string', None),
             sample_alpha=config.get('sample_alpha', None),
-            question_file=question_file,
+            context_file=context_file,
             audio_locator=config.get('audio_locator', None),
         )
         datasets.append(dataset)

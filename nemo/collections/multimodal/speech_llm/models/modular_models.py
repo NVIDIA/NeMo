@@ -664,7 +664,21 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             # for AudioGPTLoRAModel
             gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
             gpt_cfg.perception = cfg.model.perception
+            # inject audio encoder configs into the target config (gpt_cfg)
             cls._modify_audio_encoder_config(gpt_cfg, audio_cfg, speaker_cfg)
+
+            # inject the sample rate from the audio encoder into the gpt config
+            if isinstance(audio_cfg, (ListConfig, list)):
+                sample_rate = [_cfg.preprocessor.sample_rate for _cfg in audio_cfg]
+                if not all([sr == sample_rate[0] for sr in sample_rate]):
+                    raise ValueError("All audio encoders must have the same sample rate.")
+                gpt_cfg.data.train_ds.sample_rate = sample_rate[0]
+                gpt_cfg.data.validation_ds.sample_rate = sample_rate[0]
+            else:
+                sample_rate = audio_cfg.preprocessor.sample_rate
+                gpt_cfg.data.train_ds.sample_rate = sample_rate
+                gpt_cfg.data.validation_ds.sample_rate = sample_rate
+
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -897,6 +911,11 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({model_cfg.get(p)})"
 
         with open_dict(model_cfg):
+            # to be compatible with old checkpoints
+            if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
+                model_cfg.data.train_ds.context_key = "question"
+                model_cfg.data.train_ds.answer_key = "answer"
+
             # update the model config of the trained model with params we want to set at inference time.
             model_cfg.precision = cfg.trainer.precision
             for key, val in cfg.model.items():

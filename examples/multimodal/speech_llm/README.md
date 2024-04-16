@@ -23,13 +23,39 @@ You'll need to prepare data in the NeMo manifest format, where each line is a py
     "audio_filepath": "path/to/audio.wav",
     "offset": 0.0, # offset of the audio in seconds, this is an optional field
     "duration": 10.0 , # duration of the audio in seconds, can set to `None` to load the whole audio
-    "question": "what is the transcription of the audio?", # text prompt for the audio, see below for more details
+    "context": "what is the transcription of the audio?", # text prompt for the audio, see below for more details
     "answer": "the transcription of the audio", # optional for inference, default to "na" in dataloader
 }
 ```
 
-The `question` field in the manifest is optional, and you can put a list of questions in a question file (one question for each line) then set `++model.data.train_ds.question_file=<path to to question file>` to ask the dataloader to randomly pick a question from the file for each audio sample. This is useful for training with multiple prompts for the same task. If neither `question` field nor `question_file` is provided, the dataloader will use a default question `what does the audio mean?` for all audios. During inference, it is recommended to have the `question` field in the manifest.
+The `context` field in the manifest is optional, and you can put a list of context in a context file (one context for each line) then set `++model.data.train_ds.context_file=<path to to context file>` to ask the dataloader to randomly pick a context from the file for each audio sample. This is useful for training with multiple prompts for the same task. If neither `context` field nor `context_file` is provided, the dataloader will use a default context `what does the audio mean?` for all audios. During inference, it is recommended to have the `context` field in the manifest. 
 
+#### **Customizing the fields to use**
+
+You can also use other fields in the manifest to replace the `context` and `answer`fields, but you'll also need to change the `prompt_template` to use the new field names. For example, if you desire to use the new fields `input_text` and `output_text`, you need to set:
+```bash
+++model.data.train_ds.context_key=input_text \
+++model.data.train_ds.answer_key=output_text \
+++model.data.train_ds.prompt_template="'Q: {input_text}\nA: {output_text}'"
+```
+Note that there're single quotes around the prompt template (to avoid hydra errors), and the field names are wrapped in curly braces.
+
+#### **Customizing the input format**
+
+If you would like to use multiple audios, you can set the `audio_filepath` to be a list of audio file paths, and specify the location of each audio by using a special `audio_locator` string in the context. The choice of `audio_locator` should also be passed into the config. For example, if you have a manifest item like this:
+```
+{
+    "audio_filepath": ["path/to/audio1.wav", "path/to/audio2.wav"],
+    "context": "what is the transcription of the [audio] and [audio]?", # text prompt for the audio, see below for more details
+    "answer": "the transcription of the audio1 and audio2", # optional for inference, default to "na" in dataloader
+}
+```
+You can set the `audio_locator` to be `[audio]` in the config:
+```bash
+++model.data.train_ds.audio_locator='[audio]'
+```
+
+By using `audio_locator`, the dataloader will replace the `audio_locator` in the context with the corresponding audio features extracted for each audio. You need to make sure that the number of audio locators in the context matches the number of audio files in the `audio_filepath` field. 
 
 ### Training
 
@@ -72,7 +98,7 @@ You can also use tarred datasets for faster training by converting normal NeMo d
 
 #### **Multi-task Training**
 
-In order to use a question file, you can set `++model.data.train_ds.question_file=<path to to question file>` in the command line or use multiple question files with `++model.data.train_ds.question_file=[<path to to question file1>,<path to question file2>,...]`. If the number of question files is equal to the number of provided datasets, the dataloader will assigne each question file to a dataset. Otherwise, the dataloader will randomly pick a question file from all provided question files for each audio sample. Using multiple question files is useful for training with multiple tasks, where each task has its own set of prompts. Meanwhile, you can control the weights for different tasks/datasets by using concatentated tarred datasets, where you can assign weights to datasets by:
+In order to use a context file, you can set `++model.data.train_ds.context_file=<path to to context file>` in the command line or use multiple context files with `++model.data.train_ds.context_file=[<path to to context file1>,<path to context file2>,...]`. If the number of context files is equal to the number of provided datasets, the dataloader will assigne each context file to a dataset. Otherwise, the dataloader will randomly pick a context file from all provided context files for each audio sample. Using multiple context files is useful for training with multiple tasks, where each task has its own set of prompts. Meanwhile, you can control the weights for different tasks/datasets by using concatentated tarred datasets, where you can assign weights to datasets by:
 ```
 ++model.data.train_ds.is_tarred=True \
 ++model.data.train_ds.is_concat=True \
