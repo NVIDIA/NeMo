@@ -29,14 +29,13 @@ from lhotse.dataset import (
     IterableDatasetWrapper,
     make_worker_init_fn,
 )
+from lhotse.dataset.dataloading import resolve_seed
 from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
 from lhotse.lazy import LazyFlattener
-from lhotse.utils import fastcopy
+from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.utils import logging
 
 
@@ -87,7 +86,7 @@ class LhotseDataLoadingConfig:
     sample_rate: int = 16000
     min_duration: float | None = -1
     max_duration: float | None = float("inf")
-    seed: int | str = "randomized"  # int | "randomized" | "trng"; the latter two are lazily resolved by Lhotse in dloading worker processes
+    seed: int | str = 0
     num_workers: int = 0
     pin_memory: bool = False
 
@@ -123,11 +122,7 @@ class LhotseDataLoadingConfig:
 
 
 def get_lhotse_dataloader_from_config(
-    config: DictConfig,
-    global_rank: int,
-    world_size: int,
-    dataset: torch.utils.data.Dataset,
-    tokenizer: TokenizerSpec | TokenizerWrapper = None,
+    config: DictConfig, global_rank: int, world_size: int, dataset: torch.utils.data.Dataset, tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -154,6 +149,44 @@ def get_lhotse_dataloader_from_config(
 
     config = make_structured_with_schema_warnings(config)
 
+    # Seed and randomness.
+    #
+    # We have two parameters controlling randomness: seed and shard_seed.
+    # Both of them can be either set to a fixed number, or one of two string options "randomized" and "trng".
+    # - *seed* is the base random seed, used as one of the components for initializing various dataloading RNGs.
+    # - *shard_seed* controls the shard randomization strategy.
+    #
+    # Below are some examples of configuration with an explanation of what happens:
+    #
+    # Case 1: seed=<int>, shard_seed="randomized"
+    #
+    #   Non-tarred data: *seed* is used everywhere.
+    #
+    #   Tarred data: each dataloading worker on each (distributed) data-parallel rank is initialized
+    #       with a different random seed that's derived based on *seed*, *rank*, and *worker_id*.
+    #       This is to ensure that the shards are presented in a different order in each worker.
+    #
+    #   Each time the training script is ran, the dataloader iteration will be deterministic.
+    #   This means if you use this setup and resume a training of the model, it will observe
+    #   the same data with the same augmentations in the same order as in the previous run,
+    #   unless you explicitly modify the *seed* value to be different.
+    #
+    # Case 2: seed=<any value>, shard_seed="trng"
+    #
+    #   Each time the training script is run, the dataloader iteration is guaranteed to be different,
+    #   but also not reproducible.
+    #
+    # Case 3: seed="trng", shard_seed="randomized"
+    #
+    #   It is like case 2, but with one difference: within a given training run,
+    #   invoking ``get_lhotse_dataloader_from_config`` with the same arguments is
+    #   guaranteed to yield a dataloader with the same data iteration pattern.
+    #   This is useful for mixed data and model parallelism where some GPUs
+    #   have the same DDP rank but different model parallelism ranks.
+    #
+    seed = resolve_seed(config.seed)
+    fix_random_seed(seed)
+
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)
 
@@ -167,6 +200,8 @@ def get_lhotse_dataloader_from_config(
         assert (
             tokenizer is not None
         ), "You must pass a tokenizer to `get_lhotse_dataloader_from_config` in order to read text-only datasets (enabled via use_multimodal_dataloading)"
+        from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
+
         if not isinstance(tokenizer, TokenizerWrapper):
             tokenizer = TokenizerWrapper(tokenizer)
         # Note this code can also pre-tokenize the text in cuts, but for now we disable it with apply_fn.
@@ -177,7 +212,11 @@ def get_lhotse_dataloader_from_config(
     if config.noise_path is not None:
         noise = CutSet.from_file(config.noise_path)
         cuts = cuts.mix(
-            cuts=noise, snr=config.noise_snr, mix_prob=config.noise_mix_prob, seed="trng", random_mix_offset=True
+            cuts=noise,
+            snr=config.noise_snr,
+            mix_prob=config.noise_mix_prob,
+            seed=config.shard_seed,
+            random_mix_offset=True,
         )
 
     # 2.b. On-the-fly speed perturbation.
@@ -235,7 +274,7 @@ def get_lhotse_dataloader_from_config(
             shuffle=config.shuffle,
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
-            seed=config.seed,
+            seed=config.shard_seed,
             num_buckets=config.num_buckets,
             duration_bins=config.bucket_duration_bins,
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
@@ -257,7 +296,7 @@ def get_lhotse_dataloader_from_config(
             shuffle=config.shuffle,
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
-            seed=config.seed,
+            seed=config.shard_seed,
             rank=0 if is_tarred else global_rank,
             world_size=1 if is_tarred else world_size,
         )
@@ -289,7 +328,7 @@ def get_lhotse_dataloader_from_config(
         # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size),
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=config.seed),
             persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
