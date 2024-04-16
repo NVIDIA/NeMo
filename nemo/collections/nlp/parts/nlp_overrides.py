@@ -1223,7 +1223,7 @@ class FSDPMixedPrecisionPlugin(FSDPPrecision):
                 "['16-mixed', '16', 16, 'bf16-mixed', 'bf16']"
                 f" but {precision} found"
             )
-        super().__init__(plugin_precision, scaler=scaler)
+        super().__init__(precision=plugin_precision, scaler=scaler)
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
