@@ -501,7 +501,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return emb, logits
 
     def get_label(
-        self, path2audio_file: str, segment_duration: float = np.inf, max_num_segments: int = 1, random_seed: int = None
+        self,
+        path2audio_file: str,
+        segment_duration: float = np.inf,
+        max_num_segments: int = 1,
+        random_seed: int = None,
     ):
         """
         Returns label of path2audio_file from classes the model was trained on.
@@ -523,10 +527,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         audio_segment_samples = target_sr * segment_duration
 
         segments_in_audio = int(audio_length / audio_segment_samples)
-       
+
         segment_starts = []
-        segment_ends = []    
-        
+        segment_ends = []
+
         np.random.seed(random_seed)
 
         if segments_in_audio <= 1:
@@ -535,20 +539,20 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         else:
             if segments_in_audio > max_num_segments:
                 segments_in_audio = max_num_segments
-            
+
             long_segment_duration = int(audio_length / segments_in_audio)
 
             for segment_no in range(segments_in_audio):
                 long_start_segment = long_segment_duration * segment_no
                 long_end_segment = long_segment_duration * (segment_no + 1)
-                segment_start = np.random.randint(long_start_segment,  long_end_segment - audio_segment_samples)
+                segment_start = np.random.randint(long_start_segment, long_end_segment - audio_segment_samples)
                 segment_end = segment_start + audio_segment_samples
                 segment_starts.append(segment_start)
                 segment_ends.append(segment_end)
 
         label_id_list = []
         for segment_start, segment_end in zip(segment_starts, segment_ends):
-            audio_segement = audio[segment_start : segment_end]
+            audio_segement = audio[segment_start:segment_end]
 
             _, logits = self.infer_segment(audio_segement)
             label_id = logits.argmax(axis=1)
