@@ -24,9 +24,8 @@ Additionally, provide a NeMo hparams file with the correct model architecture ar
 
 import os
 import tempfile
-from argparse import ArgumentParser
-
 import torch
+from argparse import ArgumentParser
 from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -201,6 +200,8 @@ def convert(local_rank, rank, world_size, args):
     elif args.model_type == 'sdxl':
         cfg.model.unet_config.from_pretrained = args.ckpt_path
         model = MegatronDiffusionEngine(cfg.model, trainer)
+    else:
+        raise NotImplementedError
 
     if model.cfg.get('cond_stage_config', None) and 'nemo' in model.cfg.cond_stage_config._target_:
         assert (
