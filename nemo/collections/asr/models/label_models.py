@@ -504,19 +504,21 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self,
         path2audio_file: str,
         segment_duration: float = np.inf,
-        max_num_segments: int = 1,
+        num_segments: int = 1,
         random_seed: int = None,
     ):
         """
-        Returns label of path2audio_file from classes the model was trained on.
+        Returns label of the audio file specified by path2audio_file, based on the classes the model was trained on.
+    
         Args:
-            path2audio_file (str): Path to audio wav file.
-            segment_duration (float): Random sample duration in seconds.
-            max_num_segments (int): Number of segments of file to use for majority vote.
+            path2audio_file (str): Path to the audio WAV file.
+            segment_duration (float): Maximum duration of the randomly sampled segment in seconds.
+            num_segments (int): Maximum number of segments of the file to use for majority voting.
             random_seed (int): Seed for generating the starting position of the segment.
-
+    
         Returns:
-            label: label corresponding to the trained model
+            label: Label corresponding to the trained model. If the labels are not saved in the model configuration,
+            returns the index of the label.
         """
         audio, sr = sf.read(path2audio_file)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
@@ -537,8 +539,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             segment_starts = [0]
             segment_ends = [audio_length]
         else:
-            if segments_in_audio > max_num_segments:
-                segments_in_audio = max_num_segments
+            if segments_in_audio > num_segments:
+                segments_in_audio = num_segments
 
             long_segment_duration = int(audio_length / segments_in_audio)
 
