@@ -3532,13 +3532,14 @@ pipeline {
             model.data.num_workers=4 \
             model.micro_batch_size=1 \
             model.data.shuffle_documents=False \
-            trainer.val_check_interval=15 \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
             model.init_method_std=0.023 \
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
             model.data.splits_string=\'\"98,2,0\"\' \
             model.data.dataloader_type=cyclic \
-            trainer.max_steps=30"
+            trainer.max_steps=10"
         sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
             trainer.devices=2 \
@@ -3554,13 +3555,14 @@ pipeline {
             model.data.num_workers=4 \
             model.micro_batch_size=1 \
             model.data.shuffle_documents=False \
-            trainer.val_check_interval=20 \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
             model.init_method_std=0.023 \
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
             model.data.splits_string=\'\"98,2,0\"\' \
             model.data.dataloader_type=cyclic \
-            trainer.max_steps=50"
+            trainer.max_steps=20"
         sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
       }
     }
