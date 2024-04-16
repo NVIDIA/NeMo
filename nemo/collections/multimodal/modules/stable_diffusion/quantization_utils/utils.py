@@ -1,10 +1,8 @@
 import re
-
 import torch
 from ammo.torch.quantization.nn import QuantLinear, QuantLinearConvBase
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
-
 from .plugin_calib import PercentileCalibrator
 
 
@@ -27,11 +25,13 @@ AXES_NAME = {
 }
 
 
-def generate_dummy_inputs(sd_version, device):
+def generate_dummy_inputs(sd_version, device, latent_dim=32, adm_in_channels=1280):
     dummy_input = {}
     if sd_version == "nemo":
-        dummy_input["x"] = torch.ones(2, 4, 32, 32).to(device)  ## inference resolution is 256 for this example
-        dummy_input["y"] = torch.ones(2, 1280).to(device)
+        dummy_input["x"] = torch.ones(2, 4, latent_dim, latent_dim).to(
+            device)  ## latent dim should be sampling resolution // 8
+        dummy_input["y"] = torch.ones(2, adm_in_channels).to(
+            device)  ## adm_in_channels is 1280 when conditioner in consisted of only tokenizers, otherwise each additional embedding adds 512 in this dimention
         dummy_input["timesteps"] = torch.ones(2).to(device)
         dummy_input["context"] = torch.ones(2, 80, 2048).to(device)
     else:

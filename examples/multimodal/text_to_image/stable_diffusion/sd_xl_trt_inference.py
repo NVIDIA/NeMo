@@ -1,14 +1,14 @@
 import math
-import time
-
 import numpy as np
 import open_clip
 import tensorrt as trt
+import time
 import torch
 from cuda import cudart
 from transformers import CLIPTokenizer
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.denoiser import DiscreteDenoiser
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import ConcatTimestepEmbedderND
 from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.trt_engine import TRT_LOGGER, Engine
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import get_sampler_config
@@ -148,7 +148,7 @@ class StableDiffusionXLTRTPipeline(Serialization):
         return self.runEngine(model_name="vae", feed_dict=feed_dict)["dec"]
 
     def run(
-        self, prompt, negative_prompt, image_height, image_width, num_samples,
+            self, prompt, negative_prompt, image_height, image_width, num_samples, additional_emb_dict={}
     ):
 
         # Spatial dimensions of latent tensor
@@ -168,6 +168,12 @@ class StableDiffusionXLTRTPipeline(Serialization):
             e2e_tic = time.perf_counter()
 
             c, uc = self.encode_prompt(prompt, negative_prompt)
+
+            additional_emb_model = ConcatTimestepEmbedderND(outdim=256)
+            for _, v in additional_emb_dict.items():
+                emb_out = additional_emb_model(torch.Tensor([v])).repeat((int(self.cfg.num_samples), 1))
+                c['vector'] = torch.cat((c['vector'], emb_out), dim=1)
+                uc['vector'] = torch.cat((uc['vector'], emb_out), dim=1)
 
             for k in c:
                 if not k == "crossattn":
@@ -197,8 +203,21 @@ def main(cfg):
 
     base.loadResources(cfg.height, cfg.width, cfg.num_samples, cfg.adm_in_channels, cfg.seed)
 
+    additional_emb_dict = {}
+
+    if cfg.get('width', None) and cfg.get('height', None):
+        additional_emb_dict['target_size_as_tuple'] = (cfg.width, cfg.height)
+
+    if cfg.get('orig_width', None) and cfg.get('orig_height', None):
+        additional_emb_dict['original_size_as_tuple'] = (cfg.orig_width, cfg.orig_height)
+
+    if cfg.get('crop_coords_top', None) is not None and cfg.get('crop_coords_left', None) is not None:
+        additional_emb_dict['crop_coords_top_left'] = (cfg.crop_coords_top, cfg.crop_coords_left)
+    assert int(cfg.adm_in_channels) == int(
+        len(additional_emb_dict.keys()) * 512 + 1280), "Each additional embedder adds addtional 512 channels to adm_in_channels, please check your config file"
+
     for prompt in cfg.prompts:
-        base.run([prompt], "", cfg.width, cfg.height, cfg.num_samples)
+        base.run([prompt], "", cfg.width, cfg.height, cfg.num_samples, additional_emb_dict=additional_emb_dict)
 
 
 if __name__ == "__main__":

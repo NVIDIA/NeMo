@@ -51,12 +51,13 @@ def main(cfg):
 
     in_channels = model.model.diffusion_model.in_channels
     seq_length = model.conditioner.embedders[0].max_length
+    adm_in_channels = model.model.diffusion_model.adm_in_channels
 
     def get_dummy_inputs(model_name):
         dummy_input = {}
         if 'unet' in model_name:
             dummy_input["x"] = torch.ones(2, in_channels, cfg.infer.height // 8, cfg.infer.width // 8, device="cuda")
-            dummy_input["y"] = torch.ones(2, 1280, device="cuda")
+            dummy_input["y"] = torch.ones(2, adm_in_channels, device="cuda")
             dummy_input["timesteps"] = torch.ones(2, device="cuda")
             dummy_input["context"] = torch.ones(2, 80, 2048, device="cuda")
         elif 'vae' in model_name:
