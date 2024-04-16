@@ -178,8 +178,8 @@ def convert(args):
 
         if nemo_config.get('megatron_amp_O2', False):
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-        # else:
-        #     plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        else:
+            plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
 
     if precision == 32:
         dtype = torch.float32
