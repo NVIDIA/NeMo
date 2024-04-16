@@ -407,6 +407,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return output
 
     def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
+        has_all_outputs = all([bool(x) for x in outputs])  # Check if all outputs are non-empty
+
+        if not has_all_outputs:
+            logging.warning(
+                f"Not all outputs are dictionaries. Cannot aggregate results for {tag} dataset in dataloader {dataloader_idx}."
+            )
+            return {}
+
         loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x[f'{tag}_correct_counts'] for x in outputs]).sum(axis=0)
         total_counts = torch.stack([x[f'{tag}_total_counts'] for x in outputs]).sum(axis=0)
