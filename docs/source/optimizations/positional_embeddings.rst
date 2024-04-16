@@ -100,12 +100,4 @@ Positional Interpolation is supported in Megatron GPT SFT models. Set RoPE Inter
    
    model.position_embedding_type='rope'
    model.rotary_percentage=1.0
-   model.seq_len_interpolation_factor: 2 
-
-References
-----------
-
-.. bibliography:: nlp_all.bib
-    :style: plain
-    :labelprefix: nlp-megatron
-    :keyprefix: nlp-megatron-
+   model.seq_len_interpolation_factor: 2

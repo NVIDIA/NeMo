@@ -19,10 +19,3 @@ To enable Flash Attention while Megatron T5 model training, modify the following
    model.encoder.use_flash_attention=True
    model.decoder.use_flash_attention=True
 
-References
-----------
-
-.. bibliography:: nlp_all.bib
-    :style: plain
-    :labelprefix: nlp-megatron
-    :keyprefix: nlp-megatron-
