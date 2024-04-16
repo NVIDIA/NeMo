@@ -24,8 +24,9 @@ Additionally, provide a NeMo hparams file with the correct model architecture ar
 
 import os
 import tempfile
-import torch
 from argparse import ArgumentParser
+
+import torch
 from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import OmegaConf
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
@@ -203,7 +204,7 @@ def convert(local_rank, rank, world_size, args):
 
     if model.cfg.get('cond_stage_config', None) and 'nemo' in model.cfg.cond_stage_config._target_:
         assert (
-                args.nemo_clip_path is not None
+            args.nemo_clip_path is not None
         ), "To align with current hparams file, you need to provide .nemo checkpoint of clip model for stable diffusion. If you want to convert HF clip checkpoint to .nemo checkpoint first, please refer to /opt/NeMo/examples/multimodal/foundation/clip/convert_external_clip_to_nemo.py"
         _, clip_dict = load_config_and_state_from_nemo(args.nemo_clip_path)
     else:

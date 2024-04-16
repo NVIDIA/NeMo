@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import re
+from pathlib import Path
+
 import ammo.torch.opt as ato
 import ammo.torch.quantization as atq
 import onnx
-import os
-import re
 import torch
 from ammo.torch.quantization.nn import QuantModuleRegistry
-from pathlib import Path
 from torch.onnx import export as onnx_export
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
@@ -132,8 +133,9 @@ def main(cfg):
         dynamic_axes = AXES_NAME[sd_version]
         latent_dim = int(cfg.sampling.base.width // 8)
         adm_in_channels = base.model.model.diffusion_model.adm_in_channels
-        dummy_inputs = generate_dummy_inputs(sd_version, base.device, latent_dim=latent_dim,
-                                             adm_in_channels=adm_in_channels)
+        dummy_inputs = generate_dummy_inputs(
+            sd_version, base.device, latent_dim=latent_dim, adm_in_channels=adm_in_channels
+        )
         do_constant_folding = True
         opset_version = 17
 

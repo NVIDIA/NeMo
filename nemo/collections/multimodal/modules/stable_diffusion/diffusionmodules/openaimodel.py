@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from abc import abstractmethod
+from collections.abc import Iterable
+from functools import partial
+from typing import Iterable
+
 import numpy as np
 import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from abc import abstractmethod
 from apex.contrib.group_norm import GroupNorm
-from collections.abc import Iterable
-from functools import partial
-from typing import Iterable
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (

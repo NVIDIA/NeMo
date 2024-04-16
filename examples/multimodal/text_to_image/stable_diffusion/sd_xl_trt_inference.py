@@ -1,8 +1,9 @@
 import math
+import time
+
 import numpy as np
 import open_clip
 import tensorrt as trt
-import time
 import torch
 from cuda import cudart
 from transformers import CLIPTokenizer
@@ -147,9 +148,7 @@ class StableDiffusionXLTRTPipeline(Serialization):
 
         return self.runEngine(model_name="vae", feed_dict=feed_dict)["dec"]
 
-    def run(
-            self, prompt, negative_prompt, image_height, image_width, num_samples, additional_emb_dict={}
-    ):
+    def run(self, prompt, negative_prompt, image_height, image_width, num_samples, additional_emb_dict={}):
 
         # Spatial dimensions of latent tensor
         latent_height = image_height // 8
@@ -214,7 +213,8 @@ def main(cfg):
     if cfg.get('crop_coords_top', None) is not None and cfg.get('crop_coords_left', None) is not None:
         additional_emb_dict['crop_coords_top_left'] = (cfg.crop_coords_top, cfg.crop_coords_left)
     assert int(cfg.adm_in_channels) == int(
-        len(additional_emb_dict.keys()) * 512 + 1280), "Each additional embedder adds addtional 512 channels to adm_in_channels, please check your config file"
+        len(additional_emb_dict.keys()) * 512 + 1280
+    ), "Each additional embedder adds addtional 512 channels to adm_in_channels, please check your config file"
 
     for prompt in cfg.prompts:
         base.run([prompt], "", cfg.width, cfg.height, cfg.num_samples, additional_emb_dict=additional_emb_dict)
