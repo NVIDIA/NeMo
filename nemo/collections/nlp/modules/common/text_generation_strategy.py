@@ -688,7 +688,6 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
         # both having the same length of context_tokens.shape[1]
         bs, context_tokens_length = context_tokens.shape
         assert bs == 1  # similar to M-LM RETRO inference code, can only work with batch_size=1
-        device = context_tokens.device
         context_tokens = [context_tokens[0].tolist() + [self.model.tokenizer.eos_id] * context_tokens_length]
         context_tokens = torch.cuda.LongTensor(context_tokens)
         self.model.model.config.retro_gpt_chunk_length = context_tokens_length  # set RetroConfig of M-LM's RETRO model
@@ -787,7 +786,7 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
         generate the batch used in inference for each of the steps
         """
 
-        # Currently mcore RETRO not support memory caching, always allocate memory for the entire context
+        # For Mcore retrieval RETRO model, currently not support memory caching, always allocate memory for the entire context
         # Allocate memory for the entire context.
         set_inference_key_value_memory = True
         tokens2use = tokens

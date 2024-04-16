@@ -819,7 +819,7 @@ def sample_sequence_batch(
         context_length = context_lengths.min().item()
         if 'neighbors_tokens' in extra:  # for Mcore retrieval RETRO model
 
-            # For RETRO, context_tokens tensors are updated after init_batch() (the length is doubled)
+            # For Mcore retrieval RETRO model, context_tokens tensors are updated after init_batch() (the length is doubled after processing)
             context_tokens = inference_strategy.init_batch(
                 context_tokens, context_length, compute_attention_mask, **extra
             )

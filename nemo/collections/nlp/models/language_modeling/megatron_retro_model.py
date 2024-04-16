@@ -381,7 +381,7 @@ class MegatronRetroModel(MegatronGPTModel):
                 context_position_ids = context_position_ids.cuda()
                 context_mask = None
                 if self.mcore_gpt:
-                    # No caching key, value because currently it's not supported for RETRO
+                    # No caching key, value because currently it's not supported for mcore RETRO in NeMo
                     pass
 
                 else:

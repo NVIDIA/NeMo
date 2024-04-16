@@ -56,7 +56,7 @@ Usage:
 """
 
 
-@hydra_runner(config_path="conf", config_name="megatron_retro_inference")
+@hydra_runner(config_path="conf", config_name="megatron_retro_inference_legacy")
 def main(cfg) -> None:
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
