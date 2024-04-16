@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
+
 import numpy as np
 import tensorrt as trt
 import torch
-from collections import OrderedDict
 from polygraphy.backend.common import bytes_from_path
 from polygraphy.backend.trt import (
     CreateConfig,
