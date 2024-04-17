@@ -6230,7 +6230,7 @@ jobs:
       - L2_Pretraining_BERT_pretraining_from_Text
       - L2_Pretraining_BERT_from_Preprocessed
       - L2_Entity_Linking_Self_Alignment_Pretraining_BERT
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post
+      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
       - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
       - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
       - L2_NMT_Attention_is_All_You_Need_Inference
