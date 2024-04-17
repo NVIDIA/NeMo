@@ -13,12 +13,10 @@
 # limitations under the License.
 
 import os
-import re
 from pathlib import Path
 
 import ammo.torch.opt as ato
 import ammo.torch.quantization as atq
-import onnx
 import torch
 from ammo.torch.quantization.nn import QuantModuleRegistry
 from torch.onnx import export as onnx_export
@@ -78,7 +76,7 @@ def main(cfg):
 
         cali_prompts = load_calib_prompts(
             cfg.quantize.batch_size,
-            "../../../../nemo/collections/multimodal/modules/stable_diffusion/quantization_utils/calib_prompts.txt",
+            "/opt/NeMo/nemo/collections/multimodal/modules/stable_diffusion/quantization_utils/calib_prompts.txt",
         )
         extra_step = 0  # Following sdxl example
 
