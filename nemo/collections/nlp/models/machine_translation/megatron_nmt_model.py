@@ -133,10 +133,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
     def _setup_multilingual_special_tokens(self):
         if self.multilingual_type == MultilingualModelType.many_to_many:
             if self.objective == 'nmt-xlm':
-                unique_langs = set(self.src_language + self.tgt_language)
+                unique_langs = []
+                for l in self.src_language + self.tgt_language:
+                    if l not in unique_langs:
+                        unique_langs.append(l)
             else:
                 # We don't take a set() for tgt_language here because the same lang can appear multiple times.
-                unique_langs = set(self.tgt_language)
+                unique_langs = []
+                for l in self.tgt_language:
+                    if l not in unique_langs:
+                        unique_langs.append(l)
             for lng in unique_langs:
                 self.multilingual_lang_tokens["<" + lng + ">"] = "<" + lng + ">"
         elif self.multilingual_type == MultilingualModelType.many_to_one:
@@ -541,18 +547,22 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), batch_size=1)
 
+
     def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """
         Function to log multilingual BLEU scores with the right source-target language string instead of just the dataloader idx.
         """
         # Check if one-many or many-one and log with lang ids instead of dataloader_idx
-        if isinstance(self.src_language, ListConfig):
+        if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+            translation_lang_string = f'{self.src_language[dataloader_idx]}-{self.tgt_language[dataloader_idx]}'
+        elif isinstance(self.src_language, ListConfig):
             translation_lang_string = f'{self.src_language[dataloader_idx]}-{self.tgt_language}'
         else:
             translation_lang_string = f'{self.src_language}-{self.tgt_language[dataloader_idx]}'
 
         self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True, batch_size=1)
         self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True, batch_size=1)
+
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):

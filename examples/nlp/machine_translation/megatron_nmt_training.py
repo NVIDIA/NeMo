@@ -34,6 +34,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+from collections import OrderedDict
+
 mp.set_start_method("spawn", force=True)
 
 
@@ -172,6 +174,22 @@ def main(cfg) -> None:
         )
     else:
         model = MegatronNMTModel(cfg.model, trainer)
+
+    if hasattr(cfg.model, 'multilingual_lang_to_id') and cfg.model.multilingual_lang_to_id is not None:
+        tmp_dict = OrderedDict()
+        for key, value in cfg.model.multilingual_lang_to_id.items():
+            tmp_dict[key] = value
+
+        if model.multilingual_lang_to_id != tmp_dict:
+            print("Created multilingual_lang_to_id is different from multilingual_lang_to_id from .yaml!")
+            model.multilingual_lang_to_id = tmp_dict
+
+
+    print("###############################")
+    print("Finally model.multilingual_lang_to_id:")
+    print(model.multilingual_lang_to_id)
+    print("###############################")
+
 
     trainer.fit(model)
     trainer.validate(model)
