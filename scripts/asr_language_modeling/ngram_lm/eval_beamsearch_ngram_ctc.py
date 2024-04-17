@@ -31,7 +31,7 @@ python eval_beamsearch_ngram_ctc.py --cfg job
 # USAGE
 
 python eval_beamsearch_ngram_ctc.py model_path=<path to the .nemo file of the model> \
-           input_manifest=<path to the evaluation JSON manifest file> \
+           dataset_manifest=<path to the input evaluation JSON manifest file> \
            ctc_decoding.beam.word_kenlm_path=<path to the binary KenLM model> \
            ctc_decoding.beam.nemo_kenlm_path=<path to the binary KenLM model> \
            ctc_decoding.beam.beam_size=[<list of the beam widths, separated with commas>] \
@@ -92,7 +92,7 @@ class EvalBeamSearchNGramConfig:
     model_path: str = MISSING
 
     # File paths
-    input_manifest: str = MISSING  # The manifest file of the evaluation set
+    dataset_manifest: str = MISSING  # The manifest file of the evaluation set
     preds_output_folder: Optional[str] = None  # The optional folder where the predictions are stored
     cache_file: Optional[str] = None  # The cache file for storing the logprobs of the model
 
@@ -311,10 +311,10 @@ def main(cfg: EvalBeamSearchNGramConfig):
         )
 
     target_transcripts = []
-    manifest_dir = Path(cfg.input_manifest).parent
-    with open(cfg.input_manifest, 'r', encoding='utf_8') as manifest_file:
+    manifest_dir = Path(cfg.dataset_manifest).parent
+    with open(cfg.dataset_manifest, 'r', encoding='utf_8') as manifest_file:
         audio_file_paths = []
-        for line in tqdm(manifest_file, desc=f"Reading Manifest {cfg.input_manifest} ...", ncols=120):
+        for line in tqdm(manifest_file, desc=f"Reading Manifest {cfg.dataset_manifest} ...", ncols=120):
             data = json.loads(line)
             audio_file = Path(data['audio_filepath'])
             if not audio_file.is_file() and not audio_file.is_absolute():
