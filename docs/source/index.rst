@@ -1,23 +1,19 @@
 NVIDIA NeMo Framework Developer Docs
 ====================================
 
-NVIDIA NeMo Framework is an end-to-end, cloud-native framework to build, customize, and deploy generative AI models anywhere.
+NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build, customize, and deploy generative AI models anywhere.
 
-`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_  highlights supports of large scale training features:
+`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ supports large-scale training features, including:
 
-Mixed Precision Training
-Parallelism
-Distributed Optimizer
-FSDP
-Flash Attention
-Gradient Checkpointing
-Positional Embeddings and Positional Interpolation
-PTQ with Ammo
-Sequence Packing
-Distributed Checkpoint Format
-PEFT?
-MCore customization
-Migrating from MLM
+- Mixed Precision Training
+- Parallelism
+- Distributed Optimizer
+- Fully Sharded Data Parallel (FSDP)
+- Flash Attention
+- Activation Recomputation
+- Positional Embeddings and Positional Interpolation
+- Post-Training Quantization (PTQ) with Ammo
+- Sequence Packing
 
 `NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
 
@@ -55,7 +51,7 @@ For more information, browse the developer docs for your area of interest in the
    :caption: Parallelism
    :name: Parallelism
 
-   Parallelism
+   features/parallelisms
 
 .. toctree::
    :maxdepth: 1
