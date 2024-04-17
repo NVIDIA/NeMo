@@ -1399,7 +1399,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             }
 
             data_prefix = self.cfg.data.data_prefix
-            
+
             # support for dict data input type
             if isinstance(data_prefix, DictConfig):
                 kwargs['blend_per_split'] = [
