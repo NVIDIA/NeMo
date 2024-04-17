@@ -12,6 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Example Usage:
+--------------
+This script preprocesses a dataset for the NeMo Multimodal Learning framework. It requires specifying paths for data, images, and the tokenizer model, among other parameters.
+
+Command:
+python examples/multimodal/multimodal_llm/neva/sequence_packing/preprocess_dataset.py \
+ --data_path=/path/to/LLaVA-Instruct-150K/llava_v1_5_mix665k_filtered.json \
+ --image_folder=/path/to/LLaVA-Instruct-150K/images \
+ --tokenizer_path=/path/to/checkpoints/tokenizer_add_special.model \
+ --output_dir=/path/to/LLaVA-Instruct-150K/packed_seq_4096_336_v1 \
+ --max_seq_length=12288 \
+ --packing_algorithm=first_fit_shuffle \
+ --hf_vision_encoder=openai/clip-vit-large-patch14-336 \
+ --conv_template=v1 \
+ --image_aspect_ratio=pad \
+ --seed=42
+
+Parameters:
+-----------
+--data_path: Path to the dataset file in JSON format.
+--image_folder: Directory containing the images referenced in the dataset.
+--tokenizer_path: Path to the tokenizer model.
+--output_dir: Directory where the processed dataset will be stored.
+--max_seq_length: The maximum sequence length of the model.
+--packing_algorithm: Algorithm used for packing sequences. Defaults to 'first_fit_shuffle'.
+--hf_vision_encoder: The Hugging Face vision encoder to use. Default is 'openai/clip-vit-large-patch14-336'.
+--conv_template: Template for data conversion. Default is 'plain', with 'v1' as an alternative.
+--image_aspect_ratio: The aspect ratio for processing images. Defaults to 'square', 'pad' for padding to maintain aspect ratio.
+--seed: Seed for random operations in 'first_fit_shuffle'.
+--hparams_file: Optional path to a YAML file containing additional hyperparameters.
+"""
+
 import collections
 import os
 import random
