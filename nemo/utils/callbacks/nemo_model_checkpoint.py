@@ -15,6 +15,7 @@
 import os
 import re
 import shutil
+from _weakref import proxy
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -48,6 +49,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         postfix: str = ".nemo",
         n_resume: bool = False,
         model_parallel_size: int = None,
+        async_save: bool = False,
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
@@ -64,6 +66,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.postfix = postfix
         self.previous_best_path = ""
         self.model_parallel_size = model_parallel_size
+        self.async_save = async_save
+        self.async_finalize_cb = None
+        self.deferred_ckpts_to_remove = []
 
         # `prefix` is deprecated
         if 'prefix' in kwargs:
@@ -404,11 +409,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return trainer.strategy.broadcast(exists)
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
+        self.maybe_finalize_async_save(trainer, blocking=True)
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
         ema_callback = self._ema_callback(trainer)
         if ema_callback is not None:
+            if self.async_save:
+                raise ValueError('async_save with EMA not supported')
             with ema_callback.save_original_optimizer_state(trainer):
                 super()._save_checkpoint(trainer, filepath)
 
@@ -418,13 +426,61 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 if self.verbose:
                     rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
                 super()._save_checkpoint(trainer, filepath)
+            self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            super()._save_checkpoint(trainer, filepath)
-        # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
-        # we don't want to remove the marker until all checkpointing is done.
-        self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+            storage_options = dict(async_save=True) if self.async_save else None
+            trainer.save_checkpoint(filepath, self.save_weights_only, storage_options)
+            finalize_cb = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
+            if self.async_save:
+                assert self.async_finalize_cb is None, 'active save_checkpoint already happening'
+                self.async_finalize_cb = finalize_cb
+            else:
+                finalize_cb()
 
-    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str) -> None:
+    def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        self.maybe_finalize_async_save(trainer)
+        super().on_train_batch_end(trainer, *args, **kwargs)
+
+    def maybe_finalize_async_save(self, trainer, blocking=False):
+        if not self.async_save:
+            return
+        if not hasattr(trainer.strategy, 'dist_ckpt_save_strategy'):
+            raise ValueError('Currently async save can be used only with NLPDDPStrategy')
+        dist_ckpt_save_strategy = trainer.strategy.dist_ckpt_save_strategy
+        if dist_ckpt_save_strategy is None:
+            # No active async call yet
+            return
+        if not hasattr(dist_ckpt_save_strategy, 'maybe_finalize_async_save'):
+            raise ValueError('Async save requires async compatible strategy')
+        if dist_ckpt_save_strategy.maybe_finalize_async_save(blocking=blocking):
+            assert self.async_finalize_cb is not None, 'async finalize should be available'
+            self.async_finalize_cb()
+            self.async_finalize_cb = None
+
+    def _get_finalize_save_checkpoint_callback(self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int):
+        def _cb():
+            self._last_global_step_saved = global_step
+            self._last_checkpoint_saved = filepath
+
+            # notify loggers
+            if trainer.is_global_zero:
+                for logger in trainer.loggers:
+                    logger.after_save_checkpoint(proxy(self))
+
+            # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
+            # we don't want to remove the marker until all checkpointing is done.
+            self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+
+            for ckpt_to_remove in self.deferred_ckpts_to_remove:
+                self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
+            self.deferred_ckpts_to_remove = []
+        return _cb
+
+    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str,
+                           override_async=False) -> None:
+        if self.async_save and not override_async:
+            self.deferred_ckpts_to_remove.append(filepath)
+            return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)

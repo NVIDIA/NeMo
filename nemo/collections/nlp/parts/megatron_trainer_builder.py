@@ -130,7 +130,10 @@ class MegatronTrainerBuilder:
         # Use dist-ckt for non-FSDP MCore models
         use_dist_ckpt = not self.cfg.model.get('fsdp', False) and self.cfg.model.get('mcore_gpt', False)
         if use_dist_ckpt:
-            plugins.append(DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr')))
+            plugins.append(DistributedCheckpointIO(
+                self.cfg.model.get('dist_ckpt_format', 'zarr'),
+                self.cfg.model.get('dist_ckpt_async_save', False),
+            ))
 
         return plugins
 

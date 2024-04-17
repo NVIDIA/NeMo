@@ -8,6 +8,8 @@ from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.strategies import tensorstore
 
 from nemo.utils import logging
+from nemo.utils.callbacks.torch_dist_async import \
+    TorchDistAsyncSaveShardedStrategy
 
 
 class DistributedCheckpointIO(CheckpointIO):
@@ -17,11 +19,16 @@ class DistributedCheckpointIO(CheckpointIO):
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving.
     """
 
-    def __init__(self, save_ckpt_format: str):
+    def __init__(
+            self,
+            save_ckpt_format: str,
+            async_save: bool = False,
+    ):
         super().__init__()
         self.save_ckpt_format = save_ckpt_format
+        self.async_save = async_save
 
-        self.save_sharded_strategy = self.determine_dist_ckpt_save_strategy()
+        self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
@@ -75,11 +82,16 @@ class DistributedCheckpointIO(CheckpointIO):
         """
         shutil.rmtree(path, ignore_errors=True)
 
-    def determine_dist_ckpt_save_strategy(self):
+    def _determine_dist_ckpt_save_strategy(self):
         """ Determine the saving strategy based on storage config.
 
         For now only decides the checkpoint format.
         """
         save_strategy = (self.save_ckpt_format, 1)
+        if self.async_save:
+            if save_strategy[0] != 'torch_dist':
+                raise ValueError('Async dist-ckpt save supported only for torch_dist format')
+            save_strategy = TorchDistAsyncSaveShardedStrategy('torch_dist', 1)
+
         logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
