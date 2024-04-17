@@ -49,23 +49,16 @@ import collections
 import os
 import random
 import re
+from argparse import ArgumentParser
 
 import numpy as np
 import torch
-from argparse import ArgumentParser
+from megatron.core.datasets.indexed_dataset import IndexedDataset, IndexedDatasetBuilder, get_bin_path, get_idx_path
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from megatron.core.datasets.indexed_dataset import (
-    IndexedDataset,
-    IndexedDatasetBuilder,
-    get_bin_path,
-    get_idx_path,
-)
-from nemo.collections.multimodal.data.neva.neva_dataset import (
-    make_supervised_data_module,
-)
+from nemo.collections.multimodal.data.neva.neva_dataset import make_supervised_data_module
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
@@ -115,9 +108,11 @@ def first_fit(seq_lens, max_seq_length):
 def chunkify(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+        yield lst[i : i + n]
+
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 def parallel_first_fit(seq_lens, max_seq_length, chunk_size, num_workers):
     """
@@ -219,9 +214,13 @@ def get_args():
     parser.add_argument("--conv_template", default='plain', type=str)
     parser.add_argument("--image_aspect_ratio", default='square', type=str)
     parser.add_argument('--seed', default=0, type=int, help="Seed for shuffling, used with first_fit_shuffle.")
-    parser.add_argument("--hparams_file", type=str,
-                        default=os.path.join(os.path.dirname(__file__), '../conf/llava_config.yaml'), required=False,
-                        help="Path to the hparams file.")
+    parser.add_argument(
+        "--hparams_file",
+        type=str,
+        default=os.path.join(os.path.dirname(__file__), '../conf/llava_config.yaml'),
+        required=False,
+        help="Path to the hparams file.",
+    )
     return parser.parse_args()
 
 
@@ -255,10 +254,7 @@ def main():
     nemo_config.model.data.conv_template = args.conv_template
     nemo_config.model.data.image_aspect_ratio = args.image_aspect_ratio
 
-    tokenizer = get_nmt_tokenizer(
-        library="sentencepiece",
-        tokenizer_model=args.tokenizer_path,
-    )
+    tokenizer = get_nmt_tokenizer(library="sentencepiece", tokenizer_model=args.tokenizer_path,)
     train_ds = make_supervised_data_module(tokenizer=tokenizer, model_cfg=nemo_config.model)["train_dataset"]
     train_dl = DataLoader(train_ds, num_workers=32, collate_fn=None, shuffle=False)
     # Example shape: {'tokens': torch.Size([1, 344]), 'labels': torch.Size([1, 344]), 'image': torch.Size([1, 1, 3, 224, 224])}
@@ -333,9 +329,9 @@ def main():
             doc_start = indexed_datasets[seq_len].document_indices[doc_index]
             doc_end = indexed_datasets[seq_len].document_indices[doc_index + 1]
             item_dict = {
-                "tokens": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[0]),
-                "labels": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[1]),
-                "image": torch.tensor((indexed_datasets[seq_len][doc_start: doc_end][0])[2]),
+                "tokens": torch.tensor((indexed_datasets[seq_len][doc_start:doc_end][0])[0]),
+                "labels": torch.tensor((indexed_datasets[seq_len][doc_start:doc_end][0])[1]),
+                "image": torch.tensor((indexed_datasets[seq_len][doc_start:doc_end][0])[2]),
             }
             for key in ["tokens", "labels", "image"]:
                 packed_items[key].append(item_dict[key])
