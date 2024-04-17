@@ -403,6 +403,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 parallel_output=True,
                 share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
                 position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+                embedding_read_fusion=self.cfg.get('embedding_read_fusion', False),
                 rotary_percent=self.cfg.get('rotary_percentage', 1.0),
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
