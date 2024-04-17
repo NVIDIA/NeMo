@@ -45,18 +45,53 @@ For complete details and more options, refer to the full script documentation on
 megatron_change_num_partitions.py
 ---------------------------------
 
-The `megatron_change_num_partitions.py` script is utilized for adjusting the tensor parallelism partitions of Megatron-LM models. This functionality is critical when scaling models across different numbers of GPUs, enabling efficient model parallel training.
+The ``megatron_change_num_partitions.py`` script is used to convert the model parallel size configurations for NVIDIA's NeMo Megatron models. It supports the conversion between different parallelism configurations including tensor model parallelism, pipeline model parallelism, and virtual pipeline parallelism. This allows fine-tuning the model's parallel configuration to better fit the available compute resources.
 
-**Key Arguments**:
+Important Arguments
+^^^^^^^^^^^^^^^^^^^
 
-- ``--input_model_file``: Path to the input model file that needs partition adjustments.
-- ``--output_model_file``: Path for saving the modified model file.
-- ``--tensor_model_parallel_size``: The number of partitions to split the model into, adjusting the tensor model parallel size.
+- **--model_file**: Path to the source model file.
+- **--target_file**: Path to the target model file where the converted model will be saved.
+- **--model_class**: The class path of the model if using models other than the default MegatronGPTModel. E.g., ``nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model``.
+- **--tensor_model_parallel_size** and **--target_tensor_model_parallel_size**: Current and target sizes for tensor model parallelism.
+- **--pipeline_model_parallel_size** and **--target_pipeline_model_parallel_size**: Current and target sizes for pipeline model parallelism.
+- **--precision**: The precision mode of the model; typically set to bf16 for reduced memory footprint.
 
-**Example Usage**:
+The arguments ``--tensor_model_parallel_size`` and ``--pipeline_model_parallel_size`` can be set to -1 to automatically infer the size from the model configuration.
+
+Additional optional arguments include ``--num_gpu_per_node`` to specify the number of GPUs per node and ``--tokenizer_model_path`` to override the tokenizer model path used in the model configuration.
+
+Usage
+^^^^^
+
+The script can be executed with different parameters depending on the specific model and the desired parallelism configuration. Below are example usages for converting parallelism settings for both GPT and T5 models, as well as other specific use cases.
+
+**Tensor and Pipeline Parallelism Conversion for GPT:**
 
 .. code-block:: bash
 
-    python megatron_change_num_partitions.py --input_model_file path/to/your_model.pt --output_model_file path/to/your_modified_model.pt --tensor_model_parallel_size 8
+    python megatron_change_num_partitions.py \
+        --model_file=PATH_TO_SRC_FILE \
+        --target_file=PATH_TO_TGT_FILE \
+        --tensor_model_parallel_size=-1 \
+        --target_tensor_model_parallel_size=1 \
+        --pipeline_model_parallel_size=-1 \
+        --target_pipeline_model_parallel_size=1 \
+        --precision=bf16
 
-This script supports changes in the tensor parallelism configuration by re-assigning weights across different partitions. Make sure to refer to the full script documentation on GitHub at `megatron_change_num_partitions.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_change_num_partitions.py>`_ for complete details and advanced options.
+**Conversion for T5 Model:**
+
+.. code-block:: bash
+
+    python megatron_change_num_partitions.py \
+        --model_file=PATH_TO_SRC_FILE \
+        --target_file=PATH_TO_TGT_FILE \
+        --model_class="nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model" \
+        --tensor_model_parallel_size=-1 \
+        --target_tensor_model_parallel_size=1 \
+        --pipeline_model_parallel_size=-1 \
+        --target_pipeline_model_parallel_size=1 \
+        --target_pipeline_model_parallel_split_rank=0 \
+        --precision=bf16
+
+ Make sure to refer to the full script documentation on GitHub at `megatron_change_num_partitions.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_change_num_partitions.py>`_ for complete details and advanced options.

@@ -28,6 +28,7 @@ Tutorial Overview
 
 General Tutorials
 ~~~~~~~~~~~~~~~~~
+
 * Getting Started
   - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_
   - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/AudioTranslationSample.ipynb>`_
@@ -38,6 +39,7 @@ General Tutorials
 
 Multimodal Tutorials
 ~~~~~~~~~~~~~~~~~~~~
+
 * Preparations and Advanced Applications
   - `Multimodal Data Preparation <https://github.com/NVIDIA/NeMo/blob/main/tutorials/multimodal/Multimodal%20Data%20Preparation.ipynb>`_
   - `NeVA (LLaVA) Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/multimodal/NeVA%20Tutorial.ipynb>`_
@@ -46,6 +48,7 @@ Multimodal Tutorials
 
 Automatic Speech Recognition (ASR) Tutorials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 * Core ASR Techniques and Tools
   - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_NeMo.ipynb>`_
   - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Subword_Tokenization.ipynb>`_
@@ -77,6 +80,7 @@ Automatic Speech Recognition (ASR) Tutorials
 
 Text-to-Speech (TTS) Tutorials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 * Basic and Advanced TTS Topics
   - `NeMo TTS Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/NeMo_TTS_Primer.ipynb>`_
   - `TTS Speech/Text Aligner Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Aligner_Inference_Examples.ipynb>`_
@@ -91,6 +95,7 @@ Text-to-Speech (TTS) Tutorials
 
 Tools and Utilities
 ~~~~~~~~~~~~~~~~~~~
+
 * Utility Tools for Speech and Text
   - `NeMo Forced Aligner <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/NeMo_Forced_Aligner_Tutorial.ipynb>`_
   - `Speech Data Explorer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/SDE_HowTo_v2.ipynb>`_
@@ -98,6 +103,7 @@ Tools and Utilities
 
 Text Processing (TN/ITN) Tutorials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 * Text Normalization Techniques
   - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_
   - `Inverse Text Normalization with Thutmose Tagger <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/ITN_with_Thutmose_Tagger.ipynb>`_
