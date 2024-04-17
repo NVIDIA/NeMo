@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,9 +96,6 @@ model:
   attention_dropout: 0.0
   ffn_dropout: 0.0
 
-  # use_am_tokenizer: True
-  # override_vocab_size: 1024
-
   peft:
     peft_scheme: "lora"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
@@ -189,7 +186,7 @@ model:
       pooling: "mean"
       rounding: "floor"
 
-    # the following are read from the pretrained AM:
+    # the following are read from the pretrained audio encoder:
     # output_dim: null
     # encoder: null
     # preprocessor: null

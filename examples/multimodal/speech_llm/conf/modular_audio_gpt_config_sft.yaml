@@ -97,9 +97,6 @@ model:
   attention_dropout: 0.0
   ffn_dropout: 0.0
 
-  # use_am_tokenizer: True
-  # override_vocab_size: 1024
-
   perception:
     use_multi_layer_feat: false
     multi_layer_feat:
@@ -167,7 +164,7 @@ model:
       freq_width: 27
       time_width: 0.05
 
-    # the following are read from the pretrained AM:
+    # the following are read from the pretrained audio encoder:
     # output_dim: null
     # encoder: null
     # preprocessor: null

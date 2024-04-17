@@ -11,7 +11,7 @@ In general, there're three main components of a modular SpeechLLM:
 - An audio encoder that processes the input audio and produces a sequence of audio embeddings.
 - A modality adapter that processes the audio embeddings and produces a sequence of embeddings in the same latent space as the token embeddings of a pretrained large language model (LLM).
 - A pretrained large language model (LLM) that processes embeddings from the modality adapter as well as token embeddings of input prompt, and produces the text output. The audio embeddings and text token embeddings are concatenated in time dimension before going into the LLM.
-
+- The LLM produces text outputs based on the concatenated input audio and text embedding.
 
 ## Usage
 
