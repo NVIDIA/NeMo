@@ -66,11 +66,12 @@ quantize:
   calib_size: 128
   quant_level: 2.5
   alpha: 0.8
+  quantized_ckpt: nemo.unet.state_dict.${quantize.exp_name}.pt
 
 onnx_export:
   onnx_dir: nemo_onnx
   pretrained_base: ${model.restore_from_path}
-  quantized_ckpt: nemo.unet.state_dict.${quantize.exp_name}.pt
+  quantized_ckpt: ${quantize.quantized_ckpt}
   format: int8
 
 
