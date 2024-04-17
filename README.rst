@@ -298,6 +298,7 @@ Pure Windows Installation (Experimental)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 NeMo can also be installed directly on Windows without using WSL.
+(Triton is not officialy supported on Windows. The Triton placeholder is included to satisfy package dependencies without actual functionality.)
 
 To install NeMo on Windows:
 
@@ -318,7 +319,7 @@ To install NeMo on Windows:
       git clone https://github.com/NVIDIA/NeMo.git
       pip install ./NeMo/requirements/win/
     
-  Note: The triton placeholder installed does nothing and is only included to satisfy package dependencies without actual functionality.
+  Note: In the code above, we installed a placeholder for Triton without implementing its actual functionality.
 
 - If not installed already, download and install Visual Studio build tools `from official website <https://visualstudio.microsoft.com/en/visual-cpp-build-tools/>`_.
   - Or use the following command:
