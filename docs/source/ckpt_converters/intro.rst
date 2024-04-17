@@ -3,9 +3,6 @@ Community Checkpoint Converter
 
 We provide easy-to-use tools that enable users to convert community checkpoints into the NeMo format. These tools facilitate various operations, including resuming training, Sparse Fine-Tuning (SFT), Position-Encodings Fine-Tuning (PEFT), and deployment. For detailed instructions and guidelines, please refer to our documentation.
 
-User and Developer Guides
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
 We offer comprehensive guides to assist both end-users and developers:
 
 - **User Guide**: Detailed steps on how to convert community model checkpoints for further training or deployment within NeMo. For more information, please see our :doc:`user_guide`.
