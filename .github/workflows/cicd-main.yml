@@ -3770,9 +3770,9 @@ jobs:
             trainer.gradient_clip_val=1.0 \
             trainer.val_check_interval=10 \
             exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
-            model.data.data_prefix='' \
-            model.data.knn_index='' \
-            model.data.retrieval_prefix='' \
+            model.data.data_prefix= \
+            model.data.knn_index= \
+            model.data.retrieval_prefix= \
             model.tensor_model_parallel_size=2 \
             model.micro_batch_size=4 \
             model.optim.name=fused_adam \
@@ -3801,9 +3801,9 @@ jobs:
             trainer.gradient_clip_val=1.0 \
             trainer.val_check_interval=10 \
             exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
-            model.data.data_prefix='' \
-            model.data.knn_index='' \
-            model.data.retrieval_prefix='' \
+            model.data.data_prefix= \
+            model.data.knn_index= \
+            model.data.retrieval_prefix= \
             model.tensor_model_parallel_size=2 \
             model.micro_batch_size=4 \
             model.optim.name=fused_adam \
