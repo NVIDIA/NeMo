@@ -11,6 +11,6 @@ Turn on and off Flash Attention
 
 In the NeMo framework, Flash Attention is supported through the Transformer Engine with the inclusion of Flash Attention 2. By default, Flash Attention is enabled, but the Transformer Engine may switch to a different kernel if the tensor dimensions are not optimal for Flash Attention. Users can completely disable Flash Attention by setting the environment variable `NVTE_FLASH_ATTN=0`.
 
-For more details on the supported Dot Attention backend, please refer to the Transformer Engine documentation available at `Transformer Engine's Attention Mechanism <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention.py>`_.
+For more details on the supported Dot Attention backend, please refer to the Transformer Engine source code available at `Transformer Engine's Attention Mechanism <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention.py>`_.
 
 .. bibliography:: nlp_all.bib
