@@ -109,7 +109,7 @@ def main(cfg):
 
     if cfg.run_onnx_export:
         os.makedirs(cfg.onnx_export.onnx_dir, exist_ok=True)
-        output = Path(f"./{cfg.onnx_export.onnx_dir}/unet.onnx")
+        output = Path(f"{cfg.onnx_export.onnx_dir}/unet.onnx")
         # Export quantized model to ONNX
         if not cfg.run_quantization:
             ato.restore(base.model.model.diffusion_model, cfg.onnx_export.quantized_ckpt)
