@@ -488,12 +488,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             if is_float8tensor(param):
                 param._reset_caches()
 
-        # Update transpose caches
-        params = set(self.parameter(fragment) for fragment in fragments)
-        for param in params:
-            if is_float8tensor(param):
-                param._reset_caches()
-
     @torch.no_grad()
     def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
         """Make sure local shards of parameters are in expected datatypes
