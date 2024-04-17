@@ -52,6 +52,13 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
+   :caption: Parallelism
+   :name: Parallelism
+
+   Parallelism
+
+.. toctree::
+   :maxdepth: 1
    :caption: Optimization Methods
    :name: Optimization Methods
 
