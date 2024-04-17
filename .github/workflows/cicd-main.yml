@@ -6176,6 +6176,8 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
       - L2_Community_LLM_Checkpoints_tests_Baichuan2
+      - ASR_dev_run_Speech_to_Text
+      - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
       - ASR_dev_run_Speech_Pre-training_-_CitriNet
       - ASR_dev_run_Speech_To_Text_Finetuning
       - ASR_dev_run_Speech_To_Text_HF_Finetuning
@@ -6242,6 +6244,7 @@ jobs:
       - L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism
       - L2_Megatron_Bert_Pretraining_and_Resume_Training
       - L2_Megatron_Core_Bert_Pretraining_and_Resume_Training
+      - L2_Legacy_Megatron_RETRO_Pretraining_and_Resume_Training
       - L2_Megatron_RETRO_Pretraining_and_Resume_Training
       - L2_BioMegatron_Bert_NER_Task
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
