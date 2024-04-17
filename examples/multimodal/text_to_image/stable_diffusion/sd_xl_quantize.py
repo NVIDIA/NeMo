@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from pathlib import Path
-
 import ammo.torch.opt as ato
 import ammo.torch.quantization as atq
+import os
 import torch
 from ammo.torch.quantization.nn import QuantModuleRegistry
+from pathlib import Path
 from torch.onnx import export as onnx_export
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
@@ -68,7 +67,6 @@ def main(cfg):
     model.cuda()
     base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
 
-    exp_name = cfg.quantize.exp_name
     QuantModuleRegistry.register({LinearWrapper: "nemo_linear_wrapper"})(_QuantNeMoLinearWrapper)
 
     if cfg.run_quantization:
