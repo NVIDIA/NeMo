@@ -55,10 +55,10 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
-   :caption: Optimization Methods
-   :name: Optimization Methods
+   :caption: Supported Features
+   :name: Supported Features
 
-   optimizations/intro
+   features/intro
 
 .. toctree::
    :maxdepth: 1
