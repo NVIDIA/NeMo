@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from pathlib import Path
-
 import ammo.torch.opt as ato
 import ammo.torch.quantization as atq
+import os
 import torch
 from ammo.torch.quantization.nn import QuantModuleRegistry
+from pathlib import Path
+from pathlib import Path
 from torch.onnx import export as onnx_export
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
@@ -105,11 +105,11 @@ def main(cfg):
             )
 
         atq.quantize(base.model.model.diffusion_model, quant_config, forward_loop)
-        ato.save(base.model.model.diffusion_model, f"./nemo.unet.state_dict.{cfg.quantize.exp_name}.pt")
+        ato.save(base.model.model.diffusion_model, cfg.quantize.quantized_ckpt)
 
     if cfg.run_onnx_export:
-        os.makedirs(f"./{exp_name}", exist_ok=True)
-        output = Path(f"./{exp_name}/unet.onnx")
+        os.makedirs(cfg.onnx_export.onnx_dir, exist_ok=True)
+        output = Path(f"./{cfg.onnx_export.onnx_dir}/unet.onnx")
         # Export quantized model to ONNX
         if not cfg.run_quantization:
             ato.restore(base.model.model.diffusion_model, cfg.onnx_export.quantized_ckpt)
