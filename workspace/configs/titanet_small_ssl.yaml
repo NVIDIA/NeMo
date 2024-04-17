@@ -34,7 +34,7 @@ model:
     shuffle: False
 
   model_defaults:
-    filters: 1024
+    filters: 256
     repeat: 3
     dropout: 0.1
     separable: true
