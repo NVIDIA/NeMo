@@ -407,11 +407,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return output
 
     def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
-        has_all_outputs = all([bool(x) for x in outputs])  # Check if all outputs are non-empty
-
-        if not has_all_outputs:
+        # Check if all outputs are non-empty
+        if not outputs or not all([bool(x) for x in outputs]):
             logging.warning(
-                f"Not all outputs are dictionaries. Cannot aggregate results for {tag} dataset in dataloader {dataloader_idx}."
+                f"Not all outputs are dictionaries. Cannot aggregate results for {tag} dataset in dataloader {dataloader_idx}. Outputs: {outputs}"
             )
             return {}
 
