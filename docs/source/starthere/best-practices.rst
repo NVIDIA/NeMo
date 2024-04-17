@@ -16,11 +16,11 @@ Large Language Models & Multimodal (LLM & MM)
 
 NeMo excels in training large-scale LLM & MM, utilizing optimizations from Megatron-LM and Transformer Engine to deliver state-of-the-art performance. It includes a comprehensive feature set for large-scale training:
 
-- Support for Multi-GPU and Multi-Node computing, enabling scalability
-- Precision options including FP32/TF32, FP16, BF16, and TransformerEngine/FP8
-- Parallelism strategies: Data, Tensor, Pipeline, Interleaved Pipeline, Sequence, and Context
-- Optimized utilities such as Distributed Optimizer, Fully Shared Data Parallel, Flash Attention, and Gradient Checkpointing
-- Advanced checkpointing through Distributed Checkpoint Format
+- Supports Multi-GPU and Multi-Node computing to enable scalability.
+- Precision options including FP32/TF32, FP16, BF16, and TransformerEngine/FP8.
+- Parallelism strategies: Data parallelism, Tensor parallelism, Pipeline parallelism, Interleaved Pipeline parallelism, Sequence parallelism and Context parallelism, Distributed Optimizer, and Fully Shared Data Parallel.
+- Optimized utilities such as Flash Attention, Activation Recomputation, and Communication Overlap.
+- Advanced checkpointing through the Distributed Checkpoint Format.
 
 Speech AI
 --------

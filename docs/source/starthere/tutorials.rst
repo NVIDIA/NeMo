@@ -18,24 +18,31 @@ To run a tutorial:
 Tutorial Overview
 -----------------
 
-.. list-table::
-   :widths: 20 30 20
+.. list-table:: **General Tutorials**
+   :widths: 15 25 60
    :header-rows: 1
 
-   * - **Domain**
-     - **Tutorial Title**
-     - **Colab Link**
-
-General Tutorials
-~~~~~~~~~~~~~~~~~
-
-* Getting Started
-  - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_
-  - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/AudioTranslationSample.ipynb>`_
-  - `Voice swap example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/VoiceSwapSample.ipynb>`_
-  - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`_
-  - `NeMo Adapters <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/02_NeMo_Adapters.ipynb>`_
-  - `NeMo Models on HF Hub <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/Publish_NeMo_Model_On_Hugging_Face_Hub.ipynb>`_
+   * - Domain
+     - Title
+     - GitHub URL
+   * - General
+     - Getting Started: NeMo Fundamentals
+     - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_
+   * - General
+     - Getting Started: Audio translator example
+     - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/AudioTranslationSample.ipynb>`_
+   * - General
+     - Getting Started: Voice swap example
+     - `Voice swap example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/VoiceSwapSample.ipynb>`_
+   * - General
+     - Getting Started: NeMo Models
+     - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`_
+   * - General
+     - Getting Started: NeMo Adapters
+     - `NeMo Adapters <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/02_NeMo_Adapters.ipynb>`_
+   * - General
+     - Getting Started: NeMo Models on Hugging Face Hub
+     - `NeMo Models on HF Hub <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/Publish_NeMo_Model_On_Hugging_Face_Hub.ipynb>`_
 
 Multimodal Tutorials
 ~~~~~~~~~~~~~~~~~~~~
