@@ -20,16 +20,16 @@ from typing import Any, Optional
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from pkg_resources import packaging
 from omegaconf.dictconfig import DictConfig
+from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 from nemo.collections.multimodal.data.neva.neva_dataset import (
-    NevaPackedSeqDatatset,
     DataCollatorForSupervisedDataset,
+    NevaPackedSeqDatatset,
     make_supervised_data_module,
 )
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
@@ -45,8 +45,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     MultimodalProjectorAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_iterator_k_split,
+)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -728,7 +730,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
                             batch[k] = (
-                                batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids', 'media', 'cu_seqlens'] else None
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['tokens', 'position_ids', 'media', 'cu_seqlens']
+                                else None
                             )
                         else:
                             batch[k] = (
@@ -740,7 +744,11 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask', 'cu_seqlens'] else None
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['labels', 'loss_mask', 'cu_seqlens']
+                                else None
+                            )
                         else:
                             batch[k] = (
                                 batch[k].cuda(non_blocking=True)
@@ -749,7 +757,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                             )
                 else:
                     # Intermediate pipeline stage doesn't need any inputs
-                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media',  'loss_mask']}
+                    batch = {
+                        k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media', 'loss_mask']
+                    }
 
             forward_args = {
                 'input_ids': batch['tokens'],
@@ -784,7 +794,6 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                         max_seqlen_kv=max_seqlen,
                         qkv_format='thd',
                     )
-
 
             output_tensor = model(**forward_args)
 

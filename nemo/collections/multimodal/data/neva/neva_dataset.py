@@ -18,7 +18,7 @@ import os
 import re
 import tarfile
 from dataclasses import dataclass
-from typing import Any, Tuple, Dict, List, Sequence, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 
 import torch
 import torch.nn.functional as F
