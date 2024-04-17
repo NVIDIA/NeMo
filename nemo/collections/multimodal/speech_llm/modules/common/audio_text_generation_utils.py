@@ -296,6 +296,7 @@ def synced_generate(
                 torch.distributed.broadcast(full_logits, src, group)
     if tokens is not None:
         return tokens[:, :context_length], output_logits, full_logits, audio_feat_lens
+    return None
 
 
 def generate(
@@ -491,6 +492,7 @@ def generate(
         output['audio_feat_lens'] = audio_feat_lens
         output = inference_strategy.post_generation_process(output)
         return output
+    return None
 
 
 def switch(val1, val2, boolean):

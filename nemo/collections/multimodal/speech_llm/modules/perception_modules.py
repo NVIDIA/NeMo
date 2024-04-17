@@ -18,11 +18,11 @@ from typing import List, Optional, Tuple
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder, ConformerMultiLayerFeatureExtractor
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import align_feat_seq_list, get_nested_dict_value
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import align_feat_seq_list
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType

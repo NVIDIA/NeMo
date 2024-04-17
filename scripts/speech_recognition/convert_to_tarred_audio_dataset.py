@@ -617,7 +617,7 @@ class ASRTarredDatasetBuilder:
         with open(manifest_path, 'r', encoding='utf-8') as m:
             for line in m:
                 entry = json.loads(line)
-                audio_key = "audio_filepath" if "audio_filepath" else "audio_file"
+                audio_key = "audio_filepath" if "audio_filepath" in entry else "audio_file"
                 if audio_key not in entry:
                     raise KeyError(f"Manifest entry does not contain 'audio_filepath' or  'audio_file' key: {entry}")
                 audio_filepath = entry[audio_key]
