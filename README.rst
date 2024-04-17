@@ -38,7 +38,6 @@
 **NVIDIA NeMo Framework**
 =========================
 
-
 Latest News
 -----------
 
