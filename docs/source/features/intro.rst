@@ -1,5 +1,5 @@
-Optimization Methods
-====================
+Supported Features
+==================
 
 .. toctree::
    :maxdepth: 1
