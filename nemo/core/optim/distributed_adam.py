@@ -487,8 +487,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         for param in params:
             if is_float8tensor(param):
                 param._reset_caches()
-                param.transpose(update_cache=True)
-                param._lazy_transpose_cache = True
 
     @torch.no_grad()
     def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
