@@ -45,7 +45,7 @@ Latest News
 
   <details open>
     <summary><b>Large Language Models and Multimodal</b></summary>
-        <details open>
+        <details>
           <summary><a href="https://cloud.google.com/blog/products/compute/gke-and-nvidia-nemo-framework-to-train-generative-ai-models">Accelerate your generative AI journey with NVIDIA NeMo framework on GKE</a> (2024/03/16) </summary>
 
           An end-to-end walkthrough to train generative AI models on the Google Kubernetes Engine (GKE) using the NVIDIA NeMo Framework is available at https://github.com/GoogleCloudPlatform/nvidia-nemo-on-gke. The walkthrough includes detailed instructions on how to set up a Google Cloud Project and pre-train a GPT model using the NeMo Framework.
