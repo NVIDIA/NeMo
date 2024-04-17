@@ -65,7 +65,7 @@ For more information, browse the developer docs for your area of interest in the
    :caption: Community Model Converters
    :name: CheckpointConverters
 
-   ckpt_converters/guide
+   ckpt_converters/intro
 
 .. toctree::
    :maxdepth: 1
@@ -105,4 +105,4 @@ For more information, browse the developer docs for your area of interest in the
    :name: Migrate from Megatron-LM
    :titlesonly:
 
-   mlm_migrate/migration-guide
+   mlm_migrate/migration_guide
