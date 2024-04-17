@@ -24,8 +24,8 @@ same directory during execution.
 << All arguments of `transcribe_speech.py` are inherited by this script, so please refer to `transcribe_speech.py`
 for full list of arguments >>
 
-    input_manifest: Required - path to dataset JSON manifest file (in NeMo format)
-    output_manifest: Optional - output filename where the transcriptions will be written. (if scores_per_sample=True, 
+    dataset_manifest: Required - path to input dataset JSON manifest file (in NeMo format)
+    output_filename: Optional - output filename where the transcriptions will be written. (if scores_per_sample=True, 
     metrics per sample will be written there too)
 
     use_cer: Bool, whether to compute CER or WER
@@ -36,17 +36,17 @@ for full list of arguments >>
 
     only_score_manifest: Bool, when set will skip audio transcription and just calculate WER of provided manifest.
     scores_per_sample: Bool, compute metrics for each sample separately (if only_score_manifest=True, scores per sample
-    will be added to the manifest at the input_manifest path)
+    will be added to the manifest at the dataset_manifest path)
 
 # Usage
 
 ## To score a dataset with a manifest file that does not contain previously transcribed `pred_text`.
 
 python speech_to_text_eval.py \
-    nemo_model_file=null \
+    model_path=null \
     pretrained_name=null \
-    input_manifest=<Mandatory: Path to an ASR dataset manifest file> \
-    output_manifest=<Optional: Some output filename which will hold the transcribed text as a manifest> \
+    dataset_manifest=<Mandatory: Path to an ASR dataset manifest file> \
+    output_filename=<Optional: Some output filename which will hold the transcribed text as a manifest> \
     batch_size=32 \
     amp=True \
     use_cer=False
@@ -56,7 +56,7 @@ This is useful when one uses `transcribe_speech_parallel.py` to transcribe large
 to a manifest which has the two keys `text` (for ground truth) and `pred_text` (for model's transcription)
 
 python speech_to_text_eval.py \
-    input_manifest=<Mandatory: Path to an ASR dataset manifest file> \
+    dataset_manifest=<Mandatory: Path to an ASR dataset manifest file> \
     use_cer=False \
     only_score_manifest=True
 
@@ -84,8 +84,8 @@ from nemo.utils import logging
 
 @dataclass
 class EvaluationConfig(transcribe_speech.TranscriptionConfig):
-    input_manifest: str = MISSING
-    output_manifest: Optional[str] = "evaluation_transcripts.json"
+    dataset_manifest: str = MISSING
+    output_filename: Optional[str] = "evaluation_transcripts.json"
 
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Joint RNNT/CTC models
     decoder_type: Optional[str] = None
@@ -114,11 +114,11 @@ def main(cfg: EvaluationConfig):
     if cfg.audio_dir is not None:
         raise RuntimeError(
             "Evaluation script requires ground truth labels to be passed via a manifest file. "
-            "If manifest file is available, submit it via `input_manifest` argument."
+            "If manifest file is available, submit it via `dataset_manifest` argument."
         )
 
-    if not os.path.exists(cfg.input_manifest):
-        raise FileNotFoundError(f"The dataset manifest file could not be found at path : {cfg.input_manifest}")
+    if not os.path.exists(cfg.dataset_manifest):
+        raise FileNotFoundError(f"The dataset manifest file could not be found at path : {cfg.dataset_manifest}")
 
     if not cfg.only_score_manifest:
         # Transcribe speech into an output directory
@@ -131,13 +131,13 @@ def main(cfg: EvaluationConfig):
         logging.info("Finished transcribing speech dataset. Computing ASR metrics..")
 
     else:
-        cfg.output_manifest = cfg.input_manifest
+        cfg.output_filename = cfg.dataset_manifest
         transcription_cfg = cfg
 
     ground_truth_text = []
     predicted_text = []
     invalid_manifest = False
-    with open(transcription_cfg.output_manifest, 'r') as f:
+    with open(transcription_cfg.output_filename, 'r') as f:
         for line in f:
             data = json.loads(line)
 
@@ -163,7 +163,7 @@ def main(cfg: EvaluationConfig):
     # Test for invalid manifest supplied
     if invalid_manifest:
         raise ValueError(
-            f"Invalid manifest provided: {transcription_cfg.output_manifest} does not "
+            f"Invalid manifest provided: {transcription_cfg.output_filename} does not "
             f"contain value for `pred_text`."
         )
 
@@ -182,12 +182,12 @@ def main(cfg: EvaluationConfig):
             metrics_to_compute.append("punct_er")
 
         samples_with_metrics = compute_metrics_per_sample(
-            manifest_path=cfg.input_manifest,
+            manifest_path=cfg.dataset_manifest,
             reference_field=cfg.gt_text_attr_name,
             hypothesis_field="pred_text",
             metrics=metrics_to_compute,
             punctuation_marks=cfg.text_processing.punctuation_marks,
-            output_manifest_path=cfg.output_manifest,
+            output_manifest_path=cfg.output_filename,
         )
 
     # Compute the WER

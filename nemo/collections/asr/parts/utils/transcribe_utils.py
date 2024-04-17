@@ -242,16 +242,16 @@ def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
 
 def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, str]:
     """ Setup model from cfg and return model and model name for next step """
-    if cfg.nemo_model_file is not None and cfg.nemo_model_file != "None":
+    if cfg.model_path is not None and cfg.model_path != "None":
         # restore model from .nemo file path
-        model_cfg = ASRModel.restore_from(restore_path=cfg.nemo_model_file, return_config=True)
+        model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         asr_model = imported_class.restore_from(
-            restore_path=cfg.nemo_model_file, map_location=map_location,
+            restore_path=cfg.model_path, map_location=map_location,
         )  # type: ASRModel
-        model_name = os.path.splitext(os.path.basename(cfg.nemo_model_file))[0]
+        model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(

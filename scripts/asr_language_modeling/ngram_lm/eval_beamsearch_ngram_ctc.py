@@ -30,7 +30,7 @@ python eval_beamsearch_ngram_ctc.py --cfg job
 
 # USAGE
 
-python eval_beamsearch_ngram_ctc.py nemo_model_file=<path to the .nemo file of the model> \
+python eval_beamsearch_ngram_ctc.py model_path=<path to the .nemo file of the model> \
            input_manifest=<path to the evaluation JSON manifest file> \
            ctc_decoding.beam.word_kenlm_path=<path to the binary KenLM model> \
            ctc_decoding.beam.nemo_kenlm_path=<path to the binary KenLM model> \
@@ -89,7 +89,7 @@ class EvalBeamSearchNGramConfig:
     Evaluate an ASR model with beam search decoding and n-gram KenLM language model.
     """
     # # The path of the '.nemo' file of the ASR model or the name of a pretrained model (ngc / huggingface)
-    nemo_model_file: str = MISSING
+    model_path: str = MISSING
 
     # File paths
     input_manifest: str = MISSING  # The manifest file of the evaluation set
@@ -300,14 +300,14 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
     logging.info(f"Inference will be done on device: {map_location}")
 
-    if cfg.nemo_model_file.endswith('.nemo'):
-        asr_model = nemo_asr.models.ASRModel.restore_from(cfg.nemo_model_file, map_location=torch.device(map_location))
+    if cfg.model_path.endswith('.nemo'):
+        asr_model = nemo_asr.models.ASRModel.restore_from(cfg.model_path, map_location=torch.device(map_location))
     else:
         logging.warning(
-            "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
+            "model_path does not end with .nemo, therefore trying to load a pretrained model with this name."
         )
         asr_model = nemo_asr.models.ASRModel.from_pretrained(
-            cfg.nemo_model_file, map_location=torch.device(map_location)
+            cfg.model_path, map_location=torch.device(map_location)
         )
 
     target_transcripts = []

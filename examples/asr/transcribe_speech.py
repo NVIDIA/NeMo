@@ -48,7 +48,7 @@ from nemo.utils import logging
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
 
 # Arguments
-  nemo_model_file: path to .nemo ASR checkpoint
+  model_path: path to .nemo ASR checkpoint
   pretrained_name: name of pretrained ASR model (from NGC registry)
   audio_dir: path to directory with audio files
   dataset_manifest: path to input dataset JSON manifest file (in NeMo format)
@@ -83,14 +83,14 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   use_cer: Bool to use Character Error Rate (CER)  or Word Error Rate (WER)
 
 # Usage
-ASR model can be specified by either "nemo_model_file" or "pretrained_name".
+ASR model can be specified by either "model_path" or "pretrained_name".
 Data for transcription can be defined with either "audio_dir" or "dataset_manifest".
 append_pred - optional. Allows you to add more than one prediction to an existing .json
 pred_name_postfix - optional. The name you want to be written for the current model
 Results are returned in a JSON manifest file.
 
 python transcribe_speech.py \
-    nemo_model_file=null \
+    model_path=null \
     pretrained_name=null \
     audio_dir="<remove or path to folder of audio files>" \
     dataset_manifest="<remove or path to manifest>" \
@@ -117,7 +117,7 @@ class ModelChangeConfig:
 @dataclass
 class TranscriptionConfig:
     # Required configs
-    nemo_model_file: Optional[str] = None  # Path to a .nemo file
+    model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to input dataset's JSON manifest
@@ -211,8 +211,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     if cfg.random_seed:
         pl.seed_everything(cfg.random_seed)
 
-    if cfg.nemo_model_file is None and cfg.pretrained_name is None:
-        raise ValueError("Both cfg.nemo_model_file and cfg.pretrained_name cannot be None!")
+    if cfg.model_path is None and cfg.pretrained_name is None:
+        raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
 
