@@ -43,12 +43,6 @@ Latest News
 
 .. raw:: html
 
-  <style>
-    details {
-      margin-left: 20px;
-    }
-  </style>
-
   <details open>
     <summary><b>Large Language Models and Multimodal</b></summary>
         <details open>
