@@ -63,7 +63,8 @@ def normalize_batch(x, seq_len, normalize_type):
         batch_size = x.shape[0]
         max_time = x.shape[2]
 
-        if torch.any(seq_len == 1).item():
+        # When doing stream capture to a graph, item() is not allowed becuase it calls cudaStreamSynchronize()
+        if not torch.cuda.is_current_stream_capturing() and torch.any(seq_len == 1).item():
             raise ValueError(
                 "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
                 "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
@@ -464,7 +465,7 @@ class FilterbankFeatures(nn.Module):
 
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
-        mask = torch.arange(max_len).to(x.device)
+        mask = torch.arange(max_len, device=x.device)
         mask = mask.repeat(x.size(0), 1) >= seq_len.unsqueeze(1)
         x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
         del mask
