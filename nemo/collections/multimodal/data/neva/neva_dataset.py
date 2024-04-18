@@ -27,7 +27,7 @@ from einops import rearrange
 from omegaconf import DictConfig
 from PIL import Image
 from torch.utils.data import Dataset, default_collate
-from transformers import CLIPImageProcessor
+from transformers import CLIPImageProcessor, SiglipImageProcessor
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.neva.conversation import (
@@ -189,7 +189,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
 
 def process_image(processor, image, image_aspect_ratio="square"):
-    if isinstance(processor, CLIPImageProcessor):
+    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
         # image processor from HF
         if image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)

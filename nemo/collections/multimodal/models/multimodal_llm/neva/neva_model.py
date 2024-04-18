@@ -23,7 +23,7 @@ import open_clip
 from einops import rearrange, repeat
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import CLIPVisionModel, CLIPImageProcessor
+from transformers import CLIPVisionModel, CLIPImageProcessor, SiglipVisionModel, SiglipImageProcessor
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
@@ -131,7 +131,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         use_im_start_end=False,
     ):
         self.vision_encoder = vision_encoder
-        self.from_hf = isinstance(vision_encoder, CLIPVisionModel)
+        self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel)
         self.from_open_clip = "open_clip" in str(vision_encoder.__module__)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
@@ -283,17 +283,32 @@ class NevaBaseModel:
     def create_vision_encoder_and_processor(self, mm_cfg):
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.get("from_hf", False):
-            vision_encoder = CLIPVisionModel.from_pretrained(
-                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
-            ).cuda()
-            vision_encoder = vision_encoder.to(torch.bfloat16)
-            if mm_cfg.vision_encoder.freeze:
-                for param in vision_encoder.parameters():
-                    param.requires_grad = False
-                vision_encoder = vision_encoder.eval()
-            image_processor = CLIPImageProcessor.from_pretrained(
-                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-            )
+            if "clip" in mm_cfg.vision_encoder.from_pretrained:
+                vision_encoder = CLIPVisionModel.from_pretrained(
+                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+                ).cuda()
+                vision_encoder = vision_encoder.to(torch.bfloat16)
+                if mm_cfg.vision_encoder.freeze:
+                    for param in vision_encoder.parameters():
+                        param.requires_grad = False
+                    vision_encoder = vision_encoder.eval()
+                image_processor = CLIPImageProcessor.from_pretrained(
+                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+                )
+            elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
+                vision_encoder = SiglipVisionModel.from_pretrained(
+                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+                ).cuda()
+                vision_encoder = vision_encoder.to(torch.bfloat16)
+                if mm_cfg.vision_encoder.freeze:
+                    for param in vision_encoder.parameters():
+                        param.requires_grad = False
+                    vision_encoder = vision_encoder.eval()
+                image_processor = SiglipImageProcessor.from_pretrained(
+                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+                )
+            else:
+                raise(ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
         elif mm_cfg.vision_encoder.get("from_open_clip", False):
             assert mm_cfg.vision_encoder.get("open_clip_model_name") is not None, \
                 f"`open_clip_model_name` needs to be set."
