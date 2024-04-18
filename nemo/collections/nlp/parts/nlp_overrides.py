@@ -359,10 +359,6 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint_dir = ckpt_to_dir(filepath)
 
             fs = get_filesystem(checkpoint_dir)
-            if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
-                logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
-                return
-
             if is_global_rank_zero():
                 fs.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -863,30 +859,27 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
                 fs = get_filesystem(dist_ckpt_dir)
 
-                if fs.isdir(dist_ckpt_dir) and dist_checkpointing.check_is_distributed_checkpoint(dist_ckpt_dir):
-                    logging.info(f'Distributed checkpoint at path {dist_ckpt_dir} already exists, skipping saving')
-                else:
-                    if is_global_rank_zero():
-                        fs.makedirs(dist_ckpt_dir, exist_ok=True)
+                if is_global_rank_zero():
+                    fs.makedirs(dist_ckpt_dir, exist_ok=True)
 
-                    sharded_state_dict = model.sharded_state_dict()
-                    # dist checkpoint needs torch.distributed to save the checkpoint
-                    if not parallel_state.is_initialized():
+                sharded_state_dict = model.sharded_state_dict()
+                # dist checkpoint needs torch.distributed to save the checkpoint
+                if not parallel_state.is_initialized():
 
-                        def dummy():
-                            return
+                    def dummy():
+                        return
 
-                        if model.trainer.strategy.launcher is not None:
-                            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
-                        model.trainer.strategy.setup_environment()
-                    sharded_strategy = (
-                        ('torch_dist', 1) if model.cfg.get("torch_distributed_checkpoint", False) else ('zarr', 1)
-                    )
-                    dist_checkpointing.save(
-                        sharded_state_dict=sharded_state_dict,
-                        checkpoint_dir=dist_ckpt_dir,
-                        sharded_strategy=sharded_strategy,
-                    )
+                    if model.trainer.strategy.launcher is not None:
+                        model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+                    model.trainer.strategy.setup_environment()
+                sharded_strategy = (
+                    ('torch_dist', 1) if model.cfg.get("torch_distributed_checkpoint", False) else ('zarr', 1)
+                )
+                dist_checkpointing.save(
+                    sharded_state_dict=sharded_state_dict,
+                    checkpoint_dir=dist_ckpt_dir,
+                    sharded_strategy=sharded_strategy,
+                )
 
             else:
 

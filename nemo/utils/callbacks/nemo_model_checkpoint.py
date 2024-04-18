@@ -367,6 +367,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         except:
             return
 
+    def file_exists(self, filepath: str, trainer: "pytorch_lightning.Trainer") -> bool:
+        """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
+        exists = self._fs.exists(filepath) or self._fs.exists(ckpt_to_dir(filepath))
+        return trainer.strategy.broadcast(exists)
+
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
