@@ -328,7 +328,7 @@ def nemo_llm_model_to_model_config(
 
     return [model_config]
 
-def nemo_to_trtllm(
+def nemo_to_trtllm_config(
     in_file: str,
     decoder_type: str,
     nemo_export_dir: Union[str, Path],
@@ -401,23 +401,20 @@ def nemo_to_trtllm(
             'quant_algo': None,
             'kv_cache_quant_algo': None,
         },
-        'mapping': {
-            'world_size': world_size,
-            'tp_size': tensor_parallel_size,
-            'pp_size': pipeline_parallel_size,
-        },
         'bias':
         nemo_model_config.get('bias'),
         'apply_query_key_layer_scaling':
         False,
         'rotary_pct':
         nemo_model_config.get('rotary_percentage'),
+        'logits_dtype': 'float32',
+        'world_size': world_size,
+        'tp_size': tensor_parallel_size,
+        'pp_size': pipeline_parallel_size,
     }
 
-    with open(os.path.join(nemo_export_dir, 'config.json'), 'w') as f:
-        json.dump(config, f, indent=4)
-
     model_configs = []
+    weights_dicts = []
     for i in range(world_size):
         weights_dict_local = weights_dict.copy()
 
@@ -438,30 +435,10 @@ def nemo_to_trtllm(
             split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
         )
 
-        # save to file for trtllm-build, move to build_trtllm API for the future
-        from safetensors.numpy import save_file
-        save_file(
-            weights_dict_local, os.path.join(nemo_export_dir, f'rank{i}.safetensors')
-        )
+        from tensorrt_llm.models.modeling_utils import PretrainedConfig
+        config = PretrainedConfig(**config)
+        config.mapping = mapping
+        model_configs.append(config)
+        weights_dicts.append(weights_dict_local)
 
-        # config = PretrainedConfig(
-        #     architecture='GPTForCausalLM',
-        #     dtype=dtype_str,
-        #     num_hidden_layers=llm_model_config.get('n_layer'),
-        #     num_attention_heads=llm_model_config.get('n_head'),
-        #     num_key_value_heads=llm_model_config.get('n_kv_head'),
-        #     hidden_size=llm_model_config.get('n_embd'),
-        #     intermediate_size=llm_model_config.get('n_inner'),
-        #     norm_epsilon=llm_model_config.get('layer_norm_epsilon'),
-        #     vocab_size=tokenizer.vocab_size,
-        #     position_embedding_type=llm_model_config.get('position_embedding_type'),
-        #     max_position_embeddings=llm_model_config.get('n_positions'),
-        #     hidden_act=llm_model_config.get('activation_function'),
-        #     use_parallel_embedding=use_parallel_embedding,
-        #     bias=llm_model_config.get('bias'),
-        #     rotary_pct=llm_model_config.get('rotary_pct')
-        # )
-        # config.mapping = mapping
-        # model_configs.append(config)
-
-    return weights_dict, model_configs, tokenizer
+    return weights_dicts, model_configs, tokenizer

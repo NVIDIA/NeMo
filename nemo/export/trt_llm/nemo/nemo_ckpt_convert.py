@@ -292,7 +292,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         model_level_weights[key] = np.concatenate(values, axis=0)
 
         weights_dict[key] = model_level_weights[key]
-    vocab_size = model_level_weights["transformer.vocab_embedding.weight"].shape[0]
 
     if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
         tokenizer = AutoTokenizer.from_pretrained(
@@ -304,22 +303,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
         tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
         tokenizer = build_tokenizer(tokenizer_config)
-
-    llm_config = nemo_to_llm_config(
-        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id, args.decoder_type,
-    )
-
-    llm_config.is_mcore = is_mcore
-
-    config = configparser.ConfigParser()
-    decoder_name_dict = {"llama": "llama", "falcon": "falcon"}
-    model_name = decoder_name_dict[args.decoder_type] if args.decoder_type in decoder_name_dict else "gpt"
-
-    config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
-    config[model_name]["storage_dtype"] = args.storage_type
-    config_path = out_dir / "config.ini"
-    with config_path.open("w") as config_file:
-        config.write(config_file)
 
     return weights_dict, nemo_model_config, tokenizer
 

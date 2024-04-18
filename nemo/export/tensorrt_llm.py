@@ -29,9 +29,10 @@ import wrapt
 from nemo.deploy import ITritonDeployable
 from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
-from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config, nemo_to_trtllm
+from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config, nemo_to_trtllm_config
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file, unpack_nemo_ckpt
+from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 
 use_deploy = True
 try:
@@ -262,7 +263,7 @@ class TensorRTLLM(ITritonDeployable):
             tensor_parallel_size = 1
             pipeline_parallel_size = n_gpus
 
-        weight_dict, model_configs, self.tokenizer = nemo_to_trtllm(
+        weights_dicts, model_configs, self.tokenizer = nemo_to_trtllm_config(
             in_file=nemo_checkpoint_path,
             decoder_type=model_type,
             dtype=dtype,
@@ -273,15 +274,26 @@ class TensorRTLLM(ITritonDeployable):
             save_nemo_model_config=save_nemo_model_config,
         )
 
-        # tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
-        # if os.path.exists(tokenizer_path):
-        #     shutil.copy(tokenizer_path, self.model_dir)
-        # else:
-        #     self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+        for weight_dict, model_config in zip(weights_dicts, model_configs):
+            build_and_save_engine(
+                max_input_len=max_input_token,
+                max_output_len=max_output_token,
+                max_batch_size=max_batch_size,
+                model_config=model_config,
+                model_weights=weight_dict,
+                model_dir=self.model_dir,
+                # trt_model_type=trt_model_type
+            )
 
-        # nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
-        # if os.path.exists(nemo_model_config):
-        #     shutil.copy(nemo_model_config, self.model_dir)
+        tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
+        if os.path.exists(tokenizer_path):
+            shutil.copy(tokenizer_path, self.model_dir)
+        else:
+            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+
+        nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
+        if os.path.exists(nemo_model_config):
+            shutil.copy(nemo_model_config, self.model_dir)
 
     def build(
         self,
