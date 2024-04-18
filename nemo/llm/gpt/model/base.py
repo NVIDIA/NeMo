@@ -62,7 +62,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         )
 
 
-class GPTModel(L.LightningModule, io.IOMixin):
+class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
     def __init__(
         self,
         config: GPTConfig,
