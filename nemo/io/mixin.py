@@ -1,11 +1,11 @@
 import functools
 import inspect
+import pickle
 from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any, Dict
 
 import fiddle as fdl
-from cloudpickle import dump
 from typing_extensions import Self
 
 from nemo.io.capture import IOProtocol
@@ -50,9 +50,9 @@ class IOMixin:
         [Fiddle Config Documentation](https://fiddle.readthedocs.io/en/latest/api_reference/core.html#config).
 
     """
-
+    
     __io__ = fdl.Config[Self]
-
+    
     def __new__(cls, *args, **kwargs):
         """
         Overrides the default object creation process to wrap the `__init__` method, allowing
@@ -67,18 +67,18 @@ class IOMixin:
             The newly created object instance.
         """
         original_init = cls.__init__
-
+        
         @functools.wraps(original_init)
         def wrapped_init(self, *args, **kwargs):
             cfg_kwargs = self.io_transform_args(original_init, *args, **kwargs)
             self.__io__ = self.io_init(**cfg_kwargs)
             original_init(self, *args, **kwargs)
-
+        
         cls.__init__ = wrapped_init
         output = object().__new__(cls)
-
+        
         return output
-
+    
     def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
         """
         Transforms and captures the arguments passed to the `__init__` method, filtering out
@@ -110,7 +110,7 @@ class IOMixin:
 
         for key in to_del:
             del config_kwargs[key]
-
+        
         return config_kwargs
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
@@ -125,7 +125,7 @@ class IOMixin:
             fdl.Config[Self]: The initialized configuration object.
         """
         return fdl.Config(type(self), **kwargs)
-
+    
     def io_dump(self, output: Path):
         """
         Serializes the configuration object (`__io__`) to a file, allowing the object state to be
@@ -136,4 +136,4 @@ class IOMixin:
         """
         config_path = Path(output) / "io.pkl"
         with open(config_path, "wb") as f:
-            dump(self.__io__, f)
+            pickle.dump(self.__io__, f, protocol=pickle.HIGHEST_PROTOCOL)

@@ -9,6 +9,7 @@ from nemo.lightning.pytorch.plugins import (
     data_sampler as _data_sampler,
 )
 from nemo.lightning.pytorch.strategies import MegatronStrategy
+from nemo.lightning.pytorch.trainer import Trainer
 
 
 # We monkey patch because nvidia uses a naming convention for SLURM jobs
@@ -25,6 +26,7 @@ _pl_plugins._PLUGIN_INPUT = Union[_pl_plugins._PLUGIN_INPUT, _data_sampler.DataS
 __all__ = [
     "MegatronStrategy",
     "MegatronDataSampler",
+    "Trainer",
     "get_vocab_size", 
     "teardown"
 ]

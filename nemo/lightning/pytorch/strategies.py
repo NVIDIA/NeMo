@@ -27,7 +27,8 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from nemo.io.pl import MegatronCheckpointIO
+from nemo import io
+from nemo.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning import _strategy_lib
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
@@ -36,7 +37,7 @@ from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 ConfigT = TypeVar("ConfigT")
 
 
-class MegatronStrategy(DDPStrategy):
+class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
 
     Args:
@@ -58,6 +59,8 @@ class MegatronStrategy(DDPStrategy):
         checkpoint_io=None,  # TODO: Add type-hint
         no_ddp_communication_hook: bool = True,
         find_unused_parameters: bool = False,
+        enable_nemo_ckpt_io: bool = True,
+        ckpt_type: TrainerCkptProtocol = TrainerCheckpoint,
         lazy_init: bool = False,
         **kwargs,
     ) -> None:
@@ -75,6 +78,8 @@ class MegatronStrategy(DDPStrategy):
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
+        self.enable_nemo_ckpt_io = enable_nemo_ckpt_io
+        self.ckpt_type = ckpt_type
         self.lazy_init = lazy_init
 
         # used in NVIDIA NGC PyTorch containers
@@ -351,6 +356,8 @@ class MegatronStrategy(DDPStrategy):
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        if self.enable_nemo_ckpt_io and self.is_global_zero and self.ckpt_type:
+            self.ckpt_type.from_strategy(self).io_dump(ckpt_to_dir(filepath))
 
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:

@@ -1,6 +1,7 @@
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Optional, Protocol, TypeVar, Union
 
 import lightning as L
 import torch
@@ -8,8 +9,13 @@ from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from torch import nn
-from typing_extensions import override
+from typing_extensions import Self, override
 
+from nemo.io.capture import IOProtocol
+from nemo.io.mixin import IOMixin
+
+if TYPE_CHECKING:
+    from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 log = logging.getLogger(__name__)
 
@@ -18,6 +24,46 @@ LightningModuleT = TypeVar("LightningModuleT", bound=L.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
 
+@dataclass
+class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
+    model: LightningModuleT
+    trainer: L.Trainer
+    extra: Dict[str, Any] = field(default_factory=dict)
+    
+    @classmethod
+    def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
+        if not isinstance(strategy.trainer, IOProtocol):
+            raise ValueError(f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
+        
+        if not isinstance(strategy.lightning_module, IOProtocol):
+            raise ValueError("LightningModule must extend IOMixin.")
+            
+        return cls(
+            trainer=strategy.trainer,
+            model=strategy.lightning_module,
+            extra=cls.construct_extra(strategy)
+        )
+        
+    @classmethod
+    def construct_extra(cls, strategy: "MegatronStrategy") -> Dict[str, Any]:
+        extra = {}
+        if hasattr(strategy.trainer, "datamodule") and isinstance(strategy.trainer.datamodule, IOProtocol):
+            extra["datamodule"] = strategy.trainer.datamodule.__io__
+            
+        # TODO: Add optimizer to extra
+            
+        return extra
+
+            
+class TrainerCkptProtocol(Protocol):
+    @classmethod
+    def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
+        ...
+        
+    def io_dump(self, output: Path):
+        ...
+
+    
 class MegatronCheckpointIO(CheckpointIO):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.

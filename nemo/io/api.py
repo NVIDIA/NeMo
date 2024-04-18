@@ -9,7 +9,10 @@ from nemo.io.pl import TrainerCheckpoint
 CkptType = TypeVar("CkptType")
 
 
-def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
+def load(
+    path: Path, 
+    output_type: Type[CkptType] = Any
+) -> CkptType:
     """
     Loads a configuration from a pickle file and constructs an object of the specified type.
 
@@ -28,14 +31,14 @@ def load(path: Path, output_type: Type[CkptType] = Any) -> CkptType:
     Example:
         loaded_model = load("/path/to/model", output_type=MyModel)
     """
-    del output_type  # Just for type-hint
-
+    del output_type     # Just for type-hint
+    
     _path = Path(path)
     if hasattr(_path, 'is_dir') and _path.is_dir():
         _path = Path(_path) / "io.pkl"
     elif hasattr(_path, 'isdir') and _path.isdir:
         _path = Path(_path) / "io.pkl"
-
+    
     if not _path.is_file():
         raise FileNotFoundError(f"No such file: '{_path}'")
 

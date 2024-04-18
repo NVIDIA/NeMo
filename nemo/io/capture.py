@@ -38,7 +38,7 @@ def capture(to_capture: Optional[Callable] = None):
 
 SelfT = TypeVar("SelfT", covariant=True)
 
-
+        
 @runtime_checkable
 class IOProtocol(Protocol, Generic[SelfT]):
     @property
@@ -50,15 +50,15 @@ class IOProtocol(Protocol, Generic[SelfT]):
 class ReInitProtocol(Protocol, Generic[SelfT]):
     def reinit(self) -> SelfT:
         ...
-
+    
 
 def reinit(configurable: IOProtocol[SelfT]) -> SelfT:
     if isinstance(configurable, ReInitProtocol):
         return configurable.reinit()
-
+    
     if not hasattr(configurable, '__io__'):
         raise ValueError(f"Cannot reinit {configurable} because it does not have a __io__ attribute")
-
+    
     return fdl.build(configurable.__io__)
 
 
@@ -94,5 +94,5 @@ def type_factory(original_type, base_value=None):
             logging.warning(f"Could not instantiate type {NewType.__name__} with base value.")
             instance = NewType()
         return instance
-
+    
     return NewType
