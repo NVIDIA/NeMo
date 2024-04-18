@@ -2,16 +2,25 @@ import itertools
 import os
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Protocol, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generator,
+    Optional,
+    Protocol,
+    TypeVar,
+)
 
 import torch
+from lightning.fabric.utilities.types import Optimizable
 from torch import nn
+
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
 if TYPE_CHECKING:
-    from lightning_fabric.utilities.types import Optimizable
     from megatron.core.model_parallel_config import ModelParallelConfig
 
 
@@ -21,7 +30,12 @@ class SharedStateDictProtocol(Protocol):
 
 
 def init_parallel_ranks(
-    world_size: int, global_rank: int, local_rank: int, parallel_config: "ModelParallelConfig", seed=1234, fp8=False,
+    world_size: int,
+    global_rank: int,
+    local_rank: int,
+    parallel_config: "ModelParallelConfig",
+    seed=1234,
+    fp8=False,
 ) -> None:
     """
     Initializes the parallel ranks for distributed training.
@@ -38,13 +52,17 @@ def init_parallel_ranks(
         seed (int, optional): The seed for random number generation. Defaults to 1234.
         fp8 (bool, optional): Whether to use fp8 precision for model parameters. Defaults to False.
     """
-    from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+    from nemo.collections.nlp.modules.common.megatron.megatron_init import (
+        initialize_model_parallel_for_nemo,
+    )
     from nemo.utils import AppState
 
     app_state = AppState()
 
     if os.environ.get(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, "false").lower() == "true":
-        init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+        init_world_size = (
+            app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+        )
         init_global_rank = app_state.global_rank
         init_local_rank = app_state.local_rank
     else:
@@ -60,7 +78,9 @@ def init_parallel_ranks(
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         seed=seed,
-        pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
+        pipeline_model_parallel_split_rank=getattr(
+            parallel_config, "pipeline_model_parallel_split_rank", None
+        ),
         use_fp8=fp8,
         init_mpi_proc_group=getattr(parallel_config, "ub_tp_comm_overlap", False),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
@@ -71,7 +91,6 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
     """Initializes Megatron-LM model parallel if using model parallelism."""
     import torch.distributed
     from megatron.core import parallel_state
-
     from nemo.utils import AppState
 
     app_state = AppState()
@@ -105,7 +124,9 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 torch.distributed.new_group(backend="mpi")
 
         if model:
-            # Set TP group
+            """Set TP group
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            """
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(model.modules()):
                 if index == 0:
@@ -113,8 +134,8 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 if hasattr(child, "set_tensor_parallel_group"):
                     tp_group = parallel_state.get_tensor_model_parallel_group()
                     child.set_tensor_parallel_group(tp_group)
-
-
+    
+    
 @contextmanager
 def megatron_lazy_init_context(config) -> Generator[None, None, None]:
     def monkey_patched(c):
@@ -122,9 +143,9 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
 
     from megatron.core.transformer.custom_layers import transformer_engine as _te
 
-    original = _te._get_extra_te_kwargs  # noqa: SLF001
-    _te._get_extra_te_kwargs = monkey_patched  # noqa: SLF001
-
+    original = _te._get_extra_te_kwargs   # noqa: SLF001
+    _te._get_extra_te_kwargs = monkey_patched   # noqa: SLF001
+    
     _orig_perform_initialization = config.perform_initialization
     _orig_use_cpu_initialization = config.use_cpu_initialization
 
@@ -133,11 +154,11 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
 
     yield
 
-    _te._get_extra_te_kwargs = original  # noqa: SLF001
+    _te._get_extra_te_kwargs = original   # noqa: SLF001
     config.perform_initialization = _orig_perform_initialization
     config.use_cpu_initialization = _orig_use_cpu_initialization
-
-
+    
+    
 @contextmanager
 def megatron_cpu_init_context(config) -> Generator[None, None, None]:
     _orig_use_cpu_initialization = config.use_cpu_initialization
@@ -147,7 +168,7 @@ def megatron_cpu_init_context(config) -> Generator[None, None, None]:
     yield
 
     config.use_cpu_initialization = _orig_use_cpu_initialization
-
+    
 
 ModelT = TypeVar("ModelT", bound=nn.Module)
 
@@ -161,7 +182,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def __init__(
         self,
-        init_scale=2.0 ** 16,
+        init_scale=2.0**16,
         growth_factor=2.0,
         backoff_factor=0.5,
         growth_interval=2000,
@@ -187,13 +208,17 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         from megatron.core import parallel_state
-
+        
         retval = None
-        found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
+        found_inf = torch.cuda.FloatTensor(
+            [sum(v.item() for v in optimizer_state["found_inf_per_device"].values())]
+        )
 
         # Update across all model parallel instances.
         torch.distributed.all_reduce(
-            found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group(),
+            found_inf,
+            op=torch.distributed.ReduceOp.MAX,
+            group=parallel_state.get_model_parallel_group(),
         )
 
         if found_inf.item() == 0:
@@ -211,7 +236,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
         3. Apply hysteresis to grad scale update.
         """
         from megatron.core import parallel_state
-
+        
         if not self._enabled:
             return
 
@@ -223,7 +248,8 @@ class GradScaler(torch.cuda.amp.GradScaler):
                 self._scale.fill_(new_scale)  # type: ignore[union-attr]
             else:
                 reason = (
-                    "new_scale should be a float or a 1-element torch.cuda.FloatTensor with" " requires_grad=False."
+                    "new_scale should be a float or a 1-element torch.cuda.FloatTensor with"
+                    " requires_grad=False."
                 )
                 assert isinstance(new_scale, torch.cuda.FloatTensor), reason  # type: ignore[attr-defined]
                 assert new_scale.numel() == 1, reason
@@ -244,7 +270,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
             # Update across all model parallel instances.
             torch.distributed.all_reduce(
-                found_inf_combined, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group(),
+                found_inf_combined,
+                op=torch.distributed.ReduceOp.MAX,
+                group=parallel_state.get_model_parallel_group(),
             )
 
             if len(found_infs) > 1:
@@ -252,7 +280,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     found_inf = found_infs[i]
                     # Update across all model parallel instances.
                     torch.distributed.all_reduce(
-                        found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group(),
+                        found_inf,
+                        op=torch.distributed.ReduceOp.MAX,
+                        group=parallel_state.get_model_parallel_group(),
                     )
                     found_inf_combined += found_inf
 
@@ -261,7 +291,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                 if self._hysteresis_tracker <= 0:
                     # When hysteresis becomes zero, follow the native grad scale update rule.
                     # Increase scale and reset growth tracker
-                    torch._amp_update_scale_(  # noqa: SLF001
+                    torch._amp_update_scale_(   # noqa: SLF001
                         _scale,
                         _growth_tracker,
                         found_inf_combined,
@@ -276,7 +306,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                 # When no inf found, follow the native grad scale update rule.
                 # Increment growth_tracker, update scale when growth tracker reaches the interval, and
                 # reset the hysteresis tracker.
-                torch._amp_update_scale_(  # noqa: SLF001
+                torch._amp_update_scale_(   # noqa: SLF001
                     _scale,
                     _growth_tracker,
                     found_inf_combined,
@@ -288,7 +318,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
         self._per_optimizer_states = defaultdict(
-            torch.cuda.amp.grad_scaler._refresh_per_optimizer_state  # noqa: SLF001
+            torch.cuda.amp.grad_scaler._refresh_per_optimizer_state   # noqa: SLF001
         )
 
     def state_dict(self):
@@ -353,19 +383,21 @@ def enable_nvidia_optimizations() -> None:
         # NVFUSER available starting with 21.11
         if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
             # NVFUSER
-            torch._C._jit_set_profiling_executor(True)  # noqa: SLF001
-            torch._C._jit_set_profiling_mode(True)  # noqa: SLF001
-            torch._C._jit_override_can_fuse_on_cpu(False)  # noqa: SLF001
-            torch._C._jit_override_can_fuse_on_gpu(False)  # noqa: SLF001
-            torch._C._jit_set_texpr_fuser_enabled(False)  # noqa: SLF001
+            torch._C._jit_set_profiling_executor(True)   # noqa: SLF001
+            torch._C._jit_set_profiling_mode(True)   # noqa: SLF001
+            torch._C._jit_override_can_fuse_on_cpu(False)   # noqa: SLF001
+            torch._C._jit_override_can_fuse_on_gpu(False)   # noqa: SLF001
+            torch._C._jit_set_texpr_fuser_enabled(False)   # noqa: SLF001
             # torch._C._jit_set_nvfuser_enabled(True)
-            torch._C._debug_set_autodiff_subgraph_inlining(False)  # noqa: SLF001
+            torch._C._debug_set_autodiff_subgraph_inlining(False)   # noqa: SLF001
     else:
         # Not a Nvidia container. NVFUSER Dependency check is on users
         pass
 
 
-def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Optimizable") -> Dict[str, torch.Tensor]:
+def optimizer_sharded_state_dict(
+    model: SharedStateDictProtocol, optimizer: Optimizable
+) -> Dict[str, torch.Tensor]:
     """
     Sharded state dictionary for an MainParamsOptimizerWrapper.
     Used to save and load the optimizer state when training with distributed_checkpoint.
@@ -381,20 +413,21 @@ def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Opt
         make_sharded_optimizer_tensor,
         optim_state_to_sharding_state,
     )
-
     from nemo.core.optim import MainParamsOptimizerWrapper
     from nemo.core.optim.optimizers import init_optimizer_states
-
+    
     model_sharded_state_dict = model.sharded_state_dict()
 
     # remove _extra_state
     model_sharded_state_dict = {
-        key: value for key, value in model_sharded_state_dict.items() if not key.endswith("_extra_state")
+        key: value
+        for key, value in model_sharded_state_dict.items()
+        if not key.endswith("_extra_state")
     }
 
     if hasattr(optimizer, "sharded_state_dict"):
         return optimizer.sharded_state_dict(model_sharded_state_dict)
-
+    
     if not isinstance(optimizer, MainParamsOptimizerWrapper):
         # Regular optimizer, e.g. Adam or FusedAdam
         init_optimizer_states(optimizer)
@@ -414,7 +447,9 @@ def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Opt
     )
 
     # Convert fp32_from_fp16_params
-    assert len(optimizer_state_dict["fp32_from_fp16_params"]) == len(optimizer_state_dict["optimizer"]["param_groups"])
+    assert len(optimizer_state_dict["fp32_from_fp16_params"]) == len(
+        optimizer_state_dict["optimizer"]["param_groups"]
+    )
 
     def get_safe(param_id):
         try:
@@ -424,11 +459,14 @@ def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Opt
 
     optimizer_state_dict["fp32_from_fp16_params"] = [
         [
-            make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix="optimizer.state.fp32_param")
+            make_sharded_optimizer_tensor(
+                get_safe(param_id), fp32_param, prefix="optimizer.state.fp32_param"
+            )
             for param_id, fp32_param in zip(state_group["params"], fp32_group)
         ]
         for fp32_group, state_group in zip(
-            optimizer_state_dict["fp32_from_fp16_params"], optimizer_state_dict["optimizer"]["param_groups"],
+            optimizer_state_dict["fp32_from_fp16_params"],
+            optimizer_state_dict["optimizer"]["param_groups"],
         )
     ]
 

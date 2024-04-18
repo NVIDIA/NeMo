@@ -1,63 +1,21 @@
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Optional, Protocol, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
-import pytorch_lightning as pl
+import lightning as L
 import torch
-from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.types import _PATH
+from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.types import _PATH
 from torch import nn
-from typing_extensions import Self, override
+from typing_extensions import override
 
-from nemo.io.capture import IOProtocol
-from nemo.io.mixin import IOMixin
-
-if TYPE_CHECKING:
-    from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 log = logging.getLogger(__name__)
 
 
-LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
+LightningModuleT = TypeVar("LightningModuleT", bound=L.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
-
-
-@dataclass
-class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
-    model: LightningModuleT
-    trainer: pl.Trainer
-    extra: Dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
-        if not isinstance(strategy.trainer, IOProtocol):
-            raise ValueError(f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
-
-        if not isinstance(strategy.lightning_module, IOProtocol):
-            raise ValueError("LightningModule must extend IOMixin.")
-
-        return cls(trainer=strategy.trainer, model=strategy.lightning_module, extra=cls.construct_extra(strategy))
-
-    @classmethod
-    def construct_extra(cls, strategy: "MegatronStrategy") -> Dict[str, Any]:
-        extra = {}
-        if hasattr(strategy.trainer, "datamodule") and isinstance(strategy.trainer.datamodule, IOProtocol):
-            extra["datamodule"] = strategy.trainer.datamodule.__io__
-
-        # TODO: Add optimizer to extra
-
-        return extra
-
-
-class TrainerCkptProtocol(Protocol):
-    @classmethod
-    def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
-        ...
-
-    def io_dump(self, output: Path):
-        ...
 
 
 class MegatronCheckpointIO(CheckpointIO):
@@ -84,7 +42,7 @@ class MegatronCheckpointIO(CheckpointIO):
 
         """
         from megatron.core import dist_checkpointing
-
+        
         if storage_options is not None:
             raise TypeError(
                 "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
@@ -96,12 +54,16 @@ class MegatronCheckpointIO(CheckpointIO):
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
             logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
             return
+        
         fs.makedirs(checkpoint_dir, exist_ok=True)
         dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=str(checkpoint_dir))
 
     @override
     def load_checkpoint(
-        self, path: _PATH, sharded_state_dict=None, map_location: Optional[Callable] = None
+        self, 
+        path: _PATH,
+        sharded_state_dict=None,
+        map_location: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 
@@ -118,20 +80,26 @@ class MegatronCheckpointIO(CheckpointIO):
 
         """
         from megatron.core import dist_checkpointing
-
+        
         if map_location is not None:
-            raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
+            raise ValueError(
+                "`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`."
+            )
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(path)
         if not fs.exists(path):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
-            raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
-
+            raise ValueError(
+                f"Distributed checkpoints should be a directory. Found: {path}."
+            )
+            
         # return pl_load(path, map_location=map_location)
 
-        checkpoint = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path))
+        checkpoint = dist_checkpointing.load(
+            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path)
+        )
         checkpoint = _fix_tensors_device(checkpoint)
 
         return checkpoint
@@ -154,6 +122,7 @@ def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
     assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
     cur_dev = torch.device("cuda", index=torch.cuda.current_device())
+    
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
 
     def _fix_device(t):
@@ -170,6 +139,7 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     to be used as a directory for distributed checkpoints.
     """
     filepath = Path(filepath)
+    
     if not filepath.suffix == ".ckpt":
         filepath = filepath.with_suffix(filepath.suffix + ".ckpt")
 
@@ -197,10 +167,10 @@ def is_distributed_ckpt(path) -> bool:
 
     """
     from megatron.core import dist_checkpointing
-
+        
     checkpoint_dir = ckpt_to_dir(path)
     fs = get_filesystem(checkpoint_dir)
     if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
         return True
-
+    
     return False
