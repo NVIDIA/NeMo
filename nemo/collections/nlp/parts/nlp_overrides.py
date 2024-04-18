@@ -68,6 +68,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
+from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
@@ -174,7 +175,6 @@ class NLPDDPStrategy(DDPStrategy):
         no_ddp_communication_hook: bool = False,
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
-        torch_dist_ckpt: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -191,7 +191,6 @@ class NLPDDPStrategy(DDPStrategy):
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.nccl_communicator_config_path = nccl_communicator_config_path
         self.sharp = sharp
-        self.torch_dist_ckpt = torch_dist_ckpt
 
     def setup(self, trainer: "pl.Trainer") -> None:
         """
@@ -363,16 +362,10 @@ class NLPDDPStrategy(DDPStrategy):
                 logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
                 return
 
-            if is_global_rank_zero():
-                fs.makedirs(checkpoint_dir, exist_ok=True)
-
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
 
-            sharded_strategy = ('torch_dist', 1) if self.torch_dist_ckpt else ('zarr', 1)
-            dist_checkpointing.save(
-                sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir, sharded_strategy=sharded_strategy
-            )
+            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
         else:
             # PTL override to accomodate model parallel checkpoints
             filepath = inject_model_parallel_rank(filepath)
@@ -434,11 +427,7 @@ class NLPDDPStrategy(DDPStrategy):
         fs = get_filesystem(checkpoint_path)
 
         # Check if using distributed checkpointing
-        if (
-            hasattr(self.lightning_module, 'sharded_state_dict')
-            and self.lightning_module.sharded_state_dict() is not None
-        ):
-
+        if self.use_distributed_checkpointing:
             # Distributed checkpoints must be directories.
             if not fs.isdir(checkpoint_path):
                 raise ValueError(f'Distributed checkpoints should be a directory. Found: {checkpoint_path}.')
@@ -459,7 +448,7 @@ class NLPDDPStrategy(DDPStrategy):
                 sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_path, sharded_strategy=sharded_strategy
             )
 
-            return checkpoint
+            return self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
 
         # Legacy model parallel checkpointing logic, does not use megatron core
         else:
@@ -472,12 +461,8 @@ class NLPDDPStrategy(DDPStrategy):
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
-        if (
-            hasattr(self.lightning_module, 'sharded_state_dict')
-            and self.lightning_module.sharded_state_dict() is not None
-        ):
-            if self.is_global_zero:
-                shutil.rmtree(ckpt_to_dir(filepath), ignore_errors=True)
+        if self.use_distributed_checkpointing and self.is_global_zero:
+            self.checkpoint_io.remove_checkpoint(filepath)
 
         # legacy checkpoint logic, does not use megatron core
         else:
@@ -487,6 +472,16 @@ class NLPDDPStrategy(DDPStrategy):
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 logging.info(f'Removing checkpoint: {filepath}')
                 self.checkpoint_io.remove_checkpoint(filepath)
+
+    @property
+    def use_distributed_checkpointing(self):
+        use_dist_ckpt = isinstance(self.checkpoint_io, DistributedCheckpointIO)
+        has_sharded_state_dict = (
+            hasattr(self.lightning_module, 'sharded_state_dict')
+            and self.lightning_module.sharded_state_dict() is not None
+        )
+        assert use_dist_ckpt == has_sharded_state_dict, (use_dist_ckpt, has_sharded_state_dict) # TODO
+        return use_dist_ckpt
 
     @property
     def distributed_sampler_kwargs(self):
@@ -860,33 +855,19 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # dist ckpt calls save on every rank
             if dist_ckpt:
                 # model weights is a directory
-                dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
-                fs = get_filesystem(dist_ckpt_dir)
+                dist_ckpt_path = os.path.join(dir_name, self.model_weights_ckpt)
+                sharded_state_dict = model.sharded_state_dict()
+                # dist checkpoint needs torch.distributed to save the checkpoint
+                if not parallel_state.is_initialized():
 
-                if fs.isdir(dist_ckpt_dir) and dist_checkpointing.check_is_distributed_checkpoint(dist_ckpt_dir):
-                    logging.info(f'Distributed checkpoint at path {dist_ckpt_dir} already exists, skipping saving')
-                else:
-                    if is_global_rank_zero():
-                        fs.makedirs(dist_ckpt_dir, exist_ok=True)
+                    def dummy():
+                        return
 
-                    sharded_state_dict = model.sharded_state_dict()
-                    # dist checkpoint needs torch.distributed to save the checkpoint
-                    if not parallel_state.is_initialized():
-
-                        def dummy():
-                            return
-
-                        if model.trainer.strategy.launcher is not None:
-                            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+                    if model.trainer.strategy.launcher is not None:
+                        model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                         model.trainer.strategy.setup_environment()
-                    sharded_strategy = (
-                        ('torch_dist', 1) if model.cfg.get("torch_distributed_checkpoint", False) else ('zarr', 1)
-                    )
-                    dist_checkpointing.save(
-                        sharded_state_dict=sharded_state_dict,
-                        checkpoint_dir=dist_ckpt_dir,
-                        sharded_strategy=sharded_strategy,
-                    )
+                    checkpoint_io = DistributedCheckpointIO(model.cfg.checkpoint_storage)
+                    checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_path)
 
             else:
 
@@ -1144,9 +1125,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                checkpoint = dist_checkpointing.load(
-                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir
-                )
+                checkpoint_io = DistributedCheckpointIO(conf.checkpoint_storage)
+                checkpoint_io.load_checkpoint(tmp_model_weights_dir, sharded_state_dict=checkpoint)
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
                     instance.setup_transformer_engine_tp_groups()
