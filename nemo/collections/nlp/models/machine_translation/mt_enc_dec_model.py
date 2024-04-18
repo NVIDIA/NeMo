@@ -285,7 +285,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # Determine all of the language IDs that need to be added as special tokens.
         if isinstance(src_language, ListConfig) and isinstance(tgt_language, ListConfig):
             assert len(src_language) == len(tgt_language)
-            all_languages = list(set(tgt_language + src_language))
+            all_languages = []
+            for l in tgt_language + src_language:
+                if l not in all_languages:
+                    all_languages.append(l)
+
         elif isinstance(tgt_language, ListConfig):
             all_languages = tgt_language
         elif not isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
@@ -323,6 +327,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             target_processor_list.append(tgt_prscr)
 
         return source_processor_list, target_processor_list, multilingual_ids
+
 
     def _validate_encoder_decoder_hidden_size(self):
         """
