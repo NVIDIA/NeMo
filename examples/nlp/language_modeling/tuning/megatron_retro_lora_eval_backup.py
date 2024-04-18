@@ -148,7 +148,8 @@ def main(cfg) -> None:
         shuffle=False,
         num_workers=cfg.get("num_workers", 1),
         num_neighbors=cfg.retrieval_service.neighbors,
-        retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len
+        retrieved_doc_len=cfg.retrieval_service.retrieved_doc_len,
+        chat_type=cfg.get("chat_type", False)    
     )
 
     config = OmegaConf.to_container(cfg.inference)

@@ -25,6 +25,7 @@ virtual_prompt_model_file: ??? # path to a MegatronGPTPromptLearningModel model 
 pred_file_path: /home/aficek/software/research/results/test_inference.jsonl # Path will model predictions will be written
 data_paths: # paths to .jsonl files you want to perform inference on
 num_workers: 8
+chat_type: False
 
 ########### Faiss service parameters ########
 retrieval_service:

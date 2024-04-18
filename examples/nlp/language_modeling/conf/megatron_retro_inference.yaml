@@ -52,7 +52,10 @@ task_templates: # Add more/replace tasks as needed, these are just examples
   taskname: "qasper" # The task name
   # prompt_template: "System: This is a chat between a user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions based on the context. The assistant should also indicate when the answer cannot be found in the context.\n\ntitle: , {question}\n\nAssistant: {answer}"
   # prompt_template: " \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
-  prompt_template: "User: Answer the following question with a short span. {question}\n\nAssistant: The answer is {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+  # prompt_template: "User: Answer the following question with a short span. {question}\n\nAssistant: The answer is {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+  # prompt_template: "User: Please give a full and complete answer for the question. {question}\n\nAssistant: The answer is {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|
+  prompt_template: "User: Answer the following question with a short span. {question}\n\nAssistant: The answer is {answer}"
+  chat_type: False
   # prompt_template: " {question} {answer}"
   prompt_template_fields: ["question", "answer"]
   total_virtual_tokens: 0 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
@@ -60,4 +63,3 @@ task_templates: # Add more/replace tasks as needed, these are just examples
   truncate_field: "question" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
   answer_only_loss: True 
   answer_field: "answer"
-  chat_type: True
