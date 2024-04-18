@@ -87,7 +87,8 @@ def load_config(args, chatglm_config):
             nemo_config.transformer_block_type = 'pre_ln'
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
-    nemo_config.tokenizer.model = chatglm_config['tokenizer_model']
+    nemo_config.tokenizer.type = chatglm_config['tokenizer_model']
+    nemo_config.tokenizer.model = chatglm_config['tokenizer_model'] +'/vocab.json'
     # base = 128
     # while chatglm_config['padded_vocab_size'] % base != 0:
     #     base //= 2
@@ -102,7 +103,7 @@ def convert(args):
     model = AutoModel.from_pretrained(args.input_name_or_path, trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path, trust_remote_code=True)
     hf_config = vars(model.config)
-    hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
+    hf_config['tokenizer_model'] = str(args.input_name_or_path)
     print(f"hf_config: {hf_config}")
     print("named parameters:")
     for name, param in model.named_parameters():
