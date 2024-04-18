@@ -131,6 +131,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         compute_timestamps: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        batched_inference: bool = False,
     ):
         super().__init__()
 
@@ -142,6 +143,8 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
         # set confidence calculation method
         self._init_confidence_method(confidence_method_cfg)
+
+        self.batched_inference = batched_inference
 
     @typecheck()
     def forward(
@@ -158,6 +161,13 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         Returns:
             packed list containing batch number of sentences (Hypotheses).
         """
+
+        if self.batched_inference:
+            torch.cuda.nvtx.range_push("batched hypotheses")
+            hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
+            torch.cuda.nvtx.range_pop()
+            packed_result = pack_hypotheses(hypotheses, decoder_lengths)
+            return (packed_result,)
         with torch.inference_mode():
             hypotheses = []
             # Process each sequence independently
@@ -179,7 +189,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
                 # each scalar from GPU to CPU one at a time, in the line:
                 # prediction = prediction[:out_len]
                 # Doing one GPU to CPU copy ahead of time amortizes that overhead.
-                decoder_lengths = decoder_lengths.cpu()
+                decoder_lengths = decoder_lengths.cpu() # synchronizes. But this synchronizations is necessary and appropriate.
 
             if prediction_cpu_tensor.ndim < 2 or prediction_cpu_tensor.ndim > 3:
                 raise ValueError(
@@ -192,16 +202,69 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
                 greedy_decode = self._greedy_decode_labels
             else:
                 greedy_decode = self._greedy_decode_logprobs
+            torch.cuda.nvtx.range_push("hypotheses")
 
             for ind in range(prediction_cpu_tensor.shape[0]):
                 out_len = decoder_lengths[ind] if decoder_lengths is not None else None
+                # Gross, why are we doing this on CPU one at a time?
                 hypothesis = greedy_decode(prediction_cpu_tensor[ind], out_len)
                 hypotheses.append(hypothesis)
+            torch.cuda.nvtx.range_pop()
 
+            torch.cuda.nvtx.range_push("pack hypotheses")
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, decoder_lengths)
 
+            torch.cuda.nvtx.range_pop()
         return (packed_result,)
+
+    # Cannot naively call vmap because this does not return tensors...
+    @torch.no_grad()
+    def _greedy_decode_logprobs_batched(self, x: torch.Tensor, out_len: torch.Tensor):
+        # x: [B, T, D]
+        # out_len: [B]
+
+        batch_size = x.shape[0]
+
+        predictions = x
+        predictions_logprobs, predictions_labels = predictions.max(dim=-1)
+        max_time = x.shape[1]
+        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
+        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id,
+                                               time_steps < out_len.unsqueeze(1))
+        scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
+
+        scores = scores.cpu()
+        predictions_labels = predictions_labels.cpu()
+        out_len = out_len.cpu()
+        # labels_segments = labels_segments.cpu()
+
+        if self.preserve_alignments or self.preserve_frame_confidence:
+            predictions = predictions.cpu()
+
+        hypotheses = []
+
+        for i in range(batch_size):
+            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+            hypothesis.score = scores[i]
+
+            # prediction_labels_no_padding = predictions_labels[i, :labels_segments[i]]
+            prediction_labels_no_padding = predictions_labels[i, :out_len[i]]
+
+            assert predictions_labels.dtype == torch.int64
+            hypothesis.y_sequence = prediction_labels_no_padding
+
+            if self.preserve_alignments:
+                hypothesis.alignments = (predictions[i].clone(), predictions_labels[i].clone())
+            if self.compute_timestamps:
+                # Could do this in a vectorized manner...
+                hypothesis.timestep = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
+            if self.preserve_frame_confidence:
+                hypothesis.frame_confidence = self._get_confidence(predictions[i])
+
+            hypotheses.append(hypothesis)
+
+        return hypotheses
 
     @torch.no_grad()
     def _greedy_decode_logprobs(self, x: torch.Tensor, out_len: torch.Tensor):
@@ -215,7 +278,9 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         if out_len is not None:
             prediction = prediction[:out_len]
 
+        torch.cuda.nvtx.range_push("max")
         prediction_logprobs, prediction_labels = prediction.max(dim=-1)
+        torch.cuda.nvtx.range_pop()
 
         non_blank_ids = prediction_labels != self.blank_id
         hypothesis.y_sequence = prediction_labels.tolist()
@@ -272,6 +337,7 @@ class GreedyCTCInferConfig:
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
+    batched_inference: bool = False
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
