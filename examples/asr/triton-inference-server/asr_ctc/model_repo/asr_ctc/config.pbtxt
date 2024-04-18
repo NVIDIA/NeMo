@@ -23,7 +23,7 @@ parameters [
   },
   {
     key: "dtype"
-    value: { string_value: "float16" }
+    value: { string_value: "bfloat16" }
   },
   {
     key: "decoding_strategy"
@@ -36,11 +36,12 @@ parameters [
   {
     key: "language_model"     # not supported yet
     value: { string_value: ""}
+  },
+  {
+    key: "FORCE_CPU_ONLY_INPUT_TENSORS"
+    value: { string_value: "no"}
   }
 ]
-
-# There is no sequence_batching support in pytriton unfortunately...
-# So pytriton is not suited to streaming ASR.
 
 input [
   {
