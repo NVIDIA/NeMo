@@ -622,7 +622,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
             module.config.param_sync_func = param_sync_func
-            module.config.finalize_model_grads_func = finalize_model_grads
+            if self.use_mcore_dist_optim:
+                module.config.finalize_model_grads_func = finalize_model_grads
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -717,8 +718,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.trainer.should_stop = True
 
         # zero the grad buf
-        for model_chunk in self.model:
-            model_chunk.zero_grad_buffer()
+        if self.use_mcore_dist_optim:
+            for model_chunk in self.model:
+                model_chunk.zero_grad_buffer()
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
