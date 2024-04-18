@@ -8,15 +8,19 @@ import torch.distributed
 from pytorch_lightning import Trainer
 from torch import nn
 
+
+NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 DEFAULT_NEMO_CACHE_HOME = Path.home() / ".cache" / "nemo"
 NEMO_CACHE_HOME = Path(os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME))
 DEFAULT_NEMO_DATASETS_CACHE = NEMO_CACHE_HOME / "datasets"
 NEMO_DATASETS_CACHE = Path(os.getenv("NEMO_DATASETS_CACHE", DEFAULT_NEMO_DATASETS_CACHE))
-DEFAULT_NEMO_MODELS_CACHE = NEMO_CACHE_HOME / "models"
-NEMO_MODELS_CACHE = Path(os.getenv("NEMO_MODELS_CACHE", DEFAULT_NEMO_MODELS_CACHE))
 
 
-def get_vocab_size(config, vocab_size: int, make_vocab_size_divisible_by: int = 128,) -> int:
+def get_vocab_size(
+    config,
+    vocab_size: int,
+    make_vocab_size_divisible_by: int = 128,
+) -> int:
     from nemo.utils import logging
 
     after = vocab_size
@@ -24,7 +28,8 @@ def get_vocab_size(config, vocab_size: int, make_vocab_size_divisible_by: int = 
     while (after % multiple) != 0:
         after += 1
     logging.info(
-        f"Padded vocab_size: {after}, original vocab_size: {vocab_size}, dummy tokens:" f" {after - vocab_size}."
+        f"Padded vocab_size: {after}, original vocab_size: {vocab_size}, dummy tokens:"
+        f" {after - vocab_size}."
     )
 
     return after
@@ -33,17 +38,17 @@ def get_vocab_size(config, vocab_size: int, make_vocab_size_divisible_by: int = 
 def teardown(trainer: Trainer, model: Optional[nn.Module] = None) -> None:
     # Destroy torch distributed
     if torch.distributed.is_initialized():
-        from megatron.core import parallel_state
-
-        parallel_state.destroy_model_parallel()
+        from megatron.core import mpu
+        
+        mpu.destroy_model_parallel()
         torch.distributed.destroy_process_group()
-
-    trainer._teardown()  # noqa: SLF001
+        
+    trainer._teardown()     # noqa: SLF001
     if model is not None:
         for obj in gc.get_objects():
             if torch.is_tensor(obj) and obj.is_cuda:
                 del obj
-
+    
     gc.collect()
     torch.cuda.empty_cache()
 

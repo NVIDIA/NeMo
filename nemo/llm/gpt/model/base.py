@@ -1,24 +1,22 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Type
 
-import pytorch_lightning as L
+import lightning.pytorch as L
 import torch
 import torch.distributed
-from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.optim import Optimizer
 
-from nemo import io
+from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.lightning import get_vocab_size
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
-class GPTConfig(TransformerConfig, io.IOMixin):
+class GPTConfig(TransformerConfig):
     # From megatron.core.models.gpt.gpt_model.GPTModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
@@ -30,7 +28,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
     # TODO: Move this to better places?
     get_attention_mask_from_fusion: bool = False
-
+    
     optimizer_fn: Optional[Callable[["GPTModel"], Optimizer]] = None
 
     def configure_model(self, tokenizer) -> "MCoreGPTModel":
@@ -39,12 +37,14 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             p_size = self.pipeline_model_parallel_size
             assert (
                 self.num_layers // p_size
-            ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
-
-        from megatron.core import parallel_state
+            ) % vp_size == 0, (
+                "Make sure the number of model chunks is the same across all pipeline stages."
+            )
+            
+        from megatron.core import mpu
         from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
         from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-
+        
         return MCoreGPTModel(
             self,
             transformer_layer_spec=get_gpt_layer_with_transformer_engine_spec(),
@@ -56,12 +56,12 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             position_embedding_type=self.position_embedding_type,
             rotary_percent=self.rotary_percent,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
+            pre_process=mpu.is_pipeline_first_stage(),
+            post_process=mpu.is_pipeline_last_stage(),
         )
 
 
-class GPTModel(L.LightningModule, io.IOMixin):
+class GPTModel(L.LightningModule):
     def __init__(
         self,
         config: GPTConfig,
@@ -78,7 +78,7 @@ class GPTModel(L.LightningModule, io.IOMixin):
     def configure_optimizers(self) -> Optimizer:
         if self.config.optimizer_fn is not None:
             return self.config.optimizer_fn(self)
-
+        
         return gpt_default_optimizer(self)
 
     def forward(
@@ -122,19 +122,19 @@ class GPTModel(L.LightningModule, io.IOMixin):
 
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
         return MaskedTokenLossReduction(validation_step=True)
-
+    
     def copy(self) -> "GPTModel":
         return self.__class__(self.config, self.tokenizer)
 
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
-    from megatron.core import parallel_state
+    from megatron.core import mpu
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
 
     batch = next(dataloader_iter)
-
+    
     _batch: dict
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]
@@ -143,14 +143,17 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     required_keys = set()
     required_keys.add("attention_mask")
-    if parallel_state.is_pipeline_first_stage():
+    if mpu.is_pipeline_first_stage():
         required_keys.update(("tokens", "position_ids"))
-    if parallel_state.is_pipeline_last_stage():
+    if mpu.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
     # if self.get_attention_mask_from_fusion:
     #     required_keys.remove('attention_mask')
 
-    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    _batch = {
+        key: val.cuda(non_blocking=True) if key in required_keys else None
+        for key, val in _batch.items()
+    }
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_context_parallel_rank(_batch)
 
@@ -204,7 +207,6 @@ def get_batch_on_this_context_parallel_rank(batch):
         batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
     return batch
 
-
 def get_packed_seq_params(batch):
     from megatron.core.packed_seq_params import PackedSeqParams
 
@@ -229,4 +231,10 @@ def get_packed_seq_params(batch):
     )
 
 
-__all__ = ["GPTModel", "GPTConfig", "gpt_data_step", "gpt_forward_step", "gpt_default_optimizer"]
+__all__ = [
+    "GPTModel", 
+    "GPTConfig", 
+    "gpt_data_step", 
+    "gpt_forward_step",
+    "gpt_default_optimizer"
+]
