@@ -16,6 +16,7 @@ import itertools
 import os
 import queue
 import warnings
+from collections import OrderedDict
 from contextlib import nullcontext
 from dataclasses import fields
 from functools import cache, partial
@@ -1664,6 +1665,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # FSDP supports the lagecy checkpointing or torch-FSDP-native sharded checkpointing
         if self.mcore_gpt and not self.use_fsdp:
             checkpoint['sharded_state_dict'] = self.sharded_state_dict()
+            checkpoint['state_dict'] = OrderedDict([])
 
         # legacy checkpointing for interleaved
         else:

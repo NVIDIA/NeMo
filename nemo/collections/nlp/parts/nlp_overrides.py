@@ -39,6 +39,7 @@ from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
 from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import Tensor
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
@@ -53,6 +54,7 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
+from torch.optim import Optimizer
 
 try:
     from torch.cuda.amp.grad_scaler import _refresh_per_optimizer_state
@@ -263,17 +265,20 @@ class NLPDDPStrategy(DDPStrategy):
             else:
                 super().configure_ddp()
 
-    def optimizer_sharded_state_dict(self, unsharded_optim_state=None):
+    def optimizer_state(self, optimizer: Optimizer) -> Dict[str, Tensor]:
         """
-        Sharded state dictionary for an MainParamsOptimizerWrapper.
-        Used to save and load the optimizer state when training with distributed_checkpoint.
+        Sharded state dict implementation for optimizers.
+
+        Args:
+            optimizer (Optimizer): optimizer to get the sharded state dict of
         Returns:
             dict: The sharded state dictionary for the optimizer
         Raises:
             ValueError: If a parameter ID does not match any model sharded parameter.
         """
-
-        optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
+        unsharded_optim_state = super().optimizer_state(optimizer)
+        if not self.use_distributed_checkpointing:
+            return unsharded_optim_state
 
         model_sharded_state_dict = self.lightning_module.sharded_state_dict()
 
@@ -334,7 +339,6 @@ class NLPDDPStrategy(DDPStrategy):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
-        app_state = AppState()
         """ PTL method which we override to accomodate distributed checkpoints and 
             the legacy model parallel checkpoints.
 
@@ -346,14 +350,6 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         ):
-            assert (
-                len(checkpoint['optimizer_states']) == 1
-            ), "Currently only support checkpointing 1 distributed optimizer per time!"
-            # converts the optimizer states to their sharded equivalents
-            sharded_optim_state = self.optimizer_sharded_state_dict(
-                unsharded_optim_state=checkpoint['optimizer_states'][0]
-            )
-            checkpoint['optimizer_states'] = [sharded_optim_state]
             # dist_checkpointing expects a directory so we will name the directory
             # using the path with the file extension removed
             checkpoint_dir = ckpt_to_dir(filepath)
@@ -366,15 +362,13 @@ class NLPDDPStrategy(DDPStrategy):
             if is_global_rank_zero():
                 fs.makedirs(checkpoint_dir, exist_ok=True)
 
-            # remove device state_dict
-            checkpoint['state_dict'] = OrderedDict([])
-
             sharded_strategy = ('torch_dist', 1) if self.torch_dist_ckpt else ('zarr', 1)
             dist_checkpointing.save(
                 sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir, sharded_strategy=sharded_strategy
             )
         else:
             # PTL override to accomodate model parallel checkpoints
+            app_state = AppState()
             filepath = inject_model_parallel_rank(filepath)
             if self.is_global_zero or app_state.data_parallel_rank == 0:
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
@@ -449,7 +443,10 @@ class NLPDDPStrategy(DDPStrategy):
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            checkpoint['optimizer_states'] = [
+                self.optimizer_state(optimizer)
+                for optimizer in self.lightning_module.optimizers(use_pl_optimizer=False)
+            ]
 
             if self.torch_dist_ckpt:
                 sharded_strategy = ('torch_dist', 1)
