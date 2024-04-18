@@ -31,8 +31,8 @@ from lhotse.dataset import (
     IterableDatasetWrapper,
     make_worker_init_fn,
 )
-from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
 from lhotse.dataset.dataloading import resolve_seed as lhotse_resolve_seed
+from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -194,7 +194,7 @@ def get_lhotse_dataloader_from_config(
     if config.perturb_speed:
         cuts = CutSet.mux(cuts, cuts.perturb_speed(0.9), cuts.perturb_speed(1.1),)
     # 2.c. On-the-fly Resample augmentations
-    
+
     # 2.d: truncation/slicing
     if config.truncate_duration is not None:
         cuts = cuts.truncate(
@@ -230,9 +230,13 @@ def get_lhotse_dataloader_from_config(
     if config.resample_augmentation and 0 <= config.resampling_probability <= 1:
         if config.resampling_rate > config.sample_rate:
             warnings.warn(f"{config.resampling_rate=} is greater than {config.sample_rate}.")
-        cuts = cuts.map(ResamplingTransform(config.sample_rate, config.resampling_rate, p=config.resampling_probability, seed="trng"))
-    if config.resampling_probability >1 or config.resampling_probability <0:
-        warnings.warn(f"Not using ResamplingTransform since {config.resampling_probability=} is not in range [0,1]") 
+        cuts = cuts.map(
+            ResamplingTransform(
+                config.sample_rate, config.resampling_rate, p=config.resampling_probability, seed="trng"
+            )
+        )
+    if config.resampling_probability > 1 or config.resampling_probability < 0:
+        warnings.warn(f"Not using ResamplingTransform since {config.resampling_probability=} is not in range [0,1]")
     # 3. The sampler.
     if config.use_bucketing:
         # Bucketing. Some differences from NeMo's native bucketing:
@@ -469,17 +473,20 @@ def _flatten_alt_text(cut) -> list:
 
 class ResamplingTransform:
     """Converts the input example with probability p to narrowband (default: 8kHz) and resamples back to the original sampling rate."""
+
     def __init__(self, sampling_rate, resampling_rate=8000, p=0.5, seed=0):
         self.sampling_rate = sampling_rate
         self.resampling_rate = resampling_rate
         self.p = p
         self.seed = seed
         self.rng = None
+
     def __call__(self, cut):
         self._maybe_init_rng()
         if self.rng.uniform(0.0, 1.0) > self.p:
             return cut
         return cut.resample(self.resampling_rate).resample(self.sampling_rate)
+
     def _maybe_init_rng(self):
         if self.rng is None:
             self.rng = random.Random(lhotse_resolve_seed(self.seed))
