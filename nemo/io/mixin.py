@@ -1,6 +1,6 @@
 import functools
 import inspect
-import pickle
+from cloudpickle import dump
 from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any, Dict
@@ -136,4 +136,4 @@ class IOMixin:
         """
         config_path = Path(output) / "io.pkl"
         with open(config_path, "wb") as f:
-            pickle.dump(self.__io__, f, protocol=pickle.HIGHEST_PROTOCOL)
+            dump(self.__io__, f)
