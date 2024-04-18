@@ -167,8 +167,7 @@ class LoopLabelsState:
 @dataclass
 class SeparateGraphsLoopLabels:
     before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    before_inner_loop_get_decoder_output: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    before_inner_loop_get_joint_output: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    before_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
 
@@ -474,8 +473,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
             self.separate_graphs.before_outer_loop.replay()
             while self.state.active_mask_any.item():
-                self.separate_graphs.before_inner_loop_get_decoder_output.replay()
-                self.separate_graphs.before_inner_loop_get_joint_output.replay()
+                self.separate_graphs.before_inner_loop.replay()
                 while self.state.advance_mask_any.item():
                     self.separate_graphs.inner_loop_code.replay()
                 self.separate_graphs.after_inner_loop.replay()
@@ -580,13 +578,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             self._before_outer_loop()
 
         with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
-            self.separate_graphs.before_inner_loop_get_decoder_output, stream=stream_for_graph
+            self.separate_graphs.before_inner_loop, stream=stream_for_graph
         ):
             self._before_inner_loop_get_decoder_output()
-
-        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
-            self.separate_graphs.before_inner_loop_get_joint_output, stream=stream_for_graph
-        ):
             self._before_inner_loop_get_joint_output()
 
         with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
