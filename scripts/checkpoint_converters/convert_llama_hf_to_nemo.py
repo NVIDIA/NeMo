@@ -78,9 +78,9 @@ def load_config(args, llama_config):
         nemo_config.num_query_groups = llama_config['num_key_value_heads']
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
-    
+
     # Tokenizer config
-    if 'tokenizer_model' in llama_config:    
+    if 'tokenizer_model' in llama_config:
         nemo_config.tokenizer.model = llama_config['tokenizer_model']
     else:
         # Llama3 uses converted TikToken Tokenizer
@@ -297,7 +297,7 @@ def convert(args):
             model.cfg.tokenizer.update(type='meta-llama/Meta-Llama-3-70B')
         else:
             logging.warning("unexpected model config for Llama3.")
-    
+
     # cast to target precision and disable cpu init
     dtype = torch_dtype_from_precision(precision)
     model = model.to(dtype=dtype)
