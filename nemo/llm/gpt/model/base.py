@@ -7,6 +7,11 @@ import torch.distributed
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.optim import Optimizer
 
+<<<<<<< HEAD
+=======
+from megatron.core.transformer.transformer_config import TransformerConfig
+from nemo import io
+>>>>>>> 2252e92f9 (Add nemo.io to MegatronStrategy)
 from nemo.lightning import get_vocab_size
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 
@@ -17,7 +22,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class GPTConfig(TransformerConfig):
+class GPTConfig(TransformerConfig, io.IOMixin):
     # From megatron.core.models.gpt.gpt_model.GPTModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
@@ -60,7 +65,7 @@ class GPTConfig(TransformerConfig):
         )
 
 
-class GPTModel(L.LightningModule):
+class GPTModel(L.LightningModule, io.IOMixin):
     def __init__(
         self,
         config: GPTConfig,
