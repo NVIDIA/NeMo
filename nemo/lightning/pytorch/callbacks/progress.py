@@ -14,7 +14,11 @@ class MegatronProgressBar(TQDMProgressBar):
         """
         return max(
             trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
+<<<<<<< HEAD
             trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
+=======
+            trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed
+>>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         )
 
     def init_train_tqdm(self):
@@ -22,7 +26,13 @@ class MegatronProgressBar(TQDMProgressBar):
         Override bar_format to not have 's/it'.
         """
         self.bar = super().init_train_tqdm()
+<<<<<<< HEAD
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
+=======
+        self.bar.bar_format = (
+            "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
+        )
+>>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         return self.bar
 
     def on_train_epoch_start(self, trainer, *_):
@@ -32,6 +42,7 @@ class MegatronProgressBar(TQDMProgressBar):
             num_training_batches = trainer.max_steps
         else:
             num_training_batches = trainer.num_training_batches
+<<<<<<< HEAD
 
         # from nemo.utils import AppState
         # app_state = AppState()
@@ -39,6 +50,15 @@ class MegatronProgressBar(TQDMProgressBar):
 
         num_training_batches = num_training_batches // calculate_data_parallel_groups()
 
+=======
+        
+        # from nemo.utils import AppState
+        # app_state = AppState()
+        # app_state.
+        
+        num_training_batches = num_training_batches // calculate_data_parallel_groups()
+        
+>>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         self.train_progress_bar.reset(num_training_batches)
         self.train_progress_bar.initial = 0
         self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
@@ -55,7 +75,10 @@ class MegatronProgressBar(TQDMProgressBar):
 
 def calculate_data_parallel_groups() -> int:
     from nemo.utils import AppState
+<<<<<<< HEAD
 
+=======
+>>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     app_state = AppState()
 
     pipeline_model_parallel_size = app_state.pipeline_model_parallel_size
@@ -64,4 +87,8 @@ def calculate_data_parallel_groups() -> int:
     world_size = app_state.world_size
     data_parallel_group_len = world_size // (pipeline_model_parallel_size * tensor_model_parallel_size)
 
+<<<<<<< HEAD
     return world_size // data_parallel_group_len
+=======
+    return world_size // data_parallel_group_len
+>>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
