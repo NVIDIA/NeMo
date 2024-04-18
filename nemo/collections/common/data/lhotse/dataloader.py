@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-<<<<<<< HEAD
-=======
-import logging
+
 import random
->>>>>>> Randomly pick samples for nb augmentations in lhotse
 import warnings
 from dataclasses import dataclass
 from functools import partial, singledispatch
@@ -34,11 +31,8 @@ from lhotse.dataset import (
     IterableDatasetWrapper,
     make_worker_init_fn,
 )
-<<<<<<< HEAD
 from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
-=======
 from lhotse.dataset.dataloading import resolve_seed as lhotse_resolve_seed
->>>>>>> Randomly pick samples for nb augmentations in lhotse
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -108,9 +102,9 @@ class LhotseDataLoadingConfig:
     #   b. On-the-fly 3-way speed perturbation.
     perturb_speed: bool = False
     #   c. Narrow band augmentation
-    nb_augmentation: bool = False
-    nb_mix_prob: float = 0.5
-    nb_target_freq: float = 8000
+    resample_augmentation: bool = False
+    resampling_probability: float = 0.5
+    resampling_rate: float = 8000
     #   d. Cut concatenation (glue together multiple utterances into a single one)
     concatenate_samples: bool = False
     concatenate_gap_seconds: float = 0.1
@@ -187,19 +181,20 @@ def get_lhotse_dataloader_from_config(
 
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
-    if config.noise_path is not None:
+    if config.noise_path is not None and 0 <= config.noise_mix_prob <= 1:
         noise_snr = config.noise_snr
         if isinstance(noise_snr, ListConfig):
             noise_snr = list(noise_snr)
         noise = CutSet.from_file(config.noise_path)
         cuts = cuts.mix(cuts=noise, snr=noise_snr, mix_prob=config.noise_mix_prob, seed="trng", random_mix_offset=True)
-
     # 2.b. On-the-fly speed perturbation.
     #    mux here ensures it's uniformly distributed throughout sampling,
     #    and applying it here (before sampler/dataset) ensures optimal
     #    bucket allocation.
     if config.perturb_speed:
         cuts = CutSet.mux(cuts, cuts.perturb_speed(0.9), cuts.perturb_speed(1.1),)
+    # 2.c. On-the-fly Resample augmentations
+    
     # 2.d: truncation/slicing
     if config.truncate_duration is not None:
         cuts = cuts.truncate(
@@ -232,8 +227,12 @@ def get_lhotse_dataloader_from_config(
             quadratic_duration=config.quadratic_duration,
         )
     # 2.c. On-the-fly Narrowband augmentation
-    if config.nb_augmentation:
-        cuts = cuts.map(NarrowbandTransform(config.sample_rate, config.nb_target_freq,  p=config.nb_mix_prob, seed="trng"))
+    if config.resample_augmentation and 0 <= config.resampling_probability <= 1:
+        if config.resampling_rate > config.sample_rate:
+            warnings.warn(f"{config.resampling_rate=} is greater than {config.sample_rate}.")
+        cuts = cuts.map(ResamplingTransform(config.sample_rate, config.resampling_rate, p=config.resampling_probability, seed="trng"))
+    if config.resampling_probability >1 or config.resampling_probability <0:
+        warnings.warn(f"Not using ResamplingTransform since {config.resampling_probability=} is not in range [0,1]") 
     # 3. The sampler.
     if config.use_bucketing:
         # Bucketing. Some differences from NeMo's native bucketing:
@@ -468,11 +467,11 @@ def _flatten_alt_text(cut) -> list:
     return ans
 
 
-class NarrowbandTransform:
+class ResamplingTransform:
     """Converts the input example with probability p to narrowband (default: 8kHz) and resamples back to the original sampling rate."""
-    def __init__(self, sampling_rate, target_sampling_rate=8000, p=0.5, seed=0):
+    def __init__(self, sampling_rate, resampling_rate=8000, p=0.5, seed=0):
         self.sampling_rate = sampling_rate
-        self.target_sampling_rate = target_sampling_rate
+        self.resampling_rate = resampling_rate
         self.p = p
         self.seed = seed
         self.rng = None
@@ -480,7 +479,7 @@ class NarrowbandTransform:
         self._maybe_init_rng()
         if self.rng.uniform(0.0, 1.0) > self.p:
             return cut
-        return cut.resample(self.target_sampling_rate).resample(self.sampling_rate)
+        return cut.resample(self.resampling_rate).resample(self.sampling_rate)
     def _maybe_init_rng(self):
         if self.rng is None:
             self.rng = random.Random(lhotse_resolve_seed(self.seed))
