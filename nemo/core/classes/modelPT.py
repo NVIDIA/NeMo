@@ -32,7 +32,7 @@ from nemo import package_info
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.core.optim import prepare_lr_scheduler, get_mcore_lr_scheduler
+from nemo.core.optim import prepare_lr_scheduler, get_mcore_lr_scheduler, McoreDistributedOptimizer
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
@@ -642,7 +642,7 @@ class ModelPT(LightningModule, Model):
         #     optim_config['sched']['weight_decay'] = optim_config['weight_decay']
         #     optim_config['sched']['global_batch_size'] = self.cfg.get('global_batch_size')
 
-        elif 'sched' in optim_config and self._trainer is not None:
+        if 'sched' in optim_config and self._trainer is not None:
 
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
@@ -754,7 +754,9 @@ class ModelPT(LightningModule, Model):
                 # param groups is setuped within the get_megatron_optimizer
                 # setup megatron_optim_config
                 megatron_optim_config = self.setup_megatron_optimization(optimizer_args, scheduler_config)
-                optimizer = get_megatron_optimizer(megatron_optim_config, self.model,)
+                _megatron_optimizer = get_megatron_optimizer(megatron_optim_config, self.model,)
+                optimizer = McoreDistributedOptimizer(_megatron_optimizer)
+
             else:
                 optimizer = optim.get_optimizer(optimizer_name)
                 optimizer = optimizer(self._optimizer_param_groups, **optimizer_args)
