@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytest
+import torch
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
@@ -193,3 +194,65 @@ class TestSentencePieceTokenizer:
 
         for i in range(len(result)):
             assert result[i] == tokens[i]
+
+    @pytest.mark.unit
+    def test_encode(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
+
+        text = "This text should encode to sth more than `max_length` tokens..."
+        result = tokenizer.encode(text)
+        assert isinstance(result, list)
+
+        max_length = 5
+        result = tokenizer.encode(text, max_length=max_length)
+        assert len(result) == max_length
+
+        n = 2
+        texts = [text for _ in range(n)]
+        tokens_list = tokenizer.encode(texts, max_length=max_length)
+        assert len(tokens_list) == n
+        assert all(len(tokens) == max_length for tokens in tokens_list)
+
+        result = tokenizer.encode(text, max_length=max_length, return_tensors="pt")
+        assert isinstance(result, torch.LongTensor)
+        assert result.size() == (1, max_length)
+
+        with pytest.raises(AssertionError):
+            tokenizer.encode(text, return_tensors="np")  # Only "pt" option implemented
+
+    @pytest.mark.unit
+    def test_decode(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
+
+        text = "ole ole [SEP] ole ola [SEP]"
+        tokens = tokenizer.encode(text)
+        assert text == tokenizer.decode(tokens)
+
+        n = 8
+        texts = [text for _ in range(n)]
+        tokens_list = tokenizer.encode(texts)
+        assert isinstance(tokens_list, list)
+        assert len(tokens_list) == n
+        for tokens in tokens_list:
+            assert text == tokenizer.decode(tokens)
+
+    @pytest.mark.unit
+    def test_batch_encode_plus(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
+
+        texts = ["Welcome to NeMo!", "This is fun"]
+        with pytest.raises(AssertionError):
+            tokenizer.batch_encode_plus(texts[0])  # Input should be List[str]
+
+        tokens_dict = tokenizer.batch_encode_plus(texts)
+        assert isinstance(tokens_dict, dict)
+        assert "input_ids" in tokens_dict
+        assert tokens_dict["input_ids"] == tokenizer.encode(texts)
+
+    @pytest.mark.unit
+    def test_batch_decode(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
+
+        texts = ["Jaki to jest język?", "Kropka."]
+        tokens = tokenizer.encode(texts)
+        assert texts == tokenizer.batch_decode(tokens)

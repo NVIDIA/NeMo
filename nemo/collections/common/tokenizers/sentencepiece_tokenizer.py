@@ -176,6 +176,7 @@ class SentencePieceTokenizer(TokenizerSpec):
     ):
         # Note: keyword arguments other than return_tensors and max_length are ignored.
         assert not self.legacy, "Legacy implementation is not available."
+        assert return_tensors in {None, "pt"}, "Only returning plain list or PyTorch tensor is enabled"
         output = self.tokenizer.encode_as_ids(text)
         if max_length is not None:
             if isinstance(text, str):
