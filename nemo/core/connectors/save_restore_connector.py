@@ -553,6 +553,22 @@ class SaveRestoreConnector:
         with tarfile.open(filename, "w:") as tar:
             tar.add(source_dir, arcname=".")
 
+    def _is_safe_path(member, base_path):
+        # Check for path traversal characters or absolute paths
+        member_path = os.path.normpath(member.name)
+        return not (os.path.isabs(member_path) or os.path.relpath(member_path, base_path).startswith(os.pardir))
+
+    def _safe_extract(tar, out_folder: str, members=None):
+        base_path = os.path.realpath(path)
+        if members is None:
+            members = tar.getmembers()
+        for member in members:
+            member_path = os.path.join(base_path, member.name)
+            if is_safe_path(member, base_path):
+                tar.extract(member, path)
+            else:
+                print(f"Skipping potentially unsafe member: {member.name}")
+
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str, extract_config_only: bool = False) -> str:
         if not os.path.exists(path2file):
@@ -569,10 +585,10 @@ class SaveRestoreConnector:
             tar_header = "r:gz"
         tar = tarfile.open(path2file, tar_header)
         if not extract_config_only:
-            tar.extractall(path=out_folder)
+            _safe_extract(tar, out_folder)
         else:
             members = [x for x in tar.getmembers() if ".yaml" in x.name]
-            tar.extractall(path=out_folder, members=members)
+            _safe_extract(tar, out_folder, members)
         tar.close()
         return out_folder
 
