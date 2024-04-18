@@ -229,20 +229,26 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
-        if allow_cuda_graphs and self.max_symbols is None:
-            logging.warning("Max symbols is None, which is not allowed with Cuda graphs.")
+        if not allow_cuda_graphs:
             self.cuda_graphs_mode = None
         else:
-            try:
-                check_cuda_python_cuda_graphs_conditional_nodes_supported()
-                self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
-            except (ImportError, ModuleNotFoundError) as e:
-                logging.warning(
-                    "No conditional node support for Cuda.\n"
-                    "Cuda graphs with while loops are disabled, decoding speed will be slower\n"
-                    f"Reason: {e.msg}"
-                )
-                self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
+            # cuda graphs are allowed
+            # check basic requirements for cuda graphs
+            if self.max_symbols is None:
+                logging.warning("Max symbols is None, which is not allowed with Cuda graphs.")
+                self.cuda_graphs_mode = None
+            else:
+                # basic requirements met, need to check while loops
+                try:
+                    check_cuda_python_cuda_graphs_conditional_nodes_supported()
+                    self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
+                except (ImportError, ModuleNotFoundError) as e:
+                    logging.warning(
+                        "No conditional node support for Cuda.\n"
+                        "Cuda graphs with while loops are disabled, decoding speed will be slower\n"
+                        f"Reason: {e.msg}"
+                    )
+                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
 
         self.state = None
         self.full_graph = None
