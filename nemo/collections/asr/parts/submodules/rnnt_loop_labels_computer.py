@@ -166,6 +166,8 @@ class LoopLabelsState:
 
 @dataclass
 class SeparateGraphsLoopLabels:
+    """Class to store Cuda graphs for decoding when separate graphs are used"""
+
     before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     before_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)

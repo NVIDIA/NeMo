@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from dataclasses import dataclass, field
 from typing import Any, Optional, Tuple, Union
 
 import numpy as np
@@ -29,6 +30,7 @@ from nemo.core.utils.cuda_python_utils import (
     with_conditional_node,
 )
 from nemo.utils import logging
+from nemo.utils.enum import PrettyStrEnum
 
 try:
     from cuda import cudart
@@ -164,6 +166,16 @@ class LoopLabelsState:
         )
 
 
+@dataclass
+class SeparateGraphsLoopLabels:
+    """Class to store Cuda graphs for decoding when separate graphs are used"""
+
+    before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    before_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+
+
 class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
     """
     Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
@@ -176,6 +188,16 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
 
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
     CUDA_PROGRAM_NAME = b"while_loop_labels_conditional_tdt.cu"
+
+    class CudaGraphsMode(PrettyStrEnum):
+        FULL_GRAPH = "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
+        NO_WHILE_LOOPS = "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
+        NO_GRAPHS = "no_graphs"  # decoding without graphs, stateful implementation, only for testing purposes
+
+    separate_graphs: Optional[SeparateGraphsLoopLabels]
+    full_graph: Optional[torch.cuda.CUDAGraph]
+    cuda_graphs_mode: Optional[CudaGraphsMode]
+    state: Optional[LoopLabelsState]
 
     def __init__(
         self,
@@ -214,20 +236,35 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
-        self.use_cuda_graphs = allow_cuda_graphs
+        if not allow_cuda_graphs:
+            self.cuda_graphs_mode = None
+        else:
+            # cuda graphs are allowed
+            # check basic requirements for cuda graphs
+            if self.max_symbols is None:
+                logging.warning("Max symbols is None, which is not allowed with Cuda graphs.")
+                self.cuda_graphs_mode = None
+            else:
+                # basic requirements met, need to check while loops
+                try:
+                    check_cuda_python_cuda_graphs_conditional_nodes_supported()
+                    self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
+                except (ImportError, ModuleNotFoundError) as e:
+                    logging.warning(
+                        "No conditional node support for Cuda.\n"
+                        "Cuda graphs with while loops are disabled, decoding speed will be slower\n"
+                        f"Reason: {e.msg}"
+                    )
+                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
 
-        if self.use_cuda_graphs and self.max_symbols is None:
-            logging.warning("Max symbols is None, which is not allowed with Cuda graphs.")
-            self.use_cuda_graphs = False
+        self.state = None
+        self.full_graph = None
+        self.separate_graphs = None
 
-        if self.use_cuda_graphs:
-            try:
-                check_cuda_python_cuda_graphs_conditional_nodes_supported()
-            except ImportError as e:
-                logging.warning(f"No conditional node support. Cuda graphs will be disabled,\n{e.msg}")
-                self.use_cuda_graphs = False
-
-        self.state: Optional[LoopLabelsState] = None
+    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
+        """Method to set graphs mode. Use only for testing purposes"""
+        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
+        self.state = None
 
     def loop_labels_torch(
         self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
@@ -433,6 +470,8 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
         """
+        assert self.cuda_graphs_mode is not None
+
         # do not recalculate joint projection, project only once
         encoder_output = self.joint.project_encoder(encoder_output)
         current_batch_size = encoder_output.shape[0]
@@ -450,16 +489,27 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(encoder_output_length)
         # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
-        self.graph.replay()
-
-        # example manual loop (can be used instead of graph.replay())
-        # self._before_outer_loop()
-        # while self.state.active_mask_any.item():
-        #     self._before_inner_loop_get_decoder_output()
-        #     self._before_inner_loop_get_joint_output()
-        #     while self.state.advance_mask_any.item():
-        #         self._inner_loop_code()
-        #     self._after_inner_loop()
+        if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
+            self.full_graph.replay()
+        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
+            self.separate_graphs.before_outer_loop.replay()
+            while self.state.active_mask_any.item():
+                self.separate_graphs.before_inner_loop.replay()
+                while self.state.advance_mask_any.item():
+                    self.separate_graphs.inner_loop_code.replay()
+                self.separate_graphs.after_inner_loop.replay()
+        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_GRAPHS:
+            # this mode is only for testing purposes
+            # manual loop instead of using graphs
+            self._before_outer_loop()
+            while self.state.active_mask_any.item():
+                self._before_inner_loop_get_decoder_output()
+                self._before_inner_loop_get_joint_output()
+                while self.state.advance_mask_any.item():
+                    self._inner_loop_code()
+                self._after_inner_loop()
+        else:
+            raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
         return (
             self.state.batched_hyps,
@@ -530,12 +580,47 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         )
         # to avoid recalculation of joint projection, store decoder output in state
         self.state.decoder_output = self.joint.project_prednet(decoder_output)
+        if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
+            self._full_graph_compile()
+        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
+            self._partial_graphs_compile()
+        elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_GRAPHS:
+            # no graphs needed
+            pass
+        else:
+            raise NotImplementedError
 
+    def _partial_graphs_compile(self):
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
-        self.graph = torch.cuda.CUDAGraph()
+        self.separate_graphs = SeparateGraphsLoopLabels()
         with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
-            self.graph, stream=stream_for_graph
+            self.separate_graphs.before_outer_loop, stream=stream_for_graph
+        ):
+            self._before_outer_loop()
+
+        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
+            self.separate_graphs.before_inner_loop, stream=stream_for_graph
+        ):
+            self._before_inner_loop_get_decoder_output()
+            self._before_inner_loop_get_joint_output()
+
+        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
+            self.separate_graphs.inner_loop_code, stream=stream_for_graph
+        ):
+            self._inner_loop_code()
+
+        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
+            self.separate_graphs.after_inner_loop, stream=stream_for_graph
+        ):
+            self._after_inner_loop()
+
+    def _full_graph_compile(self):
+        # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
+        stream_for_graph = torch.cuda.Stream(self.state.device)
+        self.full_graph = torch.cuda.CUDAGraph()
+        with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
+            self.full_graph, stream=stream_for_graph
         ):
             self._before_outer_loop()
 
@@ -761,7 +846,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
     def __call__(
         self, x: torch.Tensor, out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        if self.use_cuda_graphs and x.device.type == "cuda":
+        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
 
         return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
