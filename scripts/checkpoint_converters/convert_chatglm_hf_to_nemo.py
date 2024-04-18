@@ -88,7 +88,7 @@ def load_config(args, chatglm_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
     nemo_config.tokenizer.type = chatglm_config['tokenizer_model']
-    nemo_config.tokenizer.model = chatglm_config['tokenizer_model'] +'/vocab.json'
+    nemo_config.tokenizer.model = chatglm_config['tokenizer_model'] + '/vocab.json'
     # base = 128
     # while chatglm_config['padded_vocab_size'] % base != 0:
     #     base //= 2
