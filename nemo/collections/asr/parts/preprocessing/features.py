@@ -77,8 +77,10 @@ def normalize_batch(x, seq_len, normalize_type):
         x_mean = x_mean_numerator / x_mean_denominator.unsqueeze(1)
 
         # Subtract 1 in the denominator to correct for the bias.
-        x_std = torch.sqrt(torch.sum(torch.where(valid_mask.unsqueeze(1), x - x_mean.unsqueeze(2), 0.0)**2, axis=2) /
-                           (x_mean_denominator.unsqueeze(1) - 1.0))
+        x_std = torch.sqrt(
+            torch.sum(torch.where(valid_mask.unsqueeze(1), x - x_mean.unsqueeze(2), 0.0) ** 2, axis=2)
+            / (x_mean_denominator.unsqueeze(1) - 1.0)
+        )
         # make sure x_std is not zero
         x_std += CONSTANT
         return (x - x_mean.unsqueeze(2)) / x_std.unsqueeze(2), x_mean, x_std
