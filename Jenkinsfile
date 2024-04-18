@@ -9,6 +9,7 @@ pipeline {
   environment {
         NVTE_FUSED_ATTN = 0
         NVTE_FLASH_ATTN = 0
+        PYTHONPATH = "/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"
   }
 
   options {
@@ -70,7 +71,7 @@ pipeline {
              git fetch origin bfe21c3d68b0a9951e5716fb520045db53419c5e && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
-             NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
+             NVTE_FRAMEWORK=pytorch pip install .'
       }
     }
 
@@ -91,7 +92,6 @@ pipeline {
              pip install . && \
              cd megatron/core/datasets && \
              make'
-         sh 'export PYTHONPATH="${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"'
       }
     }
 
