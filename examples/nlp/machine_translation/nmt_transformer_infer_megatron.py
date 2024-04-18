@@ -76,6 +76,7 @@ def main(cfg) -> None:
         if not os.path.exists(cfg.model_file):
             raise ValueError(f"Model file {cfg.model_file} does not exist")
         pretrained_cfg = MegatronNMTModel.restore_from(cfg.model_file, trainer=trainer, return_config=True)
+
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.precision = trainer.precision

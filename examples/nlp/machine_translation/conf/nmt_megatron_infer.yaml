@@ -1,7 +1,7 @@
 trainer:
   devices: 1
   num_nodes: 1
-  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  precision: bf16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: gpu
 
 model_file: ???
@@ -14,3 +14,37 @@ target_lang: null
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
+multilingual_lang_to_id:
+    'cs': 64000
+    'da': 64001
+    'de': 64002
+    'el': 64003
+    'es': 64004
+    'fi': 64005
+    'fr': 64006
+    'hu': 64007
+    'it': 64008
+    'lt': 64009
+    'lv': 64010
+    'nl': 64011
+    'no': 64012
+    'pl': 64013
+    'pt': 64014
+    'ro': 64015
+    'ru': 64016
+    'sk': 64017
+    'sv': 64018
+    'zh': 64019
+    'ja': 64020
+    'hi': 64021
+    'ko': 64022
+    'et': 64023
+    'sl': 64024
+    'bg': 64025
+    'uk': 64026
+    'hr': 64027
+    'ar': 64028
+    'vi': 64029
+    'tr': 64030
+    'id': 64031
+    'en': 64032
