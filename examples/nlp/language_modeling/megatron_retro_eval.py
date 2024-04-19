@@ -42,9 +42,9 @@ Usage:
             trainer.num_nodes=1 \
             tensor_model_parallel_size=-1 \
             pipeline_model_parallel_size=-1 \
-            prompt="prompt" \
+            prompt="sample prompt" \
             inference.retro_inference.retro_num_neighbors=2 \
-            neighbors=["prompt1", "prompt2"]
+            neighbors=["neighbor text 1", "neighbor text 2"]
 
 
         ```
@@ -76,69 +76,7 @@ def main(cfg) -> None:
         callbacks=[CustomProgressBar()],
     )
 
-    if cfg.retro_model_file is not None:
-        if (
-            cfg.tensor_model_parallel_size < 0
-            or cfg.pipeline_model_parallel_size < 0
-            or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-        ):
-            save_restore_connector = NLPSaveRestoreConnector()
-            if os.path.isdir(cfg.retro_model_file):
-                save_restore_connector.model_extracted_dir = cfg.retro_model_file
-            model_config = MegatronRetroModel.restore_from(
-                restore_path=cfg.retro_model_file,
-                trainer=trainer,
-                return_config=True,
-                save_restore_connector=save_restore_connector,
-            )
-
-            # with dist checkpointing we don't need to set this
-            if not model_config.get('mcore_gpt', False):
-                with open_dict(cfg):
-                    cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-                    cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-                    cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
-
-    assert (
-        cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
-
-    if cfg.retro_model_file:
-        save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.retro_model_file):
-            save_restore_connector.model_extracted_dir = cfg.retro_model_file
-
-        pretrained_cfg = MegatronRetroModel.restore_from(
-            restore_path=cfg.retro_model_file,
-            trainer=trainer,
-            return_config=True,
-            save_restore_connector=save_restore_connector,
-        )
-
-        OmegaConf.set_struct(pretrained_cfg, True)
-        with open_dict(pretrained_cfg):
-            pretrained_cfg.sequence_parallel = False
-            pretrained_cfg.activations_checkpoint_granularity = None
-            pretrained_cfg.activations_checkpoint_method = None
-            pretrained_cfg.precision = trainer.precision
-            pretrained_cfg["use_flash_attention"] = cfg.inference.get("use_flash_attention", False)
-            if pretrained_cfg.get('mcore_gpt', False):
-                # with dist checkpointing we can use the model parallel config specified by the user
-                pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
-                pretrained_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
-            if trainer.precision == "16":
-                pretrained_cfg.megatron_amp_O2 = False
-            elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
-                pretrained_cfg.megatron_amp_O2 = True
-        model = MegatronRetroModel.restore_from(
-            restore_path=cfg.retro_model_file,
-            trainer=trainer,
-            override_config_path=pretrained_cfg,
-            save_restore_connector=save_restore_connector,
-            map_location=f'cuda:{trainer.local_rank}',  # map_location is needed for converted models
-        )
-    elif cfg.checkpoint_dir:
+    if cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
             app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -166,9 +104,8 @@ def main(cfg) -> None:
         model = MegatronRetroModel.load_from_checkpoint(
             checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
         )
-
     else:
-        raise ValueError("need at least a nemo file or checkpoint dir")
+        raise ValueError("Requiring distributed checkpoint dir for loading Mcore RETRO.")
 
     model.freeze()
 

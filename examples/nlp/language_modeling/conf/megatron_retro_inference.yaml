@@ -25,12 +25,10 @@ trainer:
   precision: 32 # 16, 32, or bf16
   use_distributed_sampler: False
   
-
 tensor_model_parallel_size: -1
 pipeline_model_parallel_size: -1
 pipeline_model_parallel_split_rank: -1 # used for encoder and decoder model (0 for others)
 megatron_amp_O2: False  # Enable O2-level automatic mixed precision to save memory
-
 
 retro_model_file: null  # Retro nemo file path
 checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the Retro training
@@ -38,7 +36,7 @@ checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint l
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
 
 # RETRO inference
-prompt: "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by"
+prompt: "sample prompt"
 neighbors:
-  - "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by Sidney Lumet, about a fictional television network, UBS, and its struggle with poor ratings. The film stars Faye Dunaway, William Holden, Peter Finch, and Robert Duvall and features Wesley Addy, Ned Beatty, and Beatrice Straight. The film won four Academy Awards, in the categories of Best Actor (Finch), Best Actress (Dunaway), Best Supporting Actress (Straight), and Best Original Screenplay (Chayefsky). In 2000, the film was selected for preservation in the United States National Film Registry by the Library of Congress as being"
-  - "title: Network (1976 film), source: Network (1976 film) Network is a 1976 American satirical film written by Paddy Chayefsky and directed by Sidney Lumet, about a fictional television network, UBS, and its struggle with poor ratings. The film stars Faye Dunaway, William Holden, Peter Finch, and Robert Duvall and features Wesley Addy, Ned Beatty, and Beatrice Straight. The film won four Academy Awards, in the categories of Best Actor (Finch), Best Actress (Dunaway), Best Supporting Actress (Straight), and Best Original Screenplay (Chayefsky). In 2000, the film was selected for preservation in the United States National Film Registry by the Library of Congress as being"
+  - "neighbor text 1"
+  - "neighbor text 2"
