@@ -684,19 +684,17 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
     def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool, **extra):
         """initialize the batch data before the inference steps."""
 
-        # RETRO specific: Modify tokens and neighbors to set them into 2 chunks, one for question, and one for answer
-        # both having the same length of context_tokens.shape[1]
+        # For Mcore retrieval RETRO model, modify tokens and neighbors to set them into 2 chunks, one for question, and one for answer, both having the same length of context_tokens.shape[1]
         bs, context_tokens_length = context_tokens.shape
-        assert bs == 1  # similar to M-LM RETRO inference code, can only work with batch_size=1
+        assert bs == 1  # similar to M-LM RETRO inference code, currently only support batch_size=1
         context_tokens = [context_tokens[0].tolist() + [self.model.tokenizer.eos_id] * context_tokens_length]
         context_tokens = torch.cuda.LongTensor(context_tokens)
         self.model.model.config.retro_gpt_chunk_length = context_tokens_length  # set RetroConfig of M-LM's RETRO model
-        # important, currently extra['neighbors_tokens'].shape is [k, 1, r]
-        # we make it to [bs, l, k, r]
+        # reshape tensor extra['neighbors_tokens'] (currently: [k, 1, r]) to [bs, l, k, r]
         neighbors_tokens = extra['neighbors_tokens']
         neighbors_tokens = neighbors_tokens.permute(1, 0, 2)
         neighbors_tokens = neighbors_tokens.unsqueeze(0)
-        # we then double the l to l*2
+        # duplicate into 2 chunks from [bs, l, k ,r] to [bs, 2*l, k ,r]
         neighbors_tokens = neighbors_tokens.repeat(1, 2, 1, 1)
 
         # Move to GPU.
@@ -728,10 +726,10 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
         )
         self.neighbor_attention_mask = torch.zeros(
             [1, 1]
-        )  # just a dummy values, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
+        )  # dummy value, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py in Mcore implementation
         self.neighbors_tokens = neighbors_tokens
 
-        # RETRO specific: Updating the arguments inside RETRO model (retro_num_neighbors, retro_chunk_length) with the inference's sample
+        # For Mcore retrieval RETRO model, following ADLR's Mcore RETRO inferencing implementation, updating the arguments inside RETRO model (retro_num_neighbors, retro_chunk_length) with the inference's sample
         inference_retro_num_neighbors = k
         inference_retro_chunk_length = context_tokens_length
         inference_retro_retrieved_length = r
@@ -745,13 +743,13 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
             layers = self.forward_model.decoder.layers
         for layer in layers:
             if not (isinstance(layer.cross_attention, IdentityOp)):  # if this is encoder-decoder cross-attention layer
-                # Updating RetroDecoder (RetroDecoderCrossAttention, RetroDecoderBiasDropoutAdd)
+                # updating RetroDecoder (RetroDecoderCrossAttention, RetroDecoderBiasDropoutAdd)
                 layer.cross_attention.retro_num_neighbors = inference_retro_num_neighbors
                 layer.cross_attention.retro_chunk_length = inference_retro_chunk_length
                 layer.cross_attention.retro_retrieved_length = inference_retro_retrieved_length
                 layer.cross_attn_bda.retro_chunk_length = inference_retro_chunk_length
 
-                # Updating RetroEncoder (RetroEncoderCrossAttention, RetroEncoderBiasDropoutAdd, RetroEncoderLayerNorm)
+                # updating RetroEncoder (RetroEncoderCrossAttention, RetroEncoderBiasDropoutAdd, RetroEncoderLayerNorm)
                 if contain_encoder:  # the first cross-attention decoder layer contain encoder
                     layer.cross_attention.encoder.layers[
                         0

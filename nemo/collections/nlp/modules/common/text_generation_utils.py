@@ -498,7 +498,7 @@ def synced_generate(
             "min_tokens_to_generate": min_tokens_to_generate,
         }
 
-        # if input containing neighbors (for retrieval RETRO model)
+        # if input containing neighbors (for Mcore retrieval RETRO model)
         if "neighbors_tokens" in strategy_args:
             extra['neighbors_tokens'] = strategy_args['neighbors_tokens']
 

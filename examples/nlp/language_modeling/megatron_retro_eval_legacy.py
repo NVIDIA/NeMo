@@ -35,6 +35,7 @@ except (ImportError, ModuleNotFoundError):
 
 """
 This is the script to run RETRO Model text generation.
+(This inferencing script for native NeMo RETRO will be soon depricated. For new inferencing script for mcore RETRO, see ./megatron_retro_eval.py)
 
 Usage:
     Assume the model has TP=1, PP=1
