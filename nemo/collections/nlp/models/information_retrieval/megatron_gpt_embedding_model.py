@@ -125,7 +125,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         else:
             num_query_files = len(data_cfg.query_file_names) if data_cfg.query_file_names is not None else 0
             num_doc_files = len(data_cfg.doc_file_names) if data_cfg.doc_file_names is not None else 0
-            num_query_samples_per_dataset = [[None]] * num_query_files 
+            num_query_samples_per_dataset = [[None]] * num_query_files
             num_doc_samples_per_dataset = [[None]] * num_doc_files
 
         # Check dataset max_seq_legnth and max_position_embeddings size
@@ -178,7 +178,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         else:
             if data_cfg.query_file_names is None or data_cfg.doc_file_names is None:
                 return []
-                
+
             query_dataset = GPTEmbeddingDataset(
                 file_path=data_cfg.query_file_names[0],
                 tokenizer=self.tokenizer,
