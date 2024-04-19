@@ -360,12 +360,12 @@ def build_and_save_engine(
     model_dir=None,
     model_weights=None,
     model_config=None,
-    trt_model_type='GPTForCausalLM'
+    model_type='gpt'
 ):
     try:
-        model_cls = getattr(tensorrt_llm.models, trt_model_type)
+        model_cls = getattr(tensorrt_llm.models, model_config.architecture)
     except:
-        raise AttributeError(f"Could not find TRTLLM model type: {trt_model_type}!")
+        raise AttributeError(f"Could not find TRTLLM model type: {model_type}!")
 
     str_dtype = model_config.dtype
     plugin_config = PluginConfig()

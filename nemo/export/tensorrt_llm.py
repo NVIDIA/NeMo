@@ -112,6 +112,7 @@ class TensorRTLLM(ITritonDeployable):
         max_output_token: int = 256,
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
+        use_parallel_embedding: bool = False,
         use_inflight_batching: bool = False,
         enable_context_fmha: bool = True,
         paged_kv_cache: bool = False,
@@ -188,32 +189,27 @@ class TensorRTLLM(ITritonDeployable):
         tmp_dir = tempfile.TemporaryDirectory()
         nemo_export_dir = Path(tmp_dir.name)
 
-        model_configs, self.tokenizer = nemo_llm_to_model_config(
+        weights_dicts, model_configs, self.tokenizer = nemo_to_trtllm_config(
             in_file=nemo_checkpoint_path,
             decoder_type=model_type,
             dtype=dtype,
             tensor_parallel_size=tensor_parallel_size,
             pipeline_parallel_size=pipeline_parallel_size,
+            use_parallel_embedding=use_parallel_embedding,
             nemo_export_dir=nemo_export_dir,
             save_nemo_model_config=save_nemo_model_config,
         )
 
-        model_config_to_tensorrt_llm(
-            model_configs,
-            self.model_dir,
-            world_size=tensor_parallel_size * pipeline_parallel_size,
-            max_input_len=max_input_token,
-            max_output_len=max_output_token,
-            max_batch_size=max_batch_size,
-            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-            use_inflight_batching=use_inflight_batching,
-            paged_kv_cache=paged_kv_cache,
-            enable_context_fmha=enable_context_fmha,
-            enable_multi_block_mode=enable_multi_block_mode,
-            use_lora_plugin=use_lora_plugin,
-            lora_target_modules=lora_target_modules,
-            max_lora_rank=max_lora_rank,
-        )
+        for weight_dict, model_config in zip(weights_dicts, model_configs):
+            build_and_save_engine(
+                max_input_len=max_input_token,
+                max_output_len=max_output_token,
+                max_batch_size=max_batch_size,
+                model_config=model_config,
+                model_weights=weight_dict,
+                model_dir=self.model_dir,
+                model_type=model_type
+            )
 
         tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
         if os.path.exists(tokenizer_path):
@@ -251,7 +247,7 @@ class TensorRTLLM(ITritonDeployable):
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
-        use_parallel_embedding: bool = False,
+
         save_nemo_model_config: bool = False,
     ):
         nemo_export_dir = self.model_dir
