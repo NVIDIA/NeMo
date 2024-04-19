@@ -259,10 +259,11 @@ class StateDictTransform(Generic[F]):
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
                     else:
-                        if len(fn_params) != len(source_match):
+                        _source_match_list = [source_match] if isinstance(source_match, str) else list(source_match)
+                        if len(fn_params) != len(_source_match_list):
                             raise ValueError(f"Mismatch between source and target keys: {source_match} vs {target_match}")
                         
-                        kwargs = {param: source_dict[k] for param, k in zip(fn_params, list(source_match))}
+                        kwargs = {param: source_dict[k] for param, k in zip(fn_params, _source_match_list)}
                         target_dict[target_match] = self.call_transform(ctx, **kwargs)
             else:
                 if source_matches.ndim == 0:
