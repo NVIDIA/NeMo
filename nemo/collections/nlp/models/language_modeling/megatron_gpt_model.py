@@ -299,8 +299,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
 
-        if not self.megatron_amp_O2 and self.cfg.get('expert_model_parallel_size', 1) > 1:
-            raise ValueError('Expert parallelism is only supported when using megatron_amp_O2')
+        if not self.mcore_gpt and self.cfg.get('expert_model_parallel_size', 1) > 1:
+            raise ValueError('Expert parallelism is only supported when using mcore_gpt')
 
         # TODO(akoumparouli): this is temporary and will be removed in the future.
         if self.cfg.get('expert_model_parallel_size', 1) > 1 and self.with_distributed_adam:
