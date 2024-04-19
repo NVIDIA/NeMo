@@ -75,6 +75,7 @@ class AdapterName(str, enum.Enum):
     POST_ATTN_ADAPTER = 'adapter_2'
     PTUNING_ADAPTER = "ptuning_adapter"
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
+    LORA_UNFUSED_KQV_ADAPTER = "lora_unfused_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
     MM_LINEAR_ADAPTER = "mm_linear_adapter"
@@ -371,6 +372,7 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
 
+
 class LoraKQVAdapter(ParallelLinearAdapter):
     """
     Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
@@ -456,7 +458,42 @@ class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
     input_is_parallel: bool = True
 
+class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        dim: int,
+        activation: str = 'swish',
+        norm_position: Optional[str] = 'post',
+        norm_type: Optional[str] = 'mixedfusedlayernorm',
+        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        gather_output: bool = True,
+        input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
+        dropout: float = 0.0,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        alpha: float | None = None,
+        dropout_position: str = 'post',
+        a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
+        **kwargs,
+    ):
+        super().__init__()
+        self.q_adapter = LoraKQVAdapter(in_features, in_features, dim, activation, norm_position, norm_type, column_init_method, row_init_method, gather_output, input_is_parallel, dropout, model_parallel_config, alpha, dropout_position, a2a_experimental)
+        self.k_adapter = LoraKQVAdapter(in_features, in_features, dim, activation, norm_position, norm_type, column_init_method, row_init_method, gather_output, input_is_parallel, dropout, model_parallel_config, alpha, dropout_position, a2a_experimental)
+        self.v_adapter = LoraKQVAdapter(in_features, in_features, dim, activation, norm_position, norm_type, column_init_method, row_init_method, gather_output, input_is_parallel, dropout, model_parallel_config, alpha, dropout_position, a2a_experimental)
 
+    def forward(self, x):
+        qx = self.q_adapter(x)
+        kx = self.k_adapter(x)
+        vx = self.v_adapter(x)
+        x = torch.concat([qx, kx, vx], dim=2)
+        return x
+
+@dataclass
+class LoraUnfusedKQVAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraUnfusedKQVAdapter.__module__, LoraUnfusedKQVAdapter.__name__)
+    
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
     """
     The Tensor Parallel MLP prompt encoder network that is used to generate the virtual

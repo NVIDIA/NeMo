@@ -109,6 +109,17 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 
                 mixed_qkv = mixed_qkv + lora_mixed_qkv
 
+            # (@adithyare) TODO: this setup does not check if both fused and unfused adapters are enabled.
+            # Should probably add this check.
+            lora_unfused_kqv_adapter = self.get_adapter_module(AdapterName.LORA_UNFUSED_KQV_ADAPTER)
+            if lora_unfused_kqv_adapter and self.adapter_cfg[AdapterName.LORA_UNFUSED_KQV_ADAPTER]['enabled']:
+                if layernorm_output is not None:
+                    lora_mixed_qkv = lora_unfused_kqv_adapter(layernorm_output)
+                else:
+                    lora_mixed_qkv = lora_unfused_kqv_adapter(hidden_states)
+
+                mixed_qkv = mixed_qkv + lora_mixed_qkv
+
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (
             self.num_query_groups_per_partition,
