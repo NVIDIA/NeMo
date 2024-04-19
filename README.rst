@@ -336,6 +336,23 @@ Note that RNNT requires numba to be installed from conda.
 LLM and Multimodal Dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The LLM and Multimodal domains require three additional dependencies: 
+NVIDIA Apex, NVIDIA Transformer Engine, and NVIDIA Megatron Core.
+
+When working with the `main` branch these dependencies may require an recent commit.
+The most recent working versions of these dependencies are:
+
+.. code-block:: bash
+
+  export apex_commit=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
+  export te_commit=bfe21c3d68b0a9951e5716fb520045db53419c5e
+  export mcore_commit=fbb375d4b5e88ce52f5f7125053068caff47f93f
+  export nv_pytorch_tag=24.02-py3
+
+When using a released version of NeMo, 
+please refer to the `Software Component Versions <https://docs.nvidia.com/nemo-framework/user-guide/latest/softwarecomponentversions.html>`_ 
+for the correct versions.
+
 If starting with a base NVIDIA PyTorch container first launch the container:
 
 .. code-block:: bash
@@ -347,7 +364,7 @@ If starting with a base NVIDIA PyTorch container first launch the container:
     --shm-size=16g \
     --ulimit memlock=-1 \
     --ulimit stack=67108864 \
-    nvcr.io/nvidia/pytorch:24.02-py3
+    nvcr.io/nvidia/pytorch:$nv_pytorch_tag
 
 Then install the dependencies:
 
@@ -363,7 +380,7 @@ To install Apex, run
 
     git clone https://github.com/NVIDIA/apex.git
     cd apex
-    git checkout 810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
+    git checkout $apex_commit
     pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
 
 
@@ -400,7 +417,7 @@ Documentation for installing Transformer Engine can be found `here <https://docs
 
   git clone https://github.com/NVIDIA/TransformerEngine.git && \
   cd TransformerEngine && \
-  git checkout bfe21c3d68b0a9951e5716fb520045db53419c5e && \
+  git checkout $te_commit && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
 
