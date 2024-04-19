@@ -195,6 +195,7 @@ class MegatronBaseModel(NLPModel):
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
+            use_tp_pp_dp_mapping=cfg.get('use_tp_pp_dp_mapping', False),
             context_parallel_size=cfg.get('context_parallel_size', 1),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
@@ -768,32 +769,6 @@ class MegatronBaseModel(NLPModel):
             optim_dtype = str_to_dtype(get_config_arg('dtype', torch.float32))
             optim_kwargs['dtype'] = optim_dtype
 
-            # Make sure embedding grad reductions are in FP32
-            if optim_dtype == torch.float32:
-                fp32_params = []
-                modules = self.get_model_module_list()
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                    if self.mcore_gpt:
-                        fp32_params.append(modules[0].shared_embedding_or_output_weight())
-                        fp32_params.append(modules[0].embedding.position_embeddings.weight)
-                    else:
-                        fp32_params.append(modules[0].word_embeddings_weight())
-                        fp32_params.append(modules[0].position_embeddings_weight())
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                    share_embeddings_and_output_weights = (
-                        modules[-1].share_embeddings_and_output_weights
-                        if self.mcore_gpt
-                        else modules[-1].share_token_embeddings
-                    )
-                    if share_embeddings_and_output_weights:
-                        if self.mcore_gpt:
-                            fp32_params.append(modules[-1].shared_embedding_or_output_weight())
-                        else:
-                            fp32_params.append(modules[-1].word_embeddings_weight())
-                for param in fp32_params:
-                    if param is not None:
-                        param._with_fp32_optimizer = True
-
             # Match param allgather with model dtype
             model_dtype = torch.float32
             if self.megatron_amp_O2 and hasattr(self, 'autocast_dtype'):
@@ -1022,10 +997,11 @@ class MegatronBaseModel(NLPModel):
             else:
                 return False
 
-    def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
+    def _get_total_params_across_model_parallel_groups_gpt_bert(self):
         """Returns the total number of parameters across all model parallel groups."""
         is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
         # log number of parameters
+        model = self.get_model_module_list()
         if isinstance(model, list):
             num_parameters_on_device = sum(
                 [sum([p.nelement() for p in model_module.parameters()]) for model_module in model]
@@ -1036,7 +1012,7 @@ class MegatronBaseModel(NLPModel):
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 word_embeddings_weight = (
-                    model[-1].module.shared_embedding_or_output_weight()
+                    model[-1].shared_embedding_or_output_weight()
                     if is_mcore_model
                     else model[-1].word_embeddings_weight()
                 )
@@ -1051,9 +1027,7 @@ class MegatronBaseModel(NLPModel):
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 word_embeddings_weight = (
-                    model.module.shared_embedding_or_output_weight()
-                    if is_mcore_model
-                    else model.word_embeddings_weight()
+                    model.shared_embedding_or_output_weight() if is_mcore_model else model.word_embeddings_weight()
                 )
                 # substract the embedding weights on the last stage
                 num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
