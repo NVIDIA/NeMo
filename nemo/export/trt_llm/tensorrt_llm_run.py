@@ -142,7 +142,8 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
 
         decoder = ModelRunner.from_dir(
             engine_dir=engine_dir,
-            lora_ckpt_source=lora_ckpt_list,
+            lora_dir=lora_ckpt_list,
+            lora_ckpt_source="nemo",
             rank=runtime_rank,
             debug_mode=False
         )

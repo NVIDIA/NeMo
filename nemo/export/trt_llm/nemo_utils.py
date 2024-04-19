@@ -30,6 +30,7 @@ import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
 from tensorrt_llm._utils import pad_vocab_size
+from tensorrt_llm.functional import non_gated_version
 from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 
@@ -392,7 +393,7 @@ def nemo_to_trtllm_config(
         'max_position_embeddings':
         nemo_model_config.get('max_position_embeddings'),
         'hidden_act':
-        nemo_model_config.get('activation'),
+        non_gated_version(nemo_model_config.get('activation')),
         'use_parallel_embedding':
         use_parallel_embedding,
         'embedding_sharding_dim':
