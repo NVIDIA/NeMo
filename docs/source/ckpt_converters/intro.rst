@@ -9,7 +9,9 @@ We offer comprehensive guides to assist both end-users and developers:
 
 - **Developer Guide**: Instructions for developers on how to implement converters for community model checkpoints, allowing for broader compatibility and integration within the NeMo ecosystem. For development details, refer to our :doc:`dev_guide`.
 
-Below are the links to access the user and developer guides directly:
+- **Megatron-LM Checkpoint Conversion**: NVIDIA NeMo and NVIDIA Megatron-LM share several foundational technologies. You can convert your GPT-style model checkpoints trained with Megatron-LM into the NeMo framework using our scripts :doc:`convert_mlm`.
+
+Access the user and developer guides directly through the links below:
 
 .. toctree::
    :maxdepth: 1
@@ -17,3 +19,4 @@ Below are the links to access the user and developer guides directly:
 
    user_guide
    dev_guide
+   convert_mlm

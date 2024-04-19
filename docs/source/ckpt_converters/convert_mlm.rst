@@ -1,5 +1,5 @@
-Migrating from Megatron-LM
-==========================
+Converting from Megatron-LM
+===========================
 
 NVIDIA NeMo and NVIDIA Megatron-LM share many underlying technologies. This document provides guidance for migrating your project from Megatron-LM to NVIDIA NeMo.
 
@@ -30,13 +30,3 @@ To resume training from a converted Megatron-LM checkpoint, it is crucial to cor
 
 This configuration ensures that the learning rate scheduler in NeMo continues from where it left off in Megatron-LM, using the `lr-warmup-fraction` and `lr-decay-iters` arguments from the original Megatron-LM training setup.
 
-Related Documentation
----------------------
-
-For more detailed information on customization and further configurations, please refer to the additional documentation available in NeMo's development resources.
-
-.. toctree::
-   :maxdepth: 1
-   :caption: More on NeMo Customization
-
-   mcore_customization

@@ -17,6 +17,8 @@ To learn more about using NeMo to train Large Language Models at scale, please r
    retro/retro_model
    hiddens/hiddens_module
    peft/landing_page
+   batching
+   positional_embeddings
    mcore_customization
 
 

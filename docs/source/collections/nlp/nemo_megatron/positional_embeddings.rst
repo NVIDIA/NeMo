@@ -105,7 +105,7 @@ Positional Interpolation is supported in Megatron GPT SFT models. Set RoPE Inter
 References
 ----------
 
-.. bibliography:: ./nlp_all.bib
+.. bibliography:: ../nlp_all.bib
     :style: plain
     :labelprefix: nlp-megatron
     :keyprefix: nlp-megatron-

@@ -4,7 +4,7 @@ Flash Attention
 Overview
 ^^^^^^^^
 
-Flash Attention :cite:`nlp-megatron-dao2022flashattention` is a method designed to enhance the efficiency of Transformer models, which are widely utilized in applications such as natural language processing. Traditional Transformers are slow and consume a lot of memory, especially with long sequences, due to the quadratic time and memory complexity of self-attention. FlashAttention, an IO-aware exact attention algorithm that leverages tiling to minimize the number of memory reads/writes between the GPU's high bandwidth memory (HBM) and on-chip SRAM. This approach is designed to be more efficient in terms of IO complexity compared to standard attention mechanisms.
+Flash Attention is a method designed to enhance the efficiency of Transformer models, which are widely utilized in applications such as natural language processing. Traditional Transformers are slow and consume a lot of memory, especially with long sequences, due to the quadratic time and memory complexity of self-attention. FlashAttention, an IO-aware exact attention algorithm that leverages tiling to minimize the number of memory reads/writes between the GPU's high bandwidth memory (HBM) and on-chip SRAM. This approach is designed to be more efficient in terms of IO complexity compared to standard attention mechanisms.
 
 Turn on and off Flash Attention
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
