@@ -426,6 +426,15 @@ Transformer Engine requires PyTorch to be built with at least CUDA 11.8.
 Megatron Core
 ~~~~~~~~~~~~~
 
+.. code-block:: bash
+
+  git clone https://github.com/NVIDIA/Megatron-LM.git && \
+  cd Megatron-LM && \
+  git checkout $mcore_commit && \
+  pip install . && \
+  cd megatron/core/datasets && \
+  make
+
 
 NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
