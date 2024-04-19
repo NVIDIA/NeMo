@@ -1,4 +1,3 @@
-import logging
 import shutil
 from typing import Optional, Any, Dict
 
@@ -8,9 +7,8 @@ from lightning_fabric.utilities.types import _PATH
 from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.strategies import tensorstore
 
+from nemo.utils import logging
 from nemo.utils.model_utils import ckpt_to_dir
-
-logger = logging.getLogger(__name__)
 
 
 class DistributedCheckpointIO(CheckpointIO):
@@ -62,7 +60,7 @@ class DistributedCheckpointIO(CheckpointIO):
         For now only decides the checkpoint format.
         """
         save_strategy = (self.save_ckpt_format, 1)
-        logger.info(f'Using {save_strategy} dist-ckpt save strategy.')
+        logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
         return save_strategy
 
     def teardown(self) -> None:
