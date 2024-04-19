@@ -6305,6 +6305,7 @@ jobs:
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
       - L2_Megatron_GPT_Finetuning_PP2
       - L2_Megatron_GPT_Finetuning_StarCoder_PP1
+      - L2_Megatron_GPT_Embedding 
       - L2_Megatron_GPT_PEFT_Lora_PP2
       - L2_Megatron_GPT_PEFT_Lora_TP2
       - L2_Megatron_GPT_Eval
