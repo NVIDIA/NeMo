@@ -381,7 +381,7 @@ To install Apex, run
     git clone https://github.com/NVIDIA/apex.git
     cd apex
     git checkout $apex_commit
-    pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+    pip install . -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam --group_norm"
 
 
 While installing Apex outside of the NVIDIA PyTorch container,
