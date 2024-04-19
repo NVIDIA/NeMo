@@ -68,8 +68,6 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
-from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
@@ -104,6 +102,7 @@ try:
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+    from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
     HAVE_MEGATRON_CORE = True
 
@@ -475,12 +474,12 @@ class NLPDDPStrategy(DDPStrategy):
 
     @property
     def use_distributed_checkpointing(self):
-        use_dist_ckpt = isinstance(self.checkpoint_io, DistributedCheckpointIO)
+        use_dist_ckpt = HAVE_MEGATRON_CORE and isinstance(self.checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         )
-        assert use_dist_ckpt == has_sharded_state_dict, (use_dist_ckpt, has_sharded_state_dict) # TODO
+        assert use_dist_ckpt == has_sharded_state_dict, f'Inconsistent dist-ckpt flags: {(use_dist_ckpt, has_sharded_state_dict)}'
         return use_dist_ckpt
 
     @property
@@ -866,7 +865,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     if model.trainer.strategy.launcher is not None:
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                         model.trainer.strategy.setup_environment()
-                    checkpoint_io = DistributedCheckpointIO(model.cfg.checkpoint_storage)
+                    checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
                     checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_path)
 
             else:
@@ -1125,7 +1124,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                checkpoint_io = DistributedCheckpointIO(conf.checkpoint_storage)
+                checkpoint_io = DistributedCheckpointIO(conf.get('dist_ckpt_format', 'zarr'))
                 checkpoint_io.load_checkpoint(tmp_model_weights_dir, sharded_state_dict=checkpoint)
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
