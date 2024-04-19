@@ -17,7 +17,7 @@ git clone https://huggingface.co/datasets/liuhaotian/llava-bench-in-the-wild
 And download the [`rule.json` file](https://huggingface.co/spaces/LanguageBind/Video-LLaVA/blob/main/llava/eval/table/rule.json).
 
 
-Notice the answer file in `llava-bench-in-the-wild` is row of json string:
+Notice the answer file in `llava-bench-in-the-wild` is consisted of rows of json string:
 ```
 {"question_id": 0, "prompt": "What is the name of this famous sight in the photo?", "answer_id": "TeyehNxHw5j8naXfEWaxWd", "model_id": "gpt-4-0314", "metadata": {}, "text": "The famous sight in the photo is Diamond Head."}
 ```
@@ -27,7 +27,7 @@ You may also have your own response file as
 {"response_id": 0, "response": "The famous sight in the photo is Diamond Head."}
 ```
 
-Both format are ok.
+Both formats are ok.
 
 ### Evaluation
 
@@ -42,8 +42,8 @@ API_TOKEN=nvapi-<the api you just saved> python3 mixtral_eval.py --model-name-li
 --question-file llava-bench-in-the-wild/questions.jsonl \  # the question file
 --responses-list llava-bench-in-the-wild/answers_gpt4.jsonl llava-bench-in-the-wild/bard_0718.jsonl  \   # two answer files / response files
 --answers-dir ./  \  # to save the answers
- --context-file llava-bench-in-the-wild/context.jsonl \  # context file
- --output ./output.json  # the generated mixtral reviews for the two models
+--context-file llava-bench-in-the-wild/context.jsonl \  # context file
+--output ./output.json  # the generated mixtral reviews for the two models
 ```
 
 You'll see the result like:
