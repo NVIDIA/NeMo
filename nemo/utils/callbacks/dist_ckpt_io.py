@@ -1,4 +1,5 @@
 import shutil
+from abc import abstractmethod
 from typing import Any, Dict, Optional
 
 from lightning_fabric.plugins import CheckpointIO
@@ -12,7 +13,13 @@ from nemo.utils.callbacks.torch_dist_async import \
     TorchDistAsyncSaveShardedStrategy
 
 
-class DistributedCheckpointIO(CheckpointIO):
+class AsyncFinalizableCheckpointIO(CheckpointIO):
+    @abstractmethod
+    def maybe_finalize_save_checkpoint(self, blocking: bool = False):
+        raise NotImplementedError
+
+
+class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
     """ CheckpointIO for a distributed checkpoint format.
 
     Args:
@@ -44,6 +51,11 @@ class DistributedCheckpointIO(CheckpointIO):
         dist_checkpointing.save(
             sharded_state_dict=checkpoint, checkpoint_dir=path, sharded_strategy=self.save_sharded_strategy
         )
+
+    def maybe_finalize_save_checkpoint(self, blocking: bool = False) -> bool:
+        if not self.async_save:
+            return False
+        self.save_sharded_strategy.maybe_finalize_async_save(blocking=blocking)
 
     def load_checkpoint(
         self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: Dict[str, Any] = None

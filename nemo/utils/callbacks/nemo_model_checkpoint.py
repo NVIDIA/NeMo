@@ -28,6 +28,7 @@ from pytorch_lightning.utilities import rank_zero_info
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
@@ -428,8 +429,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            storage_options = dict(async_save=True) if self.async_save else None
-            trainer.save_checkpoint(filepath, self.save_weights_only, storage_options)
+            trainer.save_checkpoint(filepath, self.save_weights_only)
             finalize_cb = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
             if self.async_save:
                 assert self.async_finalize_cb is None, 'active save_checkpoint already happening'
@@ -444,16 +444,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def maybe_finalize_async_save(self, trainer, blocking=False):
         if not self.async_save:
             return
-        if not hasattr(trainer.strategy, 'dist_ckpt_save_strategy'):
-            raise ValueError('Currently async save can be used only with NLPDDPStrategy')
-        dist_ckpt_save_strategy = trainer.strategy.dist_ckpt_save_strategy
-        if dist_ckpt_save_strategy is None:
-            # No active async call yet
-            return
-        if not hasattr(dist_ckpt_save_strategy, 'maybe_finalize_async_save'):
-            raise ValueError('Async save requires async compatible strategy')
-        if dist_ckpt_save_strategy.maybe_finalize_async_save(blocking=blocking):
-            assert self.async_finalize_cb is not None, 'async finalize should be available'
+        checkpoint_io = trainer.strategy.checkpoint_io
+        if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
+            raise ValueError('Async save requires async compatible CheckpointIO')
+        if checkpoint_io.maybe_finalize_save_checkpoint(blocking=blocking):
+            assert self.async_finalize_cb is not None, 'async finalize callback should be available'
             self.async_finalize_cb()
             self.async_finalize_cb = None
 
