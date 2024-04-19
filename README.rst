@@ -426,6 +426,13 @@ Transformer Engine requires PyTorch to be built with at least CUDA 11.8.
 Megatron Core
 ~~~~~~~~~~~~~
 
+The NeMo LLM Multimodal Domains require that NVIDIA Megatron Core to be installed.
+Megatron core is a library for scaling large transfromer base models. 
+NeMo LLM and Multimodal models leverage Megatron Core for model parallelism, 
+transformer architectures, and optimized pytorch datasets.
+
+NeMo LLM and Multimodal may need Megatron Core to be updated to a recent version.
+
 .. code-block:: bash
 
   git clone https://github.com/NVIDIA/Megatron-LM.git && \
