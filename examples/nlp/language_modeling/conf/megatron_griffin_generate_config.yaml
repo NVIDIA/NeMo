@@ -143,10 +143,7 @@ model:
   
   peft:
     peft_scheme: "lora"  # can be either adapter,ia3, lora, or ptuning
-    restore_from_path: null
-    restore_from_ckpt:
-      checkpoint_dir: null
-      checkpoint_name: null
+    restore_from_path: /home/ataghibakhsh/peft_griffin_dir_squad/megatron_griffin/2024-04-16_07-15-55/checkpoints/megatron_griffin.nemo
 
     # Used for adapter peft training
     adapter_tuning:
@@ -168,7 +165,7 @@ model:
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
-      layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      layer_selection:  [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
       weight_tying: False
       position_embedding_strategy: null # used only when weight_tying is True
 
@@ -275,7 +272,7 @@ model:
         num_classes: null
 
   optim:
-    name: distributed_fused_adam
+    name: fused_adam
     lr: 2e-4
     weight_decay: 0.01 
     betas: 
