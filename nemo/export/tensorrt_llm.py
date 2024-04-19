@@ -27,7 +27,7 @@ import torch
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.tarutils import TarPath
+from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
 from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config
@@ -194,7 +194,7 @@ class TensorRTLLM(ITritonDeployable):
             if os.path.isdir(nemo_checkpoint_path):
                 nemo_export_dir = nemo_checkpoint_path
             else:
-                unpack_nemo_ckpt(nemo_checkpoint_path, tmp_dir.name)
+                unpack_tarball(nemo_checkpoint_path, tmp_dir.name)
                 nemo_checkpoint_path = tmp_dir.name
             self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
 
