@@ -859,8 +859,12 @@ class MegatronTokenLevelEncoderDecoderSpeechLLMModule(MegatronTokenLevelEncoderD
                 else:
                     dec_position_ids = None
                 dec_input = self.get_decoder_embeddings(dec_input_ids, dec_position_ids, token_type_ids)
-                if decoder_max_sequence_len or encoder_max_sequence_len:
-                    # In inference, only need last input
+                if not set_inference_key_value_memory and (decoder_max_sequence_len or encoder_max_sequence_len):
+                    # In inference
+                    # On step 0 when set_inference_key_value_memory is True, we need all inputs in case
+                    # we are using decoder context
+                    # Else on step >= 1, only need last input
+                    logging.debug("Clipping dec_input")
                     dec_input = dec_input[-1, :, :].unsqueeze(0)
             else:
                 # Note: This is when the decoder itself is split across PP ranks.

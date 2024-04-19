@@ -506,7 +506,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # If we are in cross attention (inference_current_sequence_len == inference_max_sequence_len == inference_key_memory.size(0))
         # We only need to cache this once
         if inference_max_sequence_len and self.inference_current_sequence_len < inference_max_sequence_len:
-            # print(f"{self.inference_current_sequence_len}|{key_layer.shape}")
+            logging.debug(f"{self.inference_current_sequence_len}|{key_layer.shape}")
             # Adjust the range variables.
             start = self.inference_current_sequence_len
             self.inference_current_sequence_len += key_layer.size(0)
@@ -518,7 +518,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             value_layer = self.inference_value_memory[:end, ...]
             # Adjust attention mask
             if attention_mask is not None:
-                attention_mask = attention_mask[..., start:end, :end]
+                attention_mask = attention_mask[..., :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
@@ -880,6 +880,7 @@ class CoreAttention(MegatronModule):
             key_layer.size(0),
             query_layer.size(3),
         )
+        logging.debug(f"q:{query_layer.size()}\tk:{key_layer.size()}")
 
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
