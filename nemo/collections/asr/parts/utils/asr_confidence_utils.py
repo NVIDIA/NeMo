@@ -136,6 +136,9 @@ class ConfidenceConfig:
             from the `token_confidence`.
         aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
             Valid options are `mean`, `min`, `max`, `prod`.
+        tdt_include_duration: Bool flag indicating that the duration confidence scores are to be calculated and
+            attached to the regular frame confidence,
+            making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
         method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
 
@@ -175,6 +178,7 @@ class ConfidenceConfig:
     preserve_word_confidence: bool = False
     exclude_blank: bool = True
     aggregation: str = "min"
+    tdt_include_duration: bool = False
     method_cfg: ConfidenceMethodConfig = field(default_factory=lambda: ConfidenceMethodConfig())
 
     def __post_init__(self):
@@ -361,6 +365,7 @@ class ConfidenceMixin(ABC):
             confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
         )
         self.exclude_blank_from_confidence = confidence_cfg.get('exclude_blank', True)
+        self.tdt_include_duration_confidence = confidence_cfg.get('tdt_include_duration', False)
         self.word_confidence_aggregation = confidence_cfg.get('aggregation', "min")
 
         # define aggregation functions
