@@ -492,18 +492,25 @@ def run_inference_tests(args):
             n_gpus = n_gpus * 2
 
     test_result = "PASS"
-    print("======================================= Test Summary =======================================")
+    print_separator = False
+    print("============= Test Summary ============")
     for i, results in result_dic.items():
         if not results[0] is None and not results[1] is None:
+            if print_separator:
+                print("---------------------------------------")
             print(
-                "Number of GPUS: {0}, Model Accuracy: {1}, Relaxed Model Accuracy: {2}, "
-                "Deployed Model Accuracy: {3}, Deployed Relaxed Model Accuracy: {4}, "
-                "Evaluation Time: {5:.2f}s".format(i, *results)
+                "Number of GPUS:                  {}\n"
+                "Model Accuracy:                  {:.4f}\n"
+                "Relaxed Model Accuracy:          {:.4f}\n"
+                "Deployed Model Accuracy:         {:.4f}\n"
+                "Deployed Relaxed Model Accuracy: {:.4f}\n"
+                "Evaluation Time [s]:             {:.2f}".format(i, *results)
             )
+            print_separator = True
             if results[1] < 0.5:
                 test_result = "FAIL"
 
-    print("=============================================================================================")
+    print("=======================================")
     print("TEST: " + test_result)
     if test_result == "FAIL":
         raise Exception("Model accuracy is below 0.5")
