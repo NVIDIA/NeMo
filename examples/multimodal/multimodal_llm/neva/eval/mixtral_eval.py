@@ -51,8 +51,8 @@ def summarize(review_files):
         for k, v in sorted(scores.items()):
             stats = np.asarray(v).mean(0).tolist()
             stats = [round(x, 3) for x in stats]
-            # print(k, stats, round(stats[1]/stats[0]*100, 1))
-            print(k, round(stats[1] / stats[0] * 100, 1), round(stats[0] * 10, 1), round(stats[1] * 10, 1))
+            #print(k, round(stats[1] / stats[0] * 100, 1), round(stats[0] * 10, 1), round(stats[1] * 10, 1))
+            print(k, round(stats[0] * 10, 1), round(stats[1] * 10, 1))
         print('=================================')
 
 
@@ -80,7 +80,6 @@ def get_eval(content: str, max_tokens: int):
             except:
                 continue
             output += res['choices'][0]['delta']['content']
-
     print(output)
     return output
 
@@ -89,14 +88,14 @@ def parse_score(review):
     try:
         score_pair = review.split('\n')[0]
         score_pair = score_pair.replace(',', ' ')
-        sp = score_pair.split(' ')
+        sp = score_pair.split()
         if len(sp) == 2:
             return [float(sp[0]), float(sp[1])]
         else:
             print('error', review)
             return [-1, -1]
     except Exception as e:
-        print(e)
+        print(e.messsage)
         print('error', review)
         return [-1, -1]
 
@@ -192,13 +191,18 @@ def preprocess(args, response_file, model_name):
     ans_file = open(answers_file, "w")
     for line, resp in tqdm(zip(questions, responses), total=len(questions)):
         idx = line["question_id"]
-        resp_idx = resp["response_id"]
+        resp_key = "response_id"
+        resp_text_key = "response"
+        if resp_key not in resp:
+            resp_key = "question_id"
+            resp_text_key = "text"
+        resp_idx = resp[resp_key]
 
         if int(idx) == int(resp_idx):
             image_file = line[args.media_type]
             qs = line["text"]
             cur_prompt = qs
-            outputs = resp["response"]
+            outputs = resp[resp_text_key]
             ans_id = shortuuid.uuid()
             ans_file.write(
                 json.dumps(
