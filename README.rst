@@ -339,7 +339,7 @@ LLM and Multimodal Dependencies
 The LLM and Multimodal domains require three additional dependencies: 
 NVIDIA Apex, NVIDIA Transformer Engine, and NVIDIA Megatron Core.
 
-When working with the `main` branch these dependencies may require an recent commit.
+When working with the `main` branch these dependencies may require a recent commit.
 The most recent working versions of these dependencies are:
 
 .. code-block:: bash
