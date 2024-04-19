@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.core.models.griffin.griffin_model import GriffinModel
+from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_model import GriffinModel
 from pkg_resources import packaging
 from importlib.metadata import version
 import torch
@@ -343,95 +343,6 @@ class MegatronGriffinModel(MegatronGPTModel):
 
         return fwd_output_and_loss_func
 
-    def configure_optimizers(self):
-
-        if self.with_distributed_adam:
-
-            # Special handling for embedding grads
-            modules = self.get_model_module_list()
-            if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                module = modules[0]  # first virtual rank has the embeddings
-
-                # Word embeddings: use FP32 grads and disable
-                # overlapped grad sync with pipeline parallelism
-                word_embeddings = (
-                    module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
-                )
-                word_embeddings._with_fp32_optimizer = True
-                if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.get(
-                    'share_embeddings_and_output_weights', True
-                ):
-                    word_embeddings._disable_greedy_grad_copy = not self.megatron_amp_O2
-                    word_embeddings._disable_overlap_grad_sync = True
-
-                # Position embeddings: use FP32 grads
-                position_embeddings = None
-                if self.mcore_gpt:
-                    if module.embedder.add_position_embedding:
-                        position_embeddings = module.embedder.position_embeddings.weight
-                else:
-                    position_embeddings = module.position_embeddings_weight()
-                if position_embeddings is not None:
-                    position_embeddings._with_fp32_optimizer = True
-
-            # Handle case where embeddings are used in output layer
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.cfg.get(
-                'share_embeddings_and_output_weights', True
-            ):
-                module = modules[-1]  # last virtual rank has the embeddings
-                word_embeddings = (
-                    module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
-                )
-                word_embeddings._with_fp32_optimizer = True
-                if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                    word_embeddings._disable_greedy_grad_copy = not self.megatron_amp_O2
-                    word_embeddings._disable_overlap_grad_sync = True
-
-            # Disable overlapped grad sync for layer norm grads when
-            # sequence parallelism is enabled
-            for param in self.parameters():
-                if getattr(param, 'sequence_parallel', False):
-                    param._disable_greedy_grad_copy = not self.megatron_amp_O2
-                    param._disable_overlap_grad_sync = True
-
-            # Initialize parameter buckets for overlapped grad and param syncs
-            # Note: Params with disabled overlapping and params in the
-            # first layer are put together in a bucket. If FP8 tensors
-            # are detected, those are also put in the first layer's
-            # bucket.
-            def make_parameter_bucket(module: torch.nn.Module):
-                bucket = [
-                    param for param in module.parameters() if not getattr(param, '_disable_overlap_grad_sync', False)
-                ]
-                if any(is_float8tensor(param) for param in bucket):
-                    bucket = list(filter(is_float8tensor, bucket))
-                return bucket
-
-            buckets = []
-            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
-                # Initialize a bucket for each virtual pipeline stage
-                for module in self.model:
-                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
-                        module = module.module
-                    stage_bucket = []
-                    layers = module.decoder.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
-            else:
-                # Initialize a bucket for each Transformer layer
-                modules = self.model if isinstance(self.model, list) else [self.model]
-                for module in modules:
-                    if isinstance(module, (Float16Module, MCoreFloat16Module)):
-                        module = module.module
-                    layers = module.layers if self.mcore_gpt else module.language_model.encoder.layers
-                    buckets.extend(make_parameter_bucket(layer) for layer in layers)
-            buckets.reverse()
-            used_params = set(itertools.chain.from_iterable(buckets))
-            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
-            self.distributed_adam_buckets = buckets
-
-        # return MegatronBaseModel.configure_optimizers(self)
-        return super(MegatronGPTModel, self).configure_optimizers()
-    
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
             # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
