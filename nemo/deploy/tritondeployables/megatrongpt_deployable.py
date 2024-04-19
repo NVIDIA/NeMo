@@ -86,22 +86,6 @@ class MegatronGPTDeployable(ITritonDeployable):
         ]
 
         inputs = tuple(input_parameters + sampling_parameters + length_parameters)
-        # inputs = (
-        #     # Sampling Parameters
-        #     Tensor(name="prompts", shape=(-1,), dtype=bytes),
-        #     Tensor(name="use_greedy", shape=(1,), dtype=np.bool_, optional=True),
-        #     Tensor(name="temperature", shape=(1,), dtype=np.single, optional=True),
-        #     Tensor(name="top_k", shape=(1,), dtype=np.int_, optional=True),
-        #     Tensor(name="top_p", shape=(1,), dtype=np.single, optional=True),
-        #     Tensor(name="repetition_penalty", shape=(1,), dtype=np.single, optional=True),
-        #     Tensor(name="add_BOS", shape=(1,), dtype=np.bool_, optional=True),
-        #     Tensor(name="all_probs", shape=(1,), dtype=np.bool_, optional=True),
-        #     Tensor(name="compute_logprob", shape=(1,), dtype=np.bool_, optional=True),
-        #     Tensor(name="end_strings", shape=(-1,), dtype=bytes, optional=True),
-        #     # Length Parameters
-        #     Tensor(name="min_input_tokens", shape=(1,), dtype=np.int_, optional=True),
-        #     Tensor(name="max_output_tokens", shape=(1,), dtype=np.int_),
-        # )
         return inputs
 
     @property
