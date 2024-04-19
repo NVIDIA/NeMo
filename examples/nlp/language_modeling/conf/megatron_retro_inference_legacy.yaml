@@ -1,3 +1,5 @@
+# (This inferencing script for native NeMo RETRO will be soon deprecated. For new inferencing script for mcore RETRO, see ./megatron_retro_inference.yaml)
+
 inference:
   greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
