@@ -437,9 +437,9 @@ def nemo_to_trtllm_config(
             split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
         )
 
-        config = PretrainedConfig(**config)
-        config.mapping = mapping
-        model_configs.append(config)
+        model_config = PretrainedConfig(**config)
+        model_config.mapping = mapping
+        model_configs.append(model_config)
         weights_dicts.append(weights_dict_local)
 
     return weights_dicts, model_configs, tokenizer

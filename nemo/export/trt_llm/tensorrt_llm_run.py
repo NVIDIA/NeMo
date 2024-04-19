@@ -129,7 +129,13 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
 
         engine_dir = Path(engine_dir)
         config_path = engine_dir / "config.json"
-        model_config, world_size, tp_size, pp_size, dtype, max_input_len, max_batch_size = _read_config(config_path)
+        #model_config, world_size, tp_size, pp_size, dtype, max_input_len, max_batch_size = _read_config(config_path)
+
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        max_batch_size = config["build_config"]["max_batch_size"]
+        max_input_len = config["build_config"]["max_input_len"]
 
         runtime_rank = tensorrt_llm.mpi_rank()
         assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
@@ -312,7 +318,7 @@ def load(
     config_path = os.path.join(engine_dir, "config.json")
     with open(config_path, "r") as f:
         config = json.load(f)
-    world_size = config["builder_config"]["world_size"]
+    world_size = config["pretrained_config"]["mapping"]["world_size"]
     if world_size == 1:
         _load(tokenizer, engine_dir, lora_ckpt_list, num_beams)
         executor = None
@@ -325,9 +331,9 @@ def load(
         for future in futures:
             future.result()
 
-    max_batch_size = config["builder_config"]["max_batch_size"]
-    max_input_len = config["builder_config"]["max_input_len"]
-    add_bos = config["builder_config"]["add_bos"]
+    max_batch_size = config["build_config"]["max_batch_size"]
+    max_input_len = config["build_config"]["max_input_len"]
+    #add_bos = config["builder_config"]["add_bos"]
 
     return TensorrtLLMHostContext(
         executor=executor,
@@ -335,7 +341,7 @@ def load(
         tokenizer=tokenizer,
         max_batch_size=max_batch_size,
         max_input_len=max_input_len,
-        add_bos=add_bos,
+        add_bos=False,
     )
 
 
@@ -560,7 +566,7 @@ def generate(
     if no_repeat_ngram_size is not None:
         no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(torch.cuda.current_device())
 
-    outputs, log_probs = forward(
+    outputs = forward(
         input_tensors=input_tensors,
         max_output_len=max_output_len,
         host_context=host_context,
@@ -643,7 +649,7 @@ def generate_streaming(
     if no_repeat_ngram_size is not None:
         no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(torch.cuda.current_device())
 
-    outputs, log_probs = forward(
+    outputs = forward(
         input_tensors=input_tensors,
         max_output_len=max_output_len,
         host_context=host_context,
