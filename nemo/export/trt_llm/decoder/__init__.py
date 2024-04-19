@@ -42,6 +42,7 @@ DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
 
 DECODER_MODEL_TYPE = {
     DECODER_GPT2: 'GPTForCausalLM',
+    DECODER_GPTNEXT: 'GPTForCausalLM',
     DECODER_LLAMA: 'LLaMAForCausalLM',
     DECODER_GEMMA: 'GemmaForCausalLM',
 }
