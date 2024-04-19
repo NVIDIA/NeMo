@@ -15,14 +15,14 @@ inference:
     retro_gpt_retrieved_length: 128
     retro_num_neighbors: 2
     ft_neighbours: 0
-    reuse_top: True
+    reuse_top: False
 
 trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
   logger: False # logger provided by exp_manager
-  precision: 16 # 16, 32, or bf16
+  precision: 32 # 16, 32, or bf16
   use_distributed_sampler: False
   
 

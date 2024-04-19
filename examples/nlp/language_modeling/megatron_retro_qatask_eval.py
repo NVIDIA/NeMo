@@ -25,38 +25,30 @@ from nemo.collections.nlp.data.question_answering.input_example.qa_input_example
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 """
-This is the script to run Retro text generation.
+This is the script to run Retro text generation for QA tasks, such as NQ, TQA.
 
 Usage:
+    Currently, Mcore-based RETRO only support batch-size of 1.
     Assume the model has TP=1, PP=1 in the following use cases.
-    a. run greedy inference from a nemo file:
+    Run greedy qa task inference from a distributed checkpoint dir:
         python megatron_retro_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
+            checkpoint_dir=PATH_TO_CHECKPOINT \
+            checkpoint_name=CHECKPOINT_NAME \
             inference.greedy=True \
-            inference.add_BOS=True \
+            inference.add_BOS=False \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             tensor_model_parallel_size=-1 \
             pipeline_model_parallel_size=-1 \
             inference.retro_inference.retro_num_neighbors=2 \
-            qa_file_path= ""\
-            pred_file_path = ""\
+            qa_file_path=PATH_TO_QAFILE"\
+            pred_file_path =PATH_TO_PREDFILE ""\
 
 
         ```
@@ -77,15 +69,6 @@ class RequestDataSet(Dataset):
 
     def __getitem__(self, idx):
         return {'prompts': self.sentences[idx], 'neighbors': self.neighbors[idx]}
-
-
-def remove_padded_prompts(response, nb_paddings):
-    result = {}
-    for k, v in response.items():
-        if v != None and (type(v) is list or type(v) is torch.Tensor):
-            v = v[:-nb_paddings]
-        result[k] = v
-    return result
 
 
 def process_qasample(sample, retro_num_neighbors=2, ft_neighbours=5):
@@ -229,23 +212,6 @@ def main(cfg) -> None:
     except AttributeError:
         pass
 
-    length_params: LengthParam = {
-        "max_length": cfg.inference.tokens_to_generate,
-        "min_length": cfg.inference.min_tokens_to_generate,
-    }
-
-    sampling_params: SamplingParam = {
-        "use_greedy": cfg.inference.greedy,
-        "temperature": cfg.inference.temperature,
-        "top_k": cfg.inference.top_k,
-        "top_p": cfg.inference.top_p,
-        "repetition_penalty": cfg.inference.repetition_penalty,
-        "add_BOS": cfg.inference.add_BOS,
-        "all_probs": cfg.inference.all_probs,
-        "compute_logprob": cfg.inference.compute_logprob,
-        "end_strings": cfg.inference.end_strings,
-    }
-
     # Reading QA data files
     qa_samples = []
     with open(cfg.qa_file_path, 'r', encoding='utf-8') as f:
@@ -312,4 +278,4 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
+    main()

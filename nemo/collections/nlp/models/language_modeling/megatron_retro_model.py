@@ -219,10 +219,6 @@ class MegatronRetroModel(MegatronGPTModel):
 
         inference_config = self.get_inference_config()
 
-        if torch.distributed.get_rank() == 0:
-            logging.info("inference_config: ")
-            logging.info(inference_config)
-
         if inference_config is None:
             return None
         else:
