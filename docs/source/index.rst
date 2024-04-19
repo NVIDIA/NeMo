@@ -88,7 +88,7 @@ For more information, browse the developer docs for your area of interest in the
    :name: Collections
    :titlesonly:
 
-   collections/intro
+   collections
 
 .. toctree::
    :maxdepth: 1
@@ -105,11 +105,3 @@ For more information, browse the developer docs for your area of interest in the
    :titlesonly:
 
    scripts/intro
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Migrate from Megatron-LM
-   :name: Migrate from Megatron-LM
-   :titlesonly:
-
-   mlm_migrate/migration_guide

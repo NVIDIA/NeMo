@@ -123,15 +123,15 @@ extensions = [
 ]
 
 bibtex_bibfiles = [
-    'collections/asr/asr_all.bib',
-    'collections/nlp/nlp_all.bib',
-    'collections/nlp/text_normalization/tn_itn_all.bib',
-    'collections/tools/tools_all.bib',
-    'collections/tts/tts_all.bib',
-    'collections/text_processing/text_processing_all.bib',
+    'asr/asr_all.bib',
+    'nlp/nlp_all.bib',
+    'nlp/text_normalization/tn_itn_all.bib',
+    'tools/tools_all.bib',
+    'tts/tts_all.bib',
+    'text_processing/text_processing_all.bib',
     'core/adapters/adapter_bib.bib',
-    'collections/multimodal/mm_all.bib',
-    'collections/vision/vision_all.bib',
+    'multimodal/mm_all.bib',
+    'vision/vision_all.bib',
 ]
 
 intersphinx_mapping = {
