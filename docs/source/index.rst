@@ -55,10 +55,17 @@ For more information, browse the developer docs for your area of interest in the
 
 .. toctree::
    :maxdepth: 1
-   :caption: Supported Features
-   :name: Supported Features
+   :caption: Memory Optimizations
+   :name: Memory Optimizations
 
-   features/intro
+   features/memory_optimizations
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Throughput Optimizations
+   :name: Throughput Optimizations
+
+   features/throughput_optimizations
 
 .. toctree::
    :maxdepth: 1

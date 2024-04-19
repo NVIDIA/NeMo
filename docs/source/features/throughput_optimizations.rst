@@ -1,6 +1,8 @@
+Throughput Optimizations
+========================
+
 Sequence Packing for SFT/PEFT
 -----------------------------
-
 
 Overview
 ^^^^^^^^
