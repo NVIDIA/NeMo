@@ -1,30 +1,33 @@
-from nemo.deploy.tritondeployables.megatrongpt_deployable import MegatronGPTDeployable
+import argparse
+
+import numpy as np
+from pytriton.client import ModelClient
+
 from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.nlp import NemoQueryLLM
-from pytriton.client import ModelClient
-import numpy as np
-import argparse
+from nemo.deploy.tritondeployables.megatrongpt_deployable import MegatronGPTDeployable
+
 
 def test_triton_deployable(args):
     megatron_deployable = MegatronGPTDeployable(args.nemo_checkpoint)
 
-    prompts=["What is the biggest planet in the solar system?", "What is the fastest steam locomotive in history?"]
-    max_output_token=args.max_output_token
-    top_k=args.top_k
-    top_p=args.top_p
-    temperature=args.temperature
-    url="localhost:8000"
-    model_name=args.model_name
+    prompts = ["What is the biggest planet in the solar system?", "What is the fastest steam locomotive in history?"]
+    max_output_token = args.max_output_token
+    top_k = args.top_k
+    top_p = args.top_p
+    temperature = args.temperature
+    url = "localhost:8000"
+    model_name = args.model_name
     init_timeout = 600.0
 
     nm = DeployPyTriton(
         model=megatron_deployable,
-        triton_model_name= model_name,
+        triton_model_name=model_name,
         triton_model_version=1,
         max_batch_size=8,
         port=8000,
         address="0.0.0.0",
-        streaming=False
+        streaming=False,
     )
     nm.deploy()
     nm.run()
@@ -48,6 +51,7 @@ def test_triton_deployable(args):
 
     print(result_dict)
     nm.stop()
+
 
 def get_args():
     parser = argparse.ArgumentParser(
@@ -133,6 +137,7 @@ def get_args():
     # )
 
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     args = get_args()
