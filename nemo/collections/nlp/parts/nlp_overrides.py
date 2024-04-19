@@ -346,14 +346,16 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         ):
-            assert (
-                len(checkpoint['optimizer_states']) == 1
-            ), "Currently only support checkpointing 1 distributed optimizer per time!"
-            # converts the optimizer states to their sharded equivalents
-            sharded_optim_state = self.optimizer_sharded_state_dict(
-                unsharded_optim_state=checkpoint['optimizer_states'][0]
-            )
-            checkpoint['optimizer_states'] = [sharded_optim_state]
+            if 'optimizer_states' in checkpoint:
+                assert (
+                    len(checkpoint['optimizer_states']) == 1
+                ), "Currently only support checkpointing 1 distributed optimizer per time!"
+                # converts the optimizer states to their sharded equivalents
+                sharded_optim_state = self.optimizer_sharded_state_dict(
+                    unsharded_optim_state=checkpoint['optimizer_states'][0]
+                )
+                checkpoint['optimizer_states'] = [sharded_optim_state]
+
             # dist_checkpointing expects a directory so we will name the directory
             # using the path with the file extension removed
             checkpoint_dir = ckpt_to_dir(filepath)
