@@ -12,9 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import copy
+import fnmatch
 import importlib
 import os
+import shutil
+import tarfile
+import tempfile
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from functools import lru_cache
@@ -39,6 +44,7 @@ except ModuleNotFoundError:
     _HAS_HYDRA = False
 
 
+MODEL_CONFIG = "model_config.yaml"
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
 
 
@@ -59,6 +65,35 @@ class ArtifactItem:
     path: str = ""
     path_type: ArtifactPathType = ArtifactPathType.LOCAL_PATH
     hashed_path: Optional[str] = None
+
+
+def detect_prefix(names: List[str]) -> str:
+    """Detect model config prefix for a list of file names.
+
+    Useful to identify prefix used within .nemo tarball checkpoint."""
+    model_config = fnmatch.filter(names, f"*{MODEL_CONFIG}")
+    assert len(model_config) == 1, f"Exactly one model config path expected, found: {model_config}."
+    prefix = model_config[0].removesuffix(MODEL_CONFIG)
+    return prefix
+
+
+def load_config(model_file: str) -> DictConfig:
+    """Load model config from extracted directory or '.nemo' tarball."""
+    if os.path.isfile(model_file):
+        with tempfile.TemporaryDirectory() as tmp, tarfile.open(model_file, "r:") as tar:
+            prefix = detect_prefix(tar.getnames())
+            tar.extract(f"{prefix}{MODEL_CONFIG}", path=tmp)
+            model_config = OmegaConf.load(os.path.join(tmp, MODEL_CONFIG))
+    elif os.path.isdir(model_file):
+        model_config = OmegaConf.load(os.path.join(model_file, MODEL_CONFIG))
+    else:
+        raise FileNotFoundError(model_file)
+
+    return model_config
+
+
+def param_is_not_shared(param):
+    return not hasattr(param, 'shared') or not param.shared
 
 
 def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:
@@ -636,3 +671,44 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     checkpoint_dir = filepath.with_name(filepath.stem)
 
     return checkpoint_dir
+
+
+def save_artifacts(model, output_dir: str, use_abspath: bool = False) -> None:
+    """Save all model artifacts and tokenizer config to a given output directory."""
+    app_state = AppState()
+    model_file = app_state.model_restore_path
+    model_cfg = copy.deepcopy(model.cfg)
+    if not hasattr(model, "artifacts"):
+        if hasattr(model_cfg, "tokenizer"):
+            OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))
+        return
+
+    # Setup model file handling context: directory or tarball
+    if os.path.isfile(model_file):
+        model_file_handler = tarfile.open
+        kwargs = {"name": model_file, "mode": "r:"}
+    elif os.path.isdir(model_file):
+        model_file_handler = contextlib.nullcontext
+        kwargs = {}
+    else:
+        raise FileNotFoundError(model_file)
+
+    # Copy or extract artifacts depending on the context
+    with model_file_handler(**kwargs) as maybe_tar:
+        if maybe_tar is not None:
+            prefix = detect_prefix(maybe_tar.getnames())
+        for arti_name, arti_item in model.artifacts.items():
+            _, arti_file = arti_item.path.split("nemo:")
+            arti_path = os.path.join(output_dir, arti_name)
+            if maybe_tar is not None:
+                maybe_tar.extract(f"{prefix}{arti_file}", path=output_dir)
+                os.rename(os.path.join(output_dir, arti_file), arti_path)
+            else:
+                shutil.copy(os.path.join(model_file, arti_file), arti_path)
+            # Store artifact path as basename by default. Otherwise save absolute path but bear in mind
+            # that in this case output directory should be permanent for correct artifact recovery later
+            arti_path = os.path.abspath(arti_path) if use_abspath else os.path.basename(arti_path)
+            OmegaConf.update(model_cfg, arti_name, arti_path)
+
+    if hasattr(model_cfg, "tokenizer"):
+        OmegaConf.save(model_cfg.tokenizer, os.path.join(output_dir, "tokenizer_config.yaml"))

@@ -36,22 +36,48 @@
 .. _main-readme:
 
 **NVIDIA NeMo Framework**
-===============
+=========================
 
 Latest News
 -----------
 
-- 2023/12/06 `New NVIDIA NeMo Framework Features and NVIDIA H200 <https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/>`_
+.. raw:: html
 
-.. image:: https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png
-  :target: https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility
-  :alt: H200-NeMo-performance
-  :width: 600
+  <details open>
+    <summary><b>Large Language Models and Multimodal</b></summary>
+        <details>
+          <summary><a href="https://cloud.google.com/blog/products/compute/gke-and-nvidia-nemo-framework-to-train-generative-ai-models">Accelerate your generative AI journey with NVIDIA NeMo framework on GKE</a> (2024/03/16) </summary>
 
-NeMo Framework has been updated with state-of-the-art features,
-such as FSDP, Mixture-of-Experts, and RLHF with TensorRT-LLM to provide speedups up to 4.2x for Llama-2 pre-training on H200.
-**All of these features will be available in an upcoming release.**
+          An end-to-end walkthrough to train generative AI models on the Google Kubernetes Engine (GKE) using the NVIDIA NeMo Framework is available at https://github.com/GoogleCloudPlatform/nvidia-nemo-on-gke. The walkthrough includes detailed instructions on how to set up a Google Cloud Project and pre-train a GPT model using the NeMo Framework.
+          <br><br>
+        </details>
 
+      <details>
+        <summary><a href="https://blogs.nvidia.com/blog/bria-builds-responsible-generative-ai-using-nemo-picasso/">Bria Builds Responsible Generative AI for Enterprises Using NVIDIA NeMo, Picasso</a> (2024/03/06) </summary>
+
+        Bria, a Tel Aviv startup at the forefront of visual generative AI for enterprises now leverages the NVIDIA NeMo Framework. The Bria.ai platform uses reference implementations from the NeMo Multimodal collection, trained on NVIDIA Tensor Core GPUs, to enable high-throughput and low-latency image generation. Bria has also adopted NVIDIA Picasso, a foundry for visual generative AI models, to run inference.
+        <br><br>
+    </details>
+
+    <details>
+      <summary><a href="https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility/">New NVIDIA NeMo Framework Features and NVIDIA H200</a> (2023/12/06) </summary>
+
+      NVIDIA NeMo Framework now includes several optimizations and enhancements, including: 1) Fully Sharded Data Parallelism (FSDP) to improve the efficiency of training large-scale AI models, 2) Mix of Experts (MoE)-based LLM architectures with expert parallelism for efficient LLM training at scale, 3) Reinforcement Learning from Human Feedback (RLHF) with TensorRT-LLM for inference stage acceleration, and 4) up to 4.2x speedups for Llama 2 pre-training on NVIDIA H200 Tensor Core GPUs.
+      <br><br>
+      <a href="https://developer.nvidia.com/blog/new-nvidia-nemo-framework-features-and-nvidia-h200-supercharge-llm-training-performance-and-versatility"><img src="https://github.com/sbhavani/TransformerEngine/blob/main/docs/examples/H200-NeMo-performance.png" alt="H200-NeMo-performance" style="width: 600px;"></a>
+      <br><br>
+    </details>
+
+    <details>
+      <summary><a href="https://blogs.nvidia.com/blog/nemo-amazon-titan/">NVIDIA now powers training for Amazon Titan Foundation models</a> (2023/11/28) </summary>
+
+      NVIDIA NeMo framework now empowers the Amazon Titan foundation models (FM) with efficient training of large language models (LLMs). The Titan FMs form the basis of Amazon’s generative AI service, Amazon Bedrock. The NeMo Framework provides a versatile framework for building, customizing, and running LLMs.
+      <br><br>
+    </details>
+
+  </details>
+
+   
 
 
 Introduction
@@ -154,6 +180,20 @@ FAQ can be found on NeMo's `Discussions board <https://github.com/NVIDIA/NeMo/di
 
 Installation
 ------------
+
+The NeMo Framework can be installed in a variety of ways, depending on your needs. Depending on the domain, you may find one of the following installation methods more suitable.
+
+* Conda / Pip - Refer to the `Conda <#conda>`_ and `Pip <#pip>`_ sections for installation instructions.
+
+  * This is recommended for Automatic Speech Recognition (ASR) and Text-to-Speech (TTS) domains.
+  * When using a Nvidia PyTorch container as the base, this is the recommended installation method for all domains.
+
+* Docker - Refer to the `Docker containers <#docker-containers>`_ section for installation instructions.
+
+  * This is recommended for Large Language Models (LLM), Multimodal and Vision domains.
+  * NeMo LLM & Multimodal Container - `nvcr.io/nvidia/nemo:24.01.01.framework`
+  * NeMo Speech Container - `nvcr.io/nvidia/nemo:24.01.speech`
+
 Conda
 ~~~~~
 
@@ -183,6 +223,19 @@ Use this installation mode if you want the latest released version.
     pip install nemo_toolkit['all']
 
 Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+
+Pip (Domain Specific)
+~~~~~~~~~~~~~~~~~~~~~
+
+To install only a specific domain of NeMo, use the following commands. Note: It is required to install the above pre-requisites before installing a specific domain of NeMo.
+
+.. code-block:: bash
+
+    pip install nemo_toolkit['asr']
+    pip install nemo_toolkit['nlp']
+    pip install nemo_toolkit['tts']
+    pip install nemo_toolkit['vision']
+    pip install nemo_toolkit['multimodal']
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -277,9 +330,9 @@ Note that RNNT requires numba to be installed from conda.
   pip uninstall numba
   conda install -c conda-forge numba
 
-NeMo Megatron
-~~~~~~~~~~~~~
-NeMo Megatron training requires NVIDIA Apex to be installed.
+Apex
+~~~~
+NeMo LLM Domain training requires NVIDIA Apex to be installed.
 Install it manually if not using the NVIDIA PyTorch container.
 
 To install Apex, run
@@ -313,7 +366,7 @@ With the latest versions of Apex, the `pyproject.toml` file in Apex may need to 
 
 Transformer Engine
 ~~~~~~~~~~~~~~~~~~
-NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_
+NeMo LLM Domain has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_
 Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
 `Install <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html>`_ it manually if not using the NVIDIA PyTorch container.
 
@@ -327,8 +380,8 @@ Transformer Engine requires PyTorch to be built with CUDA 11.8.
 
 
 Flash Attention
-~~~~~~~~~~~~~~~~~~~~
-Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models, please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. If you want to use Flash Attention with attention bias (introduced from position encoding, e.g. Alibi), please also install triton pinned version following the `implementation <https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3>`_.
+~~~~~~~~~~~~~~~
+When traning Large Language Models in NeMo, users may opt to use Flash Attention for efficient training. Transformer Engine already supports Flash Attention for GPT models. If you want to use Flash Attention for non-causal models, please install `flash-attn <https://github.com/HazyResearch/flash-attention>`_. If you want to use Flash Attention with attention bias (introduced from position encoding, e.g. Alibi), please also install triton pinned version following the `implementation <https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3>`_.
 
 .. code-block:: bash
 
@@ -347,15 +400,15 @@ NeMo Text Processing
 ~~~~~~~~~~~~~~~~~~~~
 NeMo Text Processing, specifically (Inverse) Text Normalization, is now a separate repository `https://github.com/NVIDIA/NeMo-text-processing <https://github.com/NVIDIA/NeMo-text-processing>`_.
 
-Docker containers:
-~~~~~~~~~~~~~~~~~~
-We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.22.0`` comes with container ``nemo:23.10``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
+Docker containers
+~~~~~~~~~~~~~~~~~
+We release NeMo containers alongside NeMo releases. For example, NeMo ``r1.23.0`` comes with container ``nemo:24.01.speech``, you may find more details about released containers in `releases page <https://github.com/NVIDIA/NeMo/releases>`_.
 
 To use built container, please run
 
 .. code-block:: bash
 
-    docker pull nvcr.io/nvidia/nemo:23.10
+    docker pull nvcr.io/nvidia/nemo:24.01.speech
 
 To build a nemo container with Dockerfile from a branch, please run
 

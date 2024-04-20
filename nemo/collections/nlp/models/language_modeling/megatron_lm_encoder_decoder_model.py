@@ -189,6 +189,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 param._disable_greedy_grad_copy = not self.megatron_amp_O2
                 param._disable_overlap_grad_sync = True
 
+            # Make sure embedding grads are reduced in FP32
+            for name, param in self.named_parameters():
+                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
+                    param._with_fp32_optimizer = True
+
         return super().configure_optimizers()
 
     def _handle_bias_activation_fusion_args(self, cfg):
@@ -567,13 +572,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(dataloader_iter, model):
-            # Check if instance of PTL's _DataFetcherWrapper or not, since sometimes (batch, batch_idx, dataloader_idx) as a tuple
-            # from the dataloader_iter are already extracted in the child class or previous functions. In that case extact only the batch
-            # from the data_iterator
-            if isinstance(dataloader_iter, _DataFetcherWrapper):
-                batch, _, _ = next(dataloader_iter)
-            else:
-                batch = next(dataloader_iter)
+            # If tuple, 1st element in it is the batch since dataloader_iter returns batch, batch_idx, dataloader_idx
+            batch = next(dataloader_iter)
+            if isinstance(batch, tuple):
+                batch = batch[0]
             # convert to list if not already converted.
             if isinstance(batch, dict):
                 # convert to list if not already converted.
@@ -707,8 +709,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             return output, id_func
 
         return fwd_output_only_func
-
-    ##########
 
     def _test_validation_step(self, dataloader_iter):
         """
@@ -1006,7 +1006,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 Format is not defined and should match the expected format of the used hiddens modules.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return
