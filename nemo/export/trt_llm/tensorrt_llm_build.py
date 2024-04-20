@@ -359,6 +359,7 @@ def build(
 def build_and_save_engine(
     max_input_len=1024,
     max_output_len=1024,
+    max_input_tokens=4096,
     max_batch_size=4,
     model_dir=None,
     model_weights=None,
@@ -367,6 +368,8 @@ def build_and_save_engine(
     trt_model_type='LLaMAForCausalLM'
 ):
     '''Minimum implementation of TRTLLM 0.9's unified builder api'''
+    logger.set_level('info')
+
 
     try:
         model_cls = getattr(tensorrt_llm.models, trt_model_type)
@@ -377,14 +380,13 @@ def build_and_save_engine(
     plugin_config = PluginConfig()
     plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
     plugin_config.set_gemm_plugin(dtype=str_dtype)
-    max_num_tokens = max_batch_size*max_input_len
 
     build_dict = {
         'max_input_len': max_input_len,
         'max_output_len': max_output_len,
         'max_batch_size': max_batch_size,
         'max_beam_width': 1,
-        'max_num_tokens': max_num_tokens,
+        'max_num_tokens': max_input_tokens,
         'opt_num_tokens': None,
         'max_prompt_embedding_table_size': 0,
         'gather_context_logits': False,
