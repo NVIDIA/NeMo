@@ -277,26 +277,6 @@ def nemo_llm_model_to_model_config(
         tokenizer_vocab_size=tokenizer.vocab_size,
         reshard_model=reshard_model)
 
-    # print(f"{torch.cuda.current_device()} {weights_dict.keys()}")
-    # rank = torch.cuda.current_device() % 4
-    # import safetensors
-    # ckpt_dir = '/lustre/fsw/coreai_dlalgo_llm/jiemingz/tekit/examples/llama/2tllm_checkpoint_pp4_bf16'
-    # model_path = os.path.join(ckpt_dir, f'rank{rank}.safetensors')
-    # ref_weights = {}
-    # with safetensors.safe_open(model_path, framework='pt', device='cpu') as f:
-    #     for key in f.keys():
-    #         ref_weights[key] = f.get_tensor(key)
-
-    # for k in ref_weights.keys():
-    #     v = ref_weights[k]
-    #     v2 = weights_dict[k]
-    #     if not torch.equal(v,v2):
-    #         print(f"NE {rank} {k} {torch.sum(v)} {torch.sum(v2)}")
-    # if torch.cuda.current_device() == 0:
-    #     import pdb
-    #     pdb.set_trace()
-    # torch.distributed.barrier()
-
     if isinstance(nemo_model, list):
         torch_dtype = next(iter(nemo_model[0].state_dict().values())).dtype
     else:

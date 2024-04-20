@@ -541,9 +541,5 @@ def save_weight_torch(key, val, config):
     elif "vocab_embedding" in key or "lm_head.weight" in key:
         save(key, gpu_val)
     else:
-        if torch.cuda.current_device() == 0:
-            import pdb
-            pdb.set_trace()
-        torch.distributed.barrier()
         raise RuntimeError(f"{key} not handled by NeMo->TRTLLM converter!")
 
