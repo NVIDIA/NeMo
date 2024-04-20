@@ -373,8 +373,8 @@ class ConfidenceMixin(ABC):
         self._aggregate_confidence = self.confidence_aggregation_bank[self.word_confidence_aggregation]
 
         # Update preserve frame confidence
-        if self.preserve_frame_confidence is False:
-            if self.cfg.strategy in ['greedy', 'greedy_batch']:
+        if self.cfg.strategy in ['greedy', 'greedy_batch']:
+            if not self.preserve_frame_confidence:
                 self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
                 # OmegaConf.structured ensures that post_init check is always executed
                 confidence_method_cfg = OmegaConf.structured(self.cfg.greedy).get('confidence_method_cfg', None)
@@ -383,6 +383,8 @@ class ConfidenceMixin(ABC):
                     if confidence_method_cfg is None
                     else OmegaConf.structured(ConfidenceMethodConfig(**confidence_method_cfg))
                 )
+            if not self.tdt_include_duration_confidence:
+                self.tdt_include_duration_confidence = self.cfg.greedy.get('tdt_include_duration_confidence', False)
 
     @abstractmethod
     def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
