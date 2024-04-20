@@ -554,6 +554,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             logits_dim=self.joint.num_classes_with_blank,
             preserve_alignments=self.preserve_alignments,
             preserve_frame_confidence=self.preserve_frame_confidence,
+            include_duration_confidence=self.include_duration_confidence
         )
         self.state.all_durations = self.durations.to(self.state.device)
 

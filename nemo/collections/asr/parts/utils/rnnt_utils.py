@@ -445,7 +445,7 @@ class BatchedAlignments:
         if self.with_frame_confidence:
             # tensor to store frame confidence
             self.frame_confidence = torch.zeros(
-                (batch_size, self._max_length, 2) if self.with_duration_confidence else (batch_size, self._max_length),
+                [batch_size, self._max_length, 2] if self.with_duration_confidence else [batch_size, self._max_length],
                 device=device,
                 dtype=float_dtype,
             )
@@ -468,7 +468,7 @@ class BatchedAlignments:
             self.logits = torch.cat((self.logits, torch.zeros_like(self.logits)), dim=1)
             self.labels = torch.cat((self.labels, torch.zeros_like(self.labels)), dim=-1)
         if self.with_frame_confidence:
-            self.frame_confidence = torch.cat((self.frame_confidence, torch.zeros_like(self.frame_confidence)), dim=-1)
+            self.frame_confidence = torch.cat((self.frame_confidence, torch.zeros_like(self.frame_confidence)), dim=1)
         self._max_length *= 2
 
     def add_results_(
