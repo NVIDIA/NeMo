@@ -356,13 +356,10 @@ def build(
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
     logger.info(f"Total time of building all {args.mapping.world_size} engines: {t}")
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 315aad382 (move refit 0.9)
 def build_and_save_engine(
     max_input_len=1024,
     max_output_len=1024,
+    max_input_tokens=4096,
     max_batch_size=4,
     model_dir=None,
     model_weights=None,
@@ -393,7 +390,7 @@ def build_and_save_engine(
         'max_output_len': max_output_len,
         'max_batch_size': max_batch_size,
         'max_beam_width': 1,
-        'max_num_tokens': max_num_tokens,
+        'max_num_tokens': max_input_tokens,
         'opt_num_tokens': None,
         'max_prompt_embedding_table_size': max_prompt_embedding_table_size,
         'gather_context_logits': False,
