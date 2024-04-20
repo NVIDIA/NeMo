@@ -197,7 +197,7 @@ def nemo_llm_to_model_config(
     return model_configs, tokenizer
 
 
-def to_word_list_format(word_dict: List[List[str]], tokenizer=None, ref_string='<extra_id_1>'):
+def to_word_list_format(word_dict: List[List[str]], tokenizer=None, ref_str='<extra_id_1>'):
     '''
     format of word_dict
         len(word_dict) should be same to batch_size
@@ -214,7 +214,7 @@ def to_word_list_format(word_dict: List[List[str]], tokenizer=None, ref_string='
     # We use a similar trick as in NeMo to deal with the fact that the encoding of a single word
     # can't always be trusted. See
     #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229
-    ids_ref = tokenizer.encode(ref_string)
+    ids_ref = tokenizer.encode(ref_str)
     for word_dict_item in word_dict:
         item_flat_ids = []
         item_offsets = []
@@ -224,7 +224,7 @@ def to_word_list_format(word_dict: List[List[str]], tokenizer=None, ref_string='
 
         words = list(csv.reader(word_dict_item))[0]
         for word in words:
-            ids = tokenizer.encode(f"{ref_string}{word}")
+            ids = tokenizer.encode(f"{ref_str}{word}")
             if ids[0 : len(ids_ref)] == ids_ref:
                 # It worked! We can obtain the token(s) associated to `word` by stripping the prefix tokens.
                 ids = ids[len(ids_ref) :]
@@ -269,26 +269,6 @@ def nemo_llm_model_to_model_config(
         nemo_model_config=nemo_model_config,
         tokenizer_vocab_size=tokenizer.vocab_size,
         reshard_model=reshard_model)
-
-    # print(f"{torch.cuda.current_device()} {weights_dict.keys()}")
-    # rank = torch.cuda.current_device() % 4
-    # import safetensors
-    # ckpt_dir = '/lustre/fsw/coreai_dlalgo_llm/jiemingz/tekit/examples/llama/2tllm_checkpoint_pp4_bf16'
-    # model_path = os.path.join(ckpt_dir, f'rank{rank}.safetensors')
-    # ref_weights = {}
-    # with safetensors.safe_open(model_path, framework='pt', device='cpu') as f:
-    #     for key in f.keys():
-    #         ref_weights[key] = f.get_tensor(key)
-
-    # for k in ref_weights.keys():
-    #     v = ref_weights[k]
-    #     v2 = weights_dict[k]
-    #     if not torch.equal(v,v2):
-    #         print(f"NE {rank} {k} {torch.sum(v)} {torch.sum(v2)}")
-    # if torch.cuda.current_device() == 0:
-    #     import pdb
-    #     pdb.set_trace()
-    # torch.distributed.barrier()
 
     if isinstance(nemo_model, list):
         torch_dtype = next(iter(nemo_model[0].state_dict().values())).dtype
