@@ -119,7 +119,10 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
 
         if cfg.get('peft', False):
-            cfg.task_templates[0].prompt_template='<|VIRTUAL_PROMPT_0|> {question} {answer}'
+            if cfg.task_templates[0].get('chat_type', True):
+                cfg.task_templates[0].prompt_template = "<|VIRTUAL_PROMPT_0|> User: Answer the following question with a short span. {question}\n\nAssistant: The answer is {answer}"
+            else:
+                cfg.task_templates[0].prompt_template='<|VIRTUAL_PROMPT_0|> {question} {answer}'
             frozen_model_cfg = MegatronRetrievalModel.restore_from(
                 cfg.get('language_model_path'),
                 trainer=trainer,
@@ -130,6 +133,10 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
             
         else:
+            if cfg.task_templates[0].get('chat_type', True):
+                cfg.task_templates[0].prompt_template = "User: Answer the following question with a short span. {question}\n\nAssistant: The answer is {answer}"
+            else:
+                cfg.task_templates[0].prompt_template=' {question} {answer}'
             if not cfg.adapter_tuning.get("adapter_key"):
                 frozen_model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
                     cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
@@ -472,7 +479,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
                 num_neighbors=self.cfg.data.neighbors,
-                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128)
+                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128),
+                chat_type=self.cfg.task_templates[0].chat_type
             )
 
     def setup_validation_data(self, validation_data_config=None):
@@ -495,7 +503,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 cache_data_path=self.cfg.data.get('validation_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
                 num_neighbors=self.cfg.data.neighbors,
-                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128)
+                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128),
+                chat_type=self.cfg.task_templates[0].chat_type
             )
 
     def setup_test_data(self, test_data_config=None):
@@ -515,7 +524,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 cache_data_path=self.cfg.data.get('test_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
                 num_neighbors=self.cfg.data.neighbors,
-                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128)
+                retrieved_doc_len=self.cfg.data.get('retrieved_doc_len', 128),
+                chat_type=self.cfg.task_templates[0].chat_type
             )
 
     def build_virtual_prompt_dataset(

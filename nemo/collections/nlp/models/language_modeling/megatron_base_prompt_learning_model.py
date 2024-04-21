@@ -249,11 +249,11 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         state_dict_ = self.frozen_model.state_dict()
 
-        # if self.first_stage_of_pipeline():
-        #     if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-        #         state_dict_ = self.prompt_encoder.state_dict()
-        #     else:
-        #         raise ValueError("invalid virtual prompt source")
+        if self.first_stage_of_pipeline():
+            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                state_dict_ = self.prompt_encoder.state_dict()
+            else:
+                raise ValueError("invalid virtual prompt source")
 
         return state_dict_
 
@@ -263,13 +263,13 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         parameters. Matching load method for this class' custom state dict method. 
         """
         self.frozen_model.load_state_dict(state_dict, False)
-        # if self.first_stage_of_pipeline():
-        #     if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-        #         if self.prompt_encoder is None:
-        #             self.init_prompt_encoder()
-        #         self.prompt_encoder.load_state_dict(state_dict, strict)
-        #     else:
-        #         raise ValueError("invalid virtual prompt source")
+        if self.first_stage_of_pipeline():
+            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                if self.prompt_encoder is None:
+                    self.init_prompt_encoder()
+                self.prompt_encoder.load_state_dict(state_dict, strict)
+            else:
+                raise ValueError("invalid virtual prompt source")
 
     # def setup_optimizer_param_groups(self):
     #     """
