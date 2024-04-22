@@ -1,7 +1,13 @@
 name: Isort and Black Formatting
-# Incrementally reformat only changed files instead of all
-# Adapted solution from https://stackoverflow.com/a/72088304
-# Replaces pre-commit.ci, since it reformats all the files
+# Incrementally reformat only changed files with black, all files with isort
+#
+# Replaces pre-commit.ci, since it reformats all the files.
+# See issue https://github.com/pre-commit-ci/issues/issues/90
+#
+# The action requires a custom token to trigger workflow after pushing reformatted files back to the branch.
+# `secrets.GITHUB_TOKEN` can be used instead, but this will result
+# in not running necessary checks after reformatting, which is undesirable.
+# For details see https://github.com/orgs/community/discussions/25702
 
 on:
   pull_request_target:
@@ -18,6 +24,8 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
+          # setup repository and ref for PRs, see
+          # https://github.com/EndBug/add-and-commit?tab=readme-ov-file#working-with-prs
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
           # custom token is required to trigger actions after reformatting + pushing
@@ -48,10 +56,11 @@ jobs:
         uses: isort/isort-action@v1
         with:
           isort-version: "5.13.2"
-          # reformat all files with isort - safe since the whole repo is reformatted
+          # reformat all files with isort – safe since the whole repo is already reformatted
           configuration: ""
 
       - uses: EndBug/add-and-commit@v9
+        # Commit changes. Nothing is committed if no changes.
         with:
             message: Apply isort and black reformatting
             commit: --signoff
