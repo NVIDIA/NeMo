@@ -24,6 +24,13 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    average_losses_across_data_parallel_group,
+    build_position_ids,
+    get_params_for_weight_decay_optimization,
+)
+
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -271,24 +278,27 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             else:
                 print("invalid virtual prompt source")
 
-    # def setup_optimizer_param_groups(self):
-    #     """
-    #     ModelPT override. Optimizer will get self._optimizer_param_groups. 
-    #     Only want virtual prompt params to be passed to the optimizer.
-    #     """
-    #     ## Freeze frozen model
-    #     for param in self.frozen_model.parameters():
-    #         param.requires_grad = False
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        Only want virtual prompt params to be passed to the optimizer.
+        """
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            ## Freeze frozen model
+            for param in self.frozen_model.parameters():
+                param.requires_grad = False
 
-    #     virtual_prompt_params = {'params': []}
+            virtual_prompt_params = {'params': []}
 
-    #     if self.first_stage_of_pipeline():
-    #         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-    #             virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-    #         else:
-    #             raise ValueError("Optimizer only supports Prompt Encoder.")
+            if self.first_stage_of_pipeline():
+                if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                    virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+                else:
+                    print("Optimizer only supports Prompt Encoder.")
 
-    #     self._optimizer_param_groups = (virtual_prompt_params,)
+            self._optimizer_param_groups = (virtual_prompt_params,)
+        else:
+            self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.frozen_model])
 
     def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
         """
