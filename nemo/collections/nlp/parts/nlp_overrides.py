@@ -35,6 +35,7 @@ from pytorch_lightning.loops.fetchers import _DataFetcher
 from pytorch_lightning.plugins import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
+from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
 from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy
 from pytorch_lightning.trainer.states import TrainerFn
 from pytorch_lightning.trainer.trainer import Trainer
@@ -52,6 +53,12 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
+
+try:
+    from torch.cuda.amp.grad_scaler import _refresh_per_optimizer_state
+except ImportError:
+    # since PyTorch 2.3 the path has changed
+    from torch.amp.grad_scaler import _refresh_per_optimizer_state
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -131,6 +138,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 nccl_communicator_config_path=nccl_communicator_config_path,
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
+                order='tp-pp-dp' if app_state.use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -863,7 +871,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                     sharded_state_dict = model.sharded_state_dict()
                     # dist checkpoint needs torch.distributed to save the checkpoint
-                    if parallel_state.is_unitialized():
+                    if not parallel_state.is_initialized():
 
                         def dummy():
                             return
@@ -1104,7 +1112,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # if we're using dist checkpointing then state_dict will be None
         if state_dict is None:
             # dist checkpointing needs torch.distributed to load the checkpoint
-            if parallel_state.is_unitialized():
+            if not parallel_state.is_initialized():
 
                 def dummy():
                     return
@@ -1161,19 +1169,61 @@ class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):
 
     def __init__(
         self,
-        precision: Literal["16-mixed", "bf16-mixed"],
+        precision: Literal["16-mixed", "bf16-mixed", '16', 'bf16', 16],
         device: str,
         scaler: Optional[torch.cuda.amp.GradScaler] = None,
     ) -> None:
-        super().__init__(precision, device, scaler=scaler)
-        dtype = None
         # MixedPrecisionPlugin class in PTL >= 2.0 takes only "16-mixed" or "bf16-mixed" for precision arg
-        if precision == '16-mixed':
+        if precision in ['16-mixed', '16', 16]:
+            plugin_precision = '16-mixed'
+        elif precision in ['bf16-mixed', 'bf16']:
+            plugin_precision = 'bf16-mixed'
+        else:
+            raise RuntimeError(
+                "precision expected to be one of: "
+                "['16-mixed', '16', 16, 'bf16-mixed', 'bf16']"
+                f" but {precision} found"
+            )
+        super().__init__(plugin_precision, device, scaler=scaler)
+        dtype = None
+        if precision in ['16-mixed', '16', 16]:
             dtype = torch.float16
-        elif precision == 'bf16-mixed':
+        elif precision in ['bf16-mixed', 'bf16']:
             dtype = torch.bfloat16
 
         torch.set_autocast_gpu_dtype(dtype)
+
+    @contextmanager
+    def forward_context(self) -> Generator[None, None, None]:
+        """Have the PTL context manager do nothing."""
+        yield
+
+
+class FSDPMixedPrecisionPlugin(FSDPPrecision):
+    """ Overrides PTL autocasting to not wrap training/val/test_step.
+        We do this because we have the megatron-core fwd/bwd functions in training_step.
+        This means .backward is being called in training_step so we do not want the whole
+        step wrapped in autocast.
+
+        We instead wrap the fwd_output_and_loss_func that is passed to the megatron-core fwd/bwd functions.
+    """
+
+    def __init__(
+        self,
+        precision: Literal['16-mixed', 'bf16-mixed', '16', 'bf16', 16],
+        scaler: Optional['ShardedGradScaler'] = None,
+    ) -> None:
+        if precision in ['16-mixed', '16', 16]:
+            plugin_precision = '16-mixed'
+        elif precision in ['bf16-mixed', 'bf16']:
+            plugin_precision = 'bf16-mixed'
+        else:
+            raise RuntimeError(
+                "precision expected to be one of: "
+                "['16-mixed', '16', 16, 'bf16-mixed', 'bf16']"
+                f" but {precision} found"
+            )
+        super().__init__(precision=plugin_precision, scaler=scaler)
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
@@ -1331,7 +1381,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
                     self._hysteresis_tracker = self.hysteresis
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
-        self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
+        self._per_optimizer_states = defaultdict(_refresh_per_optimizer_state)
 
     def state_dict(self):
         """

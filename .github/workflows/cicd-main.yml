@@ -15,8 +15,11 @@ name: "CICD NeMo"
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
     branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   gpu-test:
@@ -28,7 +31,7 @@ jobs:
         nvidia-smi
 
   cicd-cluster-clean:
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-cpu
     steps:
     - name: Clean server from old files
       run: |
@@ -50,7 +53,7 @@ jobs:
 
   cicd-test-container-setup:
     needs: [cicd-cluster-clean]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-cpu
     # uses: actions/cache@v2
     #container:
 #      image: nvcr.io/nvidia/pytorch:24.01-py3
@@ -70,8 +73,8 @@ jobs:
     - name: Container setup
       run: |
         # Pull base PyTorch container
-        docker pull nvcr.io/nvidia/pytorch:24.01-py3
-        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
+        docker pull nvcr.io/nvidia/pytorch:24.02-py3
+        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /mnt/datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
             set -x
 
             # PyTorch version
@@ -90,21 +93,19 @@ jobs:
             # NeMo Installation
             ./reinstall.sh release
 
-            # Transformer Engine 1.2.0
             # Transformer Engine installation
             git clone https://github.com/NVIDIA/TransformerEngine.git && \
                 pushd TransformerEngine && \
-                git fetch origin 9b2fed514ea419141146f843ab2c84b22b86bfd7 && \
+                git fetch origin bfe21c3d68b0a9951e5716fb520045db53419c5e && \
                 git checkout FETCH_HEAD && \
                 git submodule init && git submodule update && \
                 NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .  && \
                 popd
 
-            # Apex bugfix for PyTorch 23.11 container: https://github.com/NVIDIA/apex/pull/1760
             # Apex installation
             git clone https://github.com/NVIDIA/apex.git && \
                 pushd apex && \
-                git checkout b496d85fb88a801d8e680872a12822de310951fd && \
+                git checkout 810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c && \
                 cp -R apex /usr/local/lib/python3.10/dist-packages && \
                 popd
 
@@ -113,12 +114,13 @@ jobs:
             # Megatron Core installation
             git clone https://github.com/NVIDIA/Megatron-LM.git && \
                 pushd Megatron-LM && \
-                git checkout 43792028f003ed25a3ee8c5a0d4cad82317d81b5 && \
+                git checkout fbb375d4b5e88ce52f5f7125053068caff47f93f && \
                 pip install . && \
                   pushd megatron/core/datasets && \
                   make && \
                   popd && \
                 popd
+            export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 
             # Install only for test: L2: Segmentation Tool
             pushd tools/ctc_segmentation && \
@@ -181,7 +183,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -194,7 +196,7 @@ jobs:
 
   L0_Unit_Tests_CPU:
     needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-azure-cpu
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -204,7 +206,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -231,7 +233,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -256,7 +258,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -280,7 +282,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -304,7 +306,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -329,7 +331,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -357,7 +359,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -388,7 +390,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -417,7 +419,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -448,7 +450,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -495,7 +497,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -529,7 +531,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -563,7 +565,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -592,7 +594,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -642,7 +644,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -674,7 +676,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -707,7 +709,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -743,7 +745,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -774,7 +776,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -805,7 +807,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -832,7 +834,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -862,7 +864,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -892,7 +894,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -931,7 +933,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -963,7 +965,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -998,7 +1000,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1025,7 +1027,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1047,7 +1049,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1079,7 +1081,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1113,7 +1115,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1179,7 +1181,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1221,7 +1223,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -1262,7 +1264,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1301,7 +1303,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1339,7 +1341,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1380,7 +1382,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1422,7 +1424,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1457,7 +1459,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1492,7 +1494,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1533,7 +1535,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1611,7 +1613,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1647,7 +1649,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1717,7 +1719,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1751,7 +1753,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1792,7 +1794,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1831,7 +1833,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1872,7 +1874,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1911,7 +1913,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1952,7 +1954,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -1991,7 +1993,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2021,7 +2023,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2157,7 +2159,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2188,7 +2190,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2224,7 +2226,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2253,7 +2255,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2277,7 +2279,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2308,7 +2310,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2368,7 +2370,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2433,7 +2435,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2496,7 +2498,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -2559,7 +2561,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2590,7 +2592,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2632,7 +2634,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2674,7 +2676,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2708,7 +2710,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2786,7 +2788,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2826,7 +2828,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2865,7 +2867,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2893,7 +2895,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2936,7 +2938,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -2977,7 +2979,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3008,7 +3010,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3117,7 +3119,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3435,7 +3437,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3516,7 +3518,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3598,7 +3600,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3682,12 +3684,81 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
         - run: |
             python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
+            model.data.num_workers=4 \
+            model.micro_batch_size=1 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
+            trainer.max_steps=10
+
+            python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            trainer.num_nodes=1 \
+            trainer.devices=2 \
+            trainer.precision=bf16 \
+            trainer.accelerator=gpu \
+            model.data.data_prefix=['none'] \
+            exp_manager.exp_dir=examples/nlp/language_modeling/mcore_retro_results \
+            model.mcore_gpt=True \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.optim.name=distributed_fused_adam \
+            model.retro.retro_project_dir=/home/TestData/nlp/megatron_retro/mcore_retro/micro-wiki-core \
+            model.data.num_workers=4 \
+            model.micro_batch_size=1 \
+            model.data.shuffle_documents=False \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
+            model.init_method_std=0.023 \
+            model.optim.lr=6.0e-4 \
+            model.megatron_amp_O2=True \
+            model.data.splits_string=\'\"98,2,0\"\' \
+            model.data.dataloader_type=cyclic \
+            trainer.max_steps=20
+
+            rm -rf examples/nlp/language_modeling/mcore_retro_results
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+
+  L2_Legacy_Megatron_RETRO_Pretraining_and_Resume_Training:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v2
+        - run: |
+            python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
             trainer.devices=2 \
             trainer.num_nodes=1 \
             trainer.accelerator=gpu \
@@ -3698,7 +3769,7 @@ jobs:
             trainer.precision=16 \
             trainer.gradient_clip_val=1.0 \
             trainer.val_check_interval=10 \
-            exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
+            exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
             model.data.data_prefix= \
             model.data.knn_index= \
             model.data.retrieval_prefix= \
@@ -3718,7 +3789,7 @@ jobs:
             model.dec_cross_attention=[1] \
             +model.data.mock=True
 
-            python examples/nlp/language_modeling/megatron_retro_pretraining.py \
+            python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
             trainer.devices=2 \
             trainer.num_nodes=1 \
             trainer.accelerator=gpu \
@@ -3729,7 +3800,7 @@ jobs:
             trainer.precision=16 \
             trainer.gradient_clip_val=1.0 \
             trainer.val_check_interval=10 \
-            exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
+            exp_manager.exp_dir=examples/nlp/language_modeling/retro_legacy_results \
             model.data.data_prefix= \
             model.data.knn_index= \
             model.data.retrieval_prefix= \
@@ -3749,7 +3820,7 @@ jobs:
             model.dec_cross_attention=[1] \
             +model.data.mock=True
 
-            rm -rf examples/nlp/language_modeling/retro_results
+            rm -rf examples/nlp/language_modeling/retro_legacy_results
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
@@ -3765,7 +3836,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -3859,7 +3930,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3886,7 +3957,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -3979,7 +4050,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4169,7 +4240,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4265,7 +4336,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4361,7 +4432,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4461,7 +4532,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4542,7 +4613,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4586,7 +4657,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4632,7 +4703,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4694,7 +4765,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4720,7 +4791,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4748,7 +4819,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4811,7 +4882,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4840,7 +4911,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4869,7 +4940,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -4976,7 +5047,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5083,7 +5154,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5190,7 +5261,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5271,7 +5342,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5325,7 +5396,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5416,7 +5487,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5440,7 +5511,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5520,7 +5591,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5606,7 +5677,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5650,7 +5721,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5699,7 +5770,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5764,7 +5835,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5791,7 +5862,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5821,7 +5892,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5859,7 +5930,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5893,7 +5964,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5937,7 +6008,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -5978,7 +6049,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6016,7 +6087,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6052,7 +6123,7 @@ jobs:
   #       --shm-size=8g 
   #       --env TRANSFORMERS_OFFLINE=0 
   #       --env HYDRA_FULL_ERROR=1
-  #       --volume /datadrive/TestData:/home/TestData
+  #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
   #         uses: actions/checkout@v2
@@ -6080,7 +6151,7 @@ jobs:
         --shm-size=8g
         --env TRANSFORMERS_OFFLINE=0 
         --env HYDRA_FULL_ERROR=1
-        --volume /datadrive/TestData:/home/TestData
+        --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
           uses: actions/checkout@v2
@@ -6093,4 +6164,125 @@ jobs:
             rm -f examples/asr/evaluation_transcripts.json
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
+
+
+  Nemo_CICD_Test:
+    needs:
+      - L0_Unit_Tests_GPU
+      - L0_Unit_Tests_CPU
+      - L2_Community_LLM_Checkpoints_tests_Llama
+      - L2_Community_LLM_Checkpoints_tests_StarCoder
+      - L2_Community_LLM_Checkpoints_tests_Falcon
+      - L2_Community_LLM_Checkpoints_tests_Baichuan2
+      - ASR_dev_run_Speech_to_Text
+      - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
+      - ASR_dev_run_Speech_Pre-training_-_CitriNet
+      - ASR_dev_run_Speech_To_Text_Finetuning
+      - ASR_dev_run_Speech_To_Text_HF_Finetuning
+      - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
+      - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
+      - L2_Speech_to_Text_EMA
+      - L2_Speaker_dev_run_Speaker_Recognition
+      - L2_Speaker_dev_run_Speaker_Diarization
+      - L2_Speaker_dev_run_Speech_to_Label
+      - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
+      - L2_Speaker_dev_run_Clustering_Diarizer_Inference
+      - L2_Speaker_dev_run_Neural_Diarizer_Inference
+      - L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
+      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
+      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
+      - L2_ASR_Adapters_Linear_Adapters
+      - L2_ASR_Adapters_RelPos_MHA_Adapters
+      - L2_Speech_Transcription_Speech_to_Text_Transcribe
+      - L2_Transducer_alignment_Running_pytest
+      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
+      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
+      - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
+      - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
+      - L2_Dialogue_Classification_Intent_and_slot_classification_using_SGDQA
+      - L2_Dialogue_Classification_Intent_and_slot_classification_using_IntentSlotClassificationModel
+      - L2_Dialogue_Classification_Intent_classification_using_ZeroShotIntentModel
+      - L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel
+      - L2_Dialogue_Classification_Design_Intent_classification_using_ZeroShotIntentModel_BART_Classifier
+      - L2_Dialogue_Classification_Design_Intent_classification_using_DialogueNearestNeighbourModel
+      - L2_Dialogue_Generation_Dialogue_Answer_Extender_using_DialogueS2SGenerationModel
+      - L2_Dialogue_Generation_Dialogue_SGD_Based_Answer_Extender_using_DialogueS2SGenerationModel
+      - L2_COPY_Dialogue_Answer_Extender_using_DialogueGPTGenerationModel
+      - L2_Duplex_Text_Normalization_with_Tarred_dataset
+      - L2_BERT_Text_Classification_with_BERT_Test
+      - L2_Parallel_BERT_Question-Answering_SQUAD_v1_1
+      - L2_Parallel_BERT_Question-Answering_SQUAD_v2_0
+      - L2_Parallel_BART_Question-Answering_SQUAD_v1_1
+      - L2_Parallel_BART_Question-Answering_SQUAD_v2_0
+      - L2_Parallel_GPT2_Question-Answering_SQUAD_v1_1
+      - L2_Parallel_GPT2_Question-Answering_SQUAD_v2_0
+      - L2_Intent_and_Slot_Classification_Tasks_Intent_and_Slot_Classification
+      - L2_Intent_and_Slot_Classification_Tasks_Multi-Label_Intent_and_Slot_Classification
+      - L2_Parallel_NLP_Examples2_NER_finetuning_from_pretrained_Test
+      - L2_Parallel_NLP_Examples2_Punctuation_and_capitalization_finetuning_from_pretrained_test
+      - L2_Parallel_NLP_Examples2_NER_with_TurkuNLP__bert-base-finnish-cased-v1
+      - L2_Parallel_NLP_Examples2_Evaluation_script_for_Token_Classification
+      - L2_Parallel_NLP_Examples2_Evaluation_script_for_Punctuation
+      - L2_Parallel_NLP_Examples2_Punctuation_Capitalization_2GPUs_with_DistilBERT_Finetuning_on_other_data
+      - Punctuation_Capitalization_tarred_dataset_create_and_use_tarred_dataset
+      - Punctuation_Capitalization_Using_model-common_datasets_parameters-label_vocab_dir
+      - Punctuation_Capitalization_inference_Restore_punctuation_and_capitalization_in_long_text
+      - L2_Pretraining_BERT_pretraining_from_Text
+      - L2_Pretraining_BERT_from_Preprocessed
+      - L2_Entity_Linking_Self_Alignment_Pretraining_BERT
+      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
+      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
+      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
+      - L2_NMT_Attention_is_All_You_Need_Inference
+      - L2_NMT_Attention_is_All_You_Need_Finetuning
+      - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
+      - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
+      - L2_Megatron_NMT_Training_TP2
+      - L2_Megatron_BART_Perceiver_MIM_Training_TP2
+      - L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism
+      - L2_Megatron_Bert_Pretraining_and_Resume_Training
+      - L2_Megatron_Core_Bert_Pretraining_and_Resume_Training
+      - L2_Legacy_Megatron_RETRO_Pretraining_and_Resume_Training
+      - L2_Megatron_RETRO_Pretraining_and_Resume_Training
+      - L2_BioMegatron_Bert_NER_Task
+      - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
+      - L2_Megatron_GPT_Finetuning_PP2
+      - L2_Megatron_GPT_Finetuning_StarCoder_PP1
+      - L2_Megatron_GPT_PEFT_Lora_PP2
+      - L2_Megatron_GPT_PEFT_Lora_TP2
+      - L2_Megatron_GPT_Eval
+      - L2_Megatron_GPT_Eval_PP2
+      - L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len
+      - L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2
+      - L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2
+      - L2_Megatron_T5_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
+      - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
+      - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_T5_Eval
+      - L2_Megatron_BART_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_BART_Pretraining_and_Resume_Training_PP2
+      - L2_Megatron_T5_GLUE_RTE
+      - L2_Megatron_T5_GLUE_XNLI
+      - L2_Megatron_T5_PEFT_Lora_TP2
+      - L2_Megatron_Mock_Data_Generation_MockGPTDataset
+      - L2_Megatron_Mock_Data_Generation_MockT5Dataset
+      - L2_TTS_Fast_dev_runs_1_Tacotron_2
+      - L2_TTS_Fast_dev_runs_1_WaveGlow
+      - L2_TTS_Fast_dev_runs_1_FastPitch
+      - L2_TTS_Fast_dev_runs_1_RADTTS
+      - L2_TTS_Fast_dev_runs_1_Mixer-TTS
+      - L2_TTS_Fast_dev_runs_1_Hifigan
+      - Speech_Checkpoints_tests
+
+    runs-on: ubuntu-latest
+    steps:
+        # This should depend on all the tests so we block/unblock based on all tests passing
+      - run: exit 0
 
