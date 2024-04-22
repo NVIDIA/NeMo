@@ -364,7 +364,7 @@ class NLPDDPStrategy(DDPStrategy):
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
 
-            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+            self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
         else:
             # PTL override to accomodate model parallel checkpoints
             filepath = inject_model_parallel_rank(filepath)
@@ -461,7 +461,7 @@ class NLPDDPStrategy(DDPStrategy):
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         # check if filepath is a distributed checkpoint
         if self.use_distributed_checkpointing and self.is_global_zero:
-            self.checkpoint_io.remove_checkpoint(filepath)
+            self.checkpoint_io.remove_checkpoint(ckpt_to_dir(filepath))
 
         # legacy checkpoint logic, does not use megatron core
         else:
@@ -854,7 +854,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # dist ckpt calls save on every rank
             if dist_ckpt:
                 # model weights is a directory
-                dist_ckpt_path = os.path.join(dir_name, self.model_weights_ckpt)
+                dist_ckpt_path = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
                 sharded_state_dict = model.sharded_state_dict()
                 # dist checkpoint needs torch.distributed to save the checkpoint
                 if not parallel_state.is_initialized():
@@ -865,8 +865,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     if model.trainer.strategy.launcher is not None:
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                         model.trainer.strategy.setup_environment()
-                    checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
-                    checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_path)
+                checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
+                checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_path)
 
             else:
 

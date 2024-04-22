@@ -8,7 +8,6 @@ from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.strategies import tensorstore
 
 from nemo.utils import logging
-from nemo.utils.model_utils import ckpt_to_dir
 
 
 class DistributedCheckpointIO(CheckpointIO):
@@ -23,13 +22,12 @@ class DistributedCheckpointIO(CheckpointIO):
 
         # dist_checkpointing expects a directory so we will name the directory
         # using the path with the file extension removed
-        checkpoint_dir = ckpt_to_dir(path)
-        fs = get_filesystem(checkpoint_dir)
-        fs.makedirs(checkpoint_dir, exist_ok=True)
+        fs = get_filesystem(path)
+        fs.makedirs(path, exist_ok=True)
 
         dist_checkpointing.save(
             sharded_state_dict=checkpoint,
-            checkpoint_dir=checkpoint_dir,
+            checkpoint_dir=path,
             sharded_strategy=self.save_sharded_strategy
         )
 
@@ -52,7 +50,7 @@ class DistributedCheckpointIO(CheckpointIO):
         )
 
     def remove_checkpoint(self, path: _PATH) -> None:
-        shutil.rmtree(ckpt_to_dir(path), ignore_errors=True)
+        shutil.rmtree(path, ignore_errors=True)
 
     def determine_dist_ckpt_save_strategy(self):
         """ Determine the saving strategy based on storage config.
