@@ -74,6 +74,7 @@ def test_init_model_parallel(mock_mpu, *args):
         pipeline_model_parallel_split_rank=None,
     )
 
+
 # TODO @chcui uncomment after DataConfig is merged
 # @patch('nemo.lightning._strategy_lib.DataLoader', return_value=MagicMock())
 # @patch('megatron.core.parallel_state')
