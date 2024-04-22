@@ -5,13 +5,13 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Protocol, TypeVar
 
 import torch
-from lightning.fabric.utilities.types import Optimizable
 from torch import nn
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
 if TYPE_CHECKING:
+    from lightning.fabric.utilities.types import Optimizable
     from megatron.core.model_parallel_config import ModelParallelConfig
 
 
@@ -105,9 +105,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 torch.distributed.new_group(backend="mpi")
 
         if model:
-            """Set TP group
-            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
-            """
+            # Set TP group
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(model.modules()):
                 if index == 0:
@@ -367,7 +365,7 @@ def enable_nvidia_optimizations() -> None:
         pass
 
 
-def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: Optimizable) -> Dict[str, torch.Tensor]:
+def optimizer_sharded_state_dict(model: SharedStateDictProtocol, optimizer: "Optimizable") -> Dict[str, torch.Tensor]:
     """
     Sharded state dictionary for an MainParamsOptimizerWrapper.
     Used to save and load the optimizer state when training with distributed_checkpoint.
