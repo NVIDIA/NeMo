@@ -814,11 +814,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 )
             else:
                 canary_processer = None
-            context_len_for_AR_decoding = (
-                self.perception.asr_model.context_len_for_AR_decoding
-                if hasattr(self.perception, "asr_model")
-                else data_cfg.get('context_len_for_AR_decoding', 5)
-            )
             return LhotseAudioQuestionAnswerDataset(
                 tp,
                 default_question="answer the question according to the previous audio",
@@ -826,7 +821,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 max_seq_length=data_cfg["max_seq_length"],
                 canary_processor=canary_processer,
-                context_len_for_AR_decoding=context_len_for_AR_decoding,
                 convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
                 prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
                 canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),
