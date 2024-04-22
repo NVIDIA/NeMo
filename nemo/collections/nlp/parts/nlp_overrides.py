@@ -72,7 +72,6 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
@@ -93,6 +92,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import dist_checkpointing, parallel_state
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
     from megatron.core.dist_checkpointing.optimizer import (
         get_param_id_to_sharded_param_map,

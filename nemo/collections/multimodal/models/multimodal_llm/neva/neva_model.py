@@ -60,15 +60,6 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 

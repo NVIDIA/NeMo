@@ -76,16 +76,7 @@ from nemo.utils import logging
 from nemo.utils.te_utils import is_float8tensor
 
 try:
-    import apex.transformer.pipeline_parallel.utils
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
+    import megatron.core.num_microbatches_calculator
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
@@ -99,6 +90,7 @@ try:
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
+    from megatron.core.num_microbatches_calculator import get_num_microbatches
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
@@ -692,7 +684,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.initialize_ub_func()
 
         if self.rampup_batch_size:
-            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            num_microbatch_calculator = megatron.core.num_microbatches_calculator._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             current_global_batch_size = num_microbatch_calculator.current_global_batch_size
             # do validation and save the checkpoint when gbs is changed
             if self.prev_global_batch_size != current_global_batch_size and self.prev_global_batch_size:
@@ -1494,7 +1486,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
 
         if self.rampup_batch_size:
-            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            num_microbatch_calculator = megatron.core.num_microbatches_calculator._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
             self.prev_consumed_samples = self.init_consumed_samples
 

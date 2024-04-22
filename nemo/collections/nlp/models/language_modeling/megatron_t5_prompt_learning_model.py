@@ -36,21 +36,12 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
+    from megatron.core import parallel_state
+    from megatron.core.enums import ModelType
+    from megatron.core.num_microbatches_calculator import (
         get_micro_batch_size,
         get_num_microbatches,
     )
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
-    from megatron.core import parallel_state
-    from megatron.core.enums import ModelType
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
