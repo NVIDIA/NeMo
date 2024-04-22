@@ -8,8 +8,6 @@ from collections import defaultdict
 import numpy as np
 import requests
 import shortuuid
-import torch
-from PIL import Image
 from tqdm import tqdm
 
 """Usage: (for image inference)
@@ -51,7 +49,7 @@ def summarize(review_files):
         for k, v in sorted(scores.items()):
             stats = np.asarray(v).mean(0).tolist()
             stats = [round(x, 3) for x in stats]
-            #print(k, round(stats[1] / stats[0] * 100, 1), round(stats[0] * 10, 1), round(stats[1] * 10, 1))
+            # print(k, round(stats[1] / stats[0] * 100, 1), round(stats[0] * 10, 1), round(stats[1] * 10, 1))
             print(k, round(stats[0] * 10, 1), round(stats[1] * 10, 1))
         print('=================================')
 
@@ -116,7 +114,6 @@ def generate_prompt(args, answer_list):
     context_list = [json.loads(line) for line in open(os.path.expanduser(args.context_file))]
     image_to_context = {context['image']: context for context in context_list}
 
-    handles = []
     idx = 0
     for ques_js, ans1_js, ans2_js in zip(f_q, f_ans1, f_ans2):
         ques = json.loads(ques_js)
@@ -199,7 +196,7 @@ def preprocess(args, response_file, model_name):
         resp_idx = resp[resp_key]
 
         if int(idx) == int(resp_idx):
-            image_file = line[args.media_type]
+            # image_file = line[args.media_type]
             qs = line["text"]
             cur_prompt = qs
             outputs = resp[resp_text_key]
