@@ -18,7 +18,7 @@ from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 
 
-
+#Class copied from https://github.com/google-deepmind/recurrentgemma
 class BlockDiagonalLinear(nn.Module):
   """Block-diagonal linear layer."""
 
@@ -67,6 +67,8 @@ class BlockDiagonalLinear(nn.Module):
     # Flatten the output.
     return einops.rearrange(y, "... h j -> ... (h j)", h=self.num_blocks)
 
+#Class copied from https://github.com/google-deepmind/recurrentgemma
+
 def rnn_scan(
     x,
     a,
@@ -107,6 +109,7 @@ def rnn_scan(
     y = y.permute(0,2,1)
   return y, None
 
+#Class copied from https://github.com/google-deepmind/recurrentgemma
 
 def rnn_param_init(
     *,
@@ -126,6 +129,7 @@ def rnn_param_init(
   else:
     raise NotImplementedError()
 
+#Class copied from https://github.com/google-deepmind/recurrentgemma
 
 class RGLRU(nn.Module):
   """A Real-Gated Linear Recurrent Unit (RG-LRU) layer."""
