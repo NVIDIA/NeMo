@@ -50,32 +50,6 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
     )
 
 
-# @patch('apex.transformer.pipeline_parallel.utils.setup_microbatch_calculator')
-# def test_initialize_data(mock_setup_microbatch_calculator) -> None:
-#     from nemo.utils import AppState
-#     app_state = AppState()
-#
-#     app_state.global_rank = 1
-#     app_state.data_parallel_size = 2
-#
-#     mock_data_config = MagicMock()
-#     mock_data_config.global_batch_size = 100
-#     mock_data_config.micro_batch_size = 10
-#     mock_data_config.rampup_batch_size = 20
-#
-#     _strategy_lib.initialize_data(
-#         global_rank=1, config=mock_data_config,
-#     )
-#
-#     mock_setup_microbatch_calculator.assert_called_once_with(
-#         rank=1,
-#         global_batch_size=100,
-#         micro_batch_size=10,
-#         data_parallel_size=2,
-#         rampup_batch_size=20,
-#     )
-
-
 @patch('torch.distributed.is_initialized', return_value=True)
 @patch('megatron.core.parallel_state')
 def test_init_model_parallel(mock_mpu, *args):
@@ -100,7 +74,7 @@ def test_init_model_parallel(mock_mpu, *args):
         pipeline_model_parallel_split_rank=None,
     )
 
-
+# TODO @chcui uncomment after DataConfig is merged
 # @patch('nemo.lightning._strategy_lib.DataLoader', return_value=MagicMock())
 # @patch('megatron.core.parallel_state')
 # def test_process_dataloader(mock_mpu, mock_dataloader) -> None:
