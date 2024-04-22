@@ -28,6 +28,7 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v42
         with:
+          token: ${{ secrets.NEMO_REFORMAT_TOKEN || secrets.GITHUB_TOKEN }}
           files: |
             **.py
 
