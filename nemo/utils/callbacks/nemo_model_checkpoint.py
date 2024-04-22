@@ -256,7 +256,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 trainer._checkpoint_connector.restore(self.best_model_path)
 
         if self.save_nemo_on_train_end:
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            save_path = os.path.join(self.dirpath, self.prefix + self.postfix)
+            if self._enable_version_counter:
+                version_cnt = self.STARTING_VERSION
+                while self.file_exists(save_path, trainer, check_dist_ckpt=False):
+                    save_path = os.path.join(self.dirpath, self.prefix + str(version_cnt) + self.postfix)
+                    version_cnt += 1
+            pl_module.save_to(save_path=save_path)
 
     def _del_model_without_trainer(self, filepath: str) -> None:
 
@@ -367,9 +373,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         except:
             return
 
-    def file_exists(self, filepath: str, trainer: "pytorch_lightning.Trainer") -> bool:
+    def file_exists(self, filepath: str, trainer: "pytorch_lightning.Trainer", check_dist_ckpt: bool = True) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
-        exists = self._fs.exists(filepath) or self._fs.exists(ckpt_to_dir(filepath))
+        exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
