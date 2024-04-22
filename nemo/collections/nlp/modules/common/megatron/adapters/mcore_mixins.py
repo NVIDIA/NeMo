@@ -25,6 +25,7 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TELayerNormColumnParallelLinear,
 )
 from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
+from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
@@ -286,7 +287,12 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
                     assert self.config.add_bias_linear is True
                     intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
             elif self.activation_func == F.silu and self.config.gated_linear_unit:
-                intermediate_parallel = bias_swiglu_impl(intermediate_parallel, bias_parallel)
+                intermediate_parallel = bias_swiglu_impl(
+                    intermediate_parallel,
+                    bias_parallel,
+                    self.config.activation_func_fp8_input_store,
+                )
+
             else:
                 raise ValueError("Only support fusion of gelu and swiglu")
         else:
