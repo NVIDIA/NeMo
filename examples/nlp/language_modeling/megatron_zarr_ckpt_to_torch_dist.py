@@ -102,11 +102,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--model_type",
-        type=str,
-        required=True,
-        default="gpt",
-        choices=["gpt", "sft", "bert"],
+        "--model_type", type=str, required=True, default="gpt", choices=["gpt", "sft", "bert"],
     )
 
     args = parser.parse_args()
