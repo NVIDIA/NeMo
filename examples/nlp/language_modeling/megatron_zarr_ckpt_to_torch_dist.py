@@ -17,6 +17,7 @@ Conversion script to convert zarr checkpoints into torch distributed checkpoint.
   Example to run this conversion script:
     python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> * <pipeline_model_parallel_size> \
      megatron_zarr_ckpt_to_torch_dist.py \
+     --model_type <model_type> \
      --checkpoint_folder <path_to_PTL_checkpoints_folder> \
      --checkpoint_name <checkpoint_name> \
      --path_to_save <path_to_output_ckpt_files> \
@@ -37,6 +38,7 @@ from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
@@ -64,7 +66,7 @@ def get_args():
         type=str,
         default=None,
         required=True,
-        help="Name of checkpoint to be used. Ex: megatron_gpt--val_loss=6.34-step=649-last.ckpt",
+        help="Name of checkpoint to be used. Ex: megatron_gpt--val_loss=0.14-step=20-consumed_samples=160.0-last",
     )
 
     parser.add_argument(
@@ -97,6 +99,14 @@ def get_args():
         default='bf16-mixed',
         choices=['32-true', '16-mixed', 'bf16-mixed'],
         help="Precision value for the trainer that matches with precision of the ckpt",
+    )
+
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        required=True,
+        default="gpt",
+        choices=["gpt", "sft", "bert"],
     )
 
     args = parser.parse_args()
@@ -167,10 +177,25 @@ def convert(local_rank, rank, world_size, args):
     )
 
     kwargs = {"sharded_strategy": "torch_dist"}
-    model = MegatronGPTModel.load_from_checkpoint(
-        checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, **kwargs
-    )
-    model.cfg.torch_distributed_checkpoint = True
+    if args.model_type == "gpt":
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, **kwargs
+        )
+    elif args.model_type == "sft":
+        model = MegatronGPTSFTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
+        # we force the target for the loaded model to have the correct target
+        # because the hparams.yaml sometimes contains MegatronGPTModel as the target.
+        with open_dict(model.cfg):
+            model.cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+    elif args.model_type == 'bert':
+        model = MegatronBertModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
+
+    with open_dict(model.cfg):
+        model.cfg.torch_distributed_checkpoint = True
 
     model._save_restore_connector = NLPSaveRestoreConnector()
     save_file_path = args.path_to_save
