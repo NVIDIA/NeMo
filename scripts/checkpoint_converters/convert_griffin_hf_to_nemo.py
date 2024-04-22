@@ -29,12 +29,13 @@ def get_args():
 
 def convert(args):
     
+    nemo_config = OmegaConf.load(args.hparams_file)
+    nemo_config.trainer["precision"] = args.precision
+    
     logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
     hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path, device_map="auto")
     hf_tokenizer = AutoTokenizer.from_pretrained(nemo_config.model.tokenizer["type"])
 
-    nemo_config = OmegaConf.load(args.hparams_file)
-    nemo_config.trainer["precision"] = args.precision
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
 
     nemo_model_from_hf = MegatronGriffinModel(nemo_config.model, trainer)
