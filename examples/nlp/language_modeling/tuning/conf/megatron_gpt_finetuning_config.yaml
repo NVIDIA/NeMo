@@ -111,7 +111,6 @@ model:
       layer_selection:  null  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
       weight_tying: False
       position_embedding_strategy: null # used only when weight_tying is True
-      joint_qkv_attn_proj: False
 
     # Used for p-tuning peft training
     p_tuning:
