@@ -110,7 +110,7 @@ class MegatronParallel(nn.ModuleList):
         cpu: bool = False,
     ) -> None:
         from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
-        from megatron.core import mpu
+        from megatron.core import parallel_state
 
         _pipeline: List[nn.Module]
         if isinstance(pipeline, nn.ModuleList):
@@ -121,12 +121,12 @@ class MegatronParallel(nn.ModuleList):
             _pipeline = pipeline
 
         if vp_size is not None:
-            if len(_pipeline) == 1 and mpu.get_pipeline_model_parallel_world_size() > 1:
+            if len(_pipeline) == 1 and parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 from nemo import io
 
-                mpu.set_virtual_pipeline_model_parallel_world_size(vp_size)
+                parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
                 for i in range(1, vp_size):
-                    mpu.set_virtual_pipeline_model_parallel_rank(i)
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     _model = io.reinit(_pipeline[0])
                     if hasattr(_model, "configure_model"):
                         _model.configure_model()
@@ -148,12 +148,12 @@ class MegatronParallel(nn.ModuleList):
                             pass
 
             # Print number of parameters.
-            if mpu.model_parallel_is_initialized() and mpu.get_data_parallel_rank() == 0:
+            if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
                 from nemo.utils import logging
 
                 msg = (
                     f" > number of parameters on (tensor, pipeline) model parallel rank "
-                    f"({mpu.get_tensor_model_parallel_rank()}, {mpu.get_pipeline_model_parallel_rank()}): "
+                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "
                     f"{_calc_number_of_params(_pipeline)}"
                 )
                 logging.info(msg)
@@ -220,7 +220,6 @@ class MegatronParallel(nn.ModuleList):
         self.callbacks.event("on_megatron_step_start", **context)
         self.callbacks.event("on_megatron_microbatches_start", **context)
 
-        # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
         microbatch_outputs = self.forward_backward_func(
             forward_step_func=forward_step_func,
             data_iterator=data_iterator,
@@ -237,7 +236,6 @@ class MegatronParallel(nn.ModuleList):
 
         if microbatch_outputs:
             self.callbacks.event("on_megatron_reduce_microbatches_start", **context)
-            # Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L534
 
             # TODO: Can this lead to issues?
             if isinstance(_loss_reduction, _ModuleStepFunction):
@@ -281,7 +279,7 @@ class MegatronParallel(nn.ModuleList):
         -------
             Callable: The wrapped forward step function.
         """
-        from megatron.core import mpu
+        from megatron.core import parallel_state
 
         @functools.wraps(forward_step)
         def wrapped_forward_step_func(dataloader_iter, model):
@@ -307,7 +305,7 @@ class MegatronParallel(nn.ModuleList):
 
             self.callbacks.event("on_megatron_microbatch_start", **_context)
 
-            if self.precision_plugin and mpu.is_pipeline_first_stage():
+            if self.precision_plugin and parallel_state.is_pipeline_first_stage():
                 batch = self.precision_plugin.convert_input(batch)
 
             output_tensor = _forward_step(model, batch)
@@ -319,7 +317,7 @@ class MegatronParallel(nn.ModuleList):
                 forward_callback, batch=batch, model=self, forward_module=model, tensor=output_tensor,
             )
 
-            if self.precision_plugin and mpu.is_pipeline_last_stage():
+            if self.precision_plugin and parallel_state.is_pipeline_last_stage():
                 output_tensor = self.precision_plugin.convert_output(output_tensor)
 
             return output_tensor, forward_callback
@@ -459,7 +457,7 @@ class MegatronParallel(nn.ModuleList):
         return output_tensor
 
     def sharded_state_dict(self, prefix: str = "") -> Dict[str, Any]:
-        from megatron.core import mpu
+        from megatron.core import parallel_state
 
         """
         Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
@@ -469,9 +467,9 @@ class MegatronParallel(nn.ModuleList):
         """
         sharded_state_dict = {}
         for index, module in enumerate(self):
-            if mpu.get_virtual_pipeline_model_parallel_world_size() is not None:
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
-                mpu.set_virtual_pipeline_model_parallel_rank(index)
+                parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                 module_sharded_state_dict = self._module_sharded_state_dict(module)
                 sharded_state_dict[f"megatron_module_{index}"] = module_sharded_state_dict
             else:
@@ -479,8 +477,8 @@ class MegatronParallel(nn.ModuleList):
                 sharded_state_dict.update(module_sharded_state_dict)
 
         # reset vp rank
-        if mpu.get_virtual_pipeline_model_parallel_world_size() is not None:
-            mpu.set_virtual_pipeline_model_parallel_rank(0)
+        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
         return sharded_state_dict
 
@@ -893,7 +891,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         """Taken from:
         https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 .
         """
-        from megatron.core import mpu, parallel_state
+        from megatron.core import parallel_state
 
         from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
@@ -919,7 +917,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                     torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
                 ]
             )
-            torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=mpu.get_data_parallel_group())
+            torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group())
             return loss_for_ub * cp_size, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
 
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
