@@ -1,24 +1,26 @@
 from unittest.mock import ANY, MagicMock, patch
 
-from nemo.lightning import _strategy_lib #, DataConfig
 from torch import nn
+
+from nemo.lightning import _strategy_lib  # , DataConfig
 
 
 class Identity(nn.Identity):
     def __init__(self):
         super().__init__()
-        
-        
+
+
 class WithCopy(nn.Identity):
     def copy(self):
         return WithCopy()
-        
+
 
 @patch('nemo.collections.nlp.modules.common.megatron.megatron_init.initialize_model_parallel_for_nemo')
 def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
     from nemo.utils import AppState
+
     app_state = AppState()
-    
+
     app_state.tensor_model_parallel_size = 2
     app_state.pipeline_model_parallel_size = 3
     app_state.global_rank = 1
@@ -32,12 +34,7 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
     mock_parallel_config.pipeline_model_parallel_split_rank = None
 
     _strategy_lib.init_parallel_ranks(
-        world_size=2,
-        global_rank=1,
-        local_rank=0,
-        parallel_config=mock_parallel_config,
-        seed=1234,
-        fp8=False,
+        world_size=2, global_rank=1, local_rank=0, parallel_config=mock_parallel_config, seed=1234, fp8=False,
     )
     mock_initialize_model_parallel.assert_called_once_with(
         world_size=2,
@@ -83,6 +80,7 @@ def test_init_parallel_ranks(mock_initialize_model_parallel) -> None:
 @patch('megatron.core.parallel_state')
 def test_init_model_parallel(mock_mpu, *args):
     from nemo.utils import AppState
+
     app_state = AppState()
     app_state.model_parallel_size = 1
     app_state.tensor_model_parallel_size = 2
@@ -91,10 +89,10 @@ def test_init_model_parallel(mock_mpu, *args):
     app_state.init_mpi_proc_group = False
     app_state.tensor_model_parallel_rank = 2
     app_state.pipeline_model_parallel_rank = 0
-    
+
     _mpu_tp_2(mock_mpu)
     _strategy_lib.init_model_parallel(nn.Identity())
-    
+
     mock_mpu.initialize_model_parallel.assert_called_once_with(
         tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
@@ -130,8 +128,8 @@ def test_init_model_parallel(mock_mpu, *args):
 #         persistent_workers=False,
 #         collate_fn=ANY
 #     )
-    
-    
+
+
 # @patch('nemo.lightning._strategy_lib.init_parallel_ranks')
 # @patch('megatron.core.parallel_state')
 # def test_setup_megatron_parallel_with_trainer(mock_mpu, mock_init_parallel_ranks) -> None:
@@ -144,15 +142,15 @@ def test_init_model_parallel(mock_mpu, *args):
 #     mock_trainer.world_size = 2
 #     mock_trainer.local_rank = 0
 #     mock_trainer.global_rank = 1
-    
+
 #     result = _strategy_lib.setup_megatron_parallel(mock_trainer, nn.Identity())
 #     mock_init_parallel_ranks.assert_called_once()
 #     assert isinstance(result, LightningMegatronParallel)
 #     assert len(result) == 1
-    
+
 #     # Test with function
 #     assert len(_strategy_lib.setup_megatron_parallel(mock_trainer, lambda: nn.Identity())) == 1
-    
+
 
 # @patch('nemo.lightning._strategy_lib.init_parallel_ranks')
 # @patch('megatron.core.parallel_state')
@@ -175,20 +173,20 @@ def test_init_model_parallel(mock_mpu, *args):
 #     result = _strategy_lib.setup_megatron_parallel(mock_trainer, Identity())
 #     mock_init_parallel_ranks.assert_called_once()
 #     assert len(result) == vp_size
-    
+
 #     # Test with function
 #     assert len(_strategy_lib.setup_megatron_parallel(mock_trainer, lambda: nn.Identity())) == vp_size
 
 #     # Test with a module with a copy method
 #     assert len(_strategy_lib.setup_megatron_parallel(mock_trainer, WithCopy())) == vp_size
-    
+
 #     with pytest.raises(
-#         ValueError, 
+#         ValueError,
 #         match="Model does not have a copy method. Please implement this or " +
 #         "pass in a function that returns the model"
 #     ):
 #         _strategy_lib.setup_megatron_parallel(mock_trainer, nn.Identity())
-        
+
 
 # @patch('nemo.lightning._strategy_lib.init_parallel_ranks')
 # @patch('megatron.core.parallel_state')
@@ -229,7 +227,7 @@ def test_init_model_parallel(mock_mpu, *args):
 #     assert isinstance(result, MegatronParallel)
 #     assert len(result) == 1
 
-    
+
 def _mpu_tp_2(mock_mpu) -> None:
     mock_mpu.get_tensor_model_parallel_rank.return_value = 2
     mock_mpu.get_pipeline_model_parallel_rank.return_value = 0
