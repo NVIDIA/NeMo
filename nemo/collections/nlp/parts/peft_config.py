@@ -35,6 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraUnfusedKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
@@ -132,11 +133,18 @@ class LoraPEFTConfig(PEFTConfig):
 
         for module in target_modules:
             if module == PEFT_MODULE_MAP["qkv_module"]:
+                if lora_cfg.get("variant", "nemo") == "canonical":
+                    _adapter_name = AdapterName.LORA_UNFUSED_KQV_ADAPTER
+                    _adapter_cfg_cls = LoraUnfusedKQVAdapterConfig
+                else:
+                    _adapter_name = AdapterName.LORA_KQV_ADAPTER
+                    _adapter_cfg_cls = LoraKQVAdapterConfig
+
                 adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, LoraKQVAdapterConfig
+                    cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, _adapter_cfg_cls
                 )
-                name_key_to_cfg[AdapterName.LORA_KQV_ADAPTER] = adapter_cfg
-                name_key_to_mcore_mixins[AdapterName.LORA_KQV_ADAPTER] = [("self_attention", MCoreSelfAttentionMixin)]
+                name_key_to_cfg[_adapter_name] = adapter_cfg
+                name_key_to_mcore_mixins[_adapter_name] = [("self_attention", MCoreSelfAttentionMixin)]
 
             elif module == PEFT_MODULE_MAP["dense_module"]:
                 adapter_cfg = self._create_lora_config(
