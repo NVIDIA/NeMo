@@ -237,7 +237,6 @@ class MegatronParallel(nn.ModuleList):
         if microbatch_outputs:
             self.callbacks.event("on_megatron_reduce_microbatches_start", **context)
 
-            # TODO: Can this lead to issues?
             if isinstance(_loss_reduction, _ModuleStepFunction):
                 _loss_reduction = _loss_reduction(self[0])
 
@@ -250,8 +249,6 @@ class MegatronParallel(nn.ModuleList):
                 loss_mean = cast(torch.Tensor, [])
             else:
                 loss_mean = torch.tensor(0.0).cuda()
-
-        # TODO: How to handle all-reduce callbacks?
 
         self.callbacks.event("on_megatron_log_step_end", **context)
         self.callbacks.event("on_megatron_step_end", **context)
@@ -309,8 +306,6 @@ class MegatronParallel(nn.ModuleList):
                 batch = self.precision_plugin.convert_input(batch)
 
             output_tensor = _forward_step(model, batch)
-
-            # TODO: handle forward_post
 
             # callback
             self._setup_module(
