@@ -107,7 +107,7 @@ GPT Embedding Models
 
 Recent work has also shown that it is possible to use Decoder-Only (GPT Style) models to train embedding models.
 `Improving Text Embeddings with
-Large Language Models <https://arxiv.org/pdf/2401.00368.pdf>`__ is one such recent papers which served as inspritation to implement Decoder-only embdding training in Nemo.
+Large Language Models <https://arxiv.org/pdf/2401.00368.pdf>`__ is one such recent papers which served as inspiration to implement Decoder-only embedding training in Nemo.
 
 Training a GPT Embedding Model
 -------------------------------
@@ -129,7 +129,7 @@ An example command to launch a training job is
 
  python3 /NeMo/examples/nlp/information_retrieval/megatron_gpt_embedding_finetuning.py \
     exp_manager.exp_dir="PATH_TO_SAVE_LORA_WEIGHTS" \
-    model.global_batch_size=4 \                         # exact choice for global batch size is data dependent typical values are in the rage of 32 to 128.
+    model.global_batch_size=4 \                         # exact choice for global batch size is data dependent typical values are in the range of 32 to 128.
     model.micro_batch_size=4 \                          # exact choice for micro batch size is GPU memory dependent 2 to 8 are reasonable values.
     trainer.devices=1 \                                 # indicates how many GPUs to use during training per node.
     trainer.num_nodes=1 \                               # indicates how many nodes to use if multi-node cluster is available
@@ -181,7 +181,7 @@ The inference command will result in two folders
 * ``PATH_TO_SAVE_EMBEDDINGS/consumed_samplesX/test_queries`` 
 * ``PATH_TO_SAVE_EMBEDDINGS/consumed_samplesX/test_docs``
 
-The ``X`` in the folder ``consumed_samplesX`` is a number denoted number of batches consumed, this is not crucial at test time, but it is useful in training which we will see in the next section. First, lets take a look at the ``test_queries``.
+The ``X`` in the folder ``consumed_samplesX`` is a number denoted number of batches consumed, this is not crucial at test time, but it is useful in training which we will see in the next section. First, let's take a look at the ``test_queries``.
 
 .. code-block:: console
 
@@ -194,7 +194,7 @@ The ``X`` in the folder ``consumed_samplesX`` is a number denoted number of batc
 
 ``query.npy`` is a numpy pickled array containing rows of query embeddings and the ``query.ids`` text file list the id of each embedding in the same order.
 
-Similarly lets look into the ``test_docs`` folder
+Similarly let's look into the ``test_docs`` folder
 
 .. code-block:: console
 
