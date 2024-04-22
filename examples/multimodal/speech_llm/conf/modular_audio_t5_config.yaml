@@ -30,7 +30,7 @@ trainer:
   gradient_clip_val: 1.0
   accumulate_grad_batches: 1
 
-model_target: nemo.collections.multimodal.speechllm.models.speechllm_t5_models.ModularizedAudioT5Model
+model_target: nemo.collections.multimodal.speech_llm.models.modular_models_t5.ModularizedAudioT5Model
 exp_manager:
   # explicit_log_dir: null
   exp_dir: null
@@ -134,17 +134,8 @@ model:
       init_std: 0.023
 
   perception:
-    target: nemo.collections.multimodal.speechllm.modules.speechllm_perception.AudioPerceptionModel
+    target: nemo.collections.multimodal.speech_llm.modules.perception.AudioPerceptionModule
     use_multi_layer_feat: false
-    xattn:
-      target: nemo.collections.multimodal.speechllm.modules.speechllm_perception.GatedCrossAttentionDense
-      num_attention_heads: 8
-      attn_score_dropout: 0.1
-      attn_layer_dropout: 0.1
-      ffn_dropout: 0.1
-      hidden_act: "relu"
-      pre_ln: true
-      pre_ln_final_layer_norm: true
 
     modality_adapter: 
       _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -237,7 +228,7 @@ model:
       label_key: 'output'
       add_eos: True
       # add_eos: False
-      add_sep: False
+      add_sep: True
       add_bos: False
       separate_prompt_and_response_with_newline: False
       truncation_field: "context" # Options: ['context', 'answer']

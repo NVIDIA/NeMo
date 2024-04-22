@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,61 +16,36 @@ import copy
 import itertools
 import json
 import os
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-from typing import List, Optional, Union
-=======
 from pathlib import Path
 from functools import partial
 from typing import Any, Dict, Optional, Union
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 
-import hydra
 import sacrebleu
 import torch
-from hydra.utils import get_class
 from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-from nemo.collections.asr.models import EncDecSpeakerLabelModel
-from nemo.collections.asr.parts.mixins.transcription import move_to_device
-=======
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import to_cuda
 from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
     get_aqa_dataset_from_config,
     get_tarred_aqa_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
 from nemo.collections.multimodal.speech_llm.modules.perception import AudioPerceptionModule, MultiAudioPerceptionModule
-=======
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.multimodal.speechllm.parts.utils.data_utils import remove_text_pc, to_cuda
-from nemo.collections.multimodal.speechllm.data.audio_text_qa_dataset import (
-    get_aqa_dataset_from_config,
-    get_tarred_aqa_dataset_from_config,
-)
-from nemo.collections.multimodal.speechllm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speechllm.modules.speechllm_perception import AudioPerceptionModel
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-=======
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
@@ -82,25 +57,20 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.classes.mixins import adapter_mixins
-from nemo.utils import AppState, logging
-=======
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector, PEFTSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import AppState, logging, model_utils
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator,
+        get_current_global_batch_size,
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -108,8 +78,9 @@ except (ImportError, ModuleNotFoundError):
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 
 try:
-    from megatron.core import InferenceParams, parallel_state, tensor_parallel
-    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.enums import ModelType
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -117,47 +88,33 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-__all__ = ["ModularAudioGPTModel"]
-=======
 __all__ = ["ModularizedAudioGPTModel"]
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 
 
 default_inference_config = {'tokens_to_generate': 30}
 
 
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-class ModularAudioGPTModel(MegatronGPTSFTModel):
-=======
 class ModularizedAudioT5Model(MegatronT5LoraModel):
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
     """Modularized speech GPT model."""
+
 
     def setup_perception_modules(self, cfg):
         if 'target' in cfg.perception:
             imported_cls = model_utils.import_class_by_path(cfg.perception.target)
             pretrained_audio_model = cfg.pretrained_canary_model if hasattr(cfg, "pretrained_canary_model") else cfg.pretrained_audio_model
             self.perception = imported_cls(
-                cfg=cfg.perception, pretrained_audio_model=pretrained_audio_model, llm_tokenizer=self.tokenizer
+                cfg=cfg.perception
             )
         else:
-            imported_cls = AudioPerceptionModel
-            self.perception = imported_cls(cfg=cfg.perception)
+            self.perception = (
+                AudioPerceptionModule(cfg=cfg.perception)
+                if "encoders" not in cfg.perception
+                else MultiAudioPerceptionModule(cfg=cfg.perception)
+            )
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-
-        self.perception = (
-            AudioPerceptionModule(cfg=cfg.perception)
-            if "encoders" not in cfg.perception
-            else MultiAudioPerceptionModule(cfg=cfg.perception)
-        )
-        # print out params in more details
-        self.summarize(max_depth=2)
-=======
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
         self.val_metric = torch.nn.ModuleList(self.val_metric)
         if hasattr(self.cfg.data, "test_ds"):
@@ -174,7 +131,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         self.summarize(max_depth=3)
         # follow gpt
         self.setup_complete = False
-        self.sep_id = cfg.get('sep_id', 49704)
+        self.sep_id = cfg.get('sep_id', self.tokenizer.bos_id)
         self.virtual_tokens = 0
         self.model = self.frozen_model.enc_dec_model
 
@@ -216,7 +173,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         self.tokenizer.legacy = cfg.get('legacy_tokenizer', False)
         self.bos_id = self.tokenizer.bos_id
-        self.pad_token_id = self.tokenizer.eos_id
         self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
         # make sure the default pytorch lightning gradient clipping in the basemodel
@@ -231,7 +187,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
     # def configure_optimizers(self):
     #     self.frozen_model.configure_optimizers()
     #     super().configure_optimizers()
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 
     def parameters(self):
         # override the same method in MegatronGPT model to include parameters ouside of LM
@@ -259,29 +214,35 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         to be passed around in pipeline parallel models. The prompt-encoder 
         and/or prompt table will use the learning rate set by the user. 
         """
+        self.unfreeze()
         known_groups = []
         if self.cfg.get('freeze_llm', True):
             for param in self.frozen_model.parameters():
                 param.requires_grad = False
             known_groups.append('model.')
-
-        if self.cfg.get('freeze_audio_encoder', False):
-            if self.cfg.perception.get("speaker_model", None) is not None:
-                if self.cfg.perception.speaker_model.get("freeze", False):
-                    self.perception.speaker_model.freeze()
-                    known_groups.append('perception.speaker_model.')
-            if self.cfg.perception.get("encoders", None) is not None:
-                for key, enc_cfg in self.cfg.perception.encoders.items():
-                    if enc_cfg.get("freeze", False):
-                        self.perception.encoders[key].freeze()
-                        known_groups.append(f'perception.encoders.{key}.')
-            else:
-                self.perception.encoder.freeze()
-                known_groups.append('perception.encoder.')
-
+        else:
+            if self.cfg.get('freeze_encoder', False):
+                for param in self.frozen_model.enc_dec_model.enc_dec_model.encoder.parameters():
+                    param.requires_grad = False
+                known_groups.append('enc_dec_model.encoder.')
+            if self.cfg.get('freeze_decoder', False):
+                for param in self.frozen_model.enc_dec_model.enc_dec_model.decoder.parameters():
+                    param.requires_grad = False
+                known_groups.append('enc_dec_model.decoder.')
+            if self.cfg.get('freeze_word_emb', False):
+                names = ['encoder_embedding', 'encoder_relative_position_embedding', 'decoder_relative_position_embedding', 'decoder_embedding']
+                for pname in names:
+                    for param in getattr(self.frozen_model.enc_dec_model, pname).parameters():
+                        param.requires_grad = False
+                known_groups.append('enc_dec_model.word_embeddings.')
+                known_groups.append('enc_dec_model.relative_position_embedding.')
+        # TODO(heh): double check this part works properly
         if self.cfg.get('freeze_modality_adapter', False):
             self.perception.modality_adapter.freeze()
-            known_groups.append('perception.modality_adapter.')
+            known_groups.append('modality_adapter.')
+        if self.cfg.get('freeze_audio_encoder', False):
+            self.perception.encoder.freeze()
+            known_groups.append('audio_encoder.')
 
         opt_params = []
         for _, module in self.named_modules():
@@ -319,92 +280,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         self._optimizer_param_groups = param_groups
         logging.info(f"Optimizer groups set:\n{self.summarize(max_depth=2)}")
 
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-    def _create_attention_mask(self, encoder_input: torch.Tensor):
-        # Create causal attention mask for whole input
-        batch_size = encoder_input.shape[0]
-        max_len = encoder_input.shape[1]
-        attention_mask = torch.tril(torch.ones((batch_size, max_len, max_len), device=encoder_input.device)).view(
-            batch_size, 1, max_len, max_len
-        )
-        # Convert attention mask from float to bool
-        attention_mask = attention_mask < 0.5
-        return attention_mask
-
-    def _concat_features(self, embs1, emb1_lens, embs2, emb2_lens):
-        """Concatenate two sets of embeddings and their lengths."""
-        concat_emb = []
-        concat_len = []
-        for emb1, emb1_len, emb2, emb2_len in zip(embs1, emb1_lens, embs2, emb2_lens):
-            new_len = emb1_len + emb2_len
-            new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
-            padded_new_emb = torch.zeros(emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device)
-            padded_new_emb[:new_len, ...] = new_emb
-            concat_emb.append(padded_new_emb)
-            concat_len.append(new_len)
-        concat_emb = torch.stack(concat_emb, dim=0)
-        concat_len = torch.stack(concat_len, dim=0)
-        return concat_emb, concat_len
-
-    def _concat_multi_features(
-        self,
-        encoded: List[torch.Tensor],
-        encoded_len: List[torch.Tensor],
-        input_embeds: torch.Tensor,
-        input_length: torch.Tensor,
-        context_start_idx: List[List[int]],
-    ):
-        """Concatenate multiple audio features with text segments."""
-        encoder_input_list, encoder_length_list = [], []
-        batch_size = input_embeds.size(0)
-        max_length = 0
-        for i in range(batch_size):
-            start_idx_list_i = context_start_idx[i] + [
-                input_embeds.size(1)
-            ]  # use input_embeds instead of input_length to handle tokens_to_generate in inference
-            input_len_list = [start_idx_list_i[j + 1] - start_idx_list_i[j] for j in range(len(start_idx_list_i) - 1)]
-            input_emb_list = input_embeds[i].split(input_len_list)
-            encoder_input_i = [input_emb_list[0]]
-            for j in range(1, len(input_emb_list)):
-                encoder_input_i.append(encoded[i][j - 1][: encoded_len[i][j - 1]])
-                encoder_input_i.append(input_emb_list[j])
-            encoder_input_i = torch.cat(encoder_input_i)  # T, C
-            encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
-            max_length = max(max_length, encoder_input_i.size(0))
-            encoder_input_list.append(encoder_input_i)
-            encoder_length_list.append(encoder_length_i)
-
-        encoder_input = torch.stack(
-            [torch.nn.functional.pad(f, (0, 0, 0, max_length - f.size(0))) for f in encoder_input_list]
-        )
-        encoder_length = torch.LongTensor(encoder_length_list).to(encoder_input.device)
-        return encoder_input, encoder_length
-
-    def inject_perception_input(
-        self,
-        encoded: Union[torch.Tensor, List[torch.Tensor]],
-        encoded_len: Union[torch.Tensor, List[torch.Tensor]],
-        input_ids: torch.Tensor,
-        input_length: torch.Tensor,
-        context_start_idx: Optional[List[List[int]]] = None,
-    ):
-        """Inject audio features into the text input and return the final input embeddings to LLM."""
-        # [b, t, c]
-        lm_embedding = (
-            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
-        )
-        input_embeds = lm_embedding.word_embeddings(input_ids)
-        if isinstance(encoded, torch.Tensor):
-            # single audio
-            encoder_input, encoder_length = self._concat_features(encoded, encoded_len, input_embeds, input_length)
-        else:
-            # concat multiple audios with text segments
-            encoder_input, encoder_length = self._concat_multi_features(
-                encoded, encoded_len, input_embeds, input_length, context_start_idx
-            )
-
-        attention_mask = self._create_attention_mask(encoder_input)
-=======
     def inject_perception_input(self, encoded, encoded_len, input_ids, input_length):
         def _concat_embs(embs1, emb1_lens, embs2, emb2_lens):
             concat_emb = []
@@ -442,31 +317,22 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         )
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         position_ids = build_position_ids(encoder_input[:, :, 0])
 
         # Add position embeddings
-        if (
-            getattr(lm_embedding, "position_embeddings", None) is not None
-            and lm_embedding.position_embedding_type == 'learned_absolute'
-        ):
+        if hasattr(lm_embedding, "position_embeddings"):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
             encoder_input = encoder_input + position_embeddings
-
+        else:
+            encoder_input = encoder_input
         encoder_max_length = encoder_input.shape[1]
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
-            encoder_input = encoder_input.transpose(0, 1).contiguous()
-=======
         if lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.contiguous()
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         if self.cfg.get("sequence_parallel", False):
             encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
         return encoder_input, attention_mask, encoder_length, position_ids, encoder_max_length
 
     def _shift_labels_by_emb_len(self, labels, label_lens, emb_lens, max_len, pad_token=0):
-        """Shift labels to the right by the length of the audio embeddings."""
         shifted_labels = []
         for label, label_len, emb_len in zip(labels, label_lens, emb_lens):
             shifted_label = torch.full([max_len], pad_token, device=label.device)
@@ -476,14 +342,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return shifted_labels
 
     def _get_text_embeddings(self, text_tokens, position_ids):
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        """Get text embeddings for the input text tokens."""
-        lm_embedding = (
-            self.model.language_model.embedding if hasattr(self.model, 'language_model') else self.model.embedding
-        )
-=======
         lm_embedding = self.frozen_model.enc_dec_model.encoder_embedding
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
         if hasattr(lm_embedding, 'position_embeddings'):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
@@ -491,7 +350,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return text_embeddings
 
     def prepare_llm_input(self, audio_batch):
-        """Prepare input for the LLM."""
+
         input_signal = audio_batch['audio_signal']
         input_signal_length = audio_batch['audio_signal_length']
 
@@ -503,21 +362,12 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         )
 
         # [b, t, c]
-        encoded, encoded_len, _ = self.perception(
+        encoded, encoded_len = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
             processed_signal=None,
             processed_signal_length=None,
         )
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-
-        if num_audios is not None:
-            # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
-            encoded = encoded.split(num_audios.tolist())
-            encoded_len = encoded_len.split(num_audios.tolist())
-
-=======
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
             encoded, encoded_len, input_ids, input_length
         )
@@ -528,30 +378,11 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
     def forward(
         self, audio_batch, checkpoint_activations_all_layers,
     ):
-        """
-        Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
-        """
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
-        if self.mcore_gpt:
-            output = self.model(
-                input_ids=None,
-                position_ids=None,
-                decoder_input=encoder_input,
-                attention_mask=attention_mask,
-                labels=labels,
-            )
-        else:
-            output = self.model(
-                input_ids=None,
-                position_ids=None,
-                encoder_input=encoder_input,
-                attention_mask=attention_mask,
-                labels=labels,
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-            )
+        """Forward pass of the model.
 
-=======
+        We prepend audio embeddings to the instruction and label text tokens 
+        as the LLM input.
+        """
         if 'audio_ratio' in audio_batch:
             self.log(
                 'audio_ratio', audio_batch['audio_ratio'].mean(), prog_bar=True, batch_size=1, rank_zero_only=False
@@ -570,11 +401,12 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         # dec_input and label = text output label
         b = audio_batch['answers'].shape[0]
         device = audio_batch['answers'].device
+        dec_input = audio_batch['masked_answer_ids'] if 'masked_answer_ids' in audio_batch else audio_batch['answers']
         dec_input = torch.cat(
-            [torch.full([b, 1], self.bos_id, device=device), audio_batch['answers'][:, :-1]], dim=-1
+            [torch.full([b, 1], self.bos_id, device=device), dec_input[:, :-1]], dim=-1
         )
         labels = audio_batch['answers']
-        dec_mask = (dec_input != self.tokenizer.eos_id) * (dec_input != self.tokenizer.pad_id).long().contiguous()
+        dec_mask = (dec_input != self.tokenizer.pad_id).long().contiguous()
         output = self.frozen_model.enc_dec_model(
             enc_input_ids=None,
             enc_attn_mask=enc_mask,
@@ -586,7 +418,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             enc_input=encoder_input,
         )
         loss_mask = dec_mask
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         return output, loss_mask
 
     def get_forward_output_only_func(self):
@@ -607,41 +438,18 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
-            if self.mcore_gpt:
-                # if first step, then clear KV cache, otherwise reuse inference_paarms
-                if set_inference_key_value_memory[0].item():
-                    self.inference_params = InferenceParams(
-                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
-                    )
-                extra_arg['inference_params'] = self.inference_params
-            else:
-                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-
-            # Currently for all MCore transformer layer specs causal attention mask
-            # is used so we can delegate creating it to MCore/TE and pass None below
-            if (
-                isinstance(model, MCoreGPTModel)
-                or hasattr(model, "module")
-                and isinstance(model.module, MCoreGPTModel)
-            ):
-                attention_mask = None
-
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
             output_tensor = model(
                 input_ids=None,
                 position_ids=None,
-                decoder_input=input_embeddings,
+                encoder_input=input_embeddings,
                 attention_mask=attention_mask,
                 **extra_arg,
             )
 
-            # Advance inference sequence offset.
-            if self.inference_params:
-                # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
-                if parallel_state.is_pipeline_last_stage():
-                    self.inference_params.sequence_len_offset += output_tensor.size(1)
-                else:
-                    self.inference_params.sequence_len_offset += output_tensor.size(0)
+            if isinstance(output_tensor, tuple):
+                output_tensor = output_tensor[1]  # get logits only
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -650,61 +458,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         return fwd_output_only_func
 
-    def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
+    def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
             batch = next(dataloader_iter)
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-
-            # Transfer needed data to GPU
-            required_keys = set()
-            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-                required_keys.update(batch.keys())
-            else:
-                required_keys.add('attention_mask')
-                if parallel_state.is_pipeline_first_stage():
-                    required_keys.update(('tokens', 'position_ids'))
-                if parallel_state.is_pipeline_last_stage():
-                    required_keys.update(('labels', 'loss_mask'))
-            if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
-                required_keys.remove('attention_mask')
-
-            batch = move_to_device(batch, self.device)
-            batch = self.get_batch_on_this_context_parallel_rank(batch)
-
-            if not self.mcore_gpt:
-                batch['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
-
-            output_tensor, loss_mask = self.forward(
-                batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
-            )
-            batch['loss_mask'] = loss_mask
-
-            def loss_func(output_tensor):
-                # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
-                cp_size = self.cfg.get('context_parallel_size', 1)
-                if self.cfg.data.get(
-                    "return_output_tensors", False
-                ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
-                    loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
-                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    pos_cs = average_losses_across_data_parallel_group([pos_cs])
-                    neg_cs = average_losses_across_data_parallel_group([neg_cs])
-                    diff_cs = average_losses_across_data_parallel_group([diff_cs])
-                    return (
-                        loss_for_ub * cp_size,
-                        {
-                            'avg': reduced_loss,
-                            'query_hs': q_hs,
-                            'doc_hs': d_hs,
-                            'avg_pos_cs': pos_cs,
-                            'avg_neg_cs': neg_cs,
-                            'diff_cs': diff_cs,
-                        },
-                    )
-                elif validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
-=======
             batch = {key: val.cuda(non_blocking=True) for key, val in batch.items()}
             output_tensor, loss_mask = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
@@ -723,7 +479,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                     loss_for_ub = self.loss_func(loss_mask, output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_tokens_in_ub = batch['loss_mask'].sum()
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
                     if loss_for_ub.isnan():
                         assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
                         loss_sum_for_ub = torch.zeros_like(num_valid_tokens_in_ub)
@@ -740,10 +495,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                     torch.distributed.all_reduce(
                         loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub * cp_size, {'avg': reduced_loss}
+                    return loss_for_ub, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -770,7 +525,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get("use_lhotse"):
-            from nemo.collections.multimodal.speechllm.data.lhotse_dataset import (
+            from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import (
                 LhotseAudioQuestionAnswerDataset,
                 TextProcessing,
             )
@@ -802,23 +557,23 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 input_text_mask_ratio=data_cfg.get('input_text_mask_ratio', None),
             )
             if self.cfg.perception.get("is_canary", False):
-                from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+                from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
+                    PromptedAudioToTextLhotseDataset,
+                    get_prompt_format_fn,
+                )
 
                 perception_tokenizer = (
                     self.perception.tokenizer
                     if hasattr(self.perception, "tokenizer")
                     else self.perception.asr_model.tokenizer
                 )
-                canary_processer = LhotseSpeechToTextBpeDataset(
-                    tokenizer=perception_tokenizer, token_sequence_format='canary',
+                canary_processer=PromptedAudioToTextLhotseDataset(
+                    tokenizer=perception_tokenizer,
+                    prompt_format_fn=get_prompt_format_fn('canary'),
+                    inference=True,
                 )
             else:
                 canary_processer = None
-            context_len_for_AR_decoding = (
-                self.perception.asr_model.context_len_for_AR_decoding
-                if hasattr(self.perception, "asr_model")
-                else data_cfg.get('context_len_for_AR_decoding', 5)
-            )
             return LhotseAudioQuestionAnswerDataset(
                 tp,
                 default_question="answer the question according to the previous audio",
@@ -826,7 +581,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 max_seq_length=data_cfg["max_seq_length"],
                 canary_processor=canary_processer,
-                context_len_for_AR_decoding=context_len_for_AR_decoding,
                 convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
                 prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
                 canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),
@@ -941,33 +695,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return dataloader
 
     @classmethod
-    def _modify_audio_encoder_config(cls, gpt_cfg, audio_cfg, speaker_cfg=None):
-        with open_dict(gpt_cfg):
-            use_multi_encoder = gpt_cfg.perception.get("encoders", None) is not None
-            if not use_multi_encoder:
-                gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
-                gpt_cfg.perception.encoder = audio_cfg.encoder
-            else:
-                for key in gpt_cfg.perception.encoders:
-                    model_key = gpt_cfg.perception.encoders[key].get("model_key", "encoder")
-                    gpt_cfg.perception.encoders[key]["model"] = audio_cfg[key][model_key]
-                    if "preprocessor" in audio_cfg[key]:
-                        gpt_cfg.perception.encoders[key]['preprocessor'] = audio_cfg[key].preprocessor
-                if speaker_cfg is not None:
-                    gpt_cfg.perception.speaker_model.model = speaker_cfg
-
-            gpt_cfg.perception.output_dim = gpt_cfg.hidden_size
-            modality_adapter_cfg = gpt_cfg.perception.modality_adapter
-            if 'output_dim' in modality_adapter_cfg:
-                modality_adapter_cfg.output_dim = gpt_cfg.hidden_size
-            if not use_multi_encoder:
-                if 'feat_in' in modality_adapter_cfg:  # conformer encoder
-                    modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
-                if 'input_dim' in modality_adapter_cfg:
-                    modality_adapter_cfg.input_dim = audio_cfg.encoder.d_model
-
-    @classmethod
-    def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False, speaker_cfg=None):
+    def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False):
         """
         This function modifies the original gpt pre-training config (gpt_cfg) with attributes from the finetuning config (cfg).
         The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
@@ -975,18 +703,15 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         OmegaConf.set_struct(gpt_cfg, True)
         OmegaConf.resolve(cfg)
         with open_dict(gpt_cfg):
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-            # for AudioGPTLoRAModel
-            gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
-            gpt_cfg.perception = cfg.model.perception
-            cls._modify_audio_encoder_config(gpt_cfg, audio_cfg, speaker_cfg)
-=======
             if 'vocab_file' in cfg.model:
                 gpt_cfg.tokenizer.vocab_file = cfg.model.vocab_file
             gpt_cfg.legacy_tokenizer= cfg.model.get('legacy_tokenizer', False)
             gpt_cfg.audio_prompt_first = cfg.model.get('audio_prompt_first', True)
             gpt_cfg.ignore_dummy_audio = cfg.model.get('ignore_dummy_audio', False)
             gpt_cfg.freeze_llm = cfg.model.get('freeze_llm', True)
+            gpt_cfg.freeze_word_emb = cfg.model.get('freeze_word_emb', False)
+            gpt_cfg.freeze_encoder = cfg.model.get('freeze_encoder', False)
+            gpt_cfg.freeze_decoder = cfg.model.get('freeze_decoder', False)
             gpt_cfg.text_loss_weight = cfg.model.get('text_loss_weight', 1.0)
             gpt_cfg.freeze_audio_encoder = cfg.model.get('freeze_audio_encoder', False)
             gpt_cfg.freeze_modality_adapter = cfg.model.get('freeze_modality_adapter', False)
@@ -1039,7 +764,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 gpt_cfg.override_vocab_size = override_vocab_size
             if not hasattr(gpt_cfg, 'tokenizer'):
                 gpt_cfg.tokenizer = gpt_cfg.decoder_tokenizer
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -1049,62 +773,12 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return gpt_cfg
 
     @classmethod
-    def get_pretraind_audio_model(cls, encoder_cfg: DictConfig) -> ModelPT:
-        encoder_cls = get_class(encoder_cfg.get("_target_")) if encoder_cfg.get("_target_", None) is not None else None
-        pretrained_model = encoder_cfg.get('pretrained_model', None)
-        if pretrained_model is None:
-            return None
-        if encoder_cls is None:
-            raise ValueError(
-                f"Must specify a valid encoder class in the via the `_target_` field in the config: {encoder_cfg}"
-            )
+    def restore_from_pretrained_models(
+        cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
+    ):
+        if not cfg.model.pretrained_audio_model:
+            raise RuntimeError("PEFT training needs a pretrained audio model present.")
 
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        if pretrained_model.endswith('.nemo'):
-            logging.info(f'Loading pretrained audio model from local file: {pretrained_model}')
-            audio_model = encoder_cls.restore_from(pretrained_model, map_location='cpu')
-        else:
-            logging.info(f'Loading pretrained audio model from NGC: {pretrained_model}')
-            audio_model = encoder_cls.from_pretrained(pretrained_model, map_location='cpu')
-        return audio_model
-
-    @classmethod
-    def get_speaker_model_and_config(cls, cfg):
-        if 'speaker_model' in cfg.model.perception:
-            speaker_cfg = cfg.model.perception.speaker_model
-            if speaker_cfg.get('pretrained_model', None) is not None:
-                if speaker_cfg.pretrained_model.endswith('.nemo'):
-                    logging.info(f'Loading pretrained speaker model from local file: {speaker_cfg.pretrained_model}')
-                    speaker_model = EncDecSpeakerLabelModel.restore_from(
-                        speaker_cfg.pretrained_model, map_location='cpu'
-                    )
-                else:
-                    logging.info(f'Loading pretrained speaker model from NGC: {speaker_cfg.pretrained_model}')
-                    speaker_model = EncDecSpeakerLabelModel.from_pretrained(
-                        speaker_cfg.pretrained_model, map_location='cpu'
-                    )
-                return speaker_model, speaker_model.cfg
-            return None, None
-        else:
-            return None, None
-
-    @classmethod
-    def get_audio_encoder_models_and_configs(cls, cfg):
-        if 'encoders' in cfg.model.perception:
-            audio_encoders = {}
-            audio_enc_cfgs = {}
-            for key, encoder_cfg in cfg.model.perception.encoders.items():
-                audio_encoders[key] = cls.get_pretraind_audio_model(encoder_cfg)
-                audio_enc_cfgs[key] = audio_encoders[key].cfg
-            return audio_encoders, audio_enc_cfgs
-        else:
-            pretrained_audio_model = cfg.model.get("pretrained_audio_model", None)
-            pretrained_audio_model_class = cfg.model.get(
-                "pretrained_audio_model_target", "nemo.collections.asr.models.ASRModel"
-            )
-
-            model_class = hydra.utils.get_class(pretrained_audio_model_class)
-=======
         if not cfg.model.language_model_path:
             raise RuntimeError("PEFT training needs a trained base model present.")
 
@@ -1119,83 +793,23 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         )
         pretrained_audio_model = cfg.model.pretrained_audio_model
         try:
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
             if pretrained_audio_model.endswith('.nemo'):
                 logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-                audio_model = model_class.restore_from(pretrained_audio_model, map_location='cpu')
+                audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
             else:
                 logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-                audio_model = model_class.from_pretrained(pretrained_audio_model, map_location='cpu')
-            return audio_model, audio_model.cfg
-
-    @classmethod
-    def load_pretrained_audio_weights(
-        cls, cfg, model, audio_model, speaker_model: Optional[EncDecSpeakerLabelModel] = None
-    ):
-        use_multi_encoder = cfg.model.perception.get("encoders", None) is not None
-        if not use_multi_encoder:
-            if cfg.model.perception.get("use_multi_layer_feat", False):
-                model.perception.encoder.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
+                audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
+        except:
+            logging.info(f'Fail in loading it with ASRModel. Try again with SpeechEncDecSelfSupervisedModel.')
+            if pretrained_audio_model.endswith('.nemo'):
+                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                audio_model = SpeechEncDecSelfSupervisedModel.restore_from(pretrained_audio_model, map_location='cpu')
             else:
-                model.perception.encoder.load_state_dict(audio_model.encoder.state_dict(), strict=True)
-            logging.info(f'Loaded pretrained audio model weights from {cfg.model.pretrained_audio_model}')
-            if cfg.model.get('use_am_tokenizer', False):
-                model.tokenizer = audio_model.tokenizer
-                logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
-            return model
-        else:
-            for key, enc_cfg in cfg.model.perception.encoders.items():
-                if enc_cfg.get("use_multi_layer_feat", False):
-                    model.perception.encoders[key].encoder.load_state_dict(
-                        audio_model[key].encoder.state_dict(), strict=True
-                    )
-                else:
-                    model.perception.encoders[key].load_state_dict(audio_model[key].encoder.state_dict(), strict=True)
-                logging.info(f'Loaded pretrained audio model weights for {key}')
-            if speaker_model is not None:
-                model.perception.speaker_model.load_state_dict(speaker_model.state_dict(), strict=True)
-                logging.info(f'Loaded pretrained speaker model weights')
-            return model
+                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                audio_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
+                    pretrained_audio_model, map_location='cpu'
+                )
 
-    @classmethod
-    def restore_from_pretrained_models(
-        cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
-    ):
-        if (
-            cfg.model.get("pretrained_audio_model", None) is None
-            and cfg.model.perception.get("encoders", None) is None
-        ):
-            raise RuntimeError("PEFT training needs at least one pretrained audio model present.")
-
-        if not cfg.model.restore_from_path:
-            raise RuntimeError("PEFT training needs a trained base model present.")
-
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        base_model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-        audio_model, audio_model_cfg = cls.get_audio_encoder_models_and_configs(cfg)
-        speaker_model, speaker_cfg = cls.get_speaker_model_and_config(cfg)
-        model_cfg = cls._modify_config(
-            base_model_cfg, cfg, audio_model_cfg, add_cfg_to_tree=False, speaker_cfg=speaker_cfg
-        )
-
-        # load llm
-        model = cls.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False,
-        )
-
-        if "peft" in cfg.model:
-            peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-            if cfg.model.peft.restore_from_path is not None:
-                # initialize peft weights from a checkpoint instead of randomly
-                # This is not the same as resume training because optimizer states are not restored.
-                logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
-                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
-            elif peft_cfg_cls is not None:
-                logging.info("Adding adapter weights to the model for PEFT")
-                model.add_adapter(peft_cfg_cls(model_cfg))
-            else:
-                raise ValueError(f"PEFT scheme not not found in PEFT_CONFIG_MAP: {cfg.model.peft.peft_scheme}")
-=======
         model_cfg = cls._modify_config(base_model_cfg, cfg, audio_model.cfg, add_cfg_to_tree=False)
 
         # load llm
@@ -1203,18 +817,17 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             restore_path=cfg.model.language_model_path, trainer=trainer, override_config_path=model_cfg, strict=False,
         )
         # load am
+        model.perception.tokenizer = audio_model.tokenizer
         if cfg.model.get('load_audio_encoder', True):
             model.perception.encoder.load_state_dict(
                 audio_model.encoder.state_dict(), strict='adapter' not in cfg.model.perception
             )
             logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         else:
-            logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
-
-        # load audio model weights
-        model = cls.load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
-
+            logging.info(f'Not load pretrained audio model from {pretrained_audio_model}')
+        if cfg.model.get('use_am_tokenizer', False):
+            model.tokenizer = audio_model.tokenizer
+            logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
@@ -1235,37 +848,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         if self.setup_complete:
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-            # Once setup is complete we only need adapter and perception model.
-            if self.cfg.freeze_llm and self.cfg.get("peft", None) is not None:
-                return_state_dict = self.get_peft_state_dict()
-            elif not self.cfg.freeze_llm:
-                return_state_dict = self.model.state_dict(prefix="model.")
-            else:
-                return_state_dict = {}
-
-            state_dict = self.perception.state_dict(prefix="perception.")
-            if self.cfg.freeze_audio_encoder:
-                state_dict = {k: v for k, v in state_dict.items() if not k.startswith("perception.encoder.")}
-
-            return_state_dict.update(state_dict)
-            state_dict = self.perception.state_dict(prefix="perception.")
-            return_state_dict.update(state_dict)
-            return return_state_dict
-        else:
-            # we want all the params with the same keys as calling self.state_dict()
-            # but we can't call self.state_dict() here as it would be a recursive call.
-            # so we call self.model.state_dict(prefix="model.") which will return all the keys and params same as calling self.state_dict()
-            if not self.cfg.freeze_llm:
-                return_state_dict = self.model.state_dict(prefix="model.")
-            else:
-                return_state_dict = {}
-            state_dict = self.perception.state_dict(prefix="perception.")
-            if self.cfg.freeze_audio_encoder:
-                state_dict = {k: v for k, v in state_dict.items() if not k.startswith("perception.encoder.")}
-            return_state_dict.update(state_dict)
-            return return_state_dict
-=======
             # save adapter
             return_state_dict = super().state_dict(destination, prefix, keep_vars)
             # save perception
@@ -1279,7 +861,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         else:
             return_state_dict = self.frozen_model.state_dict(prefix="frozen_model.")
         return return_state_dict
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
@@ -1287,15 +868,11 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         only for the adapter parameters.
         """
         if self.setup_complete:
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=False)
-=======
             # load adapters
             super().load_state_dict(state_dict, strict)
             # load perception
             print(f"loading state_dict {self.setup_complete}: {state_dict.keys()}")
             super(NLPModel, self).load_state_dict(state_dict, strict=False)
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         else:
             if len([i for i in state_dict.keys() if 'lora' in i]) > 0:
                 # load adapters
@@ -1316,7 +893,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 logging.info('Building GPT SFT test datasets.')
                 # Wrap this in a list since the general finetuning parent class supports multi-validation.
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-                logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
+                # logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
 
         if stage == 'validate' or stage == 'test':
             return
@@ -1366,18 +943,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                     module.sync_initial_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-                exclude_list = []
-            state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
-            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=strict)
-
-    def on_load_checkpoint(self, checkpoint) -> None:
-        """LightningModule hook:
-         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
-         """
-        checkpoint_state_dict = checkpoint['state_dict']
-        self.load_state_dict(checkpoint_state_dict, strict=False)
-=======
                 self.frozen_model.sync_initial_word_embeddings()
 
         if self.cfg.get('transformer_engine', False):
@@ -1387,7 +952,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
     @property
     def _metrics_require_string2category_map(self):
         return set(["f1", "accuracy", "average_precision"])
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
 
     def setup_metric(self, data_cfg):
         metric_name = "exact_string_match"
@@ -1436,9 +1000,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 metric = [metric_cls()]
         return metric, metric_name
 
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-    def inference_step(self, dataloader_iter, mode):
-=======
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch, data_cfg):
         global_batch_size_per_gpu = batch['tokens'].size(0)
@@ -1474,7 +1035,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
     def validation_step(self, dataloader_iter, inference=False):
         return self.inference_step(dataloader_iter, 'validation')
 
-    def _validation_step_internal(self, dataloader_iter, batch_idx, dataloader_idx=0, inference=False):
+    def _validation_step_internal(self, dataloader_iter, batch_idx, dataloader_idx=0, inference=False, result_mode='validation'):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -1490,24 +1051,26 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         loss = self.fwd_bwd_step(dataloader_iter, 0, True)
         self.train(mode=mode)
         self.frozen_model.eval()
-        if type(self._validation_dl) == list and len(self._validation_dl) > 1:
-            self.validation_step_outputs[dataloader_idx].append(loss)
+        
+        if result_mode == 'validation':
+            if type(self._validation_dl) == list and len(self._validation_dl) > 1:
+                self.validation_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.validation_step_outputs.append(loss)
         else:
-            self.validation_step_outputs.append(loss)
+            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(loss)
+            else:
+                self.test_step_outputs.append(loss)
         return loss
 
     def inference_step(self, dataloader_iter, mode, dataloader_idx=0):
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        loss = super(MegatronGPTSFTModel, self).validation_step(itertools.chain([batch]), dataloader_idx)
-=======
-        loss = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx)
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
+        loss = self._validation_step_internal(itertools.chain([batch]), batch_idx, dataloader_idx, result_mode=mode)
 
         # We need _inference_config to get generation params
         # add_BOS and tokens_to_generate are set in dataset
@@ -1521,51 +1084,12 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
         labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        preds_text = [
-            self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-            for t, l in zip(output['token_ids'], batch['context_lengths'])
-        ]
-
-        if data_cfg.get("end_string", None):
-            # sometimes data_cfg.end_string != self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
-            # for example when data_cfg.end_string = "<end>", the end_string_re will start with " ?? "
-            end_string_re = self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
-            preds_text_cleaned = []
-            labels_text_cleaned = []
-            for p, l in zip(preds_text, labels_text):
-                # remove end_string from the end of the string
-                for es in [end_string_re, data_cfg.end_string]:
-                    if p.endswith(es):
-                        p = p[: -len(es)].strip()
-                    if l.endswith(es):
-                        l = l[: -len(es)].strip()
-                preds_text_cleaned.append(p)
-                labels_text_cleaned.append(l)
-            preds_text = preds_text_cleaned
-            labels_text = labels_text_cleaned
-
-        if data_cfg.get("remove_text_pc", False):
-            preds_text = [remove_punctuations(p.lower(), data_cfg.get("punctuations", None)) for p in preds_text]
-            labels_text = [remove_punctuations(l.lower(), data_cfg.get("punctuations", None)) for l in labels_text]
-
-=======
         preds_text = output['preds_text']
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         if data_cfg.get("log_every_n_steps", None) is not None:
             if batch_idx % data_cfg.log_every_n_steps == 0:
                 logging.info(f"Input: `{inputs_text[0]}`")
                 logging.info(f"Label: `{labels_text[0]}`")
                 logging.info(f"Pred: `{preds_text[0]}`")
-
-        # if loss is nan, print the input, label and pred
-        if loss.isnan():
-            logging.info("++++++++++++++ NaN loss detected ++++++++++++++")
-            for i in range(len(inputs_text)):
-                logging.info(f"Input: `{inputs_text[i]}`")
-                logging.info(f"Label: `{labels_text[i]}`")
-                logging.info(f"Pred: `{preds_text[i]}`")
-            logging.info("++++++++++++++++++++++++++++++++++++++++++++++++")
 
         outputs = {
             'loss': loss,
@@ -1576,22 +1100,14 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         }
 
         if mode == 'validation':
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-            if len(self._validation_dl) > 1:
-=======
             if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[dataloader_idx][-1] = outputs
             else:
                 # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
                 self.validation_step_outputs[-1] = outputs
         else:
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-            if len(self._test_dl) > 1:
-=======
             if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
                 self.test_step_outputs[dataloader_idx][-1] = outputs
             else:
                 self.test_step_outputs[-1] = outputs
@@ -1643,8 +1159,14 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
-        if not outputs or (all([not x for x in outputs])):
-            return
+        if not outputs:
+            # Handle case where no metrics. This can break checkpoint save/load.
+            app_state = AppState()
+            monitor_mode = app_state.checkpoint_callback_params.mode
+            assert monitor_mode in ['min', 'max']
+            averaged_metric = 0.0 if monitor_mode == 'max' else 1e2
+            logging.warning(f"No outputs to log for {mode} epoch")
+            return torch.Tensor([1e2]), torch.Tensor([averaged_metric])
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]
@@ -1705,9 +1227,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                     for pred, label, input, metadata in zip(
                         batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
                     ):
-                        key = input + label + str(metadata)
+                        key = input + label
                         total_size += 1
-                        if key not in inp_label_set:
+                        dedup = data_cfg.get('deduplicate', True)
+                        if (not dedup) or key not in inp_label_set:
                             inp_label_set.add(key)
                             deduplicated_outputs['preds'].append(pred)
                             deduplicated_outputs['labels'].append(label)
@@ -1740,11 +1263,11 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 if metric_name == 'rouge':
                     for k, v in metric_result.items():
                         if 'fmeasure' in k:
-                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True, batch_size=1)
+                            self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True)
                             logging.info(f"{mode} {metric_name} {k}: {v.item()}")
                     metric_result = metric_result['rouge1_fmeasure']
                 else:
-                    self.log(metric_log_key, metric_result.item(), sync_dist=True, batch_size=1)
+                    self.log(metric_log_key, metric_result.item(), sync_dist=True)
                     logging.info(f"{mode} {metric_name}: {metric_result.item()}")
 
                 metric_fn.reset()
@@ -1773,9 +1296,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
         averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 0 else None
-        averaged_loss = averaged_loss.to(self.device)
-        if averaged_metric is not None:
-            averaged_metric = averaged_metric.to(self.device)
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
         if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
@@ -1787,19 +1307,15 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         if mode == 'validation':
             self.log("validation_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
+                self.log(f"validation_{self.val_metric_name}", averaged_metric, sync_dist=True)
         elif mode == 'test':
             self.log("test_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
+                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True)
 
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-        self._restore_activation_checkpointing_args()
-=======
         # TODO(zhehuai): add _restore_sequence_parallelism_args after sync to HEAD
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -1848,44 +1364,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             dataloaders.append(eval_dl)
         return dataloaders
 
-<<<<<<< HEAD:nemo/collections/multimodal/speech_llm/models/modular_models.py
-    def get_test_dataloader(self, data_cfg):
-        datasets = self._build_dataset(data_cfg, False)
-        dataloaders = []
-        if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
-        for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
-            dataloaders.append(eval_dl)
-        return dataloaders
-
-    def sharded_state_dict(self, prefix: str = ''):
-        """
-        Force None for the parent class's sharded_state_dict() method if setup is complete.
-        """
-        if self.setup_complete:
-            return None
-        else:
-            return super().sharded_state_dict(prefix=prefix)
-
-    @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
-        Returns:
-            List of available pre-trained models.
-        """
-        results = []
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="speechllm_fc_llama2_7b",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speechllm_fc_llama2_7b",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speechllm_fc_llama2_7b/versions/1.24.0/files/speechllm_fc_llama2_7b.nemo",
-        )
-        results.append(model)
-        return results
-=======
     def fwd_bwd_step(self, dataloader_iter, batch_idx, forward_only):
         batch = next(dataloader_iter)
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
@@ -1982,86 +1460,106 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         return super().training_step(itertools.chain([batch]), batch_idx=batch_idx)
 
-class CrossAttendModularizedAudioT5Model(ModularizedAudioT5Model):
+
+class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
     """Modularized speech GPT model."""
 
-    def _create_attention_mask(self, encoder_input: torch.Tensor):
-        batch_size = encoder_input.shape[0]
-        max_len = encoder_input.shape[1]
-        # TODO(zhehuai): use prefixlm instead for the audio embeddings
-        # Using causal attention mask for whole input
-        attention_mask = torch.tril(torch.ones((batch_size, max_len, max_len), device=encoder_input.device)).view(
-            batch_size, 1, max_len, max_len
-        )
-        # Convert attention mask from float to bool
-        attention_mask = attention_mask < 0.5
-        return attention_mask
-    
     def prepare_llm_input(self, audio_batch):
 
         input_signal = audio_batch['audio_signal']
         input_signal_length = audio_batch['audio_signal_length']
 
         input_ids, input_length, labels, loss_mask = (
-            audio_batch['tokens'],
-            audio_batch['tokens_length'],
+            audio_batch['contexts'],
+            audio_batch['context_lengths'],
             audio_batch['labels'],
             audio_batch['loss_mask'],
         )
 
-        num_audios = audio_batch.get("num_audios", None)
-        if num_audios is not None:
-            raise ValueError("num_audios is not supported.")
-
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-        lm_embedding = (
-           base_module.encoder_embedding
-        )
         # [b, t, c]
-        encoded, encoded_len, aux_loss = self.perception(
+        encoded, encoded_len = self.perception(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
             processed_signal=None,
             processed_signal_length=None,
-            lm_embedding=lm_embedding,
-            canary_tokens=audio_batch.get('canary_tokens', None),
         )
-        input_embeds = self._get_text_embeddings(input_ids, None)
-        encoder_input, extra_outputs = self.perception_cross_attn(encoded, encoded_len, input_embeds, input_lengths=input_length, return_mems=True)
+        encoder_input, attention_mask, encoder_length = encoded, None, encoded_len
+        # generate encoder_mask from encoder_length
+        enc_mask = torch.arange(encoder_input.shape[1], device=encoder_input.device)[None, :] < encoder_length[:, None]
+        return encoder_input, attention_mask, enc_mask
+
+    def forward(
+        self, audio_batch, checkpoint_activations_all_layers,
+    ):
+        """Forward pass of the model.
+
+        We prepend audio embeddings to the instruction and label text tokens 
+        as the LLM input.
+        """
         if 'audio_ratio' in audio_batch:
-            audio_ratio = audio_batch['audio_ratio'][..., None, None]
-            encoder_input = encoder_input * audio_ratio + input_embeds * (1 - audio_ratio)
-        if 'alpha_xattn' in extra_outputs:
-            alpha_xattn = extra_outputs['alpha_xattn']
             self.log(
-                'alpha_xattn',
-                alpha_xattn.mean(),
+                'local_batch_size',
+                audio_batch['audio_ratio'].shape[0],
                 prog_bar=True,
                 batch_size=1,
-                rank_zero_only=True,
+                rank_zero_only=False,
             )
-        attention_mask = self._create_attention_mask(encoder_input)
 
-        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
-            encoder_input = encoder_input.transpose(0, 1).contiguous()
-        if self.cfg.get("sequence_parallel", False):
-            encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
-        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoded_len, extra_outputs), aux_loss
+        encoder_input, _, enc_mask = self.prepare_llm_input(audio_batch)
+        # enc_input = speech prompt
+        # dec_input and label = text prompt and text output label
+        dec_input = audio_batch['tokens']
+        labels = audio_batch['labels']
+        dec_mask = (dec_input != self.tokenizer.eos_id) * (dec_input != self.tokenizer.pad_id).long().contiguous()
+        output = self.frozen_model.enc_dec_model(
+            enc_input_ids=None,
+            enc_attn_mask=enc_mask,
+            dec_input_ids=dec_input,
+            dec_attn_mask=dec_mask,
+            token_type_ids=None,
+            labels=labels,
+            output_enc_hidden_only=False,
+            enc_input=encoder_input,
+        )
+        loss_mask = audio_batch['loss_mask']
+        return output, loss_mask
 
-    def setup_perception_modules(self, cfg):
-        super().setup_perception_modules(cfg)
-        imported_cls = model_utils.import_class_by_path(cfg.perception.xattn.target)
-        self.perception_cross_attn = imported_cls(cfg=cfg.perception)
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        if self.setup_complete:
-            return_state_dict = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
-            state_dict = self.perception_cross_attn.state_dict(prefix="perception_cross_attn.")
-            return_state_dict.update(state_dict)
-            return return_state_dict
+        batch = to_cuda(batch, non_blocking=True)
+        encoder_input, _, enc_mask = self.prepare_llm_input(batch)
+        # enc_input = speech prompt
+        # dec_input and label = text prompt and text output label
+
+        predicted_token_ids, log_probs = self.frozen_model.decode(
+            tokens_enc=None,
+            enc_mask=enc_mask,
+            num_tokens_to_generate=self._inference_config['tokens_to_generate'],
+            encoder_input=encoder_input,
+            tokenizer=self.tokenizer,
+            bos_id = self.bos_id,
+            predicted_tokens_dec = torch.cat([batch['contexts'],torch.full_like(batch['contexts'][:,:1], self.sep_id, device=batch['contexts'].device)], dim=1),
+        )
+        predicted_token_ids = predicted_token_ids[:,batch['contexts'].shape[1]+1:]
+
+        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
+        input_text = batch['contexts']
+        preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        input_text = MegatronT5SFTModel.ids_to_text(input_text, self.tokenizer)
+        labels = batch['answers']
+
+        if labels is not None:
+            labels_text = MegatronT5SFTModel.ids_to_text(labels, self.tokenizer)
         else:
-            return super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
->>>>>>> canary_speechllm1_cross_t5_pr:nemo/collections/multimodal/speech_llm/models/modular_models_t5.py
+            labels_text = [None] * len(preds_text)
+
+        return {
+            'input_text': input_text,
+            'preds_text': preds_text,
+            'labels_text': labels_text,
+        }
+
+    def _build_dataset(self, data_cfg, is_train=True):
+        # this is crucial so as to tell the decoder when to start generate answer after context and paddings
+        assert data_cfg.add_sep == True
+        return super()._build_dataset(data_cfg, is_train)

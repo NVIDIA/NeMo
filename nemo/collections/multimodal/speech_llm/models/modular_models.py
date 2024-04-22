@@ -364,6 +364,15 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         """
         Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
         """
+        if 'audio_ratio' in audio_batch:
+            self.log(
+                'local_batch_size',
+                audio_batch['audio_ratio'].shape[0],
+                prog_bar=True,
+                batch_size=1,
+                rank_zero_only=False,
+            )
+
         encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
         if self.mcore_gpt:
             output = self.model(
@@ -577,23 +586,23 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 input_text_mask_ratio=data_cfg.get('input_text_mask_ratio', None),
             )
             if self.cfg.perception.get("is_canary", False):
-                from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+                from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
+                    PromptedAudioToTextLhotseDataset,
+                    get_prompt_format_fn,
+                )
 
                 perception_tokenizer = (
                     self.perception.tokenizer
                     if hasattr(self.perception, "tokenizer")
                     else self.perception.asr_model.tokenizer
                 )
-                canary_processer = LhotseSpeechToTextBpeDataset(
-                    tokenizer=perception_tokenizer
+                canary_processer=PromptedAudioToTextLhotseDataset(
+                    tokenizer=perception_tokenizer,
+                    prompt_format_fn=get_prompt_format_fn('canary'),
+                    inference=True,
                 )
             else:
                 canary_processer = None
-            context_len_for_AR_decoding = (
-                self.perception.asr_model.context_len_for_AR_decoding
-                if hasattr(self.perception, "asr_model")
-                else data_cfg.get('context_len_for_AR_decoding', 5)
-            )
             return LhotseAudioQuestionAnswerDataset(
                 tp,
                 default_question="answer the question according to the previous audio",
@@ -601,7 +610,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 max_seq_length=data_cfg["max_seq_length"],
                 canary_processor=canary_processer,
-                context_len_for_AR_decoding=context_len_for_AR_decoding,
                 convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
                 prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
                 canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),

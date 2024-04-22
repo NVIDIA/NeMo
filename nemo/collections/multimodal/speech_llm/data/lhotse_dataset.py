@@ -310,7 +310,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         max_seq_length: int,
         noise_cuts: Optional = None,
         canary_processor: Optional = None,
-        context_len_for_AR_decoding: Optional = 5,
         convert_canary_prompt_to_text: bool = False,
         prepend_to_exist_question: Optional = None,
         canary_tokens_augment_ratio: float = 0.0,
@@ -330,7 +329,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         self.question = default_question
         self.canary_processor = canary_processor
-        self.context_len_for_AR_decoding = context_len_for_AR_decoding
         self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
         self.prepend_to_exist_question = prepend_to_exist_question
         self.canary_tokens_augment_ratio = canary_tokens_augment_ratio
@@ -367,7 +365,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         if self.canary_processor != None:
             is_canary_tokens_augment = torch.rand(1) < self.canary_tokens_augment_ratio
-            _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
+            _, _, _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
             if is_canary_tokens_augment:
                 return_batch['canary_tokens'] = update_to_asr_task(canary_tokens)
             else:
@@ -375,7 +373,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             return_batch['canary_token_lengths'] = canary_token_lens
             for id, cut in enumerate(cuts):
                 canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(
-                    canary_tokens[id][: self.context_len_for_AR_decoding].tolist()
+                    canary_tokens[id].tolist()
                 )
                 if audio_ratio[id] == 0.0:
                     assert hasattr(cut, "question")

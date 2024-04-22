@@ -156,3 +156,15 @@ def align_feat_seq_list(
         new_seq_list.append(new_seq)
         new_seq_len_list.append(new_seq_len)
     return new_seq_list, new_seq_len_list
+
+
+def to_cuda(inputs, non_blocking=True):
+    """Recursively move inputs to cuda."""
+    if isinstance(inputs, torch.Tensor):
+        return inputs.cuda(non_blocking=non_blocking)
+    elif isinstance(inputs, dict):
+        return {k: to_cuda(v, non_blocking) for k, v in inputs.items()}
+    elif isinstance(inputs, (list, tuple, set)):
+        return inputs.__class__([to_cuda(x, non_blocking) for x in inputs])
+    else:
+        return inputs
