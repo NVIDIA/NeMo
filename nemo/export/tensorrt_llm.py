@@ -448,7 +448,7 @@ class TensorRTLLM(ITritonDeployable):
         if self.config is None:
             return None
         else:
-            return self.config["builder_config"]["hidden_size"]
+            return self.config["pretrained_config"]["hidden_size"]
 
     @property
     def get_triton_input(self):
@@ -651,15 +651,15 @@ class TensorRTLLM(ITritonDeployable):
                 raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
             prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
 
-        dtype = self.config['builder_config']['precision']
+        dtype = self.config['pretrained_config']['dtype']
         prompt_embeddings_table = prompt_embeddings_table.to(
             dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)
         ).cuda()
 
-        if prompt_embeddings_table.size(dim=1) != self.config["builder_config"]["hidden_size"]:
+        if prompt_embeddings_table.size(dim=1) != self.config["pretrained_config"]["hidden_size"]:
             raise Exception(
                 "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(
-                    self.config["builder_config"]["hidden_size"]
+                    self.config["pretrained_config"]["hidden_size"]
                 )
             )
 
