@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
+#          ref: ${{ github.event.pull_request.head.ref }}
           # custom token is required to trigger actions after reformatting + pushing
           token: ${{ secrets.NEMO_REFORMAT_TOKEN || secrets.GITHUB_TOKEN }}
 
