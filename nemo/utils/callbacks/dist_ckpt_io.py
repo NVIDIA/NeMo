@@ -1,5 +1,7 @@
 import shutil
 from abc import abstractmethod
+from contextlib import contextmanager
+from time import time
 from typing import Any, Dict, Optional
 
 from lightning_fabric.plugins import CheckpointIO
@@ -17,6 +19,15 @@ class AsyncFinalizableCheckpointIO(CheckpointIO):
     @abstractmethod
     def maybe_finalize_save_checkpoint(self, blocking: bool = False):
         raise NotImplementedError
+
+
+@contextmanager
+def debug_time(name: str):
+    start = time()
+    try:
+        yield
+    finally:
+        logging.debug(f'{name} took {time() - start:.3f}s')
 
 
 class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
@@ -37,6 +48,7 @@ class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
 
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
+    @debug_time('DistributedCheckpointIO.save_checkpoint')
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
@@ -55,8 +67,10 @@ class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
     def maybe_finalize_save_checkpoint(self, blocking: bool = False) -> bool:
         if not self.async_save:
             return False
-        self.save_sharded_strategy.maybe_finalize_async_save(blocking=blocking)
+        with debug_time('DistributedCheckpointIO.maybe_finalize_save_checkpoint'):
+            return self.save_sharded_strategy.maybe_finalize_async_save(blocking=blocking)
 
+    @debug_time('DistributedCheckpointIO.load_checkpoint')
     def load_checkpoint(
         self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: Dict[str, Any] = None
     ) -> Dict[str, Any]:
@@ -87,6 +101,7 @@ class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
             sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy
         )
 
+    @debug_time('DistributedCheckpointIO.remove_checkpoint')
     def remove_checkpoint(self, path: _PATH) -> None:
         """ Remove a distributed checkpoint.
 

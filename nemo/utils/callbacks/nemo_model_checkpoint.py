@@ -441,6 +441,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.maybe_finalize_async_save(trainer)
         super().on_train_batch_end(trainer, *args, **kwargs)
 
+    def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        self.maybe_finalize_async_save(trainer)
+        super().on_train_epoch_end(trainer, *args, **kwargs)
+
+    def teardown(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        self.maybe_finalize_async_save(trainer)
+        super().teardown(trainer, *args, **kwargs)
+
     def maybe_finalize_async_save(self, trainer, blocking=False):
         if not self.async_save:
             return
@@ -454,6 +462,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _get_finalize_save_checkpoint_callback(self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int):
         def _cb():
+            logging.debug(f'Finalize callback called for {global_step} step')
             self._last_global_step_saved = global_step
             self._last_checkpoint_saved = filepath
 
@@ -466,6 +475,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             # we don't want to remove the marker until all checkpointing is done.
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
+            logging.debug(f'Checkpoints to remove: {self.deferred_ckpts_to_remove}')
             for ckpt_to_remove in self.deferred_ckpts_to_remove:
                 self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
             self.deferred_ckpts_to_remove = []
