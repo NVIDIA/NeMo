@@ -149,36 +149,7 @@ def get_lhotse_dataloader_from_config(
 
     config = make_structured_with_schema_warnings(config)
 
-    # Seed and randomness.
-    #
-    # We have two parameters controlling randomness: seed and shard_seed.
-    # Both of them can be either set to a fixed number, or one of two string options "randomized" and "trng".
-    # - *seed* is the base random seed, used as one of the components for initializing various dataloading RNGs.
-    # - *shard_seed* controls the shard randomization strategy.
-    #
-    # Below are the typical examples of configuration with an explanation of what happens:
-    #
-    # Case 1: seed=<int>, shard_seed="randomized"
-    #
-    #   Non-tarred data: *seed* is used everywhere.
-    #
-    #   Tarred data: each dataloading worker on each (distributed) data-parallel rank is initialized
-    #       with a different random seed that's derived from *seed*, *rank*, and *worker_id*.
-    #       This is to ensure that the shards are presented in a different order in each worker.
-    #
-    #   Each time the training script is ran, the dataloader iteration will be deterministic.
-    #   This means if you use this setup and resume a training of the model, it will observe
-    #   the same data with the same augmentations in the same order as in the previous run,
-    #   unless you explicitly modify the *seed* value to be different.
-    #   Therefore, we strongly encourage to provide a different ``config.seed`` value
-    #   for each resumption of the training script.
-    #
-    # Case 2: seed=<any value>, shard_seed="trng"
-    #
-    #   Each time the training script is run, the dataloader iteration is guaranteed to be different,
-    #   but also not reproducible. Useful when you don't care about exact reproducibility and don't want
-    #   to deal with managing random seeds explicitly.
-
+    # First, resolve the random seed in case a string value was provided.
     seed = resolve_seed(config.seed)
     fix_random_seed(seed)
 
