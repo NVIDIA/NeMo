@@ -22,12 +22,7 @@ from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
 
 
 @pytest.fixture
-def enhancer_config(
-
-
-
-
-):
+def enhancer_config():
     n_bands = 80
     latent_dim = 192
     style_depth = 4
