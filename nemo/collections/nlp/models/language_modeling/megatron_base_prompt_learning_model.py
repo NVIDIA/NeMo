@@ -253,7 +253,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 state_dict_ = self.prompt_encoder.state_dict()
             else:
-                raise ValueError("invalid virtual prompt source")
+                print("invalid virtual prompt source")
 
         return state_dict_
 
@@ -269,7 +269,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                     self.init_prompt_encoder()
                 self.prompt_encoder.load_state_dict(state_dict, strict)
             else:
-                raise ValueError("invalid virtual prompt source")
+                print("invalid virtual prompt source")
 
     # def setup_optimizer_param_groups(self):
     #     """

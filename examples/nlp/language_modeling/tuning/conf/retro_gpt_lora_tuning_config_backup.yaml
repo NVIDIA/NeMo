@@ -11,7 +11,7 @@ trainer:
   max_epochs: 1 # min 25 recommended
   max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10 # frequency with which training steps are logged
-  val_check_interval: 0.1 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
+  val_check_interval: 0.5 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   # resume_from_checkpoint: /home/aficek/software/research/results/megatron_virtual_prompt_retro/2024-04-21_14-03-53/checkpoints/megatron_retro_prompt_tune--val_loss=2.459-step=18-last.ckpt
