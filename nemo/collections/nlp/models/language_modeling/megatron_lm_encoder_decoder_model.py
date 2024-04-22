@@ -50,9 +50,9 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.num_microbatches_calculator import (
-        reconfigure_microbatch_calculator,
         get_micro_batch_size,
         get_num_microbatches,
+        reconfigure_microbatch_calculator,
     )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 

@@ -41,7 +41,7 @@ from nemo.utils import AppState, logging
 try:
     from megatron.core import ModelParallelConfig, parallel_state
     from megatron.core.num_microbatches_calculator import reconfigure_microbatch_calculator
-    
+
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):

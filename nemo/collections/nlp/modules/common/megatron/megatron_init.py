@@ -31,7 +31,7 @@ try:
     from megatron.core import tensor_parallel
     from megatron.core.num_microbatches_calculator import (
         ConstantNumMicroBatchesCalculator,
-        init_num_microbatches_calculator
+        init_num_microbatches_calculator,
     )
     from megatron.core.parallel_state import (
         RankGenerator,
