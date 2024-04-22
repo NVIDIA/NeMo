@@ -143,7 +143,7 @@ model:
   
   peft:
     peft_scheme: "lora"  # can be either adapter,ia3, lora, or ptuning
-    restore_from_path: /home/ataghibakhsh/peft_griffin_dir_squad/megatron_griffin/2024-04-16_07-15-55/checkpoints/megatron_griffin.nemo
+    restore_from_path: null
 
     # Used for adapter peft training
     adapter_tuning:

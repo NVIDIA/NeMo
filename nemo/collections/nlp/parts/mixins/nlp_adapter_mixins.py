@@ -145,9 +145,9 @@ class NLPAdapterModelMixin:
                     )
                 if self.use_mcore_gpt:
                     if self.cfg.megatron_amp_O2:
-                        layers = self.model.module.layers
+                        layers = self.model.module.decoder.layers
                     else:
-                        layers = self.model.layers
+                        layers = self.model.decoder.layers
                 else:
                     if self.cfg.megatron_amp_O2:
                         layers = self.model.module.language_model.encoder.layers

@@ -76,8 +76,8 @@ model:
 
   tokenizer:
     library: 'huggingface'
-    type: 'google/recurrentgemma-2b' #'GriffinTokenizer'
-    model: #'/home/ataghibakhsh/recurrentgemma-2b/tokenizer.model' #'/home/ataghibakhsh/deepmind/space_gemma_model/tokenizer.model'
+    type: 'google/recurrentgemma-2b' 
+    model: null #'/home/ataghibakhsh/recurrentgemma-2b/tokenizer.model' #'/home/ataghibakhsh/deepmind/space_gemma_model/tokenizer.model'
     vocab_file: null
     merge_file: null 
     sentencepiece_legacy: False

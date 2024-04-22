@@ -24,6 +24,7 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TELayerNormColumnParallelLinear,
 )
+from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
@@ -86,29 +87,27 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         linear_qkv_output, _ = self.linear_qkv(hidden_states)
         layernorm_output = None
 
-        # In megatron/core/models/gpt/gpt_layer_specs.py TELayerNormColumnParallelLinear is used for linear_qkv.
-        # TELayerNormColumnParallelLinear fused LN and linear, both will be returned.
-        # In nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py TEColumnParallelLinear is used for linear_qkv,
+        # In megatron/core/models/gpt/gpt_layer_specs.py when fused module is used(e.g. TELayerNormColumnParallelLinear)
+        # both LN and qkv will be returned.
+        # In nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py TEColumnParallelLinear(non-fused) is used for linear_qkv,
         # which only returns linear.
-        if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
-            mixed_qkv, layernorm_output = linear_qkv_output
-        elif isinstance(self.linear_qkv, TEColumnParallelLinear):  # only mixed_qkv
+        if isinstance(linear_qkv_output, tuple):
+            if len(linear_qkv_output) == 2:  # fused module, qkv&LN
+                mixed_qkv, layernorm_output = linear_qkv_output
+            else:
+                raise ValueError(f"Unexpected number of outputs from linear_qkv output: {len(linear_qkv_output)}")
+        else:  # for qkv&LN not fused only mixed_qkv
             mixed_qkv = linear_qkv_output
-        else:
-            raise ValueError(
-                f"Unrecognized module type '{type(self.linear_qkv)}' when getting query, key, value tensors for mcore mixins. "
-            )
 
         # LoRA logic
         if self.is_adapter_available():
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
             if lora_kqv_adapter and self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']:
-                if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
+                if layernorm_output is not None:
                     lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
-                elif isinstance(self.linear_qkv, TEColumnParallelLinear):
-                    lora_mixed_qkv = lora_kqv_adapter(hidden_states)
                 else:
-                    raise ValueError(f"Unrecognized module type '{type(self.linear_qkv)}' when applying lora.")
+                    lora_mixed_qkv = lora_kqv_adapter(hidden_states)
+
                 mixed_qkv = mixed_qkv + lora_mixed_qkv
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
@@ -267,7 +266,7 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
     def forward(self, hidden_states):
         # [s, b, 4 * h/p]
         if self.linear_fc1.te_return_bias:
-            intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
+            intermediate_parallel, bias_parallel, layernorm_output = self.linear_fc1(hidden_states)
         else:
             # bias_parallel is None
             (intermediate_parallel, layernorm_output), bias_parallel = self.linear_fc1(hidden_states)
@@ -276,16 +275,13 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         if self.is_adapter_available():
             lora_linear_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
             if lora_linear_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
-                lora_output = lora_linear_fc1_adapter(hidden_states)
+                lora_output = lora_linear_fc1_adapter(layernorm_output)
                 intermediate_parallel = intermediate_parallel + lora_output
-        # print(f"peft intermediate_parallel: {intermediate_parallel.shape}")
+
         if self.config.bias_activation_fusion:
             if self.activation_func == F.gelu:
                 if self.config.gated_linear_unit:
-                    from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
-
                     intermediate_parallel = bias_geglu_impl(intermediate_parallel, bias_parallel)
-                    # print(f"mlp intermediate_parallel: {intermediate_parallel.shape}")
                 else:
                     assert self.config.add_bias_linear is True
                     intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
