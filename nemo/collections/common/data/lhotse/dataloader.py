@@ -156,34 +156,29 @@ def get_lhotse_dataloader_from_config(
     # - *seed* is the base random seed, used as one of the components for initializing various dataloading RNGs.
     # - *shard_seed* controls the shard randomization strategy.
     #
-    # Below are some examples of configuration with an explanation of what happens:
+    # Below are the typical examples of configuration with an explanation of what happens:
     #
     # Case 1: seed=<int>, shard_seed="randomized"
     #
     #   Non-tarred data: *seed* is used everywhere.
     #
     #   Tarred data: each dataloading worker on each (distributed) data-parallel rank is initialized
-    #       with a different random seed that's derived based on *seed*, *rank*, and *worker_id*.
+    #       with a different random seed that's derived from *seed*, *rank*, and *worker_id*.
     #       This is to ensure that the shards are presented in a different order in each worker.
     #
     #   Each time the training script is ran, the dataloader iteration will be deterministic.
     #   This means if you use this setup and resume a training of the model, it will observe
     #   the same data with the same augmentations in the same order as in the previous run,
     #   unless you explicitly modify the *seed* value to be different.
+    #   Therefore, we strongly encourage to provide a different ``config.seed`` value
+    #   for each resumption of the training script.
     #
     # Case 2: seed=<any value>, shard_seed="trng"
     #
     #   Each time the training script is run, the dataloader iteration is guaranteed to be different,
-    #   but also not reproducible.
-    #
-    # Case 3: seed="trng", shard_seed="randomized"
-    #
-    #   It is like case 2, but with one difference: within a given training run,
-    #   invoking ``get_lhotse_dataloader_from_config`` with the same arguments is
-    #   guaranteed to yield a dataloader with the same data iteration pattern.
-    #   This is useful for mixed data and model parallelism where some GPUs
-    #   have the same DDP rank but different model parallelism ranks.
-    #
+    #   but also not reproducible. Useful when you don't care about exact reproducibility and don't want
+    #   to deal with managing random seeds explicitly.
+
     seed = resolve_seed(config.seed)
     fix_random_seed(seed)
 
@@ -328,7 +323,7 @@ def get_lhotse_dataloader_from_config(
         # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=config.seed),
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
             persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
