@@ -18,7 +18,6 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
           # custom token is required to trigger actions after reformatting + pushing
@@ -29,6 +28,7 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v42
         with:
+          fetch_depth: "1"
           files: |
             **.py
 
