@@ -837,7 +837,7 @@ class DataCollatorForSupervisedDataset(object):
                 eod_token=tokenizer.eos_id,
                 eod_mask_loss=model_cfg.data.get("eod_mask_loss", False),
                 reset_attention_mask=False,
-                reset_position_ids=True,
+                reset_position_ids=False,
             )
 
         loss_mask[labels == -1] = 0.0
