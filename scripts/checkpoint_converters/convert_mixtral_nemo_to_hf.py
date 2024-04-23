@@ -17,7 +17,8 @@ Conversion script to convert NeMo Mixtral checkpoints into HuggingFace checkpoin
   Example to run this conversion script:
     python3 convert_mixtral_nemo_to_hf.py \
      --input_name_or_path <path_to_nemo_checkpoints_folder> \
-     --output_path <path_to_output_hf_file> 
+     --output_path <path_to_output_hf_file> \
+     --input_tokenizer /path/to/tokenizer
 """
 
 from argparse import ArgumentParser
@@ -43,7 +44,19 @@ def get_args():
     parser.add_argument(
         '--hf_model_name', type=str, default="mistralai/Mixtral-8x7B-v0.1", help="Name of HF checkpoint"
     )
-    parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument(
+        "--input_tokenizer",
+        type=str,
+        default=None,
+        help="Path to tokenizer used for the input nemo model. (need to extract the .nemo file first)",
+    )
+    parser.add_argument(
+        "--precision",
+        type=str,
+        default=None,
+        help="Precision of output weights."
+        "Defaults to precision of the input nemo weights (model.cfg.trainer.precision)",
+    )
     args = parser.parse_args()
     return args
 
@@ -238,8 +251,22 @@ if __name__ == '__main__':
 
     config = load_config(args.hf_model_name, nemo_config)
     model = AutoModelForCausalLM.from_config(config)
+
+    if args.input_tokenizer:
+        tokenizer = LlamaTokenizer.from_pretrained(args.input_tokenizer, local_files_only=True, legacy=False)
+        tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
+        fast_tokenizer = LlamaTokenizerFast(tokenizer_object=tmp_tokenizer)
+        tokenizer_length = len(fast_tokenizer)
+        model.resize_token_embeddings(tokenizer_length)
+
     model.load_state_dict(hf_state_dict)
     model.save_pretrained(args.output_path)
-    hf_tokenizer = AutoTokenizer.from_pretrained(args.hf_model_name)
-    hf_tokenizer.save_pretrained(args.output_path)
     logging.info(f'HF checkpoint saved to: {args.output_path}')
+
+    if args.input_tokenizer:
+        fast_tokenizer.save_pretrained(args.output_path)
+        tokenizer.save_pretrained(args.output_path)
+    else:
+        hf_tokenizer = AutoTokenizer.from_pretrained(args.hf_model_name)
+        hf_tokenizer.save_pretrained(args.output_path)
+    logging.info(f'HF tokenizer saved to: {args.output_path}')
