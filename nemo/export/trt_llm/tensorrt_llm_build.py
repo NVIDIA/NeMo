@@ -367,6 +367,7 @@ def build_and_save_engine(
     except:
         raise AttributeError(f"Could not find TRTLLM model type: {model_type}!")
 
+    logger.set_level("info")
     str_dtype = model_config.dtype
     plugin_config = PluginConfig()
     plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
