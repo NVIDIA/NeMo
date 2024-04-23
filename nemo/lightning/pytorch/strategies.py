@@ -83,7 +83,6 @@ class MegatronStrategy(DDPStrategy):
     @override
     def connect(self, model: pl.LightningModule) -> None:
         super().connect(model)
-<<<<<<< HEAD
 
         # Right now mcore sub-classes ModelParellelConfig, we should remove that
         # Given Lightning's structure it would be better if parallelism is a different object
@@ -91,15 +90,6 @@ class MegatronStrategy(DDPStrategy):
 
         from megatron.core.transformer.transformer_config import TransformerConfig
 
-=======
-        
-        # Right now mcore sub-classes ModelParellelConfig, we should remove that
-        # Given Lightning's structure it would be better if parallelism is a different object
-        # Since then it can be passed to the Strategy
-        
-        from megatron.core.transformer.transformer_config import TransformerConfig
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         has_mcore_config = isinstance(getattr(model, "config", None), TransformerConfig)
         if has_mcore_config and is_overridden("configure_model", model):
             config: TransformerConfig = model.config
@@ -108,11 +98,7 @@ class MegatronStrategy(DDPStrategy):
             config.virtual_pipeline_model_parallel_size = self.virtual_pipeline_model_parallel_size
             config.sequence_parallel = self.sequence_parallel
             self._mcore_config = config
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     @override
     def setup(self, trainer: pl.Trainer) -> None:
         assert self.accelerator is not None
@@ -128,27 +114,18 @@ class MegatronStrategy(DDPStrategy):
         if trainer_fn == TrainerFn.FITTING and self._layer_sync:
             assert self.model is not None
             self.model = self._layer_sync.apply(self.model)
-<<<<<<< HEAD
 
-=======
-            
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         datamodule = getattr(trainer, "datamodule", None)
         if not self.data_sampler and hasattr(datamodule, "data_sampler"):
             self.data_sampler = datamodule.data_sampler
             self.data_sampler.setup(self.cluster_environment.global_rank())
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         if self.data_sampler:
             self.data_sampler.connect(trainer)
 
         self._fix_progress_bar(trainer)
         self.setup_megatron_parallel(trainer)
         self.setup_precision_plugin()
-<<<<<<< HEAD
 
         if trainer.num_sanity_val_steps > 1 and self.pipeline_model_parallel_size > 1:
             # TODO: log here
@@ -156,15 +133,7 @@ class MegatronStrategy(DDPStrategy):
 
         for loop in [fit_loop, evaluation_loop, prediction_loop]:
             loop._select_data_fetcher = _data_fetcher_wrapper(loop._select_data_fetcher)  # noqa: SLF001
-=======
-        
-        if trainer.num_sanity_val_steps > 1 and self.pipeline_model_parallel_size > 1:
-            # TODO: log here            
-            trainer.num_sanity_val_steps = 0
-        
-        for loop in [fit_loop, evaluation_loop, prediction_loop]:
-            loop._select_data_fetcher = _data_fetcher_wrapper(loop._select_data_fetcher)   # noqa: SLF001
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
+
 
         if trainer_fn == TrainerFn.FITTING:
             # TODO: Make sure we don't always wrap the model in data-parallel
@@ -172,11 +141,7 @@ class MegatronStrategy(DDPStrategy):
 
             # do not wrap with DDP if not fitting as there's no gradients to reduce
             self.configure_ddp()
-<<<<<<< HEAD
 
-=======
-            
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
             trainer.fit_loop.epoch_loop.automatic_optimization = _MegatronAutomaticOptimization(trainer)
 
             # set up optimizers after the wrapped module has been moved to the device
@@ -201,28 +166,17 @@ class MegatronStrategy(DDPStrategy):
     def setup_distributed(self) -> None:
         self._setup_parallel_ranks()
         super().setup_distributed()
-<<<<<<< HEAD
 
         from megatron.core import parallel_state
         from nemo.utils import AppState
 
-=======
-        
-        from megatron.core import parallel_state
-        from nemo.utils import AppState
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         # init model parallel if needed
         if not parallel_state.model_parallel_is_initialized():
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
                 _strategy_lib.init_model_parallel(self.model)
-<<<<<<< HEAD
 
-=======
-                
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         if self.data_sampler:
             assert isinstance(self.cluster_environment, ClusterEnvironment), "Cluster environment not initialized"
             self.data_sampler.setup(self.cluster_environment.global_rank())
@@ -231,7 +185,6 @@ class MegatronStrategy(DDPStrategy):
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
         if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
-<<<<<<< HEAD
 
         return dataloader
 
@@ -251,27 +204,6 @@ class MegatronStrategy(DDPStrategy):
             self.model = self.precision_plugin.convert_module(self.model)
         self.model.callbacks.add(getattr(trainer, "callbacks"))
 
-=======
-        
-        return dataloader
-        
-    def setup_megatron_parallel(self, trainer: pl.Trainer) -> None:
-        assert self.model is not None, "Model is not set"
-        
-        self.megatron_parallel = MegatronParallel(
-            self.model, 
-            precision_plugin=self.precision_plugin,
-            vp_size=self.virtual_pipeline_model_parallel_size,
-            cpu=isinstance(trainer.accelerator, CPUAccelerator)
-        )
-        self.model = self.megatron_parallel
-        self.model.trainer = trainer
-        
-        if hasattr(self.precision_plugin, "convert_module"):
-            self.model = self.precision_plugin.convert_module(self.model)
-        self.model.callbacks.add(getattr(trainer, "callbacks"))
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         if self.data_sampler:
             self.model.callbacks.add(self.data_sampler)
 
@@ -284,11 +216,7 @@ class MegatronStrategy(DDPStrategy):
         logging.debug(f"{self.__class__.__name__}: configuring MegatronParallel")
         self.model = self._setup_model(self.model)
         self._register_ddp_hooks()
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     @override
     def _setup_model(self, model: nn.Module) -> DistributedDataParallel:
         """Only called when we need to wrap the model for pytorch's ddp."""
@@ -309,7 +237,6 @@ class MegatronStrategy(DDPStrategy):
             dist_data_parallel.register_comm_hook(None, noop_hook)
 
         return dist_data_parallel
-<<<<<<< HEAD
 
     def _setup_parallel_ranks(self) -> None:
         self.set_world_ranks()
@@ -317,23 +244,11 @@ class MegatronStrategy(DDPStrategy):
 
         _strategy_lib.init_parallel_ranks(env.world_size(), env.global_rank(), env.local_rank(), self.parallelism)
 
-=======
-    
-    def _setup_parallel_ranks(self) -> None:
-        self.set_world_ranks()
-        env = cast(ClusterEnvironment, self.cluster_environment)
-        
-        _strategy_lib.init_parallel_ranks(
-            env.world_size(), env.global_rank(), env.local_rank(), self.parallelism
-        )
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     @override
     def training_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
         assert self.lightning_module is not None
         assert self.model is not None
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "training")
-<<<<<<< HEAD
 
         with self.precision_plugin.train_step_context():  # TODO: Do we need this?
             return self.model(dataloader_iter, *args, **kwargs)
@@ -363,66 +278,21 @@ class MegatronStrategy(DDPStrategy):
         kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "predict")
 
         with self.precision_plugin.predict_step_context():  # TODO: Do we need this?
-=======
-        
-        with self.precision_plugin.train_step_context(): # TODO: Do we need this?
-            return self.model(dataloader_iter, *args, **kwargs)
-    
-    @override
-    def validation_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:        
-        assert self.lightning_module is not None
-        assert self.model is not None
-        kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "validation")
-        
-        with self.precision_plugin.val_step_context(): # TODO: Do we need this?
-            return self.model(dataloader_iter, *args, **kwargs)
-        
-    @override
-    def test_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:        
-        assert self.lightning_module is not None
-        assert self.model is not None
-        kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "test")
-        
-        with self.precision_plugin.test_step_context(): # TODO: Do we need this?
-            return self.model(dataloader_iter, *args, **kwargs)
-        
-    @override
-    def predict_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:        
-        assert self.lightning_module is not None
-        assert self.model is not None
-        kwargs = self._update_step_kwargs(dataloader_iter, kwargs, "predict")
-        
-        with self.precision_plugin.predict_step_context(): # TODO: Do we need this?
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
             return self.model(dataloader_iter, *args, **kwargs)
 
     @override
     def teardown(self) -> None:
         super().teardown()
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     @override
     def model_sharded_context(self) -> ContextManager:
         if self.lazy_init and hasattr(self, "_mcore_config"):
             stack = ExitStack()
-<<<<<<< HEAD
             stack.enter_context(_strategy_lib.megatron_lazy_init_context(self._mcore_config))
             return stack
 
         return super().model_sharded_context()
 
-=======
-            stack.enter_context(
-                _strategy_lib.megatron_lazy_init_context(self._mcore_config)
-            )
-            return stack
-        
-        return super().model_sharded_context()
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     def _update_step_kwargs(self, dataloader_iter, kwargs, step_name: str):
         if "data_step" not in kwargs:
             kwargs["data_step"] = self._get_data_step(step_name)
@@ -431,11 +301,7 @@ class MegatronStrategy(DDPStrategy):
         if "loss_reduction" not in kwargs:
             kwargs["loss_reduction"] = self._get_loss_reduction(step_name)
         kwargs.update(self._data_config_kwargs(dataloader_iter))
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         return kwargs
 
     def _fix_progress_bar(self, trainer: pl.Trainer) -> None:
@@ -466,23 +332,12 @@ class MegatronStrategy(DDPStrategy):
         # TODO: Fix when MainParamsOptimizerWrapper is not used
 
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         return _strategy_lib.optimizer_sharded_state_dict(self.megatron_parallel, optimizer)
 
     @override
     def save_checkpoint(
-<<<<<<< HEAD
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
-=======
-        self,
-        checkpoint: Dict[str, Any],
-        filepath: Union[str, Path],
-        storage_options: Optional[Any] = None
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     ) -> None:
         checkpoint['state_dict'] = OrderedDict([])  # remove device state_dict
         checkpoint['sharded_state_dict'] = self.megatron_parallel.sharded_state_dict()
@@ -499,7 +354,6 @@ class MegatronStrategy(DDPStrategy):
         which makes it convenient to have the loading logic happen at the strategy level.
         """
         torch.cuda.empty_cache()
-<<<<<<< HEAD
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
         sharded_state_dict = {}
@@ -509,18 +363,6 @@ class MegatronStrategy(DDPStrategy):
         #     if self.lightning_module.optimizers(use_pl_optimizer=False):
         #         sharded_state_dict["optimizer_states"] = [self.optimizer_sharded_state_dict()]
 
-=======
-        
-        # After dist_checkpointing.load, sharded tensors will be replaced with tensors
-        sharded_state_dict = {}
-        sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
-        
-        
-        # if self.trainer.state.fn == TrainerFn.FITTING:
-        #     if self.lightning_module.optimizers(use_pl_optimizer=False):
-        #         sharded_state_dict["optimizer_states"] = [self.optimizer_sharded_state_dict()]
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
 
         return checkpoint
@@ -528,19 +370,10 @@ class MegatronStrategy(DDPStrategy):
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         if self.is_global_zero:
             shutil.rmtree(ckpt_to_dir(filepath))
-<<<<<<< HEAD
-
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         assert self.megatron_parallel is not None
         from megatron.core import mpu
 
-=======
-                
-    def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
-        assert self.megatron_parallel is not None
-        from megatron.core import mpu
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         for index, module in enumerate(self.megatron_parallel):
             if mpu.get_virtual_pipeline_model_parallel_world_size() is not None:
                 checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
@@ -548,18 +381,10 @@ class MegatronStrategy(DDPStrategy):
                 checkpoint_state_dict = checkpoint['state_dict']
             # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
             checkpoint_state_dict = {
-<<<<<<< HEAD
                 key.replace('model.', ''): checkpoint_state_dict.pop(key) for key in list(checkpoint_state_dict.keys())
             }
             module.load_state_dict(checkpoint_state_dict, strict=strict)
 
-=======
-                key.replace('model.', ''): checkpoint_state_dict.pop(key)
-                for key in list(checkpoint_state_dict.keys())
-            }
-            module.load_state_dict(checkpoint_state_dict, strict=strict)
-            
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
@@ -569,11 +394,7 @@ class MegatronStrategy(DDPStrategy):
             self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
 
         return self._checkpoint_io
-<<<<<<< HEAD
 
-=======
-                
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     def _get_data_step(self, step_type: str) -> Optional[_ModuleStepFunction]:
         for fn_name in [f"{step_type}_data_step", "data_step"]:
             if hasattr(self.lightning_module, fn_name):
@@ -583,19 +404,11 @@ class MegatronStrategy(DDPStrategy):
 
     def _get_forward_step(self, step_type: str) -> Optional[_ModuleStepFunction]:
         from megatron.core import mpu
-<<<<<<< HEAD
 
         if mpu.is_pipeline_last_stage():
             if not hasattr(self.lightning_module, f"{step_type}_step"):
                 raise ValueError(f"LightningModule does not have {step_type}_step method")
 
-=======
-        
-        if mpu.is_pipeline_last_stage():
-            if not hasattr(self.lightning_module, f"{step_type}_step"):
-                raise ValueError(f"LightningModule does not have {step_type}_step method")
-            
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
             return _ModuleStepFunction(f"{step_type}_step", includes_self=True)
 
         for fn_name in [f"{step_type}_forward_step", "forward_step"]:
@@ -615,21 +428,13 @@ class MegatronStrategy(DDPStrategy):
         if not hasattr(dataloader_iter, "data_config") and self.data_sampler:
             if hasattr(self.data_sampler, "megatron_data_kwargs"):
                 return self.data_sampler.megatron_data_kwargs
-<<<<<<< HEAD
 
-=======
-       
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         return {}
 
     @property
     def distributed_sampler_kwargs(self) -> Dict[str, Any]:
         from nemo.utils import AppState
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             # When using model parallel, data parallel groups are non-trivial and they
@@ -650,28 +455,15 @@ class MegatronStrategy(DDPStrategy):
         deserializing the checkpoint.
         """
         return True
-<<<<<<< HEAD
 
     @property
     def parallelism(self):
         from megatron.core.model_parallel_config import ModelParallelConfig
 
-=======
-    
-    @property
-    def parallelism(self):
-        from megatron.core.model_parallel_config import ModelParallelConfig
-        
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         return ModelParallelConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
-<<<<<<< HEAD
-            sequence_parallel=self.sequence_parallel,
-=======
-            sequence_parallel=self.sequence_parallel
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
         )
 
 
@@ -681,11 +473,6 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     to be used as a directory for distributed checkpoints.
     """
     filepath = Path(filepath)
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     if filepath.suffix == ".ckpt":
         return filepath.with_name(filepath.stem)
 
@@ -697,15 +484,7 @@ def _data_fetcher_wrapper(fn):
     def wrapped(trainer: pl.Trainer, stage: RunningStage):
         if isinstance(trainer.strategy, MegatronStrategy):
             return _DataLoaderIterDataFetcher()
-<<<<<<< HEAD
 
-        return fn(trainer, stage)
-
-=======
-        
-        return fn(trainer, stage)
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
     return wrapped
 
 
@@ -718,7 +497,3 @@ class _MegatronAutomaticOptimization(_AutomaticOptimization):
     def __init__(self, trainer: "pl.Trainer") -> None:
         super().__init__(trainer)
         self._skip_backward = True  # megatron will do the backward pass
-<<<<<<< HEAD
-=======
-    
->>>>>>> f8ef68139 (Move over _strategy_liMegatronCheckpointIO)
