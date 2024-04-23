@@ -372,10 +372,10 @@ class MegatronStrategy(DDPStrategy):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         assert self.megatron_parallel is not None
-        from megatron.core import mpu
+        from megatron.core import parallel_state
 
         for index, module in enumerate(self.megatron_parallel):
-            if mpu.get_virtual_pipeline_model_parallel_world_size() is not None:
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
             else:
                 checkpoint_state_dict = checkpoint['state_dict']
@@ -403,9 +403,9 @@ class MegatronStrategy(DDPStrategy):
         return None
 
     def _get_forward_step(self, step_type: str) -> Optional[_ModuleStepFunction]:
-        from megatron.core import mpu
+        from megatron.core import parallel_state
 
-        if mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             if not hasattr(self.lightning_module, f"{step_type}_step"):
                 raise ValueError(f"LightningModule does not have {step_type}_step method")
 
@@ -473,11 +473,11 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     to be used as a directory for distributed checkpoints.
     """
     filepath = Path(filepath)
+
     if filepath.suffix == ".ckpt":
         return filepath.with_name(filepath.stem)
 
     return filepath
-
 
 def _data_fetcher_wrapper(fn):
     @functools.wraps(fn)

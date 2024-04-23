@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Type
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
 
 import lightning.pytorch as L
 import torch
@@ -40,7 +40,7 @@ class GPTConfig(TransformerConfig):
                 self.num_layers // p_size
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
-        from megatron.core import mpu
+        from megatron.core import parallel_state
         from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
         from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
@@ -55,8 +55,8 @@ class GPTConfig(TransformerConfig):
             position_embedding_type=self.position_embedding_type,
             rotary_percent=self.rotary_percent,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=mpu.is_pipeline_first_stage(),
-            post_process=mpu.is_pipeline_last_stage(),
+            pre_process=parallel_state.is_pipeline_first_stage(),
+            post_process=parallel_state.is_pipeline_last_stage(),
         )
 
 
@@ -127,7 +127,7 @@ class GPTModel(L.LightningModule):
 
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
-    from megatron.core import mpu
+    from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
@@ -142,9 +142,9 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     required_keys = set()
     required_keys.add("attention_mask")
-    if mpu.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage():
         required_keys.update(("tokens", "position_ids"))
-    if mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask"))
     # if self.get_attention_mask_from_fusion:
     #     required_keys.remove('attention_mask')

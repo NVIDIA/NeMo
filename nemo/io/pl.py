@@ -91,7 +91,6 @@ class MegatronCheckpointIO(CheckpointIO):
         # return pl_load(path, map_location=map_location)
 
         checkpoint = dist_checkpointing.load(sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path))
-
         checkpoint = _fix_tensors_device(checkpoint)
 
         return checkpoint
