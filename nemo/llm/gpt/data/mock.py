@@ -11,7 +11,7 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-    
+
 
 class MockDataModule(pl.LightningDataModule):
     def __init__(
@@ -26,7 +26,7 @@ class MockDataModule(pl.LightningDataModule):
         num_test_samples: int = 10_000,
         num_workers: int = 8,
         pin_memory: bool = True,
-        persistent_workers: bool = False
+        persistent_workers: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -36,7 +36,7 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
-        
+
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
@@ -46,27 +46,21 @@ class MockDataModule(pl.LightningDataModule):
             global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
         )
-    
+
     def setup(self, stage: str = "") -> None:
-        self._train_ds = _MockGPTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length
-        )
-        self._validation_ds = _MockGPTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length
-        )
-        self._test_ds = _MockGPTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length
-        )
-    
+        self._train_ds = _MockGPTDataset(self.tokenizer, "train", self.num_train_samples, self.seq_length)
+        self._validation_ds = _MockGPTDataset(self.tokenizer, "valid", self.num_val_samples, self.seq_length)
+        self._test_ds = _MockGPTDataset(self.tokenizer, "test", self.num_test_samples, self.seq_length)
+
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._create_dataloader(self._train_ds)
-    
+
     def val_dataloader(self) -> EVAL_DATALOADERS:
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
         return self._create_dataloader(self._test_ds)
-        
+
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
@@ -74,18 +68,13 @@ class MockDataModule(pl.LightningDataModule):
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=dataset.collate_fn,
-            **kwargs
+            **kwargs,
         )
 
 
 class _MockGPTDataset(Dataset):
     def __init__(
-        self,
-        tokenizer: "TokenizerSpec",
-        name: str,
-        num_samples: int,
-        seq_length: int,
-        seed: int = 42,
+        self, tokenizer: "TokenizerSpec", name: str, num_samples: int, seq_length: int, seed: int = 42,
     ) -> None:
         super().__init__()
         self.name = name
@@ -94,9 +83,7 @@ class _MockGPTDataset(Dataset):
         self.length = num_samples
         self.seed = seed
 
-        self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(
-            0
-        )
+        self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length))).unsqueeze(0)
         self.attention_mask = self.attention_mask < 0.5
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
@@ -111,12 +98,8 @@ class _MockGPTDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(
-            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
-        )
-        labels = torch.from_numpy(
-            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
-        )
+        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
 
         return {
             "tokens": tokens,
@@ -125,7 +108,7 @@ class _MockGPTDataset(Dataset):
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
         }
-        
+
     def _collate_fn(self, batch):
         """
         A default implementation of a collation function.
