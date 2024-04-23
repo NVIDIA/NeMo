@@ -66,6 +66,7 @@ class RequestDataSet(Dataset):
     def __getitem__(self, idx):
         return {'prompts': self.sentences[idx], 'neighbors': self.neighbors[idx]}
 
+
 @hydra_runner(config_path="conf", config_name="megatron_retro_inference")
 def main(cfg) -> None:
 
