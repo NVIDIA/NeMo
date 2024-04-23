@@ -136,13 +136,15 @@ class LoraPEFTConfig(PEFTConfig):
                 if lora_cfg.get("variant", "nemo") == "canonical":
                     _adapter_name = AdapterName.LORA_UNFUSED_KQV_ADAPTER
                     _adapter_cfg_cls = LoraUnfusedKQVAdapterConfig
+                    adapter_cfg = self._create_lora_config(
+                        cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, _adapter_cfg_cls, num_query_groups=num_query_groups, kv_channels=kv_channels
+                    )
                 else:
                     _adapter_name = AdapterName.LORA_KQV_ADAPTER
                     _adapter_cfg_cls = LoraKQVAdapterConfig
-
-                adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, _adapter_cfg_cls
-                )
+                    adapter_cfg = self._create_lora_config(
+                        cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, _adapter_cfg_cls
+                    )
                 name_key_to_cfg[_adapter_name] = adapter_cfg
                 name_key_to_mcore_mixins[_adapter_name] = [("self_attention", MCoreSelfAttentionMixin)]
 
@@ -178,7 +180,7 @@ class LoraPEFTConfig(PEFTConfig):
         self.name_key_to_mcore_mixins = name_key_to_mcore_mixins
         super().__init__(lora_cfg, name_key_to_cfg)
 
-    def _create_lora_config(self, cfg, lora_cfg, in_features, out_features, adapter_cfg_cls):
+    def _create_lora_config(self, cfg, lora_cfg, in_features, out_features, adapter_cfg_cls, num_query_groups=None, kv_channels=None):
         config_args = {
             "in_features": in_features,
             "out_features": out_features,
@@ -194,6 +196,12 @@ class LoraPEFTConfig(PEFTConfig):
             "dropout_position": lora_cfg.get("dropout_position", "post"),
             "a2a_experimental": lora_cfg.get("a2a_experimental", False),
         }
+
+        if adapter_cfg_cls == LoraUnfusedKQVAdapterConfig:
+            assert num_query_groups is not None, "num_query_groups must be provided for canonical Lora"
+            assert kv_channels is not None, "kv_channels must be provided for canonical Lora"
+            config_args.update({"num_query_groups": num_query_groups, "kv_channels": kv_channels})
+            config_args.pop("out_features")
 
         if lora_cfg.weight_tying:
             position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
