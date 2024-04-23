@@ -488,8 +488,7 @@ class NLPAdapterModelMixin:
         at the specified `path` and modify `cfg` for inference
 
         Args:
-            path (str): If path ends with ".yaml", this is the config file to use to restore
-                        Otherwise, the path is PEFT model checkpoint to be restored.
+            path (str): The path to the SFT model checkpoint to be restored.
             cfg (DictConfig): The configuration dictionary to modify for inference.
 
         Returns:
@@ -506,11 +505,8 @@ class NLPAdapterModelMixin:
             - "use_flash_attention" will be True if in one of the configuration dictionarys is True
             - "seq_len_interpolation_factor" will be overrided from `cfg` if it's not None from checkpoint
         """
-        if path.endswith('.yaml'):
-            peft_cfg = OmegaConf.load(path)
-            cfg.model.peft.restore_from_path = None
-        else:
-            peft_cfg = cls.restore_from(path, return_config=True)
+
+        peft_cfg = cls.restore_from(path, return_config=True)
 
         if hasattr(peft_cfg, 'peft') and peft_cfg.peft.peft_scheme not in [None, 'none']:
             # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
