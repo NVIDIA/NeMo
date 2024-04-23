@@ -61,7 +61,7 @@ def load_config(hf_model_name, nemo_config):
     hf_config.num_key_value_heads = nemo_config.num_query_groups
     hf_config.num_local_experts = nemo_config.num_moe_experts
     assert hf_config.num_local_experts > 0, "num_experts must be greater than zero."
-    hf_config.num_experts_per_tok = nemo_config.num_experts_per_token
+    hf_config.num_experts_per_tok = nemo_config.moe_router_topk
     assert hf_config.num_experts_per_tok > 0, "num_experts_per_token must be greater than zero."
     if nemo_config.activation == 'fast-swiglu':
         hf_config.activation = 'silu'
@@ -233,7 +233,7 @@ def convert(in_file, precision=None) -> None:
 
 if __name__ == '__main__':
     args = get_args()
-    parallel_state.set_cpu_expert_model_parallel_world_size(1)
+    parallel_state.set_expert_model_parallel_world_size(1)
     hf_state_dict, nemo_config = convert(args.input_name_or_path, args.precision)
 
     config = load_config(args.hf_model_name, nemo_config)
