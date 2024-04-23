@@ -473,10 +473,10 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         )
-        assert (
-            use_dist_ckpt == has_sharded_state_dict
-        ), (f'Inconsistent dist-ckpt flags: use_dist_ckpt={use_dist_ckpt} and has_sharded_state_dict={has_sharded_state_dict}.'
-            f' NLPDDPStrategy should use DistributedCheckpointIO only for non-FSDP MCore models')
+        assert use_dist_ckpt == has_sharded_state_dict, (
+            f'Inconsistent dist-ckpt flags: use_dist_ckpt={use_dist_ckpt} and has_sharded_state_dict={has_sharded_state_dict}.'
+            f' NLPDDPStrategy should use DistributedCheckpointIO only for non-FSDP MCore models'
+        )
         return use_dist_ckpt
 
     @property
