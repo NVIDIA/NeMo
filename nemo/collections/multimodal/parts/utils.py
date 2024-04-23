@@ -320,7 +320,7 @@ def setup_trainer_and_model_for_inference(
 
 
 def create_neva_model_and_processor(cfg):
-    from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 
     plugins = []
     if cfg.get('cluster_type', None) == 'BCP':

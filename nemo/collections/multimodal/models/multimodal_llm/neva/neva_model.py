@@ -737,7 +737,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch, _, _ = next(dataloader_iter)
+            batch = next(dataloader_iter)
             extra_arg = {}
             (
                 tokens,
