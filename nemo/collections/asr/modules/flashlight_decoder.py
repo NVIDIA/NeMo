@@ -267,10 +267,10 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
 
         # each sequence in the batch has either a length given by `out_len` or the maximum length given by `T`
         # decoding should not continue beyond the maximum sequence length
-        if out_len:
-            seq_lens = out_len
-        else:
+        if out_len is None:
             seq_lens = [T] * B
+        else:
+            seq_lens = out_len
 
         hypos = []
         # we iterate over the batch dimension of our input tensor log probabilities
