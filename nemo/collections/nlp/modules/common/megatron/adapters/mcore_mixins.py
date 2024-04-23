@@ -26,7 +26,6 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TELayerNormColumnParallelLinear,
 )
-from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
