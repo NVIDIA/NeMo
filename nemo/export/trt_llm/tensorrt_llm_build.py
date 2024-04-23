@@ -365,7 +365,8 @@ def build_and_save_engine(
     lora_ckpt_list=None,
     use_lora_plugin=None,
     max_lora_rank=64,
-    lora_target_modules=None
+    lora_target_modules=None,
+    max_prompt_embedding_table_size=0
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -388,7 +389,7 @@ def build_and_save_engine(
         'max_beam_width': 1,
         'max_num_tokens': max_num_tokens,
         'opt_num_tokens': None,
-        'max_prompt_embedding_table_size': 0,
+        'max_prompt_embedding_table_size': max_prompt_embedding_table_size,
         'gather_context_logits': False,
         'gather_generation_logits': False,
         'strongly_typed': False,

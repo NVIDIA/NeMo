@@ -212,7 +212,8 @@ class TensorRTLLM(ITritonDeployable):
                 lora_ckpt_list=self.lora_ckpt_list,
                 use_lora_plugin=use_lora_plugin,
                 max_lora_rank=max_lora_rank,
-                lora_target_modules=lora_target_modules
+                lora_target_modules=lora_target_modules,
+                max_prompt_embedding_table_size=max_prompt_embedding_table_size
             )
 
         tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")

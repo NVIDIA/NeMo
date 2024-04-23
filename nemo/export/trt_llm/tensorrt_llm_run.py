@@ -276,6 +276,8 @@ def _forward(
             #     return_dict=True,
             # )
 
+            prompt_tasks = ",".join(str(task) for task in task_ids)
+
             outputs = decoder.generate(
                 input_tensors,
                 max_new_tokens=max_output_len,
@@ -289,7 +291,7 @@ def _forward(
                 bad_words_list=bad_words_list,
                 lora_uids=lora_uids,
                 prompt_table=prompt_table,
-                prompt_tasks=task_ids,
+                prompt_tasks=prompt_tasks,
                 streaming=streaming,
                 output_sequence_lengths=True,
                 return_dict=True,
