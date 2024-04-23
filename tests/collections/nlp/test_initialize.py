@@ -93,19 +93,23 @@ def old_fake_initialize_model_parallel(
 
 
 @pytest.mark.parametrize(
-    'nodes, num_gpu, tp, pp, cp, ep',
+    'nodes, num_gpu, local_rank, tp, pp, cp, ep',
     [
-        (1, 1, 1, 1, 1, 1),
-        (4, 8, 2, 4, 1, 1),
-        (8, 8, 8, 8, 1, 1),
-        (16, 8, 4, 8, 1, 1),
-        (16, 8, 4, 8, 4, 1),
-        (32, 8, 8, 8, 1, 1),
-        (32, 8, 4, 8, 1, 4),
-        (32, 8, 8, 8, 4, 1),
+        (2, 8, 0, 8, 1, 1, 1),
+        (1, 1, 0, 1, 1, 1, 1),
+        (1, 8, 0, 4, 1, 1, 1),
+        (1, 8, 1, 4, 1, 1, 1),
+        (1, 8, 2, 4, 1, 1, 1),
+        (4, 8, 0, 2, 4, 1, 1),
+        (8, 8, 0, 8, 8, 1, 1),
+        (16, 8, 0, 4, 8, 1, 1),
+        (16, 8, 0, 4, 8, 4, 1),
+        (32, 8, 0, 8, 8, 1, 1),
+        (32, 8, 0, 8, 8, 4, 1),
+        (2, 8, 2, 2, 2, 1, 2),
     ],
 )
-def test_fake_initialize(nodes, num_gpu, tp, pp, cp, ep):
+def test_fake_initialize(nodes, num_gpu, local_rank, tp, pp, cp, ep):
     (
         tensor_model_parallel_rank,
         pipeline_model_parallel_rank,
@@ -114,7 +118,7 @@ def test_fake_initialize(nodes, num_gpu, tp, pp, cp, ep):
         data_parallel_size,
         pipeline_model_parallel_split_rank,
         virtual_pipeline_model_parallel_rank,
-    ) = old_fake_initialize_model_parallel(nodes * num_gpu, 0, tp, pp, None, None, ep, cp)
+    ) = old_fake_initialize_model_parallel(nodes * num_gpu, local_rank, tp, pp, None, None, ep, cp)
 
     (
         m_tensor_model_parallel_rank,
@@ -124,7 +128,7 @@ def test_fake_initialize(nodes, num_gpu, tp, pp, cp, ep):
         n_data_parallel_size,
         n_pipeline_model_parallel_split_rank,
         n_virtual_pipeline_model_parallel_rank,
-    ) = fake_initialize_model_parallel(nodes * num_gpu, 0, tp, pp, None, None, ep, cp)
+    ) = fake_initialize_model_parallel(nodes * num_gpu, local_rank, tp, pp, None, None, ep, cp)
     assert m_tensor_model_parallel_rank == tensor_model_parallel_rank
     assert n_pipeline_model_parallel_rank == pipeline_model_parallel_rank
     assert n_expert_model_parallel_rank == expert_model_parallel_rank

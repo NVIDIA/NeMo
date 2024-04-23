@@ -310,10 +310,10 @@ def fake_initialize_model_parallel(
     logging.info(f'All tensor model parallel group ranks: {all_tensor_model_parallel_group_ranks}')
     logging.info(f'Rank {rank} has tensor model parallel rank: {tensor_model_parallel_rank}')
 
-    # EP rank
+    # TP-EP rank
     expert_model_parallel_rank = 0
     if expert_model_parallel_size_ is not None and expert_model_parallel_size_ > 1:
-        for ranks in rank_generator.get_ranks('ep', independent_ep=True):
+        for ranks in rank_generator.get_ranks('tp-ep', independent_ep=True):
             if rank in ranks:
                 expert_model_parallel_rank = list(ranks).index(rank) // tensor_model_parallel_size
 
