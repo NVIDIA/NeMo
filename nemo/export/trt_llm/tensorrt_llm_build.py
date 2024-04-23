@@ -34,6 +34,7 @@ from tensorrt_llm.quantization import QuantMode
 
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.plugin import PluginConfig
+from tensorrt_llm.lora_manager import LoraBuildConfig
 from tensorrt_llm.models.modeling_utils import optimize_model, preprocess_weights
 
 MODEL_NAME = "NeMo"
@@ -360,7 +361,11 @@ def build_and_save_engine(
     model_dir=None,
     model_weights=None,
     model_config=None,
-    model_type='gpt'
+    model_type='gpt',
+    lora_ckpt_list=None,
+    use_lora_plugin=None,
+    max_lora_rank=64,
+    lora_target_modules=None
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -374,6 +379,8 @@ def build_and_save_engine(
     plugin_config.set_gemm_plugin(dtype=str_dtype)
     max_num_tokens = max_batch_size*max_input_len
 
+    
+   
     build_dict = {
         'max_input_len': max_input_len,
         'max_output_len': max_output_len,
@@ -389,6 +396,15 @@ def build_and_save_engine(
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
+    if use_lora_plugin is not None:
+        build_config.plugin_config.set_lora_plugin(use_lora_plugin)
+        lora_config = LoraBuildConfig(
+            lora_dir=lora_ckpt_list,
+            lora_ckpt_source='nemo',
+            max_lora_rank=max_lora_rank,
+            lora_target_modules=lora_target_modules)
+        build_config.lora_config = lora_config
+    
     model = model_cls.from_config(model_config)
     model = optimize_model(
         model,
