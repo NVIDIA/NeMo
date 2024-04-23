@@ -259,7 +259,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             pl_module.save_to(save_path=self._format_nemo_checkpoint_name())
 
     def _backup_existing_nemo_ckpt(self, trainer) -> str:
-        """ Search for an available name with version infix and rename existing checkpoint. """
+        """ Search for an available name with version infix and rename existing checkpoint.
+
+        NOTE: this behavior is slightly different from regular checkpoints.
+        PTL creates new regular checkpoint with the first available name.
+        Here, for backward compatibility, we create .nemo checkpoint as before
+        and create a backup under the first available name.
+        """
         base_path = self._format_nemo_checkpoint_name()
         available_path = base_path
         if self._enable_version_counter:
@@ -274,10 +280,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _format_nemo_checkpoint_name(self, ver: Optional[int] = None) -> str:
         version_infix = '' if ver is None else f'{self.CHECKPOINT_JOIN_CHAR}v{ver}'
-        return os.path.abspath(os.path.expanduser(os.path.join(
-            self.dirpath,
-            self.prefix + version_infix + self.postfix
-        )))
+        return os.path.abspath(
+            os.path.expanduser(os.path.join(self.dirpath, self.prefix + version_infix + self.postfix))
+        )
 
     def _del_model_without_trainer(self, filepath: str) -> None:
 
