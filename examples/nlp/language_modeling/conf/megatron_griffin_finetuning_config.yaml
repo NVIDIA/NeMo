@@ -189,7 +189,7 @@ model:
       #   - /path/to/boolq.jsonl
       # Example of how each dataset is formatted
       # {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
-      file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data.
+      file_names: null # Path to a list of JSONL files corresponding to the source data.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -214,7 +214,7 @@ model:
       prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
     validation_ds:
-        file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+        file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
         names: null # Names of the corresponding datasets used to log metrics.
         global_batch_size: ${model.global_batch_size}
         micro_batch_size: ${model.micro_batch_size}
@@ -241,7 +241,7 @@ model:
           average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
           num_classes: null
     test_ds:
-      file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+      file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}

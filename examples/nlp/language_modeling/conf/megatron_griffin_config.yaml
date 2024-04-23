@@ -40,7 +40,7 @@ exp_manager:
 
 
 model:
-  restore_from_path: /home/ataghibakhsh/griffin.nemo
+  restore_from_path: null
   # model parallelism 
   micro_batch_size: 2
   global_batch_size: 2
@@ -78,7 +78,7 @@ model:
   tokenizer:
     library: 'huggingface'
     type: 'google/recurrentgemma-2b' 
-    model: null #'/home/ataghibakhsh/recurrentgemma-2b/tokenizer.model' #'/home/ataghibakhsh/deepmind/space_gemma_model/tokenizer.model'
+    model: null 
     vocab_file: null
     merge_file: null 
     sentencepiece_legacy: False
