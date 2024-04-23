@@ -19,7 +19,11 @@ import torch.nn as nn
 import numpy as np
 
 from nemo.collections.common.parts import form_attention_mask
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import (
+    MultiHeadAttention,
+    EfficientMonotonicMultiHeadAttention,
+    PositionWiseFF,
+)
 
 __all__ = ["TransformerDecoder"]
 
@@ -50,6 +54,7 @@ class TransformerDecoderBlock(nn.Module):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
+        online_mode: str = "wait_k",
     ):
         super().__init__()
         self.pre_ln = pre_ln
@@ -58,8 +63,8 @@ class TransformerDecoderBlock(nn.Module):
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.second_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
+        self.second_sub_layer = EfficientMonotonicMultiHeadAttention(
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout, online_mode
         )
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
@@ -135,6 +140,7 @@ class TransformerDecoder(nn.Module):
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
         mask_range: list = [7, 15],
+        online_mode: str = "wait_k",
     ):
         super().__init__()
 
@@ -152,6 +158,7 @@ class TransformerDecoder(nn.Module):
             ffn_dropout,
             hidden_act,
             pre_ln,
+            online_mode,
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self.diagonal = 0

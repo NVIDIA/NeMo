@@ -66,6 +66,9 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     preproc_out_dir: Optional[str] = None
     validate_input_ids: Optional[bool] = True
     shared_embeddings: bool = False
+        
+    latency_coef: float = 0.0
+    var_coef: float = 0.0
 
     # network architecture configuration
     encoder_tokenizer: Any = MISSING

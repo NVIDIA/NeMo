@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn.functional import gelu
+from torch.nn.parameter import Parameter
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.utils import logging
@@ -188,7 +189,8 @@ class MultiHeadAttention(nn.Module):
 
         bsz, num_heads, tgt_len, src_len = p.size()
 
-        p = p.view(-1, tgt_len, src_len)
+        p = p.view(-1, tgt_len, src_len)#.roll(1, [1])
+        #p[:, 0, :] = 1
 
         p_ext = p.roll(1, [-1]).unsqueeze(-2).expand(-1, -1, src_len, -1).triu(1)
 
@@ -245,6 +247,198 @@ class MultiHeadAttention(nn.Module):
             summand = alphas / softmax_energy.cumsum(dim=-1)
             if not regular_attn:
                 attention_probs = softmax_energy * summand.flip([-1]).cumsum(dim=-1).flip([-1]) # betas
+
+        attention_probs = self.attn_dropout(attention_probs)
+
+        context = torch.matmul(attention_probs, value)
+
+        context = context.permute(0, 2, 1, 3).contiguous()
+        new_context_shape = context.size()[:-2] + (self.hidden_size,)
+        context = context.view(*new_context_shape)
+
+        # output projection
+        output_states = self.out_projection(context)
+        output_states = self.layer_dropout(output_states)
+        
+        if p_prior is not None:
+            return output_states, alphas, p_choose
+        
+        return output_states
+
+
+class EnergyProjection(nn.Module):
+    def __init__(
+        self,
+        model_dim: int,
+        num_layers: int,
+    ) -> None:
+        super().__init__()
+
+        if num_layers < 1:
+            raise ValueError(
+                f"Invalid `num_layers`: {num_layers} for EnergyProjectionLayer."
+            )
+
+        self.layers = nn.ModuleList()
+
+        for _ in range(num_layers):
+            self.layers.append(
+                nn.Linear(model_dim, model_dim)
+            )
+            self.layers.append(nn.ReLU())
+
+    def forward(self, seqs):
+        for layer in self.layers:
+            seqs = layer(seqs)
+        return seqs
+
+
+class PChooseLayer(nn.Module):
+    """Represents a PChoose layer."""
+
+    def __init__(
+        self,
+        model_dim: int,
+        num_heads: int,
+        energy_bias_value: float,
+        monotonic_temperature: float,
+        num_monotonic_energy_layers: int,
+    ) -> None:
+
+        super().__init__()
+
+        self.model_dim = model_dim
+        self.num_heads = num_heads
+
+        if energy_bias_value != 0.0:
+            self.energy_bias = Parameter(torch.full([1], energy_bias_value))
+        else:
+            self.register_module("energy_bias", None)
+
+        self.monotonic_temperature = monotonic_temperature
+
+        if num_monotonic_energy_layers <= 0:
+            raise ValueError("Number of monotonic energy layers must be > 0.")
+
+        self.q_energy_proj = EnergyProjection(self.model_dim, num_monotonic_energy_layers)
+        self.k_energy_proj = EnergyProjection(self.model_dim, num_monotonic_energy_layers)
+
+    def forward(self, queries, keys):
+        
+        bsz, seq_len, hidden_size = queries.size()
+        
+        query = self.q_energy_proj(queries)
+        # (N, S, M) -> (N, H, S, K)
+        query = query.unflatten(-1, (self.num_heads, -1)).transpose(1, 2)
+
+
+        key = self.k_energy_proj(keys)
+        # (N, S_p, M) -> (N, H, S_p, K)
+        key = key.unflatten(-1, (self.num_heads, -1)).transpose(1, 2)
+
+        # (N, H, S, K) @ (N, H, K, S_p) = (N, H, S, S_p)
+        monotonic_energy = torch.matmul(query, key.transpose(-1, -2))
+        monotonic_energy = monotonic_energy * (hidden_size ** -0.5)
+
+        if self.energy_bias is not None:
+            monotonic_energy += self.energy_bias
+            
+        p_choose = torch.sigmoid(monotonic_energy / self.monotonic_temperature)
+
+        return p_choose
+
+
+class EfficientMonotonicMultiHeadAttention(nn.Module):
+
+    def __init__(self, hidden_size, num_attention_heads,
+                 attn_score_dropout=0.0, attn_layer_dropout=0.0, online_mode="wait_k"):
+        super().__init__()
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                "The hidden size (%d) is not a multiple of the number "
+                "of attention heads (%d)" % (hidden_size, num_attention_heads)
+            )
+        self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
+        self.attn_head_size = int(hidden_size / num_attention_heads)
+        self.attn_scale = math.sqrt(math.sqrt(self.attn_head_size))
+
+        self.query_net = nn.Linear(hidden_size, hidden_size)
+        self.key_net = nn.Linear(hidden_size, hidden_size)
+        self.value_net = nn.Linear(hidden_size, hidden_size)
+        self.out_projection = nn.Linear(hidden_size, hidden_size)
+        
+        self.p_choose = PChooseLayer(hidden_size, num_attention_heads, -0.5, 0.2, 2)
+
+        self.attn_dropout = nn.Dropout(attn_score_dropout)
+        self.layer_dropout = nn.Dropout(attn_layer_dropout)
+        
+        self.online_mode = online_mode
+
+    def transpose_for_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attn_head_size)
+        x = x.view(*new_x_shape)
+        return x.permute(0, 2, 1, 3)
+
+    def monotonic_alignment(self, p):
+        bsz, num_heads, tgt_len, src_len = p.size()
+        p = p.view(-1, tgt_len, src_len)
+        p_ext = p.roll(1, [-1]).unsqueeze(-2).expand(-1, -1, src_len, -1).triu(1)
+        T = (1 - p_ext).cumprod(-1).triu()
+        alpha = [p[:, [0]] * T[:, 0, [0]]]
+        for i in range(1, tgt_len):
+            alpha.append(p[:, [i]] * torch.bmm(alpha[i - 1], T[:, i]))
+        alphas = torch.cat(alpha, dim=1).view(bsz, num_heads, tgt_len, src_len)
+        return alphas
+    
+    def ones_on_seq_len(self, attn_mask):
+        batch_size, dim1, dim2, max_length = attn_mask.shape
+        lens = attn_mask[:,0,0,:].eq(0).sum(dim=-1) - 1
+        mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) == lens[:, None]
+        return mask[:, None, None, :]
+
+    def forward(self, queries, keys, values, attention_mask, p_prior=None, regular_attn=True):
+
+        # attention_mask is needed to hide the tokens which correspond to [PAD]
+        # in the case of BERT, or to hide the future tokens in the case of
+        # vanilla language modeling and translation
+        query = self.query_net(queries)
+        key = self.key_net(keys)
+        value = self.value_net(values)
+        query = self.transpose_for_scores(query) / self.attn_scale
+        key = self.transpose_for_scores(key) / self.attn_scale
+        value = self.transpose_for_scores(value)
+
+        # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
+        softmax_energy = torch.matmul(query, key.transpose(-1, -2))
+        if attention_mask is not None:
+            softmax_energy = softmax_energy + attention_mask.to(softmax_energy.dtype)
+            
+        p_choose = self.p_choose(queries, keys)
+        if p_prior is not None:
+            # probabilities masking
+            upper_mask, lower_mask = p_prior
+            p_choose = torch.maximum(p_choose, upper_mask)
+            p_choose = torch.minimum(p_choose, lower_mask)
+            lens_mask = self.ones_on_seq_len(attention_mask)
+            p_choose = torch.maximum(p_choose, lens_mask)
+        alpha_mask = (attention_mask == 0).to(p_choose.dtype)
+        alphas = self.monotonic_alignment(p_choose) * alpha_mask
+
+        if regular_attn:
+            # inference with regular softmax attention
+            attention_probs = torch.softmax(softmax_energy, dim=-1)
+        else:
+            if self.online_mode == "emma":
+                # training with betas
+                softmax_energy = softmax_energy - torch.max(softmax_energy, dim=-1, keepdim=True)[0]
+                softmax_energy = torch.clamp(torch.exp(softmax_energy), min=1e-5)
+                summand = alphas / softmax_energy.cumsum(dim=-1)
+                attention_probs = softmax_energy * summand.flip([-1]).cumsum(dim=-1).flip([-1]) # betas
+            else:
+                # training with wait-k, currently only emma and wait-k are supported
+                softmax_energy = softmax_energy + upper_mask * -10000.
+                attention_probs = torch.softmax(softmax_energy, dim=-1)
 
         attention_probs = self.attn_dropout(attention_probs)
 

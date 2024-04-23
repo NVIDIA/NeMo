@@ -27,6 +27,7 @@ __all__ = [
 ]
 
 
+# +
 class GreedySequenceGenerator:
     """
     Greedy sequence generator based on the decoder followed by log_softmax.
@@ -156,6 +157,8 @@ class GreedySequenceGenerator:
         decoder_mems_list = None
         src_len = 1
         i = 0
+        
+        latencies = []
 
         while i < max_generation_length:
 
@@ -163,18 +166,22 @@ class GreedySequenceGenerator:
                 tgt, encoder_hidden_states[:, :src_len], encoder_input_mask[:, :src_len], None, i
             )
 
-            if p_choose[-1,:,:,-1,-1].min().item() > 1.5 or (src_len - i) > 5:
+            # wait-5 on inference for validation
+            if p_choose[:,-1,:,-1,-1].min().item() > 1.5 or (src_len - i) > 5:
                 next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)
                 next_tokens = self.pad * pad_profile + next_tokens * (1 - pad_profile)
                 pad_profile = torch.max(pad_profile, (next_tokens == self.eos).long())
                 tgt = torch.cat((tgt, next_tokens), dim=-1)
                 i += 1
+                latencies.append(src_len - i)
             else:
                 src_len += 1
 
             # abort generation if all sequences end with <eos>
             if pad_profile.sum() == batch_size:
                 break
+                
+#         print (sum(latencies) / len(latencies))
 
         return tgt
 
@@ -225,6 +232,8 @@ class GreedySequenceGenerator:
         finally:
             self.unfreeze()
 
+
+# -
 
 class TopKSequenceGenerator(GreedySequenceGenerator):
     """
