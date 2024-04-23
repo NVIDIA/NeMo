@@ -43,7 +43,7 @@ To leverage all optimizations for LLM training, including 3D Model Parallel, fus
 
 Within the container, you can install NeMo and its dependencies as follows:
 
-**NeMo Installation**
+NeMo Installation
 
 .. code-block:: bash
 
@@ -51,7 +51,7 @@ Within the container, you can install NeMo and its dependencies as follows:
     pip install Cython
     pip install nemo_toolkit['all']
 
-**Transformer Engine Installation**
+Transformer Engine Installation
 
 This step involves cloning the Transformer Engine repository, checking out a specific commit, and installing it with specific flags.
 
@@ -64,7 +64,7 @@ This step involves cloning the Transformer Engine repository, checking out a spe
     git submodule init && git submodule update && \
     NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
 
-**Apex Installation**
+Apex Installation
 
 This step includes a bug fix for Apex in the PyTorch 23.11 container.
 
@@ -75,7 +75,7 @@ This step includes a bug fix for Apex in the PyTorch 23.11 container.
     git checkout c07a4cf67102b9cd3f97d1ba36690f985bae4227 && \
     cp -R apex /usr/local/lib/python3.10/dist-packages
 
-**PyTorch Lightning Installation**
+PyTorch Lightning Installation
 
 This involves installing a bug-fixed version of PyTorch Lightning from a specific branch.
 
@@ -85,7 +85,7 @@ This involves installing a bug-fixed version of PyTorch Lightning from a specifi
     cd pytorch-lightning && \
     PACKAGE_NAME=pytorch pip install -e .
 
-**Megatron Core Installation**
+Megatron Core Installation
 
 This section details the steps to clone and install the Megatron Core.
 
@@ -96,7 +96,7 @@ This section details the steps to clone and install the Megatron Core.
     git checkout a5415fcfacef2a37416259bd38b7c4b673583675 && \
     pip install .
 
-**AMMO Installation**
+AMMO Installation
 
 Finally, this step involves installing the AMMO package.
 
