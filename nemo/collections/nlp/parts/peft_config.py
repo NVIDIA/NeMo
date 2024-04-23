@@ -137,7 +137,13 @@ class LoraPEFTConfig(PEFTConfig):
                     _adapter_name = AdapterName.LORA_UNFUSED_KQV_ADAPTER
                     _adapter_cfg_cls = LoraUnfusedKQVAdapterConfig
                     adapter_cfg = self._create_lora_config(
-                        cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, _adapter_cfg_cls, num_query_groups=num_query_groups, kv_channels=kv_channels
+                        cfg,
+                        lora_cfg,
+                        cfg.hidden_size,
+                        qkv_projection_size,
+                        _adapter_cfg_cls,
+                        num_query_groups=num_query_groups,
+                        kv_channels=kv_channels,
                     )
                 else:
                     _adapter_name = AdapterName.LORA_KQV_ADAPTER
@@ -180,7 +186,9 @@ class LoraPEFTConfig(PEFTConfig):
         self.name_key_to_mcore_mixins = name_key_to_mcore_mixins
         super().__init__(lora_cfg, name_key_to_cfg)
 
-    def _create_lora_config(self, cfg, lora_cfg, in_features, out_features, adapter_cfg_cls, num_query_groups=None, kv_channels=None):
+    def _create_lora_config(
+        self, cfg, lora_cfg, in_features, out_features, adapter_cfg_cls, num_query_groups=None, kv_channels=None
+    ):
         config_args = {
             "in_features": in_features,
             "out_features": out_features,
