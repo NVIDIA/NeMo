@@ -16,6 +16,9 @@ class GriffinModel(LanguageModule):
         vocab_size: int=256000,
         logits_soft_cap: float=30.0,
         position_embedding_type: str='rope',
+        max_sequence_length: int=1024,
+        rotary_percent: float=0.5,
+        rotary_base: int=10000,
         pre_process=True
     ):
 
@@ -32,17 +35,17 @@ class GriffinModel(LanguageModule):
             self.embedding = LanguageModelEmbedding(
                             config,
                             vocab_size=self.vocab_size,
-                            max_sequence_length=1024,
+                            max_sequence_length=max_sequence_length,
                             position_embedding_type=None,
             )
         
         if self.position_embedding_type == 'rope':
             self.rotary_pos_emb = RotaryEmbedding(
                     kv_channels=config.kv_channels,
-                    rotary_percent=0.5,
+                    rotary_percent=rotary_percent,
                     rotary_interleaved=config.rotary_interleaved,
                     seq_len_interpolation_factor=None,
-                    rotary_base=10000,
+                    rotary_base=rotary_base,
                 )
 
         self.decoder = GriffinStack(self.config)

@@ -43,11 +43,11 @@ def main(cfg) -> None:
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
 
-    # if cfg.model.peft.restore_from_path:
-    #     model_cfg = MegatronGriffinSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
-    # else:
-    #     model_cfg = MegatronGriffinSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
-    model_cfg = cfg.model
+    if cfg.model.peft.restore_from_path:
+        model_cfg = MegatronGriffinSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
+    else:
+        model_cfg = MegatronGriffinSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
+
     model = MegatronGriffinSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
 
     if cfg.model.peft.restore_from_path:

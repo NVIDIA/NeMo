@@ -193,7 +193,12 @@ class MegatronGriffinModel(MegatronGPTModel):
         
         model = GriffinModel(
             config=self.transformer_config,
-            vocab_size=self.vocab_size,
+            max_sequence_length=self.cfg.get('encoder_seq_length', 512),
+            vocab_size=self.cfg.get('vocab_size', 256000),
+            position_embedding_type=self.cfg.get('position_embedding_type', 'rope'),
+            logits_soft_cap=self.cfg.get('logits_soft_cap', 30.0),
+            rotary_percent=self.cfg.get('rotary_percentage', 0.5),
+            rotary_base=self.cfg.get('rotary_base', 10000),
             )
     
         return model

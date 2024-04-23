@@ -59,6 +59,7 @@ model:
   apply_rope_fusion: True
   # model architecture
   encoder_seq_length: 512
+  logits_soft_cap: 30.0
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'rope' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   num_layers: 26
@@ -161,11 +162,11 @@ model:
     lora_tuning:
       target_modules: ['all'] # this can either be 'attention_qkv','attention_dense','mlp_fc1','mlp_fc2', attention (qkv & dense), mlp (fc1 & fc2)
       adapter_dim: 32
-      alpha: ${model.peft.lora_tuning.adapter_dim} 
+      alpha: 32
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal
-      layer_selection:  [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]  # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
+      layer_selection: null # selects in which layers to add lora adapters. e.g. [1,12] will add lora to layer 1 (lowest) and 12. null will apply adapters to all layers
       weight_tying: False
       position_embedding_strategy: null # used only when weight_tying is True
 
@@ -183,65 +184,6 @@ model:
       tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
 
   data:
-    train_ds:
-      # Example of how to specify paths to multiple datasets
-      # file_names:
-      #   - /path/to/squad.jsonl
-      #   - /path/to/mnli.jsonl
-      #   - /path/to/boolq.jsonl
-      # Example of how each dataset is formatted
-      # {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
-      file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data.
-      global_batch_size: ${model.global_batch_size}
-      micro_batch_size: ${model.micro_batch_size}
-      shuffle: True
-      num_workers: 0
-      memmap_workers: 2
-      pin_memory: True
-      max_seq_length: 2048
-      min_seq_length: 1
-      drop_last: True
-      # Example of how to specify concat_sampling_probabilities
-      # concat_sampling_probabilities:
-      #   - 0.5
-      #   - 0.25
-      #   - 0.25
-      concat_sampling_probabilities: [1.0] # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
-      label_key: 'output'
-      add_eos: True
-      add_sep: False
-      add_bos: True
-      truncation_field: "input" # # Can be multiple keys separated with ',' Options: keys in prompt_template
-      index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: "{input} {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-      truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
-    validation_ds:
-        file_names: [/home/ataghibakhsh/datasets/1_squad_train.jsonl] # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-        names: null # Names of the corresponding datasets used to log metrics.
-        global_batch_size: ${model.global_batch_size}
-        micro_batch_size: ${model.micro_batch_size}
-        shuffle: False
-        num_workers: 0
-        memmap_workers: ${model.data.train_ds.memmap_workers}
-        pin_memory: True
-        max_seq_length: 2048
-        min_seq_length: 1
-        drop_last: False
-        label_key: ${model.data.train_ds.label_key}
-        add_eos: ${model.data.train_ds.add_eos}
-        add_sep: ${model.data.train_ds.add_sep}
-        add_bos: ${model.data.train_ds.add_bos}
-        write_predictions_to_file: False
-        output_file_path_prefix: null # Prefix of the file to write predictions to.
-        truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in prompt_template
-        index_mapping_dir: null # Path to a directory to write index mapping files.
-        prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
-        tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
-        truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
-        metric:
-          name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
-          average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
-          num_classes: null
     test_ds:
       file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: ??? # Names of the corresponding datasets used to log metrics.
@@ -254,15 +196,15 @@ model:
       min_seq_length: 1
       drop_last: False
       context_key: 'input'
-      label_key: ${model.data.train_ds.label_key}
-      add_eos: ${model.data.train_ds.add_eos}
-      add_sep: ${model.data.train_ds.add_sep}
-      add_bos: ${model.data.train_ds.add_bos}
+      label_key: 'output'
+      add_eos: True
+      add_sep: False
+      add_bos: True
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.
-      truncation_field: ${model.data.train_ds.truncation_field} # Options: keys in prompt_template
+      truncation_field: "input" # Options: keys in prompt_template
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: ${model.data.train_ds.prompt_template}
+      prompt_template: "{input} {output}"
       tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
 
@@ -271,19 +213,6 @@ model:
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
 
-  optim:
-    name: fused_adam
-    lr: 2e-4
-    weight_decay: 0.01 
-    betas: 
-    - 0.9
-    - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 500
-      constant_steps: 50000
-      min_lr: 2e-5
-    
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.

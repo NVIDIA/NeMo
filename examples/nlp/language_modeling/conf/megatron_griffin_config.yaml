@@ -52,6 +52,7 @@ model:
   encoder_seq_length: 512
   max_position_embeddings: ${.encoder_seq_length}
   position_embedding_type: 'rope' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
+  logits_soft_cap: 30.0
   num_layers: 26
   gated_linear_unit: True
   window_size: [1024, 0]

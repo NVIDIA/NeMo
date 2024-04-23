@@ -31,8 +31,7 @@ def create_block(
         layer_spec,    
         config,
     )
-    block.layer_idx = layer_idx
-    block.layer_number = layer_idx
+    block.layer_number = layer_idx+1
     return block
 
 class GriffinStack(LanguageModule):
