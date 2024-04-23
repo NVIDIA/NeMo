@@ -24,12 +24,14 @@ import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.logger import logger
+from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import LoraManager, ModelConfig, SamplingConfig
+from tensorrt_llm.runtime import ModelConfig, SamplingConfig
 from transformers import PreTrainedTokenizer
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
 from nemo.export.trt_llm.tensorrt_llm_model import LMHeadModelBuilder
+
 from nemo.export.trt_llm.tensorrt_llm_build import get_engine_name, MODEL_NAME, refit_runtime_engine  # isort:skip
 from nemo.export.trt_llm.nemo_utils import to_word_list_format  # isort:skip
 
@@ -87,9 +89,17 @@ def _read_config(config_path: Path):
     else:
         tokens_per_block = config["builder_config"]["tokens_per_block"]
 
+    if quantization := config["builder_config"].get("quantization"):
+        # Field "quantization" (dict) is introduced for quantized Nemo checkpoints support.
+        # For regular Nemo checkpoints "quant_mode" field should be used (default: 0).
+        quant_mode = QuantMode.from_quant_algo(quantization['quant_algo'], quantization['kv_cache_quant_algo'])
+    else:
+        quant_mode = QuantMode(config["builder_config"]["quant_mode"])
+
     model_config = ModelConfig(
         model_name=config["builder_config"]["name"],
         max_batch_size=config["builder_config"]["max_batch_size"],
+        max_beam_width=config["builder_config"]["max_beam_width"],
         vocab_size=config["builder_config"]["vocab_size"],
         num_layers=config["builder_config"]["num_layers"],
         num_heads=num_heads,
@@ -104,7 +114,7 @@ def _read_config(config_path: Path):
         dtype=config["builder_config"]["precision"],
         lora_plugin=config["plugin_config"]["lora_plugin"],
         lora_target_modules=config["builder_config"]["lora_target_modules"],
-        quant_mode=QuantMode(config["builder_config"]["quant_mode"]),
+        quant_mode=quant_mode,
         use_custom_all_reduce=config["plugin_config"]["use_custom_all_reduce"],
         use_context_fmha_for_generation=config["plugin_config"]["use_context_fmha_for_generation"],
         gather_context_logits=config["builder_config"]["gather_context_logits"],
