@@ -188,9 +188,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
         # since we are creating tarfile artifacts we need to update .nemo path
-        app_state.model_restore_path = os.path.abspath(
-            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
-        )
+        app_state.model_restore_path = self._determine_available_nemo_path(trainer)
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             maybe_injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
         else:
@@ -256,13 +254,16 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 trainer._checkpoint_connector.restore(self.best_model_path)
 
         if self.save_nemo_on_train_end:
-            save_path = os.path.join(self.dirpath, self.prefix + self.postfix)
-            if self._enable_version_counter:
-                version_cnt = self.STARTING_VERSION
-                while self.file_exists(save_path, trainer, check_dist_ckpt=False):
-                    save_path = os.path.join(self.dirpath, self.prefix + str(version_cnt) + self.postfix)
-                    version_cnt += 1
-            pl_module.save_to(save_path=save_path)
+            pl_module.save_to(save_path=self._determine_available_nemo_path(trainer))
+
+    def _determine_available_nemo_path(self, trainer) -> str:
+        save_path = os.path.join(self.dirpath, self.prefix + self.postfix)
+        if self._enable_version_counter:
+            version_cnt = self.STARTING_VERSION
+            while self.file_exists(save_path, trainer, check_dist_ckpt=False):
+                save_path = os.path.join(self.dirpath, self.prefix + f'{self.CHECKPOINT_JOIN_CHAR}v{version_cnt}' + self.postfix)
+                version_cnt += 1
+        return os.path.abspath(os.path.expanduser(save_path))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
 
