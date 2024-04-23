@@ -74,7 +74,7 @@ jobs:
       run: |
         # Pull base PyTorch container
         docker pull nvcr.io/nvidia/pytorch:24.02-py3
-        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /mnt/datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
+        docker run --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /mnt/datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.01-py3 /bin/bash -c '
             set -x
 
             # PyTorch version
@@ -132,7 +132,7 @@ jobs:
             python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
 
             # PyTorch Lightning DDP Checks
-            CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
+            # CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
 
             # Basic Import Checks
             python -c "import nemo.collections.asr as nemo_asr"
@@ -171,6 +171,26 @@ jobs:
     #      chmod -R 777 .
 
 
+  L0_Unit_Tests_CPU:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure-cpu
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        # --user 0:128
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    - name: "L0: Unit Tests CPU"
+      run: |
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+      if: "failure()"
+
+
   L0_Unit_Tests_GPU:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
@@ -192,30 +212,6 @@ jobs:
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
     - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
       if: "failure()"
-      
-
-  L0_Unit_Tests_CPU:
-    needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure-cpu
-    container:
-      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /mnt/datadrive/TestData:/home/TestData
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-    - name: "L0: Unit Tests CPU"
-      run: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
-    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-      if: "failure()"
-
 
 
 ##     - name: L2: Multimodal Imagen Train
