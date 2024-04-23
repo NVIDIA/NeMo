@@ -155,7 +155,9 @@ def create_hist(dataset, truncate_seq_len):
         try:
             counts[seq_len] += 1
         except IndexError as e:
-            logging.error(f"Sequence length {seq_len} is longer than the truncation length {truncate_seq_len}. This should not happen.")
+            logging.error(
+                f"Sequence length {seq_len} is longer than the truncation length {truncate_seq_len}. This should not happen."
+            )
             raise e
 
     logging.info("Histogram of sequence lengths")
@@ -190,14 +192,8 @@ def run_packing(sequences, histogram, output_dir, pack_size, packing_algorithm, 
     for seq_len in tqdm(range(pack_size + 1)):
         per_seq_data = sequences[seq_len]
         if len(per_seq_data) > 0:
-            input_ids = np.array([
-                x['input_ids'].numpy()
-                for x in per_seq_data
-            ])
-            loss_mask = np.array([
-                x['mask'].numpy()
-                for x in per_seq_data
-            ])
+            input_ids = np.array([x['input_ids'].numpy() for x in per_seq_data])
+            loss_mask = np.array([x['mask'].numpy() for x in per_seq_data])
             perm = np.random.permutation(len(input_ids))
             ifile_handles[seq_len] = (input_ids[perm].tolist(), loss_mask[perm].tolist())
         else:

@@ -306,7 +306,6 @@ def preprocess(
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # add special tokens for the chat prompt

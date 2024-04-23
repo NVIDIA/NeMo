@@ -180,7 +180,9 @@ class SentencePieceTokenizer(TokenizerSpec):
                     self.vocab_size += 1
                     logging.warning(f"Added special token {token} by expanding the tokenizer.")
                 else:
-                    logging.warning(f"Special token {token} already exists in the tokenizer: {self.tokenizer.piece_to_id(token)}.")
+                    logging.warning(
+                        f"Special token {token} already exists in the tokenizer: {self.tokenizer.piece_to_id(token)}."
+                    )
                     self.special_token_to_id[token] = self.tokenizer.piece_to_id(token)
                     self.id_to_special_token[self.tokenizer.piece_to_id(token)] = token
 
