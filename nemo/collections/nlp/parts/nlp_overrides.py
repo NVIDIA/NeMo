@@ -340,10 +340,7 @@ class NLPDDPStrategy(DDPStrategy):
             called on every rank and internally does the rank checking.
         """
         # check if using distributed checkpointing
-        if (
-            hasattr(self.lightning_module, 'sharded_state_dict')
-            and self.lightning_module.sharded_state_dict() is not None
-        ):
+        if self.use_distributed_checkpointing:
             assert (
                 len(checkpoint['optimizer_states']) == 1
             ), "Currently only support checkpointing 1 distributed optimizer per time!"
@@ -374,10 +371,7 @@ class NLPDDPStrategy(DDPStrategy):
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         # if using distributed checkpointing, the state dict logic is at the model level
-        if (
-            hasattr(self.lightning_module, 'sharded_state_dict')
-            and self.lightning_module.sharded_state_dict() is not None
-        ):
+        if self.use_distributed_checkpointing:
             return
 
         # legacy state dict logic, does not use megatron core
