@@ -418,6 +418,7 @@ def nemo_to_trtllm_config(
 
     model_configs = []
     weights_dicts = []
+    num_layers = nemo_model_config.get('num_layers')
     for i in range(world_size):
         mapping = tensorrt_llm.Mapping(
             world_size=world_size,
@@ -425,12 +426,18 @@ def nemo_to_trtllm_config(
             tp_size=tensor_parallel_size,
             pp_size=pipeline_parallel_size
         )
+        layers_range = mapping.pp_layers(num_layers)
 
         weights_dict_local = {}
         for k, v in weights_dict.items():
             if k.endswith(".bin"): # TP split
                 if k.endswith(f"{mapping.tp_rank}.bin"):
                     new_key = k.replace(f".{mapping.tp_rank}.bin","")
+                    weights_dict_local[new_key] = v
+            elif "layers" in k: # PP
+                layer_num = int(k.split(".")[2])
+                if layer_num in layers_range:
+                    new_key = k.replace(f"{layer_num}", f"{layer_num-layers_range[0]}")
                     weights_dict_local[new_key] = v
             else:
                 weights_dict_local[k] = v
