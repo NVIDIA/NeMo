@@ -134,7 +134,6 @@ class MegatronStrategy(DDPStrategy):
         for loop in [fit_loop, evaluation_loop, prediction_loop]:
             loop._select_data_fetcher = _data_fetcher_wrapper(loop._select_data_fetcher)  # noqa: SLF001
 
-
         if trainer_fn == TrainerFn.FITTING:
             # TODO: Make sure we don't always wrap the model in data-parallel
             # See: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/parts/nlp_overrides.py#L215-L217
@@ -370,6 +369,7 @@ class MegatronStrategy(DDPStrategy):
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
         if self.is_global_zero:
             shutil.rmtree(ckpt_to_dir(filepath))
+
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         assert self.megatron_parallel is not None
         from megatron.core import mpu

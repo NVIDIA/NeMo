@@ -77,9 +77,9 @@ class MegatronCheckpointIO(CheckpointIO):
 
         """
         from megatron.core import dist_checkpointing
+
         if map_location is not None:
             raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
-
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(path)
