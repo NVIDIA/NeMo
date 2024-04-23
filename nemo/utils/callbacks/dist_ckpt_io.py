@@ -1,5 +1,5 @@
 import shutil
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
@@ -17,8 +17,7 @@ class DistributedCheckpointIO(CheckpointIO):
 
         self.save_sharded_strategy = self.determine_dist_ckpt_save_strategy()
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH,
-                        storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
 
         # dist_checkpointing expects a directory so we will name the directory
         # using the path with the file extension removed
@@ -26,14 +25,12 @@ class DistributedCheckpointIO(CheckpointIO):
         fs.makedirs(path, exist_ok=True)
 
         dist_checkpointing.save(
-            sharded_state_dict=checkpoint,
-            checkpoint_dir=path,
-            sharded_strategy=self.save_sharded_strategy
+            sharded_state_dict=checkpoint, checkpoint_dir=path, sharded_strategy=self.save_sharded_strategy
         )
 
-    def load_checkpoint(self, path: _PATH,
-                        map_location: Optional[Any] = None,
-                        sharded_state_dict: dict = None) -> Dict[str, Any]:
+    def load_checkpoint(
+        self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: dict = None
+    ) -> Dict[str, Any]:
         if sharded_state_dict is None:
             raise ValueError('DistributedCheckpointIO requires passing sharded_state_dict argument to load_checkpoint')
         if map_location is not None:
@@ -45,8 +42,7 @@ class DistributedCheckpointIO(CheckpointIO):
             sharded_strategy = None
 
         return dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=path,
-            sharded_strategy=sharded_strategy
+            sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy
         )
 
     def remove_checkpoint(self, path: _PATH) -> None:
