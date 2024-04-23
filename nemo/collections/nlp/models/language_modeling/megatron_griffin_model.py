@@ -12,29 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_model import GriffinModel
-from pkg_resources import packaging
+import itertools
+import os
+from contextlib import nullcontext
 from importlib.metadata import version
+
 import torch
 import torch.nn.functional as F
+from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
+from pkg_resources import packaging
 from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_model import GriffinModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-from contextlib import nullcontext
-import os
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
 )
-import itertools
-from nemo.utils.te_utils import is_float8tensor
-from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-
 from nemo.utils import logging
+from nemo.utils.te_utils import is_float8tensor
 
 try:
 
@@ -68,6 +69,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+
 class MegatronGriffinModel(MegatronGPTModel):
     """
     Megatron Griffin pretraining.
@@ -81,18 +83,17 @@ class MegatronGriffinModel(MegatronGPTModel):
 
         # build the transformer config
         # TODO: add type hint once pip package is out
-        
+
         self.vocab_size = cfg.get('vocab_size', 256_128)
         MegatronBaseModel.__init__(self, cfg=cfg, trainer=trainer)
 
         self.cfg = cfg
         self.transformer_config = self.build_transformer_config()
         self.transformer_config.gated_linear_unit = True
-        
 
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
-        
-        self.mcore_gpt=True
+
+        self.mcore_gpt = True
 
         self._validate_trainer()
 
@@ -190,7 +191,7 @@ class MegatronGriffinModel(MegatronGPTModel):
             raise ValueError('Loss mask is not supported with sequence parallelism.')
 
     def model_provider_func(self, pre_process, post_process):
-        
+
         model = GriffinModel(
             config=self.transformer_config,
             max_sequence_length=self.cfg.get('encoder_seq_length', 512),
@@ -199,31 +200,24 @@ class MegatronGriffinModel(MegatronGPTModel):
             logits_soft_cap=self.cfg.get('logits_soft_cap', 30.0),
             rotary_percent=self.cfg.get('rotary_percentage', 0.5),
             rotary_base=self.cfg.get('rotary_base', 10000),
-            )
-    
+        )
+
         return model
 
-
     def forward(
-        self,
-        input_ids,
-        attention_mask,
+        self, input_ids, attention_mask,
     ):
-            
-        output_tensor = self.model(
-            input_ids,
-            attention_mask,
-        )
+
+        output_tensor = self.model(input_ids, attention_mask,)
         return output_tensor
 
     def on_validation_epoch_end(self):
-        
+
         averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
         return averaged_loss
-    
-    def sharded_state_dict(self, prefix: str = ''):
-            return None
 
+    def sharded_state_dict(self, prefix: str = ''):
+        return None
 
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
@@ -295,8 +289,9 @@ class MegatronGriffinModel(MegatronGPTModel):
                         qkv_format='thd',
                     )
 
-    
-            output_tensor = model(forward_args['input_ids'], forward_args['attention_mask'], labels=forward_args['labels'])
+            output_tensor = model(
+                forward_args['input_ids'], forward_args['attention_mask'], labels=forward_args['labels']
+            )
 
             def loss_func(output_tensor):
                 # Loss for a micro-batch (ub)
@@ -360,16 +355,13 @@ class MegatronGriffinModel(MegatronGPTModel):
                 tokens, attention_mask, position_ids = batch
                 attention_mask = attention_mask[0:1]
             else:
-                (
-                    tokens,
-                    attention_mask,
-                ) = batch
+                (tokens, attention_mask,) = batch
                 tokens = tokens.cuda()
 
                 if attention_mask is not None:
                     attention_mask = attention_mask.cuda()
                     attention_mask = attention_mask[0:1]
-            
+
             # Currently for all MCore transformer layer specs causal attention mask
             # is used so we can delegate creating it to MCore/TE and pass None below
             attention_mask = None
@@ -389,7 +381,7 @@ class MegatronGriffinModel(MegatronGPTModel):
             return output_tensor, id_func
 
         return fwd_output_only_func
-    
+
     def _reset_activation_checkpointing_args(self):
         return
 
@@ -406,6 +398,7 @@ class MegatronGriffinModel(MegatronGPTModel):
             _reset_activation_checkpointing_args.
         """
         return
+
     def _reset_sequence_parallelism_args(self):
         """ Disables sequence parallelism completely and saves the values so that
             _restore_sequence_parallelism_args can restore them later. This function must always be
@@ -419,4 +412,3 @@ class MegatronGriffinModel(MegatronGPTModel):
             _reset_sequence_parallelism_args.
         """
         return
-                  

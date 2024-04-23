@@ -12,25 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import List, Mapping, Optional
-import math
+
 import datasets
 import numpy as np
 import torch
+
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
 __all__ = ['GriffinSFTDataset']
 
+
 class GriffinSFTDataset(GPTSFTDataset):
-    def __init__(
-        self,
-        *args,
-        **kwargs
-    ):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-    
+
     def _ceil_to_nearest(self, n, m):
         return 2 ** math.ceil(math.log2(n))

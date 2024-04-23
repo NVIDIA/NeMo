@@ -17,12 +17,9 @@ import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.utils import logging
 
 try:
@@ -36,7 +33,6 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     import logging
-
 
     HAVE_LDDL = True
 except (ImportError, ModuleNotFoundError):
@@ -64,15 +60,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset, GPTSFTPackedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.griffin_sft_dataset import GriffinSFTDataset
-
-
 from nemo.utils import logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -89,9 +80,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator,
-    )
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -104,6 +93,7 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
     """
     Megatron Griffin Supervised Fine-Tuning
     """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
             raise ImportError(
@@ -257,7 +247,7 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
             return dataset
         else:
             return datasets
-        
+
     def on_validation_epoch_start(self):
         # self._reset_activation_checkpointing_args()
         app_state = AppState()
@@ -299,4 +289,3 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
-    

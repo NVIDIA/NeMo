@@ -1,25 +1,28 @@
 # Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 
 import math
+
 import torch
-from torch import nn, Tensor
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
+from megatron.core.transformer.transformer_config import TransformerConfig
+from torch import Tensor, nn
+
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_block import GriffinStack
+
 
 class GriffinModel(LanguageModule):
     def __init__(
         self,
         config: TransformerConfig,
-        vocab_size: int=256000,
-        logits_soft_cap: float=30.0,
-        position_embedding_type: str='rope',
-        max_sequence_length: int=1024,
-        rotary_percent: float=0.5,
-        rotary_base: int=10000,
-        pre_process=True
+        vocab_size: int = 256000,
+        logits_soft_cap: float = 30.0,
+        position_embedding_type: str = 'rope',
+        max_sequence_length: int = 1024,
+        rotary_percent: float = 0.5,
+        rotary_base: int = 10000,
+        pre_process=True,
     ):
 
         super().__init__(config)
@@ -33,24 +36,23 @@ class GriffinModel(LanguageModule):
 
         if pre_process:
             self.embedding = LanguageModelEmbedding(
-                            config,
-                            vocab_size=self.vocab_size,
-                            max_sequence_length=max_sequence_length,
-                            position_embedding_type=None,
+                config,
+                vocab_size=self.vocab_size,
+                max_sequence_length=max_sequence_length,
+                position_embedding_type=None,
             )
-        
+
         if self.position_embedding_type == 'rope':
             self.rotary_pos_emb = RotaryEmbedding(
-                    kv_channels=config.kv_channels,
-                    rotary_percent=rotary_percent,
-                    rotary_interleaved=config.rotary_interleaved,
-                    seq_len_interpolation_factor=None,
-                    rotary_base=rotary_base,
-                )
+                kv_channels=config.kv_channels,
+                rotary_percent=rotary_percent,
+                rotary_interleaved=config.rotary_interleaved,
+                seq_len_interpolation_factor=None,
+                rotary_base=rotary_base,
+            )
 
         self.decoder = GriffinStack(self.config)
 
-                
     def shared_embedding_or_output_weight(self) -> Tensor:
         """Gets the emedding weight or output logit weights when share embedding and output weights set to True.
 
@@ -62,13 +64,13 @@ class GriffinModel(LanguageModule):
         elif self.post_process:
             return self.output_layer.weight
         return None
-    
+
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
         return {
             i: layer.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
             for i, layer in enumerate(self.layers)
         }
-    
+
     def set_input_tensor(self, input_tensor: Tensor):
         """Set input tensor to be used instead of forward()'s input.
 
@@ -86,53 +88,45 @@ class GriffinModel(LanguageModule):
         position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
 
         return position_ids
-    
+
     def embedding_forward(self, input_ids):
-        
+
         position_ids = self.griffin_position_ids(input_ids)
         embeddings = self.embedding(input_ids, position_ids)
         embeddings = embeddings * torch.tensor(math.sqrt(self.config.hidden_size)).type_as(embeddings)
 
         return embeddings
-    
+
     def embedding_decode(self, x):
-        x = x.permute(1,0,2)
+        x = x.permute(1, 0, 2)
         logits = x @ self.embedding.word_embeddings.state_dict()['weight'].T
         logits = nn.functional.tanh(logits / self.logits_soft_cap) * self.logits_soft_cap
 
         return logits
 
     def forward(
-            self,
-            input_ids: Tensor,
-            attention_mask: Tensor,
-            labels: Tensor = None,
+        self, input_ids: Tensor, attention_mask: Tensor, labels: Tensor = None,
     ):
         if input_ids == None:
             input_ids = self.input_tensor
 
         hidden_states = self.embedding_forward(input_ids)
-        
+
         rotary_pos_emb = None
         self.decoder.input_tensor = None
         if self.position_embedding_type == 'rope':
-            rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
-                None, self.decoder, hidden_states, self.config
-            )
+            rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(None, self.decoder, hidden_states, self.config)
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
 
-        hidden_states = self.decoder(hidden_states,
-                attention_mask=attention_mask,
-                rotary_pos_emb=rotary_pos_emb)
+        hidden_states = self.decoder(hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb)
 
         logits = self.embedding_decode(hidden_states)
 
         if labels is None:
             # [b s h]
             return logits.contiguous()
-        
+
         logits = logits.transpose(0, 1).contiguous()
         loss = self.compute_language_model_loss(labels, logits)
 
         return loss
-
