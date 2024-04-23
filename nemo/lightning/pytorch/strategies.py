@@ -479,6 +479,7 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
 
     return filepath
 
+
 def _data_fetcher_wrapper(fn):
     @functools.wraps(fn)
     def wrapped(trainer: pl.Trainer, stage: RunningStage):

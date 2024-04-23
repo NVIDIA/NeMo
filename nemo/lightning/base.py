@@ -15,6 +15,7 @@ NEMO_DATASETS_CACHE = Path(os.getenv("NEMO_DATASETS_CACHE", DEFAULT_NEMO_DATASET
 DEFAULT_NEMO_MODELS_CACHE = NEMO_CACHE_HOME / "models"
 NEMO_MODELS_CACHE = Path(os.getenv("NEMO_MODELS_CACHE", DEFAULT_NEMO_MODELS_CACHE))
 
+
 def get_vocab_size(config, vocab_size: int, make_vocab_size_divisible_by: int = 128,) -> int:
     from nemo.utils import logging
 
