@@ -514,8 +514,9 @@ class TestExpManager:
     def test_checkpoints_are_not_overwritten(self, tmp_path, test_dist_ckpt):
         """ Simulates already existing checkpoints in the ckpt directory and tests ckpt versioning """
         strategy = NLPDDPStrategy() if test_dist_ckpt else 'auto'
-        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4,
-                                  strategy=strategy)
+        test_trainer = pl.Trainer(
+            accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4, strategy=strategy
+        )
         exp_manager(
             test_trainer,
             {

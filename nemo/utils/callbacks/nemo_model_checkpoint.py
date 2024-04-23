@@ -261,7 +261,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if self._enable_version_counter:
             version_cnt = self.STARTING_VERSION
             while self.file_exists(save_path, trainer, check_dist_ckpt=False):
-                save_path = os.path.join(self.dirpath, self.prefix + f'{self.CHECKPOINT_JOIN_CHAR}v{version_cnt}' + self.postfix)
+                save_path = os.path.join(
+                    self.dirpath, self.prefix + f'{self.CHECKPOINT_JOIN_CHAR}v{version_cnt}' + self.postfix
+                )
                 version_cnt += 1
         return os.path.abspath(os.path.expanduser(save_path))
 
