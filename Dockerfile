@@ -67,6 +67,7 @@ WORKDIR /workspace/
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
   git checkout 36e9b6bf3d8034b10c9bbd9fc357c2df2bd1515c && \
+  git cherry-pick -n e69187bc3679ea5841030a165d587bb48b56ee77 && \
   pip install .
 
 # Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
@@ -133,7 +134,7 @@ RUN pip install flash-attn
 # install numba for latest containers
 RUN pip install numba>=0.57.1
 # install ammo
-RUN pip install nvidia-ammo~=0.7.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
+RUN pip install nvidia-ammo~=0.9.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -141,7 +142,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.23.0
+ARG NEMO_VERSION=2.0.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes

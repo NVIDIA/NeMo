@@ -568,9 +568,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
         loop_labels: Switching between decoding algorithms. Both algorithms produce equivalent results.
-            loop_labels=True algorithm is faster (especially for large batches) but can use a bit more memory
+            loop_labels=True (default) algorithm is faster (especially for large batches) but can use a bit more memory
             (negligible overhead compared to the amount of memory used by the encoder).
-            loop_labels=False (default) is an implementation of a traditional decoding algorithm, which iterates over
+            loop_labels=False is an implementation of a traditional decoding algorithm, which iterates over
             frames (encoder output vectors), and in the inner loop, decodes labels for the current frame one by one,
             stopping when <blank> is found.
             loop_labels=True iterates over labels, on each step finding the next non-blank label
@@ -588,7 +588,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        loop_labels: bool = False,
+        loop_labels: bool = True,
         use_cuda_graph_decoder: bool = False,
     ):
         super().__init__(
@@ -607,9 +607,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # switch between more efficient batch decoding technique
         self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            if loop_labels and use_cuda_graph_decoder:
-                raise ValueError("loop_labels and use_cuda_graph_decoder is unsupported configuration")
-            elif loop_labels:
+            if loop_labels:
                 # default (faster) algo: loop over labels
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
                 self._decoding_computer = GreedyBatchedRNNTLoopLabelsComputer(
@@ -620,6 +618,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     preserve_alignments=preserve_alignments,
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
+                    allow_cuda_graphs=use_cuda_graph_decoder,
                 )
             elif use_cuda_graph_decoder:
                 from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import (
@@ -695,7 +694,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
-        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
@@ -2283,6 +2282,7 @@ class GreedyRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
+    tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
 
     def __post_init__(self):
@@ -2299,8 +2299,9 @@ class GreedyBatchedRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
+    tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
-    loop_labels: bool = False
+    loop_labels: bool = True
     use_cuda_graph_decoder: bool = False
 
     def __post_init__(self):
@@ -2338,6 +2339,9 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
+            attached to the regular frame confidence,
+            making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
 
@@ -2381,6 +2385,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
+        include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
@@ -2393,6 +2398,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
         self.durations = durations
+        self.include_duration_confidence = include_duration_confidence
 
     @typecheck()
     def forward(
@@ -2518,7 +2524,11 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
 
                 if self.preserve_frame_confidence:
                     # insert confidence into last timestep
-                    hypothesis.frame_confidence[-1].append(self._get_confidence(logp))
+                    hypothesis.frame_confidence[-1].append(
+                        (self._get_confidence_tensor(logp), self._get_confidence_tensor(duration_logp))
+                        if self.include_duration_confidence
+                        else self._get_confidence_tensor(logp)
+                    )
 
                 del logp
 
@@ -2594,6 +2604,9 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
+            attached to the regular frame confidence,
+            making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
 
@@ -2637,7 +2650,9 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
+        include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
+        use_cuda_graph_decoder: bool = False,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2649,6 +2664,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
         self.durations = durations
+        self.include_duration_confidence = include_duration_confidence
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
@@ -2663,7 +2679,9 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                 max_symbols_per_step=self.max_symbols,
                 preserve_alignments=preserve_alignments,
                 preserve_frame_confidence=preserve_frame_confidence,
+                include_duration_confidence=include_duration_confidence,
                 confidence_method_cfg=confidence_method_cfg,
+                allow_cuda_graphs=use_cuda_graph_decoder,
             )
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:
@@ -2737,7 +2755,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
-        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments)
+        hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
