@@ -419,7 +419,15 @@ def nemo_to_trtllm_config(
     model_configs = []
     weights_dicts = []
     for i in range(world_size):
-        weights_dict_local = weights_dict.copy()
+        weights_dict_local = {}
+        for k, v in weights_dict.items():
+            if k.endswith(".bin"): # TP split
+                if k.endswith(f"{i}.bin"):
+                    new_key = k.replace(f".{i}.bin","")
+                    weights_dict_local[new_key] = v
+            else:
+                weights_dict_local[k] = v
+
 
         mapping = tensorrt_llm.Mapping(
             world_size=world_size,

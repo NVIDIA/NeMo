@@ -39,12 +39,12 @@ def gpu_map_location(storage, loc):
 
 
 def save_val(val, dir, key, tp_num=None):
-    suffix = "bin" if tp_num is None else f"{tp_num}.bin"
+    suffix = "" if tp_num is None else f".{tp_num}.bin"
     # Transpose linear layer weights to the correct shape.
     if len(val.shape) >= 2:
         val = np.ascontiguousarray(np.transpose(val.reshape(val.shape[0], -1), [1, 0]))
     global weights_dict
-    weights_dict[key] = val
+    weights_dict[f"{key}{suffix}"] = val
     # weights_dict[f"model.{key}.{suffix}"] = val
 
 
