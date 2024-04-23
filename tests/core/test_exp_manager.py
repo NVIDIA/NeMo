@@ -503,6 +503,43 @@ class TestExpManager:
         assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
 
     @pytest.mark.unit
+    def test_nemo_checkpoint_are_not_overwritten(self, tmp_path):
+        """ Simulates already existing checkpoints in the ckpt directory and tests ckpt versioning """
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_nemo_on_train_end": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+
+        ckpt_dir = Path(tmp_path / "test" / "checkpoints")
+        assert not ckpt_dir.exists()
+
+        # Fake existing 1st and last checkpoint
+        ckpt_dir.mkdir(parents=True)
+        ckpt_1 = ckpt_dir / 'default--val_loss=0.0000-epoch=1.ckpt'
+        ckpt_2 = ckpt_dir / 'default--val_loss=0.0300-epoch=2.ckpt'
+        ckpt_1.touch() # don't touch 2nd checkpoint
+        ckpt_nemo = ckpt_dir / 'default.nemo'
+        ckpt_nemo.touch()
+
+        # Train
+        test_trainer.fit(model)
+
+        # Check versioning
+        assert ckpt_1.exists()
+        assert ckpt_2.exists()
+        assert ckpt_nemo.exists()
+
+        # Versioned checkpoints
+        assert ckpt_1.with_stem(ckpt_1.stem + '-v1').exists()
+        assert not ckpt_2.with_stem(ckpt_2.stem + '-v1').exists()  # ckpt2 didn't exist before
+        assert ckpt_nemo.with_stem(ckpt_nemo.stem + '-v1').exists()
+
+    @pytest.mark.unit
     def test_last_checkpoint_saved(self, tmp_path):
         max_steps = 64
         tmp_path = tmp_path / "test_1"
