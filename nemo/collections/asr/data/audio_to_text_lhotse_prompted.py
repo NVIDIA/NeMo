@@ -143,8 +143,18 @@ def canary_natural(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = 
     bos = tokenizer._tokenizer.token_to_id('<s>')
     eos = tokenizer._tokenizer.token_to_id('</s>')
     for cut in cuts:
-        assert hasattr(cut, "prompt"), f"Error: missing 'prompt' field in {cut=}"
-        prompt = cut.prompt + "\n\n"
+
+        # first, validate the utterance
+        missing_keys = [k for k in ("target_lang", "pnc") if k not in cut.custom]
+        if missing_keys:
+            raise RuntimeError(
+                f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
+                f"Please ensure that every utterance in the input manifests contains these keys."
+            )
+
+        target_lang = {"en": "English", "es": "Spanish", "de": "German", "fr": "French",}[cut.target_lang]
+        pnc = {"yes": "with punctuation and capitalization", "no": "in lowercase without punctuation"}[cut.pnc]
+        prompt = f"Transcribe the recording in {target_lang} {pnc}. "
         prompt_tokens = [bos] + tokenizer(prompt, cut.supervisions[0].language)
 
         prompt_with_answer_tokens = prompt_tokens
