@@ -12,10 +12,6 @@ def test_triton_deployable(args):
     megatron_deployable = MegatronGPTDeployable(args.nemo_checkpoint)
 
     prompts = ["What is the biggest planet in the solar system?", "What is the fastest steam locomotive in history?"]
-    max_output_token = args.max_output_token
-    top_k = args.top_k
-    top_p = args.top_p
-    temperature = args.temperature
     url = "localhost:8000"
     model_name = args.model_name
     init_timeout = 600.0
@@ -35,18 +31,18 @@ def test_triton_deployable(args):
     # NemoQueryLLM seems specific to TRTLLM for now, so using ModelClient instead
     str_ndarray = np.array(prompts)[..., np.newaxis]
     prompts = np.char.encode(str_ndarray, "utf-8")
-    max_output_token = np.full(prompts.shape, max_output_token, dtype=np.int_)
-    top_k = np.full(prompts.shape, top_k, dtype=np.int_)
-    top_p = np.full(prompts.shape, top_p, dtype=np.single)
-    temperature = np.full(prompts.shape, temperature, dtype=np.single)
+    max_output_token = np.full(prompts.shape, args.max_output_token, dtype=np.int_)
+    top_k = np.full(prompts.shape, args.top_k, dtype=np.int_)
+    top_p = np.full(prompts.shape, args.top_p, dtype=np.single)
+    temperature = np.full(prompts.shape, args.temperature, dtype=np.single)
 
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
         result_dict = client.infer_batch(
             prompts=prompts,
-            max_length=args.max_output_token,
-            top_k=args.top_k,
-            top_p=args.top_p,
-            temperature=args.temperature,
+            max_length=max_output_token,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
         )
 
     print(result_dict)
