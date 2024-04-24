@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights binserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights binserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 from megatron.core.datasets.indexed_dataset import IndexedDataset, IndexedDatasetBuilder, get_bin_path, get_idx_path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -109,10 +110,6 @@ def chunkify(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
-
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 
 def parallel_first_fit(seq_lens, max_seq_length, chunk_size, num_workers):
     """
