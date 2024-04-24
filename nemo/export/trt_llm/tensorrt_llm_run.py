@@ -276,7 +276,7 @@ def _forward(
             #     return_dict=True,
             # )
 
-            prompt_tasks = ",".join(str(task) for task in task_ids)
+            prompt_tasks = None if task_ids is None else ",".join(str(task) for task in task_ids)
 
             outputs = decoder.generate(
                 input_tensors,
