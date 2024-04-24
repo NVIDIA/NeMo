@@ -1,4 +1,4 @@
-NeMo RETRO Model
+RETRO Model
 ================
 
 Retro `(Borgeaud et al., 2022) <https://arxiv.org/abs/2112.04426>`_ is an autoregressive decoder-only language model (LM)
@@ -12,11 +12,11 @@ Retro also provides the flexibility to update the
 knowledge stored in LMs `(Wang et al., 2023a) <https://arxiv.org/abs/2304.06762>`_
 by updating the retrieval database without training LMs again. 
 
-For the legacy RETRO model doc, please see `NeMo RETRO Model (Legacy) <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/nemo_megatron/retro/retro_model_legacy.rst>`_.
+For the legacy native NeMo RETRO model doc, please see `NeMo RETRO Model (Legacy) <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/nemo_megatron/retro/retro_model_legacy.rst>`_.
 
 Quick start
 ************
-Steps below demonstrate the steps to pre-processing data, training and evaluating a NeMo RETRO model.
+Below instructions demonstrate the steps for pre-processing data, training and evaluating a RETRO model.
 
 Data pre-processing
 -------------------
@@ -70,23 +70,25 @@ The main output of this stage are:
 
 
 
-Train NeMo RETRO Model
+Train RETRO Model
 -----------------------
 
 Once the data (include training samples and pre-retrieved neighbors) are prepared, we are ready to train the RETRO model. The training process will use the output directory from the data preparation step. We set the path to this directory at the ``retro.retro_project_dir`` argument. Many of the data hyperparameters will be retrieved from the ``config.json`` file in this directory, including data splits, sequence length, chunk length, number of training and validating samples, tokenizer, etc.
 
-The table below lists some of the common architecture and optimizer parameters that can be configured for model pre-training. Many of these values are set in ``examples/nlp/language_modeling/conf/megatron_retro_config.yaml``, which is used when training unless being overriden in the running command.
+The table below lists some of the common architecture and optimizer parameters that can be configured for model pre-training. Many of these values are set in ``examples/nlp/language_modeling/conf/megatron_retro_config.yaml``, which is used when training unless being overriden in the running command. Notice unlike other NeMo models, the `model.data.data_prefix` value is set to None, because all data information will be retrieved from `model.retro.retro_project_dir`.
 
 +----------------------------------+-------------+----------------------------------------------------------------------------------------+
 | **Parameter**                    | **Default** | **Description**                                                                        |
 +==================================+=============+========================================================================================+
-| model.chunk_size                 | 64          | the chunk size used to retrieve                                                        |
+| retro_data.retro_chunk_length    | 64          | the chunk size used to retrieve                                                        |
 +----------------------------------+-------------+----------------------------------------------------------------------------------------+
-| model.encoder_seq_length         | 2048        | token sequence length                                                                  |
+| retro.retro_num_neighbors        | 2           | token sequence length                                                                  |
 +----------------------------------+-------------+----------------------------------------------------------------------------------------+
-| model.enc_num_layers             | 2           | total number of encoder layers                                                         |
+| retro_encoder_num_layers         | 2           | total number of encoder layers                                                         |
 +----------------------------------+-------------+----------------------------------------------------------------------------------------+
 | model.num_layers                 | 12          | total number of decoder layers                                                         |
++----------------------------------+-------------+----------------------------------------------------------------------------------------+
+| model.encoder_seq_length         | 2048        | token sequence length                                                                  |
 +----------------------------------+-------------+----------------------------------------------------------------------------------------+
 | model.hidden_size                | 768         | model hidden size                                                                      |
 +----------------------------------+-------------+----------------------------------------------------------------------------------------+
@@ -140,14 +142,14 @@ Below is an example RETRO pre-training script. The rest of the arguments values 
 During the training, we can monitor the process with Weights and Biases (WandB) by setting ``exp_manager.create_wandb_logger=True`` and set relevant wandb arguments.
 After training, the model distributed checkpoint directory can be found at the result checkpoint directory.
 
-Run NeMo RETRO Model Inference
+Run RETRO Model Inference
 -------------------------------
 
-Once the NeMo RETRO model has been trained, we can put it into inference mode and experiment with it. 
+Once the RETRO model has been trained, we can put it into inference mode and experiment with it. 
 During inference, we are not limited to the indexed corpus to retrieve relevant chunks, but can directly provide any relevant contexts to the prompt through the argument ``neighbors``.
 Implementation-wise, when inferencing, input for RETRO is set up differently than when in training. Particularly, the model's input will be presented as comprising of two chunks only, one for the prompt, and one for the answer to be generated. These chunks don't necessarily have the length of 64 as in training, but will have the length of the tokenized prompt. For each prompt, context neighbors can be provided. These neighbors will correspond to the first chunk and will be passed through RETRO's encoder to generate text for the second chunk.
 
-Below is an example RETRO pre-training script. The rest of the arguments values are retrieved from ``examples/nlp/language_modeling/conf/megatron_retro_inference.yaml``.
+Below is an example RETRO inferencing script. The rest of the arguments values are retrieved from ``examples/nlp/language_modeling/conf/megatron_retro_inference.yaml``.
 
 .. code-block:: bash
 
