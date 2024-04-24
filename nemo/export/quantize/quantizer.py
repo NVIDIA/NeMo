@@ -17,8 +17,11 @@ import tarfile
 from contextlib import nullcontext
 from typing import List, Optional
 
+import torch
 import torch.distributed as dist
 from megatron.core import parallel_state
+from megatron.core.transformer.module import Float16Module
+from megatron.training.utils import unwrap_model
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import DictConfig, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -32,7 +35,7 @@ from nemo.utils.model_utils import load_config, save_artifacts
 
 try:
     import ammo.torch.quantization as atq
-    from ammo.torch.export import export_model_config
+    from ammo.torch.export import export_tensorrt_llm_checkpoint
 
     HAVE_AMMO = True
 
@@ -78,7 +81,7 @@ class Quantizer:
         trainer_config: DictConfig,
     ):
         if not HAVE_AMMO:
-            raise RuntimeError("nvidia-ammo>=0.7 is needed to use Quantizer") from HAVE_AMMO_ERROR
+            raise RuntimeError("nvidia-ammo is needed to use Quantizer") from HAVE_AMMO_ERROR
         QUANT_CFG_CHOICES = {
             "int8": atq.INT8_DEFAULT_CFG,
             "int8_sq": atq.INT8_SMOOTHQUANT_CFG,
@@ -95,10 +98,21 @@ class Quantizer:
         self.trainer_config = trainer_config
         if quantization_config.algorithm is not None:
             atq_config = QUANT_CFG_CHOICES[quantization_config.algorithm]
-            if quantization_config.algorithm != "fp8":
-                # disable quantization for the last output layer
-                atq_config = copy.deepcopy(atq_config)
-                atq_config["quant_cfg"]["*.output_layer.*"] = {"enable": False}
+
+            if "awq" in quantization_config.algorithm:
+                weight_quantizer = atq_config["quant_cfg"]["*weight_quantizer"]
+                if isinstance(weight_quantizer, list):
+                    weight_quantizer = weight_quantizer[0]
+                weight_quantizer["block_sizes"][-1] = quantization_config.awq_block_size
+
+            # Always turn on FP8 kv cache to save memory footprint.
+            # For int8_sq, we use int8 kv cache.
+            atq_config["quant_cfg"]["*output_quantizer"] = {
+                "num_bits": 8 if quantization_config.algorithm == "int8_sq" else (4, 3),
+                "axis": None,
+                "enable": export_config.decoder_type != "gptnext",
+            }
+
             self.atq_config = atq_config
         else:
             self.atq_config = None
@@ -158,7 +172,6 @@ class Quantizer:
                 model_cfg.tensor_model_parallel_size = tensor_model_parallel_size
             if pipeline_model_parallel_size is not None:
                 model_cfg.pipeline_model_parallel_size = pipeline_model_parallel_size
-            model_cfg.megatron_amp_O2 = False  # Support for `megatron_amp_O2 = true` will be enabled in AMMO > 0.7
             # Only custom AMMO spec is supported for PTQ: this custom spec is largely based on local Megatron-LM
             # layer definitions to avoid Transformer Engine implementations that are currently not supported.
             model_cfg.name = "ammo"
@@ -187,11 +200,30 @@ class Quantizer:
                 model.predict_step(batch, i)
 
         model = atq.quantize(model, self.atq_config, forward_loop)
+
+        if self.export_config == "gptnext":
+            # We found squared_relu may have an under-calibration problem.
+            # Clamp the scaling_factor with a min threshold to avoid under-calibration.
+            maxbound = 0
+            if self.quantization_config.algorithm == "fp8":
+                maxbound = 448
+            elif self.quantization_config.quantization.algorithm == "int8_sq":
+                maxbound = 127
+            model = atq.postprocess_amax(
+                model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
+            )
+
+        if dist.get_rank() == 0:
+            atq.print_quant_summary(model)
+
         return model
 
     def export(self, model, model_save: str):
         """Export model to '.qnemo' format for TensorRT-LLM engine build."""
         torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
+
+        if model.cfg.megatron_amp_O2:
+            model.model = unwrap_model(model.model, Float16Module)
 
         # Setup model export handling: temporary directory for
         # '.qnemo' tarball or directly write to model_save
@@ -202,13 +234,13 @@ class Quantizer:
             export_handler = nullcontext(enter_result=model_save)
 
         with export_handler as export_dir:
-            export_model_config(
+            export_tensorrt_llm_checkpoint(
                 model=model,
                 decoder_type=self.export_config.decoder_type,
                 dtype=torch_dtype,
                 export_dir=export_dir,
                 inference_tensor_parallel=self.export_config.inference_tensor_parallel,
-                export_tensorrt_llm_config=self.export_config.export_tensorrt_llm_config,
+                inference_pipeline_parallel=self.export_config.inference_pipeline_parallel,
             )
             dist.barrier()  # Wait until all ranks complete export_model_config step
             if dist.get_rank() == 0:

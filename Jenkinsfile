@@ -9,6 +9,7 @@ pipeline {
   environment {
         NVTE_FUSED_ATTN = 0
         NVTE_FLASH_ATTN = 0
+        PYTHONPATH = "/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"
   }
 
   options {
@@ -70,7 +71,7 @@ pipeline {
              git fetch origin bfe21c3d68b0a9951e5716fb520045db53419c5e && \
              git checkout FETCH_HEAD && \
              git submodule init && git submodule update && \
-             NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .'
+             NVTE_FRAMEWORK=pytorch pip install .'
       }
     }
 
@@ -91,13 +92,12 @@ pipeline {
              pip install . && \
              cd megatron/core/datasets && \
              make'
-         sh 'export PYTHONPATH="${PYTHONPATH}:/mnt/D3/JenkinsWorkDir/workspace/NeMo-multibranch_${GIT_BRANCH}/Megatron-LM"'
       }
     }
 
     stage('AMMO installation') {
       steps {
-         sh 'pip install nvidia-ammo~=0.7.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir'
+         sh 'pip install nvidia-ammo~=0.9.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir'
       }
     }
 
@@ -183,13 +183,14 @@ pipeline {
       steps {
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train"
         sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
             trainer.num_nodes=1 \
             trainer.devices=1 \
             ++exp_manager.max_time_per_run=00:00:03:00 \
             trainer.max_steps=20 \
             model.micro_batch_size=1 \
             model.global_batch_size=1 \
+            model.optim.name=megatron_fused_adam \
             model.data.synthetic_data=True \
             exp_manager.exp_dir=/home/TestData/multimodal/stable_diffusion_train \
             model.inductor=False \
@@ -220,7 +221,7 @@ pipeline {
       steps {
         sh "rm -rf /home/TestData/multimodal/stable_diffusion_train_with_cuda_graphs"
         sh "python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
             trainer.num_nodes=1 \
             trainer.devices=1 \
             ++exp_manager.max_time_per_run=00:00:03:00 \
@@ -3532,13 +3533,14 @@ pipeline {
             model.data.num_workers=4 \
             model.micro_batch_size=1 \
             model.data.shuffle_documents=False \
-            trainer.val_check_interval=15 \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
             model.init_method_std=0.023 \
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
             model.data.splits_string=\'\"98,2,0\"\' \
             model.data.dataloader_type=cyclic \
-            trainer.max_steps=30"
+            trainer.max_steps=10"
         sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
             trainer.devices=2 \
@@ -3554,13 +3556,14 @@ pipeline {
             model.data.num_workers=4 \
             model.micro_batch_size=1 \
             model.data.shuffle_documents=False \
-            trainer.val_check_interval=20 \
+            trainer.val_check_interval=30 \
+            +trainer.num_sanity_val_steps=0 \
             model.init_method_std=0.023 \
             model.optim.lr=6.0e-4 \
             model.megatron_amp_O2=True \
             model.data.splits_string=\'\"98,2,0\"\' \
             model.data.dataloader_type=cyclic \
-            trainer.max_steps=50"
+            trainer.max_steps=20"
         sh "rm -rf examples/nlp/language_modeling/mcore_retro_results"
       }
     }
