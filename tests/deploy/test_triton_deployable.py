@@ -4,8 +4,8 @@ import numpy as np
 from pytriton.client import ModelClient
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton
-from nemo.deploy.nlp import NemoQueryLLM
-from nemo.deploy.tritondeployables.megatrongpt_deployable import MegatronGPTDeployable
+from nemo.deploy.nlp import NemoTritonQueryLLMTensorRT
+from nemo.deploy.nlp.megatrongpt_deployable import MegatronGPTDeployable
 
 
 def test_triton_deployable(args):
