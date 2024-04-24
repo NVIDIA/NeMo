@@ -59,10 +59,10 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core.distributed import DistributedDataParallel as DDP
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
-    from megatron.core.distributed import DistributedDataParallel as DDP
 
     HAVE_MEGATRON_CORE = True
 

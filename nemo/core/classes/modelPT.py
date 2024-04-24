@@ -24,6 +24,8 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
 import torch
+from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
+from megatron.core.utils import get_model_config
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import model_summary, rank_zero_only
@@ -32,15 +34,12 @@ from nemo import package_info
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.core.optim import prepare_lr_scheduler, McoreDistributedOptimizer
+from nemo.core.optim import McoreDistributedOptimizer, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
-
-from megatron.core.optimizer import get_megatron_optimizer, OptimizerConfig
-from megatron.core.utils import get_model_config
 
 __all__ = ['ModelPT']
 
