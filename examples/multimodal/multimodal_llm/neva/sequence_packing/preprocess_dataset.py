@@ -50,11 +50,11 @@ import os
 import random
 import re
 from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import torch
 from megatron.core.datasets.indexed_dataset import IndexedDataset, IndexedDatasetBuilder, get_bin_path, get_idx_path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -110,6 +110,7 @@ def chunkify(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
+
 
 def parallel_first_fit(seq_lens, max_seq_length, chunk_size, num_workers):
     """
