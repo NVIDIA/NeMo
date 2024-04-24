@@ -106,6 +106,7 @@ The table below lists some of the common architecture and optimizer parameters t
 Below is an example RETRO pre-training script. The rest of the arguments values are retrieved from ``examples/nlp/language_modeling/conf/megatron_retro_config.yaml``.
 
 .. code-block:: bash
+
         python /examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
             trainer.devices=8 \
@@ -134,7 +135,8 @@ Below is an example RETRO pre-training script. The rest of the arguments values 
             model.optim.sched.name=CosineAnnealing \
             model.optim.sched.min_lr=6.0e-5 \
             model.optim.sched.max_steps=650000 \
-            model.optim.name=distributed_fused_adam \
+            model.optim.name=distributed_fused_adam
+
 During the training, we can monitor the process with Weights and Biases (WandB) by setting ``exp_manager.create_wandb_logger=True`` and set relevant wandb arguments.
 After training, the model distributed checkpoint directory can be found at the result checkpoint directory.
 
@@ -148,6 +150,7 @@ Implementation-wise, when inferencing, input for RETRO is set up differently tha
 Below is an example RETRO pre-training script. The rest of the arguments values are retrieved from ``examples/nlp/language_modeling/conf/megatron_retro_inference.yaml``.
 
 .. code-block:: bash
+
         python /examples/nlp/language_modeling/megatron_retro_eval.py \
             checkpoint_dir=/path/to/checkpoints \
             checkpoint_name=/checkpoint_name \
