@@ -1,7 +1,7 @@
 import shutil
 from contextlib import contextmanager
 from time import time
-from typing import Any, Dict, Optional, Tuple, cast, Callable
+from typing import Any, Callable, Dict, Optional, Tuple, cast
 
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
@@ -11,9 +11,7 @@ from megatron.core.dist_checkpointing.strategies import tensorstore
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
-from nemo.utils.callbacks.torch_dist_async import \
-    TorchDistAsyncSaveShardedStrategy, AsyncCallsQueue, AsyncRequest
-
+from nemo.utils.callbacks.torch_dist_async import AsyncCallsQueue, AsyncRequest, TorchDistAsyncSaveShardedStrategy
 
 
 @contextmanager
@@ -25,11 +23,11 @@ def debug_time(name: str):
         logging.debug(f'{name} took {time() - start:.3f}s')
 
 
-
 class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
     """
     Requires the underlying checkpoint_io.save_checkpoint to return save_fn, save_args, finalize_fn.
     """
+
     def __init__(self, checkpoint_io: Optional['CheckpointIO'] = None) -> None:
         super().__init__(checkpoint_io)
         self.async_calls_queue = AsyncCallsQueue()
@@ -54,8 +52,8 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
             for callback_idx, callback in enumerate(callbacks):
                 logging.debug(f'Applying finalize callback idx {callback_idx}')
                 callback()
-        return apply_all_finalizations
 
+        return apply_all_finalizations
 
     @debug_time('AsyncFinalizableCheckpointIO.maybe_finalize_save_checkpoint')
     def maybe_finalize_save_checkpoint(self, blocking: bool = False):
@@ -89,7 +87,9 @@ class DistributedCheckpointIO(CheckpointIO):
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
     @debug_time('DistributedCheckpointIO.save_checkpoint')
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> Optional[Tuple]:
+    def save_checkpoint(
+        self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
+    ) -> Optional[Tuple]:
         """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
         Args:

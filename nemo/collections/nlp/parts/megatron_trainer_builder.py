@@ -32,8 +32,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO, \
-    AsyncFinalizableCheckpointIO
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, DistributedCheckpointIO
 
 
 class MegatronTrainerBuilder:

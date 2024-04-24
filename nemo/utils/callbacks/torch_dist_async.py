@@ -2,7 +2,7 @@ from collections import deque
 from logging import getLogger
 from pathlib import Path
 from time import time
-from typing import Callable, NamedTuple, Tuple, List, Optional
+from typing import Callable, List, NamedTuple, Optional, Tuple
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -160,7 +160,7 @@ class AsyncCallsQueue:
         """ Finalizes all available calls. """
         call_idx_finalized = []
         while self.async_calls:
-            _this_blocking = blocking   # TODO: or len(self.async_calls) > self.max_unfinished_calls
+            _this_blocking = blocking  # TODO: or len(self.async_calls) > self.max_unfinished_calls
             next_async_done = self.async_calls[0].async_caller.is_current_async_call_done(_this_blocking)
             if not next_async_done:
                 break
