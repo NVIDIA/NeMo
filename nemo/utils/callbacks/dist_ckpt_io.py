@@ -67,8 +67,8 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
     def teardown(self) -> None:
         super().teardown()
         if self.async_calls_queue.get_num_unfinalized_calls() > 0:
-            logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
-        self.maybe_finalize_save_checkpoint(blocking=True)
+            # Can't do finalization now because some ranks might be lost
+            logging.warning('Some async checkpoint saves might be not finalized properly.')
 
 
 class AsyncFinalizerCallback(Callback):
@@ -79,13 +79,16 @@ class AsyncFinalizerCallback(Callback):
         self.maybe_finalize_async_save(trainer)
 
     def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        self.maybe_finalize_async_save(trainer)
-
-    def teardown(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         checkpoint_io = self._get_checkpoint_io(trainer)
         if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
             logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
         self.maybe_finalize_async_save(trainer, blocking=True)
+
+    def teardown(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        checkpoint_io = self._get_checkpoint_io(trainer)
+        if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
+            # Can't do finalization now because some ranks might be lost
+            logging.warning('Some async checkpoint saves might be not finalized properly.')
 
     def maybe_finalize_async_save(self, trainer, blocking=False):
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=blocking)
