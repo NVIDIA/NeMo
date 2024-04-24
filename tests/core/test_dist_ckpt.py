@@ -1,17 +1,14 @@
 import os
 import types
-from typing import Any, Dict, Optional
 
 import pytest
 import pytorch_lightning as pl
 import torch
 from lightning_fabric.plugins import TorchCheckpointIO
-from lightning_fabric.utilities.types import _PATH
 from pytorch_lightning.demos.boring_classes import BoringModel
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
-from nemo.utils.exp_manager import exp_manager
 
 
 class ExampleModel(BoringModel):
@@ -60,7 +57,7 @@ class TestDistCkptIO:
 
         assert isinstance(test_trainer.strategy.checkpoint_io, MockDistributedCheckpointIO)
         assert checkpoint_io.save_checkpoint_called_args is not None
-        (state_dict, path), kwargs = checkpoint_io.save_checkpoint_called_args
+        (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
         # Ckpt path doesn't contain the .ckpt suffix
         assert path.name == 'epoch=1-step=16'
 
@@ -78,7 +75,7 @@ class TestDistCkptIO:
         assert isinstance(test_trainer.strategy.checkpoint_io, MockTorchCheckpointIO)
         if test_trainer.is_global_zero:
             assert checkpoint_io.save_checkpoint_called_args is not None
-            (state_dict, path), kwargs = checkpoint_io.save_checkpoint_called_args
+            (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
             # Ckpt path *does* contain the .ckpt suffix
             assert os.path.basename(path) == 'epoch=1-step=16.ckpt'
         else:
