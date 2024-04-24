@@ -36,17 +36,16 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         """
-        Requires the underlying checkpoint_io.save_checkpoint to return save_fn, save_args, finalize_fn.
+        Requires the underlying checkpoint_io.save_checkpoint to return an AsyncRequest.
 
         Applies underlying checkpoint_io finalize callback first, then the external one (postfix order).
         """
         external_finalize_fn = storage_options.pop('finalize_fn', None)
         assert self.checkpoint_io is not None
-        ret = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
-        save_fn, save_args, finalize_fn = cast(AsyncRequest, ret)
+        async_request: AsyncRequest = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
         if external_finalize_fn is not None:
-            finalize_fn = self._merge_finalize_callbacks(finalize_fn, external_finalize_fn)
-        call_idx = self.async_calls_queue.schedule_async_call(save_fn, save_args, finalize_fn)
+            async_request.add_finalize_fn(external_finalize_fn)
+        call_idx = self.async_calls_queue.schedule_async_request(async_request)
         logging.debug(f'Scheduled an async call #{call_idx}')
 
     def _merge_finalize_callbacks(self, *callbacks: Callable) -> Callable:
@@ -113,13 +112,12 @@ class DistributedCheckpointIO(CheckpointIO):
         super().__init__()
         self.save_ckpt_format = save_ckpt_format
         self.async_save = async_save
-        self.async_calls_queue = AsyncCallsQueue() if self.async_save else None
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
     @debug_time('DistributedCheckpointIO.save_checkpoint')
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
-    ) -> Optional[Tuple]:
+    ) -> Optional[AsyncRequest]:
         """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
         Args:
@@ -135,10 +133,11 @@ class DistributedCheckpointIO(CheckpointIO):
         )
         if not self.async_save:
             return
-        assert self.save_sharded_strategy.save_and_finalize_callbacks is not None
-        save_fn, save_args, finalize_fn = self.save_sharded_strategy.save_and_finalize_callbacks
-        self.save_sharded_strategy.save_and_finalize_callbacks = None
-        return save_fn, save_args, finalize_fn
+        # NOTE: this logic will be simplified in MCore v0.7
+        assert self.save_sharded_strategy.async_request is not None
+        async_request = self.save_sharded_strategy.async_request
+        self.save_sharded_strategy.async_request = None
+        return async_request
 
     @debug_time('DistributedCheckpointIO.load_checkpoint')
     def load_checkpoint(

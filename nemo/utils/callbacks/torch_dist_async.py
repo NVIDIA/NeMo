@@ -65,10 +65,30 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
             save_state_dict_async_finalize(*save_state_dict_ret)
             torch.distributed.barrier()
 
-        return save_fn, save_args, finalize_fn
+        return AsyncRequest(save_fn, save_args, [finalize_fn])
+
+
+class AsyncRequest(NamedTuple):
+    """ Represents an async request that needs to be scheduled for execution. """
+    async_fn: Optional[Callable]
+    async_fn_args: Tuple
+    finalize_fns: List[Callable]
+    # TODO: add freeze mechanism
+    # is_frozen: bool = False
+
+    def add_finalize_fn(self, fn: Callable):
+        # if self.is_frozen: TODO
+        self.finalize_fns.append(fn)
+
+    def execute_sync(self):
+        if self.async_fn is not None:
+            self.async_fn(*self.async_fn_args)
+        for finalize_fn in self.finalize_fns:
+            finalize_fn()
 
 
 class DistributedAsyncCaller:
+    """ Starts process asynchronously and allows checking if all processes on all ranks are done. """
     def __init__(self):
         self.process = None
         self.start_time = None
@@ -84,10 +104,6 @@ class DistributedAsyncCaller:
         self.start_time = time()
         self.process = ctx.Process(target=async_fn, args=save_args,)
         self.process.start()
-
-    def close(self):
-        if self.process:
-            self.process.join()
 
     def is_current_async_call_done(self, blocking=False, post_barrier=True):
         """ Check if async save is finished.
@@ -117,26 +133,16 @@ class DistributedAsyncCaller:
                     f"DistributedAsyncCaller: Async process join finished after {time() - self.start_time:.2f}s from forking"
                 )
                 self.start_time = None
-
-            # This ensures no race condition on `if self.process` during next is_current_async_call_done call
-            if post_barrier:
-                torch.distributed.barrier()
             return True
-
-
-class _AsyncCall(NamedTuple):
+class _ActiveAsyncRequest(NamedTuple):
+    """ Helper to represent an active async call """
     idx: int
     async_caller: DistributedAsyncCaller
-    finalize_callback: Callable[[], None]
-
-
-class AsyncRequest(NamedTuple):
-    async_fn: Callable
-    async_fn_args: Tuple
-    finalize_fn: Callable
+    async_request: AsyncRequest
 
 
 class AsyncCallsQueue:
+    """ Manages a queue of async calls. """
     def __init__(self, concurrent_calls: bool = True, max_unfinished_calls: int = 2):
         self.concurrent_calls = concurrent_calls
         self.max_unfinished_calls = max_unfinished_calls  # TODO: handle this
@@ -147,13 +153,13 @@ class AsyncCallsQueue:
         if not self.concurrent_calls:
             raise NotImplementedError
 
-    def schedule_async_call(self, async_fn: Optional[Callable], async_fn_args: Tuple, finalize_fn: Callable):
+    def schedule_async_request(self, async_request: AsyncRequest):
         if not self.concurrent_calls:
             raise NotImplementedError
         self.call_idx += 1
         async_caller = DistributedAsyncCaller()
-        async_caller.schedule_async_call(async_fn, async_fn_args)
-        self.async_calls.append(_AsyncCall(self.call_idx, async_caller, finalize_fn))
+        async_caller.schedule_async_call(async_request.async_fn, async_request.async_fn_args)
+        self.async_calls.append(_ActiveAsyncRequest(self.call_idx, async_caller, async_request))
         return self.call_idx
 
     def maybe_finalize_async_calls(self, blocking=False) -> List[int]:
@@ -164,11 +170,18 @@ class AsyncCallsQueue:
             next_async_done = self.async_calls[0].async_caller.is_current_async_call_done(_this_blocking)
             if not next_async_done:
                 break
-            call_idx, _, finalize_fn = self.async_calls.popleft()
-            # TODO: barrier here and check async calls consistency
-            finalize_fn()
+            call_idx, _, async_request = self.async_calls.popleft()
+            for finalize_fn in async_request.finalize_fns:
+                finalize_fn()
+            ten = torch.tensor([call_idx], dtype=torch.int, device=torch.cuda.current_device())
+            torch.distributed.all_reduce(ten, op=torch.distributed.ReduceOp.SUM)
+            assert ten.item() == call_idx * torch.distributed.get_world_size(), \
+                'Unmatched async calls. That probably means not all ranks are participating in async finalization'
             call_idx_finalized.append(call_idx)
         return call_idx_finalized
 
     def get_num_unfinalized_calls(self):
         return len(self.async_calls)
+
+    def close(self):
+        self.maybe_finalize_async_calls(blocking=True)
