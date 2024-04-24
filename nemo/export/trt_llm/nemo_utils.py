@@ -430,17 +430,15 @@ def nemo_to_trtllm_config(
 
         weights_dict_local = {}
         for k, v in weights_dict.items():
-            if k.endswith(".bin"): # TP split
-                if k.endswith(f"{mapping.tp_rank}.bin"):
-                    new_key = k.replace(f".{mapping.tp_rank}.bin","")
-                    weights_dict_local[new_key] = v
-            elif "layers" in k: # PP
-                layer_num = int(k.split(".")[2])
+            new_key = k
+            if new_key.endswith(".bin"): # TP split
+                if new_key.endswith(f"{mapping.tp_rank}.bin"):
+                    new_key = new_key.replace(f".{mapping.tp_rank}.bin","")
+            if "layers" in new_key: # PP
+                layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
-                    new_key = k.replace(f"{layer_num}", f"{layer_num-layers_range[0]}")
-                    weights_dict_local[new_key] = v
-            else:
-                weights_dict_local[k] = v
+                    new_key = new_key.replace(f"{layer_num}", f"{layer_num-layers_range[0]}")
+            weights_dict_local[new_key] = v
 
         embedding_weight = np.ascontiguousarray(
             split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
