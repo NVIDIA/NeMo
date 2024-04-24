@@ -614,6 +614,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
                 canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),
                 random_context_prob=data_cfg.get('random_context_prob', 0.0),
+                random_context_positive_percent=data_cfg.get('random_context_positive_percent', 0.1),
             )
 
         # Notably, the data weights are controlled by either bucketing_weights

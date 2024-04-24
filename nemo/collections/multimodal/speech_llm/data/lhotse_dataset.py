@@ -314,6 +314,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         prepend_to_exist_question: Optional = None,
         canary_tokens_augment_ratio: float = 0.0,
         random_context_prob: float = 0.0,
+        random_context_positive_percent: float = 0.1,
     ):
         from lhotse.dataset import AudioSamples, CutMix
 
@@ -333,6 +334,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.prepend_to_exist_question = prepend_to_exist_question
         self.canary_tokens_augment_ratio = canary_tokens_augment_ratio
         self.random_context_prob = random_context_prob
+        self.random_context_positive_percent = random_context_positive_percent
 
     def _inject_random_context_into_question(self, cut, random_context_num=32, random_context_positive_percent=0.1):
         if self.random_context_prob is not None and self.random_context_prob > 0:
@@ -386,7 +388,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 else:
                     cut.question = self.question + ' ' + canary_text
         for id, cut in enumerate(cuts):
-            self._inject_random_context_into_question(cut)
+            self._inject_random_context_into_question(cut, random_context_positive_percent=self.random_context_positive_percent)
 
         collated_text_data = collate_text_data(
             cuts=cuts,
