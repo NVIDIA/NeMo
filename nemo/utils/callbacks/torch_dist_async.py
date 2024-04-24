@@ -44,7 +44,7 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.save_and_finalize_callbacks = None
+        self.async_request = None
 
     def save(self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path):
         """ Translates MCore ShardedTensors to PyT ShardedTensors and saves in PyT Distributed format.
@@ -69,8 +69,8 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
             None,
             planner=MCoreSavePlanner(dedup_replicated_tensors=not self.keep_only_main_replica),
         )
-        self.save_and_finalize_callbacks = self._get_save_and_finalize_callbacks(writer, save_state_dict_ret)
-        return self.save_and_finalize_callbacks
+        self.async_request = self._get_save_and_finalize_callbacks(writer, save_state_dict_ret)
+        return self.async_request
 
     def _get_save_and_finalize_callbacks(self, writer, save_state_dict_ret):
         save_fn_args = writer.get_save_function_and_args()
