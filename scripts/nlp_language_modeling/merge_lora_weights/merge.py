@@ -27,9 +27,11 @@ python scripts/nlp_language_modeling/merge_lora_weights/merge.py \
 """
 
 
-import os, re
+import os
+import re
 import tempfile
 from typing import Any, Dict, List
+
 import torch
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
