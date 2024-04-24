@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 import pytest
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-import json
 
 from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -31,30 +32,26 @@ if torch.cuda.is_available():
 def retro_workdir_path(test_data_dir):
 
     config_file = {
-            "retro_bert_tokenizer_type": "BertWordPieceLowerCase",
-            "retro_bert_vocab_file": "",
-            "retro_block_size": 1000,
-            "retro_gpt_chunk_length": 64,
-            "retro_gpt_data_cache_path": None,
-            "retro_gpt_data_path": "",
-            "retro_gpt_eval_interval": 2000,
-            "retro_gpt_eval_iters": 100,
-            "retro_gpt_global_batch_size": 8,
-            "retro_gpt_merge_file": None,
-            "retro_gpt_seed": 1234,
-            "retro_gpt_seq_length": 2048,
-            "retro_gpt_split": "98,2,0",
-            "retro_gpt_tokenizer_model": "spm_tok_ende_4k/tokenizer.model",
-            "retro_gpt_tokenizer_type": "GPTSentencePieceTokenizer",
-            "retro_gpt_train_samples": 5000,
-            "retro_gpt_valid_samples": 5000,
-            "retro_gpt_vocab_file": None,
-            "retro_neighbor_dirs": {
-                "test": None,
-                "train": None,
-                "valid": None
-            }
-        }
+        "retro_bert_tokenizer_type": "BertWordPieceLowerCase",
+        "retro_bert_vocab_file": "",
+        "retro_block_size": 1000,
+        "retro_gpt_chunk_length": 64,
+        "retro_gpt_data_cache_path": None,
+        "retro_gpt_data_path": "",
+        "retro_gpt_eval_interval": 2000,
+        "retro_gpt_eval_iters": 100,
+        "retro_gpt_global_batch_size": 8,
+        "retro_gpt_merge_file": None,
+        "retro_gpt_seed": 1234,
+        "retro_gpt_seq_length": 2048,
+        "retro_gpt_split": "98,2,0",
+        "retro_gpt_tokenizer_model": "spm_tok_ende_4k/tokenizer.model",
+        "retro_gpt_tokenizer_type": "GPTSentencePieceTokenizer",
+        "retro_gpt_train_samples": 5000,
+        "retro_gpt_valid_samples": 5000,
+        "retro_gpt_vocab_file": None,
+        "retro_neighbor_dirs": {"test": None, "train": None, "valid": None},
+    }
 
     # save config to json file in retro_workdir_path
     retro_workdir_path = test_data_dir + "/nlp"
@@ -64,6 +61,7 @@ def retro_workdir_path(test_data_dir):
     out_file.close()
 
     return retro_workdir_path
+
 
 @pytest.fixture()
 def model_cfg(test_data_dir, retro_workdir_path):
@@ -115,7 +113,7 @@ def model_cfg(test_data_dir, retro_workdir_path):
             'vocab_file': None,
             'merge_file': None,
             'delimiter': None,
-            'sentencepiece_legacy': False
+            'sentencepiece_legacy': False,
         },
         'native_amp_init_scale': 4294967296,
         'native_amp_growth_interval': 1000,
@@ -146,7 +144,7 @@ def model_cfg(test_data_dir, retro_workdir_path):
                 'retro_block_size': 10000,
                 'retro_chunk_length': 64,
                 'retro_split_preprocessing': "98,2,0",
-                'retro_neighbor_dirs': None
+                'retro_neighbor_dirs': None,
             },
         },
         'optim': {
@@ -200,15 +198,13 @@ def retro_model(model_cfg, trainer_cfg):
 
 @pytest.mark.run_only_on('GPU')
 class TestRETROModel:
-
     @pytest.mark.unit
     def test_constructor(self, retro_model):
         assert isinstance(retro_model, MegatronRetroModel)
 
         num_weights = retro_model.num_weights
-        # assert num_weights == 306868224 # using "tokenizer/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model" tokenizer 
-        assert num_weights == 113405952 # using "spm_tok_ende_4k/tokenizer.model" tokenizer
-
+        # assert num_weights == 306868224 # using "tokenizer/mt_nlg_plus_multilingual_ja_zh_the_stack_frac_015_256k.model" tokenizer
+        assert num_weights == 113405952  # using "spm_tok_ende_4k/tokenizer.model" tokenizer
 
     @pytest.mark.unit
     def test_forward(self, retro_model):
@@ -223,15 +219,14 @@ class TestRETROModel:
         vocab_size = 2000
         eos_id = vocab_size - 2
 
-
         # set input for forward
-        all_tokens = torch.randint(0, vocab_size, (batch_size, seq_length + 1)).cuda() 
+        all_tokens = torch.randint(0, vocab_size, (batch_size, seq_length + 1)).cuda()
         tokens = all_tokens[:, :-1]
         labels = all_tokens[:, 1:]
-        attention_mask, _, text_position_ids = get_ltor_masks_and_position_ids(
-            tokens, eos_id, False, False, False
-        )
-        context_input_ids = torch.randint(0, vocab_size, (batch_size * num_chunks  * neighbors, retrieved_chunk_size)).cuda()
+        attention_mask, _, text_position_ids = get_ltor_masks_and_position_ids(tokens, eos_id, False, False, False)
+        context_input_ids = torch.randint(
+            0, vocab_size, (batch_size * num_chunks * neighbors, retrieved_chunk_size)
+        ).cuda()
         _, _, context_position_ids = get_ltor_masks_and_position_ids(  # neighbor_tokens is already a 2D array
             context_input_ids, eos_id, False, False, False
         )
@@ -243,13 +238,13 @@ class TestRETROModel:
         # forward step
         with torch.no_grad():
             out = retro_model(
-                tokens = tokens.cuda(), 
-                text_position_ids = text_position_ids.cuda(), 
-                attention_mask = attention_mask.cuda(), 
-                labels = labels.cuda(), 
-                context_input_ids = context_input_ids.cuda(), 
-                context_position_ids = context_position_ids.cuda(), 
-                context_mask =context_mask,
+                tokens=tokens.cuda(),
+                text_position_ids=text_position_ids.cuda(),
+                attention_mask=attention_mask.cuda(),
+                labels=labels.cuda(),
+                context_input_ids=context_input_ids.cuda(),
+                context_position_ids=context_position_ids.cuda(),
+                context_mask=context_mask,
             )
 
         assert out.shape == torch.Size([batch_size, seq_length])
