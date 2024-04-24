@@ -1,11 +1,11 @@
 from typing import Any, Dict, List, Literal, Optional
 
-import lightning as L
+import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
 
 class DataSampler:
-    def connect(self, trainer: L.Trainer):
+    def connect(self, trainer: pl.Trainer):
         self.trainer = trainer
 
     def setup(self, global_rank: int) -> None:
@@ -74,7 +74,7 @@ class MegatronDataSampler(DataSampler):
         return int(consumed_samples)
 
     # Megatron callbacks
-    def on_megatron_step_start(self, trainer: L.Trainer) -> None:
+    def on_megatron_step_start(self, trainer: pl.Trainer) -> None:
         # do validation and save the checkpoint when gbs is changed
         if (
             self.rampup_batch_size is not None
@@ -83,7 +83,7 @@ class MegatronDataSampler(DataSampler):
         ):
             trainer.should_stop = True
 
-    def on_megatron_step_end(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
+    def on_megatron_step_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         import apex.transformer.pipeline_parallel.utils
 
         if self.rampup_batch_size is None:

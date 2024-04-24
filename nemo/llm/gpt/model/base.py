@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
 
-import lightning.pytorch as L
+import pytorch_lightning as L
 import torch
 import torch.distributed
 from megatron.core.transformer.transformer_config import TransformerConfig
