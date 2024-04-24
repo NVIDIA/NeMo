@@ -1,5 +1,5 @@
 =========
-NeMo Core
+NeMo APIs
 =========
 
 You can learn more about the underlying principles of the NeMo codebase in this section.
