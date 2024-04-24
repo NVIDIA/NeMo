@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from collections import deque
 from logging import getLogger
 from pathlib import Path
@@ -23,7 +37,10 @@ logger = getLogger(__name__)
 
 
 class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
-    """Async save strategy for the PyT Distributed format. """
+    """Async save strategy for the PyT Distributed format.
+
+    NOTE: this class will be replaced with an MCore version
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -69,7 +86,10 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
 
 
 class AsyncRequest(NamedTuple):
-    """ Represents an async request that needs to be scheduled for execution. """
+    """ Represents an async request that needs to be scheduled for execution.
+
+    NOTE: this class will be replaced with an MCore version
+    """
     async_fn: Optional[Callable]
     async_fn_args: Tuple
     finalize_fns: List[Callable]
@@ -135,14 +155,20 @@ class DistributedAsyncCaller:
                 self.start_time = None
             return True
 class _ActiveAsyncRequest(NamedTuple):
-    """ Helper to represent an active async call """
+    """ Helper to represent an active async call.
+
+    NOTE: this class will be replaced with an MCore version
+    """
     idx: int
     async_caller: DistributedAsyncCaller
     async_request: AsyncRequest
 
 
 class AsyncCallsQueue:
-    """ Manages a queue of async calls. """
+    """ Manages a queue of async calls.
+
+    NOTE: this class will be replaced with an MCore version
+    """
     def __init__(self, concurrent_calls: bool = True, max_unfinished_calls: int = 2):
         self.concurrent_calls = concurrent_calls
         self.max_unfinished_calls = max_unfinished_calls  # TODO: handle this
