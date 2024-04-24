@@ -842,7 +842,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # dist ckpt calls save on every rank
             if dist_ckpt:
                 # model weights is a directory
-                dist_ckpt_path = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
+                dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
                 sharded_state_dict = model.sharded_state_dict()
                 # dist checkpoint needs torch.distributed to save the checkpoint
                 if not parallel_state.is_initialized():
@@ -854,7 +854,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                         model.trainer.strategy.setup_environment()
                 checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
-                checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_path)
+                checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
 
             else:
 
