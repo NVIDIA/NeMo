@@ -14,6 +14,7 @@ Documentation for the individual collections
    nlp/models
    nlp/machine_translation/machine_translation
    nlp/megatron_onnx_export
+   nlp/quantization
    nlp/api
 
 
