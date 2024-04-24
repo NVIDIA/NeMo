@@ -419,6 +419,15 @@ def nemo_to_trtllm_config(
     model_configs = []
     weights_dicts = []
     num_layers = nemo_model_config.get('num_layers')
+
+    pp_key = {
+        "transformer.vocab_embedding.weight",
+        "transformer.position_embedding.weight",
+        "lm_head.weight",
+        "transformer.ln_f.weight",
+        "transformer.ln_f.bias"
+    }
+
     for i in range(world_size):
         mapping = tensorrt_llm.Mapping(
             world_size=world_size,
@@ -430,6 +439,8 @@ def nemo_to_trtllm_config(
 
         weights_dict_local = {}
         for k, v in weights_dict.items():
+            if k in pp_key:
+                continue
             new_key = k
             if new_key.endswith(".bin"): # TP split
                 if new_key.endswith(f"{mapping.tp_rank}.bin"):
@@ -440,15 +451,30 @@ def nemo_to_trtllm_config(
                     new_key = new_key.replace(f"{layer_num}", f"{layer_num-layers_range[0]}")
             weights_dict_local[new_key] = v
 
-        embedding_weight = np.ascontiguousarray(
-            split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
-        ) if use_parallel_embedding else weights_dict["transformer.vocab_embedding.weight"]
+        if mapping.is_first_pp_rank():
+            embedding_weight = np.ascontiguousarray(
+                split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
+            ) if use_parallel_embedding else weights_dict["transformer.vocab_embedding.weight"]
 
-        weights_dict_local["transformer.vocab_embedding.weight"] = embedding_weight
+            weights_dict_local["transformer.vocab_embedding.weight"] = embedding_weight
 
-        weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
-            split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
-        )
+            pos_embedding_weight = weights_dict.get("transformer.position_embedding.weight")
+            if pos_embedding_weight is not None:
+                if use_parallel_embedding:
+                    pos_embedding_weight = np.ascontiguousarray(
+                        split(pos_embedding_weight, mapping.tp_size, mapping.tp_rank)
+                    )
+                weights_dict_local["transformer.position_embedding.weight"] = pos_embedding_weight
+
+        if mapping.is_last_pp_rank():
+            weights_dict_local["lm_head.weight"] = np.ascontiguousarray(
+                split(lm_head_weight, mapping.tp_size, mapping.tp_rank)
+            )
+            weights_dict_local["transformer.ln_f.weight"] = weights_dict["transformer.ln_f.weight"]
+
+            ln_f_bias = weights_dict.get("transformer.ln_f.bias")
+            if ln_f_bias is not None:
+                weights_dict_local["transformer.ln_f.bias"] = ln_f_bias
 
         model_config = PretrainedConfig(**config)
         model_config.mapping = mapping
