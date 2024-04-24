@@ -355,6 +355,8 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                         f"Attempted to change a parameter with dtype={param.dtype} "
                         f"into a buffer view with dtype={param_buffer_view.dtype}"
                     )
+                if param.is_contiguous(memory_format=torch.channels_last):
+                    param = param.permute(0, 2, 3, 1)
                 param_flat_views.append(param.detach().view(-1))
             param_buffer_views.append(param_buffer_view)
 
@@ -368,7 +370,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             if is_float8tensor(param):
                 param._data = buffer_view.view(param.size())
             else:
-                param.data = buffer_view.view(param.size())
+                # Preserve memory format for param here, i.e. NHWC tensors
+                param.data.set_(
+                    source=buffer_view,
+                    storage_offset=0,
+                    size=param.size(),
+                    stride=param.stride(),
+                )
 
     def try_grad_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
         """Attempt to launch gradient synchronization"""
