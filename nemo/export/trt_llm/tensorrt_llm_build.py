@@ -366,7 +366,8 @@ def build_and_save_engine(
     use_lora_plugin=None,
     max_lora_rank=64,
     lora_target_modules=None,
-    max_prompt_embedding_table_size=0
+    max_prompt_embedding_table_size=0,
+    enable_multi_block_mode: bool = False
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -378,10 +379,11 @@ def build_and_save_engine(
     plugin_config = PluginConfig()
     plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
     plugin_config.set_gemm_plugin(dtype=str_dtype)
+    plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
     max_num_tokens = max_batch_size*max_input_len
 
-    
-   
+
+
     build_dict = {
         'max_input_len': max_input_len,
         'max_output_len': max_output_len,
@@ -405,7 +407,7 @@ def build_and_save_engine(
             max_lora_rank=max_lora_rank,
             lora_target_modules=lora_target_modules)
         build_config.lora_config = lora_config
-    
+
     model = model_cls.from_config(model_config)
     model = optimize_model(
         model,
