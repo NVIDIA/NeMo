@@ -35,6 +35,7 @@ from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.uti
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
+from nemo.utils.trt_utils import build_engine
 
 
 def do_calibrate(base, calibration_prompts, **kwargs):
@@ -48,6 +49,24 @@ def do_calibrate(base, calibration_prompts, **kwargs):
             samples=kwargs['num_samples'],
             return_latents=False,
         )
+
+
+def get_input_profile_unet(batch_size, static_batch=False, min_batch_size=1, max_batch_size=8, latent_dim=32,
+                           adm_in_channels=1280):
+    assert batch_size >= min_batch_size and batch_size <= max_batch_size
+    if static_batch:
+        min_batch_size = batch_size if static_batch else min_batch_size
+        max_batch_size = batch_size if static_batch else max_batch_size
+    input_profile = {}
+    dummy_input = generate_dummy_inputs(sd_version="nemo", device='cuda', latent_dim=latent_dim,
+                                        adm_in_channels=adm_in_channels)
+    for key, value in dummy_input.items():
+        input_profile[key] = [
+            (min_batch_size, *(value.shape[1:])),
+            (batch_size, *(value.shape[1:])),
+            (max_batch_size, *(value.shape[1:])),
+        ]
+    return input_profile
 
 
 @hydra_runner(config_path='conf', config_name='sd_xl_quantize')
@@ -69,8 +88,8 @@ def main(cfg):
     model.cuda()
     base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
 
-    exp_name = cfg.quantize.exp_name
     QuantModuleRegistry.register({LinearWrapper: "nemo_linear_wrapper"})(_QuantNeMoLinearWrapper)
+
 
     if cfg.run_quantization:
         # Start quantization with ammo
@@ -149,6 +168,29 @@ def main(cfg):
             opset_version=opset_version,
         )
 
+    if cfg.run_trt_export:
+        torch.cuda.empty_cache()
+        batch_size = cfg.infer.get('num_samples', 1)
+        min_batch_size = cfg.trt_export.min_batch_size
+        max_batch_size = cfg.trt_export.max_batch_size
+        static_batch = cfg.trt_export.static_batch
+        fp16 = cfg.trainer.precision in ['16', '16-mixed', 16]
+        build_engine(
+            f"./{cfg.onnx_export.onnx_dir}/unet.onnx",
+            f"{cfg.trt_export.trt_engine}",
+            fp16=fp16,
+            input_profile=get_input_profile_unet(
+                batch_size,
+                static_batch=static_batch,
+                min_batch_size=min_batch_size,
+                max_batch_size=max_batch_size,
+                latent_dim=cfg.sampling.base.height // 8,
+                adm_in_channels=base.model.model.diffusion_model.adm_in_channels,
+            ),
+            timing_cache=None,
+            int8=cfg.trt_export.int8,
+            builder_optimization_level=cfg.trt_export.builder_optimization_level,
+        )
 
 if __name__ == "__main__":
     main()

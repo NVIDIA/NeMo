@@ -13,11 +13,10 @@
 # limitations under the License.
 
 import math
-import time
-
 import numpy as np
 import open_clip
 import tensorrt as trt
+import time
 import torch
 from cuda import cudart
 from transformers import CLIPTokenizer
@@ -201,8 +200,9 @@ class StableDiffusionXLTRTPipeline(Serialization):
 
             samples_z = self.sampler(denoiser, randn, cond=c, uc=uc)
             samples_x = self.decode_images(samples_z)
+            e2e_tic = time.perf_counter() - e2e_tic
             samples = torch.clamp((samples_x + 1.0) / 2.0, min=0.0, max=1.0)
-
+            print(f'This batch takes {e2e_tic}s')
             perform_save_locally(self.cfg.out_path, samples)
 
 
