@@ -1,7 +1,7 @@
 from typing import Union
 
-from pytorch_lightning import plugins as _pl_plugins
 from lightning_fabric.plugins.environments import slurm
+from pytorch_lightning import plugins as _pl_plugins
 
 from nemo.lightning.base import get_vocab_size, teardown
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
