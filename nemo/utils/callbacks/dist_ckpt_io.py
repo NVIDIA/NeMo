@@ -11,8 +11,7 @@ from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.strategies import tensorstore
 
 from nemo.utils import logging
-from nemo.utils.callbacks.torch_dist_async import \
-    TorchDistAsyncSaveShardedStrategy
+from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
 
 
 class AsyncFinalizableCheckpointIO(CheckpointIO):
@@ -38,9 +37,7 @@ class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
     """
 
     def __init__(
-            self,
-            save_ckpt_format: str,
-            async_save: bool = False,
+        self, save_ckpt_format: str, async_save: bool = False,
     ):
         super().__init__()
         self.save_ckpt_format = save_ckpt_format

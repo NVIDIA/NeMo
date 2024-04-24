@@ -15,13 +15,13 @@
 import os
 import re
 import shutil
-from _weakref import proxy
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
+from _weakref import proxy
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from pytorch_lightning.utilities import rank_zero_info
 
@@ -429,12 +429,16 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            trainer.save_checkpoint(filepath, self.save_weights_only)
             finalize_cb = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
             if self.async_save:
-                assert self.async_finalize_cb is None, 'active save_checkpoint already happening'
-                self.async_finalize_cb = finalize_cb
+                checkpoint_io = trainer.strategy.checkpoint_io
+                if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
+                    raise ValueError('Async save requires async compatible CheckpointIO')
+                storage_options = dict(finalize_cb=finalize_cb)
             else:
+                storage_options = None
+            trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
+            if not self.async_save:
                 finalize_cb()
 
     def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
@@ -460,7 +464,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self.async_finalize_cb()
             self.async_finalize_cb = None
 
-    def _get_finalize_save_checkpoint_callback(self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int):
+    def _get_finalize_save_checkpoint_callback(
+        self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
+    ):
         def _cb():
             logging.debug(f'Finalize callback called for {global_step} step')
             self._last_global_step_saved = global_step
@@ -479,10 +485,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             for ckpt_to_remove in self.deferred_ckpts_to_remove:
                 self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
             self.deferred_ckpts_to_remove = []
+
         return _cb
 
-    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str,
-                           override_async=False) -> None:
+    def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, override_async=False) -> None:
         if self.async_save and not override_async:
             self.deferred_ckpts_to_remove.append(filepath)
             return

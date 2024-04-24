@@ -132,14 +132,12 @@ class MegatronTrainerBuilder:
         use_dist_ckpt = not self.cfg.model.get('fsdp', False) and self.cfg.model.get('mcore_gpt', False)
         async_save = self.cfg.exp_manager.checkpoint_callback_params.get('async_save', False)
         if use_dist_ckpt:
-            plugins.append(DistributedCheckpointIO(
-                self.cfg.model.get('dist_ckpt_format', 'zarr'),
-                async_save,
-            ))
+            plugins.append(DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr'), async_save,))
         elif async_save:
-            raise MisconfigurationException('exp_manager.checkpoint_callback_params.async_save=True without'
-                                            'distributed checkoints is currently not supported')
-
+            raise MisconfigurationException(
+                'exp_manager.checkpoint_callback_params.async_save=True without'
+                'distributed checkoints is currently not supported'
+            )
 
         return plugins
 
