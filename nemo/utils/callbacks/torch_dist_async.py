@@ -90,6 +90,7 @@ class AsyncRequest(NamedTuple):
 
     NOTE: this class will be replaced with an MCore version
     """
+
     async_fn: Optional[Callable]
     async_fn_args: Tuple
     finalize_fns: List[Callable]
@@ -109,6 +110,7 @@ class AsyncRequest(NamedTuple):
 
 class DistributedAsyncCaller:
     """ Starts process asynchronously and allows checking if all processes on all ranks are done. """
+
     def __init__(self):
         self.process = None
         self.start_time = None
@@ -154,11 +156,14 @@ class DistributedAsyncCaller:
                 )
                 self.start_time = None
             return True
+
+
 class _ActiveAsyncRequest(NamedTuple):
     """ Helper to represent an active async call.
 
     NOTE: this class will be replaced with an MCore version
     """
+
     idx: int
     async_caller: DistributedAsyncCaller
     async_request: AsyncRequest
@@ -169,6 +174,7 @@ class AsyncCallsQueue:
 
     NOTE: this class will be replaced with an MCore version
     """
+
     def __init__(self, concurrent_calls: bool = True, max_unfinished_calls: int = 2):
         self.concurrent_calls = concurrent_calls
         self.max_unfinished_calls = max_unfinished_calls  # TODO: handle this
@@ -201,8 +207,9 @@ class AsyncCallsQueue:
                 finalize_fn()
             ten = torch.tensor([call_idx], dtype=torch.int, device=torch.cuda.current_device())
             torch.distributed.all_reduce(ten, op=torch.distributed.ReduceOp.SUM)
-            assert ten.item() == call_idx * torch.distributed.get_world_size(), \
-                'Unmatched async calls. That probably means not all ranks are participating in async finalization'
+            assert (
+                ten.item() == call_idx * torch.distributed.get_world_size()
+            ), 'Unmatched async calls. That probably means not all ranks are participating in async finalization'
             call_idx_finalized.append(call_idx)
         return call_idx_finalized
 

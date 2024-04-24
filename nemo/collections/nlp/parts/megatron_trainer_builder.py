@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import sys
-from typing import Union, Optional
+from typing import Optional, Union
 
 from lightning_fabric.utilities.exceptions import MisconfigurationException
 from omegaconf import DictConfig
@@ -32,8 +32,11 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, \
-    DistributedCheckpointIO, AsyncFinalizerCallback
+from nemo.utils.callbacks.dist_ckpt_io import (
+    AsyncFinalizableCheckpointIO,
+    AsyncFinalizerCallback,
+    DistributedCheckpointIO,
+)
 
 
 class MegatronTrainerBuilder:
