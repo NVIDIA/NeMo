@@ -4687,12 +4687,13 @@ jobs:
             trainer.num_nodes=1 \
             model.restore_from_path='/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo' \
             model.peft.restore_from_path='/home/TestData/nlp/megatron_ir/working_dir/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo' \
-            model.data.test_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
-            model.data.test_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl] \ 
             model.global_batch_size=4 \
             model.micro_batch_size=4 \
+            model.peft.lora_tuning.adapter_dim=8 \
             model.data.test_ds.write_embeddings_to_file=True \
-            model.data.test_ds.out ut_file_path_prefix='/home/TestData/nlp/megatron_ir/working_dir/test_embs' 
+            model.data.test_ds.out ut_file_path_prefix='/home/TestData/nlp/megatron_ir/working_dir/test_embs' \
+            model.data.test_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
+            model.data.test_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl]
 
             rm -rf /home/TestData/nlp/megatron_ir/working_dir
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
