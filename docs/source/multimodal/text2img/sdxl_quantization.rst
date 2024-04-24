@@ -110,12 +110,12 @@ GPU: H100
 | fp16 base   | 4          | 5657.19     | Ammo Int8 | 4          | 4252.6     | 1.330289705 |
 +-------------+------------+------------+-----------+------------+------------+-----------+---------+
 
-Int8 inference vs FP16 inference
+FP16 inference vs Int8 inference
 ----------------------------------
 
-.. image:: ./images/trt_output_fp16/000000007.png
+.. image:: ./images/trt_output_fp16/000000005.png
    :width: 50%
-.. image:: ./images/trt_output_int8/000000007.png
+.. image:: ./images/trt_output_int8/000000005.png
    :width: 50%
 Prompt: A photo of a Shiba Inu dog with a backpack riding a bike. It is wearing sunglasses and a beach hat. (FP16 upper vs Int8 lower)
 
