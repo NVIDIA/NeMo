@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import pytest
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 import json
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -62,7 +59,9 @@ def retro_workdir_path(test_data_dir):
     # save config to json file in retro_workdir_path
     retro_workdir_path = test_data_dir + "/nlp"
     config_file_path = retro_workdir_path + "/config.json"
-    json.dump(config_file, open(config_file_path, 'w'))
+    out_file = open(config_file_path, 'w')
+    json.dump(config_file, out_file)
+    out_file.close()
 
     return retro_workdir_path
 
@@ -222,7 +221,6 @@ class TestRETROModel:
         num_chunks = seq_length // chunk_length
         retrieved_chunk_size = chunk_length * 2
         vocab_size = 2000
-        pad_id = vocab_size - 1
         eos_id = vocab_size - 2
 
 
