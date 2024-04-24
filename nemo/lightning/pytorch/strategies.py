@@ -4,7 +4,7 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, ContextManager, Dict, List, Mapping, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Mapping, Optional, TypeVar, Union, cast
 
 import pytorch_lightning as pl
 import torch
@@ -31,7 +31,9 @@ from nemo.io.pl import MegatronCheckpointIO
 from nemo.lightning import _strategy_lib
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
-from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
+
+if TYPE_CHECKING:
+    from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
 ConfigT = TypeVar("ConfigT")
 
