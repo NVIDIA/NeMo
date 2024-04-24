@@ -129,7 +129,7 @@ def main(cfg):
 
     if cfg.run_onnx_export:
         os.makedirs(cfg.onnx_export.onnx_dir, exist_ok=True)
-        output = Path(f"./{cfg.onnx_export.onnx_dir}/unet.onnx")
+        output = Path(f"{cfg.onnx_export.onnx_dir}/unet.onnx")
         # Export quantized model to ONNX
         if not cfg.run_quantization:
             ato.restore(base.model.model.diffusion_model, cfg.onnx_export.quantized_ckpt)
@@ -176,7 +176,7 @@ def main(cfg):
         static_batch = cfg.trt_export.static_batch
         fp16 = cfg.trainer.precision in ['16', '16-mixed', 16]
         build_engine(
-            f"./{cfg.onnx_export.onnx_dir}/unet.onnx",
+            f"{cfg.onnx_export.onnx_dir}/unet.onnx",
             f"{cfg.trt_export.trt_engine}",
             fp16=fp16,
             input_profile=get_input_profile_unet(
