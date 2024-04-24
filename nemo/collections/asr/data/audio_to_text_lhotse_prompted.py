@@ -29,12 +29,12 @@ from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
 class PromptedAudioToTextMiniBatch:
     audio: torch.Tensor
     audio_lens: torch.Tensor
-    transcript: torch.Tensor | None
-    transcript_lens: torch.Tensor | None
-    prompt: torch.Tensor | None
-    prompt_lens: torch.Tensor | None
-    prompted_transcript: torch.Tensor | None
-    prompted_transcript_lens: torch.Tensor | None
+    transcript: torch.Tensor
+    transcript_lens: torch.Tensor
+    prompt: torch.Tensor
+    prompt_lens: torch.Tensor
+    prompted_transcript: torch.Tensor
+    prompted_transcript_lens: torch.Tensor
 
 
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
@@ -75,13 +75,8 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
 
         tokens, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
 
-        if self.inference:
-            transcript = None
-            transcript_lens = None
-        else:
-            transcript = [t[len(p) :] for t, p in zip(tokens, prompts)]
-            transcript, transcript_lens = self._collate_tokens(transcript)
-
+        transcript = [t[len(p) :] for t, p in zip(tokens, prompts)]
+        transcript, transcript_lens = self._collate_tokens(transcript)
         tokens, token_lens = self._collate_tokens(tokens)
         prompts, prompt_lens = self._collate_tokens(prompts)
 
