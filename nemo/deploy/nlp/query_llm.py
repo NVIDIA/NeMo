@@ -25,7 +25,7 @@ except Exception:
     use_pytriton = False
 
 
-class NemoQueryLLMBase(ABC):
+class NemoTritonQueryLLMBase(ABC):
     def __init__(self, url, model_name):
         self.url = url
         self.model_name = model_name
@@ -49,7 +49,7 @@ class NemoQueryLLMBase(ABC):
         pass
 
 
-class NemoQueryLLM(NemoQueryLLMBase):
+class NemoTritonQueryLLMTensorRT(NemoTritonQueryLLMBase):
     """
     Sends a query to Triton for LLM inference
 

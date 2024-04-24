@@ -15,6 +15,6 @@
 
 use_query_llm = True
 try:
-    from nemo.deploy.nlp.query_llm import NemoQueryLLM
+    from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMTensorRT
 except Exception:
     use_query_llm = False

@@ -23,7 +23,7 @@ from tests.infer_data_path import get_infer_test_data
 run_export_tests = True
 try:
     from nemo.deploy import DeployPyTriton
-    from nemo.deploy.nlp import NemoQueryLLM
+    from nemo.deploy.nlp import NemoTritonQueryLLMTensorRT
     from nemo.export import TensorRTLLM
 except Exception as e:
     run_export_tests = False
@@ -231,7 +231,7 @@ def run_trt_llm_inference(
             nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name=model_name, port=8000,)
             nm.deploy()
             nm.run()
-            nq = NemoQueryLLM(url="localhost:8000", model_name=model_name)
+            nq = NemoTritonQueryLLMTensorRT(url="localhost:8000", model_name=model_name)
 
             output_deployed = nq.query_llm(
                 prompts=prompt,
