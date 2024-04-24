@@ -169,3 +169,6 @@ class AsyncCallsQueue:
             finalize_fn()
             call_idx_finalized.append(call_idx)
         return call_idx_finalized
+
+    def get_num_unfinalized_calls(self):
+        return len(self.async_calls)

@@ -410,7 +410,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return trainer.strategy.broadcast(exists)
 
     def _save_checkpoint(self, trainer: 'pytorch_lightning.Trainer', filepath: str) -> None:
-        self.maybe_finalize_async_save(trainer, blocking=True)
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during checkpointing, we should be able to detect that data is incomplete.
         self.set_checkpoint_unfinished_marker(filepath, barrier_after=True)
@@ -441,32 +440,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if not self.async_save:
                 finalize_fn()
 
-    # TODO: remove from here?
-    def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        self.maybe_finalize_async_save(trainer)
-        super().on_train_batch_end(trainer, *args, **kwargs)
-
-    def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        self.maybe_finalize_async_save(trainer)
-        super().on_train_epoch_end(trainer, *args, **kwargs)
-
-    def teardown(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        self.maybe_finalize_async_save(trainer)
-        super().teardown(trainer, *args, **kwargs)
-
-    def maybe_finalize_async_save(self, trainer, blocking=False):
-        if not self.async_save:
-            return
-        checkpoint_io = trainer.strategy.checkpoint_io
-        if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
-            raise ValueError('Async save requires async compatible CheckpointIO')
-        checkpoint_io.maybe_finalize_save_checkpoint(blocking=blocking)
-
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
         def _cb():
-            logging.debug(f'Finalize callback called for {global_step} step')
+            logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
             self._last_global_step_saved = global_step
             self._last_checkpoint_saved = filepath
 

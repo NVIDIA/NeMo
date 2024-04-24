@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import sys
-from typing import Union
+from typing import Union, Optional
 
 from lightning_fabric.utilities.exceptions import MisconfigurationException
 from omegaconf import DictConfig
@@ -32,7 +32,8 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, DistributedCheckpointIO
+from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, \
+    DistributedCheckpointIO, AsyncFinalizerCallback
 
 
 class MegatronTrainerBuilder:
@@ -144,14 +145,27 @@ class MegatronTrainerBuilder:
 
         return plugins
 
+    def _callbacks(self, callbacks: Optional[list]) -> list:
+        """
+        Returns:
+            callbacks: list of callbacks passed to Trainer.callbacks.
+        """
+        if callbacks is None:
+            callbacks = []
+        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+        if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
+            callbacks.append(CustomProgressBar())
+
+        if self.cfg.exp_manager.checkpoint_callback_params.get('async_save', False):
+            callbacks.append(AsyncFinalizerCallback())
+        return callbacks
+
     def create_trainer(self, callbacks=None) -> Trainer:
         # cfg.trainer.precision becomes None in Trainer if precision_plugins exist since both precision plugins and precision
         precision = self.cfg.trainer.precision
         strategy = self._training_strategy()
         plugins = self._plugins()
-        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
-        if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
-            callbacks = [CustomProgressBar()]
+        callbacks = self._callbacks(callbacks)
         trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
         # Restore the precision value after Trainer is built.
         self.cfg.trainer.precision = precision
@@ -171,13 +185,15 @@ class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
 class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
     """Builder for T5 model Trainer with overrides."""
 
-    def create_trainer(self) -> Trainer:
+    def _callbacks(self, callbacks: Optional[list]) -> list:
+        callbacks = super()._callbacks(callbacks)
+        callbacks.append(ModelSummary(max_depth=3))
+        return callbacks
+
+    def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        callbacks = [ModelSummary(max_depth=3)]
-        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
-        if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
-            callbacks.append(CustomProgressBar())
+        callbacks = self._callbacks(callbacks)
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 
 

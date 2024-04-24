@@ -3,11 +3,13 @@ from contextlib import contextmanager
 from time import time
 from typing import Any, Callable, Dict, Optional, Tuple, cast
 
+import pytorch_lightning as pl
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
 from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.strategies import tensorstore
+from pytorch_lightning import Callback
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
@@ -62,12 +64,37 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
             logging.debug(f'Finalized async calls: {[f"#{idx}" for idx in call_idx_finalized]}')
         return len(call_idx_finalized) > 0
 
-    def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        print('HERE' * 1000)
-
     def teardown(self) -> None:
         super().teardown()
+        if self.async_calls_queue.get_num_unfinalized_calls() > 0:
+            logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
         self.maybe_finalize_save_checkpoint(blocking=True)
+
+
+class AsyncFinalizerCallback(Callback):
+    def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        self.maybe_finalize_async_save(trainer)
+
+    def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        self.maybe_finalize_async_save(trainer)
+
+    def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        self.maybe_finalize_async_save(trainer)
+
+    def teardown(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        checkpoint_io = self._get_checkpoint_io(trainer)
+        if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
+            logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
+        self.maybe_finalize_async_save(trainer, blocking=True)
+
+    def maybe_finalize_async_save(self, trainer, blocking=False):
+        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=blocking)
+
+    def _get_checkpoint_io(self, trainer) -> AsyncFinalizableCheckpointIO:
+        checkpoint_io = trainer.strategy.checkpoint_io
+        if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
+            raise ValueError(f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io}')
+        return checkpoint_io
 
 
 class DistributedCheckpointIO(CheckpointIO):
