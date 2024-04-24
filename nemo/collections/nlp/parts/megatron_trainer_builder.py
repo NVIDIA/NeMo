@@ -32,7 +32,8 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
-from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
+from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO, \
+    AsyncFinalizableCheckpointIO
 
 
 class MegatronTrainerBuilder:
@@ -132,7 +133,10 @@ class MegatronTrainerBuilder:
         use_dist_ckpt = not self.cfg.model.get('fsdp', False) and self.cfg.model.get('mcore_gpt', False)
         async_save = self.cfg.exp_manager.checkpoint_callback_params.get('async_save', False)
         if use_dist_ckpt:
-            plugins.append(DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr'), async_save,))
+            checkpoint_io = DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr'), async_save)
+            if async_save:
+                checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
+            plugins.append(checkpoint_io)
         elif async_save:
             raise MisconfigurationException(
                 'exp_manager.checkpoint_callback_params.async_save=True without'

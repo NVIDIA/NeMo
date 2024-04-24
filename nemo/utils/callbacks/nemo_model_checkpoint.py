@@ -50,7 +50,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         postfix: str = ".nemo",
         n_resume: bool = False,
         model_parallel_size: int = None,
-        async_save: bool = False,
+        async_save: bool = False,  # controls only finalize callbacks
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
@@ -429,18 +429,19 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            finalize_cb = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
+            finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
             if self.async_save:
                 checkpoint_io = trainer.strategy.checkpoint_io
                 if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
                     raise ValueError('Async save requires async compatible CheckpointIO')
-                storage_options = dict(finalize_cb=finalize_cb)
+                storage_options = dict(finalize_fn=finalize_fn)
             else:
                 storage_options = None
             trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
             if not self.async_save:
-                finalize_cb()
+                finalize_fn()
 
+    # TODO: remove from here?
     def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         self.maybe_finalize_async_save(trainer)
         super().on_train_batch_end(trainer, *args, **kwargs)
@@ -459,10 +460,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         checkpoint_io = trainer.strategy.checkpoint_io
         if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
             raise ValueError('Async save requires async compatible CheckpointIO')
-        if checkpoint_io.maybe_finalize_save_checkpoint(blocking=blocking):
-            assert self.async_finalize_cb is not None, 'async finalize callback should be available'
-            self.async_finalize_cb()
-            self.async_finalize_cb = None
+        checkpoint_io.maybe_finalize_save_checkpoint(blocking=blocking)
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
@@ -482,6 +480,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
             logging.debug(f'Checkpoints to remove: {self.deferred_ckpts_to_remove}')
+            # TODO: this might remove checkpoints too early (callback from finished save removes ckpts from unfinished save)
             for ckpt_to_remove in self.deferred_ckpts_to_remove:
                 self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
             self.deferred_ckpts_to_remove = []

@@ -1,23 +1,19 @@
 import shutil
-from abc import abstractmethod
 from contextlib import contextmanager
 from time import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, cast, Callable
 
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
 from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.strategies import tensorstore
+from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
-from nemo.utils.callbacks.torch_dist_async import TorchDistAsyncSaveShardedStrategy
+from nemo.utils.callbacks.torch_dist_async import \
+    TorchDistAsyncSaveShardedStrategy, AsyncCallsQueue, AsyncRequest
 
-
-class AsyncFinalizableCheckpointIO(CheckpointIO):
-    @abstractmethod
-    def maybe_finalize_save_checkpoint(self, blocking: bool = False):
-        raise NotImplementedError
 
 
 @contextmanager
@@ -29,7 +25,54 @@ def debug_time(name: str):
         logging.debug(f'{name} took {time() - start:.3f}s')
 
 
-class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
+
+class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
+    """
+    Requires the underlying checkpoint_io.save_checkpoint to return save_fn, save_args, finalize_fn.
+    """
+    def __init__(self, checkpoint_io: Optional['CheckpointIO'] = None) -> None:
+        super().__init__(checkpoint_io)
+        self.async_calls_queue = AsyncCallsQueue()
+
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+        """
+        Requires the underlying checkpoint_io.save_checkpoint to return save_fn, save_args, finalize_fn.
+
+        Applies underlying checkpoint_io finalize callback first, then the external one (postfix order).
+        """
+        external_finalize_fn = storage_options.pop('finalize_fn', None)
+        assert self.checkpoint_io is not None
+        ret = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
+        save_fn, save_args, finalize_fn = cast(AsyncRequest, ret)
+        if external_finalize_fn is not None:
+            finalize_fn = self._merge_finalize_callbacks(finalize_fn, external_finalize_fn)
+        call_idx = self.async_calls_queue.schedule_async_call(save_fn, save_args, finalize_fn)
+        logging.debug(f'Scheduled an async call #{call_idx}')
+
+    def _merge_finalize_callbacks(self, *callbacks: Callable) -> Callable:
+        def apply_all_finalizations():
+            for callback_idx, callback in enumerate(callbacks):
+                logging.debug(f'Applying finalize callback idx {callback_idx}')
+                callback()
+        return apply_all_finalizations
+
+
+    @debug_time('AsyncFinalizableCheckpointIO.maybe_finalize_save_checkpoint')
+    def maybe_finalize_save_checkpoint(self, blocking: bool = False):
+        call_idx_finalized = self.async_calls_queue.maybe_finalize_async_calls(blocking)
+        if call_idx_finalized:
+            logging.debug(f'Finalized async calls: {[f"#{idx}" for idx in call_idx_finalized]}')
+        return len(call_idx_finalized) > 0
+
+    def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        print('HERE' * 1000)
+
+    def teardown(self) -> None:
+        super().teardown()
+        self.maybe_finalize_save_checkpoint(blocking=True)
+
+
+class DistributedCheckpointIO(CheckpointIO):
     """ CheckpointIO for a distributed checkpoint format.
 
     Args:
@@ -42,11 +85,11 @@ class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
         super().__init__()
         self.save_ckpt_format = save_ckpt_format
         self.async_save = async_save
-
+        self.async_calls_queue = AsyncCallsQueue() if self.async_save else None
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
     @debug_time('DistributedCheckpointIO.save_checkpoint')
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> Optional[Tuple]:
         """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
         Args:
@@ -60,12 +103,12 @@ class DistributedCheckpointIO(AsyncFinalizableCheckpointIO):
         dist_checkpointing.save(
             sharded_state_dict=checkpoint, checkpoint_dir=path, sharded_strategy=self.save_sharded_strategy
         )
-
-    def maybe_finalize_save_checkpoint(self, blocking: bool = False) -> bool:
         if not self.async_save:
-            return False
-        with debug_time('DistributedCheckpointIO.maybe_finalize_save_checkpoint'):
-            return self.save_sharded_strategy.maybe_finalize_async_save(blocking=blocking)
+            return
+        assert self.save_sharded_strategy.save_and_finalize_callbacks is not None
+        save_fn, save_args, finalize_fn = self.save_sharded_strategy.save_and_finalize_callbacks
+        self.save_sharded_strategy.save_and_finalize_callbacks = None
+        return save_fn, save_args, finalize_fn
 
     @debug_time('DistributedCheckpointIO.load_checkpoint')
     def load_checkpoint(

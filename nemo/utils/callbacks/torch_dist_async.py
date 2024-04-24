@@ -2,10 +2,9 @@ from collections import deque
 from logging import getLogger
 from pathlib import Path
 from time import time
-from typing import Callable, List, NamedTuple, Optional, Tuple
+from typing import Callable, NamedTuple, Tuple, List, Optional
 
 import torch
-from megatron.core.dist_checkpointing.core import CheckpointingException
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.strategies.filesystem_async import FileSystemWriterAsync
 from megatron.core.dist_checkpointing.strategies.state_dict_saver import (
@@ -28,8 +27,7 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.async_writer: Optional[DistributedAsyncCaller] = None
-        self.is_async_save_active: bool = False
+        self.save_and_finalize_callbacks = None
 
     def save(self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path):
         """ Translates MCore ShardedTensors to PyT ShardedTensors and saves in PyT Distributed format.
@@ -48,42 +46,26 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
         # Use PyT saving mechanism
         writer = FileSystemWriterAsync(checkpoint_dir, thread_count=self.thread_count)
 
-        self.maybe_finalize_async_save(blocking=True)
-
-        self.save_state_dict_ret = save_state_dict_async_plan(
+        save_state_dict_ret = save_state_dict_async_plan(
             pyt_state_dict,
             writer,
             None,
             planner=MCoreSavePlanner(dedup_replicated_tensors=not self.keep_only_main_replica),
         )
-        fun_args = writer.get_save_function_and_args()
+        self.save_and_finalize_callbacks = self._get_save_and_finalize_callbacks(writer, save_state_dict_ret)
+        return self.save_and_finalize_callbacks
 
-        if self.async_writer is None:
-            self.async_writer = DistributedAsyncCaller()
-        if fun_args is not None:
-            self.async_writer.schedule_async_call(*fun_args)
-        self.is_async_save_active = True
+    def _get_save_and_finalize_callbacks(self, writer, save_state_dict_ret):
+        save_fn_args = writer.get_save_function_and_args()
+        if save_fn_args is None:  # this check can be removed with MCore v0.7
+            save_fn_args = None, ()
+        save_fn, save_args = save_fn_args
 
-    def maybe_finalize_async_save(self, blocking=False) -> bool:
-        if not self.is_async_save_active:
-            return False
+        def finalize_fn():
+            save_state_dict_async_finalize(*save_state_dict_ret)
+            torch.distributed.barrier()
 
-        # We don't need a barrier, there is one in save_state_dict_async_finalize
-        async_done = self.async_writer.is_current_async_call_done(blocking, post_barrier=False)
-        if not async_done:
-            return async_done
-
-        self.do_finalize_async_save()
-        return True
-
-    def do_finalize_async_save(self) -> None:
-        if self.save_state_dict_ret is None:
-            raise CheckpointingException('finalize_async_save called, but no ckpt save in progress')
-
-        # Pytorch Dist format requires metadata gathering in `post_async_save`
-        save_state_dict_async_finalize(*self.save_state_dict_ret)
-        self.is_async_save_active = False
-        torch.distributed.barrier()
+        return save_fn, save_args, finalize_fn
 
 
 class DistributedAsyncCaller:
@@ -92,9 +74,11 @@ class DistributedAsyncCaller:
         self.start_time = None
 
     def schedule_async_call(
-        self, async_fn: Callable, save_args: Tuple,
+        self, async_fn: Optional[Callable], save_args: Tuple,
     ):
         """ Spawn a saving process"""
+        if async_fn is None:
+            return  # nothing to do
         torch.cuda.synchronize()
         ctx = mp.get_context('fork')
         self.start_time = time()
@@ -141,27 +125,47 @@ class DistributedAsyncCaller:
 
 
 class _AsyncCall(NamedTuple):
+    idx: int
     async_caller: DistributedAsyncCaller
     finalize_callback: Callable[[], None]
 
 
+class AsyncRequest(NamedTuple):
+    async_fn: Callable
+    async_fn_args: Tuple
+    finalize_fn: Callable
+
+
 class AsyncCallsQueue:
-    def __init__(self):
+    def __init__(self, concurrent_calls: bool = True, max_unfinished_calls: int = 2):
+        self.concurrent_calls = concurrent_calls
+        self.max_unfinished_calls = max_unfinished_calls  # TODO: handle this
+
         self.async_calls = deque([])
+        self.call_idx = -1
 
-    def schedule_async_call(self, async_fn: Callable, save_args: Tuple, finalize_fn: Callable):
+        if not self.concurrent_calls:
+            raise NotImplementedError
+
+    def schedule_async_call(self, async_fn: Optional[Callable], async_fn_args: Tuple, finalize_fn: Callable):
+        if not self.concurrent_calls:
+            raise NotImplementedError
+        self.call_idx += 1
         async_caller = DistributedAsyncCaller()
-        async_caller.schedule_async_call(async_fn, save_args)
-        self.async_calls.append(_AsyncCall(async_caller, finalize_fn))
+        async_caller.schedule_async_call(async_fn, async_fn_args)
+        self.async_calls.append(_AsyncCall(self.call_idx, async_caller, finalize_fn))
+        return self.call_idx
 
-    def maybe_finalize_async_calls(self, blocking=False) -> int:
+    def maybe_finalize_async_calls(self, blocking=False) -> List[int]:
         """ Finalizes all available calls. """
-        num_calls_finalized = 0
+        call_idx_finalized = []
         while self.async_calls:
-            next_async_done = self.async_calls[0].is_current_async_call_done(blocking)
+            _this_blocking = blocking   # TODO: or len(self.async_calls) > self.max_unfinished_calls
+            next_async_done = self.async_calls[0].async_caller.is_current_async_call_done(_this_blocking)
             if not next_async_done:
                 break
-            num_calls_finalized += 1
-            _, finalize_fn = self.async_calls.popleft()
+            call_idx, _, finalize_fn = self.async_calls.popleft()
+            # TODO: barrier here and check async calls consistency
             finalize_fn()
-        return num_calls_finalized
+            call_idx_finalized.append(call_idx)
+        return call_idx_finalized
