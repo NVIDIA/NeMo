@@ -91,3 +91,49 @@ The inference script can be found at `NeMo/examples/multimodal/text2img/stable_d
 
 
 Please specify unet_xl as the quantized Unet engine to run the quantized solution. The system will load the original engine file by default.
+
+Inference Speedup
+-------------------
+
+TRT version  9.3.0
+
+GPU: H100
+
+
++-------------+------------+------------+-----------+------------+------------+-----------+---------+
+| Pipeline    | Batch Size | Latency (ms) | Precision | Batch Size | Latency    | Speedup   |
++=============+============+============+===========+============+============+===========+=========+
+| fp16 base   | 1          | 1723.97     | Ammo Int8 | 1          | 1406.68    | 1.225559473 |
++-------------+------------+------------+-----------+------------+------------+-----------+---------+
+| fp16 base   | 2          | 3004.47     | Ammo Int8 | 2          | 2403.29    | 1.250148754 |
++-------------+------------+------------+-----------+------------+------------+-----------+---------+
+| fp16 base   | 4          | 5657.19     | Ammo Int8 | 4          | 4252.6     | 1.330289705 |
++-------------+------------+------------+-----------+------------+------------+-----------+---------+
+
+Int8 inference vs FP16 inference
+----------------------------------
+
+.. image:: ./images/trt_output_fp16/000000007.png
+   :width: 50%
+.. image:: ./images/trt_output_int8/000000007.png
+   :width: 50%
+Prompt: A photo of a Shiba Inu dog with a backpack riding a bike. It is wearing sunglasses and a beach hat. (FP16 upper vs Int8 lower)
+
+
+
+
+.. image:: ./images/trt_output_fp16/000000011.png
+   :width: 50%
+.. image:: ./images/trt_output_int8/000000011.png
+   :width: 50%
+Prompt: A cute corgi lives in a house made out of sushi. (FP16 upper vs Int8 lower)
+
+
+
+
+.. image:: ./images/trt_output_fp16/000000012.png
+   :width: 50%
+.. image:: ./images/trt_output_int8/000000012.png
+   :width: 50%
+Prompt: A high contrast portrait of a very happy fuzzy panda dressed as a chef in a high end kitchen making dough. There is a painting of flowers on the wall behind him. (FP16 upper vs Int8 lower)
+
