@@ -27,7 +27,7 @@ from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, SamplingConfig
-from tensorrt_llm.runtime import ModelRunner
+from tensorrt_llm.runtime import ModelRunnerCpp
 from transformers import PreTrainedTokenizer
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
@@ -56,7 +56,7 @@ class TensorrtLLMHostContext:
 class TensorrtLLMWorkerContext:
     """The MPI worker side context for TRT LLM inference."""
 
-    decoder: ModelRunner = None
+    decoder: ModelRunnerCpp = None
     sampling_config: SamplingConfig = None
     lora_manager: LoraManager = None
     max_batch_size: int = 0
@@ -136,14 +136,20 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
 
         max_batch_size = config["build_config"]["max_batch_size"]
         max_input_len = config["build_config"]["max_input_len"]
+        max_output_len = config["build_config"]["max_output_len"]
+        max_beam_width = config["build_config"]["max_beam_width"]
 
         runtime_rank = tensorrt_llm.mpi_rank()
 
-        decoder = ModelRunner.from_dir(
+        decoder = ModelRunnerCpp.from_dir(
             engine_dir=engine_dir,
             lora_dir=lora_ckpt_list,
             lora_ckpt_source="nemo",
             rank=runtime_rank,
+            max_batch_size=max_batch_size,
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
+            max_beam_width=max_beam_width,
             debug_mode=False
         )
 
