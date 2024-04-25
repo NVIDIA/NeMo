@@ -509,8 +509,8 @@ class TestExpManager:
         test_trainer.fit(model)
         assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize('test_dist_ckpt', [False, True])
-    @pytest.mark.unit
     def test_checkpoints_are_not_overwritten(self, tmp_path, test_dist_ckpt):
         """ Simulates already existing checkpoints in the ckpt directory and tests ckpt versioning """
         strategy = NLPDDPStrategy() if test_dist_ckpt else 'auto'
