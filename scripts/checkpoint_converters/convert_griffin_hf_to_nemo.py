@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 
 import torch
 from omegaconf.omegaconf import OmegaConf
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM
 
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder

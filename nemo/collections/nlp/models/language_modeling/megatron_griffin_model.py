@@ -61,11 +61,14 @@ class MegatronGriffinModel(MegatronGPTModel):
 
         return model
 
-    def forward(
-        self, input_ids, attention_mask,
-    ):
+    def forward(self, input_ids, position_ids=None, attention_mask=None, labels=None):
 
-        output_tensor = self.model(input_ids=input_ids, attention_mask=attention_mask,)
+        output_tensor = self.model(
+                                input_ids=input_ids, 
+                                position_ids=position_ids, 
+                                attention_mask=attention_mask, 
+                                labels=labels
+                                )
         return output_tensor
 
     def build_transformer_config(self):
