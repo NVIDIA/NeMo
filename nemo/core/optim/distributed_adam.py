@@ -34,11 +34,11 @@ from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
 from transformer_engine.pytorch.cpp_extensions import cast_to_fp8
 
-from nemo.utils import str_to_dtype
-from nemo.utils import logging
+from nemo.utils import logging, str_to_dtype
 from nemo.utils.te_utils import is_float8tensor
 
 _distribute_within_nodes_pgs = {}
+
 
 def create_distribute_within_nodes_pgs():
     """Create process groups for distributing with nodes.
@@ -412,10 +412,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 # `param.data.set_()` failed to change storage.
                 # `param.set_()` invalidates bprop hook.
                 param.data = torch.as_strided(
-                    buffer_view,
-                    param.size(),
-                    param.stride(),
-                    storage_offset=buffer_view.storage_offset(),
+                    buffer_view, param.size(), param.stride(), storage_offset=buffer_view.storage_offset(),
                 )
 
     def try_grad_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
