@@ -178,6 +178,8 @@ def first_fit_shuffle(seq_lens, max_seq_length):
 def shuffle_and_pack(seq_lens, max_seq_length):
     """
     Assigns sequences to bins with shuffling, trying to maximize the packing efficiency.
+    After shuffling the sequences, they will be added to one bin in order. Once the bin cannot
+    take more sequences, we will move on to the next bin.
 
     Parameters:
     - seq_lens: List of sequence lengths.
