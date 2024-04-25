@@ -11,17 +11,17 @@ Introduction
 NVIDIA NeMo Framework is an end-to-end, cloud-native framework for building, customizing, and deploying generative AI models anywhere. It allows for the creation of state-of-the-art models across a wide array of domains, including speech, language, and vision. For detailed information on utilizing NeMo in your generative AI workflows, refer to the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/index.html>`_.
 
 Training generative AI architectures typically requires significant data and computing resources. NeMo utilizes `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for efficient and performant multi-GPU/multi-node mixed-precision training.
-NeMo is built on top of NVIDIA's powerful Megatron-LM and Transformer Engine for its Large Language Models (LLMs) and Multimodal (MM) models, leveraging cutting-edge advancements in model training and optimization. For Speech AI applications, Automatic Speech Recognition (ASR) and Text-to-Speech (TTS), NeMo is developed with native PyTorch and PyTorch Lightning, ensuring seamless integration and ease of use. Future updates are planned to align Speech AI models with the Megatron framework, enhancing training efficiency and model performance.
+NeMo is built on top of NVIDIA's powerful Megatron-LM and Transformer Engine for its Large Language Models (LLMs) and Multimodal Models (MMs), leveraging cutting-edge advancements in model training and optimization. For Speech AI applications, Automatic Speech Recognition (ASR) and Text-to-Speech (TTS), NeMo is developed with native PyTorch and PyTorch Lightning, ensuring seamless integration and ease of use. Future updates are planned to align Speech AI models with the Megatron framework, enhancing training efficiency and model performance.
 
 
-`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ features separate collections for Large Language Models (LLMs), Multimodal (MM), Computer Vision (CV), Automatic Speech Recognition (ASR), and Text-to-Speech (TTS) models. Each collection comprises prebuilt modules that include everything needed to train on your data. These modules can be easily customized, extended, and composed to create new generative AI model architectures.
+`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ features separate collections for Large Language Models (LLMs), Multimodal Models (MMs), Computer Vision (CV), Automatic Speech Recognition (ASR), and Text-to-Speech (TTS) models. Each collection comprises prebuilt modules that include everything needed to train on your data. These modules can be easily customized, extended, and composed to create new generative AI model architectures.
 
 (TODO: Still valid? LLM is not included here.) `Pre-trained NeMo models <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ are available in 14+ languages.
 
 Prerequisites
 -------------
 
-Before you begin with NeMo, ensure the following prerequisites are met:
+Before using NeMo, make sure you meet the following prerequisites:
 
 #. Python version 3.10 or above.
 
@@ -77,7 +77,7 @@ This step includes a bug fix for Apex in the PyTorch 23.11 container.
 
 PyTorch Lightning Installation
 
-This involves installing a bug-fixed version of PyTorch Lightning from a specific branch.
+This step involves installing a bug-fixed version of PyTorch Lightning from a specific branch.
 
 .. code-block:: bash
 
@@ -98,7 +98,7 @@ This section details the steps to clone and install the Megatron Core.
 
 AMMO Installation
 
-Finally, this step involves installing the AMMO package.
+This final step involves installing the AMMO package.
 
 .. code-block:: bash
 
@@ -113,14 +113,14 @@ Finally, this step involves installing the AMMO package.
 
 **Conda Installation**
 
-We recommend installing NeMo in a fresh Conda environment for those not using the NVIDIA PyTorch container.
+If you do not use the NVIDIA PyTorch container, we recommend installing NeMo in a clean Conda environment.
 
 .. code-block:: bash
 
     conda create --name nemo python==3.10.12
     conda activate nemo
 
-Follow the PyTorch `configurator <https://pytorch.org/get-started/locally/>`_ to install PyTorch.
+Refer to the PyTorch configurator for instructions on installing PyTorch. `configurator <https://pytorch.org/get-started/locally/>`_
 
 Quick Start Guide
 -----------------
@@ -170,8 +170,8 @@ Discussion Board
 
 For additional information and questions, visit the `NVIDIA NeMo Discussion Board <https://github.com/NVIDIA/NeMo/discussions>`_.
 
-Contributing
-------------
+Contribute to NeMo
+------------------
 
 Community contributions are welcome! See the `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/stable/CONTRIBUTING.md>`_ file for how to contribute.
 

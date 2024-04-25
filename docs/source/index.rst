@@ -21,7 +21,7 @@ NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build
 
 * :doc:`Automatic Speech Recognition (ASR) <asr/intro>`
 
-* :doc:`Multimodal (MM) Models <multimodal/mllm/intro>`
+* :doc:`Multimodal Models (MMs) <multimodal/mllm/intro>`
 
 * :doc:`Text-to-Speech (TTS) <tts/intro>`
 

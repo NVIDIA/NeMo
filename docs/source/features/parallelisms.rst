@@ -5,9 +5,9 @@ Parallelisms
 
 NeMo Megatron supports 5 types of parallelisms (which can be mixed together arbitrarily):
 
-Distributed Data parallelism
+Distributed Data Parallelism
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Distributed Data parallelism (DDP) creates idential copies of the model across multiple GPUs.
+Distributed Data Parallelism (DDP) creates idential copies of the model across multiple GPUs.
 
 .. image:: ../nlp/nemo_megatron/images/ddp.gif
     :align: center
