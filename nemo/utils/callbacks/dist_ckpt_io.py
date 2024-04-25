@@ -21,13 +21,23 @@ import pytorch_lightning as pl
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
-from megatron.core import dist_checkpointing
-from megatron.core.dist_checkpointing.strategies import tensorstore
 from pytorch_lightning import Callback
 from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
-from nemo.utils.callbacks.torch_dist_async import AsyncCallsQueue, AsyncRequest, TorchDistAsyncSaveShardedStrategy
+
+try:
+    from megatron.core import dist_checkpointing
+    from megatron.core.dist_checkpointing.strategies import tensorstore
+
+    from nemo.utils.callbacks.torch_dist_async import AsyncCallsQueue, AsyncRequest, TorchDistAsyncSaveShardedStrategy
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError) as IMPORT_ERROR_EXC:
+
+    HAVE_MEGATRON_CORE = False
+    IMPORT_ERROR = "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
 
 
 @contextmanager
@@ -46,6 +56,8 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
     def __init__(self, checkpoint_io: Optional['CheckpointIO'] = None) -> None:
         super().__init__(checkpoint_io)
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(IMPORT_ERROR) from IMPORT_ERROR_EXC
         self.async_calls_queue = AsyncCallsQueue()
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
@@ -124,6 +136,9 @@ class DistributedCheckpointIO(CheckpointIO):
         self, save_ckpt_format: str, async_save: bool = False,
     ):
         super().__init__()
+        if not HAVE_MEGATRON_CORE:
+            raise ImportError(IMPORT_ERROR) from IMPORT_ERROR_EXC
+
         self.save_ckpt_format = save_ckpt_format
         self.async_save = async_save
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
