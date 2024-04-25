@@ -43,7 +43,7 @@ To see all available pretrained models for a specific NeMo model, use the ``list
 
 For detailed information on the available pretrained models, refer to the collections documentation: 
 
-- :ref:`Automatic Speech Recognition (ASR)`
+- :doc:`Automatic Speech Recognition (ASR) <../asr/intro>`
 - :doc:`Natural Language Processing (NLP) <../nlp/models>`
 - :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 

@@ -261,11 +261,6 @@ Semi Sorted Batching
 
 Sorting samples by duration and spliting them into batches speeds up training, but can degrade the quality of the model. To avoid quality degradation and maintain some randomness in the partitioning process, we add pseudo noise to the sample length when sorting.
 
-  .. image:: images/ssb.png
-    :align: center
-    :alt: semi sorted batching
-    :scale: 50%
-
 It may result into training speeedup of more than 40 percent with the same quality. To enable and use semi sorted batching add some lines in config.
 
   .. code::
