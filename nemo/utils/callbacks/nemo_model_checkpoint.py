@@ -69,7 +69,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.model_parallel_size = model_parallel_size
         self.async_save = async_save
         self.async_finalize_cb = None
-        self.deferred_ckpts_to_remove = []
+        # Checkpoints which removal is deferred until async save is done.
+        # Each element of `deferred_ckpts_to_remove` is a growing list
+        # that `self._remove_checkpoint` adds to. Once `self._save_checkpoint`
+        # is called, the last element is frozen and a new element is added.
+        self.deferred_ckpts_to_remove: List[List[str]] = []
 
         # `prefix` is deprecated
         if 'prefix' in kwargs:
@@ -438,6 +442,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 storage_options = dict(finalize_fn=finalize_fn)
             else:
                 storage_options = None
+            self.deferred_ckpts_to_remove.append([])
             trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
             if not self.async_save:
                 finalize_fn()
@@ -461,11 +466,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
             # Remove checkpoints marked for removal by `self._remove_checkpoint`
-            logging.debug(f'Checkpoints to remove: {self.deferred_ckpts_to_remove}')
-            # TODO: this might remove checkpoints too early (callback from finished save removes ckpts from unfinished save)
-            for ckpt_to_remove in self.deferred_ckpts_to_remove:
+            # For each finalization there is exactly one entry in self.deferred_ckpts_to_remove
+            assert self.deferred_ckpts_to_remove
+            ckpts_to_remove = self.deferred_ckpts_to_remove.pop(0)
+            logging.debug(f'Checkpoints to remove: {ckpts_to_remove}')
+            for ckpt_to_remove in ckpts_to_remove:
                 self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
-            self.deferred_ckpts_to_remove = []
 
         return _cb
 
@@ -477,7 +483,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         `self.deferred_ckpts_to_remove` for future removal.
         """
         if self.async_save and not override_async:
-            self.deferred_ckpts_to_remove.append(filepath)
+            # Register checkpoint removal in the last (active) checkpoint removal list
+            self.deferred_ckpts_to_remove[-1].append(filepath)
             return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.
         # if anything goes wrong during removal, we should be able to detect that data is incomplete.
