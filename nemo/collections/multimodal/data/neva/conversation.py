@@ -35,6 +35,7 @@ class SeparatorStyle(Enum):
     TWO = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
+    LLAMA_3 = auto()
     NVGPT = auto()
 
 
@@ -108,6 +109,34 @@ class Conversation:
                 else:
                     ret += ""
             ret = ret.lstrip(self.sep)
+        elif self.sep_style == SeparatorStyle.LLAMA_3:
+            """
+            <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+            {{ system_prompt }}<|eot_id|><|start_header_id|>user<|end_header_id|>
+            
+            {{ user_message_1 }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+            
+            {{ model_answer_1 }}<|eot_id|><|start_header_id|>user<|end_header_id|>
+            
+            {{ user_message_2 }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+            """
+            wrap_sys = lambda msg: f"<|start_header_id|>system<|end_header_id|>\n\n{msg}"
+            wrap_user = lambda msg: f"<|start_header_id|>user<|end_header_id|>\n\n{msg}"
+            wrap_assistant = lambda msg: f"<|start_header_id|>assistant<|end_header_id|>\n\n{msg}"
+
+            ret = "<|begin_of_text|>" + wrap_sys(self.system) + self.sep
+            for i, (role, message) in enumerate(messages):
+                if i == 0:
+                    assert message, "first message should not be none"
+                    assert role == self.roles[0], "first message should come from user"
+                if type(message) is tuple:
+                    message, _, _ = message
+                elif i % 2 == 0:
+                    ret += wrap_user(message) + self.sep if message else ""
+                else:
+                    ret += wrap_assistant(message) + self.sep if message else ""
+
         elif self.sep_style == SeparatorStyle.PLAIN:
             seps = [self.sep, self.sep2]
             ret = self.system
@@ -343,6 +372,18 @@ conv_llava_llama_2 = Conversation(
     sep_style=SeparatorStyle.LLAMA_2,
     sep=DEFAULT_BOS_TOKEN,
     sep2=DEFAULT_EOS_TOKEN,
+)
+
+conv_llava_llama_3 = Conversation(
+    system="You are a helpful language and vision assistant. "
+    "You are able to understand the visual content that the user provides, "
+    "and assist the user with a variety of tasks using natural language.",
+    roles=("user", "assistant"),
+    version="llama_v3",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_3,
+    sep="<|eot_id|>",
 )
 
 conv_llava_plain = Conversation(
