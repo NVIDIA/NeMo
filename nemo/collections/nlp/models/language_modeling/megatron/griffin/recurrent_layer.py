@@ -20,7 +20,7 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_viewless_tensor
-from torch import Tensor, nn
+from torch import Tensor
 
 
 @dataclass

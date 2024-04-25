@@ -377,14 +377,8 @@ class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
 
         tokens2use = tokens
 
-        # not using type2use. uncomment it if it is used
-        # if type_ids is not None:
-        #     types2use = type_ids[:, :context_length]
-
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = None
-        # if compute_attention_mask:
-        #     attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
 
         batch = [tokens2use, attention_mask_repeat]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]

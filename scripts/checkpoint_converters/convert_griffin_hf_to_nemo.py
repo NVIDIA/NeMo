@@ -36,7 +36,6 @@ def convert(args):
 
     logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
     hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path, device_map="auto")
-    hf_tokenizer = AutoTokenizer.from_pretrained(nemo_config.model.tokenizer["type"])
 
     trainer = MegatronLMPPTrainerBuilder(nemo_config).create_trainer()
 

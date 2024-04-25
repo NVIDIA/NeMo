@@ -302,15 +302,14 @@ class RecurrentLayer(MegatronModule):
         x_bias_parallel, y_bias_parallel = in_bias_parallel.chunk(2, dim=-1)
         x_intermidiate_parallel, y_intermidiate_parallel = in_intermidiate_parallel.chunk(2, dim=-1)
 
-        if self.config.bias_activation_fusion:
-            y = bias_gelu_impl(y_intermidiate_parallel, y_bias_parallel)
+        y = bias_gelu_impl(y_intermidiate_parallel, y_bias_parallel)
 
         x = x_intermidiate_parallel + x_bias_parallel
         x = x.permute(1, 0, 2)
 
-        x, conv1d_state = self.conv_1d(x=x, segment_pos=segment_pos, prev_x=None)
+        x, _ = self.conv_1d(x=x, segment_pos=segment_pos, prev_x=None)
 
-        x, rg_lru_state = self.rg_lru(x=x, segment_pos=segment_pos, prev_h=None,)
+        x, _ = self.rg_lru(x=x, segment_pos=segment_pos, prev_h=None,)
 
         x = x.permute(1, 0, 2)
 

@@ -21,7 +21,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
-    from megatron.core import parallel_state
 
     HAVE_MEGATRON_CORE = True
 
@@ -83,9 +82,6 @@ class MegatronGriffinModel(MegatronGPTModel):
 
     def sharded_state_dict(self, prefix: str = ''):
         return None
-
-    def _reset_activation_checkpointing_args(self):
-        return
 
     def _reset_activation_checkpointing_args(self):
         """ Disables activation checkpointing completely and saves the values so that

@@ -124,7 +124,7 @@ class GriffinModel(LanguageModule):
         labels: Tensor = None,
         **extra_arg
     ):
-        if input_ids == None:
+        if input_ids is None:
             input_ids = self.input_tensor
 
         hidden_states = self.embedding_forward(input_ids)

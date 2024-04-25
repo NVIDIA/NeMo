@@ -23,12 +23,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-try:
-
-    HAVE_MEGATRON_CORE = True
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
 
 mp.set_start_method("spawn", force=True)
 
