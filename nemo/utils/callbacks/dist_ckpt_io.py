@@ -66,7 +66,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
         Applies underlying checkpoint_io finalize callback first, then the external one (postfix order).
         """
-        external_finalize_fn = storage_options.pop('finalize_fn', None)
+        external_finalize_fn = (storage_options or {}).pop('finalize_fn', None)
         assert self.checkpoint_io is not None
         async_request: AsyncRequest = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
         if external_finalize_fn is not None:
