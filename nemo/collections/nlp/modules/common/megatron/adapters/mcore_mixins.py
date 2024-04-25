@@ -124,7 +124,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                     lora_mixed_qkv = lora_adapter(hidden_states)
 
                 mixed_qkv = mixed_qkv + lora_mixed_qkv
-                
+
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (
             self.num_query_groups_per_partition,
