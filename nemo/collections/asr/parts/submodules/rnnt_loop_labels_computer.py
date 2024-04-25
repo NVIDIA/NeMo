@@ -571,6 +571,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             raise NotImplementedError
 
     def _partial_graphs_compile(self):
+        """Compile decoding by parts"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
         self.separate_graphs = SeparateGraphsLoopLabels()
@@ -596,6 +597,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             self._after_inner_loop()
 
     def _full_graph_compile(self):
+        """Compile full graph for decoding"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
         self.full_graph = torch.cuda.CUDAGraph()
