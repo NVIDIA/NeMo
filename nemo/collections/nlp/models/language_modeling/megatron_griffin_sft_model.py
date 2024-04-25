@@ -299,4 +299,3 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
          """
         if not self.validation_param_sync_overlap:
             MegatronBaseModel.on_validation_model_zero_grad(self)
-
