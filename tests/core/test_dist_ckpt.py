@@ -59,7 +59,8 @@ class TestDistCkptIO:
         assert checkpoint_io.save_checkpoint_called_args is not None
         (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
         # Ckpt path doesn't contain the .ckpt suffix
-        assert path.name == 'epoch=1-step=16'
+        steps = len(model.train_dataloader().dataset) * test_trainer.max_epochs // len(strategy.parallel_devices)
+        assert path.name == f'epoch=1-step={steps}'
 
     @pytest.mark.run_only_on('GPU')
     def test_dist_ckpt_path_not_executed_for_non_core_models(self, tmp_path):
@@ -77,6 +78,7 @@ class TestDistCkptIO:
             assert checkpoint_io.save_checkpoint_called_args is not None
             (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
             # Ckpt path *does* contain the .ckpt suffix
-            assert os.path.basename(path) == 'epoch=1-step=16.ckpt'
+            steps = len(model.train_dataloader().dataset) * test_trainer.max_epochs // len(strategy.parallel_devices)
+            assert os.path.basename(path) == f'epoch=1-step={steps}.ckpt'
         else:
             assert checkpoint_io.save_checkpoint_called_args is None
