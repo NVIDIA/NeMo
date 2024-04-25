@@ -145,6 +145,8 @@ def main(cfg) -> None:
         )
     else:
         model_cfg = get_model_cfg(cfg, trainer)
+        if hasattr(cfg.model, "pretrained_audio_model"):
+            model_cfg.pretrained_audio_model = cfg.model.pretrained_audio_model
         model = ModularAudioGPTModel.restore_from(
             restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg,
         )
@@ -155,7 +157,8 @@ def main(cfg) -> None:
                 peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
                 model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
             else:
-                model.load_state_dict(torch.load(cfg.model.peft.restore_from_path), strict=False)
+                torch_state_dict = torch.load(cfg.model.peft.restore_from_path)['state_dict']
+                model.load_state_dict(torch_state_dict, strict=False)
         if model_cfg.freeze_audio_encoder:
             model = load_audio_models(cfg, model_cfg, model)
 

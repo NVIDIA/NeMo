@@ -111,6 +111,8 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 if "encoders" not in cfg.perception
                 else MultiAudioPerceptionModule(cfg=cfg.perception)
             )
+        audio_model = self.load_audio_model(cfg.pretrained_audio_model)
+        self.perception.tokenizer = audio_model.tokenizer
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
@@ -774,6 +776,27 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return gpt_cfg
 
     @classmethod
+    def load_audio_model(cls, pretrained_audio_model):
+        try:
+            if pretrained_audio_model.endswith('.nemo'):
+                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
+            else:
+                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
+        except:
+            logging.info(f'Fail in loading it with ASRModel. Try again with SpeechEncDecSelfSupervisedModel.')
+            if pretrained_audio_model.endswith('.nemo'):
+                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
+                audio_model = SpeechEncDecSelfSupervisedModel.restore_from(pretrained_audio_model, map_location='cpu')
+            else:
+                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
+                audio_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
+                    pretrained_audio_model, map_location='cpu'
+                )
+        return audio_model
+
+    @classmethod
     def restore_from_pretrained_models(
         cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
     ):
@@ -792,24 +815,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             return_config=True,
             save_restore_connector=base_model_save_restore_connector,
         )
-        pretrained_audio_model = cfg.model.pretrained_audio_model
-        try:
-            if pretrained_audio_model.endswith('.nemo'):
-                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-                audio_model = ASRModel.restore_from(pretrained_audio_model, map_location='cpu')
-            else:
-                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-                audio_model = ASRModel.from_pretrained(pretrained_audio_model, map_location='cpu')
-        except:
-            logging.info(f'Fail in loading it with ASRModel. Try again with SpeechEncDecSelfSupervisedModel.')
-            if pretrained_audio_model.endswith('.nemo'):
-                logging.info(f'Loading pretrained audio model from local file: {pretrained_audio_model}')
-                audio_model = SpeechEncDecSelfSupervisedModel.restore_from(pretrained_audio_model, map_location='cpu')
-            else:
-                logging.info(f'Loading pretrained audio model from NGC: {pretrained_audio_model}')
-                audio_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
-                    pretrained_audio_model, map_location='cpu'
-                )
+        audio_model = cls.load_audio_model(cfg.model.pretrained_audio_model)
 
         model_cfg = cls._modify_config(base_model_cfg, cfg, audio_model.cfg, add_cfg_to_tree=False)
 
