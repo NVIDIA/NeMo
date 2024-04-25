@@ -43,7 +43,7 @@ def convert(args):
     new_state_dict = {}
 
     new_state_dict['model.embedding.word_embeddings.weight'] = hf_model.state_dict()['model.embed_tokens.weight']
-    new_state_dict['model.decoder.final_layernorm.weight'] = hf_model.state_dict()['model.final_norm.weight']+1
+    new_state_dict['model.decoder.final_layernorm.weight'] = hf_model.state_dict()['model.final_norm.weight']
 
     for l in range(nemo_config.model.num_layers):
         print(f"Converting Layer {l}")
@@ -56,12 +56,12 @@ def convert(args):
         new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1._extra_state']
         new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc2._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc2._extra_state']
 
-        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.channel_pre_norm.weight']+1
+        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.channel_pre_norm.weight']
 
         if l % 3 == 2:
             new_state_dict[f'model.decoder.layers.{l}.self_attention.linear_proj.weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.o_proj.weight']
             new_state_dict[f'model.decoder.layers.{l}.self_attention.linear_proj.bias'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.o_proj.bias']
-            new_state_dict[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_pre_norm.weight']+1
+            new_state_dict[f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_pre_norm.weight']
             new_state_dict[f'model.decoder.layers.{l}.self_attention.linear_qkv.weight'] = torch.cat([hf_model.state_dict()[f'model.layers.{l}.temporal_block.q_proj.weight'], 
                                                             hf_model.state_dict()[f'model.layers.{l}.temporal_block.k_proj.weight'],
                                                             hf_model.state_dict()[f'model.layers.{l}.temporal_block.v_proj.weight']])
@@ -72,12 +72,10 @@ def convert(args):
 
         else:
             
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_y.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_pre_norm.weight']+1
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_x.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_pre_norm.weight']+1
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_y.weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_y.weight']
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_y.bias'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_y.bias']
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_x.weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_x.weight']
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_x.bias'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_x.bias']
+            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_in.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_pre_norm.weight']
+            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_in.weight'] = torch.cat([hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_x.weight'], hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_y.weight']])
+            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_in.bias'] = torch.cat([hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_x.bias'], hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_y.bias']])
+            
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_out.weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_out.weight']
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_out.bias'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_out.bias']
 
@@ -90,8 +88,7 @@ def convert(args):
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.rg_lru.a_gate.w'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.rg_lru.recurrent_gate_weight']
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.rg_lru.a_gate.b'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.rg_lru.recurrent_gate_bias']
             
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_y._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.recurrent_layer.linear_y._extra_state']
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_x._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.recurrent_layer.linear_x._extra_state']
+            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_in._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.recurrent_layer.linear_in._extra_state']
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_out._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.recurrent_layer.linear_out._extra_state']
 
     nemo_model_from_hf.load_state_dict(new_state_dict, strict=True)

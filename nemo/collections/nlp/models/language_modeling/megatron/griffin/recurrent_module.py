@@ -1,7 +1,20 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import math
 from typing import Union
 from dataclasses import dataclass
-
 from torch import nn
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
@@ -10,9 +23,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 import torch
 import einops
-# from accelerated_scan.warp import scan as scan_fast # a pure c++ kernel, faster than cub
-from accelerated_scan.triton import scan as scan_triton # uses tl.associative_scan
-from accelerated_scan.ref import scan as scan_torch # reference torch implementation
+from accelerated_scan.triton import scan as scan_triton 
 from megatron.core.transformer.module import MegatronModule
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
@@ -257,8 +268,7 @@ class Conv1D(MegatronModule):
 
 @dataclass
 class RecurrentLayerSubmodules:
-    linear_y: Union[ModuleSpec, type] = IdentityOp
-    linear_x: Union[ModuleSpec, type] = IdentityOp
+    linear_in: Union[ModuleSpec, type] = IdentityOp
     linear_out: Union[ModuleSpec, type] = IdentityOp
     conv_1d: Union[ModuleSpec, type] = IdentityOp
     rg_lru: Union[ModuleSpec, type] = IdentityOp
@@ -283,22 +293,10 @@ class RecurrentLayer(MegatronModule):
         self.config = config
         self.residual_in_fp32 = residual_in_fp32
 
-        self.linear_y = build_module(
-            submodules.linear_y,
+        self.linear_in = build_module(
+            submodules.linear_in,
             self.config.hidden_size,
-            self.config.hidden_size,
-            config=self.config,
-            init_method=self.config.init_method,
-            gather_output=False,
-            bias=self.config.add_bias_linear,
-            skip_bias_add=True,
-            is_expert=False
-        )
-
-        self.linear_x = build_module(
-            submodules.linear_x,
-            self.config.hidden_size,
-            self.config.hidden_size,
+            self.config.hidden_size * 2,
             config=self.config,
             init_method=self.config.init_method,
             gather_output=False,
@@ -338,12 +336,14 @@ class RecurrentLayer(MegatronModule):
     ):
 
         segment_pos = torch.arange(hidden_states.shape[0]).unsqueeze(0).repeat(hidden_states.shape[1], 1).cuda()
-        y_intermidiate_parallel, y_bias_parallel = self.linear_y(hidden_states)
+        in_intermidiate_parallel, in_bias_parallel = self.linear_in(hidden_states)
+
+        x_bias_parallel, y_bias_parallel = in_bias_parallel.chunk(2, dim=-1)
+        x_intermidiate_parallel, y_intermidiate_parallel = in_intermidiate_parallel.chunk(2, dim=-1)
 
         if self.config.bias_activation_fusion:
             y = bias_gelu_impl(y_intermidiate_parallel, y_bias_parallel)
 
-        x_intermidiate_parallel, x_bias_parallel = self.linear_x(hidden_states)
         x = x_intermidiate_parallel + x_bias_parallel
         x = x.permute(1,0,2)
 
@@ -365,7 +365,3 @@ class RecurrentLayer(MegatronModule):
         x_intermidiate_parallel, x_bias_parallel = self.linear_out(x)
 
         return x_intermidiate_parallel, x_bias_parallel
-
-
-        
-

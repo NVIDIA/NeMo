@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,8 @@
 
 
 import os
-
-import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
-
-
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_sft_model import MegatronGriffinSFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
@@ -28,7 +24,6 @@ from nemo.utils import logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from megatron.core import parallel_state
 
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
