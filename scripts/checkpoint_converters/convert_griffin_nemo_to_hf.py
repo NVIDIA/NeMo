@@ -2,7 +2,7 @@ import os
 from argparse import ArgumentParser
 
 from omegaconf.omegaconf import OmegaConf
-from transformers import RecurrentGemmaModel, AutoConfig
+from transformers import AutoConfig, RecurrentGemmaModel
 
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
