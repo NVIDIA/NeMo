@@ -371,11 +371,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 param._data = buffer_view.view(param.size())
             else:
                 # Preserve memory format for param here, i.e. NHWC tensors
-                param.data.set_(
-                    source=buffer_view,
-                    storage_offset=0,
-                    size=param.size(),
-                    stride=param.stride(),
+                # `param.data.set_()` failed to change storage.
+                # `param.set_()` invalidates bprop hook.
+                param.data = torch.as_strided(
+                    buffer_view,
+                    param.size(),
+                    param.stride(),
+                    storage_offset=buffer_view.storage_offset(),
                 )
 
     def try_grad_sync(self, params: Iterable[torch.nn.Parameter]) -> None:
