@@ -138,7 +138,6 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
         max_input_len = config["build_config"]["max_input_len"]
 
         runtime_rank = tensorrt_llm.mpi_rank()
-        assert runtime_rank < torch.cuda.device_count(), f"Rank {runtime_rank} out of bound"
 
         decoder = ModelRunner.from_dir(
             engine_dir=engine_dir,
@@ -325,6 +324,10 @@ def load(
     if world_size == 1:
         _load(tokenizer, engine_dir, lora_ckpt_list, num_beams)
         executor = None
+    elif tensorrt_llm.mpi_world_size() > 1:
+        _load(tokenizer, engine_dir, lora_ckpt_list, num_beams)
+        executor = None
+        tensorrt_llm.mpi_barrier()
     else:
         executor = MPIPoolExecutor(max_workers=world_size)
         futures = []

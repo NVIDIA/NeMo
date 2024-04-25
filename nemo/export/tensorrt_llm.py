@@ -186,48 +186,52 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        tmp_dir = tempfile.TemporaryDirectory()
-        nemo_export_dir = Path(tmp_dir.name)
+        if tensorrt_llm.mpi_rank() == 0:
+            tmp_dir = tempfile.TemporaryDirectory()
+            nemo_export_dir = Path(tmp_dir.name)
 
-        weights_dicts, model_configs, self.tokenizer = nemo_to_trtllm_config(
-            in_file=nemo_checkpoint_path,
-            decoder_type=model_type,
-            dtype=dtype,
-            tensor_parallel_size=tensor_parallel_size,
-            pipeline_parallel_size=pipeline_parallel_size,
-            use_parallel_embedding=use_parallel_embedding,
-            nemo_export_dir=nemo_export_dir,
-            save_nemo_model_config=save_nemo_model_config,
-        )
-
-        for weight_dict, model_config in zip(weights_dicts, model_configs):
-            build_and_save_engine(
-                max_input_len=max_input_token,
-                max_output_len=max_output_token,
-                max_batch_size=max_batch_size,
-                model_config=model_config,
-                model_weights=weight_dict,
-                model_dir=self.model_dir,
-                model_type=model_type,
-                lora_ckpt_list=self.lora_ckpt_list,
-                use_lora_plugin=use_lora_plugin,
-                max_lora_rank=max_lora_rank,
-                lora_target_modules=lora_target_modules,
-                max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                enable_multi_block_mode=enable_multi_block_mode
+            weights_dicts, model_configs, self.tokenizer = nemo_to_trtllm_config(
+                in_file=nemo_checkpoint_path,
+                decoder_type=model_type,
+                dtype=dtype,
+                tensor_parallel_size=tensor_parallel_size,
+                pipeline_parallel_size=pipeline_parallel_size,
+                use_parallel_embedding=use_parallel_embedding,
+                nemo_export_dir=nemo_export_dir,
+                save_nemo_model_config=save_nemo_model_config,
             )
 
-        tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
-        if os.path.exists(tokenizer_path):
-            shutil.copy(tokenizer_path, self.model_dir)
-        else:
-            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+            for weight_dict, model_config in zip(weights_dicts, model_configs):
+                build_and_save_engine(
+                    max_input_len=max_input_token,
+                    max_output_len=max_output_token,
+                    max_batch_size=max_batch_size,
+                    model_config=model_config,
+                    model_weights=weight_dict,
+                    model_dir=self.model_dir,
+                    model_type=model_type,
+                    lora_ckpt_list=self.lora_ckpt_list,
+                    use_lora_plugin=use_lora_plugin,
+                    max_lora_rank=max_lora_rank,
+                    lora_target_modules=lora_target_modules,
+                    max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                    enable_multi_block_mode=enable_multi_block_mode
+                )
 
-        nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
-        if os.path.exists(nemo_model_config):
-            shutil.copy(nemo_model_config, self.model_dir)
+            tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
+            if os.path.exists(tokenizer_path):
+                shutil.copy(tokenizer_path, self.model_dir)
+            else:
+                self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
 
-        tmp_dir.cleanup()
+            nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
+            if os.path.exists(nemo_model_config):
+                shutil.copy(nemo_model_config, self.model_dir)
+
+            tmp_dir.cleanup()
+
+        if tensorrt_llm.mpi_world_size() > 1:
+            tensorrt_llm.mpi_barrier()
 
         if load_model:
             self._load()
@@ -372,7 +376,7 @@ class TensorRTLLM(ITritonDeployable):
                             ), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
             if not streaming:
-                if torch.distributed.is_initialized():
+                if torch.distributed.is_initialized() or tensorrt_llm.mpi_world_size() > 1:
                     multiprocessed_env = True
                 else:
                     multiprocessed_env = False
