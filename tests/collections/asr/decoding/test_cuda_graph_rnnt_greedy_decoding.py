@@ -72,7 +72,7 @@ def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16,
     with open_dict(decoding_config):
         decoding_config["greedy"]["max_symbols"] = 5
         decoding_config["greedy"]["loop_labels"] = loop_labels
-        decoding_config["greedy"]["use_cuda_graph_decoder"] = False
+        decoding_config["greedy"]["use_cuda_graph_decoder"] = True
 
     nemo_model.change_decoding_strategy(decoding_config)
     audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
@@ -116,7 +116,7 @@ def test_change_devices(loop_labels: bool, stt_en_fastconformer_transducer_xlarg
     with open_dict(decoding_config):
         decoding_config["greedy"]["max_symbols"] = 5
         decoding_config["greedy"]["loop_labels"] = loop_labels
-        decoding_config["greedy"]["use_cuda_graph_decoder"] = False
+        decoding_config["greedy"]["use_cuda_graph_decoder"] = True
 
     nemo_model.change_decoding_strategy(decoding_config)
 
