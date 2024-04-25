@@ -24,16 +24,16 @@ except (ImportError, ModuleNotFoundError):
 
 
 def build_engine(
-        onnx_path,
-        output_path,
-        fp16,
-        input_profile=None,
-        enable_refit=False,
-        enable_preview=False,
-        timing_cache=None,
-        workspace_size=0,
-        int8=False,
-        builder_optimization_level=None
+    onnx_path,
+    output_path,
+    fp16,
+    input_profile=None,
+    enable_refit=False,
+    enable_preview=False,
+    timing_cache=None,
+    workspace_size=0,
+    int8=False,
+    builder_optimization_level=None,
 ):
     print(f"Building TensorRT engine for {onnx_path}: {output_path}")
     p = Profile()
