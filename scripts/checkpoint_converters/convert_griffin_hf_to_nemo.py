@@ -1,12 +1,14 @@
 import os
 from argparse import ArgumentParser
+
 import torch
 from omegaconf.omegaconf import OmegaConf
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
-from nemo.utils import logging
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from nemo.utils import logging
 
 
 def get_args():
@@ -19,19 +21,19 @@ def get_args():
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--input_name_or_path", type=str, default="google/recurrentgemma-2b")  
+    parser.add_argument("--input_name_or_path", type=str, default="google/recurrentgemma-2b")
     parser.add_argument(
         "--precision", type=str, default="32", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
-    )  
+    )
     args = parser.parse_args()
     return args
 
 
 def convert(args):
-    
+
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.trainer["precision"] = args.precision
-    
+
     logging.info(f"Loading checkpoint from HF: `{args.input_name_or_path}`")
     hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path, device_map="auto")
     hf_tokenizer = AutoTokenizer.from_pretrained(nemo_config.model.tokenizer["type"])
@@ -49,12 +51,30 @@ def convert(args):
         print(f"Converting Layer {l}")
         print("********************")
 
-        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1.weight'] = torch.cat([hf_model.state_dict()[f'model.layers.{l}.mlp_block.gate_proj.weight'], hf_model.state_dict()[f'model.layers.{l}.mlp_block.up_proj.weight']])
-        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1.bias'] = torch.cat([hf_model.state_dict()[f'model.layers.{l}.mlp_block.gate_proj.bias'], hf_model.state_dict()[f'model.layers.{l}.mlp_block.up_proj.bias']]).flatten()
-        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc2.weight'] = hf_model.state_dict()[f'model.layers.{l}.mlp_block.down_proj.weight']
-        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc2.bias'] = hf_model.state_dict()[f'model.layers.{l}.mlp_block.down_proj.bias']
-        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc1._extra_state']
-        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc2._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.mlp.linear_fc2._extra_state']
+        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1.weight'] = torch.cat(
+            [
+                hf_model.state_dict()[f'model.layers.{l}.mlp_block.gate_proj.weight'],
+                hf_model.state_dict()[f'model.layers.{l}.mlp_block.up_proj.weight'],
+            ]
+        )
+        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1.bias'] = torch.cat(
+            [
+                hf_model.state_dict()[f'model.layers.{l}.mlp_block.gate_proj.bias'],
+                hf_model.state_dict()[f'model.layers.{l}.mlp_block.up_proj.bias'],
+            ]
+        ).flatten()
+        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc2.weight'] = hf_model.state_dict()[
+            f'model.layers.{l}.mlp_block.down_proj.weight'
+        ]
+        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc2.bias'] = hf_model.state_dict()[
+            f'model.layers.{l}.mlp_block.down_proj.bias'
+        ]
+        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1._extra_state'] = nemo_model_from_hf.state_dict()[
+            f'model.decoder.layers.{l}.mlp.linear_fc1._extra_state'
+        ]
+        new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc2._extra_state'] = nemo_model_from_hf.state_dict()[
+            f'model.decoder.layers.{l}.mlp.linear_fc2._extra_state'
+        ]
 
         new_state_dict[f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.channel_pre_norm.weight']
 
@@ -69,7 +89,6 @@ def convert(args):
             new_state_dict[f'model.decoder.layers.{l}.self_attention.linear_proj._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj._extra_state']
             new_state_dict[f'model.decoder.layers.{l}.self_attention.linear_qkv._extra_state'] = nemo_model_from_hf.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv._extra_state']
 
-
         else:
             
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_in.layer_norm_weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_pre_norm.weight']
@@ -79,8 +98,12 @@ def convert(args):
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_out.weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_out.weight']
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.linear_out.bias'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.linear_out.bias']
 
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.conv_1d.conv_1d.weight'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.conv_1d.weight']
-            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.conv_1d.conv_1d.bias'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.conv_1d.bias']
+            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.conv_1d.conv_1d.weight'] = hf_model.state_dict()[
+                f'model.layers.{l}.temporal_block.conv_1d.weight'
+            ]
+            new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.conv_1d.conv_1d.bias'] = hf_model.state_dict()[
+                f'model.layers.{l}.temporal_block.conv_1d.bias'
+            ]
 
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.rg_lru.a_param'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.rg_lru.recurrent_param']
             new_state_dict[f'model.decoder.layers.{l}.recurrent_layer.rg_lru.input_gate.w'] = hf_model.state_dict()[f'model.layers.{l}.temporal_block.rg_lru.input_gate_weight']

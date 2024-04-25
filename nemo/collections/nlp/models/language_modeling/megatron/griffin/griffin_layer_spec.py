@@ -24,9 +24,17 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_layer import RecurrentBlock, RecurrentBlockSubmodules
-from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_module import RecurrentLayer, RecurrentLayerSubmodules
-from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_module import Conv1D, RGLRU
+
+from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_layer import (
+    RecurrentBlock,
+    RecurrentBlockSubmodules,
+)
+from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_module import (
+    RGLRU,
+    Conv1D,
+    RecurrentLayer,
+    RecurrentLayerSubmodules,
+)
 
 griffin_mqa_layer_with_transformer_engine_spec = ModuleSpec(
     module=TransformerLayer,
@@ -45,10 +53,7 @@ griffin_mqa_layer_with_transformer_engine_spec = ModuleSpec(
         self_attn_bda=get_bias_dropout_add,
         mlp=ModuleSpec(
             module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=TELayerNormColumnParallelLinear, 
-                linear_fc2=TERowParallelLinear,
-            ),
+            submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,),
         ),
         mlp_bda=get_bias_dropout_add,
     ),
@@ -64,15 +69,12 @@ griffin_recurrent_layer_with_transformer_engine_spec = ModuleSpec(
                 linear_out=TERowParallelLinear,
                 conv_1d=Conv1D,
                 rg_lru=RGLRU,
-            )
+            ),
         ),
         recurrent_bda=get_bias_dropout_add,
         mlp=ModuleSpec(
             module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=TELayerNormColumnParallelLinear, 
-                linear_fc2=TERowParallelLinear,
-            ),
+            submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear,),
         ),
         mlp_bda=get_bias_dropout_add,
     ),

@@ -15,6 +15,8 @@
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -35,12 +37,15 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
     """
     Megatron Griffin Supervised Fine-Tuning
     """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
         super().__init__(cfg, trainer=trainer)
+        self.mcore_gpt=True
         self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
         
     def _reset_activation_checkpointing_args(self):

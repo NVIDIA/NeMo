@@ -36,10 +36,9 @@ def main(cfg) -> None:
     cfg.trainer.precision = precision
     exp_manager(trainer, cfg.exp_manager)
 
-    # model_cfg = MegatronGriffinSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-    # model = MegatronGriffinSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
-    model_cfg = cfg.model
-    model = MegatronGriffinSFTModel(cfg.model, trainer)
+    model_cfg = MegatronGriffinSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    model = MegatronGriffinSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
     if cfg.model.peft.restore_from_path is not None:

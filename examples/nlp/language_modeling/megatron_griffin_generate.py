@@ -32,6 +32,7 @@ except (ImportError, ModuleNotFoundError):
 
 mp.set_start_method("spawn", force=True)
 
+
 @hydra_runner(config_path="conf", config_name="megatron_griffin_generate_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -68,7 +69,6 @@ def main(cfg) -> None:
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")
 
     trainer.test(model)
-
 
 
 if __name__ == "__main__":

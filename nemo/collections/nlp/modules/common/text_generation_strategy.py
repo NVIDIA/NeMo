@@ -325,7 +325,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
-    
+
 
 class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
@@ -674,16 +674,17 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
     )
+    from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
     from nemo.collections.nlp.modules.common.retro_inference_strategies import (
         RetroFileQAModelTextGenerationStrategy,
         RetroModelTextGenerationStrategy,
         RetroQAModelTextGenerationStrategy,
     )
+
     if isinstance(model, MegatronGriffinModel):
         return GriffinModelTextGenerationStrategy(model)
     if isinstance(model, MegatronNevaModel):

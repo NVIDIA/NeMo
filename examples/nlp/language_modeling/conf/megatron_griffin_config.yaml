@@ -2,7 +2,7 @@ name: megatron_griffin
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  devices: 1
+  devices: 8
   num_nodes: 1
   accelerator: gpu
   precision: 16
@@ -43,7 +43,7 @@ model:
   restore_from_path: null
   # model parallelism 
   micro_batch_size: 2
-  global_batch_size: 2
+  global_batch_size: 16
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   virtual_pipeline_model_parallel_size: null

@@ -33,6 +33,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
+
 class MegatronGriffinModel(MegatronGPTModel):
     """
     Megatron Griffin pretraining.
@@ -49,8 +50,8 @@ class MegatronGriffinModel(MegatronGPTModel):
         
         self.vocab_size = cfg.get('vocab_size', 256000)
         self.cfg = cfg
-        self.mcore_gpt=True
         super().__init__(cfg=cfg, trainer=trainer)
+        self.mcore_gpt=True
 
     def model_provider_func(self, pre_process, post_process):
         model = GriffinModel(
@@ -61,14 +62,12 @@ class MegatronGriffinModel(MegatronGPTModel):
             logits_soft_cap=self.cfg.get('logits_soft_cap', 30.0),
             rotary_percent=self.cfg.get('rotary_percentage', 0.5),
             rotary_base=self.cfg.get('rotary_base', 10000),
-            )
-    
+        )
+
         return model
 
     def forward(
-        self,
-        input_ids,
-        attention_mask,
+        self, input_ids, attention_mask,
     ):
             
         output_tensor = self.model(
@@ -85,12 +84,12 @@ class MegatronGriffinModel(MegatronGPTModel):
         return transformer_config
 
     def on_validation_epoch_end(self):
-        
+
         averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
         return averaged_loss
-    
+
     def sharded_state_dict(self, prefix: str = ''):
-            return None
+        return None
 
     def _reset_activation_checkpointing_args(self):
         return
@@ -108,6 +107,7 @@ class MegatronGriffinModel(MegatronGPTModel):
             _reset_activation_checkpointing_args.
         """
         return
+
     def _reset_sequence_parallelism_args(self):
         """ Disables sequence parallelism completely and saves the values so that
             _restore_sequence_parallelism_args can restore them later. This function must always be
@@ -121,4 +121,3 @@ class MegatronGriffinModel(MegatronGPTModel):
             _reset_sequence_parallelism_args.
         """
         return
-                  
