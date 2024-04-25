@@ -111,7 +111,7 @@ class GPTSFTDataset(Dataset):
         self.truncation_method = truncation_method
         self.is_test = is_test
         self.output_original_text = output_original_text
-        self.ceil_to_power_2 = ceil_to_power_2  
+        self.ceil_to_power_2 = ceil_to_power_2
 
         if special_tokens is None:
             self.special_tokens = {
