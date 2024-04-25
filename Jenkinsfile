@@ -469,13 +469,6 @@ pipeline {
             sh 'rm -f /home/TestData/nlp/megatron_gpt/falcon-ci-hf/falcon_ci.nemo'
           }
         }
-        stage('Griffin') {
-          steps {
-            sh 'python scripts/checkpoint_converters/convert_griffin_hf_to_nemo.py \
-            --output_path /home/TestData/nlp/megatron_gpt/griffin-ci-hf/griffin_ci.nemo'
-            sh 'rm -f /home/TestData/nlp/megatron_gpt/griffin-ci-hf/griffin_ci.nemo'
-          }
-        }
         stage('Baichuan2') {
           steps {
             sh 'python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
