@@ -1,5 +1,5 @@
 #!/usr/bin/env
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,38 +14,21 @@
 # limitations under the License.
 
 """
-Merge lora weights into a base GPT LM.
-Supports any TP and PP the LoRA model is trained on, and no need to specify TP/PP when running this script
+Convert nemo style (fused) lora checkpoint to canonical (unfused) lora checkpoint.
+Currently supports TP=PP=1 only.
 
 Example usage:
-python scripts/nlp_language_modeling/merge_lora_weights/merge.py \
-    trainer.accelerator=gpu \   (use 'cpu' if model cannot fit in memory)
-    gpt_model_file=<path to base model nemo file or extracted folder> \
-    lora_model_path=<path to megatron_gpt_peft_lora_tuning.nemo> \
-    merged_model_path=<output nemo file>
+python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.py \
+    --lora_path nemo_style_lora_model.nemo \
+    --output_path ./canonical_style_lora_model.nemo 
 
 """
-import os
-import pdb
 import tempfile
 from argparse import ArgumentParser
-from typing import Any, Dict, List
-
 import torch
 from omegaconf import OmegaConf, open_dict
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
-
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 
 def rename_keys(key):
     new_keys = []
@@ -156,11 +139,6 @@ def get_args():
     args = parser.parse_args()
     return args
 
-
-def main() -> None:
+if __name__ == '__main__':
     args = get_args()
     convert_lora(args.lora_path, args.output_path)
-
-
-if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
