@@ -17,11 +17,11 @@ import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -291,7 +291,7 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
-    
+
     def on_validation_model_zero_grad(self) -> None:
         """
          Skip gradient zeroing at the beginning of validation routine.
@@ -300,4 +300,3 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
 
         if not self.validation_param_sync_overlap:
             MegatronBaseModel.on_validation_model_zero_grad()
-
