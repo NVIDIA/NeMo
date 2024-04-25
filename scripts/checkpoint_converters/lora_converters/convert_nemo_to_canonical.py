@@ -25,15 +25,17 @@ python scripts/nlp_language_modeling/merge_lora_weights/merge.py \
     merged_model_path=<output nemo file>
 
 """
-import pdb
-from argparse import ArgumentParser
 import os
+import pdb
 import tempfile
+from argparse import ArgumentParser
 from typing import Any, Dict, List
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+
+import torch
 from omegaconf import OmegaConf, open_dict
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
-import torch
+
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 try:
     from megatron.core import parallel_state
@@ -43,6 +45,7 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
 
 def rename_keys(key):
     new_keys = []
@@ -54,14 +57,17 @@ def rename_keys(key):
 
 def convert(lora_weights, lora_model_cfg):
     assert len(lora_weights) == 1, "Only single TP supported for now"
-    if lora_model_cfg.get("num_query_groups", lora_model_cfg.num_attention_heads) != lora_model_cfg.num_attention_heads:
+    if (
+        lora_model_cfg.get("num_query_groups", lora_model_cfg.num_attention_heads)
+        != lora_model_cfg.num_attention_heads
+    ):
         kv_channels = int(lora_model_cfg.hidden_size / lora_model_cfg.num_attention_heads)
         kv_size = int(lora_model_cfg.num_query_groups * kv_channels)
     else:
         kv_size = int(lora_model_cfg.hidden_size)
-    q_size =  lora_model_cfg.hidden_size
+    q_size = lora_model_cfg.hidden_size
     k_size, v_size = kv_size, kv_size
-    
+
     keys_to_update = []
     for key in lora_weights[0].keys():
         if "lora_kqv_adapter" in key:
@@ -75,11 +81,12 @@ def convert(lora_weights, lora_model_cfg):
             srt = 0
             for new_key, size in zip(rename_keys(key), [q_size, k_size, v_size]):
                 print(size, new_key)
-                lora_weights[0][new_key] = lora_weights[0][key][srt:srt+ size]
+                lora_weights[0][new_key] = lora_weights[0][key][srt : srt + size]
                 srt = srt + size
-        
+
         lora_weights[0].pop(key)
     return lora_weights
+
 
 def convert_lora(lora_nemo, save_path):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -115,7 +122,7 @@ def convert_lora(lora_nemo, save_path):
         with open(f"{tmpdir}/model_config.yaml", "w") as f:
             OmegaConf.save(lora_config, f)
         lora_state_dict = convert(lora_state_dict, lora_config)
-        torch.save(lora_state_dict[0], f"{tmpdir}/model_weights.ckpt") # TODO: currently suport tp=1
+        torch.save(lora_state_dict[0], f"{tmpdir}/model_weights.ckpt")  # TODO: currently suport tp=1
         NLPSaveRestoreConnector._make_nemo_file_from_folder(save_path, tmpdir)
 
     return lora_state_dict, lora_config
@@ -132,16 +139,28 @@ def fix_for_O2(state_dict):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--lora_path", type=str, default=None, required=True, help="Path to NeMo style (fused) lora checkpoint in .nemo file format",
+        "--lora_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to NeMo style (fused) lora checkpoint in .nemo file format",
     )
-    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to save the canonical (unfused) lora .nemo file.")
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to save the canonical (unfused) lora .nemo file.",
+    )
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
 
+
 def main() -> None:
     args = get_args()
     convert_lora(args.lora_path, args.output_path)
-    
+
+
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
