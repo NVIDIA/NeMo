@@ -11,19 +11,38 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import glob
-import tempfile
 
 import jiwer
 import pytest
 import torch
-from omegaconf import OmegaConf, open_dict
+from omegaconf import open_dict
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 
 
+@pytest.fixture(scope="module")
+def stt_en_fastconformer_transducer_xlarge():
+    model_name = "stt_en_fastconformer_transducer_xlarge"
+    return ASRModel.from_pretrained(model_name, map_location="cpu")
+
+
+@pytest.fixture(scope="module")
+def stt_en_fastconformer_transducer_xxlarge():
+    model_name = "stt_en_fastconformer_transducer_xxlarge"
+    return ASRModel.from_pretrained(model_name, map_location="cpu")
+
+
+@pytest.fixture(scope="module")
+def stt_en_fastconformer_transducer_large():
+    model_name = "stt_en_fastconformer_transducer_large"
+    return ASRModel.from_pretrained(model_name, map_location="cpu")
+
+
+@pytest.mark.with_downloads
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
 @pytest.mark.parametrize(
     ("model_name", "batch_size", "enable_bfloat16"),
     [
@@ -42,28 +61,28 @@ a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
     ],
 )
 @pytest.mark.parametrize("loop_labels", [False, True])
-def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16, loop_labels: bool):
-    skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
+def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16, loop_labels: bool, request):
+    if not loop_labels:
+        skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
-    conf = ASRModel.from_pretrained(model_name, return_config=True)
-    with open_dict(conf):
-        conf["decoding"]["greedy"]["max_symbols"] = 5
-        conf["decoding"]["greedy"]["loop_labels"] = loop_labels
-        conf["decoding"]["greedy"]["use_cuda_graph_decoder"] = False
+    device = torch.device("cuda")
+    nemo_model = request.getfixturevalue(model_name).to(device)
+    decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
 
-    with tempfile.NamedTemporaryFile() as fp:
-        OmegaConf.save(config=conf, f=fp.name)
-        nemo_model = ASRModel.from_pretrained(model_name, override_config_path=fp.name, map_location="cuda")
+    with open_dict(decoding_config):
+        decoding_config["greedy"]["max_symbols"] = 5
+        decoding_config["greedy"]["loop_labels"] = loop_labels
+        decoding_config["greedy"]["use_cuda_graph_decoder"] = False
 
+    nemo_model.change_decoding_strategy(decoding_config)
     audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
         actual_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
 
-    with open_dict(conf):
-        conf["decoding"]["greedy"]["use_cuda_graph_decoder"] = True
+    decoding_config["greedy"]["use_cuda_graph_decoder"] = True
 
-    nemo_model.change_decoding_strategy(conf["decoding"])
+    nemo_model.change_decoding_strategy(decoding_config)
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
         fast_transcripts, _ = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
@@ -79,27 +98,27 @@ def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16,
             print("New transcript:", fast)
 
 
+@pytest.mark.with_downloads
+@pytest.mark.skipif(not torch.cuda.is_available() or torch.cuda.device_count() < 2, reason="Test requires 2 GPUs")
 @pytest.mark.parametrize("loop_labels", [False, True])
-def test_change_devices(loop_labels: bool):
-    skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
-
-    if torch.cuda.device_count() < 2:
-        pytest.skip("Test requires more than 2 GPUs")
+def test_change_devices(loop_labels: bool, stt_en_fastconformer_transducer_xlarge):
+    if not loop_labels:
+        skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
     first_device = torch.device("cuda:0")
     second_device = torch.device("cuda:1")
 
-    model_name = "stt_en_fastconformer_transducer_xlarge"
     batch_size = 8
 
-    conf = ASRModel.from_pretrained(model_name, return_config=True)
-    with open_dict(conf):
-        conf["decoding"]["greedy"]["max_symbols"] = 5
-        conf["decoding"]["greedy"]["loop_labels"] = loop_labels
-        conf["decoding"]["greedy"]["use_cuda_graph_decoder"] = True
+    nemo_model = stt_en_fastconformer_transducer_xlarge.to(second_device)
+    decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
 
-    nemo_model = ASRModel.from_pretrained(model_name, map_location=second_device)
-    nemo_model.change_decoding_strategy(conf["decoding"])
+    with open_dict(decoding_config):
+        decoding_config["greedy"]["max_symbols"] = 5
+        decoding_config["greedy"]["loop_labels"] = loop_labels
+        decoding_config["greedy"]["use_cuda_graph_decoder"] = False
+
+    nemo_model.change_decoding_strategy(decoding_config)
 
     # Test that the model can run successfully when it is first
     # initialized on second_device and then transferred to
