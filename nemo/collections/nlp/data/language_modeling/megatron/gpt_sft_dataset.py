@@ -111,9 +111,8 @@ class GPTSFTDataset(Dataset):
         self.truncation_method = truncation_method
         self.is_test = is_test
         self.output_original_text = output_original_text
-        self.ceil_to_power_2 = (
-            ceil_to_power_2  # Reccurent Gemma requires seq length to be a power of 2 for parallel scan
-        )
+        self.ceil_to_power_2 = ceil_to_power_2  
+
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -412,7 +411,7 @@ class GPTSFTDataset(Dataset):
 
     def _ceil_to_nearest(self, n, m):
         if self.ceil_to_power_2:
-            # Reccurent Gemma requires seq length to be a power of 2 for parallel scan
+            # Reccurent Gemma (AKA Griffin) requires seq length to be a power of 2 for parallel scan
             return 2 ** math.ceil(math.log2(n))
         else:
             return (n + m - 1) // m * m

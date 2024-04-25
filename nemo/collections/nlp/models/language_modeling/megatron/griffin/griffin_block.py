@@ -41,7 +41,7 @@ def get_griffin_layers(num_layers):
 
 
 def create_block(
-    config, layer_spec, layer_idx=None,
+    config, layer_spec, layer_idx,
 ):
     block = build_module(layer_spec, config,)
     block.layer_number = layer_idx + 1

@@ -87,29 +87,13 @@ class MegatronGriffinModel(MegatronGPTModel):
         return None
 
     def _reset_activation_checkpointing_args(self):
-        """ Disables activation checkpointing completely and saves the values so that
-            _restore_activation_checkpointing_args can restore them later. This function must always be
-            called before _restore_activation_checkpointing_args.
-        """
         return
 
     def _restore_activation_checkpointing_args(self):
-        """ Restores the activation checkpointing parameters using the values saved by
-            _reset_activation_checkpointing_args. This function must never be called before
-            _reset_activation_checkpointing_args.
-        """
         return
 
     def _reset_sequence_parallelism_args(self):
-        """ Disables sequence parallelism completely and saves the values so that
-            _restore_sequence_parallelism_args can restore them later. This function must always be
-            called before _restore_sequence_parallelism_args.
-        """
         return
 
     def _restore_sequence_parallelism_args(self):
-        """ Restores the sequence parallelism parameters using the values saved by
-            _reset_sequence_parallelism_args. This function must never be called before
-            _reset_sequence_parallelism_args.
-        """
         return
