@@ -59,7 +59,6 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
             loss = closure()
 
         update_successful, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
-        # (TODO) add log for grad norm here
 
         return loss
 
