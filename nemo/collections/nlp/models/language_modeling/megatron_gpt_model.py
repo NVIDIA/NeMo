@@ -91,6 +91,8 @@ try:
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
     from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
+    from megatron.core.distributed import DistributedDataParallel as DDP
+    from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
 
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
@@ -102,10 +104,12 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.utils import drain_embedding_wgrad_compute, init_method_normal, scaled_init_method_normal
-    from megatron.core.utils import get_model_config
-    from megatron.core.distributed import DistributedDataParallel as DDP
-    from megatron.core.distributed import finalize_model_grads, DistributedDataParallelConfig
+    from megatron.core.utils import (
+        drain_embedding_wgrad_compute,
+        get_model_config,
+        init_method_normal,
+        scaled_init_method_normal,
+    )
 
     HAVE_MEGATRON_CORE = True
 
