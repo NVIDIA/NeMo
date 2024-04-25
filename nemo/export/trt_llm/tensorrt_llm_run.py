@@ -592,6 +592,8 @@ def generate(
         **sampling_kwargs,
     )
     assert outputs is not None
+    if tensorrt_llm.mpi_rank() != 0:
+        return None
 
     output_ids = outputs['output_ids']
     sequence_lengths = outputs['sequence_lengths']
