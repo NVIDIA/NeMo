@@ -12,18 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
+from omegaconf import DictConfig
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-
-import torch
-from omegaconf import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
 
 try:
     HAVE_APEX = True
@@ -45,11 +41,11 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
             )
 
         super().__init__(cfg, trainer=trainer)
-        self.mcore_gpt=True
+        self.mcore_gpt = True
         self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
-        
+
     def _reset_activation_checkpointing_args(self):
-        pass 
+        pass
 
     def on_validation_model_zero_grad(self) -> None:
         """
@@ -58,4 +54,3 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
          """
         if not self.validation_param_sync_overlap:
             MegatronBaseModel.on_validation_model_zero_grad(self)
-    

@@ -14,16 +14,11 @@
 
 import math
 from dataclasses import dataclass
-from torch import nn
-from megatron.core.transformer.module import MegatronModule
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.identity_op import IdentityOp
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
-import torch
+from typing import Union
+
 import einops
-from accelerated_scan.triton import scan as scan_triton 
-from megatron.core.transformer.module import MegatronModule
+import torch
+from accelerated_scan.triton import scan as scan_triton
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
@@ -32,7 +27,6 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-from typing import Union
 
 
 # Class copied from https://github.com/google-deepmind/recurrentgemma

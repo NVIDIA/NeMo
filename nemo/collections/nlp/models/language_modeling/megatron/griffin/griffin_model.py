@@ -65,7 +65,6 @@ class GriffinModel(LanguageModule):
 
         self.decoder = GriffinStack(self.config)
 
-
     def shared_embedding_or_output_weight(self) -> Tensor:
         """Gets the emedding weight or output logit weights when share embedding and output weights set to True.
 
@@ -118,12 +117,12 @@ class GriffinModel(LanguageModule):
         return logits
 
     def forward(
-            self,
-            input_ids: Tensor,
-            position_ids: Tensor = None,
-            attention_mask: Tensor = None,
-            labels: Tensor = None,
-            **extra_arg
+        self,
+        input_ids: Tensor,
+        position_ids: Tensor = None,
+        attention_mask: Tensor = None,
+        labels: Tensor = None,
+        **extra_arg
     ):
         if input_ids == None:
             input_ids = self.input_tensor

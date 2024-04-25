@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import List, Mapping, Optional
 
 import datasets
 import numpy as np
 import torch
-import math
+
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
 from datasets import load_dataset
@@ -110,7 +111,9 @@ class GPTSFTDataset(Dataset):
         self.truncation_method = truncation_method
         self.is_test = is_test
         self.output_original_text = output_original_text
-        self.ceil_to_power_2 = ceil_to_power_2 # Reccurent Gemma requires seq length to be a power of 2 for parallel scan
+        self.ceil_to_power_2 = (
+            ceil_to_power_2  # Reccurent Gemma requires seq length to be a power of 2 for parallel scan
+        )
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",

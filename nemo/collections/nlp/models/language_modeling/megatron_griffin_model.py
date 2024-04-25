@@ -13,15 +13,12 @@
 # limitations under the License.
 
 import torch
-from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_model import GriffinModel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-)
-
+from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_model import GriffinModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from megatron.core import parallel_state
@@ -31,7 +28,6 @@ try:
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
-
 
 
 class MegatronGriffinModel(MegatronGPTModel):
@@ -47,11 +43,11 @@ class MegatronGriffinModel(MegatronGPTModel):
 
         # build the transformer config
         # TODO: add type hint once pip package is out
-        
+
         self.vocab_size = cfg.get('vocab_size', 256000)
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
-        self.mcore_gpt=True
+        self.mcore_gpt = True
 
     def model_provider_func(self, pre_process, post_process):
         model = GriffinModel(
@@ -69,11 +65,8 @@ class MegatronGriffinModel(MegatronGPTModel):
     def forward(
         self, input_ids, attention_mask,
     ):
-            
-        output_tensor = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-        )
+
+        output_tensor = self.model(input_ids=input_ids, attention_mask=attention_mask,)
         return output_tensor
 
     def build_transformer_config(self):
