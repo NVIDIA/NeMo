@@ -25,7 +25,7 @@ GPT
 
           model.position_embedding_type='rope'
           model.rotary_percentage=1.0
-     - Rotary Position Embedding (RoPE) :cite:`nlp-megatron-su2022roformer` incorporates positional information by utilizing a rotation matrix to encode the absolute positions of tokens while maintaining relative positional relationships in self-attention formulations by leveraging the geometric properties of vectors and complex numbers, applying a rotation based on a preset non-zero constant and the relative positions of the tokens to the word embeddings.
+     - Rotary Position Embedding (RoPE) :cite:`nlp-megatron-su2022roformer` incorporates positional information by utilizing a rotation matrix to encode the absolute positions of tokens while maintaining relative positional relationships in self-attention formulations. It achieves this by leveraging the geometric properties of vectors and complex numbers and applying a rotation based on a preset non-zero constant and the relative positions of the tokens to the word embeddings.
 
    * - **alibi**
      - .. code::
@@ -37,7 +37,7 @@ GPT
      - .. code::
 
           model.position_embedding_type='kerple'
-     - Kernelized Relative Positional Embedding for Length Extrapolation (KERPLE) :cite:`nlp-megatron-chi2022kerple` generalizes relative positional embeddings (RPE) by kernelizing positional differences using conditionally positive definite (CPD) kernels known for generalizing distance metrics. They transform CPD kernels into positive definite (PD) kernels by adding a constant offset, which is absorbed during softmax normalization in the self-attention mechanism of transformers. This approach allows for a variety of RPEs that facilitate length extrapolation in a principled manner.
+     - Kernelized Relative Positional Embedding for Length Extrapolation (KERPLE) :cite:`nlp-megatron-chi2022kerple` generalizes relative positional embeddings (RPE) by kernelizing positional differences using Conditionally Positive Definite (CPD) kernels known for generalizing distance metrics. They transform CPD kernels into positive definite (PD) kernels by adding a constant offset, which is absorbed during softmax normalization in the self-attention mechanism of transformers. This approach allows for a variety of RPEs that facilitate length extrapolation in a principled manner.
 
    * - **xpos**
      - .. code::
@@ -88,7 +88,7 @@ T5
 
           model.encoder.position_embedding_type='kerple'
           model.decoder.position_embedding_type='kerple'
-     - Kernelized Relative Positional Embedding for Length Extrapolation (KERPLE) :cite:`nlp-megatron-chi2022kerple` generalizes relative positional embeddings (RPE) by kernelizing positional differences using conditionally positive definite (CPD) kernels known for generalizing distance metrics. They transform CPD kernels into positive definite (PD) kernels by adding a constant offset, which is absorbed during softmax normalization in the self-attention mechanism of transformers. This approach allows for a variety of RPEs that facilitate length extrapolation in a principled manner.
+     - Kernelized Relative Positional Embedding for Length Extrapolation (KERPLE) :cite:`nlp-megatron-chi2022kerple` generalizes relative positional embeddings (RPE) by kernelizing positional differences using Conditionally Positive Definite (CPD) kernels known for generalizing distance metrics. They transform CPD kernels into positive definite (PD) kernels by adding a constant offset, which is absorbed during softmax normalization in the self-attention mechanism of transformers. This approach allows for a variety of RPEs that facilitate length extrapolation in a principled manner.
 
 Positional interpolation
 ------------------------

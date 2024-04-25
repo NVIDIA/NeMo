@@ -6,7 +6,7 @@ NVIDIA NeMo and NVIDIA Megatron-LM share many underlying technologies. This docu
 Converting Checkpoints
 ----------------------
 
-You can convert your GPT-style model checkpoints trained with Megatron-LM into the NeMo framework using the provided example script. This script facilitates the conversion of Megatron-LM checkpoints to NeMo compatible formats.
+You can convert your GPT-style model checkpoints trained with Megatron-LM into the NeMo Framework using the provided example script. This script facilitates the conversion of Megatron-LM checkpoints to NeMo compatible formats.
 
 .. code-block:: bash
 

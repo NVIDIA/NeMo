@@ -34,7 +34,7 @@ Documentation for the individual collections
 
 .. toctree::
    :maxdepth: 1
-   :caption: Multimodal (MM)
+   :caption: Multimodal Models (MMs)
    :name: Multimodal
    :titlesonly:
 
