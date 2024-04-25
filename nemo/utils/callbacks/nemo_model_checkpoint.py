@@ -451,6 +451,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
         """ Creates a callback that can be used to finalize async ckpt saves. """
+
         def _cb():
             logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
             self._last_global_step_saved = global_step

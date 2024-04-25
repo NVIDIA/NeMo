@@ -58,8 +58,11 @@ class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
     return type. The `save_checkpoint` method itself is synchronous, but returns
     callbacks that can be performed asynchronously.
     """
+
     @abstractmethod
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> 'AsyncRequest':
+    def save_checkpoint(
+        self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
+    ) -> 'AsyncRequest':
         raise NotImplementedError
 
 
@@ -141,6 +144,7 @@ class AsyncFinalizerCallback(Callback):
     Tries to perform non-blocking finalization on train_batch_end and train_epoch_end.
     On train_end performs a blocking finalization of all pending checkpoints.
     """
+
     def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 

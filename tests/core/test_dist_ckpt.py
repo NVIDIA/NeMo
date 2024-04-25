@@ -1,7 +1,7 @@
 import os
 import types
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import pytest
 import pytorch_lightning as pl
@@ -10,8 +10,11 @@ from lightning_fabric.plugins import TorchCheckpointIO
 from pytorch_lightning.demos.boring_classes import BoringModel
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO, \
-    AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
+from nemo.utils.callbacks.dist_ckpt_io import (
+    AsyncFinalizableCheckpointIO,
+    AsyncFinalizerCallback,
+    DistributedCheckpointIO,
+)
 
 try:
     from megatron.core.dist_checkpointing import ShardedTensor
@@ -58,7 +61,11 @@ class MockTorchCheckpointIO(TorchCheckpointIO):
 
 
 def _get_last_checkpoint_dir(root_dir: Path, model: pl.LightningModule, suffix: str = '') -> Path:
-    steps = len(model.train_dataloader().dataset) * model.trainer.max_epochs // torch.distributed.get_world_size()
+    steps = (
+        len(model.train_dataloader().dataset)
+        * model.trainer.max_epochs
+        // torch.distributed.get_world_size()
+    )
     return root_dir / 'checkpoints' / f'epoch=1-step={steps}{suffix}'
 
 
@@ -129,8 +136,12 @@ class TestAsyncSave:
         async_ckpt_dir = tmp_path / 'async_checkpoints'
 
         test_trainer = pl.Trainer(
-            enable_checkpointing=True, logger=False, max_epochs=2, strategy=strategy, plugins=[sync_checkpoint_io],
-            default_root_dir=sync_ckpt_dir
+            enable_checkpointing=True,
+            logger=False,
+            max_epochs=2,
+            strategy=strategy,
+            plugins=[sync_checkpoint_io],
+            default_root_dir=sync_ckpt_dir,
         )
         model = ExampleMCoreModel()
         test_trainer.fit(model)
@@ -141,15 +152,24 @@ class TestAsyncSave:
             lambda self, unsharded_optim_state: unsharded_optim_state, strategy
         )
         test_trainer = pl.Trainer(
-            enable_checkpointing=True, logger=False, max_epochs=2, strategy=strategy, plugins=[async_checkpoint_io],
-            callbacks=AsyncFinalizerCallback(), default_root_dir=async_ckpt_dir,
+            enable_checkpointing=True,
+            logger=False,
+            max_epochs=2,
+            strategy=strategy,
+            plugins=[async_checkpoint_io],
+            callbacks=AsyncFinalizerCallback(),
+            default_root_dir=async_ckpt_dir,
         )
         test_trainer.fit(model)
 
         # Load and compare checkpoints
         checkpoint = {'sharded_state_dict': model.sharded_state_dict()}
-        sync_state_dict = sync_checkpoint_io.load_checkpoint(_get_last_checkpoint_dir(sync_ckpt_dir, model), sharded_state_dict=checkpoint)
-        async_state_dict = async_checkpoint_io.load_checkpoint(_get_last_checkpoint_dir(async_ckpt_dir, model), sharded_state_dict=checkpoint)
+        sync_state_dict = sync_checkpoint_io.load_checkpoint(
+            _get_last_checkpoint_dir(sync_ckpt_dir, model), sharded_state_dict=checkpoint
+        )
+        async_state_dict = async_checkpoint_io.load_checkpoint(
+            _get_last_checkpoint_dir(async_ckpt_dir, model), sharded_state_dict=checkpoint
+        )
 
         assert sync_state_dict['sharded_state_dict']['const'] == async_state_dict['sharded_state_dict']['const']
         assert torch.all(sync_state_dict['sharded_state_dict']['a'] == async_state_dict['sharded_state_dict']['a'])
