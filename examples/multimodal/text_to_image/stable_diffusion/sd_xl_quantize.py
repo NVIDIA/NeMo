@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import re
+from pathlib import Path
+
 import ammo.torch.opt as ato
 import ammo.torch.quantization as atq
 import onnx
-import os
-import re
 import torch
 from ammo.torch.quantization.nn import QuantModuleRegistry
-from pathlib import Path
 from torch.onnx import export as onnx_export
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
@@ -51,15 +52,17 @@ def do_calibrate(base, calibration_prompts, **kwargs):
         )
 
 
-def get_input_profile_unet(batch_size, static_batch=False, min_batch_size=1, max_batch_size=8, latent_dim=32,
-                           adm_in_channels=1280):
+def get_input_profile_unet(
+    batch_size, static_batch=False, min_batch_size=1, max_batch_size=8, latent_dim=32, adm_in_channels=1280
+):
     assert batch_size >= min_batch_size and batch_size <= max_batch_size
     if static_batch:
         min_batch_size = batch_size if static_batch else min_batch_size
         max_batch_size = batch_size if static_batch else max_batch_size
     input_profile = {}
-    dummy_input = generate_dummy_inputs(sd_version="nemo", device='cuda', latent_dim=latent_dim,
-                                        adm_in_channels=adm_in_channels)
+    dummy_input = generate_dummy_inputs(
+        sd_version="nemo", device='cuda', latent_dim=latent_dim, adm_in_channels=adm_in_channels
+    )
     for key, value in dummy_input.items():
         input_profile[key] = [
             (min_batch_size, *(value.shape[1:])),
@@ -89,7 +92,6 @@ def main(cfg):
     base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
 
     QuantModuleRegistry.register({LinearWrapper: "nemo_linear_wrapper"})(_QuantNeMoLinearWrapper)
-
 
     if cfg.run_quantization:
         # Start quantization with ammo
@@ -191,6 +193,7 @@ def main(cfg):
             int8=cfg.trt_export.int8,
             builder_optimization_level=cfg.trt_export.builder_optimization_level,
         )
+
 
 if __name__ == "__main__":
     main()
