@@ -89,6 +89,7 @@ def replace_number_add_offset(key, offset_value):
 
     return result_string
 
+
 def load_lora(lora_nemo):
     with tempfile.TemporaryDirectory() as tmpdir:
         NLPSaveRestoreConnector._unpack_nemo_file(lora_nemo, tmpdir)
