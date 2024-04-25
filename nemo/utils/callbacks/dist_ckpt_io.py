@@ -16,6 +16,7 @@ class DistributedCheckpointIO(CheckpointIO):
     Args:
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving.
     """
+
     def __init__(self, save_ckpt_format: str):
         super().__init__()
         self.save_ckpt_format = save_ckpt_format
