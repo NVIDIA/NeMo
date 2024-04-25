@@ -30,6 +30,7 @@ from omegaconf import OmegaConf, open_dict
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
+
 def rename_keys(key):
     new_keys = []
     new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.q_adapter."))
@@ -138,6 +139,7 @@ def get_args():
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
+
 
 if __name__ == '__main__':
     args = get_args()
