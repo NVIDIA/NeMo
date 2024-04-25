@@ -185,7 +185,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
     @_debug_time('DistributedCheckpointIO.save_checkpoint')
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
-    ) -> Optional[AsyncRequest]:
+    ) -> Optional['AsyncRequest']:
         """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
         Args:
