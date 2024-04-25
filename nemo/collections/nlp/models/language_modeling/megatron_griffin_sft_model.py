@@ -297,7 +297,7 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
          Skip gradient zeroing at the beginning of validation routine.
          This is needed when overlapping the AllGather of the updated parameters with the following valdation step.
          """
-
         if not self.validation_param_sync_overlap:
-            MegatronBaseModel.on_validation_model_zero_grad()
+            MegatronBaseModel.on_validation_model_zero_grad(self)
+
 
