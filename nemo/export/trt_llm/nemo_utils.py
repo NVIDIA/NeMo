@@ -409,7 +409,7 @@ def nemo_to_trtllm_config(
         'apply_query_key_layer_scaling':
         False,
         'rotary_pct':
-        nemo_model_config.get('rotary_percentage'),
+        nemo_model_config.get('rotary_percentage', 1.0),
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
