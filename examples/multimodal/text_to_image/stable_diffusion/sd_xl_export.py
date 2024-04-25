@@ -16,8 +16,6 @@ import torch
 import torch.nn as nn
 
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
-from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
-from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
 from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 from nemo.utils.trt_utils import build_engine
