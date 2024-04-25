@@ -428,6 +428,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
+            # Async save passed the finalization function to checkpoint_io,
+            # sync save calls the finalization function immediately after save.
             finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
             if self.async_save:
                 checkpoint_io = trainer.strategy.checkpoint_io
@@ -443,6 +445,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
+        """ Creates a callback that can be used to finalize async ckpt saves. """
         def _cb():
             logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
             self._last_global_step_saved = global_step
@@ -457,6 +460,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             # we don't want to remove the marker until all checkpointing is done.
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
+            # Remove checkpoints marked for removal by `self._remove_checkpoint`
             logging.debug(f'Checkpoints to remove: {self.deferred_ckpts_to_remove}')
             # TODO: this might remove checkpoints too early (callback from finished save removes ckpts from unfinished save)
             for ckpt_to_remove in self.deferred_ckpts_to_remove:
@@ -466,6 +470,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return _cb
 
     def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, override_async=False) -> None:
+        """ Performs checkpoint removal or deferred removal.
+
+        With async save, `self._remove_checkpoint` is called before the checkpoint
+        is actually finished so we can't remove it. Instead we add it to
+        `self.deferred_ckpts_to_remove` for future removal.
+        """
         if self.async_save and not override_async:
             self.deferred_ckpts_to_remove.append(filepath)
             return

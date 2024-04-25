@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import shutil
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from time import time
 from typing import Any, Callable, Dict, Optional, Tuple, cast
@@ -41,7 +42,8 @@ except (ImportError, ModuleNotFoundError) as IMPORT_ERROR_EXC:
 
 
 @contextmanager
-def debug_time(name: str):
+def _debug_time(name: str):
+    """ Simple context manager for timing functions/code blocks. """
     start = time()
     try:
         yield
@@ -49,47 +51,84 @@ def debug_time(name: str):
         logging.debug(f'{name} took {time() - start:.3f}s')
 
 
-class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
+class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
+    """ CheckpointIO that can be used together with async saving.
+
+    Differs from the regular CheckpointIO only by the `save_checkpoint`
+    return type. The `save_checkpoint` method itself is synchronous, but returns
+    callbacks that can be performed asynchronously.
     """
+    @abstractmethod
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> 'AsyncRequest':
+        raise NotImplementedError
+
+
+class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
+    """ CheckpointIO wrapper for async checkpoint saving and synchronous finalization.
+
+    Runs main part of the checkpoint save in a separate process (not thread as the PTL
+    AsyncCheckpointIO does). Allows to perform a (synchronous) finalization
+    function after all ranks finish checkpoint saving.
+
+    NOTE: for correctness, this plugin must be used together with the
+    AsyncFinalizerCallback callback which performs the finalization checks.
+
+    Args:
+        checkpoint_io (CheckpointIO): wrapped checkpoint_io object. Must be
+            of type AsyncCompatibleCheckpointIO.
     Requires the underlying checkpoint_io.save_checkpoint to return save_fn, save_args, finalize_fn.
     """
 
-    def __init__(self, checkpoint_io: Optional['CheckpointIO'] = None) -> None:
-        super().__init__(checkpoint_io)
+    def __init__(self, checkpoint_io: AsyncCompatibleCheckpointIO) -> None:
         if not HAVE_MEGATRON_CORE:
             raise ImportError(IMPORT_ERROR) from IMPORT_ERROR_EXC
+        if not isinstance(checkpoint_io, AsyncCompatibleCheckpointIO):
+            raise ValueError(f'Incompatible wrapped checkpoint_io type: {type(checkpoint_io)}')
+
+        super().__init__(checkpoint_io)
         self.async_calls_queue = AsyncCallsQueue()
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """
+        """ Executes async request returned from the underlying checkpoint_io asynchronously.
+
         Requires the underlying checkpoint_io.save_checkpoint to return an AsyncRequest.
+        It is then applied with `self.async_calls_queue` asynchronously.
+
+        Args:
+            checkpoint (Dict[str, Any]): checkpoint to save. Passed to underlying
+                checkpoint_io without modifications.
+            path (_PATH): path to save the checkpoint. Passed to underlying
+                checkpoint_io without modifications.
+            storage_options (Any, optional): storage control modifiers. This class
+                consumed the `finalize_fn` parameter (if any), which is expected to be
+                a callback and is appended to async finalization functions.
 
         Applies underlying checkpoint_io finalize callback first, then the external one (postfix order).
         """
         external_finalize_fn = (storage_options or {}).pop('finalize_fn', None)
-        assert self.checkpoint_io is not None
-        async_request: AsyncRequest = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
+        assert isinstance(self.checkpoint_io, AsyncCompatibleCheckpointIO), type(self.checkpoint_io)
+        async_request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
         if external_finalize_fn is not None:
             async_request.add_finalize_fn(external_finalize_fn)
         call_idx = self.async_calls_queue.schedule_async_request(async_request)
         logging.debug(f'Scheduled an async call #{call_idx}')
 
-    def _merge_finalize_callbacks(self, *callbacks: Callable) -> Callable:
-        def apply_all_finalizations():
-            for callback_idx, callback in enumerate(callbacks):
-                logging.debug(f'Applying finalize callback idx {callback_idx}')
-                callback()
-
-        return apply_all_finalizations
-
-    @debug_time('AsyncFinalizableCheckpointIO.maybe_finalize_save_checkpoint')
+    @_debug_time('AsyncFinalizableCheckpointIO.maybe_finalize_save_checkpoint')
     def maybe_finalize_save_checkpoint(self, blocking: bool = False):
+        """ Performs checkpoint finalization (if possible).
+
+        Args:
+            blocking (bool, optional): if True, waits until all async saves are
+                completed. Otherwise, finalizes only those async calls which are
+                already done on all ranks. Defaults to False.
+        """
         call_idx_finalized = self.async_calls_queue.maybe_finalize_async_calls(blocking)
         if call_idx_finalized:
             logging.debug(f'Finalized async calls: {[f"#{idx}" for idx in call_idx_finalized]}')
         return len(call_idx_finalized) > 0
 
     def teardown(self) -> None:
+        """ Warns if there are any pending checkpoint saves. """
         super().teardown()
         if self.async_calls_queue.get_num_unfinalized_calls() > 0:
             # Can't do finalization now because some ranks might be lost
@@ -97,26 +136,22 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
 
 class AsyncFinalizerCallback(Callback):
+    """ Callback which finalizes async saves initiated by the AsyncFinalizableCheckpointIO.
+
+    Tries to perform non-blocking finalization on train_batch_end and train_epoch_end.
+    On train_end performs a blocking finalization of all pending checkpoints.
+    """
     def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        self.maybe_finalize_async_save(trainer)
+        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        self.maybe_finalize_async_save(trainer)
+        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         checkpoint_io = self._get_checkpoint_io(trainer)
         if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
             logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
-        self.maybe_finalize_async_save(trainer, blocking=True)
-
-    def teardown(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        checkpoint_io = self._get_checkpoint_io(trainer)
-        if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
-            # Can't do finalization now because some ranks might be lost
-            logging.warning('Some async checkpoint saves might be not finalized properly.')
-
-    def maybe_finalize_async_save(self, trainer, blocking=False):
-        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=blocking)
+        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=True)
 
     def _get_checkpoint_io(self, trainer) -> AsyncFinalizableCheckpointIO:
         checkpoint_io = trainer.strategy.checkpoint_io
@@ -125,7 +160,7 @@ class AsyncFinalizerCallback(Callback):
         return checkpoint_io
 
 
-class DistributedCheckpointIO(CheckpointIO):
+class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
     """ CheckpointIO for a distributed checkpoint format.
 
     Args:
@@ -143,7 +178,7 @@ class DistributedCheckpointIO(CheckpointIO):
         self.async_save = async_save
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
 
-    @debug_time('DistributedCheckpointIO.save_checkpoint')
+    @_debug_time('DistributedCheckpointIO.save_checkpoint')
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
     ) -> Optional[AsyncRequest]:
@@ -168,7 +203,7 @@ class DistributedCheckpointIO(CheckpointIO):
         self.save_sharded_strategy.async_request = None
         return async_request
 
-    @debug_time('DistributedCheckpointIO.load_checkpoint')
+    @_debug_time('DistributedCheckpointIO.load_checkpoint')
     def load_checkpoint(
         self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: Dict[str, Any] = None
     ) -> Dict[str, Any]:
@@ -199,7 +234,7 @@ class DistributedCheckpointIO(CheckpointIO):
             sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy
         )
 
-    @debug_time('DistributedCheckpointIO.remove_checkpoint')
+    @_debug_time('DistributedCheckpointIO.remove_checkpoint')
     def remove_checkpoint(self, path: _PATH) -> None:
         """ Remove a distributed checkpoint.
 
@@ -208,9 +243,10 @@ class DistributedCheckpointIO(CheckpointIO):
         shutil.rmtree(path, ignore_errors=True)
 
     def _determine_dist_ckpt_save_strategy(self):
-        """ Determine the saving strategy based on storage config.
+        """ Determine the saving strategy based on constructor args.
 
-        For now only decides the checkpoint format.
+        If self.async_save is True instantiates an async PyT Dist strategy,
+        otherwise relies on MCore to create a proper strategy based on ckpt format.
         """
         save_strategy = (self.save_ckpt_format, 1)
         if self.async_save:
