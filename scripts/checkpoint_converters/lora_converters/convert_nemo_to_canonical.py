@@ -33,13 +33,37 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 def rename_keys(key):
     new_keys = []
-    new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.q_adapter."))
-    new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.k_adapter."))
-    new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.v_adapter."))
+    if "lora_kqv_adapter" in key:
+        new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.q_adapter."))
+        new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.k_adapter."))
+        new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.v_adapter."))
+    elif "lora_hto4h_adapter" in key:
+        new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.gate_adapter."))
+        new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.up_adapter."))
     return new_keys
 
+def convert_hto4h(lora_weights, lora_config):
+    assert len(lora_weights) == 1, "Only single TP supported for now"
+    keys_to_update = []
+    for key in lora_weights[0].keys():
+        if "lora_hto4h_adapter" in key:
+            keys_to_update.append(key)
 
-def convert(lora_weights, lora_model_cfg):
+    for key in keys_to_update:
+        if "linear_in" in key:
+            for new_key in rename_keys(key):
+                lora_weights[0][new_key] = lora_weights[0][key]
+                print(new_key, lora_weights[0][new_key].shape)
+        elif "linear_out" in key:
+            for idx, new_key in enumerate(rename_keys(key)):
+                orginal_shape = lora_weights[0][key].shape[0]
+                lora_weights[0][new_key] = lora_weights[0][key][idx * (orginal_shape//2) : (idx + 1) * (orginal_shape//2)]
+                print(new_key, lora_weights[0][new_key].shape)
+
+        lora_weights[0].pop(key)
+    return lora_weights
+
+def convert_qkv(lora_weights, lora_model_cfg):
     assert len(lora_weights) == 1, "Only single TP supported for now"
     if (
         lora_model_cfg.get("num_query_groups", lora_model_cfg.num_attention_heads)
@@ -56,16 +80,17 @@ def convert(lora_weights, lora_model_cfg):
     for key in lora_weights[0].keys():
         if "lora_kqv_adapter" in key:
             keys_to_update.append(key)
-
+    
     for key in keys_to_update:
         if "linear_in" in key:
             for new_key in rename_keys(key):
                 lora_weights[0][new_key] = lora_weights[0][key]
+                print(new_key, lora_weights[0][new_key].shape)
         elif "linear_out" in key:
             srt = 0
             for new_key, size in zip(rename_keys(key), [q_size, k_size, v_size]):
-                print(size, new_key)
                 lora_weights[0][new_key] = lora_weights[0][key][srt : srt + size]
+                print(new_key, lora_weights[0][new_key].shape)
                 srt = srt + size
 
         lora_weights[0].pop(key)
@@ -105,7 +130,8 @@ def convert_lora(lora_nemo, save_path):
             lora_config.peft.lora_tuning.variant = "canonical"
         with open(f"{tmpdir}/model_config.yaml", "w") as f:
             OmegaConf.save(lora_config, f)
-        lora_state_dict = convert(lora_state_dict, lora_config)
+        lora_state_dict = convert_qkv(lora_state_dict, lora_config)
+        lora_state_dict = convert_hto4h(lora_state_dict, lora_config)
         torch.save(lora_state_dict[0], f"{tmpdir}/model_weights.ckpt")  # TODO: currently suport tp=1
         NLPSaveRestoreConnector._make_nemo_file_from_folder(save_path, tmpdir)
 
