@@ -1,4 +1,6 @@
+accelerated-scan
 black==19.10b0
+causal-conv1d>=1.2.0
 click==8.0.2
 isort>5.1.0,<6.0.0
 parameterized
