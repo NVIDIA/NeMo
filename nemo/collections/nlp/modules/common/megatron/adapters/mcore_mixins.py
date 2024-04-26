@@ -36,8 +36,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     Lora4HtoHAdapterConfig,
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
-    LoraUnfusedHto4HAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraUnfusedHto4HAdapterConfig,
     LoraUnfusedKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
@@ -266,7 +266,12 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         Setup NeMo IA3 adapter to this MCore layer.
         """
         self.set_accepted_adapter_types(
-            [LoraUnfusedHto4HAdapterConfig._target_, LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
+            [
+                LoraUnfusedHto4HAdapterConfig._target_,
+                LoraHto4HAdapterConfig._target_,
+                Lora4HtoHAdapterConfig._target_,
+                MLPInfusedAdapterConfig._target_,
+            ]
         )  # only self attn (packed qkv) for now
         self.linear_fc1.return_layernorm_output = True  # need layernorm output for lora mlp
         if (

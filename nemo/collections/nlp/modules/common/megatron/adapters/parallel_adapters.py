@@ -453,7 +453,6 @@ class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraHto4HAdapter.__module__, LoraHto4HAdapter.__name__)
 
 
-
 @dataclass
 class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
@@ -478,12 +477,12 @@ class LoraUnfusedHto4HAdapter(nn.Module, AdapterModuleUtil):
         alpha: float | None = None,
         dropout_position: str = 'post',
         a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
-       **kwargs,
+        **kwargs,
     ):
-        super().__init__() 
+        super().__init__()
         self.gate_adapter = ParallelLinearAdapter(
             in_features,
-            out_features//2,
+            out_features // 2,
             dim,
             activation,
             norm_position,
@@ -500,7 +499,7 @@ class LoraUnfusedHto4HAdapter(nn.Module, AdapterModuleUtil):
         )
         self.up_adapter = ParallelLinearAdapter(
             in_features,
-            out_features//2,
+            out_features // 2,
             dim,
             activation,
             norm_position,
@@ -515,18 +514,19 @@ class LoraUnfusedHto4HAdapter(nn.Module, AdapterModuleUtil):
             dropout_position,
             a2a_experimental,
         )
-        
+
     def forward(self, x):
         gate_x = self.gate_adapter(x)
         up_x = self.up_adapter(x)
         x = torch.concat([gate_x, up_x], dim=2)
         return x
 
+
 @dataclass
 class LoraUnfusedHto4HAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraUnfusedHto4HAdapter.__module__, LoraUnfusedHto4HAdapter.__name__)
-    
-    
+
+
 class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
         self,

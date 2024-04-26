@@ -36,8 +36,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
-    LoraUnfusedKQVAdapterConfig,
     LoraUnfusedHto4HAdapterConfig,
+    LoraUnfusedKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
@@ -172,7 +172,7 @@ class LoraPEFTConfig(PEFTConfig):
                 else:
                     _adapter_name = AdapterName.LORA_Hto4H_ADAPTER
                     _adapter_cfg_cls = LoraHto4HAdapterConfig
-                    
+
                 adapter_cfg = self._create_lora_config(
                     cfg, lora_cfg, cfg.hidden_size, hto4h_projection_size, _adapter_cfg_cls
                 )
