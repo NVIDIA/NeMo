@@ -61,7 +61,7 @@ def get_args():
     return args
 
 
-def load_model(cls, checkpoint, strict, **kwargs):
+def restore_model_from_checkpoint(cls, checkpoint, strict, **kwargs):
     try:
         if 'cfg' in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
@@ -69,7 +69,8 @@ def load_model(cls, checkpoint, strict, **kwargs):
             model = cls(cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs)
             for name, module in model.named_parameters():
                 if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
+                    # cast to target precision and
+                    module.data = checkpoint['state_dict'][name].to(dtype=module.data.dtype)
                     checkpoint['state_dict'].pop(name)
                 else:
                     print(f"Unexpected key: {name} not in checkpoint but in model.")
@@ -486,12 +487,11 @@ def save_to_nemo(args, checkpoint):
         for key in keys:
             checkpoint['state_dict'][key.replace('model.', 'model.module.', 1)] = checkpoint['state_dict'].pop(key)
 
-    model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
+    model = restore_model_from_checkpoint(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
-    # cast to target precision and disable cpu init
-    model = model.to(dtype=dtype)
+    # disable cpu init
     model.cfg.use_cpu_initialization = False
     model.cfg.perform_initialization = True
 
