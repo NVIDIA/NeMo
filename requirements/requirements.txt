@@ -12,5 +12,3 @@ torch
 tqdm>=4.41.0
 wget
 wrapt
-accelerated-scan
-causal-conv1d>=1.2.0
