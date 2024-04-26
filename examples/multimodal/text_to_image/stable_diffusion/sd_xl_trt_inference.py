@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import math
+import time
+
 import numpy as np
 import open_clip
 import tensorrt as trt
-import time
 import torch
 from cuda import cudart
 from transformers import CLIPTokenizer
