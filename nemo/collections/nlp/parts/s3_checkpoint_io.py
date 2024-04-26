@@ -1,4 +1,3 @@
-import glob
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -10,7 +9,6 @@ from typing import Any, Callable, Dict, Optional, Union
 
 import torch
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
-from pytorch_lightning.plugins import TorchCheckpointIO
 
 from nemo.utils import logging
 from nemo.utils.checkpoint_file_utils import parse_prefix_with_step

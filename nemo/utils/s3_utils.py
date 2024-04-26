@@ -1,10 +1,9 @@
 import os
 import re
 import time
-from concurrent.futures import ProcessPoolExecutor
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import boto3
 import botocore
@@ -16,10 +15,8 @@ from tenacity import (
     before_sleep_log,
     retry,
     retry_if_exception,
-    stop_after_attempt,
     stop_after_delay,
     wait_exponential,
-    wait_fixed,
 )
 
 from nemo.utils import logging
