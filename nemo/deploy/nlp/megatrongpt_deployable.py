@@ -14,7 +14,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import cast_output, str_ndarray2list
+from nemo.deploy.utils import cast_output, str_ndarray2list, typedict2tensor
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -89,22 +89,26 @@ class MegatronGPTDeployable(ITritonDeployable):
 
     @property
     def get_triton_input(self):
-        input_parameters = [
+        input_parameters = tuple(
             Tensor(name=name, shape=(shape,), dtype=dtype, optional=optional)
             for name, (shape, dtype, optional) in self._INPUT_PARAMETER_FIELDS.items()
-        ]
+        )
+        # TODO: in theory, would like to use typedict2tensor() function to generate Tensors, but it purposely ignores 1D arrays
+        # need to find out why that is
+        #sampling_parameters = typedict2tensor(SamplingParam)
         default_sampling_params: SamplingParam = get_default_sampling_params()
-        sampling_parameters = [
+        sampling_parameters = tuple(
             Tensor(name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value), optional=True)
             for parameter_name, parameter_value in default_sampling_params.items()
-        ]
+        )
+        #length_parameters = typedict2tensor(LengthParam)
         default_length_params: LengthParam = get_default_length_params()
-        length_parameters = [
+        length_parameters = tuple(
             Tensor(name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value), optional=True)
             for parameter_name, parameter_value in default_length_params.items()
-        ]
+        )
 
-        inputs = tuple(input_parameters + sampling_parameters + length_parameters)
+        inputs = input_parameters + sampling_parameters + length_parameters
         return inputs
 
     @property

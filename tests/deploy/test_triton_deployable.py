@@ -6,7 +6,7 @@ from pytriton.client import ModelClient
 from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.nlp import NemoTritonQueryLLMTensorRT
 from nemo.deploy.nlp.megatrongpt_deployable import MegatronGPTDeployable
-
+from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
 
 def test_triton_deployable(args):
     megatron_deployable = MegatronGPTDeployable(args.nemo_checkpoint)
@@ -28,6 +28,16 @@ def test_triton_deployable(args):
     nm.deploy()
     nm.run()
 
+    nemo_triton_query = NemoTritonQueryLLMPyTorch(url, model_name)
+    result_dict = nemo_triton_query.query_llm(
+        prompts,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        temperature=args.temperature,
+        max_length=args.max_output_token)
+    print("NemoTritonQueryLLMPyTriton result:")
+    print(result_dict)
+
     # NemoQueryLLM seems specific to TRTLLM for now, so using ModelClient instead
     str_ndarray = np.array(prompts)[..., np.newaxis]
     prompts = np.char.encode(str_ndarray, "utf-8")
@@ -44,8 +54,9 @@ def test_triton_deployable(args):
             top_p=top_p,
             temperature=temperature,
         )
+        print("ModelClient result:")
+        print(result_dict)
 
-    print(result_dict)
     nm.stop()
 
 

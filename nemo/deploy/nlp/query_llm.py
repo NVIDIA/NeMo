@@ -30,24 +30,78 @@ class NemoTritonQueryLLMBase(ABC):
         self.url = url
         self.model_name = model_name
 
-    @abstractmethod
+    # @abstractmethod
+    # def query_llm(
+    #     self,
+    #     prompts,
+    #     stop_words_list=None,
+    #     bad_words_list=None,
+    #     no_repeat_ngram_size=None,
+    #     max_output_token=512,
+    #     top_k=1,
+    #     top_p=0.0,
+    #     temperature=1.0,
+    #     random_seed=None,
+    #     task_id=None,
+    #     lora_uids=None,
+    #     init_timeout=60.0,
+    # ):
+    #     pass
+
+class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
+    def __init__(self, url, model_name):
+        super().__init__(
+            url=url, model_name=model_name,
+        )
+
+    # these arguments are explicitly defined in order to make it clear to user what they can pass
+    # names and optionality should exactly match the get_triton_input() results for MegatronGPTDeployable
     def query_llm(
         self,
         prompts,
-        stop_words_list=None,
-        bad_words_list=None,
-        no_repeat_ngram_size=None,
-        max_output_token=512,
-        top_k=1,
-        top_p=0.0,
-        temperature=1.0,
-        random_seed=None,
-        task_id=None,
-        lora_uids=None,
+        use_greedy: bool=None,
+        temperature: float=None,
+        top_k: int=None,
+        top_p: float=None,
+        repetition_penalty: float=None,
+        add_BOS: bool=None,
+        all_probs: bool=None,
+        compute_logprob: bool=None,
+        end_strings=None,
+        min_length=None,
+        max_length=None,
         init_timeout=60.0,
     ):
-        pass
-
+        prompts = str_list2numpy(prompts)
+        inputs = {
+            "prompts": prompts,
+        }
+        if use_greedy is not None:
+            inputs["use_greedy"] = np.full(prompts.shape, use_greedy, dtype=np.bool_)
+        if temperature is not None:
+            inputs["temperature"] = np.full(prompts.shape, temperature, dtype=np.single)
+        if top_k is not None:
+            inputs["top_k"] = np.full(prompts.shape, top_k, dtype=np.int_)
+        if top_p is not None:
+            inputs["top_p"] = np.full(prompts.shape, top_p, dtype=np.single)
+        if repetition_penalty is not None:
+            inputs["repetition_penalty"] = np.full(prompts.shape, repetition_penalty, dtype=np.single)
+        if add_BOS is not None:
+            inputs["add_BOS"] = np.full(prompts.shape, add_BOS, dtype=np.bool_)
+        if all_probs is not None:
+            inputs["all_probs"] = np.full(prompts.shape, all_probs, dtype=np.bool_)
+        if compute_logprob is not None:
+            inputs["compute_logprob"] = np.full(prompts.shape, compute_logprob, dtype=np.bool_)
+        if end_strings is not None:
+            inputs["end_strings"] = str_list2numpy(end_strings)
+        if min_length is not None:
+            inputs["min_length"] = np.full(prompts.shape, min_length, dtype=np.int_)
+        if max_length is not None:
+            inputs["max_length"] = np.full(prompts.shape, max_length, dtype=np.int_)
+        
+        with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
+            result_dict = client.infer_batch(**inputs)
+            return result_dict
 
 class NemoTritonQueryLLMTensorRT(NemoTritonQueryLLMBase):
     """
