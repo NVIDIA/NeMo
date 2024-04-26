@@ -130,27 +130,27 @@ TRT int8 vs TRT fp16
 FP16 inference vs Int8 inference
 ----------------------------------
 
-.. image:: ./images/trt_output_fp16/000000005.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-sdxl_trt_fp16_1.png
    :width: 50%
-.. image:: ./images/trt_output_int8/000000005.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-sdxl_trt_int8_1.png
    :width: 50%
 Prompt: A photo of a Shiba Inu dog with a backpack riding a bike. It is wearing sunglasses and a beach hat. (FP16 upper vs Int8 lower)
 
 
 
 
-.. image:: ./images/trt_output_fp16/000000011.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-sdxl_trt_fp16_2.png
    :width: 50%
-.. image:: ./images/trt_output_int8/000000011.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-sdxl_trt_int8_2.png
    :width: 50%
 Prompt: A cute corgi lives in a house made out of sushi. (FP16 upper vs Int8 lower)
 
 
 
 
-.. image:: ./images/trt_output_fp16/000000012.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-sdxl_trt_fp16_3.png
    :width: 50%
-.. image:: ./images/trt_output_int8/000000012.png
+.. image:: https://github.com/NVIDIA/NeMo/releases/download/v1.23.0/asset-githubio-home-sdxl_trt_int8_3.png
    :width: 50%
 Prompt: A high contrast portrait of a very happy fuzzy panda dressed as a chef in a high end kitchen making dough. There is a painting of flowers on the wall behind him. (FP16 upper vs Int8 lower)
 
