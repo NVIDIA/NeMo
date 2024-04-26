@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import enum
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -27,7 +27,12 @@ import torch.nn.init as init
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_const, init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    init_method_const,
+    init_method_kaiming_uniform,
+    init_method_normal,
+)
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
@@ -42,7 +47,12 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig
+    from megatron.core.parallel_state import get_tensor_model_parallel_group, get_tensor_model_parallel_world_size
     from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+    from megatron.core.tensor_parallel.mappings import (
+        gather_from_sequence_parallel_region,
+        scatter_to_sequence_parallel_region,
+    )
 
     HAVE_MEGATRON_CORE = True
 
@@ -67,6 +77,10 @@ class AdapterName(str, enum.Enum):
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_KV_ADAPTER = "lora_kv_adapter"
     LORA_Q_ADAPTER = "lora_q_adapter"
+    MM_LINEAR_ADAPTER = "mm_linear_adapter"
+    LORA_DENSE_ATTENTION_ADAPTER = "lora_dense_attention_adapter"
+    LORA_Hto4H_ADAPTER = "lora_hto4h_adapter"
+    LORA_4HtoH_ADAPTER = "lora_4htoh_adapter"
     MULTIMODAL_PROJECTOR_ADAPTER = "mm_projector_adapter"
     PARALLEL_LINEAR_ADAPTER = "parallel_linear_adapter"
 
@@ -128,8 +142,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
+        input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
+        alpha: float | None = None,
+        dropout_position: str = 'post',
+        a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
         **kwargs,
     ):
         super().__init__()
@@ -142,20 +160,40 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
         self.dim = dim
+        self.alpha = alpha if alpha is not None else self.dim
+        self.input_is_parallel = input_is_parallel
+        self.dropout_position = dropout_position
+        self.tp_world_size = None
+        self.tp_group = None
+        self.use_a2a = a2a_experimental
 
         # megatron_gpt_peft_models will provide this arg, but deprecated ones do not.
         # in case this arg is not provided, use the dummy default config.
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
+        self._sequence_parallel = model_parallel_config.sequence_parallel
+        model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
 
-        self.linear_in = ColumnParallelLinear(
-            in_features,
-            dim,
-            config=model_parallel_config,
-            bias=False,
-            gather_output=True,
-            init_method=self._get_init_fn(column_init_method),
-        )
+        if input_is_parallel:
+            self.linear_in = RowParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                input_is_parallel=True,
+                skip_bias_add=True,
+                bias=False,
+                init_method=self._get_init_fn(column_init_method),
+            )
+        else:
+            self.linear_in = ColumnParallelLinear(
+                in_features,
+                dim,
+                config=model_parallel_config,
+                bias=False,
+                gather_output=True,
+                init_method=self._get_init_fn(column_init_method),
+                disable_grad_reduce=self._sequence_parallel,
+            )
         if gather_output:
             self.linear_out = RowParallelLinear(
                 dim,
@@ -169,12 +207,17 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         else:
             # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
             # if the original column parallel layer uses gather_output=False, then we will use the self.liner_out layer defined below.
+            lin_out_gather_output = True if input_is_parallel else False
+            if self.use_a2a and input_is_parallel and self._sequence_parallel:
+                lin_out_gather_output = False
+                self.tp_world_size = get_tensor_model_parallel_world_size()
+                self.tp_group = get_tensor_model_parallel_group()
             self.linear_out = ColumnParallelLinear(
                 dim,
                 out_features,
                 config=model_parallel_config,
                 bias=False,
-                gather_output=False,
+                gather_output=lin_out_gather_output,
                 init_method=self._get_init_fn(row_init_method),
             )
 
@@ -203,15 +246,31 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
 
+        # revert config change in case it is read elsewhere
+        model_parallel_config.sequence_parallel = self._sequence_parallel
+        if self._sequence_parallel and not input_is_parallel:
+            from importlib.metadata import version
+
+            from pkg_resources import packaging
+
+            te_version = packaging.version.Version(version("transformer-engine"))
+            if te_version >= packaging.version.Version("1.5.0dev") and not model_parallel_config.tp_comm_overlap:
+                # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
+                # in the forward method is not needed, so set self._sequence_parallel to False
+                # unless TP communication overlap is used
+                self._sequence_parallel = False
+
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
             init_fn = init.xavier_normal_
         elif init_method == 'normal':
             init_fn = init_method_normal(0.2)
+        elif init_method == 'kaiming':
+            init_fn = init_method_kaiming_uniform(math.sqrt(5))
         elif init_method == "zero":
             init_fn = init_method_const(0.0)
         else:
-            raise NotImplementedError("out_init_method should be zero, normal or xavier")
+            raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
         return init_fn
 
     def adapter_unfreeze(self,):
@@ -221,21 +280,75 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         super().adapter_unfreeze()
 
     def forward(self, x):
+        if self.dropout is not None and self.dropout_position == 'pre':
+            x = self.dropout(x)
 
         if self.norm_position == 'pre':
             x = self.layer_norm(x)
+        if self._sequence_parallel and not self.input_is_parallel:
+            # for attention_qkv and linear_fc1
+            # layernorm before lora is impacted by sequence parallel,
+            # hence seq dim need to be gathered right before lora linear layers
+            # this function also handles the backward pass correctly
+            x = gather_from_sequence_parallel_region(x)
 
         x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x)
+
+        if self._sequence_parallel and self.input_is_parallel:
+            # for attention_dense and linear_fc2
+            # layernorm after lora is impacted by sequence parallel,
+            # hence seq dim need to be scattered right after lora linear layers
+            # this function also handles the backward pass correctly
+            if self.use_a2a:
+                # all2all hidden_size / TP to seq_len / TP
+                x = all2all_hp2sp(x, self.tp_world_size, self.tp_group)
+            else:
+                x = scatter_to_sequence_parallel_region(x)
+
         if self.norm_position == 'post':
             x = self.layer_norm(x)
 
         # Add dropout if available
-        if self.dropout is not None:
+        if self.dropout is not None and self.dropout_position == 'post':
             x = self.dropout(x)
 
+        x = x * (self.alpha / self.dim)
+
         return x
+
+
+class _All2AllHp2Sp(torch.autograd.Function):
+    """
+    All-2-All from Hidden Parallel to Sequence Parallel
+    This is a temporary workaround and can be updated in the future
+    TODO: Move the functionality to MCore
+    """
+
+    @staticmethod
+    def forward(ctx, input_, world_size, group):
+        ctx.world_size = world_size
+        ctx.group = group
+        send_list = list(input_.chunk(world_size, dim=0))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=group)
+        x = torch.cat(receive_list, dim=-1)
+        return x
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        send_list = list(grad_output.chunk(ctx.world_size, dim=-1))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(ctx.world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=ctx.group)
+        x = torch.cat(receive_list, dim=0)
+        return x, None, None
+
+
+def all2all_hp2sp(input_, world_size, group):
+    return _All2AllHp2Sp.apply(input_, world_size, group)
 
 
 @dataclass
@@ -249,8 +362,12 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     gather_output: bool = True
+    input_is_parallel: bool = False
     dropout: float = 0.0
+    dropout_position: str = 'post'
+    alpha: float | None = None
     network_alpha: int | None = None
+    a2a_experimental: bool = False
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
 
 
@@ -281,6 +398,33 @@ class LoraQAdapter(ParallelLinearAdapter):
     pass
 
 
+class LoraDenseAttentionAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
+
+
+class LoraHto4HAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
+
+
+class Lora4HtoHAdapter(ParallelLinearAdapter):
+    """
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    and they do not use an bottleneck activation function
+    """
+
+    pass
+
+
 @dataclass
 class LoraKQVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapter.__module__, LoraKQVAdapter.__name__)
@@ -294,6 +438,23 @@ class LoraQAdapterConfig(ParallelLinearAdapterConfig):
 @dataclass
 class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
     _target_: str = "{0}.{1}".format(LoraKVAdapter.__module__, LoraKVAdapter.__name__)
+
+
+@dataclass
+class LoraDenseAttentionAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraDenseAttentionAdapter.__module__, LoraDenseAttentionAdapter.__name__)
+    input_is_parallel: bool = True
+
+
+@dataclass
+class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(LoraHto4HAdapter.__module__, LoraHto4HAdapter.__name__)
+
+
+@dataclass
+class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
+    _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
+    input_is_parallel: bool = True
 
 
 class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):

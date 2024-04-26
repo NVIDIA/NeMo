@@ -18,15 +18,17 @@ import secrets
 import tarfile
 from io import BytesIO
 from pathlib import Path
-from typing import Generator, Iterable, List
+from typing import Generator, Iterable, List, Literal
 
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
 from lhotse.cut import Cut
+from lhotse.dataset.dataloading import resolve_seed
 from lhotse.lazy import LazyIteratorChain, LazyJsonlIterator
 from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
 class LazyNeMoIterator:
@@ -40,6 +42,7 @@ class LazyNeMoIterator:
     - "text" (overridable with ``text_field`` argument)
 
     Specially supported keys are:
+    - [recommended] "sampling_rate" allows us to provide a valid Lhotse ``Recording`` object without checking the audio file
     - "offset" for partial recording reads
     - "lang" is mapped to Lhotse superivsion's language (overridable with ``lang_field`` argument)
 
@@ -47,17 +50,25 @@ class LazyNeMoIterator:
 
     .. caution:: We will perform some I/O (as much as required by soundfile.info) to discover the sampling rate
         of the audio file. If this is not acceptable, convert the manifest to Lhotse format which contains
-        sampling rate info.
+        sampling rate info. For pure metadata iteration purposes we also provide a ``missing_sampling_rate_ok`` flag that
+        will create only partially valid Lhotse objects (with metadata related to sampling rate / num samples missing).
 
     Example::
 
         >>> cuts = lhotse.CutSet(LazyNeMoIterator("nemo_manifests/train.json"))
     """
 
-    def __init__(self, path: str | Path, text_field: str = "text", lang_field: str = "lang") -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        text_field: str = "text",
+        lang_field: str = "lang",
+        missing_sampling_rate_ok: bool = False,
+    ) -> None:
         self.source = LazyJsonlIterator(path)
         self.text_field = text_field
         self.lang_field = lang_field
+        self.missing_sampling_rate_ok = missing_sampling_rate_ok
 
     @property
     def path(self) -> str | Path:
@@ -65,10 +76,10 @@ class LazyNeMoIterator:
 
     def __iter__(self) -> Generator[Cut, None, None]:
         for data in self.source:
-            audio_path = data.pop("audio_filepath")
+            audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path))
             duration = data.pop("duration")
             offset = data.pop("offset", None)
-            recording = Recording.from_file(audio_path)
+            recording = self._create_recording(audio_path, duration, data.pop("sampling_rate", None))
             cut = recording.to_cut()
             if offset is not None:
                 cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
@@ -81,7 +92,7 @@ class LazyNeMoIterator:
                     recording_id=cut.recording_id,
                     start=0,
                     duration=cut.duration,
-                    text=data[self.text_field],
+                    text=data.get(self.text_field),
                     language=data.get(self.lang_field),
                 )
             )
@@ -93,6 +104,29 @@ class LazyNeMoIterator:
 
     def __add__(self, other):
         return LazyIteratorChain(self, other)
+
+    def _create_recording(self, audio_path: str, duration: float, sampling_rate: int | None = None,) -> Recording:
+        if sampling_rate is not None:
+            # TODO(pzelasko): It will only work with single-channel audio in the current shape.
+            return Recording(
+                id=audio_path,
+                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
+                sampling_rate=sampling_rate,
+                num_samples=compute_num_samples(duration, sampling_rate),
+                duration=duration,
+                channel_ids=[0],
+            )
+        elif self.missing_sampling_rate_ok:
+            return Recording(
+                id=audio_path,
+                sources=[AudioSource(type="file", channels=[0], source=audio_path)],
+                sampling_rate=-1,
+                num_samples=-1,
+                duration=duration,
+                channel_ids=[0],
+            )
+        else:
+            return Recording.from_file(audio_path)
 
 
 class LazyNeMoTarredIterator:
@@ -114,6 +148,12 @@ class LazyNeMoTarredIterator:
     Args ``manifest_path`` and ``tar_paths`` can be either a path/string to a single file, or a string in NeMo format
     that indicates multiple paths (e.g. "[[data/bucket0/tarred_audio_paths.json],[data/bucket1/...]]").
 
+    The ``shard_seed`` argument is used to seed the RNG shuffling the shards.
+    By default it's ``trng`` which samples a seed number from OS-provided TRNG (see Python ``secrets`` module).
+    Seed is resolved lazily so that every dataloading worker may sample a different one.
+    Override with an integer value for deterministic behaviour and consult Lhotse documentation for details:
+    https://lhotse.readthedocs.io/en/latest/datasets.html#handling-random-seeds
+
     Example of CutSet with inter-shard shuffling enabled::
 
         >>> cuts = lhotse.CutSet(LazyNeMoTarredIterator(
@@ -128,6 +168,7 @@ class LazyNeMoTarredIterator:
         manifest_path: str | Path,
         tar_paths: str | list,
         shuffle_shards: bool = False,
+        shard_seed: int | Literal["trng", "randomized"] = "trng",
         text_field: str = "text",
         lang_field: str = "lang",
     ) -> None:
@@ -156,6 +197,7 @@ class LazyNeMoTarredIterator:
         tar_paths = expand_sharded_filepaths(tar_paths)
         self.shard_id_to_tar_path: dict[int, str] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
         self.shuffle_shards = shuffle_shards
+        self.shard_seed = shard_seed
         self.text_field = text_field
         self.lang_field = lang_field
         self._validate()
@@ -172,6 +214,7 @@ class LazyNeMoTarredIterator:
                     manifest_path=path,
                     tar_paths=tarpath,
                     shuffle_shards=False,
+                    shard_seed=self.shard_seed,
                     text_field=self.text_field,
                     lang_field=self.lang_field,
                 )
@@ -194,8 +237,8 @@ class LazyNeMoTarredIterator:
         shard_ids = self.shard_ids
 
         if self.shuffle_shards:
-            # Use TRNG for 100% randomness
-            random.Random(secrets.randbelow(2 ** 32)).shuffle(shard_ids)
+            seed = resolve_seed(self.shard_seed)
+            random.Random(seed).shuffle(shard_ids)
 
         for sid in shard_ids:
             shard_manifest = self.shard_id_to_manifest[sid]
@@ -225,7 +268,7 @@ class LazyNeMoTarredIterator:
                             recording_id=cut.recording_id,
                             start=0,
                             duration=cut.duration,
-                            text=data[self.text_field],
+                            text=data.get(self.text_field),
                             language=data.get(self.lang_field),
                         )
                     )

@@ -11,19 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from collections import Counter
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import lhotse
+import numpy as np
 import pytest
 import torch
+from lhotse import CutSet, NumpyFilesWriter, Recording
+from lhotse.audio import AudioLoadingError
+from lhotse.cut import Cut
+from lhotse.cut.text import TextPairExample
 from omegaconf import OmegaConf
 
+from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-
-lhotse = pytest.importorskip("lhotse", reason="Lhotse + NeMo tests require Lhotse (pip install lhotse).")
+from nemo.collections.common.data.lhotse.text_adapters import TextExample
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 requires_torchaudio = pytest.mark.skipif(
     not lhotse.utils.is_torchaudio_available(), reason="Lhotse Shar format support requires torchaudio."
@@ -184,6 +191,62 @@ def test_dataloader_from_lhotse_cuts(cutset_path: Path):
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
 
 
+def test_dataloader_from_lhotse_cuts_truncate(cutset_path: Path):
+    config = OmegaConf.create(
+        {
+            "cuts_path": cutset_path,
+            "truncate_duration": 0.5,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    batches = [b for b in dl]
+    assert len(batches) == 3
+    # 0.5s = 8000 samples, note the constant duration and batch size except for last batch
+    assert batches[0]["audio"].shape == (4, 8000)
+    assert batches[1]["audio"].shape == (4, 8000)
+    assert batches[2]["audio"].shape == (2, 8000)
+    # exactly 10 cuts were used
+
+
+def test_dataloader_from_lhotse_cuts_cut_into_windows(cutset_path: Path):
+    config = OmegaConf.create(
+        {
+            "cuts_path": cutset_path,
+            "cut_into_windows_duration": 0.5,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+    )
+
+    batches = [b for b in dl]
+    assert len(batches) == 5
+    # 0.5s = 8000 samples, note the constant duration and batch size
+    assert batches[0]["audio"].shape == (4, 8000)
+    assert batches[1]["audio"].shape == (4, 8000)
+    assert batches[2]["audio"].shape == (4, 8000)
+    assert batches[3]["audio"].shape == (4, 8000)
+    assert batches[4]["audio"].shape == (4, 8000)
+    # exactly 20 cuts were used because we cut 10x 1s cuts into 20x 0.5s cuts
+
+
 @requires_torchaudio
 def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
     config = OmegaConf.create(
@@ -246,8 +309,9 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
             "batch_duration": 4.0,  # seconds
             "quadratic_duration": 15.0,  # seconds
             "shuffle_buffer_size": 10,
-            "buffer_size": 100,
+            "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -275,6 +339,11 @@ def test_dataloader_from_nemo_manifest(nemo_manifest_path: Path):
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
 
 
+class _Identity:
+    def __getitem__(self, cuts):
+        return cuts
+
+
 def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Path):
     config = OmegaConf.create(
         {
@@ -288,14 +357,11 @@ def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Pat
             "batch_duration": 4.0,  # seconds
             "shuffle_buffer_size": 10,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
-    class _IdentityDataset:
-        def __getitem__(self, cuts):
-            return cuts
-
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_IdentityDataset())
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
 
     batch = next(iter(dl))
     for cut in batch:
@@ -322,6 +388,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -329,7 +396,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
         config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
     )
 
-    batches = [batch for batch in dl]
+    batches = [batch for batch in islice(dl, 4)]
     assert len(batches) == 4
 
     b = batches[0]
@@ -346,7 +413,7 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
 
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
-    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
 def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_manifest_path: tuple[str, str]):
@@ -368,6 +435,7 @@ def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_m
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -399,6 +467,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -406,7 +475,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
         config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
     )
 
-    batches = [batch for batch in dl]
+    batches = [batch for batch in islice(dl, 4)]
     assert len(batches) == 4
 
     b = batches[0]
@@ -423,7 +492,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
 
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
-    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
 def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred_manifest_path_multi: tuple[str, str]):
@@ -446,6 +515,7 @@ def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -475,6 +545,7 @@ def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: 
             "drop_last": False,
             "shuffle_buffer_size": 10,
             "seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -482,7 +553,7 @@ def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: 
         config=config, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
     )
 
-    batches = [batch for batch in dl]
+    batches = [batch for batch in islice(dl, 4)]
 
     assert len(batches) == 4
 
@@ -506,8 +577,8 @@ def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: 
 
     b = batches[3]
     assert set(b.keys()) == {"audio", "audio_lens", "ids"}
-    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 1
-    torch.testing.assert_close(b["audio_lens"], torch.tensor([16000], dtype=torch.int32))
+    assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 2
+    torch.testing.assert_close(b["audio_lens"], expected_audio_lens)
 
 
 @requires_torchaudio
@@ -534,7 +605,7 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_unweighted(
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
-            "shar_seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -547,20 +618,20 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_unweighted(
     assert len(batches) == 4
 
     b = batches[0]
-    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
-    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 1  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 2  # dataset 2
 
     b = batches[1]
-    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 0  # dataset 1
-    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 3  # dataset 2
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 2  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 1  # dataset 2
 
     b = batches[2]
     assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 1  # dataset 1
     assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 2  # dataset 2
 
     b = batches[3]
-    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 2  # dataset 1
-    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 1  # dataset 2
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 1  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 2  # dataset 2
 
 
 @requires_torchaudio
@@ -587,7 +658,7 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_weighted(
             "shuffle_buffer_size": 10,
             "bucket_buffer_size": 100,
             "seed": 0,
-            "shar_seed": 0,
+            "shard_seed": 0,
         }
     )
 
@@ -596,16 +667,16 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_weighted(
     )
 
     # Note: we use islice here because with Lhotse Shar the dataloader will always be infinite.
-    batches = [batch for batch in islice(dl, 4)]
-    assert len(batches) == 4
+    batches = [batch for batch in islice(dl, 6)]
+    assert len(batches) == 6
 
     b = batches[0]
     assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
     assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
 
     b = batches[1]
-    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 2  # dataset 1
-    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 1  # dataset 2
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
 
     b = batches[2]
     assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
@@ -614,6 +685,14 @@ def test_dataloader_from_lhotse_shar_cuts_combine_datasets_weighted(
     b = batches[3]
     assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
     assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
+
+    b = batches[4]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 3  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 0  # dataset 2
+
+    b = batches[5]
+    assert len([cid for cid in b["ids"] if cid.startswith("dummy")]) == 1  # dataset 1
+    assert len([cid for cid in b["ids"] if cid.startswith("other")]) == 2  # dataset 2
 
 
 class TextDataset(torch.utils.data.Dataset):
@@ -713,6 +792,499 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
     assert cut.supervisions[0].text == "irrelevant"
     audio = cut.load_audio()
     assert audio.shape == (1, 8000)
-    np.testing.assert_equal(audio[0], expected_audio[8000:])
+    np.testing.assert_allclose(audio[0], expected_audio[8000:], atol=5e-5)
 
     assert cuts[0].id != cuts[1].id
+
+
+def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
+    import numpy as np
+    import soundfile as sf
+
+    from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
+
+    # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
+    INT16MAX = 2 ** 15
+    expected_audio = np.random.randint(low=-INT16MAX - 1, high=INT16MAX, size=(16000,)).astype(np.float32) / INT16MAX
+    audio_path = str(tmp_path / "dummy.wav")
+    sf.write(audio_path, expected_audio, 16000)
+
+    manifest_path = str(tmp_path / "manifest.json")
+    lhotse.serialization.save_to_jsonl(
+        [
+            # note: relative path
+            {"audio_filepath": "dummy.wav", "offset": 0.0, "duration": 0.5, "text": "irrelevant"},
+        ],
+        manifest_path,
+    )
+
+    cuts = lhotse.CutSet(LazyNeMoIterator(manifest_path))
+    cut = cuts[0]
+    audio = cut.load_audio()
+
+    assert isinstance(cut, lhotse.MonoCut)
+    assert cut.start == 0.0
+    assert cut.duration == 0.5
+    assert cut.sampling_rate == 16000
+    assert cut.num_samples == 8000
+    assert cut.supervisions[0].text == "irrelevant"
+    assert audio.shape == (1, 8000)
+    np.testing.assert_equal(audio[0], expected_audio[:8000])
+
+
+def test_lhotse_cuts_resolve_relative_paths(tmp_path: Path):
+    cuts_path = tmp_path / "cuts.jsonl.gz"
+    audio_path = tmp_path / "_relative_test_audio_.wav"
+    lhotse.audio.save_audio(audio_path, np.random.rand(16000) - 0.5, 16000)
+    cut = Recording.from_file(audio_path).to_cut()
+    cut.recording.sources[0].source = str(audio_path.name)  # make the path relative
+    cut.target_recording = cut.recording  # assign a custom field with relative path
+    with NumpyFilesWriter(tmp_path) as w:
+        cut.some_array = w.store_array(cut.id, np.random.randn(32))
+        cut.some_array.storage_path = ""  # relative path
+
+    with pytest.raises(AudioLoadingError):
+        cut.load_audio()  # Lhotse doesn't know about what the path should be relative to
+        cut.load_target_recording()
+
+    CutSet([cut]).to_file(cuts_path)
+
+    config = OmegaConf.create(
+        {"cuts_path": cuts_path, "sample_rate": 16000, "use_lhotse": True, "num_workers": 0, "batch_size": 2,}
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+
+    batches = [batch for batch in dl]
+    assert len(batches) == 1
+
+    for cut in batches[0]:
+        assert cut.has_recording
+        cut.load_audio()  # works
+        assert cut.has_custom("target_recording")
+        cut.load_target_recording()
+        assert cut.has_custom("some_array")
+        cut.load_some_array()
+
+
+class Identity(torch.utils.data.Dataset):
+    def __getitem__(self, cuts: lhotse.CutSet) -> lhotse.CutSet:
+        return cuts
+
+
+def test_extended_data_input_cfg(cutset_shar_path, nemo_tarred_manifest_path_multi):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": nemo_tarred_manifest_path_multi[0],
+                    "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                    "weight": 0.5,
+                    "tags": {"language": "en", "modality": "audio", "dataset_name": "D1",},
+                },
+                {
+                    "type": "lhotse_shar",
+                    "shar_path": cutset_shar_path,
+                    "weight": 0.5,
+                    "tags": {"language": "en", "modality": "audio", "dataset_name": "D2",},
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(c.custom["language"] == "en" for c in b)
+    assert all(c.custom["modality"] == "audio" for c in b)
+    assert sum(c.custom["dataset_name"] == "D1" for c in b) == 2
+    assert sum(c.custom["dataset_name"] == "D2" for c in b) == 2
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(c.custom["language"] == "en" for c in b)
+    assert all(c.custom["modality"] == "audio" for c in b)
+    assert sum(c.custom["dataset_name"] == "D1" for c in b) == 1
+    assert sum(c.custom["dataset_name"] == "D2" for c in b) == 3
+
+
+def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest_path_multi):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "group",
+                    "input_cfg": [
+                        {
+                            "type": "nemo_tarred",
+                            "manifest_filepath": nemo_tarred_manifest_path_multi[0],
+                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D1",},
+                        },
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path,
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D2",},
+                        },
+                    ],
+                    "weight": 0.2,
+                    "tags": {"group_name": "G1",},
+                },
+                {
+                    "type": "group",
+                    "weight": 0.8,
+                    "input_cfg": [
+                        {
+                            "type": "nemo_tarred",
+                            "manifest_filepath": nemo_tarred_manifest_path_multi[0],
+                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D3",},
+                        },
+                        {
+                            "type": "lhotse_shar",
+                            "shar_path": cutset_shar_path,
+                            "weight": 0.5,
+                            "tags": {"language": "en", "modality": "audio", "dataset_name": "D4",},
+                        },
+                    ],
+                    "tags": {"group_name": "G2",},
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 32,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Sample 100 mini-batches and test statistical properties
+    group_occurrences = Counter()
+    dataset_occurrences = Counter()
+    for batch in islice(dl, 100):
+        for cut in batch:
+            group_occurrences[cut.group_name] += 1
+            dataset_occurrences[cut.dataset_name] += 1
+
+    tot = sum(group_occurrences.values())
+    for k in group_occurrences:
+        group_occurrences[k] /= tot
+    for k in dataset_occurrences:
+        dataset_occurrences[k] /= tot
+
+    def almost(number):
+        return pytest.approx(number, abs=0.02)
+
+    assert group_occurrences["G1"] == almost(0.2)  # group weight: 0.2
+    assert group_occurrences["G2"] == almost(0.8)  # group weight: 0.8
+    assert dataset_occurrences["D1"] == almost(0.1)  # group weight: 0.2 * dataset weight 0.5 => 0.1
+    assert dataset_occurrences["D2"] == almost(0.1)  # group weight: 0.2 * dataset weight 0.5 => 0.1
+    assert dataset_occurrences["D3"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4
+    assert dataset_occurrences["D4"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4
+
+
+def test_extended_data_input_cfg_yaml_path(tmp_path, cutset_shar_path, nemo_tarred_manifest_path_multi):
+    input_cfg = [
+        {
+            "type": "nemo_tarred",
+            "manifest_filepath": str(nemo_tarred_manifest_path_multi[0]),
+            "tarred_audio_filepaths": str(nemo_tarred_manifest_path_multi[1]),
+            "weight": 0.5,
+            "tags": {"language": "en", "modality": "audio", "dataset_name": "D1",},
+        },
+        {
+            "type": "lhotse_shar",
+            "shar_path": str(cutset_shar_path),
+            "weight": 0.5,
+            "tags": {"language": "en", "modality": "audio", "dataset_name": "D2",},
+        },
+    ]
+
+    yaml_path = tmp_path / "input_cfg.yaml"
+    lhotse.serialization.save_to_yaml(input_cfg, yaml_path)
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": input_cfg,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 32,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    batch = next(iter(dl))
+    assert isinstance(batch, lhotse.CutSet)
+    for cut in batch:
+        assert cut.dataset_name in ("D1", "D2")
+
+
+@pytest.fixture(scope="session")
+def txt_en_path(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("text_data")
+    en_path = tmp_path / "text.en"
+    en_path.write_text(
+        """Example text in English.
+Another sentence.
+        """
+    )
+    return en_path
+
+
+@pytest.fixture(scope="session")
+def txt_es_path(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("text_data")
+    es_path = tmp_path / "text.es"
+    es_path.write_text(
+        """Otro texto en ingles.
+Otra frase."""
+    )
+    return es_path
+
+
+def test_text_file_input(txt_en_path, txt_es_path):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [{"type": "txt", "paths": txt_en_path, "language": "en",},],
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    # Note: this test does not need to pass a tokenizer because we use static batch sizes
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextExample) for c in b)
+    assert all(c.language == "en" for c in b)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextExample) for c in b)
+    assert all(c.language == "en" for c in b)
+
+
+def test_text_file_pairs_input(txt_en_path, txt_es_path):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": txt_en_path,
+                    "target_paths": txt_es_path,
+                    "source_language": "en",
+                    "target_language": "es",
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    # Note: this test does not need to pass a tokenizer because we use static batch sizes
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+
+@pytest.fixture(scope="session")
+def txt_pair_paths_shards(tmp_path_factory, txt_en_path, txt_es_path):
+    tmp_path = tmp_path_factory.mktemp("text_data_shards")
+
+    en_text = txt_en_path.read_text().splitlines()
+    (tmp_path / "en_0.txt").write_text("\n".join(en_text[:5]))
+    (tmp_path / "en_1.txt").write_text("\n".join(en_text[5:]))
+
+    es_text = txt_es_path.read_text().splitlines()
+    (tmp_path / "es_0.txt").write_text("\n".join(es_text[:5]))
+    (tmp_path / "es_1.txt").write_text("\n".join(es_text[5:]))
+
+    return f"{tmp_path}/en__OP_0..1_CL_.txt", f"{tmp_path}/es__OP_0..1_CL_.txt"
+
+
+def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str]):
+    en_paths, es_paths = txt_pair_paths_shards
+
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": en_paths,
+                    "target_paths": es_paths,
+                    "source_language": "en",
+                    "target_language": "es",
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    # Note: this test does not need to pass a tokenizer because we use static batch sizes
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(c.source.language == "en" for c in b)
+    assert all(c.target.language == "es" for c in b)
+
+
+@pytest.fixture(scope="session")
+def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> TokenizerWrapper:
+    tmpdir = tmp_path_factory.mktemp("en_es_tokenizer")
+    text_path = tmpdir / "text.txt"
+    text_path.write_text(txt_en_path.read_text() + "\n" + txt_es_path.read_text())
+    create_spt_model(text_path, vocab_size=128, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
+    return TokenizerWrapper(SentencePieceTokenizer(str(tmpdir / "tokenizer.model")))
+
+
+def test_multimodal_text_audio_dataloading(
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: TokenizerWrapper,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": en_paths,
+                    "target_paths": es_paths,
+                    "source_language": "en",
+                    "target_language": "es",
+                    "tags": {"modality": "text",},
+                },
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": manifest_filepath,
+                    "tarred_audio_filepaths": tarred_audio_filepaths,
+                    "tags": {"modality": "audio",},
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "use_multimodal_sampling": True,
+            "batch_tokens": 1024,
+            # How to set token equivalent duration in actual training?
+            #   assuming fbank frames: 0.01 is the base due to frame shift;
+            #       + subsampling x8 gives us 0.08
+            #   assuming discrete audio tokens, with frame rate 50Hz,
+            #       we'd get 0.02
+            #   in this test we'll just use 0.1 for simplicity
+            "token_equivalent_duration": 0.1,
+            "quadratic_factor": 50,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=en_es_tokenizer,
+    )
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 48
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(574.0)
+    assert min(ex.num_tokens for ex in b) == pytest.approx(10)
+    assert max(ex.num_tokens for ex in b) == pytest.approx(16)
+    assert sum(isinstance(ex, Cut) for ex in b) == 29
+    assert sum(isinstance(ex, TextPairExample) for ex in b) == 19
+    for ex in b:
+        if isinstance(ex, Cut):
+            assert ex.modality == "audio"
+            assert isinstance(ex.load_audio(), np.ndarray)
+            assert isinstance(ex.supervisions[0].text, str)
+        if isinstance(ex, TextPairExample):
+            assert ex.modality == "text"
+            assert ex.source.language == "en"
+            assert ex.target.language == "es"
+            assert isinstance(ex.source.text, str)
+            assert isinstance(ex.target.text, str)
+            assert isinstance(ex.source.tokens, np.ndarray)
+            assert isinstance(ex.target.tokens, np.ndarray)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 48
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(614.0)
+    assert min(ex.num_tokens for ex in b) == pytest.approx(10)
+    assert max(ex.num_tokens for ex in b) == pytest.approx(16)
+    assert sum(isinstance(ex, Cut) for ex in b) == 21
+    assert sum(isinstance(ex, TextPairExample) for ex in b) == 27
+    for ex in b:
+        if isinstance(ex, Cut):
+            assert ex.modality == "audio"
+            assert isinstance(ex.load_audio(), np.ndarray)
+            assert isinstance(ex.supervisions[0].text, str)
+        if isinstance(ex, TextPairExample):
+            assert ex.modality == "text"
+            assert ex.source.language == "en"
+            assert ex.target.language == "es"
+            assert isinstance(ex.source.text, str)
+            assert isinstance(ex.target.text, str)
+            assert isinstance(ex.source.tokens, np.ndarray)
+            assert isinstance(ex.target.tokens, np.ndarray)

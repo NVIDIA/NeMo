@@ -935,7 +935,10 @@ def main():
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
-    trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+        # Set precision None after precision plugins are created as PTL >= 2.1 does not allow both
+        # precision plugins and precision to exist
+        precision = None
+    trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
     if tp_size < 0 or pp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
@@ -1202,9 +1205,7 @@ def main():
         if vp_size > 1:
             set_virtual_parallel_rank_safely(None)
 
-        trainer = Trainer(
-            plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
-        )
+        trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
         with open_dict(model.cfg):
             if args.tokenizer_model_path is not None:
@@ -1410,9 +1411,7 @@ def main():
                 app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
             )
 
-            trainer = Trainer(
-                plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
-            )
+            trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
             if args.tokenizer_model_path is not None:
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = args.tokenizer_model_path

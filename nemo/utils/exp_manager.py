@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Collection, Dict, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
@@ -341,7 +341,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     elif not isinstance(cfg, DictConfig):
         raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
-    cfg = OmegaConf.merge(schema, cfg)
+    cfg = OmegaConf.merge(schema, cfg)  # type: ExpManagerConfig
 
     error_checks(trainer, cfg)  # Ensures that trainer options are compliant with NeMo and exp_manager arguments
 
@@ -564,6 +564,18 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
 
 
+def _filter_out_unfinished_checkpoints(checkpoint_paths: Collection[Union[Path, str]]) -> Collection[Union[Path, str]]:
+    res = []
+    for chkpt_path in checkpoint_paths:
+        if NeMoModelCheckpoint.is_checkpoint_unfinished(chkpt_path):
+            logging.warning(
+                f'Checkpoint {chkpt_path} has the unfinished marker set - skipped while looking for the last one.'
+            )
+        else:
+            res.append(chkpt_path)
+    return res
+
+
 def check_resume(
     trainer: 'pytorch_lightning.Trainer',
     log_dir: str,
@@ -604,7 +616,9 @@ def check_resume(
         last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
 
         end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
+        end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
         last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
+        last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
 
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if resume_ignore_no_checkpoint:
@@ -1020,10 +1034,10 @@ class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
     the training state before validation has run.
     """
 
-    def _should_check_val_fx(self) -> bool:
+    def _should_check_val_fx(self, data_fetcher) -> bool:
         if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
             return False
-        return super()._should_check_val_fx()
+        return super()._should_check_val_fx(data_fetcher)
 
 
 def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remove_nemo: bool = False):

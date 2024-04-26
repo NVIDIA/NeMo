@@ -76,6 +76,13 @@ model:
   attention_dropout: 0.0
   ffn_dropout: 0.0
 
+  # FSDP
+  fsdp: False # Enable training with torch FSDP.
+  fsdp_sharding_strategy: 'full' # Method to shard model states. Available options are 'full', 'hybrid', and 'grad'.
+  fsdp_grad_reduce_dtype: 'fp32' # Gradient reduction data type.
+  fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
+  fsdp_use_orig_params: False # Set to True to use FSDP for specific peft scheme.
+
   peft:
     peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
@@ -94,7 +101,9 @@ model:
       position_embedding_strategy: null # used only when weight_tying is True
 
     lora_tuning:
+      target_modules: ['attention_qkv'] # this can either be 'attention_qkv','attention_dense','mlp_fc1','mlp_fc2', attention (qkv & dense), mlp (fc1 & fc2)
       adapter_dim: 32
+      alpha: ${model.peft.lora_tuning.adapter_dim} 
       adapter_dropout: 0.0
       column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
       row_init_method: 'zero' # IGNORED if linear_adapter is used, options: xavier, zero or normal

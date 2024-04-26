@@ -288,21 +288,22 @@ class ModelPT(LightningModule, Model):
         In the saving process, the whole parent model (self) is held as a solid model with artifacts
         from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
         This method is necessary to create a nested model, e.g.
-            .. code-block:: python
 
-                class ParentModel(ModelPT):
-                    def __init__(self, cfg, trainer=None):
-                        super().__init__(cfg=cfg, trainer=trainer)
+        .. code-block:: python
 
-                        # annotate type for autocompletion and type checking (optional)
-                        self.child_model: Optional[ChildModel] = None
-                        if cfg.get("child_model") is not None:
-                            self.register_nemo_submodule(
-                                name="child_model",
-                                config_field="child_model",
-                                model=ChildModel(self.cfg.child_model, trainer=trainer),
-                            )
-                        # ... other code
+            class ParentModel(ModelPT):
+                def __init__(self, cfg, trainer=None):
+                    super().__init__(cfg=cfg, trainer=trainer)
+
+                    # annotate type for autocompletion and type checking (optional)
+                    self.child_model: Optional[ChildModel] = None
+                    if cfg.get("child_model") is not None:
+                        self.register_nemo_submodule(
+                            name="child_model",
+                            config_field="child_model",
+                            model=ChildModel(self.cfg.child_model, trainer=trainer),
+                        )
+                    # ... other code
 
         Args:
             name: name of the attribute for the submodule
@@ -805,6 +806,20 @@ class ModelPT(LightningModule, Model):
         else:
             return [self._optimizer], [self._scheduler]
 
+    def propagate_model_guid(self):
+        """
+        Propagates the model GUID to all submodules, recursively.
+        """
+
+        def recursively_propagate_guid(module: "NeuralModule"):
+            module.model_guid = self.model_guid
+            for child in module.children():
+                recursively_propagate_guid(child)
+
+        for _, _, module in self.named_nemo_modules():
+            module.model_guid = self.model_guid
+            recursively_propagate_guid(module)
+
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
         This is called on every process when using DDP.
@@ -812,6 +827,7 @@ class ModelPT(LightningModule, Model):
         Args:
             stage: fit, validate, test or predict
         """
+        self.propagate_model_guid()
         if stage == 'fit':
             train_deferred_setup = (
                 'train_ds' in self._cfg
@@ -1716,7 +1732,7 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled and not self._profile_complete:
-                    if batch_idx == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
+                    if batch_idx >= self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== Start nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStart()
                         if self._nsys_profile_gen_shape:
@@ -1753,7 +1769,7 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled and not self._profile_complete:
-                    if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
+                    if batch_idx >= self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
                         self._profile_complete = True

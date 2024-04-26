@@ -92,7 +92,7 @@ def run_confidence_benchmark(
     with autocast():
         with torch.no_grad():
             transcriptions = model.transcribe(
-                paths2audio_files=filepaths, batch_size=batch_size, return_hypotheses=True, num_workers=num_workers
+                audio=filepaths, batch_size=batch_size, return_hypotheses=True, num_workers=num_workers
             )
     if is_rnnt:
         transcriptions = transcriptions[0]
@@ -172,7 +172,7 @@ def apply_confidence_parameters(decoding_cfg, hp):
         Updated decoding config.
     """
     new_decoding_cfg = copy.deepcopy(decoding_cfg)
-    confidence_cfg_fields = ("aggregation", "exclude_blank")
+    confidence_cfg_fields = ("aggregation", "exclude_blank", "tdt_include_duration")
     confidence_method_cfg_fields = ("name", "alpha", "entropy_type", "entropy_norm")
     with open_dict(new_decoding_cfg):
         for p, v in hp.items():
