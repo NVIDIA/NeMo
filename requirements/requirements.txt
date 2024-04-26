@@ -1,3 +1,5 @@
+accelerated-scan
+causal-conv1d>=1.2.0
 huggingface_hub>=0.20.3
 numba
 numpy>=1.22
@@ -12,5 +14,3 @@ torch
 tqdm>=4.41.0
 wget
 wrapt
-accelerated-scan
-causal-conv1d>=1.2.0
