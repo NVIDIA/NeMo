@@ -151,6 +151,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
 
+    model_type = model.cfg.mm_cfg.llm.get("model_type", "nvgpt")
     conv_template = model.cfg.data.get("conv_template", "nvgpt")
     final_response = []
     for idx, prompt_dict in enumerate(prompt_dict_list):
@@ -178,8 +179,8 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             continue
 
         # Regular expression pattern to match the sequence
-        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN}( ⁇ )+{DEFAULT_IM_END_TOKEN}')
-        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN}({DEFAULT_IMAGE_PATCH_TOKEN})+{DEFAULT_IM_END_TOKEN}')
+        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}')
+        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}')
         combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
         clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
+from collections import defaultdict
 from enum import Enum, auto
 from typing import List
 
@@ -23,9 +24,14 @@ DEFAULT_IMAGE_TOKEN = "<image>"
 DEFAULT_SYSTEM_TOKEN = "<extra_id_0>"
 DEFAULT_SEPARATOR_TOKEN = "<extra_id_1>"
 DEFAULT_LABELS_TOKEN = "<extra_id_2>"
-DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
-DEFAULT_IM_START_TOKEN = "<extra_id_4>"
-DEFAULT_IM_END_TOKEN = "<extra_id_5>"
+DEFAULT_IMAGE_PATCH_TOKEN = defaultdict(lambda: "<extra_id_3>")
+DEFAULT_IM_START_TOKEN = defaultdict(lambda: "<extra_id_4>")
+DEFAULT_IM_END_TOKEN = defaultdict(lambda: "<extra_id_5>")
+
+# Update llama3 default
+DEFAULT_IMAGE_PATCH_TOKEN["llama_3"] = "<|reserved_special_token_3|>"
+DEFAULT_IM_START_TOKEN["llama_3"] = "<|reserved_special_token_4|>"
+DEFAULT_IM_END_TOKEN["llama_3"] = "<|reserved_special_token_5|>"
 
 
 class SeparatorStyle(Enum):
@@ -166,7 +172,7 @@ class Conversation:
 
     def get_images(self, return_pil=False):
         images = []
-        for i, (role, msg) in enumerate(self.messages[self.offset :]):
+        for i, (role, msg) in enumerate(self.messages[self.offset:]):
             if i % 2 == 0:
                 if type(msg) is tuple:
                     import base64
@@ -219,7 +225,7 @@ class Conversation:
 
     def to_gradio_chatbot(self):
         ret = []
-        for i, (role, msg) in enumerate(self.messages[self.offset :]):
+        for i, (role, msg) in enumerate(self.messages[self.offset:]):
             if i % 2 == 0:
                 if type(msg) is tuple:
                     import base64
@@ -305,7 +311,7 @@ conv_nv_dpo = Conversation(
 
 conv_vicuna_v0 = Conversation(
     system="A chat between a curious human and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
     roles=("Human", "Assistant"),
     messages=(
         ("Human", "What are the key differences between renewable and non-renewable energy sources?"),
@@ -338,7 +344,7 @@ conv_vicuna_v0 = Conversation(
 
 conv_vicuna_v1 = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the user's questions.",
     roles=("USER", "ASSISTANT"),
     version="v1",
     messages=(),
@@ -363,8 +369,8 @@ If a question does not make any sense, or is not factually coherent, explain why
 
 conv_llava_llama_2 = Conversation(
     system="You are a helpful language and vision assistant. "
-    "You are able to understand the visual content that the user provides, "
-    "and assist the user with a variety of tasks using natural language.",
+           "You are able to understand the visual content that the user provides, "
+           "and assist the user with a variety of tasks using natural language.",
     roles=("USER", "ASSISTANT"),
     version="llama_v2",
     messages=(),
@@ -376,8 +382,8 @@ conv_llava_llama_2 = Conversation(
 
 conv_llava_llama_3 = Conversation(
     system="You are a helpful language and vision assistant. "
-    "You are able to understand the visual content that the user provides, "
-    "and assist the user with a variety of tasks using natural language.",
+           "You are able to understand the visual content that the user provides, "
+           "and assist the user with a variety of tasks using natural language.",
     roles=("user", "assistant"),
     version="llama_v3",
     messages=(),
@@ -392,7 +398,7 @@ conv_llava_plain = Conversation(
 
 conv_llava_v0 = Conversation(
     system="A chat between a curious human and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
     roles=("Human", "Assistant"),
     messages=(("Human", "Hi!"), ("Assistant", "Hi there! How can I help you today?")),
     offset=2,
@@ -402,8 +408,8 @@ conv_llava_v0 = Conversation(
 
 conv_llava_v0_mmtag = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
-    "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
-    "The visual content will be provided with the following format: <Image>visual content</Image>.",
+           "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
+           "The visual content will be provided with the following format: <Image>visual content</Image>.",
     roles=("Human", "Assistant"),
     messages=(),
     offset=0,
@@ -414,7 +420,7 @@ conv_llava_v0_mmtag = Conversation(
 
 conv_llava_v1 = Conversation(
     system="A chat between a curious human and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
     roles=("USER", "ASSISTANT"),
     version="v1",
     messages=(),
@@ -426,8 +432,8 @@ conv_llava_v1 = Conversation(
 
 conv_llava_v1_mmtag = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
-    "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
-    "The visual content will be provided with the following format: <Image>visual content</Image>.",
+           "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
+           "The visual content will be provided with the following format: <Image>visual content</Image>.",
     roles=("USER", "ASSISTANT"),
     messages=(),
     offset=0,
@@ -455,7 +461,6 @@ conv_templates = {
     "nv_steerlm": conv_nvgpt,
     "nv_dpo": conv_nv_dpo,
 }
-
 
 if __name__ == "__main__":
     print(default_conversation.get_prompt())

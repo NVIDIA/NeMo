@@ -32,17 +32,11 @@ from transformers import CLIPImageProcessor
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import (
-    DEFAULT_BOS_TOKEN,
-    DEFAULT_EOS_TOKEN,
     DEFAULT_IM_END_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_LABELS_TOKEN,
-    DEFAULT_PAD_TOKEN,
-    DEFAULT_SEPARATOR_TOKEN,
-    DEFAULT_SYSTEM_TOKEN,
-    DEFAULT_UNK_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -167,15 +161,16 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     - dict: The processed sources dictionary after applying multimodal preprocessing steps.
     """
     is_multimodal = multimodal_cfg['is_multimodal']
+    model_type = multimodal_cfg['model_type']
     image_token_len = cur_token_len
     if not is_multimodal:
         return sources
 
     if multimodal_cfg['use_im_start_end']:
-        replace_token = DEFAULT_IMAGE_PATCH_TOKEN * image_token_len
+        replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * image_token_len
     else:
-        replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (image_token_len - 2)
-    replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+        replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (image_token_len - 2)
+    replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
 
     for source in sources:
         conversation = source['conversations']
@@ -277,9 +272,8 @@ def preprocess_llama_3(sources: dict, tokenizer, cfg, ) -> Dict:
         target[cur_len:] = IGNORE_INDEX
 
     # Check if masking working correctly
-    print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
+    # print([x for x in zip(tokens[0].numpy().tolist(), labels[0].numpy().tolist())])
 
-    import pdb; pdb.set_trace()
     if add_extra_token:
         tokens = tokens[:, :-1].contiguous()
         labels = labels[:, 1:].contiguous()
@@ -978,6 +972,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
         multimodal_cfg=dict(
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
+            model_type=mm_cfg.get("mm_cfg", "nvgpt"),
             conv_template=data_cfg.get("conv_template", "nvgpt"),
             crop_size=crop_size,
             image_token_len=data_cfg.image_token_len,

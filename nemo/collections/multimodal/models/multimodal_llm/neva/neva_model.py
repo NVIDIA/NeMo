@@ -472,8 +472,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
-        media_start_id = self.tokenizer.token_to_id(DEFAULT_IM_START_TOKEN)
-        media_end_id = self.tokenizer.token_to_id(DEFAULT_IM_END_TOKEN)
+
+        model_type = self.cfg.mm_cfg.llm.get("model_type", "nvgpt")
+        media_start_id = self.tokenizer.token_to_id(DEFAULT_IM_START_TOKEN[model_type])
+        media_end_id = self.tokenizer.token_to_id(DEFAULT_IM_END_TOKEN[model_type])
 
         if self.mcore_gpt:
             if not parallel_state.is_initialized():
