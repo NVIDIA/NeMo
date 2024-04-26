@@ -91,7 +91,7 @@ try:
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
     from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
-    from megatron.core.distributed import DistributedDataParallel as DDP
+    from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
 
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
@@ -508,16 +508,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.with_distributed_adam and self.use_mcore_dist_optim:
             config = get_model_config(self.model[0])
             ddp_config = DistributedDataParallelConfig(
-                grad_reduce_in_fp32=self.megatron_amp_O2,
-                overlap_grad_reduce=self.cfg.optim.get('mcore_overlap_grad_sync', False),
+                grad_reduce_in_fp32=(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
+                overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
                 use_distributed_optimizer=True,
-                check_for_nan_in_grad=False,
+                check_for_nan_in_grad=self.cfg.optim.get('check_for_nan_in_grad', False),
                 # mcore bucket_size is based on num of parameters, therefore not
-                # using grad_allreduce_chunk_size_mb to configure bucket_size here
-                bucket_size=self.cfg.optim.get('mcore_ddp_bucket_size', None),
+                # using bucket_cap_mb to configure bucket_size here
+                bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
             )
             self.model = [
-                DDP(
+                McoreDDP(
                     config,
                     ddp_config,
                     model_chunk,
@@ -643,16 +643,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 grad_sync_func = self.reduce_overlap_gradients
                 param_sync_func = self.sync_overlap_parameters
             else:
-                if self.cfg.optim.get("mcore_overlap_grad_sync", False):
+                if self.cfg.optim.get("overlap_grad_sync", False):
                     no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
                     no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
 
-                    if self.cfg.optim.get("mcore_delay_grad_reduce", True):
+                    if self.cfg.optim.get("delay_grad_reduce", True):
                         grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
                         grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
-                if self.cfg.optim.get("mcore_overlap_param_sync", False) and self.cfg.optim.get(
-                    "mcore_delay_param_gather", False
-                ):
+                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
                     param_sync_func = [
                         lambda x: self._optimizer.finish_param_sync(model_index, x)
                         for model_index in range(len(self.model))

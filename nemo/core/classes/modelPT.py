@@ -592,8 +592,8 @@ class ModelPT(LightningModule, Model):
             adam_beta2=optim_config['betas'][1],
             clip_grad=self.trainer.gradient_clip_val,
             use_distributed_optimizer=self.use_mcore_dist_optim,
-            overlap_grad_reduce=self.cfg.optim.get('mcore_overlap_grad_sync', False),
-            overlap_param_gather=self.cfg.optim.get('mcore_overlap_param_sync', False),
+            overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
+            overlap_param_gather=self.cfg.optim.get('overlap_param_sync', False),
         )
         return megatron_optim_config
 
@@ -678,8 +678,6 @@ class ModelPT(LightningModule, Model):
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
             optimizer_name = optim_config.get('name', 'adam')
-            if optimizer_name == "distributed_fused_adam" and self.use_mcore_dist_optim:
-                optimizer_name = "mcore_distributed_optim"
         else:
             if inspect.isclass(optimizer_cls):
                 optimizer_name = optimizer_cls.__name__.lower()
