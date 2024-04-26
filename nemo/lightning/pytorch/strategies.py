@@ -54,7 +54,7 @@ class MegatronStrategy(DDPStrategy):
         pipeline_model_parallel_size: int = 1,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
         sequence_parallel: bool = False,
-        data_sampler: Optional[DataSampler] = None,
+        data_sampler: Optional['DataSampler'] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
@@ -72,7 +72,7 @@ class MegatronStrategy(DDPStrategy):
         )
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
-        self.data_sampler: Optional[DataSampler] = data_sampler
+        self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
