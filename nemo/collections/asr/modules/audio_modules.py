@@ -20,7 +20,6 @@ import torch
 from nemo.collections.asr.losses.audio_losses import calculate_mean
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
-from nemo.collections.asr.parts.submodules.diffusion import SpectrogramNoiseConditionalScoreNetworkPlusPlus
 from nemo.collections.asr.parts.submodules.multichannel_modules import (
     ChannelAttentionPool,
     ChannelAveragePool,
@@ -41,7 +40,6 @@ __all__ = [
     'MaskBasedBeamformer',
     'MaskBasedDereverbWPE',
     'MixtureConsistencyProjection',
-    'SpectrogramEstimator',
 ]
 
 
@@ -1686,57 +1684,3 @@ class MixtureConsistencyProjection(NeuralModule):
         consistent_estimate = estimate + weight * (mixture - estimated_mixture)
 
         return consistent_estimate
-
-
-class SpectrogramEstimator(NeuralModule):
-    """Estimate spectral coefficients from the complex-valued input signal using a neural model.
-
-    This is a wrapper around a neural model which takes complex-valued spectral
-    coefficients as input and returns the estimated complex-valued spectral coefficients.
-    """
-
-    def __init__(self, *, model: str, **kwargs):
-        super().__init__()
-
-        logging.debug('Instantiate model: %s', model)
-
-        if model == 'ncsn++':
-            # Instantiate the model
-            self.model = SpectrogramNoiseConditionalScoreNetworkPlusPlus(**kwargs)
-        else:
-            raise ValueError(f'Unexpected model: {model}')
-
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tmodel: %s', model)
-
-    @property
-    def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "condition": NeuralType(('B',), FloatType(), optional=True),
-        }
-
-    @property
-    def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(tuple('B'), LengthsType()),
-        }
-
-    @typecheck()
-    def forward(self, input, input_length=None, condition=None):
-        """Estimate the score using the underlying model.
-
-        Args:
-            input: Input signal complex-valued spectrogram, shape (B, C, F, N)
-            input_length: Length of valid entries along the time dimension, shape (B,)
-            condition: Optional, scalar condition for the score estimator, shape (B,)
-        """
-        # Complex-valued estimate using the underlying model
-        output, output_length = self.model(input=input, input_length=input_length, condition=condition)
-        return output, output_length

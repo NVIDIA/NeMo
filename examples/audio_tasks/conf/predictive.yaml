@@ -1,8 +1,7 @@
 name: "predictive_model"
 
-model_type: predictive
-
 model:
+  type: predictive
   sample_rate: 16000
   skip_nan_grad: false
   num_outputs: 1
@@ -44,8 +43,7 @@ model:
     scale: ${model.encoder.scale}
 
   estimator:
-    _target_: nemo.collections.asr.modules.audio_modules.SpectrogramEstimator
-    model: ncsn++
+    _target_: nemo.collections.asr.parts.submodules.diffusion.SpectrogramNoiseConditionalScoreNetworkPlusPlus
     in_channels: 1 # single-channel noisy input
     out_channels: 1 # single-channel estimate
     num_res_blocks: 3 # increased number of res blocks

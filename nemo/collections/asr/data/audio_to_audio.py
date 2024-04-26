@@ -130,9 +130,10 @@ class ASRAudioProcessor:
         sample_rate: sample rate used for all audio signals
         random_offset: If `True`, offset will be randomized when loading a subsegment
                        from a file.
-        normalization_signal: Normalize all audio with a factor that ensures the normalization
-                    signal is in range [-1, 1]. All audio signals are scaled by the same factor.
-                    Default is `None`, corresponding to no normalization.
+        normalization_signal: Normalize all audio with a factor that ensures the signal
+                    `example[normalization_signal]` in `process` is in range [-1, 1].
+                    All other audio signals are scaled by the same factor. Default is
+                    `None`, corresponding to no normalization.
     """
 
     def __init__(

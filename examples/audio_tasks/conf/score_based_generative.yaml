@@ -1,8 +1,7 @@
 name: score_based_generative_model
 
-model_type: score_based
-
 model:
+  type: score_based
   sample_rate: 16000
   skip_nan_grad: false
   num_outputs: 1
@@ -46,8 +45,7 @@ model:
     scale: ${model.encoder.scale}
 
   estimator:
-    _target_: nemo.collections.asr.modules.audio_modules.SpectrogramEstimator
-    model: ncsn++
+    _target_: nemo.collections.asr.parts.submodules.diffusion.SpectrogramNoiseConditionalScoreNetworkPlusPlus
     in_channels: 2 # concatenation of single-channel perturbed and noisy
     out_channels: 1 # single-channel score estimate
     conditioned_on_time: true
