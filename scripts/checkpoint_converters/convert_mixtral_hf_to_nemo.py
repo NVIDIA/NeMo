@@ -159,22 +159,24 @@ def load_mixtral_ckpt(in_dir, load_model=True):
     assert tokenizer.vocab_size == model_args['vocab_size']
     return model_args, ckpt, tokenizer
 
+def parse_precision(precision):
+    if precision in ["32", "16"]:
+        return int(float(precision))
+    elif precision in ["bf16", "bf16-mixed"]:
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            return precision
+        else:
+            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
+            return precision[2:]  # prune bf in string
+    else:
+        return precision
+
 
 def make_trainer(args, nemo_config):
     model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path, load_model=False)
     nemo_config = load_config(model_args, tokenizer.vocab_file)
 
-    if args.precision in ["32", "16"]:
-        precision = int(float(args.precision))
-    elif args.precision in ["bf16", "bf16-mixed"]:
-        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
-            precision = args.precision
-        else:
-            logging.warning("BF16 is not supported on this device. Using FP16 instead.")
-            precision = args.precision[2:]  # prune bf in string
-    else:
-        precision = args.precision
-
+    precision = parse_precision(args.precision)
     plugins = []
     if precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
         scaler = None
@@ -368,6 +370,8 @@ def save_to_nemo(args, checkpoint):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
     model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path, load_model=False)
     nemo_config = load_config(model_args, tokenizer.vocab_file)
+    nemo_config.precision = parse_precision(args.precision)
+    nemo_config.megatron_amp_O2 = True
     trainer, dtype = make_trainer(args, nemo_config)
 
     checkpoint[MegatronGPTModel.CHECKPOINT_HYPER_PARAMS_KEY] = nemo_config
@@ -386,6 +390,7 @@ def save_to_nemo(args, checkpoint):
     # cast to target precision and disable cpu init
     model = model.to(dtype=dtype)
     model.cfg.use_cpu_initialization = False
+    model.cfg.perform_initialization = True
 
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
