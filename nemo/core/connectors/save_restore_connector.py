@@ -553,19 +553,26 @@ class SaveRestoreConnector:
         with tarfile.open(filename, "w:") as tar:
             tar.add(source_dir, arcname=".")
 
-    def _is_safe_path(member, base_path):
+    @staticmethod
+    def _is_safe_path(member, extract_to):
         # Check for path traversal characters or absolute paths
         member_path = os.path.normpath(member.name)
-        return not (os.path.isabs(member_path) or os.path.relpath(member_path, base_path).startswith(os.pardir))
+        # Ensure the path does not start with a slash or contain ".." after normalization
+        if os.path.isabs(member_path) or ".." in member_path.split(os.sep):
+            return False
+        # Construct the full path where the member would be extracted
+        full_path = os.path.join(extract_to, member_path)
+        # Ensure the member would be extracted within the intended directory
+        return os.path.commonprefix([full_path, extract_to]) == extract_to
 
+    @staticmethod
     def _safe_extract(tar, out_folder: str, members=None):
-        base_path = os.path.realpath(path)
+        extract_to = os.path.realpath(out_folder)
         if members is None:
             members = tar.getmembers()
         for member in members:
-            member_path = os.path.join(base_path, member.name)
-            if is_safe_path(member, base_path):
-                tar.extract(member, path)
+            if SaveRestoreConnector._is_safe_path(member, extract_to):
+                tar.extract(member, extract_to)
             else:
                 print(f"Skipping potentially unsafe member: {member.name}")
 
@@ -585,10 +592,10 @@ class SaveRestoreConnector:
             tar_header = "r:gz"
         tar = tarfile.open(path2file, tar_header)
         if not extract_config_only:
-            _safe_extract(tar, out_folder)
+            SaveRestoreConnector._safe_extract(tar, out_folder)
         else:
             members = [x for x in tar.getmembers() if ".yaml" in x.name]
-            _safe_extract(tar, out_folder, members)
+            SaveRestoreConnector._safe_extract(tar, out_folder, members)
         tar.close()
         return out_folder
 
