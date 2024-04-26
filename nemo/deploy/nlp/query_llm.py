@@ -48,6 +48,7 @@ class NemoTritonQueryLLMBase(ABC):
     # ):
     #     pass
 
+
 class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
     def __init__(self, url, model_name):
         super().__init__(
@@ -59,14 +60,14 @@ class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
     def query_llm(
         self,
         prompts,
-        use_greedy: bool=None,
-        temperature: float=None,
-        top_k: int=None,
-        top_p: float=None,
-        repetition_penalty: float=None,
-        add_BOS: bool=None,
-        all_probs: bool=None,
-        compute_logprob: bool=None,
+        use_greedy: bool = None,
+        temperature: float = None,
+        top_k: int = None,
+        top_p: float = None,
+        repetition_penalty: float = None,
+        add_BOS: bool = None,
+        all_probs: bool = None,
+        compute_logprob: bool = None,
         end_strings=None,
         min_length=None,
         max_length=None,
@@ -98,10 +99,11 @@ class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
             inputs["min_length"] = np.full(prompts.shape, min_length, dtype=np.int_)
         if max_length is not None:
             inputs["max_length"] = np.full(prompts.shape, max_length, dtype=np.int_)
-        
+
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
             result_dict = client.infer_batch(**inputs)
             return result_dict
+
 
 class NemoTritonQueryLLMTensorRT(NemoTritonQueryLLMBase):
     """

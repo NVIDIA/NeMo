@@ -7,14 +7,15 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.text_generation_utils import (
+    OutputType,
     get_default_length_params,
     get_default_sampling_params,
-    OutputType
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list, typedict2tensor
+
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -37,25 +38,22 @@ LOGGER = logging.getLogger("NeMo")
 # utility funciton to get Triton Tensor shape from a python value
 # assume that lists are shape -1 and all others are scalars with shape 1
 def GetTensorShape(pyvalue):
-    return (-1 if type(pyvalue)==list else 1,)
+    return (-1 if type(pyvalue) == list else 1,)
+
 
 # utility function to get numpy dtype of a python value
 # e.g. bool -> np.bool_
 def GetNumpyDtype(pyvalue):
     # manually defining the mapping of python type -> numpy type for now
     # is there a better way to do it?  tried np.array(pyvalue).dtype, but that doesn't seem to work
-    py_to_numpy_mapping = {
-        str: bytes,
-        bool: np.bool_,
-        float: np.single,
-        int: np.int_
-    }
+    py_to_numpy_mapping = {str: bytes, bool: np.bool_, float: np.single, int: np.int_}
     python_type = type(pyvalue)
     # for lists, return the type of the internal elements
-    if python_type==list:
+    if python_type == list:
         python_type = type(pyvalue[0])
     numpy_type = py_to_numpy_mapping[python_type]
     return numpy_type
+
 
 class MegatronGPTDeployable(ITritonDeployable):
     def __init__(self, nemo_checkpoint_filepath: str, load_model: bool = True):
@@ -84,7 +82,7 @@ class MegatronGPTDeployable(ITritonDeployable):
         'logprob': [0.0],
         'full_logprob': [0.0],
         'token_ids': [0],
-        'offsets': [0]
+        'offsets': [0],
     }
 
     @property
@@ -95,16 +93,26 @@ class MegatronGPTDeployable(ITritonDeployable):
         )
         # TODO: in theory, would like to use typedict2tensor() function to generate Tensors, but it purposely ignores 1D arrays
         # need to find out why that is
-        #sampling_parameters = typedict2tensor(SamplingParam)
+        # sampling_parameters = typedict2tensor(SamplingParam)
         default_sampling_params: SamplingParam = get_default_sampling_params()
         sampling_parameters = tuple(
-            Tensor(name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value), optional=True)
+            Tensor(
+                name=parameter_name,
+                shape=GetTensorShape(parameter_value),
+                dtype=GetNumpyDtype(parameter_value),
+                optional=True,
+            )
             for parameter_name, parameter_value in default_sampling_params.items()
         )
-        #length_parameters = typedict2tensor(LengthParam)
+        # length_parameters = typedict2tensor(LengthParam)
         default_length_params: LengthParam = get_default_length_params()
         length_parameters = tuple(
-            Tensor(name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value), optional=True)
+            Tensor(
+                name=parameter_name,
+                shape=GetTensorShape(parameter_value),
+                dtype=GetNumpyDtype(parameter_value),
+                optional=True,
+            )
             for parameter_name, parameter_value in default_length_params.items()
         )
 
@@ -152,8 +160,12 @@ class MegatronGPTDeployable(ITritonDeployable):
             if value is None:
                 # triton does not allow for optional output parameters, so need to populate them if they don't exist
                 # 'sentences' should always have a valid value, so use that for the output shape
-                triton_output[model_output_field] = np.full(np.shape(model_output['sentences']), MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field][0], dtype=field_dtype)
-            elif field_dtype==bytes:
+                triton_output[model_output_field] = np.full(
+                    np.shape(model_output['sentences']),
+                    MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field][0],
+                    dtype=field_dtype,
+                )
+            elif field_dtype == bytes:
                 # strings are casted to bytes
                 triton_output[model_output_field] = cast_output(value, field_dtype)
             else:
