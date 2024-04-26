@@ -16,6 +16,7 @@ name: "CICD NeMo"
 on:
   pull_request:
     branches: [ "main" ]
+    types: [ labeled ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,6 +25,7 @@ concurrency:
 jobs:
   gpu-test:
     runs-on: self-hosted-azure
+    if: ${{ github.event.label.name == 'Run CICD' }}
     steps:
     - name: Run nvidia-smi test
       run: |
@@ -31,7 +33,8 @@ jobs:
         nvidia-smi
 
   cicd-cluster-clean:
-    runs-on: self-hosted-azure-cpu
+    runs-on: self-hosted-azure-builder
+    if: ${{ github.event.label.name == 'Run CICD' }}
     steps:
     - name: Clean server from old files
       run: |
@@ -53,7 +56,8 @@ jobs:
 
   cicd-test-container-setup:
     needs: [cicd-cluster-clean]
-    runs-on: self-hosted-azure-cpu
+    runs-on: self-hosted-azure-builder
+    if: ${{ github.event.label.name == 'Run CICD' }}
     # uses: actions/cache@v2
     #container:
 #      image: nvcr.io/nvidia/pytorch:24.01-py3
@@ -176,7 +180,7 @@ jobs:
     runs-on: self-hosted-azure
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-      options: 
+      options:
         # --user 0:128
         --device=/dev/nvidia0
         --gpus all
