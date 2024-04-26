@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from collections import deque
-from logging import getLogger
 from pathlib import Path
 from time import time
 from typing import Callable, List, NamedTuple, Optional, Tuple
@@ -186,17 +185,17 @@ class DistributedAsyncCaller:
         # The following takes the same overhead as torch.distributed.barrier (single integer all-reduce)
         is_alive = int(self.process.is_alive()) if self.process is not None else 0
         ten = torch.tensor([is_alive], dtype=torch.int, device=torch.cuda.current_device())
-        logger.debug(f"rank: {torch.distributed.get_rank()}, {ten}")
+        logging.debug(f"rank: {torch.distributed.get_rank()}, {ten}")
         torch.distributed.all_reduce(ten)
         if ten[0] > 0 and not blocking:
             return False
         else:
             if self.process is not None:
-                logger.debug(f"rank: {torch.distributed.get_rank()}, joining self.process")
+                logging.debug(f"rank: {torch.distributed.get_rank()}, joining self.process")
                 self.process.join()
                 self.process = None
 
-                logger.debug(
+                logging.debug(
                     f"DistributedAsyncCaller: Async process join finished after {time() - self.start_time:.2f}s from forking"
                 )
                 self.start_time = None
