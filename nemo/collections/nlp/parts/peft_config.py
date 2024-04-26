@@ -37,6 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
     LoraKQVAdapterWeightTyingConfig,
     LoraUnfusedKQVAdapterConfig,
+    LoraUnfusedHto4HAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
@@ -165,11 +166,18 @@ class LoraPEFTConfig(PEFTConfig):
 
             elif module == PEFT_MODULE_MAP["hto4h_module"]:
                 hto4h_projection_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
+                if lora_cfg.get("variant", "nemo") == "canonical":
+                    _adapter_name = AdapterName.LORA_UNFUSED_Hto4H_ADAPTER
+                    _adapter_cfg_cls = LoraUnfusedHto4HAdapterConfig
+                else:
+                    _adapter_name = AdapterName.LORA_Hto4H_ADAPTER
+                    _adapter_cfg_cls = LoraHto4HAdapterConfig
+                    
                 adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, cfg.hidden_size, hto4h_projection_size, LoraHto4HAdapterConfig
+                    cfg, lora_cfg, cfg.hidden_size, hto4h_projection_size, _adapter_cfg_cls
                 )
-                name_key_to_cfg[AdapterName.LORA_Hto4H_ADAPTER] = adapter_cfg
-                name_key_to_mcore_mixins[AdapterName.LORA_Hto4H_ADAPTER] = [("mlp", MCoreMLPMixin)]
+                name_key_to_cfg[_adapter_name] = adapter_cfg
+                name_key_to_mcore_mixins[_adapter_name] = [("mlp", MCoreMLPMixin)]
             elif module == PEFT_MODULE_MAP["4htoh_module"]:
                 adapter_cfg = self._create_lora_config(
                     cfg, lora_cfg, cfg.ffn_hidden_size, cfg.hidden_size, Lora4HtoHAdapterConfig
