@@ -13,11 +13,10 @@
 # limitations under the License.
 
 import math
-import time
-
 import numpy as np
 import open_clip
 import tensorrt as trt
+import time
 import torch
 from cuda import cudart
 from transformers import CLIPTokenizer
@@ -27,7 +26,6 @@ from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules impor
 from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.trt_engine import TRT_LOGGER, Engine
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import perform_save_locally
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import get_sampler_config
-from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
 from nemo.core.classes.common import Serialization
 from nemo.core.config import hydra_runner
 
