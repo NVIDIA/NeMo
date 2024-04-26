@@ -229,12 +229,6 @@ def preprocess_llama_3(sources: dict, tokenizer, cfg, ) -> Dict:
 
     add_extra_token = cfg.get("add_extra_token")
 
-    # tricks for treating llama3 tokens
-    conversations = [conversation.replace(
-            "<extra_id_3>", "<|reserved_special_token_3|>").replace(
-            "<extra_id_4>", "<|reserved_special_token_4|>").replace(
-            "<extra_id_5>", "<|reserved_special_token_5|>") for conversation in conversations]
-
     # Tokenize conversations
     tokens = tokenize(
         texts=conversations,
@@ -972,7 +966,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
         multimodal_cfg=dict(
             is_multimodal=data_cfg.is_multimodal,
             sep_image_conv_front=data_cfg.sep_image_conv_front,
-            model_type=mm_cfg.get("mm_cfg", "nvgpt"),
+            model_type=mm_cfg.llm.get("model_type", "nvgpt"),
             conv_template=data_cfg.get("conv_template", "nvgpt"),
             crop_size=crop_size,
             image_token_len=data_cfg.image_token_len,
