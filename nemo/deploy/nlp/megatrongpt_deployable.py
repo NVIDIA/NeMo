@@ -56,17 +56,15 @@ def GetNumpyDtype(pyvalue):
 
 
 class MegatronGPTDeployable(ITritonDeployable):
-    def __init__(self, nemo_checkpoint_filepath: str, load_model: bool = True):
+    def __init__(self, nemo_checkpoint_filepath: str, num_devices: int = 1, num_nodes: int = 1):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
+        self._load(nemo_checkpoint_filepath, num_devices, num_nodes)
 
-        if load_model:
-            self._load()
+    def _load(self, nemo_checkpoint_filepath: str, num_devices: int, num_nodes: int):
+        if Path(nemo_checkpoint_filepath).exists():
+            trainer = Trainer(strategy=NLPDDPStrategy(), accelerator="gpu", precision="bf16", devices=num_devices, num_nodes=num_nodes,)
 
-    def _load(self):
-        if Path(self.nemo_checkpoint_filepath).exists():
-            trainer = Trainer(strategy=NLPDDPStrategy(), accelerator="gpu", precision="bf16", devices=1, num_nodes=1,)
-
-            self.model = MegatronGPTModel.restore_from(self.nemo_checkpoint_filepath, trainer=trainer)
+            self.model = MegatronGPTModel.restore_from(nemo_checkpoint_filepath, trainer=trainer)
 
             self.model.eval()
 
@@ -92,7 +90,7 @@ class MegatronGPTDeployable(ITritonDeployable):
             for name, (shape, dtype, optional) in self._INPUT_PARAMETER_FIELDS.items()
         )
         # TODO: in theory, would like to use typedict2tensor() function to generate Tensors, but it purposely ignores 1D arrays
-        # need to find out why that is
+        # need to find out why that is, asked Jakub Kosek on 2024-04-26
         # sampling_parameters = typedict2tensor(SamplingParam)
         default_sampling_params: SamplingParam = get_default_sampling_params()
         sampling_parameters = tuple(

@@ -10,7 +10,7 @@ from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
 
 
 def test_triton_deployable(args):
-    megatron_deployable = MegatronGPTDeployable(args.nemo_checkpoint)
+    megatron_deployable = MegatronGPTDeployable(args.nemo_checkpoint, args.num_gpus)
 
     prompts = ["What is the biggest planet in the solar system?", "What is the fastest steam locomotive in history?"]
     url = "localhost:8000"
@@ -29,6 +29,7 @@ def test_triton_deployable(args):
     nm.deploy()
     nm.run()
 
+    # run once with NemoTritonQueryLLMPyTorch
     nemo_triton_query = NemoTritonQueryLLMPyTorch(url, model_name)
     result_dict = nemo_triton_query.query_llm(
         prompts, top_k=args.top_k, top_p=args.top_p, temperature=args.temperature, max_length=args.max_output_token
@@ -36,7 +37,7 @@ def test_triton_deployable(args):
     print("NemoTritonQueryLLMPyTriton result:")
     print(result_dict)
 
-    # NemoQueryLLM seems specific to TRTLLM for now, so using ModelClient instead
+    # run once with ModelClient, the results should be identical
     str_ndarray = np.array(prompts)[..., np.newaxis]
     prompts = np.char.encode(str_ndarray, "utf-8")
     max_output_token = np.full(prompts.shape, args.max_output_token, dtype=np.int_)
@@ -75,6 +76,9 @@ def get_args():
     # parser.add_argument(
     #     "--max_gpus", type=int,
     # )
+    parser.add_argument(
+        "--num_gpus", type=str, default=1,
+    )
     # parser.add_argument(
     #     "--checkpoint_dir", type=str, default="/tmp/nemo_checkpoint/", required=False,
     # )
