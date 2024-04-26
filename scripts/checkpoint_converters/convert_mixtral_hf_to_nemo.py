@@ -365,10 +365,112 @@ def merge(a: dict, b: dict, path=[]):
     return a
 
 
+def init_spm(spm_model_cls):
+    from google.protobuf.json_format import Parse, ParseDict
+    src = {
+        "trainerSpec": {
+            "modelPrefix": "tok_v0",
+            "modelType": "BPE",
+            "vocabSize": 32000,
+            "selfTestSampleSize": 0,
+            "inputFormat": "text",
+            "characterCoverage": 0.99995,
+            "inputSentenceSize": "200000000",
+            "seedSentencepieceSize": 1000000,
+            "shrinkingFactor": 0.75,
+            "numThreads": 80,
+            "numSubIterations": 2,
+            "maxSentenceLength": 4192,
+            "shuffleInputSentence": True,
+            "maxSentencepieceLength": 16,
+            "splitByUnicodeScript": True,
+            "splitByWhitespace": True,
+            "splitByNumber": True,
+            "treatWhitespaceAsSuffix": False,
+            "splitDigits": True,
+            "allowWhitespaceOnlyPieces": True,
+            "vocabularyOutputPieceScore": True,
+            "hardVocabLimit": True,
+            "useAllVocab": False,
+            "byteFallback": True,
+            "requiredChars": "",
+            "unkId": 0,
+            "bosId": 1,
+            "eosId": 2,
+            "padId": -1,
+            "unkSurface": " \u2047 ",
+            "unkPiece": "<unk>",
+            "bosPiece": "<s>",
+            "eosPiece": "</s>",
+            "padPiece": "<pad>",
+            "trainExtremelyLargeCorpus": False,
+            "enableDifferentialPrivacy": False,
+            "differentialPrivacyNoiseLevel": 0.0,
+            "differentialPrivacyClippingThreshold": "0",
+            "pretokenizationDelimiter": ""
+        },
+        "normalizerSpec": {
+            "name": "identity",
+            "precompiledCharsmap": "",
+            "addDummyPrefix": True,
+            "removeExtraWhitespaces": False,
+            "normalizationRuleTsv": ""
+        }
+    }
+    return ParseDict(src, spm_model_cls.ModelProto())
+
+def make_sentencepiece_tokenizer(hf_tok):
+    import sys
+    sys.path.insert(0, 'sentencepiece/python/src/sentencepiece/')
+    try:
+        import sentencepiece_model_pb2 as spm_model_cls # import model # sentencepiece_model as model
+    except ImportError:
+        # If this fails, download sentencepiece and extract it here.
+        print("Sentencepiece was not found; run `(cd scripts/checkpoint_converters; git clone https://github.com/google/sentencepiece.git)` & retry")
+        quit()
+
+    vocab = list(hf_tok.vocab.items())
+    vocab.sort(key=lambda x: x[1])
+
+    m = init_spm(spm_model_cls)
+    prefix = 0
+    found_boundary = False
+    for token, i in vocab:
+        new_token = spm_model_cls.ModelProto().SentencePiece()
+        # print(token, len(token), type(token), i)
+        new_token.piece = token
+        if token == '<unk>':
+            if not found_boundary: prefix += 1
+            new_token.type = 2
+            new_token.score = 0
+        elif token in ['<s>', '</s>']:
+            if not found_boundary: prefix += 1
+            new_token.type = 3
+            new_token.score = 0
+        elif len(token) == 6 and token.startswith('<0x') and token[-1] == '>':
+            if not found_boundary: prefix += 1
+            new_token.type = 6
+            new_token.score = 0
+        elif set(token) == set(["▁"]):
+            if token == '▁▁': found_boundary = True
+            new_token.score = -1e+09
+        else:
+            found_non_pref = True
+            new_token.score = -float(i) + prefix
+        m.pieces.append(new_token)
+
+    output_path = 'new.model'
+    with open(output_path, 'wb') as fp:
+        fp.write(m.SerializeToString())
+    return output_path
+
+
 def save_to_nemo(args, checkpoint):
 
     logging.info(f"loading checkpoint {args.input_name_or_path}")
     model_args, ckpt, tokenizer = load_mixtral_ckpt(args.input_name_or_path, load_model=False)
+    if tokenizer.vocab_file is None:
+        tokenizer.vocab_file = make_sentencepiece_tokenizer(tokenizer)
     nemo_config = load_config(model_args, tokenizer.vocab_file)
     nemo_config.precision = parse_precision(args.precision)
     nemo_config.megatron_amp_O2 = True
