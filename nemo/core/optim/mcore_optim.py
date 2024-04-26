@@ -13,7 +13,15 @@
 # limitations under the License.
 
 import torch
-from megatron.core.optimizer.optimizer import MegatronOptimizer
+
+try:
+    from megatron.core.optimizer.optimizer import MegatronOptimizer
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 class McoreDistributedOptimizer(torch.optim.Optimizer):
@@ -58,7 +66,8 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         if closure is not None:
             loss = closure()
 
-        update_successful, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
+        # return unused update_successful, grad_norm, num_zeros_in_grad
+        self.mcore_optimizer.step()
 
         return loss
 

@@ -530,11 +530,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 for (model_chunk_idx, model_chunk) in enumerate(self.model)
             ]
 
-            # (TODO) broadcast the params if the model is randomly initialized.
-            # # Broadcast params from data parallel src rank to other data parallel ranks.
-            # if args.data_parallel_random_init:
-            #     for model_module in model:
-            #         model_module.broadcast_params()
+            # (TODO) Broadcast params from data parallel src rank to other data parallel ranks.
+            # by calling model_module.broadcast_params() if the model is randomly initialized.
 
     def configure_optimizers(self):
 
@@ -652,7 +649,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
                 if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("delay_param_gather", False):
                     param_sync_func = [
-                        lambda x: self._optimizer.finish_param_sync(model_index, x)
+                        lambda x, model_index=model_index: self._optimizer.finish_param_sync(model_index, x)
                         for model_index in range(len(self.model))
                     ]
                     param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func

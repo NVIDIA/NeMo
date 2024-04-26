@@ -24,8 +24,17 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
 import torch
-from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
-from megatron.core.utils import get_model_config
+
+try:
+    from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
+    from megatron.core.utils import get_model_config
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
+
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import model_summary, rank_zero_only
