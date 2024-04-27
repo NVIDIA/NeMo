@@ -289,7 +289,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
 
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
-        dtype = encoder_output_projected.dtype
+        float_dtype = encoder_output_projected.dtype
 
         # init output structures: BatchedHyps (for results), BatchedAlignments + last decoder state
         # init empty batched hypotheses
@@ -297,7 +297,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             batch_size=batch_size,
             init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
             device=device,
-            float_dtype=dtype,
+            float_dtype=float_dtype,
         )
         # sample state, will be replaced further when the decoding for hypothesis is done
         last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
@@ -309,7 +309,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             logits_dim=self.joint.num_classes_with_blank,
             init_length=max_time * 2 if use_alignments else 1,  # blank for each timestep + text tokens
             device=device,
-            float_dtype=dtype,
+            float_dtype=float_dtype,
             store_alignments=self.preserve_alignments,
             store_frame_confidence=self.preserve_frame_confidence,
             with_duration_confidence=self.include_duration_confidence,
@@ -377,16 +377,18 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                     confidence=torch.stack(
                         (
                             self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
-                                dtype=dtype
+                                dtype=float_dtype
                             ),
                             self._get_confidence_tensor(F.log_softmax(logits[:, -num_durations:], dim=-1)).to(
-                                dtype=dtype
+                                dtype=float_dtype
                             ),
                         ),
                         dim=-1,
                     )
                     if self.include_duration_confidence
-                    else self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(dtype=dtype)
+                    else self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
+                        dtype=float_dtype
+                    )
                     if self.preserve_frame_confidence
                     else None,
                 )
@@ -429,17 +431,17 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                         confidence=torch.stack(
                             (
                                 self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
-                                    dtype=dtype
+                                    dtype=float_dtype
                                 ),
                                 self._get_confidence_tensor(F.log_softmax(logits[:, -num_durations:], dim=-1)).to(
-                                    dtype=dtype
+                                    dtype=float_dtype
                                 ),
                             ),
                             dim=-1,
                         )
                         if self.include_duration_confidence
                         else self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
-                            dtype=dtype
+                            dtype=float_dtype
                         )
                         if self.preserve_frame_confidence
                         else None,
@@ -628,6 +630,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             raise NotImplementedError
 
     def _partial_graphs_compile(self):
+        """Compile decoding by parts"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
         self.separate_graphs = SeparateGraphsLoopLabels()
@@ -653,6 +656,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             self._after_inner_loop()
 
     def _full_graph_compile(self):
+        """Compile full graph for decoding"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
         self.full_graph = torch.cuda.CUDAGraph()
@@ -738,7 +742,6 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         # stage 2: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
         self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
-        dtype = self.state.encoder_output_projected.dtype
         logits = (
             self.joint.joint_after_projection(
                 self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
@@ -762,6 +765,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         # for blank labels force duration >= 1
         durations.masked_fill_(torch.logical_and(durations == 0, self.state.blank_mask), 1)
         if self.state.alignments is not None:
+            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.active_mask,
                 time_indices=self.state.time_indices_current_labels,
@@ -771,17 +775,17 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                     (
                         self._get_confidence_tensor(
                             F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                        ).to(dtype=dtype),
+                        ).to(dtype=float_dtype),
                         self._get_confidence_tensor(
                             F.log_softmax(logits[:, -self.state.all_durations.shape[0] :], dim=-1)
-                        ).to(dtype=dtype),
+                        ).to(dtype=float_dtype),
                     ),
                     dim=-1,
                 )
                 if self.include_duration_confidence
                 else self._get_confidence_tensor(
                     F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                ).to(dtype=dtype)
+                ).to(dtype=float_dtype)
                 if self.preserve_frame_confidence
                 else None,
             )
@@ -807,7 +811,6 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             self.state.time_indices_current_labels,
             out=self.state.time_indices_current_labels,
         )
-        dtype = self.state.encoder_output_projected.dtype
         logits = (
             self.joint.joint_after_projection(
                 self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
@@ -829,6 +832,7 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
         torch.where(self.state.advance_mask, more_scores, self.state.scores, out=self.state.scores)
 
         if self.state.alignments is not None:
+            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.advance_mask,
                 time_indices=self.state.time_indices_current_labels,
@@ -838,17 +842,17 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
                     (
                         self._get_confidence_tensor(
                             F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                        ).to(dtype=dtype),
+                        ).to(dtype=float_dtype),
                         self._get_confidence_tensor(
                             F.log_softmax(logits[:, -self.state.all_durations.shape[0] :], dim=-1)
-                        ).to(dtype=dtype),
+                        ).to(dtype=float_dtype),
                     ),
                     dim=-1,
                 )
                 if self.include_duration_confidence
                 else self._get_confidence_tensor(
                     F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                ).to(dtype=dtype)
+                ).to(dtype=float_dtype)
                 if self.preserve_frame_confidence
                 else None,
             )

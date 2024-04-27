@@ -277,6 +277,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
 
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
+        float_dtype = encoder_output_projected.dtype
 
         # init output structures: BatchedHyps (for results), BatchedAlignments + last decoder state
         # init empty batched hypotheses
@@ -284,7 +285,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             batch_size=batch_size,
             init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
             device=device,
-            float_dtype=encoder_output_projected.dtype,
+            float_dtype=float_dtype,
         )
         # sample state, will be replaced further when the decoding for hypothesis is done
         last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
@@ -296,7 +297,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
             logits_dim=self.joint.num_classes_with_blank,
             init_length=max_time * 2 if use_alignments else 1,  # blank for each timestep + text tokens
             device=device,
-            float_dtype=encoder_output_projected.dtype,
+            float_dtype=float_dtype,
             store_alignments=self.preserve_alignments,
             store_frame_confidence=self.preserve_frame_confidence,
         )
@@ -352,7 +353,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                     time_indices=time_indices_current_labels,
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
-                    confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                    confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
                     if self.preserve_frame_confidence
                     else None,
                 )
@@ -390,7 +391,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                         time_indices=time_indices_current_labels,
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
-                        confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                        confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
                         if self.preserve_frame_confidence
                         else None,
                     )
@@ -702,12 +703,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         # blank_mask = self.labels == self._blank_index
         self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
         if self.state.alignments is not None:
+            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.active_mask,
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=self.state.labels if self.preserve_alignments else None,
-                confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
                 if self.preserve_frame_confidence
                 else None,
             )
@@ -752,12 +754,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         torch.where(self.state.advance_mask, more_scores, self.state.scores, out=self.state.scores)
 
         if self.state.alignments is not None:
+            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.advance_mask,
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=more_labels if self.preserve_alignments else None,
-                confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1))
+                confidence=self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
                 if self.preserve_frame_confidence
                 else None,
             )
