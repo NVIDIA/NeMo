@@ -248,27 +248,29 @@ class GreedyBatchedTDTLoopLabelsComputer(ConfidenceMethodMixin):
             # cuda graphs are allowed
             # check basic requirements for cuda graphs
             if self.max_symbols is None:
-                logging.warning("Max symbols is None, which is not allowed with Cuda graphs.")
-                self.cuda_graphs_mode = None
-            else:
-                # basic requirements met, need to check while loops
-                try:
-                    check_cuda_python_cuda_graphs_conditional_nodes_supported()
-                    self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
-                except (ImportError, ModuleNotFoundError) as e:
-                    logging.warning(
-                        "No conditional node support for Cuda.\n"
-                        "Cuda graphs with while loops are disabled, decoding speed will be slower\n"
-                        f"Reason: {e.msg}"
-                    )
-                    self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
+                logging.warning("Max symbols per step is None, which is not allowed with Cuda graphs. Setting to `10`")
+                self.max_symbols = 10
+            # basic requirements met, need to check while loops
+            try:
+                check_cuda_python_cuda_graphs_conditional_nodes_supported()
+                self.cuda_graphs_mode = self.CudaGraphsMode.FULL_GRAPH
+            except (ImportError, ModuleNotFoundError) as e:
+                logging.warning(
+                    "No conditional node support for Cuda.\n"
+                    "Cuda graphs with while loops are disabled, decoding speed will be slower\n"
+                    f"Reason: {e.msg}"
+                )
+                self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
 
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
-        """Method to set graphs mode. Use only for testing purposes"""
+        """
+        Method to set graphs mode. Use only for testing purposes.
+        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
+        """
         self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
         self.state = None
 
