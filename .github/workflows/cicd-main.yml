@@ -17,6 +17,8 @@ on:
   pull_request:
     branches: [ "main" ]
     types: [ labeled ]
+  push:
+    branches: [ "pagaray/nemo_cicd_part22" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -49,7 +51,7 @@ jobs:
 #        - ${{ github.workspace }}:/workspace
 #    steps:
 #    - name: Checkout repository
-#      uses: actions/checkout@v2
+#      uses: actions/checkout@v4
 #      with:
 #        path: ${{ github.run_id }}
 
@@ -70,7 +72,7 @@ jobs:
 #        --env HYDRA_FULL_ERROR=1
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         path: ${{ github.run_id }}
 
@@ -190,7 +192,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: "L0: Unit Tests GPU"
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
@@ -213,7 +215,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: "L0: Unit Tests CPU"
       run: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -240,7 +242,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
             --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf \
@@ -290,7 +292,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python scripts/checkpoint_converters/convert_starcoder_hf_to_nemo.py \
             --input_name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
@@ -314,7 +316,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
             --input_name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
@@ -338,7 +340,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
             --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
@@ -363,7 +365,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -391,7 +393,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/citrinet/" --config-name="config_bpe" \
@@ -422,7 +424,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_pretraining/speech_pre_training.py \
             --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
@@ -451,7 +453,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_finetune" \
@@ -482,7 +484,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
@@ -529,7 +531,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
@@ -563,7 +565,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/squeezeformer" --config-name="squeezeformer_ctc_bpe" \
@@ -597,7 +599,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -626,7 +628,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           python examples/asr/speech_multitask/speech_to_text_aed.py \
   #           model.prompt_format=canary \
@@ -676,7 +678,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/recognition/speaker_reco.py \
             model.train_ds.batch_size=10 \
@@ -708,7 +710,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
             model.diarizer.speaker_embeddings.model_path=titanet_large \
@@ -741,7 +743,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_classification/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
@@ -777,7 +779,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -808,7 +810,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |  
             python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -839,7 +841,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -866,7 +868,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python tools/speech_data_simulator/multispeaker_simulator.py \
             --config-path=conf --config-name=data_simulator.yaml \
@@ -896,7 +898,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -926,7 +928,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/speech_classification/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
@@ -965,7 +967,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_adapters/train_asr_adapter.py \
             model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -997,7 +999,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/asr_adapters/train_asr_adapter.py \
             model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -1032,7 +1034,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/asr/transcribe_speech.py \
             pretrained_name="QuartzNet15x5Base-En" \
@@ -1059,7 +1061,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1081,7 +1083,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1113,7 +1115,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1147,7 +1149,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/tts/g2p && \
                 TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_CONFORMER=output_ctc_${TIME} && \
@@ -1213,7 +1215,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/tts/g2p && \
                 TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
@@ -1255,7 +1257,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           cd examples/nlp/dialogue && \
   #           python dialogue.py \
@@ -1296,7 +1298,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1335,7 +1337,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1373,7 +1375,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1414,7 +1416,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1456,7 +1458,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1491,7 +1493,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1526,7 +1528,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1567,7 +1569,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1645,7 +1647,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1681,7 +1683,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/duplex_text_normalization && \
             python duplex_text_normalization_train.py \
@@ -1751,7 +1753,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
@@ -1785,7 +1787,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
             cd examples/nlp/question_answering && \
@@ -1826,7 +1828,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
             cd examples/nlp/question_answering && \
@@ -1865,7 +1867,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -1906,7 +1908,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -1945,7 +1947,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -1986,7 +1988,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -2025,7 +2027,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/intent_slot_classification && \
             python intent_slot_classification.py \
@@ -2055,7 +2057,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/intent_slot_classification && \
             python multi_label_intent_slot_classification.py \
@@ -2191,7 +2193,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             python token_classification_train.py \
@@ -2222,7 +2224,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             data_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2258,7 +2260,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             python token_classification_train.py \
@@ -2287,7 +2289,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
@@ -2311,7 +2313,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
@@ -2342,7 +2344,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             output_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2402,7 +2404,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp -r /home/TestData/nlp/token_classification_punctuation/*.txt \
@@ -2467,7 +2469,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/token_classification && \
             work_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2530,7 +2532,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           cd examples/nlp/token_classification && \
   #           work_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2593,7 +2595,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             output_dir="$(mktemp -d -p "$(pwd)")" && \
             python examples/nlp/token_classification/punctuate_capitalize_infer.py \
@@ -2624,7 +2626,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/language_modeling && \
               python bert_pretraining.py \
@@ -2666,7 +2668,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/language_modeling && \
               python bert_pretraining.py \
@@ -2708,7 +2710,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/entity_linking && \
             python self_alignment_pretraining.py \
@@ -2742,7 +2744,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/machine_translation/enc_dec_nmt.py \
               --config-path=conf \
@@ -2820,7 +2822,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
               cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -2860,7 +2862,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
               cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -2899,7 +2901,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python nmt_transformer_infer.py \
@@ -2927,7 +2929,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python enc_dec_nmt_finetune.py \
@@ -2970,7 +2972,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python enc_dec_nmt.py \
@@ -3011,7 +3013,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             cd examples/nlp/machine_translation && \
             python create_tarred_parallel_dataset.py \
@@ -3042,7 +3044,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/machine_translation/megatron_nmt_training.py \
             trainer.devices=2 \
@@ -3151,7 +3153,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -3469,7 +3471,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3550,7 +3552,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3632,7 +3634,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3716,7 +3718,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
@@ -3785,7 +3787,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
             trainer.devices=2 \
@@ -3868,7 +3870,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
   #               trainer.devices=2 \
@@ -3962,7 +3964,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/token_classification/token_classification_train.py \
             exp_manager.exp_dir=examples/nlp/language_modeling/token_classification_results \
@@ -3989,7 +3991,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4082,7 +4084,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
            python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
            trainer.devices=2 \
@@ -4272,7 +4274,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4368,7 +4370,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4464,7 +4466,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4564,7 +4566,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
             trainer.devices=2 \
@@ -4645,7 +4647,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
             trainer.devices=1 \
@@ -4689,7 +4691,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2
 
@@ -4735,7 +4737,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             rm -rf /home/TestData/nlp/lora_tuning_tp2
 
@@ -4797,7 +4799,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_eval.py \
                 gpt_model_file=/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
@@ -4823,7 +4825,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_eval.py \
                 gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
@@ -4851,7 +4853,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
                 model.restore_from_path=/home/TestData/nlp/megatron_gpt_sft/megatron_gpt_rope_sft.nemo \
@@ -4914,7 +4916,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
@@ -4943,7 +4945,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
@@ -4972,7 +4974,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5079,7 +5081,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5186,7 +5188,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5293,7 +5295,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5374,7 +5376,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5428,7 +5430,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py -cn megatron_ul2_config \
             trainer.devices=2 \
@@ -5519,7 +5521,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_eval.py \
                 --model_file /home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo \
@@ -5543,7 +5545,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -5623,7 +5625,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -5709,7 +5711,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             trainer.devices=1 \
@@ -5753,7 +5755,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             -cn megatron_t5_config_finetune_glue_xnli \
@@ -5802,7 +5804,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             rm -rf /home/TestData/nlp/t5_lora_tuning_tp2
 
@@ -5867,7 +5869,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
                 trainer.max_steps=10 \
@@ -5894,7 +5896,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.max_steps=10 \
@@ -5924,7 +5926,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/tacotron2.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -5962,7 +5964,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/waveglow.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -5996,7 +5998,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/fastpitch.py \
             --config-name fastpitch_align_v1.05 \
@@ -6040,7 +6042,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/radtts.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6081,7 +6083,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/mixer_tts.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6119,7 +6121,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/tts/hifigan.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6155,7 +6157,7 @@ jobs:
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
   #       - name: Checkout repository
-  #         uses: actions/checkout@v2
+  #         uses: actions/checkout@v4
   #       - run: |
   #           python examples/multimodal/text_to_image/nerf/main.py \
   #           trainer.num_nodes=1 \
@@ -6183,7 +6185,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
                 pretrained_name=QuartzNet15x5Base-En  \
