@@ -128,6 +128,9 @@ def test_loop_labels_cuda_graph_rnnt_greedy_decoder_forced_mode(
         decoding_config["greedy"]["max_symbols"] = 5
         decoding_config["greedy"]["loop_labels"] = True
         decoding_config["greedy"]["use_cuda_graph_decoder"] = False
+        # test that alignments and confidence do not introduce failures
+        decoding_config["greedy"]["preserve_alignments"] = True
+        decoding_config["greedy"]["preserve_frame_confidence"] = True
 
     nemo_model.change_decoding_strategy(decoding_config)
     audio_filepaths = glob.glob("tests/.data/asr/test/an4/wav/*.wav")
