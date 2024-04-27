@@ -101,6 +101,8 @@ class ParallelTranscriptionConfig:
     use_cer: bool = False
 
     # decoding strategy for RNNT models
+    # setting use_cuda_graph_decoder=True here to avoid using `RNNTDecodingConfig` with cuda decoder enabled by default
+    # due to potential issues with decoding in training loop with variable batch size (bucketing)
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(
         fused_batch_size=-1, greedy=GreedyBatchedRNNTInferConfig(use_cuda_graph_decoder=True)
     )
