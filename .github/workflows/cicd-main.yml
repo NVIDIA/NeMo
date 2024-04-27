@@ -51,7 +51,7 @@ jobs:
 #        - ${{ github.workspace }}:/workspace
 #    steps:
 #    - name: Checkout repository
-#      uses: actions/checkout@v4L2_Megatron_GPT_Eval_PP2
+#      uses: actions/checkout@v4
 #      with:
 #        path: ${{ github.run_id }}
 
