@@ -462,8 +462,10 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
         super().__init__(model)
         if args.get("peft", True) and args.get("ptuning", False) is False:
             self.forward_model = self.model.model.model
+            # self.forward_model = self.model.frozen_model
         else:
-            self.forward_model = self.model.model
+            # self.forward_model = self.model.model
+            self.forward_model = self.model
         self.frequent_query = args['frequent_query']
         self.pad_token_for_retrieval = args['pad_tokens']
         self.store_retrieved = args['store_retrieved']
@@ -614,6 +616,8 @@ class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
             # Set this to false so the memory is not reallocated.
             set_inference_key_value_memory = False
             tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+            # tokens2use = tokens[:, :context_length]
+            # positions2use = self.position_ids[:, :context_length]
             positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:

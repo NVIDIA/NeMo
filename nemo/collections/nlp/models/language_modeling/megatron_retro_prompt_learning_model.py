@@ -17,6 +17,7 @@ import re
 from functools import partial
 from typing import Any, List, Optional, Union
 import itertools
+from omegaconf import OmegaConf
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -146,10 +147,12 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                     cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
                 )
 
+            frozen_model_cfg.adapter_tuning = cfg.adapter_tuning
+
         # cfg.restore_from_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted2/mp_rank_00'
         # frozen_model_cfg.tokenizer = cfg.model.tokenizer
         frozen_model_cfg.data = cfg.data
-        frozen_model_cfg.adapter_tuning = cfg.adapter_tuning
+        
         frozen_model_cfg.optim = cfg.optim
         frozen_model_cfg.restore_from_path = cfg.restore_from_path
         # frozen_model_cfg.eval = cfg.model.eval
@@ -185,12 +188,22 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 self.pos_embeddings = self.frozen_model.model.encoder_embedding.position_embeddings
             else:
                 self.pos_embeddings = None
+
+            OmegaConf.set_struct(self.cfg, False)  # Temporarily disable struct mode
+            self.cfg['hidden_size'] = self.frozen_model.cfg.hidden_size
+            OmegaConf.set_struct(self.cfg, True)
+            self.enable_autocast = True
         else:
             if not cfg.adapter_tuning.get("adapter_key"):
                 self.frozen_model = MegatronFusedRetrievalAdapterModel(frozen_model_cfg, trainer)
             else:
                 self.frozen_model = MegatronFusedRetrievalLoraModel(frozen_model_cfg, trainer)
             self.pos_embeddings = self.cfg.get('add_position_embedding')
+
+            OmegaConf.set_struct(self.cfg, False)  # Temporarily disable struct mode
+            self.cfg['hidden_size'] = self.frozen_model.cfg.hidden_size
+            OmegaConf.set_struct(self.cfg, True)
+            self.enable_autocast = True
 
         self.megatron_amp_o2 = self.cfg.get('megatron_amp_O2', False)
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
@@ -247,6 +260,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
         self.prompt_encoder = None
 
     def first_stage_of_pipeline(self):
+        # return self.frozen_model.model.pre_process
         if self.cfg.get('peft', False):
             return self.frozen_model.model.pre_process
         else:
@@ -286,7 +300,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input = encoder_input.transpose(0, 1).contiguous()
         
         if self.autocast_dtype == torch.float32:
-            output = self.frozen_model(
+            output = self.frozen_model.model(
                 input_ids=input_ids,
                 input_attn_mask=input_attn_mask,
                 retrieved_ids=retrieved_ids,
@@ -299,7 +313,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            output = self.frozen_model(
+            output = self.frozen_model.model(
                 input_ids=input_ids,
                 input_attn_mask=input_attn_mask,
                 retrieved_ids=retrieved_ids,
@@ -308,6 +322,8 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 labels=labels,
                 input_emb=encoder_input,
                 position_ids=position_ids,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
             )
 
 
@@ -679,6 +695,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
         def fwd_output_only_func(batch, model):
             extra_arg = {}
+            # batch = next(batch)
             (
                 tokens,
                 attention_mask,
@@ -688,7 +705,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 inference_max_sequence_len,
                 neighbors,
                 position_ids,
-            ) = batch
+            ) = next(batch)
 
             if len(retrieved.shape) == 1:
                 retrieved = None

@@ -365,7 +365,10 @@ def model_inference_strategy_dispatcher(model, **args):
             return RetroFileQAModelTextGenerationStrategy(model, **args)
         elif strategy_name == 'RetroQAModelNEIGHBORSREADYTextGenerationStrategy':
             if args.get("peft", True) is True:
-                return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model.frozen_model, **args)
+                if args.get("ptuning", False):
+                    return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model, **args)
+                else:
+                    return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model.frozen_model, **args)
             else:
                 return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model, **args)
         else:
