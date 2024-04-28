@@ -270,7 +270,7 @@ class CUDAGraphCallback(Callback):
             raise Exception("Warmup must run at least 11 DDP-enabled eager iterations before capture.")
         if torch.distributed.is_initialized():
             raise Exception("CUDAGraphCallback should be initialized before process group.")
-        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
+        os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "0"
 
         self.state = CUDAGraphState(capture_iteration=capture_iteration)
 
