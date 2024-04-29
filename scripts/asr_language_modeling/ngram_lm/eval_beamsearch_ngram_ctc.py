@@ -363,6 +363,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
                 all_hypotheses = asr_model.transcribe(audio_file_paths, batch_size=cfg.batch_size, return_hypotheses=True)
+                if type(all_hypotheses) == tuple and len(all_hypotheses) == 2: # if transcriptions form a tuple of (best_hypotheses, all_hypotheses)
+                    all_hypotheses = all_hypotheses[1]
 
         if cfg.cache_file:
             os.makedirs(os.path.split(cfg.cache_file)[0], exist_ok=True)
