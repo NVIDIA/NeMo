@@ -16,8 +16,8 @@ import os
 import torch
 import torch.nn.functional as F
 from apex.contrib.group_norm import GroupNorm
-from inspect import isfunction
 from einops import rearrange, repeat
+from inspect import isfunction
 from torch import einsum, nn
 from torch._dynamo import disable
 
@@ -266,7 +266,7 @@ class CrossAttention(nn.Module):
                                              return_layernorm_output=return_layernorm_output)
         else:
             self.norm = nn.LayerNorm(query_dim)
-            self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
+            self.to_q = LinearWrapper(query_dim, self.inner_dim, bias=False)
 
         self.to_out = nn.Sequential(
             LinearWrapper(self.inner_dim, query_dim, lora_network_alpha=lora_network_alpha), nn.Dropout(dropout)
@@ -288,8 +288,6 @@ class CrossAttention(nn.Module):
             # add additional token
             x = torch.cat([additional_tokens, x], dim=1)
 
-        q = self.to_q(x)
-        context = default(context, x)
         if self.use_te:
             q_out = self.norm_to_q(x)
             if self.is_self_attn:
