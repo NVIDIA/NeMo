@@ -169,7 +169,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         checkpoint[q_weights_base_name] = param_to_weights(qkv_weights[q_slice].reshape(-1, hidden_size))
         checkpoint[k_weights_base_name] = param_to_weights(qkv_weights[k_slice].reshape(-1, hidden_size))
         checkpoint[v_weights_base_name] = param_to_weights(qkv_weights[v_slice].reshape(-1, hidden_size))
-        
+
         # qkv bias
         qkv_bias = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.bias']
         qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
@@ -190,7 +190,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         checkpoint[q_bias_base_name] = param_to_weights(qkv_bias[q_slice].reshape(-1,))
         checkpoint[k_bias_base_name] = param_to_weights(qkv_bias[k_slice].reshape(-1,))
         checkpoint[v_bias_base_name] = param_to_weights(qkv_bias[v_slice].reshape(-1,))
-        
+
         # attention dense
         o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
         o_weight_base_name = f'model.layers.{l}.self_attn.o_proj.weight'

@@ -78,7 +78,7 @@ def load_config(args, qwen_config):
     nemo_config.use_cpu_initialization = True
     nemo_config.activation = 'fast-swiglu'
     nemo_config.tokenizer.type = str(args.input_name_or_path)
-    nemo_config.tokenizer.model = str(args.input_name_or_path) +'/vocab.json'
+    nemo_config.tokenizer.model = str(args.input_name_or_path) + '/vocab.json'
     nemo_config.override_vocab_size = qwen_config['vocab_size']
 
     base = 128
@@ -215,7 +215,7 @@ def convert(args):
         else:
             qkv_bias_base_name = f'model.language_model.encoder.layers.{l}.self_attention.query_key_value.bias'
         checkpoint['state_dict'][qkv_bias_base_name] = param_to_weights(qkv_bias)
-        
+
         # attention dense
         o_weight = model.state_dict()[f'model.layers.{l}.self_attn.o_proj.weight']
         if mcore_gpt:
