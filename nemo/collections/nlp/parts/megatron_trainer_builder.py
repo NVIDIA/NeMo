@@ -133,7 +133,9 @@ class MegatronTrainerBuilder:
             plugins.append(TorchElasticEnvironment())
 
         # Use dist-ckt for non-FSDP MCore models
-        use_dist_ckpt = not self.cfg.model.get('fsdp', False) and self.cfg.model.get('mcore_gpt', False)
+        use_dist_ckpt = not self.cfg.model.get('fsdp', False) and (
+            self.cfg.model.get('mcore_gpt', False) or self.cfg.model.get('mcore_bert', False)
+        )
         async_save = self.cfg.exp_manager.checkpoint_callback_params.get('async_save', False)
         if use_dist_ckpt:
             checkpoint_io = DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr'), async_save)
