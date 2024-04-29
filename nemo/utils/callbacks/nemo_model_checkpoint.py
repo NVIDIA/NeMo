@@ -78,17 +78,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
-    def setup(self, trainer, pl_module, stage: str) -> None:
-        super().setup(trainer, pl_module, stage)
-        # sync checkpoint related variables which are set by exp_manager earlier to ensure consistency
-        path = trainer.strategy.broadcast(trainer.ckpt_path)
-        trainer.ckpt_path = path
-
-        assert (
-            trainer.checkpoint_callback == self
-        ), f"This instance should be trainer.checkpoint_callback {trainer.checkpoint_callback} != {self}"
-        self.last_model_path = trainer.strategy.broadcast(self.last_model_path)
-
     def nemo_topk_check_previous_run(self):
         try:
             self.best_k_models
