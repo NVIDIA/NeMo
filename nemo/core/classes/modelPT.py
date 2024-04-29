@@ -581,7 +581,7 @@ class ModelPT(LightningModule, Model):
             if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
                 self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
-    def setup_megatron_optimization(self, optim_config: Union[Dict[str, Any], DictConfig]) -> OptimizerConfig:
+    def setup_megatron_optimization(self, optim_config: Union[Dict[str, Any], DictConfig]):
         """
         Setup mcore optimizer config.
 

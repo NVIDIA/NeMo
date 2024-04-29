@@ -32,7 +32,7 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         optim: distributed optimizer from Megatron core.
     """
 
-    def __init__(self, optim: MegatronOptimizer):
+    def __init__(self, optim):
         self.defaults = {}
         self.mcore_optimizer = optim
         self.param_groups = self.mcore_optimizer.param_groups
