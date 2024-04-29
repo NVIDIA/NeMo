@@ -19,7 +19,6 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from nemo.utils.decorators import deprecated_warning
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
@@ -33,6 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.utils.decorators import deprecated_warning
 
 try:
     from apex.transformer.enums import AttnMaskType
