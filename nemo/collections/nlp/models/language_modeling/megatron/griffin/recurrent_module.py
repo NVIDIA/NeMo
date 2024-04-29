@@ -18,7 +18,7 @@ from typing import Union
 
 import einops
 import torch
-from accelerated_scan.ref import scan 
+from accelerated_scan.ref import scan
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
