@@ -34,6 +34,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.submodules.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import GreedyBatchedRNNTLoopLabelsComputer
 from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import GreedyBatchedTDTLoopLabelsComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -508,7 +509,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         return hypothesis
 
 
-class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
+class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
     """A batch level greedy transducer decoder.
 
     Batch level greedy decoding, performed auto-regressively.
@@ -589,7 +590,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
-        use_cuda_graph_decoder: bool = False,
+        use_cuda_graph_decoder: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -631,6 +632,40 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
             self._greedy_decode = self._greedy_decode_masked
+
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if not self.use_cuda_graph_decoder:
+            # CUDA graphs not allowed, nothing to do
+            return
+
+        if not self.decoder.blank_as_pad:
+            # blank as pad uses decoding without CUDA graphs
+            return
+
+        if self._decoding_computer is not None:
+            # Label-Looping implementation
+            self._decoding_computer.disable_cuda_graphs()
+        else:
+            self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+
+    def maybe_enable_cuda_graphs_cuda_graphs(self):
+        """Enable CUDA graphs (if allowed)"""
+        if not self.use_cuda_graph_decoder:
+            # CUDA graphs not allowed, nothing to do
+            return
+
+        if not self.decoder.blank_as_pad:
+            # blank as pad uses decoding without CUDA graphs
+            return
+
+        if self._decoding_computer is not None:
+            # Label-Looping implementation
+            self._decoding_computer.disable_cuda_graphs()
+        else:
+            from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import RNNTGreedyDecodeCudaGraph
+
+            self._greedy_decode = RNNTGreedyDecodeCudaGraph(self.max_symbols, self)
 
     @typecheck()
     def forward(
@@ -2302,7 +2337,7 @@ class GreedyBatchedRNNTInferConfig:
     tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = True
-    use_cuda_graph_decoder: bool = False
+    use_cuda_graph_decoder: bool = True
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
@@ -2580,7 +2615,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         return hypothesis
 
 
-class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
+class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
     """A batch level greedy TDT decoder.
     Batch level greedy decoding, performed auto-regressively.
     Args:
@@ -2652,7 +2687,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         preserve_frame_confidence: bool = False,
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        use_cuda_graph_decoder: bool = False,
+        use_cuda_graph_decoder: bool = True,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2759,3 +2794,13 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
+
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if self._decoding_computer is not None:
+            self._decoding_computer.disable_cuda_graphs()
+
+    def maybe_enable_cuda_graphs(self):
+        """Enable CUDA graphs (if allowed)"""
+        if self._decoding_computer is not None:
+            self._decoding_computer.maybe_enable_cuda_graphs()

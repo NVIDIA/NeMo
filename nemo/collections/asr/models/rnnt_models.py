@@ -38,6 +38,7 @@ from nemo.collections.asr.parts.mixins import (
     TranscribeConfig,
     TranscriptionReturnType,
 )
+from nemo.collections.asr.parts.submodules.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
@@ -660,6 +661,16 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         return encoded, encoded_len
 
     # PTL-specific methods
+    def on_train_epoch_start(self) -> None:
+        # disable CUDA graphs for decoding (if used) to preserve memory and avoid problems with bucketing
+        if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+            self.decoding.decoding.disable_cuda_graphs()
+
+    def on_train_epoch_end(self) -> None:
+        # enable CUDA graphs for validation (if allowed)
+        if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+            self.decoding.decoding.maybe_enable_cuda_graphs()
+
     def training_step(self, batch, batch_nb):
         # Reset access registry
         if AccessMixin.is_access_enabled(self.model_guid):

@@ -15,12 +15,12 @@
 from dataclasses import dataclass, field
 from typing import Any, Optional, Tuple, Union
 
-
 import numpy as np
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 
+from nemo.collections.asr.parts.submodules.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.core.utils.cuda_python_utils import (
@@ -174,7 +174,7 @@ class SeparateGraphsLoopLabels:
     after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
 
 
-class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
+class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     """
     Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
     Iterates over labels, on each step finding the next non-blank label
@@ -226,11 +226,28 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
+        self._allow_cuda_graphs = allow_cuda_graphs
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
 
-        if not allow_cuda_graphs:
+        self.state = None
+        self.full_graph = None
+        self.separate_graphs = None
+
+        self.maybe_enable_cuda_graphs()
+
+    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
+        """
+        Method to set graphs mode. Use only for testing purposes.
+        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
+        """
+        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
+        self.state = None
+
+    def maybe_enable_cuda_graphs(self):
+        """Enable CUDA graphs if conditions met"""
+        if not self._allow_cuda_graphs:
             self.cuda_graphs_mode = None
         else:
             # cuda graphs are allowed
@@ -249,18 +266,18 @@ class GreedyBatchedRNNTLoopLabelsComputer(ConfidenceMethodMixin):
                     f"Reason: {e.msg}"
                 )
                 self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
-
+        # reset state
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
 
-    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
-        """
-        Method to set graphs mode. Use only for testing purposes.
-        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
-        """
-        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs, can be used to disable graphs temporary, e.g., in training process"""
+        self.cuda_graphs_mode = None
+        # reset state to release memory
         self.state = None
+        self.full_graph = None
+        self.separate_graphs = None
 
     def loop_labels_torch(
         self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
