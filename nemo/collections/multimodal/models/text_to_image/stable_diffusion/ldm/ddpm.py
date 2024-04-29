@@ -283,7 +283,6 @@ class DDPM(torch.nn.Module):
             for k in keys:
                 if k.startswith("cond_stage_model"):
                     deleted += 1
-                    logging.info("Deleting ignored key {} from state_dict.".format(k))
                     del sd[k]
             logging.info(f"Deleted {deleted} keys from `cond_stage_model` state_dict.")
 
@@ -294,7 +293,7 @@ class DDPM(torch.nn.Module):
                 if k.startswith("model.diffusion_model"):
                     deleted += 1
                     del sd[k]
-            logging.info(f"Deleted {deleted} keys from `cond_stage_model` state_dict.")
+            logging.info(f"Deleted {deleted} keys from `model.diffusion_model` state_dict.")
 
         missing, unexpected = (
             self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(sd, strict=False)
@@ -1675,18 +1674,28 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # megatron_amp_O2 is not yet supported in diffusion models
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
+        if self.cfg.precision in ['16', 16, 'bf16']:
+            self.model_parallel_config.enable_autocast = False
+            if not hasattr(self.cfg.unet_config, 'unet_precision') or not '16' in str(
+                self.cfg.unet_config.unet_precision
+            ):
+                logging.info(
+                    'trainer.precision was set but unet_config.unet_precision was not! Setting unet_precision to fp16.'
+                )
+                self.cfg.unet_config.unet_precision = 'fp16'
+
         self.model = self.model_provider_func()
 
         self.conditioning_keys = []
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
+        if self.model.precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
+        elif self.model.precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
+        elif self.model.precision in ['16-mixed', '16', 16]:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+            raise ValueError('precision must be in [32, "32", "32-true", "16-mixed", "16", 16, "bf16-mixed", "bf16"]')
 
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.loss_broadcast_src_rank = None
@@ -1768,20 +1777,25 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             # we can avoid this broadcast by updating the PTL log function to accept specific ranks
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 if self.loss_broadcast_src_rank is None:
-                    dp_size = parallel_state.get_data_parallel_world_size()
-                    tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                    pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                    rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * tp_size)
-                    last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
-                    self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
+                    self.loss_broadcast_src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
                 torch.distributed.broadcast(
                     loss_mean, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
                 )
 
         return loss_mean, loss_dict
 
-    def training_step(self, dataloader_iter):
+    def training_step(self, batch):
         """
+            Notice: `training_step` used to have the following signature to support pipeline
+            parallelism:
+
+                def training_step(self, dataloader_iter, batch_idx):
+
+            However, full iteration CUDA Graph callback is not compatible with this signature
+            right now, due to we need to wrap the dataloader to generate static tensor outside
+            the CUDA Graph. This signature moves `next(dataloader)` into the CUDA Graph
+            capturing region, thus we disabled it.
+
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
             from the dataloader to produce a list of microbatches.
@@ -1793,6 +1807,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
 
+        dataloader_iter = iter([batch])
         loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
@@ -1812,6 +1827,8 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+        else:
+            raise ValueError("Either distributed_fused_adam or megatron_amp_O2 needs to be set if ddp_overlap is set")
 
         # for cuda graph with pytorch lightning
         # these values will be used outside the capturing range
@@ -1828,22 +1845,28 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         return loss_mean
 
     def non_cuda_graph_capturable(self):
+        # Moving CUDA metrics to CPU leads to sync, do not show on progress bar
+        # if CUDA graph is enabled.
+        show_metric = self.cfg.get("show_prog_bar_metric", True) and (self.cfg.get("capture_cudagraph_iters", -1) < 0)
+
         if self.log_train_loss:
-            self.log('reduced_train_loss', self.loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
+            self.log('reduced_train_loss', self.loss_mean, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
 
         if self.cfg.precision in [16, '16', '16-mixed']:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale, batch_size=1)
 
-        self.log_dict(self.loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
+        self.log_dict(
+            self.loss_dict, prog_bar=show_metric, logger=True, on_step=True, rank_zero_only=True, batch_size=1
+        )
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('lr', lr, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
+        self.log('global_step', self.trainer.global_step + 1, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
         self.log(
             'consumed_samples',
             self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
-            prog_bar=True,
+            prog_bar=show_metric,
             rank_zero_only=True,
             batch_size=1,
         )
@@ -1902,7 +1925,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             return [x, *c_list]
 
         def fwd_output_and_loss_func(dataloader_iter, model):
-            batch, _, _ = next(dataloader_iter)
+            batch = next(dataloader_iter)
             batch = process_batch(batch)
             batch = [x.cuda(non_blocking=True) for x in batch]
             if len(self.conditioning_keys) == 0:
@@ -1991,7 +2014,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
 
         if self.cfg.first_stage_key.endswith("encoded") or self.cfg.first_stage_key.endswith("moments"):
-            if self.cfg.cond_stage_key.endswith("precached_clip"):
+            if self.cfg.cond_stage_key.endswith("clip_encoded"):
                 self._train_ds, self._validation_ds = build_train_valid_precached_clip_datasets(
                     model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0),
                 )
@@ -2020,7 +2043,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
-            if self.cfg.cond_stage_key.endswith("precached_clip"):
+            if self.cfg.cond_stage_key.endswith("clip_encoded"):
                 collate_fn = get_collate_fn(
                     first_stage_key=self.cfg.first_stage_key, cond_stage_key=self.cfg.cond_stage_key,
                 )

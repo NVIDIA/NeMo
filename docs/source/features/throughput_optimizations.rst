@@ -1,6 +1,8 @@
+Throughput Optimizations
+========================
+
 Sequence Packing for SFT/PEFT
 -----------------------------
-
 
 Overview
 ^^^^^^^^
@@ -123,7 +125,7 @@ To train with packed sequences, you need to change four items in the SFT/PEFT co
       preprocessing step. You can increase the ``pack_size`` to achieve the same purpose of increasing micro batch size.
     - Global batch size has to be adjusted so that the training recipe is maintained. Because each pack contains
       multiple sequences now, global batch size needs to be reduced by the average number of sequences per pack ``n``,
-      where :math:`n = \frac{# sequences in dataset}{# packs}`. This ensures that each gradient iteration sees (on
+      where ``n = num_sequences_in_dataset / num_packs``. This ensures that each gradient iteration sees (on
       average) the same number of tokens. The value of ``n`` is printed out when the script is run.
 
     .. code-block:: bash
@@ -132,6 +134,10 @@ To train with packed sequences, you need to change four items in the SFT/PEFT co
         model.global_batch_size=<GBS divided by n>
 
 Now you are all set to finetune your model with a much improved throughput!
+
+Communication Overlap
+---------------------
+NeMo leverages Megatron-Core's optimizations to enhance bandwidth utilization and effectively overlap computation with communication. Additional details will be provided soon.
 
 
 .. rubric:: Footnotes
