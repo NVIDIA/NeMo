@@ -61,11 +61,7 @@ class MockTorchCheckpointIO(TorchCheckpointIO):
 
 
 def _get_last_checkpoint_dir(root_dir: Path, model: pl.LightningModule, suffix: str = '') -> Path:
-    steps = (
-        len(model.train_dataloader().dataset)
-        * model.trainer.max_epochs
-        // torch.distributed.get_world_size()
-    )
+    steps = len(model.train_dataloader().dataset) * model.trainer.max_epochs // torch.distributed.get_world_size()
     return root_dir / 'checkpoints' / f'epoch=1-step={steps}{suffix}'
 
 
