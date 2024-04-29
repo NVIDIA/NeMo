@@ -16,7 +16,7 @@ import shutil
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from time import time
-from typing import Any, Callable, Dict, Optional, Tuple, cast
+from typing import Any, Dict, Optional
 
 import pytorch_lightning as pl
 from lightning_fabric.plugins import CheckpointIO
@@ -200,7 +200,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             sharded_state_dict=checkpoint, checkpoint_dir=path, sharded_strategy=self.save_sharded_strategy
         )
         if not self.async_save:
-            return
+            return None
         # NOTE: this logic will be simplified in MCore v0.7
         assert self.save_sharded_strategy.async_request is not None
         async_request = self.save_sharded_strategy.async_request

@@ -18,7 +18,6 @@ from nemo.utils.callbacks.dist_ckpt_io import (
 
 try:
     from megatron.core.dist_checkpointing import ShardedTensor
-    from megatron.core.dist_checkpointing.dict_utils import diff
 
     HAVE_MEGATRON_CORE = True
 
