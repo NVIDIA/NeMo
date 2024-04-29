@@ -11,3 +11,5 @@ sphinxcontrib-bibtex
 wandb
 wget
 wrapt
+s3fs==0.4.2
+boto3[crt]
