@@ -161,6 +161,7 @@ def load_mixtral_ckpt(in_dir, load_model=True):
     assert tokenizer.vocab_size == model_args['vocab_size']
     return model_args, ckpt, tokenizer
 
+
 def parse_precision(precision):
     if precision in ["32", "16"]:
         return int(float(precision))
@@ -369,6 +370,7 @@ def merge(a: dict, b: dict, path=[]):
 
 def init_spm(spm_model_cls):
     from google.protobuf.json_format import Parse, ParseDict
+
     src = {
         "trainerSpec": {
             "modelPrefix": "tok_v0",
@@ -409,26 +411,30 @@ def init_spm(spm_model_cls):
             "enableDifferentialPrivacy": False,
             "differentialPrivacyNoiseLevel": 0.0,
             "differentialPrivacyClippingThreshold": "0",
-            "pretokenizationDelimiter": ""
+            "pretokenizationDelimiter": "",
         },
         "normalizerSpec": {
             "name": "identity",
             "precompiledCharsmap": "",
             "addDummyPrefix": True,
             "removeExtraWhitespaces": False,
-            "normalizationRuleTsv": ""
-        }
+            "normalizationRuleTsv": "",
+        },
     }
     return ParseDict(src, spm_model_cls.ModelProto())
 
+
 def make_sentencepiece_tokenizer(hf_tok):
     import sys
+
     sys.path.insert(0, 'sentencepiece/python/src/sentencepiece/')
     try:
-        import sentencepiece_model_pb2 as spm_model_cls # import model # sentencepiece_model as model
+        import sentencepiece_model_pb2 as spm_model_cls  # import model # sentencepiece_model as model
     except ImportError:
         # If this fails, download sentencepiece and extract it here.
-        print("Sentencepiece was not found; run `(cd scripts/checkpoint_converters; git clone https://github.com/google/sentencepiece.git)` & retry")
+        print(
+            "Sentencepiece was not found; run `(cd scripts/checkpoint_converters; git clone https://github.com/google/sentencepiece.git)` & retry"
+        )
         quit()
 
     vocab = list(hf_tok.vocab.items())
@@ -442,20 +448,24 @@ def make_sentencepiece_tokenizer(hf_tok):
         # print(token, len(token), type(token), i)
         new_token.piece = token
         if token == '<unk>':
-            if not found_boundary: prefix += 1
+            if not found_boundary:
+                prefix += 1
             new_token.type = 2
             new_token.score = 0
         elif token in ['<s>', '</s>']:
-            if not found_boundary: prefix += 1
+            if not found_boundary:
+                prefix += 1
             new_token.type = 3
             new_token.score = 0
         elif len(token) == 6 and token.startswith('<0x') and token[-1] == '>':
-            if not found_boundary: prefix += 1
+            if not found_boundary:
+                prefix += 1
             new_token.type = 6
             new_token.score = 0
         elif set(token) == set(["▁"]):
-            if token == '▁▁': found_boundary = True
-            new_token.score = -1e+09
+            if token == '▁▁':
+                found_boundary = True
+            new_token.score = -1e09
         else:
             found_non_pref = True
             new_token.score = -float(i) + prefix
