@@ -14,6 +14,7 @@
 
 
 import configparser
+import json
 import logging
 import math
 import multiprocessing
@@ -28,6 +29,7 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import zarr
 from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
+from torch.distributed.checkpoint import FileSystemReader
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
@@ -122,6 +124,33 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
 
 
 def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
+    if isinstance(checkpoint_dir, TarPath):
+        raise NotImplementedError('TarPath not supported for general distributed checkpoints')
+
+    with (checkpoint_dir / 'metadata.json').open() as f:
+        config_dict = json.load(f)
+    if config_dict['sharded_backend'] == 'zarr':
+        return load_sharded_metadata_zarr(checkpoint_dir, torch_tensor)
+    elif config_dict['sharded_backend'] == 'torch_dist':
+        return load_sharded_metadata_torch_dist(checkpoint_dir, torch_tensor)
+    else:
+        raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
+
+
+def load_sharded_metadata_torch_dist(checkpoint_dir: Path, torch_tensor=True):
+    from megatron.core.dist_checkpointing.serialization import load_plain_tensors
+
+    state_dict = load_plain_tensors(str(checkpoint_dir))
+    if not torch_tensor:
+        for k, v in state_dict.items():
+            if v.dtype == torch.bfloat16:
+                state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
+            else:
+                state_dict[k] = v.numpy()
+    return state_dict
+
+
+def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
         if not subdir.is_dir() or not (subdir / '.zarray').exists():
