@@ -277,8 +277,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 available_path = self._format_nemo_checkpoint_name(version_cnt)
                 version_cnt += 1
         if available_path != base_path:
-            logging.info(f'{base_path} already exists, moving existing checkpoint to {available_path}')
-            shutil.move(base_path, available_path)
+            if trainer.is_global_zero:
+                logging.info(f'{base_path} already exists, moving existing checkpoint to {available_path}')
+                shutil.move(base_path, available_path)
+            trainer.strategy.barrier()
         return available_path
 
     def _format_nemo_checkpoint_name(self, ver: Optional[int] = None) -> str:
