@@ -25,11 +25,14 @@ python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.p
 """
 import tempfile
 from argparse import ArgumentParser
+from typing import Dict
+
 import torch
 from omegaconf import OmegaConf, open_dict
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
+
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from typing import Dict
+
 
 def rename_keys(key):
     new_keys = []
@@ -42,14 +45,13 @@ def rename_keys(key):
         new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.up_adapter."))
     return new_keys
 
-def reformat_module_names_to_hf(
-    tensors: Dict[str, torch.Tensor]
-) -> Dict[str, torch.Tensor]:
+
+def reformat_module_names_to_hf(tensors: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     new_tensors = dict()
     for module_name, module_weight in tensors.items():
         # map linear_in and linear_out to lora_a/lora_b counterparts
         new_module_name = "base_model." + module_name.replace("linear_in", "lora_A").replace("linear_out", "lora_B")
-        
+
         # map target modules to their vLLM/HF counterparts
         new_module_name = new_module_name.replace("q_adapter", "q_proj")
         new_module_name = new_module_name.replace("k_adapter", "k_proj")
@@ -58,16 +60,17 @@ def reformat_module_names_to_hf(
         new_module_name = new_module_name.replace("lora_4htoh_adapter", "down_proj")
         new_module_name = new_module_name.replace("gate_adapter", "gate_proj")
         new_module_name = new_module_name.replace("up_adapter", "up_proj")
-        
+
         # map other parts of the module names to fit vLLM/huggingface
         new_module_name = new_module_name.replace(".adapter_layer", "")
         new_module_name = new_module_name.replace(".lora_unfused_kqv_proj", "")
         new_module_name = new_module_name.replace(".lora_unfused_hto4h_adapter", "")
         new_module_name = new_module_name.replace("self_attention", "self_attn")
         new_module_name = new_module_name.replace("decoder", "model")
-        
+
         new_tensors[new_module_name] = module_weight
     return new_tensors
+
 
 def convert_hto4h(lora_weights, lora_config):
     assert len(lora_weights) == 1, "Only single TP supported for now"
@@ -84,11 +87,14 @@ def convert_hto4h(lora_weights, lora_config):
         elif "linear_out" in key:
             for idx, new_key in enumerate(rename_keys(key)):
                 orginal_shape = lora_weights[0][key].shape[0]
-                lora_weights[0][new_key] = lora_weights[0][key][idx * (orginal_shape//2) : (idx + 1) * (orginal_shape//2)]
+                lora_weights[0][new_key] = lora_weights[0][key][
+                    idx * (orginal_shape // 2) : (idx + 1) * (orginal_shape // 2)
+                ]
                 print(new_key, lora_weights[0][new_key].shape)
 
         lora_weights[0].pop(key)
     return lora_weights
+
 
 def convert_qkv(lora_weights, lora_model_cfg):
     assert len(lora_weights) == 1, "Only single TP supported for now"
@@ -107,7 +113,7 @@ def convert_qkv(lora_weights, lora_model_cfg):
     for key in lora_weights[0].keys():
         if "lora_kqv_adapter" in key:
             keys_to_update.append(key)
-    
+
     for key in keys_to_update:
         if "linear_in" in key:
             for new_key in rename_keys(key):
