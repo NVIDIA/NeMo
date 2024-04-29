@@ -11,7 +11,7 @@ import torch
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 
 from nemo.utils import logging
-from nemo.utils.checkpoint_file_utils import parse_prefix_with_step
+# from nemo.utils.checkpoint_file_utils import parse_prefix_with_step
 from nemo.utils.s3_utils import S3Utils
 
 SHARED_MEM_DIR = '/dev/shm'

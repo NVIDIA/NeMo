@@ -254,6 +254,20 @@ class S3Utils:
         if isinstance(path, Path):
             path = str(path)
         return path is not None and path.strip().startswith(S3Utils.S3_PATH_PREFIX)
+    
+    @staticmethod
+    def parse_prefix_with_step(path: str) -> str:
+        """
+        Use regex to find the pattern up to "-step=900-"
+        s3://path/to/checkpoints/tp_rank_00_pp_rank_000/megatron_gpt--step=900-validation_loss=6.47-consumed_samples=35960.0-last.ckpt
+        should return s3://path/to/checkpoints/tp_rank_00_pp_rank_000/megatron_gpt--step=900-
+        """
+        match = re.search(r'(.*step=\d+-)', path)
+
+        if match:
+            return match.group(1)
+
+        return path
 
 
 def _scan_objects_with_retry(s3_bucket, s3_prefix):
