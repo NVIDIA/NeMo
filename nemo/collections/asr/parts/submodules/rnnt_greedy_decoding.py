@@ -661,7 +661,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
         if self._decoding_computer is not None:
             # Label-Looping implementation
-            self._decoding_computer.disable_cuda_graphs()
+            self._decoding_computer.maybe_enable_cuda_graphs()
         else:
             from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import RNNTGreedyDecodeCudaGraph
 
