@@ -103,6 +103,18 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
     return manifest_lines_batch
 
 
+def get_probs_batch(all_probs, start, end):
+    relevant_probs_batch = []
+    for line_i, one_prob in enumerate(all_probs):
+        if line_i == start and line_i == end:
+            relevant_probs_batch.append(one_prob)
+        if line_i == end:
+            break
+        if line_i >= start:
+            relevant_probs_batch.append(one_prob)
+    return relevant_probs_batch
+
+
 def get_char_tokens(text, model):
     tokens = []
     for character in text:
@@ -684,6 +696,7 @@ def get_batch_variables(
     simulate_cache_aware_streaming=False,
     use_buffered_chunked_streaming=False,
     buffered_chunk_params={},
+    precalculated_probs=None,
 ):
     """
     Returns:
@@ -693,17 +706,24 @@ def get_batch_variables(
         output_timestep_duration: a float indicating the duration of a single output timestep from
             the ASR Model.
     """
-
-    # get hypotheses by calling 'transcribe'
-    # we will use the output log_probs, the duration of the log_probs,
-    # and (optionally) the predicted ASR text from the hypotheses
+    # if precalculated_probs is None
+    #   get hypotheses by calling 'transcribe'
+    #   we will use the output log_probs, the duration of the log_probs,
+    #   and (optionally) the predicted ASR text from the hypotheses
+    # else we will read the precalculated_probs to save computational time
     audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
     B = len(audio_filepaths_batch)
     log_probs_list_batch = []
     T_list_batch = []
     pred_text_batch = []
 
-    if not use_buffered_chunked_streaming:
+    if precalculated_probs is not None:
+        for hypothesis in precalculated_probs:
+            hypothesis = torch.tensor(hypothesis)
+            log_probs_list_batch.append(hypothesis)
+            T_list_batch.append(hypothesis.shape[0])
+            pred_text_batch.append("SET PRECALCULATED_PROBS=None TO GET PRED_TEXT")
+    elif not use_buffered_chunked_streaming:
         if not simulate_cache_aware_streaming:
             with torch.no_grad():
                 hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)

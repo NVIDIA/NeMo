@@ -15,6 +15,7 @@
 import copy
 import math
 import os
+import pickle
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -26,6 +27,7 @@ from utils.data_prep import (
     get_batch_starts_ends,
     get_batch_variables,
     get_manifest_lines_batch,
+    get_probs_batch,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
 )
@@ -79,6 +81,10 @@ Arguments:
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 1 => utt_id will be "e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 2 => utt_id will be "d_e1"
         e.g. if audio_filepath is "/a/b/c/d/e 1.wav" and audio_filepath_parts_in_utt_id is 3 => utt_id will be "c_d_e1"
+    precalculated_probs_cache_file: an optional path to a tensor of probs in a pickle file.
+        Saves the recalculation time of probs if you already transcribed in other ways.
+        Can be obtained e.g. from the probs_cache_file parameter in eval_beamsearch_ngram_ctc.py
+        Will render transcribe_device, align_using_pred_text, use_local_attention irrelevant
     use_buffered_infer: False, if set True, using streaming to do get the logits for alignment
                         This flag is useful when aligning large audio file.
                         However, currently the chunk streaming inference does not support batch inference,
@@ -137,6 +143,7 @@ class AlignmentConfig:
     use_local_attention: bool = True
     additional_segment_grouping_separator: Optional[str] = None
     audio_filepath_parts_in_utt_id: int = 1
+    precalculated_probs_cache_file: Optional[str] = None
 
     # Buffered chunked streaming configs
     use_buffered_chunked_streaming: bool = False
@@ -207,6 +214,12 @@ def main(cfg: AlignmentConfig):
         )
 
     if cfg.align_using_pred_text:
+        if cfg.probs_pickle_parth is not None:
+            raise RuntimeError(
+                "Cannot specify cfg.align_using_pred_text=True when you supply cfg.precalculated_probs_cache_file"
+                "This is because the existing probs are used to skip the transcribe process entirely."
+                "Please provide text from other sources."
+            )
         if is_entry_in_any_lines(cfg.manifest_filepath, "pred_text"):
             raise RuntimeError(
                 "Cannot specify cfg.align_using_pred_text=True when the manifest at cfg.manifest_filepath "
@@ -225,7 +238,12 @@ def main(cfg: AlignmentConfig):
         transcribe_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         transcribe_device = torch.device(cfg.transcribe_device)
-    logging.info(f"Device to be used for transcription step (`transcribe_device`) is {transcribe_device}")
+    if cfg.precalculated_probs_cache_file is None:
+        logging.info(f"Device to be used for transcription step (`transcribe_device`) is {transcribe_device}")
+    else:
+        logging.info(
+            f"No device to be used for transcription step, as we take the probs (`precalculated_probs_cache_file`) from {cfg.precalculated_probs_cache_file}"
+        )
 
     if cfg.viterbi_device is None:
         viterbi_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -233,7 +251,9 @@ def main(cfg: AlignmentConfig):
         viterbi_device = torch.device(cfg.viterbi_device)
     logging.info(f"Device to be used for viterbi step (`viterbi_device`) is {viterbi_device}")
 
-    if transcribe_device.type == 'cuda' or viterbi_device.type == 'cuda':
+    if (
+        transcribe_device.type == 'cuda' and cfg.precalculated_probs_cache_file is None
+    ) or viterbi_device.type == 'cuda':
         logging.warning(
             'One or both of transcribe_device and viterbi_device are GPUs. If you run into OOM errors '
             'it may help to change both devices to be the CPU.'
@@ -246,7 +266,7 @@ def main(cfg: AlignmentConfig):
     if isinstance(model, EncDecHybridRNNTCTCModel):
         model.change_decoding_strategy(decoder_type="ctc")
 
-    if cfg.use_local_attention:
+    if cfg.use_local_attention and cfg.precalculated_probs_cache_file is None:
         logging.info(
             "Flag use_local_attention is set to True => will try to use local attention for model if it allows it"
         )
@@ -311,9 +331,17 @@ def main(cfg: AlignmentConfig):
     tgt_manifest_filepath = str(Path(cfg.output_dir) / tgt_manifest_name)
     f_manifest_out = open(tgt_manifest_filepath, 'w')
 
+    all_precalculated_probs = None
+    if cfg.precalculated_probs_cache_file is not None:
+        with open(cfg.precalculated_probs_cache_file, 'rb') as pickle_file:
+            all_precalculated_probs = pickle.load(pickle_file)
+
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):
         manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
+        precalculated_probs_batch = None
+        if all_precalculated_probs is not None:
+            precalculated_probs_batch = get_probs_batch(all_precalculated_probs, start, end)
 
         (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
             manifest_lines_batch,
@@ -325,6 +353,7 @@ def main(cfg: AlignmentConfig):
             cfg.simulate_cache_aware_streaming,
             cfg.use_buffered_chunked_streaming,
             buffered_chunk_params,
+            precalculated_probs_batch,
         )
 
         alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
