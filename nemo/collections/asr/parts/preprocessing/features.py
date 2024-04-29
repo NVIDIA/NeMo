@@ -66,9 +66,11 @@ def normalize_batch(x, seq_len, normalize_type):
         # When doing stream capture to a graph, item() is not allowed
         # becuase it calls cudaStreamSynchronize(). Therefore, we are
         # sacrificing some error checking when running with cuda graphs.
-        if (torch.cuda.is_available()
+        if (
+            torch.cuda.is_available()
             and not torch.cuda.is_current_stream_capturing()
-            and torch.any(seq_len == 1).item()):
+            and torch.any(seq_len == 1).item()
+        ):
             raise ValueError(
                 "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
                 "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
