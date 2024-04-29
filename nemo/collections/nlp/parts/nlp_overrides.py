@@ -359,9 +359,6 @@ class NLPDDPStrategy(DDPStrategy):
                 unsharded_optim_state=checkpoint['optimizer_states'][0]
             )
             checkpoint['optimizer_states'] = [sharded_optim_state]
-            # dist_checkpointing expects a directory so we will name the directory
-            # using the path with the file extension removed
-            checkpoint_dir = ckpt_to_dir(filepath)
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
 
