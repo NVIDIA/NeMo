@@ -74,6 +74,7 @@ class LhotseDataLoadingConfig:
     drop_last: bool = False
     shard_seed: int | str = "trng"
     max_open_streams: int | None = None
+    cuda_expandable_segments: bool = True
 
     # 2.1 Multimodal sampling override options
     use_multimodal_sampling: bool = False
@@ -146,6 +147,8 @@ def get_lhotse_dataloader_from_config(
     Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
     logging.info("We will be using a Lhotse DataLoader.")
+
+    maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
 
     config = make_structured_with_schema_warnings(config)
 
@@ -443,3 +446,17 @@ def _flatten_alt_text(cut) -> list:
         text_instance.custom = {"text": data.pop("text"), "lang": data.pop("lang"), **data}
         ans.append(text_instance)
     return ans
+
+
+def maybe_set_cuda_expandable_segments(enabled: bool):
+    """
+    Configures PyTorch memory allocator to expand existing allocated segments
+    instead of re-allocating them when tensor shape grows.
+    This can help speed up the training when sequence length and/or batch size change often,
+    and makes GPU more robust towards OOM.
+
+    See here for more details:
+    https://pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf
+    """
+    if enabled and torch.cuda.is_available():
+        torch.cuda.memory._set_allocator_settings("expandable_segments:True")
