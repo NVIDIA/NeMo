@@ -7,7 +7,6 @@ import torch.distributed
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.optim import Optimizer
 
-from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo import io
 from nemo.lightning import get_vocab_size
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
