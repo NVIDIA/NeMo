@@ -125,10 +125,7 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
 
 
 def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    if isinstance(checkpoint_dir, TarPath):
-        raise NotImplementedError('TarPath not supported for general distributed checkpoints')
-
-    with (checkpoint_dir / 'metadata.json').open() as f:
+    with (checkpoint_dir / 'metadata.json').open(mode='r') as f:
         config_dict = json.load(f)
     if config_dict['sharded_backend'] == 'zarr':
         return load_sharded_metadata_zarr(checkpoint_dir, torch_tensor)
@@ -138,8 +135,21 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
         raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
 
 
-def load_sharded_metadata_torch_dist(checkpoint_dir: Path, torch_tensor=True):
-    fs_reader = FileSystemReader(checkpoint_dir)
+class TarFileSystemReader(FileSystemReader):
+    """ Reader that accepts both Path and TarPath checkpoint directory.
+
+    The FileSystemReader works with TarPath, but expects a pure Path.
+    It's enough to skip the Path check in __init__.
+    """
+
+    def __init__(self, path: Union[Path, TarPath]) -> None:
+        """ No call to super().__init__ because it expects pure Path. """
+        self.path = path
+        self.storage_data = dict()
+
+
+def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
+    fs_reader = TarFileSystemReader(checkpoint_dir)
     metadata = fs_reader.read_metadata()
 
     state_dict = {
@@ -148,7 +158,7 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Path, torch_tensor=True):
         if isinstance(tp, TensorStorageMetadata)
     }
     load_state_dict(
-        state_dict, storage_reader=FileSystemReader(checkpoint_dir), no_dist=True,
+        state_dict, storage_reader=fs_reader, no_dist=True,
     )
 
     if not torch_tensor:
