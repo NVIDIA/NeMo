@@ -55,8 +55,6 @@ from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimSta
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.utils.get_rank import is_global_rank_zero
-
 try:
     from torch.cuda.amp.grad_scaler import _refresh_per_optimizer_state
 except ImportError:
