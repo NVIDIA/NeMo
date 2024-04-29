@@ -73,7 +73,7 @@ def deprecated(wrapped=None, version=None, explanation=None, wait_seconds=0):
     return wrapper(wrapped)
 
 
-def deprecated_warning(old_method=None, new_method=None, wait_seconds=15):
+def deprecated_warning(old_method=None, new_method=None, wait_seconds=2):
     """
         Function which can be used for indicating that a function/class is deprecated and going to be removed.
 
