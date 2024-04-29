@@ -160,7 +160,7 @@ def get_lhotse_dataloader_from_config(
     # Apply channel selector
     if config.channel_selector is not None:
         logging.info('Using channel selector %s.', config.channel_selector)
-        cuts = cuts.map(partial(_select_channel, channel_selector=config.channel_selector), apply_fn=None)
+        cuts = cuts.map(partial(_select_channel, channel_selector=config.channel_selector))
 
     # Resample as a safeguard; it's a no-op when SR is already OK
     cuts = cuts.resample(config.sample_rate)
@@ -465,4 +465,9 @@ def _select_channel(cut, channel_selector: int | str) -> list:
             f"Channel index {channel_idx} is larger than the actual number of channels {cut.num_channels}"
         )
 
-    return cut.with_channels(channel_idx)
+    if cut.num_channels == 1:
+        # one channel available and channel_idx==0
+        return cut
+    else:
+        # with_channels only defined on MultiCut
+        return cut.with_channels(channel_idx)
