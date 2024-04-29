@@ -1,5 +1,6 @@
 import os
 import types
+from pathlib import Path
 
 import pytest
 import pytorch_lightning as pl
@@ -39,6 +40,15 @@ class MockTorchCheckpointIO(TorchCheckpointIO):
         self.save_checkpoint_called_args = args, kwargs
 
 
+def _get_last_checkpoint_dir(root_dir: Path, model: pl.LightningModule, suffix: str = '') -> Path:
+    steps = (
+        len(model.train_dataloader().dataset)
+        * model.trainer.max_epochs
+        // torch.distributed.get_world_size()
+    )
+    return root_dir / 'checkpoints' / f'epoch=1-step={steps}{suffix}'
+
+
 class TestDistCkptIO:
     @pytest.mark.run_only_on('GPU')
     def test_dist_ckpt_io_called_for_mcore_models(self, tmp_path):
@@ -50,7 +60,12 @@ class TestDistCkptIO:
         checkpoint_io = MockDistributedCheckpointIO('xxx')
 
         test_trainer = pl.Trainer(
-            enable_checkpointing=True, logger=False, max_epochs=2, strategy=strategy, plugins=[checkpoint_io]
+            enable_checkpointing=True,
+            logger=False,
+            max_epochs=2,
+            strategy=strategy,
+            plugins=[checkpoint_io],
+            default_root_dir=tmp_path,
         )
         model = ExampleMCoreModel()
         test_trainer.fit(model)
@@ -59,8 +74,7 @@ class TestDistCkptIO:
         assert checkpoint_io.save_checkpoint_called_args is not None
         (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
         # Ckpt path doesn't contain the .ckpt suffix
-        steps = len(model.train_dataloader().dataset) * test_trainer.max_epochs // len(strategy.parallel_devices)
-        assert path.name == f'epoch=1-step={steps}'
+        assert path.name == _get_last_checkpoint_dir(tmp_path, model).name, len(test_trainer.strategy.parallel_devices)
 
     @pytest.mark.run_only_on('GPU')
     def test_dist_ckpt_path_not_executed_for_non_core_models(self, tmp_path):
@@ -68,7 +82,12 @@ class TestDistCkptIO:
         checkpoint_io = MockTorchCheckpointIO()
 
         test_trainer = pl.Trainer(
-            enable_checkpointing=True, logger=False, max_epochs=2, strategy=strategy, plugins=[checkpoint_io]
+            enable_checkpointing=True,
+            logger=False,
+            max_epochs=2,
+            strategy=strategy,
+            plugins=[checkpoint_io],
+            default_root_dir=tmp_path,
         )
         model = ExampleModel()
         test_trainer.fit(model)
@@ -78,7 +97,6 @@ class TestDistCkptIO:
             assert checkpoint_io.save_checkpoint_called_args is not None
             (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
             # Ckpt path *does* contain the .ckpt suffix
-            steps = len(model.train_dataloader().dataset) * test_trainer.max_epochs // len(strategy.parallel_devices)
-            assert os.path.basename(path) == f'epoch=1-step={steps}.ckpt'
+            assert os.path.basename(path) == _get_last_checkpoint_dir(tmp_path, model, suffix='.ckpt').name
         else:
             assert checkpoint_io.save_checkpoint_called_args is None
