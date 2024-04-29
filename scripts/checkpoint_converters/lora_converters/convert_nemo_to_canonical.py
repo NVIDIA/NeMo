@@ -29,7 +29,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-
+from typing import Dict
 
 def rename_keys(key):
     new_keys = []
@@ -41,6 +41,33 @@ def rename_keys(key):
         new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.gate_adapter."))
         new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.up_adapter."))
     return new_keys
+
+def reformat_module_names_to_hf(
+    tensors: Dict[str, torch.Tensor]
+) -> Dict[str, torch.Tensor]:
+    new_tensors = dict()
+    for module_name, module_weight in tensors.items():
+        # map linear_in and linear_out to lora_a/lora_b counterparts
+        new_module_name = "base_model." + module_name.replace("linear_in", "lora_A").replace("linear_out", "lora_B")
+        
+        # map target modules to their vLLM/HF counterparts
+        new_module_name = new_module_name.replace("q_adapter", "q_proj")
+        new_module_name = new_module_name.replace("k_adapter", "k_proj")
+        new_module_name = new_module_name.replace("v_adapter", "v_proj")
+        new_module_name = new_module_name.replace("lora_dense_attention_adapter", "o_proj")
+        new_module_name = new_module_name.replace("lora_4htoh_adapter", "down_proj")
+        new_module_name = new_module_name.replace("gate_adapter", "gate_proj")
+        new_module_name = new_module_name.replace("up_adapter", "up_proj")
+        
+        # map other parts of the module names to fit vLLM/huggingface
+        new_module_name = new_module_name.replace(".adapter_layer", "")
+        new_module_name = new_module_name.replace(".lora_unfused_kqv_proj", "")
+        new_module_name = new_module_name.replace(".lora_unfused_hto4h_adapter", "")
+        new_module_name = new_module_name.replace("self_attention", "self_attn")
+        new_module_name = new_module_name.replace("decoder", "model")
+        
+        new_tensors[new_module_name] = module_weight
+    return new_tensors
 
 def convert_hto4h(lora_weights, lora_config):
     assert len(lora_weights) == 1, "Only single TP supported for now"
@@ -97,7 +124,7 @@ def convert_qkv(lora_weights, lora_model_cfg):
     return lora_weights
 
 
-def convert_lora(lora_nemo, save_path):
+def convert_lora(lora_nemo, save_path, hf_format=False):
     with tempfile.TemporaryDirectory() as tmpdir:
         NLPSaveRestoreConnector._unpack_nemo_file(lora_nemo, tmpdir)
         config_file = f"{tmpdir}/model_config.yaml"
@@ -132,8 +159,14 @@ def convert_lora(lora_nemo, save_path):
             OmegaConf.save(lora_config, f)
         lora_state_dict = convert_qkv(lora_state_dict, lora_config)
         lora_state_dict = convert_hto4h(lora_state_dict, lora_config)
-        torch.save(lora_state_dict[0], f"{tmpdir}/model_weights.ckpt")  # TODO: currently suport tp=1
-        NLPSaveRestoreConnector._make_nemo_file_from_folder(save_path, tmpdir)
+        # TODO: currently suport tp=1
+        lora_state_dict = lora_state_dict[0]
+        if hf_format:
+            lora_state_dict = reformat_module_names_to_hf(lora_state_dict)
+            torch.save(lora_state_dict, f"{save_path}/model_weights_hf_formatted.pt")
+        else:
+            torch.save(lora_state_dict, f"{tmpdir}/model_weights.ckpt")
+            NLPSaveRestoreConnector._make_nemo_file_from_folder(save_path, tmpdir)
 
     return lora_state_dict, lora_config
 
@@ -162,6 +195,7 @@ def get_args():
         required=True,
         help="Path to save the canonical (unfused) lora .nemo file.",
     )
+    parser.add_argument("--hf_format", action='store_true', help="saves tensors in huggingface naming format.")
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
@@ -169,4 +203,4 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    convert_lora(args.lora_path, args.output_path)
+    convert_lora(args.lora_path, args.output_path, args.hf_format)
