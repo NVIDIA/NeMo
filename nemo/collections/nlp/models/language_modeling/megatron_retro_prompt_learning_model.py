@@ -313,18 +313,29 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            output = self.frozen_model.model(
-                input_ids=input_ids,
-                input_attn_mask=input_attn_mask,
-                retrieved_ids=retrieved_ids,
-                retrieved_attn_mask=retrieved_attn_mask,
-                token_type_ids=token_type_ids,
-                labels=labels,
-                input_emb=encoder_input,
-                position_ids=position_ids,
-                set_inference_key_value_memory=set_inference_key_value_memory,
-                inference_max_sequence_len=inference_max_sequence_len,
-            )
+            if self.cfg.get('peft', False):
+                output = self.frozen_model.model(
+                    input_ids=input_ids,
+                    input_attn_mask=input_attn_mask,
+                    retrieved_ids=retrieved_ids,
+                    retrieved_attn_mask=retrieved_attn_mask,
+                    token_type_ids=token_type_ids,
+                    labels=labels,
+                    input_emb=encoder_input,
+                    position_ids=position_ids,
+                    set_inference_key_value_memory=set_inference_key_value_memory,
+                    inference_max_sequence_len=inference_max_sequence_len,
+                )
+            else:
+                output = self.frozen_model.model(
+                    input_ids=input_ids,
+                    input_attn_mask=input_attn_mask,
+                    retrieved_ids=retrieved_ids,
+                    retrieved_attn_mask=retrieved_attn_mask,
+                    token_type_ids=token_type_ids,
+                    labels=labels,
+                    input_emb=encoder_input,
+                    position_ids=position_ids)
 
 
         return output
