@@ -649,7 +649,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         else:
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
 
-    def maybe_enable_cuda_graphs_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs (if allowed)"""
         if not self.use_cuda_graph_decoder:
             # CUDA graphs not allowed, nothing to do
