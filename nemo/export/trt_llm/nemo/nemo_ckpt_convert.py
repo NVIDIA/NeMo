@@ -148,9 +148,7 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Path, torch_tensor=True):
         if isinstance(tp, TensorStorageMetadata)
     }
     load_state_dict(
-        state_dict,
-        storage_reader=FileSystemReader(checkpoint_dir),
-        no_dist=True,
+        state_dict, storage_reader=FileSystemReader(checkpoint_dir), no_dist=True,
     )
 
     if not torch_tensor:
