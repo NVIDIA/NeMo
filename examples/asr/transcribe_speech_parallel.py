@@ -100,7 +100,7 @@ class ParallelTranscriptionConfig:
     use_cer: bool = False
 
     # decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
