@@ -14,6 +14,7 @@
 import math
 import numpy as np
 import os
+import re
 import torch
 import torch as th
 import torch.nn as nn
@@ -1058,8 +1059,40 @@ class UNetModel(nn.Module):
             res_dict[new_key_] = value_
         return res_dict
 
+    def _legacy_unet_ckpt_mapping(self, unet_dict):
+        new_dict = {}
+        key_map = {
+            'transformer_blocks.0.norm1.weight': 'transformer_blocks.0.attn1.norm.weight',
+            'transformer_blocks.0.norm1.bias': 'transformer_blocks.0.attn1.norm.bias',
+            'transformer_blocks.0.norm2.weight': 'transformer_blocks.0.attn2.norm.weight',
+            'transformer_blocks.0.norm2.bias': 'transformer_blocks.0.attn2.norm.bias',
+            'transformer_blocks.0.norm3.weight': 'transformer_blocks.0.ff.net.0.weight',
+            'transformer_blocks.0.norm3.bias': 'transformer_blocks.0.ff.net.0.bias',
+            'transformer_blocks.0.ff.net.0.proj.weight': 'transformer_blocks.0.ff.net.1.proj.weight',
+            'transformer_blocks.0.ff.net.0.proj.bias': 'transformer_blocks.0.ff.net.1.proj.bias',
+            'transformer_blocks.0.ff.net.2.weight': 'transformer_blocks.0.ff.net.3.weight',
+            'transformer_blocks.0.ff.net.2.bias': 'transformer_blocks.0.ff.net.3.bias'
+        }
+
+        pattern = re.compile(r'(input_blocks|output_blocks)\.[\d\w]+\.[\d\w]+\.')
+        pattern_middle_block = re.compile(r'middle_block\.[\d\w]+\.')
+        for old_key, value in unet_dict.items():
+            match = pattern.match(old_key)
+            match_middle = pattern_middle_block.match(old_key)
+            if match or match_middle:
+                prefix = match.group(0) if match else match_middle.group(0)
+                suffix = old_key.split('.', 3)[-1] if match else old_key.split('.', 2)[-1]
+                if suffix in key_map:
+                    new_key = prefix + key_map[suffix]
+                    new_dict[new_key] = value
+                else:
+                    new_dict[old_key] = value
+            else:
+                new_dict[old_key] = value
+
+        return new_dict
+
     def _state_key_mapping(self, state_dict: dict):
-        import re
 
         res_dict = {}
         input_dict = {}
@@ -1085,18 +1118,13 @@ class UNetModel(nn.Module):
         mid_dict = self._mid_blocks_mapping(mid_dict)
         other_dict = self._other_blocks_mapping(other_dict)
         sdxl_dict = self._sdxl_embedding_mapping(sdxl_dict)
-        # key_list = state_dict.keys()
-        # key_str = " ".join(key_list)
 
-        # for key_, val_ in state_dict.items():
-        #     key_ = key_.replace("down_blocks", "input_blocks")\
-        #         .replace("up_blocks", 'output_blocks')
-        #     res_dict[key_] = val_
         res_dict.update(input_dict)
         res_dict.update(output_dict)
         res_dict.update(mid_dict)
         res_dict.update(other_dict)
         res_dict.update(sdxl_dict)
+        res_dict = self._legacy_unet_ckpt_mapping(res_dict)
 
         return res_dict
 
