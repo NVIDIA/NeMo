@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-import os
-import time
-from functools import partial
-from typing import Any, Dict, List, Optional, Union
-
 import numpy as np
+import os
 import pytorch_lightning as pl
+import time
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from functools import partial
 from lightning_fabric.utilities.cloud_io import _load as pl_load
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
@@ -32,6 +30,7 @@ from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from torch._inductor import config as inductor_config
 from torchvision.utils import make_grid
 from tqdm import tqdm
+from typing import Any, Dict, List, Optional, Union
 
 from nemo.collections.multimodal.data.common.utils import get_collate_fn
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
@@ -1674,10 +1673,10 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # megatron_amp_O2 is not yet supported in diffusion models
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
-        if self.cfg.precision in ['16', 16, 'bf16']:
+        if self.megatron_amp_O2 and self.cfg.precision in ['16', 16, 'bf16']:
             self.model_parallel_config.enable_autocast = False
             if not hasattr(self.cfg.unet_config, 'unet_precision') or not '16' in str(
-                self.cfg.unet_config.unet_precision
+                    self.cfg.unet_config.unet_precision
             ):
                 logging.info(
                     'trainer.precision was set but unet_config.unet_precision was not! Setting unet_precision to fp16.'
