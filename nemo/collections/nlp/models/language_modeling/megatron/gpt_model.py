@@ -14,10 +14,10 @@
 
 """GPT-2 model."""
 
-import torch
 import time
 
-from nemo.utils.decorators import deprecated_warning
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -26,6 +26,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.utils.decorators import deprecated_warning
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -168,7 +169,7 @@ class GPTModel(MegatronModule):
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
         rotary_base=10000,
-    ):  
+    ):
         # deprecation warning
         deprecated_warning("GPTModel", "McoreGPTModel")
 
