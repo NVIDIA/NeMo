@@ -14,12 +14,12 @@
 
 """BERT model."""
 
-import warnings
 from dataclasses import dataclass
 
 import torch
 from torch import Tensor
 
+from nemo.utils.decorators import deprecated_warning
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
@@ -476,10 +476,9 @@ class NeMoBertModel(MegatronModule):
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
     ):
-        warnings.warn(
-            "NeMoBertModel will be deprecated mid 2024. Use MCoreBertModelWrapperWithPostLNSupport instead.",
-            DeprecationWarning,
-        )
+        # deprecation warning
+        deprecated_warning("NeMoBertModel", "MCoreBertModelWrapperWithPostLNSupport")
+
         super(NeMoBertModel, self).__init__(config=config)
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.add_binary_head = add_binary_head
