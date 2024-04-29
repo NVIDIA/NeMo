@@ -29,41 +29,37 @@ class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
     model: LightningModuleT
     trainer: pl.Trainer
     extra: Dict[str, Any] = field(default_factory=dict)
-    
+
     @classmethod
     def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
         if not isinstance(strategy.trainer, IOProtocol):
             raise ValueError(f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
-        
+
         if not isinstance(strategy.lightning_module, IOProtocol):
             raise ValueError("LightningModule must extend IOMixin.")
-            
-        return cls(
-            trainer=strategy.trainer,
-            model=strategy.lightning_module,
-            extra=cls.construct_extra(strategy)
-        )
-        
+
+        return cls(trainer=strategy.trainer, model=strategy.lightning_module, extra=cls.construct_extra(strategy))
+
     @classmethod
     def construct_extra(cls, strategy: "MegatronStrategy") -> Dict[str, Any]:
         extra = {}
         if hasattr(strategy.trainer, "datamodule") and isinstance(strategy.trainer.datamodule, IOProtocol):
             extra["datamodule"] = strategy.trainer.datamodule.__io__
-            
+
         # TODO: Add optimizer to extra
-            
+
         return extra
 
-            
+
 class TrainerCkptProtocol(Protocol):
     @classmethod
     def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
         ...
-        
+
     def io_dump(self, output: Path):
         ...
 
-    
+
 class MegatronCheckpointIO(CheckpointIO):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.
@@ -88,6 +84,7 @@ class MegatronCheckpointIO(CheckpointIO):
 
         """
         from megatron.core import dist_checkpointing
+
         if storage_options is not None:
             raise TypeError(
                 "`Trainer.save_checkpoint(..., storage_options=...)` with `storage_options` arg"
@@ -200,9 +197,10 @@ def is_distributed_ckpt(path) -> bool:
 
     """
     from megatron.core import dist_checkpointing
+
     checkpoint_dir = ckpt_to_dir(path)
     fs = get_filesystem(checkpoint_dir)
     if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
         return True
-    
+
     return False

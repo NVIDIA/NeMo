@@ -5,8 +5,8 @@ class DummyClass(io.IOMixin):
     def __init__(self, a: int, b: int):
         self.a = a
         self.b = b
-        
-        
+
+
 class TestIOMixin:
     def test_reinit(self):
         dummy = DummyClass(5, 5)
