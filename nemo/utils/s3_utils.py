@@ -11,13 +11,7 @@ import s3transfer
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
 from botocore.session import get_session
-from tenacity import (
-    before_sleep_log,
-    retry,
-    retry_if_exception,
-    stop_after_delay,
-    wait_exponential,
-)
+from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_delay, wait_exponential
 
 from nemo.utils import logging
 
@@ -254,7 +248,7 @@ class S3Utils:
         if isinstance(path, Path):
             path = str(path)
         return path is not None and path.strip().startswith(S3Utils.S3_PATH_PREFIX)
-    
+
     @staticmethod
     def parse_prefix_with_step(path: str) -> str:
         """

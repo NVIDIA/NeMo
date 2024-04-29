@@ -640,7 +640,7 @@ def check_resume(
                 dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
                 end_dist_checkpoints = [d for d in dist_checkpoints if d.match("*end")]
                 last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
-                
+
                 end_checkpoints = (
                     end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
                 )

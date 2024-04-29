@@ -1,4 +1,5 @@
 black==19.10b0
+boto3[crt]
 click==8.0.2
 isort>5.1.0,<6.0.0
 parameterized
@@ -6,10 +7,9 @@ pytest
 pytest-mock
 pytest-runner
 ruamel.yaml
+s3fs==0.4.2
 sphinx
 sphinxcontrib-bibtex
 wandb
 wget
 wrapt
-s3fs==0.4.2
-boto3[crt]

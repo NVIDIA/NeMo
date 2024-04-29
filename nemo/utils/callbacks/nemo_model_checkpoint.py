@@ -178,12 +178,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
         super().setup(trainer, pl_module, stage)
-        # When using S3 checkpointing, only Rank 0 has the checkpoint and model path set in exp_manager. 
-        # Sync the values across all ranks to ensure consistency. 
+        # When using S3 checkpointing, only Rank 0 has the checkpoint and model path set in exp_manager.
+        # Sync the values across all ranks to ensure consistency.
         path = trainer.strategy.broadcast(trainer.ckpt_path)
         trainer.ckpt_path = path
 
-        assert trainer.checkpoint_callback == self, f"This instance should be trainer.checkpoint_callback {trainer.checkpoint_callback} != {self}"
+        assert (
+            trainer.checkpoint_callback == self
+        ), f"This instance should be trainer.checkpoint_callback {trainer.checkpoint_callback} != {self}"
         self.last_model_path = trainer.strategy.broadcast(self.last_model_path)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
