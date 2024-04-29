@@ -146,11 +146,14 @@ class SpecAugment(nn.Module, Typing):
     ) -> torch.Tensor:
         if isinstance(width, float):
             width = length * width
-        value = torch.rand(x.shape[0], device=x.device, dtype=x.dtype) * width
-        min_value = torch.rand(x.shape[0], device=x.device, dtype=x.dtype) * (x.size(axis) - value)
+        # We force float32 dtype for begin/end mask markers before they are quantized to long.
+        # Using x.dtype might cause us to encounter dtypes such as bf16 or smaller which
+        # wouldn't be able to represent every frame index leading to subtle bugs.
+        value = torch.rand(x.shape[0], device=x.device, dtype=torch.float32) * width
+        min_value = torch.rand(x.shape[0], device=x.device, dtype=torch.float32) * (x.size(axis) - value)
         mask_start = min_value.long()[..., None, None]
         mask_end = (min_value.long() + value.long())[..., None, None]
-        mask = torch.arange(0, x.shape[axis], device=x.device, dtype=x.dtype)
+        mask = torch.arange(0, x.shape[axis], device=x.device, dtype=torch.long)
         if axis == 2:
             mask = mask[None, None, :]
         else:
