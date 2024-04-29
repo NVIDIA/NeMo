@@ -420,6 +420,10 @@ def nemo_to_trtllm_config(
     weights_dicts = []
     num_layers = nemo_model_config.get('num_layers')
 
+    if decoder_type == "falcon":
+        config["new_decoder_architecture"] = False if num_layers == 32 else True
+        config["parallel_attention"] = True
+
     pp_key = {
         "transformer.vocab_embedding.weight",
         "transformer.position_embedding.weight",

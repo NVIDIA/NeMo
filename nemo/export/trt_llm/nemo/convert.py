@@ -231,6 +231,11 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 key = f'{layer_prefix}.input_layernorm.weight'
             else:
                 key = f'{layer_prefix}.input_layernorm.bias'
+        elif "pre_mlp_layernorm" in key:
+            if key.endswith('weight'):
+                key = f'{layer_prefix}.mlp_layernorm.weight'
+            else:
+                key = f'{layer_prefix}.mlp_layernorm.bias'
         if tp_rank == 0:
             save_val(vals[0], saved_dir, key)
 
