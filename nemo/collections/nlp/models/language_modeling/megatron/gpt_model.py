@@ -14,8 +14,6 @@
 
 """GPT-2 model."""
 
-import time
-
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
