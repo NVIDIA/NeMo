@@ -29,7 +29,8 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import zarr
 from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
-from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
@@ -138,9 +139,20 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Path, torch_tensor=True):
-    from megatron.core.dist_checkpointing.serialization import load_plain_tensors
+    fs_reader = FileSystemReader(checkpoint_dir)
+    metadata = fs_reader.read_metadata()
 
-    state_dict = load_plain_tensors(str(checkpoint_dir))
+    state_dict = {
+        k: torch.empty(tp.size, dtype=tp.properties.dtype)
+        for k, tp in metadata.state_dict_metadata.items()
+        if isinstance(tp, TensorStorageMetadata)
+    }
+    load_state_dict(
+        state_dict,
+        storage_reader=FileSystemReader(checkpoint_dir),
+        no_dist=True,
+    )
+
     if not torch_tensor:
         for k, v in state_dict.items():
             if v.dtype == torch.bfloat16:
