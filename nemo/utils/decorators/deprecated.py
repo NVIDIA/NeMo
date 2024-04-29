@@ -71,3 +71,23 @@ def deprecated(wrapped=None, version=None, explanation=None, wait_seconds=0):
         return wrapped(*args, **kwargs)
 
     return wrapper(wrapped)
+
+
+def deprecated_warning(old_method=None, new_method=None, wait_seconds=15):
+    """
+        Function which can be used for indicating that a function/class is deprecated and going to be removed.
+
+        Args:
+          old_method: Name of deprecated class/function.
+          new_method: Name of new class/function to use.
+          wait_seconds: Sleep for a few seconds after the deprecation message appears in case it gets drowned
+          with subsequent logging messages.
+    """
+
+    # Create a banner
+    msg = f"*****  {old_method} is deprecated. Please, use {new_method} instead.  *****"
+    banner = '\n'.join(['*' * len(msg)] * 2 + [msg] + ['*' * len(msg)] * 2)
+
+    logging.warning(f"\n\n{banner}\n")
+    logging.warning(f"Waiting for {wait_seconds} seconds before this message disappears.")
+    time.sleep(wait_seconds)

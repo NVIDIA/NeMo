@@ -15,7 +15,9 @@
 """GPT-2 model."""
 
 import torch
+import time
 
+from nemo.utils.decorators import deprecated_warning
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -166,7 +168,10 @@ class GPTModel(MegatronModule):
         use_flash_attention=False,
         seq_len_interpolation_factor=None,
         rotary_base=10000,
-    ):
+    ):  
+        # deprecation warning
+        deprecated_warning("GPTModel", "McoreGPTModel")
+
         super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
 
         self.parallel_output = parallel_output

@@ -14,5 +14,6 @@
 
 
 from nemo.utils.decorators.deprecated import deprecated
+from nemo.utils.decorators.deprecated import deprecated_warning
 from nemo.utils.decorators.experimental import experimental
 from nemo.utils.decorators.port_docs import add_port_docs
