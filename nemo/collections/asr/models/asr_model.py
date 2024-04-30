@@ -212,9 +212,6 @@ class ASRModel(ModelPT, ABC):
     def on_validation_epoch_start(self) -> None:
         self.enable_cuda_graphs_in_decoder(self)
 
-    def on_validation_start(self) -> None:
-        self.enable_cuda_graphs_in_decoder(self)
-
     def on_test_epoch_start(self) -> None:
         self.enable_cuda_graphs_in_decoder(self)
 
