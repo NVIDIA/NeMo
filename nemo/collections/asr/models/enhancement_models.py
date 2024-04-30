@@ -234,7 +234,7 @@ class PredictiveAudioToAudioModel(AudioToAudioModel):
         # Normalization
         self.normalize_input = self._cfg.get('normalize_input', False)
 
-        # Regularization
+        # Term added to the denominator to improve numerical stability
         self.eps = self._cfg.get('eps', 1e-8)
 
         # Setup optional Optimization flags
@@ -404,7 +404,7 @@ class ScoreBasedGenerativeAudioToAudioModel(AudioToAudioModel):
                 self.max_utts_evaluation_metrics,
             )
 
-        # Regularization
+        # Term added to the denominator to improve numerical stability
         self.eps = self._cfg.get('eps', 1e-8)
 
         # Setup optional Optimization flags
@@ -581,6 +581,7 @@ class ScoreBasedGenerativeAudioToAudioModel(AudioToAudioModel):
         loss = self._step(target_signal=target_signal, input_signal=input_signal, input_length=input_length)
 
         # Update metrics
+        update_metrics = False
         if self.max_utts_evaluation_metrics is None:
             # Always update if max is not configured
             update_metrics = True
