@@ -66,7 +66,7 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
             pyt_state_dict,
             writer,
             None,
-            planner=MCoreSavePlanner(dedup_replicated_tensors=not self.keep_only_main_replica),
+            planner=MCoreSavePlanner(),
         )
         self.async_request = self._get_save_and_finalize_callbacks(writer, save_state_dict_ret)
         return self.async_request
