@@ -97,15 +97,15 @@ model:
   unet_config:
     _target_: nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel.UNetModel
     from_pretrained: #/ckpts/nemo-v1-2.ckpt
-    from_NeMo: True #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
+    from_NeMo: False #Must be specified when from pretrained is not None, False means loading unet from HF ckpt
     image_size: 32 # unused
     in_channels: 4
     out_channels: 4
     model_channels: 320
     attention_resolutions:
-    - 4
-    - 2
-    - 1
+      - 4
+      - 2
+      - 1
     num_res_blocks: 2
     channel_mult:
     - 1

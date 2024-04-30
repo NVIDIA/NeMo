@@ -958,6 +958,9 @@ class UNetModel(nn.Module):
                 amax_compute_algo=fp8_amax_compute_algo,
                 override_linear_precision=(False, False, not fp8_wgrad),
             )
+            old_state_dict = self.state_dict()
+            new_state_dict = self.te_fp8_key_mapping(old_state_dict)
+            self.load_state_dict(new_state_dict, strict=False)
 
         self.unet_precision = unet_precision
 
@@ -1092,6 +1095,31 @@ class UNetModel(nn.Module):
 
         return new_dict
 
+    def te_fp8_key_mapping(self, unet_dict):
+        new_state_dict = {}
+        for key in unet_dict.keys():
+            if 'extra_state' in key:
+                continue
+
+            ### LayerNormLinear
+            # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
+            # norm_to_q.weight -> to_q.weight
+            new_key = key.replace('attn1.norm.', 'attn1.norm_to_q.layer_norm_')
+            new_key = new_key.replace('attn1.to_q.weight', 'attn1.norm_to_q.weight', )
+            new_key = new_key.replace('attn2.norm.', 'attn2.norm_to_q.layer_norm_')
+            new_key = new_key.replace('attn2.to_q.weight', 'attn2.norm_to_q.weight', )
+
+            ### LayerNormMLP
+            # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
+            # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
+            # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
+            new_key = new_key.replace('ff.net.0.', 'ff.net.layer_norm_')
+            new_key = new_key.replace('ff.net.1.proj.', 'ff.net.fc1_')
+            new_key = new_key.replace('ff.net.3.', 'ff.net.fc2_')
+
+            new_state_dict[new_key] = unet_dict[key]
+        return new_state_dict
+
     def _state_key_mapping(self, state_dict: dict):
 
         res_dict = {}
@@ -1124,7 +1152,6 @@ class UNetModel(nn.Module):
         res_dict.update(mid_dict)
         res_dict.update(other_dict)
         res_dict.update(sdxl_dict)
-        res_dict = self._legacy_unet_ckpt_mapping(res_dict)
 
         return res_dict
 
@@ -1132,6 +1159,7 @@ class UNetModel(nn.Module):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
             state_dict = self._state_key_mapping(state_dict)
+        state_dict = self._legacy_unet_ckpt_mapping(state_dict)
 
         model_state_dict = self.state_dict()
         loaded_keys = [k for k in state_dict.keys()]
