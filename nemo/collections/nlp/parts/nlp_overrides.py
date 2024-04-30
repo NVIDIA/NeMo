@@ -25,6 +25,7 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 
 import pytorch_lightning as pl
 import torch
+from lightning_fabric.plugins import TorchCheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from omegaconf import OmegaConf
@@ -462,13 +463,21 @@ class NLPDDPStrategy(DDPStrategy):
 
     @property
     def use_distributed_checkpointing(self):
-        use_dist_ckpt = HAVE_MEGATRON_CORE and isinstance(self.checkpoint_io, DistributedCheckpointIO)
+        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         )
-        if has_sharded_state_dict and not use_dist_ckpt:
-            raise RuntimeError('Distributed checkpoints requires DistributedCheckpointIO plugin to be used')
+        if has_sharded_state_dict and not has_dist_ckpt_io:
+            logging.warning(
+                'Distributed checkpoints requires DistributedCheckpointIO plugin to be used. Setting up a default now.'
+            )
+            self.checkpoint_io = DistributedCheckpointIO(
+                self.lightning_module.cfg.get('dist_ckpt_format', 'zarr')
+            )
+        if not has_sharded_state_dict and has_dist_ckpt_io:
+            logging.warning('DistributedCheckpointIO configured but should not be used. Reverting back to TorchCheckpointIO')
+            self.checkpoint_io = TorchCheckpointIO()
         return has_sharded_state_dict
 
     @property
