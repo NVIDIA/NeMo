@@ -194,6 +194,7 @@ jobs:
       uses: actions/checkout@v4
     - name: "L0: Unit Tests GPU"
       run: |
+        git config --global --add safe.directory /workspace
         echo "NeMo commit: $(git rev-parse HEAD)"
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
     - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -218,6 +219,7 @@ jobs:
       uses: actions/checkout@v4
     - name: "L0: Unit Tests CPU"
       run: |
+        git config --global --add safe.directory /workspace
         echo "NeMo commit: $(git rev-parse HEAD)"
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
     - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
