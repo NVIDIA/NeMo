@@ -25,6 +25,7 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapp
 
 import pytorch_lightning as pl
 import torch
+from lightning_fabric.plugins import TorchCheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.optimizer import _optimizer_to_device
 from omegaconf import OmegaConf
@@ -461,16 +462,22 @@ class NLPDDPStrategy(DDPStrategy):
         checkpoint_io = self.checkpoint_io
         while isinstance(checkpoint_io, _WrappingCheckpointIO):
             checkpoint_io = checkpoint_io.checkpoint_io
-        use_dist_ckpt = HAVE_MEGATRON_CORE and isinstance(checkpoint_io, DistributedCheckpointIO)
+        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         )
-        assert use_dist_ckpt == has_sharded_state_dict, (
-            f'Inconsistent dist-ckpt flags: use_dist_ckpt={use_dist_ckpt} and has_sharded_state_dict={has_sharded_state_dict}.'
-            f' NLPDDPStrategy should use DistributedCheckpointIO only for non-FSDP MCore models'
-        )
-        return use_dist_ckpt
+        if has_sharded_state_dict and not has_dist_ckpt_io:
+            logging.warning(
+                'Distributed checkpoints requires DistributedCheckpointIO plugin to be used. Setting up a default now.'
+            )
+            self.checkpoint_io = DistributedCheckpointIO(
+                self.lightning_module.cfg.get('dist_ckpt_format', 'zarr')
+            )
+        if not has_sharded_state_dict and has_dist_ckpt_io:
+            logging.warning('DistributedCheckpointIO configured but should not be used. Reverting back to TorchCheckpointIO')
+            self.checkpoint_io = TorchCheckpointIO()
+        return has_sharded_state_dict
 
     @property
     def distributed_sampler_kwargs(self):
