@@ -148,9 +148,9 @@ def get_lhotse_dataloader_from_config(
     """
     logging.info("We will be using a Lhotse DataLoader.")
 
-    maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
-
     config = make_structured_with_schema_warnings(config)
+
+    maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
 
     # First, resolve the random seed in case a string value was provided.
     seed = resolve_seed(config.seed)
