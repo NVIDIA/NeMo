@@ -661,16 +661,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         return encoded, encoded_len
 
     # PTL-specific methods
-    def on_train_epoch_start(self) -> None:
-        # disable CUDA graphs for decoding (if used) to preserve memory and avoid problems with bucketing
-        if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
-            self.decoding.decoding.disable_cuda_graphs()
-
-    def on_train_epoch_end(self) -> None:
-        # enable CUDA graphs for validation (if allowed)
-        if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
-            self.decoding.decoding.maybe_enable_cuda_graphs()
-
     def training_step(self, batch, batch_nb):
         # Reset access registry
         if AccessMixin.is_access_enabled(self.model_guid):

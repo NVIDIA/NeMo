@@ -16,7 +16,9 @@ from abc import ABC, abstractmethod
 from typing import List
 
 import torch
+import torch.nn as nn
 
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
@@ -170,6 +172,54 @@ class ASRModel(ModelPT, ABC):
             if valid_gradients < 1:
                 logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
+
+    @classmethod
+    def disable_cuda_graphs_in_decoder(cls, module: nn.Module):
+        """
+        Disable CUDA graphs for decoding to preserve memory and avoid problems with memory usage.
+        Should be used in training pipeline
+        """
+        # in RNN-T model, `model.decoding` is not an instance of nn.Module,
+        # we need to check `model.decoding.decoding` explicitly
+        for submodule in module.modules():
+            if (
+                hasattr(submodule, "decoding")
+                and hasattr(submodule.decoding, "decoding")
+                and isinstance(submodule.decoding.decoding, WithOptionalCudaGraphs)
+            ):
+                submodule.decoding.decoding.disable_cuda_graphs()
+
+    @classmethod
+    def enable_cuda_graphs_in_decoder(cls, module: nn.Module):
+        """Enable CUDA graphs for decoding (validation/testing)"""
+        # in RNN-T model, model.decoding is not an instance of nn.Module,
+        # we need to check `model.decoding.decoding` explicitly
+        for submodule in module.modules():
+            if (
+                hasattr(submodule, "decoding")
+                and hasattr(submodule.decoding, "decoding")
+                and isinstance(submodule.decoding.decoding, WithOptionalCudaGraphs)
+            ):
+                submodule.decoding.decoding.maybe_enable_cuda_graphs()
+
+    def on_train_epoch_start(self) -> None:
+        """Decoder with CUDA graphs does not release memory, thus we disable it for training epoch"""
+        self.disable_cuda_graphs_in_decoder(self)
+
+    def on_train_epoch_end(self) -> None:
+        self.enable_cuda_graphs_in_decoder(self)
+
+    def on_validation_epoch_start(self) -> None:
+        self.enable_cuda_graphs_in_decoder(self)
+
+    def on_validation_start(self) -> None:
+        self.enable_cuda_graphs_in_decoder(self)
+
+    def on_test_epoch_start(self) -> None:
+        self.enable_cuda_graphs_in_decoder(self)
+
+    def on_predict_epoch_start(self) -> None:
+        self.enable_cuda_graphs_in_decoder(self)
 
 
 class ExportableEncDecModel(Exportable):

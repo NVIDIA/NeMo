@@ -20,9 +20,9 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.submodules.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import (
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
     cu_call,
@@ -226,7 +226,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
-        self._allow_cuda_graphs = allow_cuda_graphs
+        self.allow_cuda_graphs = allow_cuda_graphs
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
@@ -235,6 +235,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self.full_graph = None
         self.separate_graphs = None
 
+        self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
@@ -247,7 +248,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
     def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs if conditions met"""
-        if not self._allow_cuda_graphs:
+        if self.cuda_graphs_mode is not None:
+            # CUDA graphs are already enabled
+            return
+
+        if not self.allow_cuda_graphs:
             self.cuda_graphs_mode = None
         else:
             # cuda graphs are allowed
@@ -266,15 +271,18 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                     f"Reason: {e.msg}"
                 )
                 self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
-        # reset state
-        self.state = None
-        self.full_graph = None
-        self.separate_graphs = None
+        self.reset_cuda_graphs_state()
 
     def disable_cuda_graphs(self):
         """Disable CUDA graphs, can be used to disable graphs temporary, e.g., in training process"""
+        if self.cuda_graphs_mode is None:
+            # nothing to disable
+            return
         self.cuda_graphs_mode = None
-        # reset state to release memory
+        self.reset_cuda_graphs_state()
+
+    def reset_cuda_graphs_state(self):
+        """Reset state to release memory (for CUDA graphs implementations)"""
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
