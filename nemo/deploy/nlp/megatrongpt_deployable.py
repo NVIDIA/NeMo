@@ -2,9 +2,9 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import torch
 import wrapt
 from pytorch_lightning.trainer.trainer import Trainer
-import torch
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -63,7 +63,13 @@ class MegatronGPTDeployable(ITritonDeployable):
 
     def _load(self, nemo_checkpoint_filepath: str, num_devices: int, num_nodes: int):
         if Path(nemo_checkpoint_filepath).exists():
-            trainer = Trainer(strategy=NLPDDPStrategy(), accelerator="gpu", precision="bf16", devices=num_devices, num_nodes=num_nodes,)
+            trainer = Trainer(
+                strategy=NLPDDPStrategy(),
+                accelerator="gpu",
+                precision="bf16",
+                devices=num_devices,
+                num_nodes=num_nodes,
+            )
 
             self.model = MegatronGPTModel.restore_from(nemo_checkpoint_filepath, trainer=trainer)
 
@@ -122,7 +128,9 @@ class MegatronGPTDeployable(ITritonDeployable):
     def get_triton_output(self):
         # outputs are defined by the fields of OutputType
         outputs = [
-            Tensor(name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value[0]),)
+            Tensor(
+                name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value[0]),
+            )
             for parameter_name, parameter_value in MegatronGPTDeployable._BLANK_OUTPUTTYPE.items()
         ]
         return outputs
@@ -170,11 +178,11 @@ class MegatronGPTDeployable(ITritonDeployable):
                     MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field][0],
                     dtype=field_dtype,
                 )
-            elif field_dtype==bytes:
+            elif field_dtype == bytes:
                 # strings are cast to bytes
                 triton_output[model_output_field] = cast_output(value, field_dtype)
             elif isinstance(value[0], torch.Tensor):
-                if value[0].dtype==torch.bfloat16:
+                if value[0].dtype == torch.bfloat16:
                     # numpy currently does not support bfloat16, so need to manually convert it
                     triton_output[model_output_field] = np.array([tensor.cpu().float().numpy() for tensor in value])
                 else:

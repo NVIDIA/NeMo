@@ -32,7 +32,12 @@ def test_triton_deployable(args):
     # run once with NemoTritonQueryLLMPyTorch
     nemo_triton_query = NemoTritonQueryLLMPyTorch(url, model_name)
     result_dict = nemo_triton_query.query_llm(
-        prompts, top_k=args.top_k, top_p=args.top_p, temperature=args.temperature, max_length=args.max_output_token, init_timeout=init_timeout
+        prompts,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        temperature=args.temperature,
+        max_length=args.max_output_token,
+        init_timeout=init_timeout,
     )
     print("NemoTritonQueryLLMPyTriton result:")
     print(result_dict)
@@ -62,14 +67,14 @@ def test_triton_deployable(args):
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
         for i in range(prompts.size):
             logprob_results = client.infer_batch(
-                prompts=prompts[i:i+1],
-                min_length=min_length[i:i+1],
-                max_length=max_output_token[i:i+1],
-                top_k=top_k[i:i+1],
-                top_p=top_p[i:i+1],
-                temperature=temperature[i:i+1],
-                all_probs=all_probs[i:i+1],
-                compute_logprob=compute_logprob[i:i+1]
+                prompts=prompts[i : i + 1],
+                min_length=min_length[i : i + 1],
+                max_length=max_output_token[i : i + 1],
+                top_k=top_k[i : i + 1],
+                top_p=top_p[i : i + 1],
+                temperature=temperature[i : i + 1],
+                all_probs=all_probs[i : i + 1],
+                compute_logprob=compute_logprob[i : i + 1],
             )
             print(f"ModelClient logprobs results for prompt {i}:")
             print(logprob_results)
