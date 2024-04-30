@@ -478,11 +478,11 @@ class NLPDDPStrategy(DDPStrategy):
             logging.warning(
                 'Distributed checkpoints requires DistributedCheckpointIO plugin to be used. Setting up a default now.'
             )
-            self.checkpoint_io = DistributedCheckpointIO(
-                self.lightning_module.cfg.get('dist_ckpt_format', 'zarr')
-            )
+            self.checkpoint_io = DistributedCheckpointIO(self.lightning_module.cfg.get('dist_ckpt_format', 'zarr'))
         if not has_sharded_state_dict and has_dist_ckpt_io:
-            logging.warning('DistributedCheckpointIO configured but should not be used. Reverting back to TorchCheckpointIO')
+            logging.warning(
+                'DistributedCheckpointIO configured but should not be used. Reverting back to TorchCheckpointIO'
+            )
             self.checkpoint_io = TorchCheckpointIO()
         return has_sharded_state_dict
 
