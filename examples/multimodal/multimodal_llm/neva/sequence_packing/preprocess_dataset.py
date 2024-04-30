@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights binserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -8,7 +8,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either expbinss or implied.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
@@ -50,6 +50,7 @@ import os
 import random
 import re
 from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import torch
@@ -109,9 +110,6 @@ def chunkify(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
-
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def parallel_first_fit(seq_lens, max_seq_length, chunk_size, num_workers):
@@ -180,6 +178,8 @@ def first_fit_shuffle(seq_lens, max_seq_length):
 def shuffle_and_pack(seq_lens, max_seq_length):
     """
     Assigns sequences to bins with shuffling, trying to maximize the packing efficiency.
+    After shuffling the sequences, they will be added to one bin in order. Once the bin cannot
+    take more sequences, we will move on to the next bin.
 
     Parameters:
     - seq_lens: List of sequence lengths.

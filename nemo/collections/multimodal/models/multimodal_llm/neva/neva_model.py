@@ -823,7 +823,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     forward_args['loss_mask'] = batch['loss_mask']
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
             else:
-                if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
+                if 'cu_seqlens' in batch:  # packed sequence
                     # these args are passed eventually into TEDotProductAttention.forward()
                     cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
                     max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
@@ -1038,8 +1038,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                                                                              "module") else self.model.image_processor,
                 model_cfg=self.cfg,
             )
-        self._train_ds = ds_dict["train_dataset"]
-        self._validation_ds = ds_dict["eval_dataset"]
+            self._train_ds = ds_dict["train_dataset"]
+            self._validation_ds = ds_dict["eval_dataset"]
         return self._train_ds, self._validation_ds
 
     def build_pretraining_data_loader(
