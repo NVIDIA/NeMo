@@ -180,7 +180,7 @@ class DistributedAsyncCaller:
         # The following takes the same overhead as torch.distributed.barrier (single integer all-reduce)
         is_alive = int(self.process.is_alive()) if self.process is not None else 0
         ten = torch.tensor([is_alive], dtype=torch.int, device=torch.cuda.current_device())
-        logging.debug(f"rank: {torch.distributed.get_rank()}, {ten}")
+        logging.debug(f"[rank {torch.distributed.get_rank()}] DistributedAsyncCaller is_alive:{is_alive}")
         torch.distributed.all_reduce(ten)
         if ten[0] > 0 and not blocking:
             return False
