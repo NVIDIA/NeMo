@@ -11,12 +11,7 @@ import torch
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 
 from nemo.utils import logging
-from nemo.utils.s3_utils import S3Utils
-
-SHARED_MEM_DIR = '/dev/shm'
-DEFAULT_CHUNK_SIZE_MB = 64
-DEFAULT_MAX_READ_CONCURRENCY = 15
-DEFAULT_MAX_WRITE_CONCURRENCY = 10
+from nemo.utils.s3_utils import S3Utils, SHARED_MEM_DIR, DEFAULT_CHUNK_SIZE_MB, DEFAULT_MAX_READ_CONCURRENCY, DEFAULT_MAX_WRITE_CONCURRENCY
 
 
 class S3CheckpointIO(CheckpointIO):
@@ -240,13 +235,12 @@ def _clean_up_conflicting_checkpoint(filepath: str) -> None:
     '''
 
     if S3Utils.is_s3_url(filepath):
-        prefix_with_step = parse_prefix_with_step(filepath)
-        logging.info(f'Cleaning up conflicting checkpoint under prefix {prefix_with_step}')
+        prefix_with_step = S3Utils.parse_prefix_with_step(filepath)
+        logging.info(f'Looking for conflicting checkpoint under prefix {prefix_with_step}')
 
         conflict_last_ckpts = S3Utils.find_files_with_suffix(
             base_path=prefix_with_step, suffix='last.ckpt', return_key_only=False
         )
-        logging.debug(f'Found last ckpts with same step value: {conflict_last_ckpts}')
         for last_ckpt in conflict_last_ckpts:
             logging.info(f'Cleaning up conflicting last ckpt {last_ckpt} before saving {filepath}')
             S3Utils.remove_object(last_ckpt)
