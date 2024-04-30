@@ -202,13 +202,6 @@ class ASRModel(ModelPT, ABC):
             ):
                 submodule.decoding.decoding.maybe_enable_cuda_graphs()
 
-    def on_train_epoch_start(self) -> None:
-        """Decoder with CUDA graphs does not release memory, thus we disable it for training epoch"""
-        self.disable_cuda_graphs_in_decoder(self)
-
-    def on_train_epoch_end(self) -> None:
-        self.enable_cuda_graphs_in_decoder(self)
-
     def on_validation_epoch_start(self) -> None:
         self.enable_cuda_graphs_in_decoder(self)
 
