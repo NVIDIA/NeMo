@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-import numpy as np
 import os
 import re
-import torch
-import torch as th
-import torch.nn as nn
-import torch.nn.functional as F
-# FP8 related import
-import transformer_engine
 from abc import abstractmethod
-from apex.contrib.group_norm import GroupNorm
 from collections.abc import Iterable
 from contextlib import nullcontext
 from functools import partial
 from typing import Iterable
+
+import numpy as np
+import torch
+import torch as th
+import torch.nn as nn
+import torch.nn.functional as F
+
+# FP8 related import
+import transformer_engine
+from apex.contrib.group_norm import GroupNorm
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -76,6 +78,7 @@ def convert_module_to_fp8(model):
         setattr(cur_mod, tokens[-1], module)
 
     import copy
+
     from transformer_engine.pytorch.module import Linear as te_Linear
 
     for n, v in model.named_modules():
@@ -88,8 +91,10 @@ def convert_module_to_fp8(model):
                 is_bias = True
             newlinear = te_Linear(v.in_features, v.out_features, bias=is_bias)
             newlinear.weight = copy.deepcopy(v.weight)
-            if v.bias is not None: newlinear.bias = copy.deepcopy(v.bias)
+            if v.bias is not None:
+                newlinear.bias = copy.deepcopy(v.bias)
             _set_module(model, n, newlinear)
+
 
 class AttentionPool2d(nn.Module):
     """
@@ -572,17 +577,17 @@ class UNetModel(nn.Module):
         num_attention_blocks=None,
         disable_middle_self_attn=False,
         use_linear_in_transformer=False,
-            adm_in_channels=None,
-            offload_to_cpu=False,
-            transformer_depth_middle=None,
-            from_pretrained: str = None,
-            from_NeMo=False,
-            # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
-            use_flash_attention: bool = False,
-            unet_precision: str = "fp32",
-            lora_network_alpha=None,
-            timesteps=1000,
-            use_te_fp8: bool = False,
+        adm_in_channels=None,
+        offload_to_cpu=False,
+        transformer_depth_middle=None,
+        from_pretrained: str = None,
+        from_NeMo=False,
+        # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
+        use_flash_attention: bool = False,
+        unet_precision: str = "fp32",
+        lora_network_alpha=None,
+        timesteps=1000,
+        use_te_fp8: bool = False,
     ):
         super().__init__()
         from omegaconf.listconfig import ListConfig
@@ -934,7 +939,7 @@ class UNetModel(nn.Module):
         elif unet_precision == 'fp16':
             self.convert_to_fp16(enable_norm_layers=True)
         elif self.use_te_fp8:
-            assert (unet_precision != 'fp16'), "fp8 training can't work with fp16 O2 amp recipe"
+            assert unet_precision != 'fp16', "fp8 training can't work with fp16 O2 amp recipe"
             convert_module_to_fp8(self)
 
             fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
@@ -942,7 +947,7 @@ class UNetModel(nn.Module):
             fp8_format = os.getenv("FP8_FORMAT", "hybrid")
             fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", '1024'))
             fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", 'max')
-            fp8_wgrad = (os.getenv("FP8_WGRAD", '1') == '1')
+            fp8_wgrad = os.getenv("FP8_WGRAD", '1') == '1'
 
             fp8_format_dict = {
                 'hybrid': transformer_engine.common.recipe.Format.HYBRID,
@@ -1074,7 +1079,7 @@ class UNetModel(nn.Module):
             'transformer_blocks.0.ff.net.0.proj.weight': 'transformer_blocks.0.ff.net.1.proj.weight',
             'transformer_blocks.0.ff.net.0.proj.bias': 'transformer_blocks.0.ff.net.1.proj.bias',
             'transformer_blocks.0.ff.net.2.weight': 'transformer_blocks.0.ff.net.3.weight',
-            'transformer_blocks.0.ff.net.2.bias': 'transformer_blocks.0.ff.net.3.bias'
+            'transformer_blocks.0.ff.net.2.bias': 'transformer_blocks.0.ff.net.3.bias',
         }
 
         pattern = re.compile(r'(input_blocks|output_blocks)\.[\d\w]+\.[\d\w]+\.')
@@ -1105,9 +1110,9 @@ class UNetModel(nn.Module):
             # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
             # norm_to_q.weight -> to_q.weight
             new_key = key.replace('attn1.norm.', 'attn1.norm_to_q.layer_norm_')
-            new_key = new_key.replace('attn1.to_q.weight', 'attn1.norm_to_q.weight', )
+            new_key = new_key.replace('attn1.to_q.weight', 'attn1.norm_to_q.weight',)
             new_key = new_key.replace('attn2.norm.', 'attn2.norm_to_q.layer_norm_')
-            new_key = new_key.replace('attn2.to_q.weight', 'attn2.norm_to_q.weight', )
+            new_key = new_key.replace('attn2.to_q.weight', 'attn2.norm_to_q.weight',)
 
             ### LayerNormMLP
             # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
@@ -1312,11 +1317,11 @@ class UNetModel(nn.Module):
 
     def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         with transformer_engine.pytorch.fp8_autocast(
-                enabled=self.use_te_fp8,
-                fp8_recipe=self.fp8_recipe,
+            enabled=self.use_te_fp8, fp8_recipe=self.fp8_recipe,
         ) if self.use_te_fp8 else nullcontext():
             out = self._forward(x, timesteps, context, y, **kwargs)
         return out
+
 
 class EncoderUNetModel(nn.Module):
     """
