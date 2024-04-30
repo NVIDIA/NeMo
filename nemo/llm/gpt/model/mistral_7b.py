@@ -8,8 +8,9 @@ from nemo import io
 from nemo.llm.gpt.model.base import GPTConfig, GPTModel
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from transformers import MistralConfig, MistralForCausalLM
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 @dataclass
@@ -19,26 +20,26 @@ class Mistral7BConfig(GPTConfig):
     position_embedding_type = "rope"
     add_bias_linear = False
     gated_linear_unit: bool = True
-    
+
     num_layers: int = 32
     hidden_size: int = 4096
     num_attention_heads: int = 32
     num_query_groups: int = 8
     ffn_hidden_size: int = 14336
     seq_length: int = 4096
-    
+
     make_vocab_size_divisible_by: int = 128
     max_position_embeddings: int = 32768
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     rotary_base: float = 10000.0
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
-        
-        
+
+
 class Mistral7BModel(GPTModel):
     def __init__(self, config: Optional[Mistral7BConfig] = None, tokenizer=None):
         _tokenizer = tokenizer or HFMistral7BImporter().tokenizer
-        
+
         super().__init__(config or Mistral7BConfig(), _tokenizer)
 
 
@@ -46,7 +47,7 @@ class Mistral7BModel(GPTModel):
 class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel]):
     def init(self) -> Mistral7BModel:
         return Mistral7BModel(self.config, tokenizer=self.tokenizer)
-    
+
     def apply(self, output_path: Path) -> Path:
         from transformers import MistralForCausalLM
 
@@ -57,7 +58,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
         self.nemo_save(output_path, trainer)
 
         return output_path
-    
+
     def convert_state(self, source, target):
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
@@ -66,16 +67,11 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "model.norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight"
+            "lm_head.weight": "output_layer.weight",
         }
-        
-        return io.apply_transforms(
-            source,
-            target,
-            mapping=mapping,
-            transforms=[_import_qkv, _import_linear_fc1]
-        )
-        
+
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_linear_fc1])
+
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -85,6 +81,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
     @property
     def config(self) -> Mistral7BConfig:
         from transformers import MistralConfig
+
         source = MistralConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(mistral_vocab_size):
@@ -106,19 +103,19 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            window_size=[source.sliding_window, 0]
+            window_size=[source.sliding_window, 0],
         )
 
         return output
-    
-    
+
+
 @io.model_exporter(Mistral7BModel, "hf")
 class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"]):
     def init(self) -> "MistralForCausalLM":
         from transformers import AutoModelForCausalLM
-        
+
         return AutoModelForCausalLM.from_config(self.config)
-    
+
     def apply(self, output_path: Path) -> Path:
         # TODO: Make it work with lazy init
         # with torch.device("meta"):
@@ -126,14 +123,14 @@ class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"
         target = self.init()
         source, _ = self.nemo_load(str(self))
         target = self.convert_state(source, target)
-        
+
         # TODO: Make sure we don't need to do this
         target = target.cpu()
         target.save_pretrained(output_path)
         self.tokenizer.save_pretrained(output_path)
 
         return output_path
-    
+
     def convert_state(self, source, target):
         mapping = {
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
@@ -142,16 +139,11 @@ class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "model.norm.weight",
-            "output_layer.weight": "lm_head.weight"
+            "output_layer.weight": "lm_head.weight",
         }
-        
-        return io.apply_transforms(
-            source,
-            target,
-            mapping=mapping,
-            transforms=[_export_qkv, _export_linear_fc1]
-        )
-        
+
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_linear_fc1])
+
     @property
     def tokenizer(self):
         return io.load_ckpt(str(self)).model.tokenizer.tokenizer
@@ -159,9 +151,9 @@ class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"
     @property
     def config(self) -> "MistralConfig":
         source: Mistral7BConfig = io.load_ckpt(str(self)).model.config
-        
+
         from transformers import MistralConfig
-        
+
         return MistralConfig(
             sliding_window=source.seq_length,
             num_hidden_layers=source.num_layers,
@@ -173,17 +165,17 @@ class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
-            vocab_size=self.tokenizer.vocab_size
+            vocab_size=self.tokenizer.vocab_size,
         )
 
-        
+
 @io.state_transform(
     source_key=(
         "model.layers.*.self_attn.q_proj.weight",
         "model.layers.*.self_attn.k_proj.weight",
         "model.layers.*.self_attn.v_proj.weight",
     ),
-    target_key="decoder.layers.*.self_attention.linear_qkv.weight"
+    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
     megatron_config = ctx.target.config
@@ -205,22 +197,16 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(
-            q[i * heads_per_group : (i + 1) * heads_per_group, :, :]
-        )
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
         qkv_weights_l.append(k[i : i + 1, :, :])
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert (
-        qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
-    ), qkv_weights.shape
+    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape(
-        [head_size * (head_num + 2 * num_query_groups), hidden_size]
-    )
+    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
     return qkv_weights
 
@@ -235,7 +221,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     megatron_config = ctx.source.config
-    
+
     head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
@@ -243,7 +229,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     head_num = megatron_config.num_attention_heads
     head_size = hidden_size // head_num
     qkv_total_dim = head_num + 2 * num_query_groups
-    
+
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
@@ -253,36 +239,27 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     )
     k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
     v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-    
+
     q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
     k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
     v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
-    
+
     return q_proj, k_proj, v_proj
 
 
 @io.state_transform(
-    source_key=(
-        "model.layers.*.mlp.gate_proj.weight",
-        "model.layers.*.mlp.up_proj.weight"
-    ),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight"
+    source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+    target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
     return torch.cat((down, gate), axis=0).float()
-    
-    
+
+
 @io.state_transform(
     source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=(
-        "model.layers.*.mlp.gate_proj.weight",
-        "model.layers.*.mlp.up_proj.weight"
-    ),
+    target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
 )
 def _export_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-    
+
     return gate_proj, up_proj
-    
-    
-    

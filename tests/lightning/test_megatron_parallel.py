@@ -2,9 +2,10 @@ from collections import defaultdict
 
 import megatron.core
 import pytest
-from nemo import lightning as nl
 from nemo_ext.lightning import megatron_parallel as mp
 from torch import nn
+
+from nemo import lightning as nl
 
 
 class TestMegatronParallel:
@@ -13,15 +14,15 @@ class TestMegatronParallel:
     @pytest.fixture
     def mock_pipeline(self, mocker):
         """Fixture to create a mock pipeline."""
-        
+
         class DummyModule(nn.Module):
             def __init__(self, dummy_arg=None):
                 self.dummy_arg = dummy_arg
                 super().__init__()
-            
+
             def forward(self, x):
                 return x
-        
+
         return DummyModule()
 
     @pytest.fixture
@@ -65,13 +66,13 @@ class TestMegatronParallel:
 
     def test_init_with_custom_parameters(
         self,
-        mocker, 
-        mock_pipeline, 
+        mocker,
+        mock_pipeline,
         mock_precision_plugin,
-        mock_callbacks, 
-        mock_data_step, 
+        mock_callbacks,
+        mock_data_step,
         mock_forward_step,
-        mock_loss_reduction
+        mock_loss_reduction,
     ):
         """Test __init__ with custom parameters."""
         mocker.patch('megatron.core.mpu.get_pipeline_model_parallel_world_size', return_value=1)
@@ -83,7 +84,7 @@ class TestMegatronParallel:
             callbacks=mock_callbacks,
             data_step=mock_data_step,
             forward_step=mock_forward_step,
-            loss_reduction=mock_loss_reduction
+            loss_reduction=mock_loss_reduction,
         )
 
         assert megatron_parallel.pipeline == mock_pipeline
@@ -156,7 +157,7 @@ class TestCallbackConnector:
         callback_connector.add(callback)
 
         assert callback in callback_connector
-        
+
     def test_add_count_callback(self):
         """Test adding a CountCallback to the CallbackConnector."""
         connector = mp.CallbackConnector()
@@ -165,7 +166,7 @@ class TestCallbackConnector:
 
         # Check if the CountCallback has been added correctly
         assert count_callback in connector, "CountCallback should be in the CallbackConnector"
-        
+
     def test_event_trigger_with_count_callback(self):
         """Test if the event triggers the method in CountCallback."""
         connector = mp.CallbackConnector()
@@ -176,8 +177,9 @@ class TestCallbackConnector:
         connector.event('on_megatron_step_start')
 
         # Check if the CountCallback's method was called
-        assert count_callback.counts["on_megatron_step_start"] == 1, "CountCallback's method should have been triggered once"
-
+        assert (
+            count_callback.counts["on_megatron_step_start"] == 1
+        ), "CountCallback's method should have been triggered once"
 
 
 class TestCallback:
@@ -186,8 +188,8 @@ class TestCallback:
 
     def on_megatron_microbatch_start(self):
         pass
-    
-    
+
+
 class CountCallback:
     def __init__(self) -> None:
         self.counts = defaultdict(int)

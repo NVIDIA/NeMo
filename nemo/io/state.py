@@ -81,7 +81,7 @@ def apply_transforms(
         when consolidating models with different architectural changes.
     """
     from megatron.core.transformer.module import MegatronModule
-    
+
     # TODO: How can we improve this?
     _source = source
     if hasattr(source, "module") and isinstance(source.module, MegatronModule):
@@ -89,41 +89,36 @@ def apply_transforms(
     _target = target
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         _target = target.module
-    
+
     target_state = _target.state_dict()
-    ctx = TransformCTX(
-        source=_source,
-        source_state=_source.state_dict(),
-        target=_target,
-        target_state=target_state,
-    )
-    
+    ctx = TransformCTX(source=_source, source_state=_source.state_dict(), target=_target, target_state=target_state,)
+
     for key, val in mapping.items():
         ctx = StateDictTransform(key, val)(ctx)
-        
+
     if transforms:
         for transform in transforms:
             ctx = transform(ctx)
-        
+
     _params: Dict[str, nn.Parameter] = {}
     for name, param in _target.named_parameters():
         if name in target_state:
             target_param = target_state[name]
             if param.data.shape != target_param.shape:
                 raise ValueError(f"Shape mismatch for parameter {name}: {param.shape} vs {target_param.shape}")
-            
+
             _params[name] = nn.Parameter(target_param, requires_grad=param.requires_grad)
             target_state.pop(name)
         else:
             print(f"Unexpected key: {name} not in checkpoint but in model.")
-            
+
     for key, val in _params.items():
         _module, _key = _target, key
         if "." in key:
             for part in key.split(".")[:-1]:
                 _module = getattr(_module, part)
             _key = key.split(".")[-1]
-        
+
         _module.register_parameter(_key, val)
 
     _buffers = {}
@@ -131,25 +126,23 @@ def apply_transforms(
         if name in target_state:
             if buffer.shape != target_state[name].shape:
                 raise ValueError(f"Shape mismatch for buffer {name}: {buffer.shape} vs {target_state[name].shape}")
-            
+
             _buffers[name] = nn.Parameter(target_state[name], requires_grad=False)
             target_state.pop(name)
-            
+
     for key, val in _buffers.items():
         _module, _key = _target, key
         if "." in key:
             for part in key.split(".")[:-1]:
                 _module = getattr(_module, part)
             _key = key.split(".")[-1]
-        
+
         _module.register_buffer(_key, val)
 
     keys = [name for name in list(target_state.keys()) if not name.endswith("_extra_state")]
     if len(keys) != 0:
-        raise RuntimeError(
-            f"Additional keys: {target_state.keys()} in checkpoint but not in model."
-        )
-        
+        raise RuntimeError(f"Additional keys: {target_state.keys()} in checkpoint but not in model.")
+
     # TODO: Is this correct?
     # for key in target.state_dict():
     #     if key.endswith("_extra_state"):
@@ -157,15 +150,15 @@ def apply_transforms(
 
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
-        
+
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         target.module = _target
-        
+
         return target
 
     return _target
-    
-    
+
+
 def _default_transform(inp):
     return inp.float()
 
@@ -193,25 +186,25 @@ class StateDictTransform(Generic[F]):
         ...     transform=example_transform
         ... )
     """
-    
+
     def __init__(
-        self, 
+        self,
         source_key: Union[str, Tuple[str, ...], Dict[str, str]],
         target_key: Union[str, Tuple[str, ...]],
-        transform: F = _default_transform
+        transform: F = _default_transform,
     ):
         self.source_key = source_key
         self.target_key = target_key
         self.transform = transform
-    
+
     def __call__(self, ctx: TransformCTX) -> TransformCTX:
         source_key = self.source_key
         target_key = self.target_key
-        source_dict, target_dict = ctx.source_state, ctx.target_state        
-        
+        source_dict, target_dict = ctx.source_state, ctx.target_state
+
         fn_params = dict(inspect.signature(self.transform).parameters)
         fn_params.pop("ctx", None)
-        
+
         if isinstance(source_key, (dict, tuple)):
             if isinstance(source_key, tuple):
                 source_key_dict = {param: source_key[i] for i, param in enumerate(fn_params)}
@@ -219,23 +212,23 @@ class StateDictTransform(Generic[F]):
                 source_key_dict = source_key
             source_matches_dict = {k: _match_keys(list(source_dict.keys()), v) for k, v in source_key_dict.items()}
             target_matches = _match_keys(list(target_dict.keys()), target_key)
-            
+
             for target_index, target_match in np.ndenumerate(target_matches):
                 kwargs = {}
                 for param in fn_params:
                     if param in source_matches_dict:
                         source_match = source_matches_dict[param][target_index[:-1]]
                         kwargs[param] = source_dict[source_match[target_index]]
-                        
+
                 target_dict[target_match] = self.call_transform(ctx, **kwargs)
         else:
             source_keys = list(source_dict.keys())
             target_keys = list(target_dict.keys())
-            
+
             source_matches = _match_keys(source_keys, source_key)
             if source_matches.size == 1 and source_matches == np.array(None):
                 raise ValueError(f"No matches found for source key: {source_key}")
-            
+
             if isinstance(target_key, str):
                 target_matches = _match_keys(target_keys, target_key)
                 if target_matches.size < 1:
@@ -243,26 +236,30 @@ class StateDictTransform(Generic[F]):
             else:
                 if isinstance(target_key, dict):
                     raise ValueError("Target key must be a string or a tuple of strings.")
-                
+
                 _matches = np.vstack([_match_keys(target_keys, key) for key in target_key])
                 target_matches = np.transpose(_matches)
-            
+
             # Determine if we are dealing with multiple source matches or multiple target matches
             multiple_sources = source_matches.ndim >= target_matches.ndim
-            accepts_var_args = any(param.kind == param.VAR_POSITIONAL for param in inspect.signature(self.transform).parameters.values())
-            
+            accepts_var_args = any(
+                param.kind == param.VAR_POSITIONAL for param in inspect.signature(self.transform).parameters.values()
+            )
+
             if multiple_sources:
                 for target_index, target_match in np.ndenumerate(target_matches):
                     source_match = source_matches[target_index]
-                    
+
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
                     else:
                         _source_match_list = [source_match] if isinstance(source_match, str) else list(source_match)
                         if len(fn_params) != len(_source_match_list):
-                            raise ValueError(f"Mismatch between source and target keys: {source_match} vs {target_match}")
-                        
+                            raise ValueError(
+                                f"Mismatch between source and target keys: {source_match} vs {target_match}"
+                            )
+
                         kwargs = {param: source_dict[k] for param, k in zip(fn_params, _source_match_list)}
                         target_dict[target_match] = self.call_transform(ctx, **kwargs)
             else:
@@ -270,30 +267,36 @@ class StateDictTransform(Generic[F]):
                     source_matches_list = [source_matches.item()]
                 else:
                     source_matches_list = list(source_matches)
-                    
+
                 if source_matches.shape[0] != target_matches.shape[0]:
                     if target_matches.shape[0] == 1 and source_matches.shape[0] == target_matches.shape[1]:
                         source_matches_list = [source_matches_list]
                     else:
-                        raise ValueError("Mismatch between source and target keys: {source_matches} vs {target_matches}")
-                
+                        raise ValueError(
+                            "Mismatch between source and target keys: {source_matches} vs {target_matches}"
+                        )
+
                 for source_index, source_match in enumerate(source_matches_list):
                     target_match = target_matches[source_index]
-                    source_values = [source_dict[source_match]] if np.isscalar(source_match) else [source_dict[k] for k in source_match]
+                    source_values = (
+                        [source_dict[source_match]]
+                        if np.isscalar(source_match)
+                        else [source_dict[k] for k in source_match]
+                    )
                     if accepts_var_args:
                         outputs = self.call_transform(ctx, *source_values)
                     else:
                         kwargs = {param: val for param, val in zip(fn_params, source_values)}
                         outputs = self.call_transform(ctx, **kwargs)
-                    
+
                     if isinstance(target_match, str):
                         target_dict[target_match] = outputs
                     else:
                         for i, t in enumerate(outputs):
                             target_dict[target_match[i]] = t
-        
+
         return ctx
-    
+
     def call_transform(self, ctx: TransformCTX, *args, **kwargs):
         func_params = inspect.signature(self.transform).parameters
         expected_num_args = len([p for p in func_params if p not in ['self', 'ctx']])
@@ -301,14 +304,16 @@ class StateDictTransform(Generic[F]):
         accepts_var_args = any(param.kind == param.VAR_POSITIONAL for param in func_params.values())
 
         if not accepts_var_args and provided_num_args != expected_num_args:
-            raise ValueError(f"Expected {expected_num_args} arguments for the transformation function, but got {provided_num_args}.")
+            raise ValueError(
+                f"Expected {expected_num_args} arguments for the transformation function, but got {provided_num_args}."
+            )
 
         if 'ctx' in func_params:
             return self.transform(ctx, *args, **kwargs)
-            
+
         return self.transform(*args, **kwargs)
-            
-            
+
+
 def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
     regex_pattern = re.compile("^" + pattern.replace("*", "(.*)") + "$")
     wildcard_matches = [[] for _ in range(pattern.count("*"))]
@@ -339,23 +344,20 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
             output_array[tuple(indices)] = key  # Place the key in the array based on the indices
 
     return output_array
-    
-    
+
+
 @overload
 def state_transform(
-    source_key: Union[str, Tuple[str, ...], Dict[str, str]],
-    target_key: Union[str, Tuple[str, ...]],
+    source_key: Union[str, Tuple[str, ...], Dict[str, str]], target_key: Union[str, Tuple[str, ...]],
 ) -> Callable[[F], StateDictTransform[F]]:
     ...
 
 
 @overload
 def state_transform(
-    source_key: Union[str, Tuple[str, ...], Dict[str, str]],
-    target_key: Union[str, Tuple[str, ...]],
-    fn: F
+    source_key: Union[str, Tuple[str, ...], Dict[str, str]], target_key: Union[str, Tuple[str, ...]], fn: F
 ) -> StateDictTransform[F]:
-    ...        
+    ...
 
 
 def state_transform(
@@ -390,11 +392,11 @@ def state_transform(
         ... def sum_transform(ctx, *args):
         ...     return sum(args)
     """
-    
+
     def wrapper(fn) -> StateDictTransform:
         return StateDictTransform(source_key, target_key, fn)
-    
+
     if fn is None:
         return wrapper
-    
+
     return wrapper(fn)

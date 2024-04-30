@@ -10,12 +10,12 @@ if os.name == 'nt':
     BasePath = WindowsPath
 else:
     BasePath = PosixPath
-    
-    
+
+
 SourceT = TypeVar("SourceT")
 TargetT = TypeVar("TargetT")
 
-    
+
 class Connector(BasePath, Generic[SourceT, TargetT]):
     """
     A generic connector class that provides a framework for transforming a source type (SourceT)
@@ -45,12 +45,12 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         is_in_cache(base_path: Optional[Path] = None) -> bool:
             Checks if the transformed data is already cached at the specified base path.
     """
-    
+
     default_path = None
-    
+
     def init(self) -> TargetT:
         raise NotImplementedError()
-    
+
     def apply(self, output_path: Path) -> Path:
         raise NotImplementedError()
 
@@ -58,19 +58,15 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         if cls.default_path is not None and not args and 'path' not in kwargs:
             # If default_path is set and no arguments are provided, use default_path as the argument
             return super().__new__(cls, cls.default_path)
-        
+
         return super().__new__(cls, *args, **kwargs)
-    
-    def __call__(
-        self, 
-        output_path: Optional[Path] = None, 
-        overwrite: bool = False
-    ) -> Path:
+
+    def __call__(self, output_path: Optional[Path] = None, overwrite: bool = False) -> Path:
         _output_path = output_path or self.local_path()
-        
+
         if overwrite and _output_path.exists():
             shutil.rmtree(_output_path)
-        
+
         if not _output_path.exists():
             to_return = self.apply(_output_path)
             _output_path = to_return or _output_path
@@ -108,12 +104,8 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         nemo_load(path: Path, trainer: Optional[L.Trainer] = None, cpu: bool = True) -> Tuple[Any, L.Trainer]:
             Loads a model from the specified path, optionally using a CPU-focused strategy, and returns the model and trainer.
     """
-    
-    def nemo_setup(
-        self, 
-        model: L.LightningModule, 
-        trainer: Optional[L.Trainer] = None
-    ) -> L.Trainer:
+
+    def nemo_setup(self, model: L.LightningModule, trainer: Optional[L.Trainer] = None) -> L.Trainer:
         """
         Sets up the model and trainer using a specified strategy, preparing it for training or inference.
 
@@ -126,7 +118,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             L.Trainer: The trainer configured with the model and strategy.
         """
         from nemo_ext.lightning import MegatronStrategy, Trainer
-        
+
         _trainer = trainer or Trainer(devices=1, accelerator="cpu", strategy=MegatronStrategy())
 
         _trainer.strategy.connect(model)
@@ -151,10 +143,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         trainer.save_checkpoint(output_path)
 
     def nemo_load(
-        self, 
-        path: Path, 
-        trainer: Optional[L.Trainer] = None, 
-        cpu: bool = True
+        self, path: Path, trainer: Optional[L.Trainer] = None, cpu: bool = True
     ) -> Tuple[L.LightningModule, L.Trainer]:
         """
         Loads a model from the specified path.
@@ -170,10 +159,10 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         """
         from nemo_ext.io.api import load_ckpt
         from nemo_ext.lightning import MegatronStrategy, Trainer, _strategy_lib
-        
+
         model = load_ckpt(path).model
         _trainer = trainer or Trainer(devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy())
-        
+
         _trainer.strategy.connect(model)
         _trainer.strategy.setup_environment()
         # TODO: Fix cpu initialization
@@ -182,9 +171,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
                 # TODO: Make this more generic
                 with _strategy_lib.megatron_cpu_init_context(model.config):
                     model.configure_model()
-            else:                
+            else:
                 model.configure_model()
-        
+
         _trainer.strategy.setup(_trainer)
         _trainer.strategy.load_checkpoint(path)
 

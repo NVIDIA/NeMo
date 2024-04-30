@@ -26,7 +26,6 @@ import torch
 import torch.distributed
 from torch import Tensor, nn
 
-
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 
 
@@ -110,9 +109,7 @@ class MegatronParallel(nn.ModuleList):
         vp_size: Optional[int] = None,
         cpu: bool = False,
     ) -> None:
-        from apex.transformer.tensor_parallel.layers import (
-            set_defaults_if_not_set_tensor_model_parallel_attributes,
-        )
+        from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
         from megatron.core import mpu
 
         _pipeline: List[nn.Module]
@@ -124,12 +121,9 @@ class MegatronParallel(nn.ModuleList):
             _pipeline = pipeline
 
         if vp_size is not None:
-            if (
-                len(_pipeline) == 1 and
-                mpu.get_pipeline_model_parallel_world_size() > 1
-            ):
+            if len(_pipeline) == 1 and mpu.get_pipeline_model_parallel_world_size() > 1:
                 from nemo import io
-                
+
                 mpu.set_virtual_pipeline_model_parallel_world_size(vp_size)
                 for i in range(1, vp_size):
                     mpu.set_virtual_pipeline_model_parallel_rank(i)
@@ -270,11 +264,7 @@ class MegatronParallel(nn.ModuleList):
         return loss_mean
 
     def wrapped_forward_step(
-        self,
-        forward_step,
-        loss_reduction,
-        context,
-        data_step,
+        self, forward_step, loss_reduction, context, data_step,
     ) -> Callable[[nn.Module, DataT], Tuple[torch.Tensor, "MegatronCallbackProtocol"]]:
         """The method wraps the forward step function and returns a callable.
 
@@ -326,11 +316,7 @@ class MegatronParallel(nn.ModuleList):
 
             # callback
             self._setup_module(
-                forward_callback,
-                batch=batch,
-                model=self,
-                forward_module=model,
-                tensor=output_tensor,
+                forward_callback, batch=batch, model=self, forward_module=model, tensor=output_tensor,
             )
 
             if self.precision_plugin and mpu.is_pipeline_last_stage():
@@ -368,9 +354,7 @@ class MegatronParallel(nn.ModuleList):
         # For a single data item or any other type, wrap it in an iterator and return as a list
         return cast(List[Iterator[DataT]], [iter([data])])
 
-    def infer_micro_batch_size(
-        self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]
-    ) -> int:
+    def infer_micro_batch_size(self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]) -> int:
         """
         Infers the micro batch size from the provided data.
 
@@ -427,9 +411,7 @@ class MegatronParallel(nn.ModuleList):
 
         raise ValueError("Cannot infer `seq_length` from data, please specify it manually")
 
-    def infer_num_microbatches(
-        self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]
-    ) -> int:
+    def infer_num_microbatches(self, data: Union[DataT, Iterator[DataT], List[Iterator[DataT]]]) -> int:
         if hasattr(data, "num_microbatches"):
             return data.num_microbatches
         if hasattr(data, "data_config"):
@@ -478,7 +460,7 @@ class MegatronParallel(nn.ModuleList):
 
     def sharded_state_dict(self, prefix: str = "") -> Dict[str, Any]:
         from megatron.core import mpu
-        
+
         """
         Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
         When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to
@@ -507,7 +489,7 @@ class MegatronParallel(nn.ModuleList):
             return module.sharded_state_dict(*args, **kwargs)
         elif hasattr(module, "configure_model"):
             prefix = "".join([kwargs.pop("prefix", ""), "module."])
-            return self._module_sharded_state_dict(module.module, *args, prefix=prefix,**kwargs)
+            return self._module_sharded_state_dict(module.module, *args, prefix=prefix, **kwargs)
 
         raise ValueError("Could not find sharded state dict")
 
@@ -521,7 +503,7 @@ class MegatronParallel(nn.ModuleList):
     @property
     def forward_backward_func(self) -> "MegatronStepProtocol":
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-        
+
         return get_forward_backward_func()
 
 
@@ -604,9 +586,7 @@ class CallbackConnector:
         except ImportError:
             pass
 
-        megatron_methods = {
-            m for m in dir(CallbackMethods) if m.startswith("on") and not hasattr(_pl_callback, m)
-        }
+        megatron_methods = {m for m in dir(CallbackMethods) if m.startswith("on") and not hasattr(_pl_callback, m)}
 
         for callback in callbacks:
             if isinstance(callback, CallbackConnector):
@@ -740,9 +720,7 @@ class CallbackConnector:
         ]
 
         # Check if the object has any method that's in CallbackMethods
-        has_any_callback_method = any(
-            hasattr(callback_object, method) for method in callback_methods
-        )
+        has_any_callback_method = any(hasattr(callback_object, method) for method in callback_methods)
 
         # If the object has none of the methods, it's not a callback
         if not has_any_callback_method:
@@ -827,8 +805,8 @@ class MegatronStepProtocol(Protocol):
         collect_non_loss_data: bool = False,
     ) -> list:
         ...
-        
-        
+
+
 def _calc_number_of_params(model: List[nn.Module]) -> int:
     assert isinstance(model, list)
 
@@ -916,15 +894,16 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 .
         """
         from megatron.core import mpu, parallel_state
-        from nemo.collections.nlp.modules.common.megatron.utils import (
-            average_losses_across_data_parallel_group,
-        )
-        
+
+        from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:
             loss_for_ub = masked_token_loss(forward_out, batch["loss_mask"])
         else:
-            loss_for_ub = masked_token_loss_context_parallel(forward_out, batch["loss_mask"], batch['num_valid_tokens_in_ub'])
+            loss_for_ub = masked_token_loss_context_parallel(
+                forward_out, batch["loss_mask"], batch['num_valid_tokens_in_ub']
+            )
 
         if self.validation_step and not self.val_drop_last:
             num_valid_tokens_in_ub = batch["loss_mask"].sum()
@@ -940,9 +919,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                     torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
                 ]
             )
-            torch.distributed.all_reduce(
-                loss_sum_and_ub_size_all_gpu, group=mpu.get_data_parallel_group()
-            )
+            torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=mpu.get_data_parallel_group())
             return loss_for_ub * cp_size, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
 
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
@@ -952,9 +929,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [
-                    loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch
-                ]
+                loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
 
                 return loss_tensor.mean()
@@ -982,7 +957,7 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
-    
+
     return loss
 
 
@@ -991,10 +966,10 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
     masked token loss for CP > 1 as a separate function for readability.
     """
     from megatron.core import parallel_state
-    
+
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
     loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
     torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
-    
+
     return loss

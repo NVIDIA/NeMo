@@ -1,11 +1,11 @@
 import functools
 import inspect
-from cloudpickle import dump
 from dataclasses import is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
+from cloudpickle import dump
 from typing_extensions import Self
 
 from nemo.io.capture import IOProtocol
@@ -53,9 +53,9 @@ class IOMixin:
         [Fiddle Config Documentation](https://fiddle.readthedocs.io/en/latest/api_reference/core.html#config).
 
     """
-    
+
     __io__ = fdl.Config[Self]
-    
+
     def __new__(cls, *args, **kwargs):
         """
         Overrides the default object creation process to wrap the `__init__` method, allowing
@@ -70,18 +70,18 @@ class IOMixin:
             The newly created object instance.
         """
         original_init = cls.__init__
-        
+
         @functools.wraps(original_init)
         def wrapped_init(self, *args, **kwargs):
             cfg_kwargs = self.io_transform_args(original_init, *args, **kwargs)
             self.__io__ = self.io_init(**cfg_kwargs)
             original_init(self, *args, **kwargs)
-        
+
         cls.__init__ = wrapped_init
         output = object().__new__(cls)
-        
+
         return output
-    
+
     def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
         """
         Transforms and captures the arguments passed to the `__init__` method, filtering out
@@ -113,7 +113,7 @@ class IOMixin:
 
         for key in to_del:
             del config_kwargs[key]
-        
+
         return config_kwargs
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
@@ -128,7 +128,7 @@ class IOMixin:
             fdl.Config[Self]: The initialized configuration object.
         """
         return fdl.Config(type(self), **kwargs)
-    
+
     def io_dump(self, output: Path):
         """
         Serializes the configuration object (`__io__`) to a file, allowing the object state to be
@@ -140,8 +140,8 @@ class IOMixin:
         config_path = Path(output) / "io.pkl"
         with open(config_path, "wb") as f:
             dump(self.__io__, f)
-    
-    
+
+
 class ConnectorMixin:
     """
     A mixin class that provides methods to register and retrieve model connectors for importing
@@ -156,10 +156,10 @@ class ConnectorMixin:
         _EXPORTERS (Dict[str, Type[ModelConnector]]): A dictionary mapping file extensions to
             model connector classes that handle the export process.
     """
-    
+
     _IMPORTERS: Dict[str, Type[ModelConnector]] = {}
     _EXPORTERS: Dict[str, Type[ModelConnector]] = {}
-    
+
     @classmethod
     def import_from(cls, path: str) -> Self:
         """
@@ -181,13 +181,9 @@ class ConnectorMixin:
         output.ckpt_path = output.import_ckpt_path(path)
 
         return output
-        
+
     @classmethod
-    def register_importer(
-        cls,
-        ext: str, 
-        default_path: Optional[str] = None
-    ) -> Callable[[Type[ConnT]], Type[ConnT]]:
+    def register_importer(cls, ext: str, default_path: Optional[str] = None) -> Callable[[Type[ConnT]], Type[ConnT]]:
         """
         A class method decorator to register a model connector as an importer for a specific file
         extension.
@@ -200,20 +196,17 @@ class ConnectorMixin:
         -------
             Callable[[Type[ConnT]], Type[ConnT]]: The decorator that registers the model connector.
         """
+
         def decorator(connector: Type[ConnT]) -> Type[ConnT]:
             cls._IMPORTERS[ext] = connector
             if default_path:
                 connector.default_path = default_path
             return connector
-        
+
         return decorator
 
     @classmethod
-    def register_exporter(
-        cls, 
-        ext: str, 
-        default_path: Optional[str] = None
-    ) -> Callable[[Type[ConnT]], Type[ConnT]]:
+    def register_exporter(cls, ext: str, default_path: Optional[str] = None) -> Callable[[Type[ConnT]], Type[ConnT]]:
         """
         A class method decorator to register a model connector as an exporter for a specific file
         extension.
@@ -226,14 +219,15 @@ class ConnectorMixin:
         -------
             Callable[[Type[ConnT]], Type[ConnT]]: The decorator that registers the model connector.
         """
+
         def decorator(connector: Type[ConnT]) -> Type[ConnT]:
             cls._EXPORTERS[ext] = connector
             if default_path:
                 connector.default_path = default_path
             return connector
-        
+
         return decorator
-    
+
     @classmethod
     def importer(cls, path: str) -> ModelConnector:
         """
@@ -248,7 +242,7 @@ class ConnectorMixin:
             ModelConnector: The model connector instance capable of handling the import.
         """
         return cls._get_connector(path, importer=True)
-    
+
     @classmethod
     def exporter(cls, ext: str, path: Union[str, Path]) -> ModelConnector:
         """
@@ -263,13 +257,8 @@ class ConnectorMixin:
             ModelConnector: The model connector instance capable of handling the export.
         """
         return cls._get_connector(ext, path, importer=False)
-    
-    def import_ckpt(
-        self, 
-        path: str, 
-        overwrite: bool = False,
-        base_path: Optional[Path] = None
-    ) -> Path:
+
+    def import_ckpt(self, path: str, overwrite: bool = False, base_path: Optional[Path] = None) -> Path:
         """
         Imports a checkpoint from a specified path, potentially overwriting existing files.
 
@@ -290,9 +279,9 @@ class ConnectorMixin:
         connector = self._get_connector(path)
         ckpt_path: Path = connector.local_path(base_path=base_path)
         ckpt_path = connector(ckpt_path, overwrite=overwrite)
-        
+
         return ckpt_path
-    
+
     @classmethod
     def _get_connector(cls, ext, path=None, importer=True) -> ModelConnector:
         """
@@ -318,18 +307,15 @@ class ConnectorMixin:
             ext, _path = ext.split("://")
         else:
             _path = path
-        
+
         connector = cls._IMPORTERS.get(ext) if importer else cls._EXPORTERS.get(ext)
         if not connector:
             raise ValueError(f"No connector found for extension '{ext}'")
-        
+
         if not _path:
             if not connector.default_path:
-                raise ValueError(
-                    f"No default path specified for extension '{ext}'. ",
-                    "Please provide a path"
-                )
-            
+                raise ValueError(f"No default path specified for extension '{ext}'. ", "Please provide a path")
+
             return connector()
 
         return connector(_path)

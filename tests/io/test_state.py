@@ -1,6 +1,7 @@
 import pytest
-from nemo.io.state import StateDictTransform, TransformCTX, state_transform
 from torch import nn
+
+from nemo.io.state import StateDictTransform, TransformCTX, state_transform
 
 
 class TestStateDictTransform:
@@ -23,16 +24,17 @@ class TestStateDictTransform:
             'model.layers.0.self_attn.v_proj.weight': 3,
             'model.layers.1.self_attn.q_proj.weight': 1,
             'model.layers.1.self_attn.k_proj.weight': 2,
-            'model.layers.1.self_attn.v_proj.weight': 3
+            'model.layers.1.self_attn.v_proj.weight': 3,
         }
         target_state = {
             "decoder.layers.0.self_attention.linear_qkv.weight": 10,
-            "decoder.layers.1.self_attention.linear_qkv.weight": 10
+            "decoder.layers.1.self_attention.linear_qkv.weight": 10,
         }
-        ctx = TransformCTX(source=nn.Module(), source_state=source_state,
-                           target=nn.Module(), target_state=target_state)
+        ctx = TransformCTX(
+            source=nn.Module(), source_state=source_state, target=nn.Module(), target_state=target_state
+        )
         return ctx
-    
+
     @pytest.fixture
     def mock_multi_target_ctx(self):
         """
@@ -43,10 +45,11 @@ class TestStateDictTransform:
         # Populate target_state with initial placeholder values for keys expected to be matched and updated
         target_state = {
             'decoder.layers.1.self_attention.linear_q.weight': 0,
-            'decoder.layers.1.self_attention.linear_k.weight': 0
+            'decoder.layers.1.self_attention.linear_k.weight': 0,
         }
-        ctx = TransformCTX(source=nn.Module(), source_state=source_state,
-                           target=nn.Module(), target_state=target_state)
+        ctx = TransformCTX(
+            source=nn.Module(), source_state=source_state, target=nn.Module(), target_state=target_state
+        )
         return ctx
 
     def test_transform_with_multiple_source_keys(self, mock_ctx):
@@ -57,10 +60,10 @@ class TestStateDictTransform:
             source_key=(
                 "model.layers.*.self_attn.q_proj.weight",
                 "model.layers.*.self_attn.k_proj.weight",
-                "model.layers.*.self_attn.v_proj.weight"
+                "model.layers.*.self_attn.v_proj.weight",
             ),
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx, k, q, v: q + k + v
+            transform=lambda ctx, k, q, v: q + k + v,
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 6
@@ -73,7 +76,7 @@ class TestStateDictTransform:
         transform = StateDictTransform(
             source_key="model.layers.*.self_attn.*_proj.weight",
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx, k, q, v: q + k + v
+            transform=lambda ctx, k, q, v: q + k + v,
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 6
@@ -86,10 +89,10 @@ class TestStateDictTransform:
             source_key={
                 "k": "model.layers.*.self_attn.k_proj.weight",
                 "q": "model.layers.*.self_attn.q_proj.weight",
-                "v": "model.layers.*.self_attn.v_proj.weight"
+                "v": "model.layers.*.self_attn.v_proj.weight",
             },
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx, k, q, v: q + k + v
+            transform=lambda ctx, k, q, v: q + k + v,
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 6
@@ -101,7 +104,7 @@ class TestStateDictTransform:
         transform = StateDictTransform(
             source_key="model.layers.*.self_attn.*_proj.weight",
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx, *args: sum(args)
+            transform=lambda ctx, *args: sum(args),
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 6
@@ -113,7 +116,7 @@ class TestStateDictTransform:
         transform = StateDictTransform(
             source_key="non.existent.pattern",
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx, *args: sum(args)
+            transform=lambda ctx, *args: sum(args),
         )
         with pytest.raises(ValueError):
             transform(mock_ctx)
@@ -125,11 +128,11 @@ class TestStateDictTransform:
         transform = StateDictTransform(
             source_key="model.layers.*.self_attn.q_proj.weight",
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx: 0  # Invalid signature
+            transform=lambda ctx: 0,  # Invalid signature
         )
         with pytest.raises(ValueError):
             transform(mock_ctx)
-            
+
     def test_transform_with_tuple_target_key_and_multiple_outputs(self, mock_multi_target_ctx):
         """
         Test transformation where the target_key is a tuple and the transform function
@@ -144,9 +147,9 @@ class TestStateDictTransform:
             source_key="model.layers.1.self_attn.q_proj.weight",
             target_key=(
                 "decoder.layers.1.self_attention.linear_q.weight",
-                "decoder.layers.1.self_attention.linear_k.weight"
+                "decoder.layers.1.self_attention.linear_k.weight",
             ),
-            transform=split_transform
+            transform=split_transform,
         )
         transform(mock_multi_target_ctx)
 
@@ -168,19 +171,19 @@ class TestStateTransformDecorator:
         source_state = {
             'model.layers.1.self_attn.q_proj.weight': 1,
             'model.layers.1.self_attn.k_proj.weight': 2,
-            'model.layers.1.self_attn.v_proj.weight': 3
+            'model.layers.1.self_attn.v_proj.weight': 3,
         }
         # Pre-populate target_state with initial values or placeholders
         target_state = {
             "decoder.layers.1.self_attention.linear_q.weight": 0,
             "decoder.layers.1.self_attention.linear_k.weight": 0,
-            "decoder.layers.1.self_attention.linear_v.weight": 0
+            "decoder.layers.1.self_attention.linear_v.weight": 0,
         }
-        ctx = TransformCTX(source=nn.Module(), source_state=source_state,
-                           target=nn.Module(), target_state=target_state)
+        ctx = TransformCTX(
+            source=nn.Module(), source_state=source_state, target=nn.Module(), target_state=target_state
+        )
         return ctx
 
-   
     def test_single_transform(self, mock_ctx):
         """
         Test the @state_transform decorator with a single source and target key.
@@ -203,8 +206,7 @@ class TestStateTransformDecorator:
 
 
 @state_transform(
-    source_key="model.layers.*.self_attn.q_proj.weight",
-    target_key="decoder.layers.1.self_attention.linear_q.weight"
+    source_key="model.layers.*.self_attn.q_proj.weight", target_key="decoder.layers.1.self_attention.linear_q.weight"
 )
 def single_transform(ctx, x):
     """
@@ -218,8 +220,8 @@ def single_transform(ctx, x):
     target_key=(
         "decoder.layers.1.self_attention.linear_q.weight",
         "decoder.layers.1.self_attention.linear_k.weight",
-        "decoder.layers.1.self_attention.linear_v.weight"
-    )
+        "decoder.layers.1.self_attention.linear_v.weight",
+    ),
 )
 def multiple_outputs_transform(ctx, *args):
     """
