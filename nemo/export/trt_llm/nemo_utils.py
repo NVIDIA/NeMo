@@ -410,6 +410,14 @@ def nemo_to_trtllm_config(
         False,
         'rotary_pct':
         nemo_model_config.get('rotary_percentage', 1.0),
+        'moe_num_experts':
+        nemo_model_config.get('num_moe_experts', 0),
+        'moe_top_k':
+        nemo_model_config.get('moe_router_topk'),
+        'moe_normalization_mode':
+        nemo_model_config.get('moe_renorm_mode'),
+        'moe_tp_mode':
+        nemo_model_config.get('moe_tp_mode'),
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
