@@ -444,7 +444,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 storage_options = None
             self.deferred_ckpts_to_remove.append([])
             trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
-            if not self.async_save:
+            if self.async_save:
+                logging.info(f'Scheduled async checkpoint save for {filepath}')
+            else:
                 finalize_fn()
 
     def _get_finalize_save_checkpoint_callback(
@@ -465,6 +467,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
             # we don't want to remove the marker until all checkpointing is done.
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+
+            logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
 
             # Remove checkpoints marked for removal by `self._remove_checkpoint`
             # For each finalization there is exactly one entry in self.deferred_ckpts_to_remove
