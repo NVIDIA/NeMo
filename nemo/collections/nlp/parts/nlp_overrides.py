@@ -462,7 +462,7 @@ class NLPDDPStrategy(DDPStrategy):
         checkpoint_io = self.checkpoint_io
         while isinstance(checkpoint_io, _WrappingCheckpointIO):
             checkpoint_io = checkpoint_io.checkpoint_io
-        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.checkpoint_io, DistributedCheckpointIO)
+        has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
