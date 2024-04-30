@@ -62,12 +62,7 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
         # Use PyT saving mechanism
         writer = FileSystemWriterAsync(checkpoint_dir, thread_count=self.thread_count)
 
-        save_state_dict_ret = save_state_dict_async_plan(
-            pyt_state_dict,
-            writer,
-            None,
-            planner=MCoreSavePlanner(),
-        )
+        save_state_dict_ret = save_state_dict_async_plan(pyt_state_dict, writer, None, planner=MCoreSavePlanner(),)
         self.async_request = self._get_save_and_finalize_callbacks(writer, save_state_dict_ret)
         return self.async_request
 
