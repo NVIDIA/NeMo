@@ -123,7 +123,12 @@ def convert(local_rank, rank, world_size, args):
             'accelerator': 'gpu',
             'precision': args.precision,
         },
-        'model': {'native_amp_init_scale': 2 ** 32, 'native_amp_growth_interval': 1000, 'hysteresis': 2, 'gradient_as_bucket_view': True},
+        'model': {
+            'native_amp_init_scale': 2 ** 32,
+            'native_amp_growth_interval': 1000,
+            'hysteresis': 2,
+            'gradient_as_bucket_view': True,
+        },
         'cluster_type': args.cluster_type,
     }
     cfg = OmegaConf.create(cfg)
@@ -157,9 +162,7 @@ def convert(local_rank, rank, world_size, args):
     )
 
     if args.model_type == "gpt":
-        model = MegatronGPTModel.load_from_checkpoint(
-            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
-        )
+        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
     elif args.model_type == "sft":
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
