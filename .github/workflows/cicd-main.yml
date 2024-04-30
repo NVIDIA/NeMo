@@ -95,6 +95,7 @@ jobs:
             python tests/check_copyright_header.py --dir .
 
             # NeMo Installation
+            echo "NeMo commit: $(git rev-parse HEAD)"
             ./reinstall.sh release
 
             # Transformer Engine installation
@@ -193,6 +194,7 @@ jobs:
       uses: actions/checkout@v4
     - name: "L0: Unit Tests GPU"
       run: |
+        echo "NeMo commit: $(git rev-parse HEAD)"
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
     - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
       if: "failure()"
@@ -216,6 +218,7 @@ jobs:
       uses: actions/checkout@v4
     - name: "L0: Unit Tests CPU"
       run: |
+        echo "NeMo commit: $(git rev-parse HEAD)"
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
     - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
       if: "failure()"
