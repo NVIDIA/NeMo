@@ -787,7 +787,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if (
                 self.cfg.get('pipeline_model_parallel_size', 1) > 1
                 or self.cfg.get('sequence_parallel', False)
-                or self.cfg.get('async_grad_allreduce', True)
+                or not self.cfg.get('async_grad_allreduce', True)
             ):
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
