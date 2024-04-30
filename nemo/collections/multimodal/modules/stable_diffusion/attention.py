@@ -13,11 +13,12 @@
 # limitations under the License.
 import math
 import os
+from inspect import isfunction
+
 import torch
 import torch.nn.functional as F
 from apex.contrib.group_norm import GroupNorm
 from einops import rearrange, repeat
-from inspect import isfunction
 from torch import einsum, nn
 from torch._dynamo import disable
 
@@ -262,8 +263,9 @@ class CrossAttention(nn.Module):
         self.use_te = use_te
         if use_te:
             return_layernorm_output = True if self.is_self_attn else False
-            self.norm_to_q = LayerNormLinear(query_dim, self.inner_dim, bias=False,
-                                             return_layernorm_output=return_layernorm_output)
+            self.norm_to_q = LayerNormLinear(
+                query_dim, self.inner_dim, bias=False, return_layernorm_output=return_layernorm_output
+            )
         else:
             self.norm = nn.LayerNorm(query_dim)
             self.to_q = LinearWrapper(query_dim, self.inner_dim, bias=False)
