@@ -81,7 +81,7 @@ Modules
     :no-members:
     :members: forward
 
-.. autoclass:: nemo.collections.nlp.models.language_modeling.megatron.bert_model.BertModel
+.. autoclass:: nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model.NeMoBertModel
     :show-inheritance: 
     :no-members:
     :members: forward
