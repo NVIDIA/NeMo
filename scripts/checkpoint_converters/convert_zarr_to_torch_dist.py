@@ -27,16 +27,12 @@ Conversion script to convert zarr checkpoints into torch distributed checkpoint.
      --gpus_per_node <gpus_per_node>
 """
 
-import dis
 import os
 from argparse import ArgumentParser
 
 import torch
-from genericpath import isdir
 from megatron.core import parallel_state
 from omegaconf import OmegaConf, open_dict
-from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
