@@ -26,7 +26,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_${model.data.validation_ds.metric.name}
+    monitor: validation_${model.data.   _ds.metric.name}
     save_top_k: 2
     mode: max
     save_nemo_on_train_end: False 
@@ -92,7 +92,7 @@ model:
       num_workers: 4
       memmap_workers: null
       pin_memory: True
-      max_seq_length: 2048
+      max_seq_length: 16384
       min_seq_length: 1
       drop_last: True
       # Example of how to specify concat_sampling_probabilities
