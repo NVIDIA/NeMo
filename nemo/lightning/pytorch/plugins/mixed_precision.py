@@ -17,11 +17,10 @@ from typing import Any, Callable, Generator, List, Literal, Optional, Tuple, Typ
 
 import pytorch_lightning as pl
 import torch
+from nemo_ext.lightning._strategy_lib import GradScaler
 from pytorch_lightning.plugins.precision import MixedPrecision
 from torch.nn import Module
 from torch.optim import Optimizer
-
-from nemo_ext.lightning._strategy_lib import GradScaler
 
 AnyT = TypeVar("AnyT")
 
@@ -37,11 +36,7 @@ class MegatronMixedPrecision(MixedPrecision):
         if precision == "bf16-mixed":
             scaler = None
         else:
-            scaler = GradScaler(
-                init_scale=2**32,
-                growth_interval=1000,
-                hysteresis=2,
-            )
+            scaler = GradScaler(init_scale=2 ** 32, growth_interval=1000, hysteresis=2,)
 
         super().__init__(precision, device, scaler)
         dtype = None
@@ -103,19 +98,15 @@ class MegatronMixedPrecision(MixedPrecision):
     ) -> Tuple[Module, List[Optimizer], List[Any]]:
         """Connects this plugin to the accelerator and the training process."""
         from nemo.core.optim import MainParamsOptimizerWrapper
-        
-        if (
-            not optimizers
-            or not self.amp_02
-            or isinstance(optimizers[0], MainParamsOptimizerWrapper)
-        ):
+
+        if not optimizers or not self.amp_02 or isinstance(optimizers[0], MainParamsOptimizerWrapper):
             return model, optimizers, lr_schedulers
 
         _optimizers = [*optimizers]
         _optimizers[0] = self.convert_optimizer(_optimizers[0])
 
         return model, _optimizers, lr_schedulers
-    
+
     # @override
     # def tensor_init_context(self) -> ContextManager:
     #     return _DtypeContextManager(self.dtype)
@@ -136,7 +127,7 @@ class MegatronMixedPrecision(MixedPrecision):
             return module.half()
 
         return module
-    
+
     def convert_optimizer(self, optimizer: Optimizer) -> Optimizer:
         """Convert the optimizer parameters to the precision type this plugin handles.
 
@@ -144,10 +135,10 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         from nemo.core.optim import MainParamsOptimizerWrapper
-        
+
         if isinstance(optimizer, MainParamsOptimizerWrapper) or not self.amp_02:
             return optimizer
-        
+
         return MainParamsOptimizerWrapper(
             optimizer,
             # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_base_model.py#L496
@@ -163,7 +154,7 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         from megatron.core.transformer.module import fp32_to_float16
-        
+
         return fp32_to_float16(data, self.float16_convertor)
 
     def convert_output(self, data: AnyT) -> AnyT:
@@ -174,7 +165,7 @@ class MegatronMixedPrecision(MixedPrecision):
 
         """
         from megatron.core.transformer.module import float16_to_fp32
-        
+
         return float16_to_fp32(data)
 
     def optimizer_step(
@@ -185,10 +176,10 @@ class MegatronMixedPrecision(MixedPrecision):
         **kwargs: Any,
     ) -> None:
         from nemo.core.optim import MainParamsOptimizerWrapper
-        
+
         if not self.amp_02 and not isinstance(optimizer, MainParamsOptimizerWrapper):
             return super().optimizer_step(optimizer, model, closure, **kwargs)
-        
+
         # assert isinstance(
         #     optimizer, MainParamsOptimizerWrapper
         # ), "MegatronHalfPrecisionPlugin supports only the optimizer with master parameters"
@@ -212,11 +203,7 @@ class MegatronMixedPrecision(MixedPrecision):
         self._after_closure(model, optimizer)
         skipped_backward = closure_result is None
         # in manual optimization, the closure does not return a value
-        if (
-            not isinstance(model, pl.LightningModule)
-            or not model.automatic_optimization
-            or not skipped_backward
-        ):
+        if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
             # note: the scaler will skip the `optimizer.step` if nonfinite gradients are found
             self.scaler.step(optimizer, **kwargs)
             self.scaler.update()
@@ -277,20 +264,13 @@ class MegatronHalfPrecision(MixedPrecision):
     """
 
     def __init__(
-        self,
-        precision: Union[str, int],
-        device: str,
-        scaler: Optional[Union[torch.cuda.amp.GradScaler, str]] = None,
+        self, precision: Union[str, int], device: str, scaler: Optional[Union[torch.cuda.amp.GradScaler, str]] = None,
     ) -> None:
         if scaler == "auto":
             if precision == "bf16-mixed":
                 scaler = None
             else:
-                scaler = GradScaler(
-                    init_scale=2**32,
-                    growth_interval=1000,
-                    hysteresis=2,
-                )
+                scaler = GradScaler(init_scale=2 ** 32, growth_interval=1000, hysteresis=2,)
 
         super().__init__(precision, device, scaler)
         dtype = None
@@ -310,7 +290,7 @@ class MegatronHalfPrecision(MixedPrecision):
         **kwargs: Any,
     ) -> None:
         from nemo.core.optim import MainParamsOptimizerWrapper
-        
+
         assert isinstance(
             optimizer, MainParamsOptimizerWrapper
         ), "MegatronHalfPrecisionPlugin supports only the optimizer with master parameters"
@@ -334,11 +314,7 @@ class MegatronHalfPrecision(MixedPrecision):
         self._after_closure(model, optimizer)
         skipped_backward = closure_result is None
         # in manual optimization, the closure does not return a value
-        if (
-            not isinstance(model, pl.LightningModule)
-            or not model.automatic_optimization
-            or not skipped_backward
-        ):
+        if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
             # note: the scaler will skip the `optimizer.step` if nonfinite gradients are found
             self.scaler.step(optimizer, **kwargs)
             self.scaler.update()
