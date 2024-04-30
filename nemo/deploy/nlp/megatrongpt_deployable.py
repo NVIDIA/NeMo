@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import wrapt
 from pytorch_lightning.trainer.trainer import Trainer
+import torch
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -76,11 +77,11 @@ class MegatronGPTDeployable(ITritonDeployable):
     # but we still want to generate output using a real OutputType TypedDict for static type checking
     _BLANK_OUTPUTTYPE: OutputType = {
         'sentences': [""],
-        'tokens': [""],
-        'logprob': [0.0],
-        'full_logprob': [0.0],
-        'token_ids': [0],
-        'offsets': [0],
+        'tokens': [[""]],
+        'logprob': [[0.0]],
+        'full_logprob': [[0.0]],
+        'token_ids': [[0]],
+        'offsets': [[0]],
     }
 
     @property
@@ -90,7 +91,7 @@ class MegatronGPTDeployable(ITritonDeployable):
             for name, (shape, dtype, optional) in self._INPUT_PARAMETER_FIELDS.items()
         )
         # TODO: in theory, would like to use typedict2tensor() function to generate Tensors, but it purposely ignores 1D arrays
-        # need to find out why that is, asked Jakub Kosek on 2024-04-26
+        # need to find out why that is, asked Jakub Kosek on 2024-04-26, but he doesn't know who owns it
         # sampling_parameters = typedict2tensor(SamplingParam)
         default_sampling_params: SamplingParam = get_default_sampling_params()
         sampling_parameters = tuple(
@@ -121,7 +122,7 @@ class MegatronGPTDeployable(ITritonDeployable):
     def get_triton_output(self):
         # outputs are defined by the fields of OutputType
         outputs = [
-            Tensor(name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value),)
+            Tensor(name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value[0]),)
             for parameter_name, parameter_value in MegatronGPTDeployable._BLANK_OUTPUTTYPE.items()
         ]
         return outputs
@@ -151,10 +152,16 @@ class MegatronGPTDeployable(ITritonDeployable):
         model_output = self.model.generate(
             inputs=input_strings, length_params=length_params, sampling_params=sampling_params
         )
+        # sentences will be a list of strings (one per prompts)
+        # other fields will either be a list of lists (tokens, for example)
+        # or a list of pytorch Tensor
+        # we expect all lists to be the same length
+        # TODO: add an error check for when they aren't, like if you feed in prompts of varying lengths to compute logprob
 
+        num_prompts = len(input_strings)
         triton_output = {}
         for model_output_field, value in model_output.items():
-            field_dtype = GetNumpyDtype(MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field])
+            field_dtype = GetNumpyDtype(MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field][0])
             if value is None:
                 # triton does not allow for optional output parameters, so need to populate them if they don't exist
                 # 'sentences' should always have a valid value, so use that for the output shape
@@ -163,10 +170,16 @@ class MegatronGPTDeployable(ITritonDeployable):
                     MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field][0],
                     dtype=field_dtype,
                 )
-            elif field_dtype == bytes:
-                # strings are casted to bytes
+            elif field_dtype==bytes:
+                # strings are cast to bytes
                 triton_output[model_output_field] = cast_output(value, field_dtype)
+            elif isinstance(value[0], torch.Tensor):
+                if value[0].dtype==torch.bfloat16:
+                    # numpy currently does not support bfloat16, so need to manually convert it
+                    triton_output[model_output_field] = np.array([tensor.cpu().float().numpy() for tensor in value])
+                else:
+                    triton_output[model_output_field] = np.array([cast_output(entry, field_dtype) for entry in value])
             else:
-                # everything else is output as-is (in numpy format)
+                # non-strings are output as-is (in numpy format)
                 triton_output[model_output_field] = np.array(value)
         return triton_output
