@@ -41,6 +41,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     NLPDDPStrategy,
@@ -91,7 +92,7 @@ def get_args():
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
-    parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
+    parser.add_argument("--cluster_type", required=False, default=None, help="Whether on BCP platform")
     parser.add_argument(
         "--precision",
         type=str,
@@ -114,11 +115,6 @@ def convert(local_rank, rank, world_size, args):
     app_state = AppState()
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node
-    plugins = []
-    strategy = "auto"
-    if args.bcp:
-        plugins.append(TorchElasticEnvironment())
-    strategy = NLPDDPStrategy()
 
     cfg = {
         'trainer': {
@@ -127,23 +123,16 @@ def convert(local_rank, rank, world_size, args):
             'accelerator': 'gpu',
             'precision': args.precision,
         },
-        'model': {'native_amp_init_scale': 2 ** 32, 'native_amp_growth_interval': 1000, 'hysteresis': 2},
+        'model': {'native_amp_init_scale': 2 ** 32, 'native_amp_growth_interval': 1000, 'hysteresis': 2, 'gradient_as_bucket_view': True},
+        'cluster_type': args.cluster_type,
     }
     cfg = OmegaConf.create(cfg)
 
-    scaler = None
-    # If FP16 create a GradScaler as the build_model_parallel_config of MegatronBaseModel expects it
-    if cfg.trainer.precision == '16-mixed':
-        scaler = GradScaler(
-            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-            growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-            hysteresis=cfg.model.get('hysteresis', 2),
-        )
-    plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
     # Set precision None after precision plugins are created as PTL >= 2.1 does not allow both
     # precision plugins and precision to exist
     cfg.trainer.precision = None
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
+
+    trainer = MegatronTrainerBuilder(cfg).create_trainer()
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
@@ -161,21 +150,15 @@ def convert(local_rank, rank, world_size, args):
     app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
 
     # check for distributed checkpoint
-    dist_ckpt_dir = os.path.join(args.checkpoint_folder, args.checkpoint_name)
-    if os.path.isdir(dist_ckpt_dir):
-        checkpoint_path = dist_ckpt_dir
-    else:
-        # legacy checkpoint needs model parallel injection
-        checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
+    checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
 
     logging.info(
         f'rank: {rank}, local_rank: {local_rank}, is loading checkpoint: {checkpoint_path} for tp_rank: {app_state.tensor_model_parallel_rank} and pp_rank: {app_state.pipeline_model_parallel_rank}'
     )
 
-    kwargs = {"sharded_strategy": "torch_dist"}
     if args.model_type == "gpt":
         model = MegatronGPTModel.load_from_checkpoint(
-            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, **kwargs
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         )
     elif args.model_type == "sft":
         model = MegatronGPTSFTModel.load_from_checkpoint(
