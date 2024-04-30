@@ -17,7 +17,7 @@ from typing import Any, Callable, Generator, List, Literal, Optional, Tuple, Typ
 
 import pytorch_lightning as pl
 import torch
-from lightning.pytorch.plugins.precision import MixedPrecision
+from pytorch_lightning.plugins.precision import MixedPrecision
 from torch.nn import Module
 from torch.optim import Optimizer
 
