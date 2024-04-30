@@ -30,6 +30,7 @@ DEFAULT_CHUNK_SIZE_MB = 64
 DEFAULT_MAX_READ_CONCURRENCY = 15
 DEFAULT_MAX_WRITE_CONCURRENCY = 10
 
+
 class S3Utils:
     """
     Utility class for interacting with S3. Handles downloading and uploading to S3, and parsing/formatting S3 urls. 
@@ -73,7 +74,9 @@ class S3Utils:
         s3_client.delete_object(Bucket=bucket, Key=key)
 
     @staticmethod
-    def download_s3_file_to_stream(s3_path: str, chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB, max_concurrency: int = DEFAULT_MAX_READ_CONCURRENCY) -> BytesIO:
+    def download_s3_file_to_stream(
+        s3_path: str, chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB, max_concurrency: int = DEFAULT_MAX_READ_CONCURRENCY
+    ) -> BytesIO:
         bytes_buffer = BytesIO()
 
         s3_client = S3Utils._get_s3_resource(get_client=True)
@@ -93,7 +96,10 @@ class S3Utils:
 
     @staticmethod
     def download_s3_file_to_path(
-        s3_path: str, file_path: str, chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB, max_concurrency: int = DEFAULT_MAX_READ_CONCURRENCY
+        s3_path: str,
+        file_path: str,
+        chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB,
+        max_concurrency: int = DEFAULT_MAX_READ_CONCURRENCY,
     ) -> None:
         s3_client = S3Utils._get_s3_resource(get_client=True)
         bucket, key = S3Utils.parse_s3_url(s3_path)
@@ -112,7 +118,10 @@ class S3Utils:
 
     @staticmethod
     def upload_file_stream_to_s3(
-        bytes_buffer: BytesIO, s3_path: str, chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB, max_concurrency: int = DEFAULT_MAX_WRITE_CONCURRENCY
+        bytes_buffer: BytesIO,
+        s3_path: str,
+        chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB,
+        max_concurrency: int = DEFAULT_MAX_WRITE_CONCURRENCY,
     ) -> None:
         s3_client = S3Utils._get_s3_resource(get_client=True)
         bucket, key = S3Utils.parse_s3_url(s3_path)
@@ -128,10 +137,16 @@ class S3Utils:
         )
 
     @staticmethod
-    def upload_file(file_path: str, s3_path: str, chunk_size_MB=DEFAULT_CHUNK_SIZE_MB, max_concurrency=DEFAULT_MAX_WRITE_CONCURRENCY, remove_file=False):
+    def upload_file(
+        file_path: str,
+        s3_path: str,
+        chunk_size_MB=DEFAULT_CHUNK_SIZE_MB,
+        max_concurrency=DEFAULT_MAX_WRITE_CONCURRENCY,
+        remove_file=False,
+    ):
         total_size = os.path.getsize(file_path)
         assert total_size > 0, f"file size is zero, {file_path}"
-        
+
         s3_client = S3Utils._get_s3_resource(get_client=True)
         bucket, key = S3Utils.parse_s3_url(s3_path)
 
@@ -147,8 +162,7 @@ class S3Utils:
         logging.info(
             f'Time elapsed uploading file {file_path} of size {(total_size/GB):.1f}GB to {s3_path} with chunk_size={chunk_size_MB}MB '
             f'and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds'
-    )
-        
+        )
 
     @staticmethod
     def find_files_with_suffix(

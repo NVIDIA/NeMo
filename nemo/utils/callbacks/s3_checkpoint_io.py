@@ -11,7 +11,13 @@ import torch
 from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
 
 from nemo.utils import logging
-from nemo.utils.s3_utils import S3Utils, SHARED_MEM_DIR, DEFAULT_CHUNK_SIZE_MB, DEFAULT_MAX_READ_CONCURRENCY, DEFAULT_MAX_WRITE_CONCURRENCY
+from nemo.utils.s3_utils import (
+    DEFAULT_CHUNK_SIZE_MB,
+    DEFAULT_MAX_READ_CONCURRENCY,
+    DEFAULT_MAX_WRITE_CONCURRENCY,
+    SHARED_MEM_DIR,
+    S3Utils,
+)
 
 
 class S3CheckpointIO(CheckpointIO):
