@@ -38,7 +38,6 @@ from nemo.collections.asr.parts.mixins import (
     TranscribeConfig,
     TranscriptionReturnType,
 )
-from nemo.collections.asr.parts.submodules.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
