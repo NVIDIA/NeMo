@@ -38,15 +38,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_bert_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 def get_args():
