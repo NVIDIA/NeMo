@@ -95,7 +95,7 @@ jobs:
             python tests/check_copyright_header.py --dir .
 
             # NeMo Installation
-            ./reinstall.sh release
+            ./reinstall.sh
 
             # Transformer Engine installation
             git clone https://github.com/NVIDIA/TransformerEngine.git && \
