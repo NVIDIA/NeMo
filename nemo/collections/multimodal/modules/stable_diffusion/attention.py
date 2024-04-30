@@ -48,7 +48,6 @@ try:
     from flash_attn.modules.mha import FlashCrossAttention, FlashSelfAttention
 
     flash_attn_installed = check_cuda()
-    print("FlashAttention Installed")
 
     # Disable TorchDynamo on FlashAttention
     FlashSelfAttention.forward = disable(FlashSelfAttention.forward)
