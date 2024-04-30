@@ -80,7 +80,7 @@ Latest News
   <details open>
     <summary><b>Speech Recognition</b></summary>
         <details>
-          <summary><a href="httpshttps://developer.nvidia.com/blog/new-standard-for-speech-recognition-and-translation-from-the-nvidia-nemo-canary-model/">New Standard for Speech Recognition and Translation from the NVIDIA NeMo Canary Model</a> (2024/04/18) </summary>
+          <summary><a href="https://developer.nvidia.com/blog/new-standard-for-speech-recognition-and-translation-from-the-nvidia-nemo-canary-model/">New Standard for Speech Recognition and Translation from the NVIDIA NeMo Canary Model</a> (2024/04/18) </summary>
 
           The NeMo team just released Canary, a multilingual model that transcribes speech in English, Spanish, German, and French with punctuation and capitalization. Canary also provides bi-directional translation, between English and the three other supported languages.
           <br><br>
