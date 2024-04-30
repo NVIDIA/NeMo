@@ -378,14 +378,6 @@ class ASRWithTTSModel(ASRModel):
             self.validation_step_outputs.append(loss)
         return loss
 
-    def on_train_epoch_start(self) -> None:
-        """Training epoch start hook, forward to ASR model"""
-        return self.asr_model.on_train_epoch_start()
-
-    def on_train_epoch_end(self) -> None:
-        """Training epoch end hook, forward to ASR model"""
-        return self.asr_model.on_train_epoch_end()
-
     def on_validation_epoch_end(self) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """Validation epoch end hook, forward to ASR model"""
         return self.asr_model.on_validation_epoch_end()
