@@ -54,6 +54,7 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
@@ -79,7 +80,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronBaseModel"]
 
 
-class MegatronBaseModel(NLPModel):
+class MegatronBaseModel(NLPAdapterModelMixin, NLPModel):
     """
     Megatron base class. All NeMo Megatron models inherit from this class.
 

@@ -90,26 +90,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__(cfg, trainer=trainer)
+        
         self.sep_id = cfg.get('sep_id', 49704)
-        if hasattr(self.cfg.data, "validation_ds"):
-            self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
-            self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
-            # Used other keys from metadata to calulate metrics
-            if hasattr(self.cfg.data.validation_ds, "metric"):
-                self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
-
-        if hasattr(self.cfg.data, "test_ds"):
-            self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
-            self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
-            # Used other keys from metadata to calulate metrics
-            if hasattr(self.cfg.data.test_ds, "metric"):
-                self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
-
-        # Set the profile start and end steps in the unit of global batach
-        if hasattr(self, '_nsys_profile_enabled'):
-            self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
-            self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
-
         self._reset_activation_checkpointing_args()
         self.virtual_tokens = 0
 
@@ -196,9 +178,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self, '_train_ds'):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
-            self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
+            self._validation_dl = self.setup_eval_dataloader(self.cfg.data)
         if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
-            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+            self._test_dl = self.setup_eval_dataloader(self.cfg.data)
 
         # Raise error if using multiple dataloaders
         if type(self._validation_dl) == list and len(self._validation_dl) > 1:
@@ -416,63 +398,42 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return loss_mean
 
     def validation_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        return self.inference_step(dataloader_iter, batch_idx, 'validation', dataloader_idx)
-
-    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
-        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
-        return self.inference_step(dataloader_iter, batch_idx, 'test', dataloader_idx)
-
-    def inference_step(self, dataloader_iter, batch_idx, mode, dataloader_idx=0):
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        """
         # Check if iterator is exhausted
         dataloader_iter, done = self._val_iterator_done(dataloader_iter)
         if done:
             return
-        batch = next(dataloader_iter)
-        data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
-        self._reconfigure_and_process_inference_batch(batch, data_cfg)
-        # Meta data from dataset
-        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss = super().validation_step(itertools.chain([batch]), batch_idx)
+        mode = 'test' if self.trainer.testing else 'val'
+        # Initialize userbuffer communicators.
+        if self.initialize_ub:
+            self.initialize_ub_func()
 
-        if data_cfg.get("write_predictions_to_file", False) or data_cfg.metric.name != 'loss':
-            # We need _inference_config to get generation params
-            # add_BOS and tokens_to_generate are set in dataset
-            if self.get_inference_config() is None:
-                self.set_inference_config(inference_config={})
-            self._inference_config['add_BOS'] = data_cfg.add_bos
-            self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.eval()
 
-            output = self.predict_step(batch, batch_idx, dataloader_idx)
-            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
-            preds_text = [
-                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-                for t, l in zip(output['token_ids'], batch['context_lengths'])
-            ]
+        if self.cfg.get('fp8', False):
+            first_val_step = self.prev_step_training and not self.training
+            self.prev_step_training = self.training
         else:
-            inputs_text, labels_text, preds_text = [], [], []
+            first_val_step = None
 
-        outputs = {
-            'loss': loss,
-            'preds': preds_text,  # [str]
-            'labels': labels_text,  # [str]
-            'inputs': inputs_text,  # [str]
-            'metadata': metadata,  # [dict]
-        }
+        loss = self.fwd_bwd_step(dataloader_iter, batch_idx, True, first_val_step)
 
-        if mode == 'validation':
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
-                self.validation_step_outputs[dataloader_idx][-1] = outputs
-            else:
-                # super().validation_step appends just loss to self.validation_step_outputs, replace the last appended loss with the outputs dict
-                self.validation_step_outputs[-1] = outputs
-        else:
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
-                self.test_step_outputs[dataloader_idx][-1] = outputs
-            else:
-                self.test_step_outputs[-1] = outputs
-        return outputs
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                model_module.train()
+        self.validation_step_outputs.append(loss) if mode == 'val' else self.test_step_outputs.append(loss)
+        return loss
+
+    def test_step(self, dataloader_iter, batch_idx, dataloader_idx=0):
+        # Add try except since dataloader_iter in PTL 2.0 doesnt catch the end of iterables
+        return self.validation_step(batch, batch_idx)
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
@@ -898,7 +859,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 dataset=self._train_ds, consumed_samples=consumed_samples,
             )
 
-    def setup_eval_dataloader(self, datasets, data_cfg):
+    def setup_eval_dataloader(self, data_cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
             logging.info(
@@ -918,44 +879,40 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 self._validation_ds, consumed_samples, "validation", drop_last, pad_samples_to_global_batch_size
             )
 
-    def on_validation_epoch_start(self):
-        self._reset_activation_checkpointing_args()
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
-            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
-        return super().on_validation_epoch_start()
+    def on_validation_epoch_end(self):
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss with their batch size
+            if self.cfg.data.get('validation_drop_last', True):
+                averaged_loss = torch.stack(self.validation_step_outputs).mean()
+            else:
+                # Compute the avg loss by total_loss across all samples / total number of samples
+                total_loss_and_total_samples = torch.vstack(self.validation_step_outputs).sum(axis=0)
+                avg_loss = total_loss_and_total_samples[0] / total_loss_and_total_samples[1]
+                averaged_loss = avg_loss.type(torch.float32).cuda()
+        else:
+            averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
-    def on_test_epoch_start(self):
-        self._reset_activation_checkpointing_args()
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=self.cfg.data.test_ds.global_batch_size,
-            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
-        return super().on_test_epoch_start()
+        # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
+        # it should be casted to other pipeline stages for logging.
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if self.loss_broadcast_src_rank is None:
+                dp_size = parallel_state.get_data_parallel_world_size()
+                cp_size = parallel_state.get_context_parallel_world_size()
+                tp_size = parallel_state.get_tensor_model_parallel_world_size()
+                pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+                rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * cp_size * tp_size)
+                last_pipeline_stage_offset = (tp_size * cp_size * dp_size) * (pp_size - 1)
+                self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
+            torch.distributed.broadcast(
+                averaged_loss, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
+            )
 
-    def on_predict_epoch_start(self):
-        return self.on_test_epoch_start()
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
+
+        return averaged_loss
 
     def on_test_epoch_end(self):
-        _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
-        # Commenting as on_test_epoch_end was a no-op in PTL 1.9
-        # return super().on_test_epoch_end()
-
-    def on_validation_epoch_end(self):
-        _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
-        # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
-        # return super().on_validation_epoch_end()
-
-    def on_train_epoch_start(self) -> None:
-        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
-        self.on_validation_epoch_end()
-        return super().on_train_epoch_start()
+        averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
+        logging.info(f'test_loss: {averaged_loss[0]}')
+        self.test_step_outputs.clear()  # free memory

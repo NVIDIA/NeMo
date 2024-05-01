@@ -72,7 +72,8 @@ class NLPAdapterModelMixin:
         else:
             self.model_prefix = "model.module." if self.cfg.get('megatron_amp_O2', False) else "model."
 
-        self.use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
+        self.use_mcore_gpt = True # hasattr(self, 'mcore_gpt') and self.mcore_gpt
+    
         if self.use_mcore_gpt:
             assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
 
@@ -146,6 +147,7 @@ class NLPAdapterModelMixin:
                     if self.cfg.megatron_amp_O2:
                         layers = self.model.module.language_model.encoder.layers
                     else:
+                        print(self.model)
                         layers = self.model.language_model.encoder.layers
                 for layer in layers:
                     if layer.layer_number in (layer_selection or list(range(1, self.cfg.num_layers + 1))):

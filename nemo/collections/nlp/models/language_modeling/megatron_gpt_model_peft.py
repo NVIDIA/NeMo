@@ -38,6 +38,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import
     GPTFIMDatasetConfig,
     is_dataset_built_on_rank,
 )
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 
 from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
