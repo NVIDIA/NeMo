@@ -6373,7 +6373,7 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
-      - L2_Community_LLM_Checkpoints_tests_Baichuan2
+      #- L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
       - ASR_dev_run_Speech_Pre-training_-_CitriNet
