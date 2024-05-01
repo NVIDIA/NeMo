@@ -832,8 +832,13 @@ def prepare_lr_scheduler(
         monitor = 'loss'
 
     # Store exact max_steps if it is provided
-    if 'max_steps' in scheduler_config and scheduler_config['max_steps'] is not None:
-        max_steps = scheduler_config['max_steps']
+    max_steps_from_cfg = scheduler_config.get('max_steps')
+    if max_steps_from_cfg is not None:
+        if max_steps_from_cfg == -1:
+            logging.warning('`max_steps` is set to -1 in the scheduler config, scheduler will not be instantiated')
+            return None
+        assert max_steps_from_cfg >= 0, "`max_steps` must be a non-negative integer"
+        max_steps = max_steps_from_cfg
 
     elif 't_max_epochs' in scheduler_config:
         # Compute effective max_steps if t_max_epochs is provided
@@ -872,6 +877,14 @@ def prepare_lr_scheduler(
                 batch_size = train_dataloader.batch_sampler.micro_batch_size
             else:
                 raise ValueError(f'Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}')
+        elif hasattr(train_dataloader, 'sampler') and train_dataloader.sampler is not None:
+            if (
+                hasattr(train_dataloader.sampler, 'micro_batch_size')
+                and train_dataloader.sampler.micro_batch_size is not None
+            ):
+                batch_size = train_dataloader.sampler.micro_batch_size
+            else:
+                raise ValueError(f'Could not find batch_size from sampler: {train_dataloader.sampler}')
         else:
             raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
         drop_last = train_dataloader.drop_last

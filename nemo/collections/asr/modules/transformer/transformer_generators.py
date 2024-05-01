@@ -174,9 +174,18 @@ class GreedySequenceGenerator:
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
         with self.as_frozen():
-            return self._forward(
+            results = self._forward(
                 decoder_input_ids, encoder_hidden_states, encoder_input_mask, return_beam_scores=return_beam_scores
             )
+            if not return_beam_scores:
+                return results
+            else:
+                prefixes, scores, tgt = results
+                prefixes = prefixes.view(-1, self.beam_size, tgt.size(1)).split(1, dim=0)
+                scores = scores.view(-1, self.beam_size).split(1, dim=0)
+                prefixes = [x.squeeze(0) for x in prefixes]  # each item is [beam, seq_len]
+                scores = [x.squeeze(0) for x in scores]  # each item is [beam,]
+                return prefixes, scores, tgt
 
     def freeze(self) -> None:
         """Freeze weights of embedding, decoder, and classification layers to prevent memory leak.
@@ -301,7 +310,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
         # repeat init target prefixes and cached memory states beam_size times
-        prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
+        prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
             decoder_mems_list[j] = decoder_mems_list[j].repeat(self.beam_size, 1, 1)
 
@@ -323,14 +332,15 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         # length penalty correction
         prefixes_len = torch.zeros_like(scores).fill_(prefixes.size(1) + 1)
 
-        for i in range(max_generation_length):
+        tgt_len = tgt.size(-1)
+        for i in range(tgt_len, max_generation_length + tgt_len):
 
             # mask all finished hypotheses to exclude them from beam
             pad_mask = pad_profile.repeat(1, self.beam_size)
 
             # generate and score candidates for prefixes continuation
             log_probs, decoder_mems_list = self._one_step_forward(
-                prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i + 1
+                prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
 

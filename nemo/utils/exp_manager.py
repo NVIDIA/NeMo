@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Collection, Dict, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
@@ -32,7 +32,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.timer import Interval, Timer
-from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import _TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 
@@ -152,6 +152,8 @@ class ExpManagerConfig:
     dllogger_logger_kwargs: Optional[DLLoggerParams] = field(default_factory=lambda: DLLoggerParams())
     create_clearml_logger: Optional[bool] = False
     clearml_logger_kwargs: Optional[ClearMLParams] = field(default_factory=lambda: ClearMLParams())
+    create_neptune_logger: Optional[bool] = False
+    neptune_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = field(default_factory=lambda: CallbackParams())
@@ -302,9 +304,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
                 Defaults to True.
             - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default is False.
-             See EarlyStoppingParams dataclass above.
+                See EarlyStoppingParams dataclass above.
             - create_preemption_callback (bool): Flag to decide whether to enable preemption callback to save checkpoints and exit training
-             immediately upon preemption. Default is True.
+                immediately upon preemption. Default is True.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
@@ -339,7 +341,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     elif not isinstance(cfg, DictConfig):
         raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
-    cfg = OmegaConf.merge(schema, cfg)
+    cfg = OmegaConf.merge(schema, cfg)  # type: ExpManagerConfig
 
     error_checks(trainer, cfg)  # Ensures that trainer options are compliant with NeMo and exp_manager arguments
 
@@ -422,6 +424,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         or cfg.create_mlflow_logger
         or cfg.create_dllogger_logger
         or cfg.create_clearml_logger
+        or cfg.create_neptune_logger
     ):
         configure_loggers(
             trainer,
@@ -440,6 +443,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.dllogger_logger_kwargs,
             cfg.create_clearml_logger,
             cfg.clearml_logger_kwargs,
+            cfg.create_neptune_logger,
+            cfg.neptune_logger_kwargs,
         )
 
     # add loggers timing callbacks
@@ -559,6 +564,18 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
 
 
+def _filter_out_unfinished_checkpoints(checkpoint_paths: Collection[Union[Path, str]]) -> Collection[Union[Path, str]]:
+    res = []
+    for chkpt_path in checkpoint_paths:
+        if NeMoModelCheckpoint.is_checkpoint_unfinished(chkpt_path):
+            logging.warning(
+                f'Checkpoint {chkpt_path} has the unfinished marker set - skipped while looking for the last one.'
+            )
+        else:
+            res.append(chkpt_path)
+    return res
+
+
 def check_resume(
     trainer: 'pytorch_lightning.Trainer',
     log_dir: str,
@@ -599,7 +616,9 @@ def check_resume(
         last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
 
         end_checkpoints = end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
+        end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
         last_checkpoints = last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
+        last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
 
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if resume_ignore_no_checkpoint:
@@ -625,7 +644,7 @@ def check_resume(
                     f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
                 )
         elif len(last_checkpoints) > 1:
-            if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
+            if any([s for s in ['mp_rank', 'tp_rank', 'fsdp_shard'] if s in str(last_checkpoints[0])]):
                 checkpoint = last_checkpoints[0]
                 checkpoint = uninject_model_parallel_rank(checkpoint)
             else:
@@ -815,6 +834,8 @@ def configure_loggers(
     dllogger_kwargs: dict,
     create_clearml_logger: bool,
     clearml_kwargs: dict,
+    create_neptune_logger: bool,
+    neptune_kwargs: dict,
 ):
     """
     Creates TensorboardLogger and/or WandBLogger / MLFlowLogger / DLlogger / ClearMLLogger and attach them to trainer.
@@ -871,6 +892,20 @@ def configure_loggers(
 
         logger_list.append(clearml_logger)
         logging.info("ClearMLLogger has been set up")
+
+    if create_neptune_logger:
+        if neptune_kwargs is None:
+            neptune_kwargs = {}
+        if "name" not in neptune_kwargs and "project" not in neptune_kwargs:
+            raise ValueError("name and project are required for neptune_logger")
+        if "api_key" not in neptune_kwargs and not os.getenv("NEPTUNE_API_TOKEN", None):
+            raise ValueError(
+                "either api_key should be set in neptune_kwargs or NEPTUNE_API_TOKEN should be set in environment variable for neptune_logger"
+            )
+        neptune_logger = NeptuneLogger(**neptune_kwargs)
+
+        logger_list.append(neptune_logger)
+        logging.info("NeptuneLogger has been set up")
 
     trainer._logger_connector.configure_logger(logger_list)
 
@@ -999,10 +1034,10 @@ class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
     the training state before validation has run.
     """
 
-    def _should_check_val_fx(self) -> bool:
+    def _should_check_val_fx(self, data_fetcher) -> bool:
         if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
             return False
-        return super()._should_check_val_fx()
+        return super()._should_check_val_fx(data_fetcher)
 
 
 def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remove_nemo: bool = False):

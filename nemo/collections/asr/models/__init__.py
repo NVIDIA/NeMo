@@ -12,13 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.audio_to_audio_model import AudioToAudioModel
-from nemo.collections.asr.models.classification_models import EncDecClassificationModel, EncDecFrameClassificationModel
+from nemo.collections.asr.models.classification_models import (
+    ClassificationInferConfig,
+    EncDecClassificationModel,
+    EncDecFrameClassificationModel,
+)
 from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.models.enhancement_models import EncMaskDecAudioToAudioModel
+from nemo.collections.asr.models.enhancement_models import (
+    EncMaskDecAudioToAudioModel,
+    PredictiveAudioToAudioModel,
+    ScoreBasedGenerativeAudioToAudioModel,
+)
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.models.k2_sequence_models import (

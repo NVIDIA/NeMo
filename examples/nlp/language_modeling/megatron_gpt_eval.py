@@ -167,11 +167,13 @@ def remove_padded_prompts(response, nb_paddings):
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
+    callbacks = []
+    # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
+        callbacks.append(CustomProgressBar())
     # trainer required for restoring model parallel models
     trainer = Trainer(
-        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
-        **cfg.trainer,
-        callbacks=[CustomProgressBar()],
+        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)), **cfg.trainer, callbacks=callbacks,
     )
 
     if cfg.gpt_model_file is not None:
@@ -199,7 +201,9 @@ def main(cfg) -> None:
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        == cfg.tensor_model_parallel_size
+        * cfg.pipeline_model_parallel_size
+        * max(1, cfg.get('expert_model_parallel_size', 1))
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     if cfg.gpt_model_file:
@@ -220,10 +224,13 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
             pretrained_cfg["use_flash_attention"] = cfg.inference.get("use_flash_attention", False)
+            pretrained_cfg["apply_rope_fusion"] = False
             if pretrained_cfg.get('mcore_gpt', False):
                 # with dist checkpointing we can use the model parallel config specified by the user
                 pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
                 pretrained_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
+                pretrained_cfg.expert_model_parallel_size = cfg.get('expert_model_parallel_size', 1)
+                pretrained_cfg.micro_batch_size = 1
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
             elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
@@ -237,13 +244,23 @@ def main(cfg) -> None:
         )
     elif cfg.checkpoint_dir:
         app_state = AppState()
-        if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        if (
+            cfg.tensor_model_parallel_size > 1
+            or cfg.pipeline_model_parallel_size > 1
+            or cfg.get('expert_model_parallel_size', 1) > 1
+        ):
+            app_state.model_parallel_size = (
+                cfg.tensor_model_parallel_size
+                * cfg.pipeline_model_parallel_size
+                * cfg.get('expert_model_parallel_size', 1)
+            )
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
+            app_state.expert_model_parallel_size = cfg.get('expert_model_parallel_size', 1)
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
+                app_state.expert_model_parallel_rank,
                 app_state.model_parallel_size,
                 app_state.data_parallel_size,
                 app_state.pipeline_model_parallel_split_rank,
@@ -254,6 +271,7 @@ def main(cfg) -> None:
                 tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
+                expert_model_parallel_size_=cfg.get('expert_model_parallel_size', 1),
             )
         checkpoint_path = os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
         # checkpoint_path is a dir in case of distributed checkpointing

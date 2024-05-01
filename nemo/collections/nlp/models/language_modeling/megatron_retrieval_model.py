@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset_legacy import (
     build_mock_train_valid_test_datasets,
     build_train_valid_test_datasets,
 )
@@ -325,7 +325,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if prefix == 'val':
             self.validation_step_outputs.append(reduced_loss)
         else:
-            self.test_step_outputs.apped(reduced_loss)
+            self.test_step_outputs.append(reduced_loss)
         return reduced_loss
 
     def on_validation_epoch_end(self):
@@ -482,7 +482,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return

@@ -17,15 +17,18 @@ import itertools
 import os
 import re
 from dataclasses import fields
+from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
 import omegaconf
 import torch
+import torch.nn as nn
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -34,12 +37,14 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_fp32,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
+from nemo.collections.nlp.parts.utils_funcs import activation_to_func
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, str_to_dtype
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
@@ -54,14 +59,24 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig, parallel_state
+    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
 
-    ModelParallelConfig = ApexGuardDefaults
+    ModelParallelConfig = TransformerConfig = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
+
+try:
+    from megatron.core import Timers
+
+    HAVE_MEGATRON_CORE_TIMERS = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE_TIMERS = False
 
 __all__ = ["MegatronBaseModel"]
 
@@ -118,6 +133,17 @@ class MegatronBaseModel(NLPModel):
             else torch.float32
         )
 
+        self.megatron_timers = None
+        if self.cfg.get('enable_megatron_timers', False) and HAVE_MEGATRON_CORE_TIMERS:
+            self.megatron_timers_cfg = dict(self.cfg.get('megatron_timer_kwargs', dict()))
+            if 'log_every_n_steps' not in self.megatron_timers_cfg:
+                self.megatron_timers_cfg['log_every_n_steps'] = self.trainer.log_every_n_steps
+            if 'log_option' not in self.megatron_timers_cfg:
+                self.megatron_timers_cfg['log_option'] = 'minmax'  # minmax, max, all
+            if 'barrier' not in self.megatron_timers_cfg:
+                self.megatron_timers_cfg['barrier'] = False
+            self.megatron_timers = Timers(log_level=2, log_option=self.megatron_timers_cfg['log_option'])
+
         # set the megatron core model parallel config
         self.model_parallel_config: ModelParallelConfig = self.build_model_parallel_config()
 
@@ -136,7 +162,11 @@ class MegatronBaseModel(NLPModel):
         # Overrides used when converting checkpoints
         if os.environ.get(NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, "false").lower() == "true":
             app_state = AppState()
-            init_world_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+            init_world_size = (
+                app_state.tensor_model_parallel_size
+                * app_state.pipeline_model_parallel_size
+                * (app_state.expert_model_parallel_size or 1)
+            )
             init_global_rank = app_state.global_rank
             init_local_rank = app_state.local_rank
         else:
@@ -161,9 +191,12 @@ class MegatronBaseModel(NLPModel):
             global_rank=init_global_rank,
             local_rank=init_local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            expert_model_parallel_size=cfg.get('expert_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
+            use_tp_pp_dp_mapping=cfg.get('use_tp_pp_dp_mapping', False),
+            context_parallel_size=cfg.get('context_parallel_size', 1),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size', None),
@@ -208,12 +241,129 @@ class MegatronBaseModel(NLPModel):
             gc.disable()
             self.validation_global_step = 1
 
-    def _reconfigure_val_batches(self):
+        self.use_fsdp = cfg.get('fsdp', False)
+
+    def setup_transformer_engine_tp_groups(self):
+        """ This should be called after model parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        for module in self.get_model_module_list():
+            """Set TP group
+               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_tensor_parallel_group"):
+                    tp_group = parallel_state.get_tensor_model_parallel_group()
+                    child.set_tensor_parallel_group(tp_group)
+
+    def setup_transformer_engine_cp_groups(self):
+        """ This should be called after context parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        cp_stream = torch.cuda.Stream()
+
+        for module in self.get_model_module_list():
+            """Set context parallel running
+               Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
+            """
+            # Deep iterate but skip self to avoid infinite recursion.
+            for index, child in enumerate(module.modules()):
+                if index == 0:
+                    continue
+                if hasattr(child, "set_context_parallel_group"):
+                    child.set_context_parallel_group(
+                        parallel_state.get_context_parallel_group(),
+                        parallel_state.get_context_parallel_global_ranks(),
+                        cp_stream,
+                    )
+
+    def _wrap_model_for_O2(self):
+        """ Wraps self.model in a float16 wrapper if the model is using megatron amp O2.
+            Args:
+                model: The model to wrap. Can be a list of modules or a single module.
+            Returns:
+                The wrapped model. Returns a list of wrapped modules or a single wrapped module.
+        """
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
+
+        Float16Wrapper = MCoreFloat16Module if is_mcore_model else Float16Module
+
+        nemo_args = {'config': self.model_parallel_config, 'precision': self.cfg.precision}
+
+        if type(self).__name__ == 'MegatronGPTModel':
+            nemo_args['share_token_embeddings'] = self.cfg.get('share_embeddings_and_output_weights', True)
+
+        mcore_args = {
+            'config': self.transformer_config,
+        }
+
+        args = mcore_args if is_mcore_model else nemo_args
+
+        # Model wrapper to convert both model and inputs to half precision
+        if isinstance(self.model, list):
+            converted_model = []
+            for module in self.model:
+                args['module'] = module
+                converted_model.append(Float16Wrapper(**args))
+            self.model = converted_model
+        else:
+            args['module'] = self.model
+            self.model = Float16Wrapper(**args)
+
+        args.pop('module')
+
+    def get_model_module_list(self):
+        if isinstance(self.model, list):
+            return [
+                model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
+                for model in self.model
+            ]
+        elif isinstance(self.model, (Float16Module, MCoreFloat16Module)):
+            return [self.model.module]
+        else:
+            return [self.model]
+
+    def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        # Override limit_val_batches to be a multiple of num microbatches and so there are limit_val_batches//num_micro_batches num of global batches
-        self.trainer.limit_val_batches *= get_num_microbatches()
+        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
+        if isinstance(limit_batches, int):
+            limit_batches *= get_num_microbatches()
+        else:
+            assert isinstance(limit_batches, float)
+            # Don't reconfigure if limit_batches is 0.0 or if there's no dataloader
+            if limit_batches == 0.0 or dataloader is None:
+                return
+            # len(dataloader) returns len as num of microbatches
+            dl_len_in_micro_batches = len(dataloader)
+            if len(dataloader) != float("inf"):
+                if limit_batches == 1.0:
+                    limit_batches = dl_len_in_micro_batches
+                else:
+                    limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
+                    if limit_micro_batches == 0 and limit_batches > 0.0:
+                        min_percentage = 1.0 / len(dataloader)
+                        raise MisconfigurationException(
+                            f"You requested to check {limit_batches} of the val_dataloader but"
+                            f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
+                            f" `limit_val_batches` argument. Try at least"
+                            f" `limit_val_batches={min_percentage}`"
+                        )
+                    # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+                    if limit_micro_batches < get_num_microbatches():
+                        limit_batches = get_num_microbatches()
+                    else:
+                        limit_batches = limit_batches - limit_batches % get_num_microbatches()
+
+        if mode == 'train':
+            self.trainer.limit_train_batches = limit_batches
+        else:
+            self.trainer.limit_val_batches = limit_batches
+
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
@@ -222,6 +372,11 @@ class MegatronBaseModel(NLPModel):
 
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+
+        # Support DLFW master container
+        if nvidia_torch_version == 'master':
+            nvidia_torch_version = datetime.now().strftime('%y.%m')
+
         if nvidia_torch_version is not None:
             try:
                 NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
@@ -272,6 +427,7 @@ class MegatronBaseModel(NLPModel):
             use_fast=self.cfg.tokenizer.get('use_fast', False),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             special_tokens=self.cfg.tokenizer.get('special_tokens', None),
+            trust_remote_code=self.cfg.tokenizer.get('trust_remote_code', False),
             legacy=legacy,
         )
 
@@ -292,6 +448,120 @@ class MegatronBaseModel(NLPModel):
         super().on_validation_end()
         if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
+
+    def build_transformer_config(self) -> TransformerConfig:
+        """ Builds the megatron core transformer config for the model.
+            For attributes in the nemo model config that are the same
+            as the megatron core TransformerConfig, we will use the value from the nemo model config.
+            For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+        """
+
+        # create a dictionary copy of the model config
+        cfg = OmegaConf.to_container(self.cfg, resolve=True)
+
+        # create a dict to store the transformer config arguments
+        transformer_config_dict = {}
+
+        # get model parallel configs from the base class
+        model_parallel_config = self.build_model_parallel_config()
+
+        add_bias_linear = self.cfg.get('bias', True)
+        add_qkv_bias = self.cfg.get('qkv_bias', False)
+
+        activation = self.cfg.get('activation', 'gelu')
+        gated_linear_unit = activation.endswith('glu')
+        # TODO: need to check which activation functions are supported in mcore
+        activation_func = activation_to_func(activation)
+
+        normalization = self.cfg.get('normalization', 'LayerNorm')
+
+        init_method_std = self.cfg.get('init_method_std', 0.02)
+        # default used in mcore
+        init_method = init_method_normal(init_method_std)
+
+        output_layer_init_method = init_method
+        num_layers = self.cfg.get('num_layers', 1)
+        use_scaled_init_method = self.cfg.get('use_scaled_init_method', True)
+        if use_scaled_init_method:
+            output_layer_init_method = scaled_init_method_normal(init_method_std, num_layers=num_layers)
+
+        attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
+        apply_query_key_layer_scaling = self.cfg.get('apply_query_key_layer_scaling', False)
+
+        rotary_interleaved = self.cfg.get('rotary_interleaved', False)
+
+        fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
+        if apply_query_key_layer_scaling:
+            if fp16_enabled:
+                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "1"
+            else:
+                logging.warning(
+                    "apply_query_key_layer_scaling is only enabled when using FP16, setting it to False "
+                    "and setting NVTE_APPLY_QK_LAYER_SCALING=0"
+                )
+                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "0"
+                apply_query_key_layer_scaling = False
+
+        if apply_query_key_layer_scaling:
+            attention_softmax_in_fp32 = True
+
+        bias_activation_fusion = self.cfg.get('bias_activation_fusion', True)
+
+        bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
+
+        # @chcui default rope fusion to false until #8590 is closed.
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', False)
+
+        # TODO: need to check if recompute APIs are matching up properly
+        recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
+        recompute_method = self.cfg.get('activations_checkpoint_method', None)
+        recompute_num_layers = self.cfg.get('activations_checkpoint_num_layers', None)
+
+        # any configs that are not in the nemo model config will be added here
+        config_mapping = {
+            'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
+            'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
+            'layernorm_zero_centered_gamma': False,
+            'add_bias_linear': add_bias_linear,
+            'add_qkv_bias': add_qkv_bias,
+            'gated_linear_unit': gated_linear_unit,
+            'activation_func': activation_func,
+            'normalization': normalization,
+            'init_method': init_method,
+            'output_layer_init_method': output_layer_init_method,
+            'attention_softmax_in_fp32': attention_softmax_in_fp32,
+            'bias_activation_fusion': bias_activation_fusion,
+            'bias_dropout_fusion': bias_dropout_fusion,
+            'apply_rope_fusion': apply_rope_fusion,
+            'recompute_granularity': recompute_granularity,
+            'recompute_method': recompute_method,
+            'recompute_num_layers': recompute_num_layers,
+            'distribute_saved_activations': False,  # not currently used in NeMo
+            'fp8': None,
+            'rotary_interleaved': rotary_interleaved,
+            'deallocate_pipeline_outputs': True,
+        }
+
+        # populate the transformer config dict
+        for field in fields(TransformerConfig):
+            # config mapping has second highest priority
+            if field.name in config_mapping:
+                transformer_config_dict[field.name] = config_mapping[field.name]
+            # then config
+            elif field.name in cfg:
+                transformer_config_dict[field.name] = cfg[field.name]
+            # then model parallel config
+            elif field in fields(model_parallel_config):
+                transformer_config_dict[field.name] = getattr(model_parallel_config, field.name)
+            else:
+                logging.warning(
+                    f"The model: {self} does not have field.name: {field.name} in its cfg. "
+                    f"Add this key to cfg or config_mapping to make to make it configurable."
+                )
+
+        transformer_config = TransformerConfig(**transformer_config_dict)
+
+        return transformer_config
 
     def _build_vocab(self):
         """
@@ -358,7 +628,7 @@ class MegatronBaseModel(NLPModel):
                 parameters = self._optimizer.get_parameters_with_grad()
             else:
                 parameters = self.get_parameters_with_grad()
-            grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+            grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val, use_fsdp=self.use_fsdp,)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
@@ -381,8 +651,10 @@ class MegatronBaseModel(NLPModel):
             bucket = buckets[tp]
             grads = [param.grad.data for param in bucket]
             coalesced = torch._utils._flatten_dense_tensors(grads)
-            coalesced /= parallel_state.get_data_parallel_world_size()
-            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            coalesced /= parallel_state.get_data_parallel_world_size(with_context_parallel=True)
+            torch.distributed.all_reduce(
+                coalesced, group=parallel_state.get_data_parallel_group(with_context_parallel=True)
+            )
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
@@ -406,6 +678,13 @@ class MegatronBaseModel(NLPModel):
 
     def on_train_batch_end(self, outputs, dataloader_iter: Any, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, dataloader_iter, batch_idx)
+
+        # Megatron Timers
+        if self.megatron_timers:
+            if self.global_step % self.megatron_timers_cfg["log_every_n_steps"] == 0:
+                logging.info(
+                    "\n " + self.megatron_timers.get_all_timers_string(barrier=self.megatron_timers_cfg["barrier"])
+                )
 
         # TODO: Replace with newer override for scheduler.step() instead of
         # search for plugins for fp16 GradScalar
@@ -456,20 +735,39 @@ class MegatronBaseModel(NLPModel):
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        # Ensure `max_steps` is set correctly
+        optim_config = self._optim_config_copy(optim_config)
+        if optim_config is not None and 'sched' in optim_config and optim_config.sched.get('max_steps') is None:
+            with open_dict(optim_config):
+                optim_config.sched.max_steps = self._get_max_steps()
+
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+
+        def get_config_arg(key: str, default_value: Optional[Any] = None) -> Any:
+            """Get keyword argument from config"""
+            val = None
+            if val is None and optim_kwargs:
+                val = optim_kwargs.get(key, None)
+            if val is None and optim_config:
+                val = optim_config.get(key, None)
+            if val is None and self._cfg.optim:
+                val = self._cfg.optim.get(key, None)
+            if val is None:
+                val = default_value
+            return val
+
         if self.with_distributed_adam:
+            # Allocate contiguous grad buffer to avoid extra copies
+            optim_kwargs['contiguous_grad_buffer'] = get_config_arg('contiguous_grad_buffer', True)
+            if self.megatron_amp_O2 and not optim_kwargs['contiguous_grad_buffer']:
+                raise ValueError(
+                    "Distributed Adam optimizer requires contiguous param buffer for O2. "
+                    "Either enable contiguous_grad_buffer or disable megatron_amp_O2."
+                )
 
-            # Allocate contiguous buffer to avoid extra copies
-            optim_kwargs['contiguous_grad_buffer'] = True
-
-            # Make sure optimizer state is in FP32
-            optim_dtype = torch.float32
+            # Optimizer dtype
+            optim_dtype = str_to_dtype(get_config_arg('dtype', torch.float32))
             optim_kwargs['dtype'] = optim_dtype
-
-            # Make sure embedding grad reductions are in FP32
-            for name, param in self.named_parameters():
-                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
-                    param._with_fp32_optimizer = True
 
             # Match param allgather with model dtype
             model_dtype = torch.float32
@@ -478,7 +776,9 @@ class MegatronBaseModel(NLPModel):
             optim_kwargs['param_sync_dtype'] = model_dtype
 
             # Determine whether to store master params in optimizer
-            if optim_dtype == model_dtype:
+            if self.cfg.get('fp8_params', False):
+                optim_kwargs['store_params'] = True
+            elif optim_dtype == model_dtype:
                 optim_kwargs['store_params'] = False
             elif optim_dtype == torch.float32 and model_dtype == torch.bfloat16:
                 optim_kwargs['store_params'] = False
@@ -533,21 +833,28 @@ class MegatronBaseModel(NLPModel):
                 grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
             )
 
-            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
             if hasattr(self._cfg.optim, 'sched'):
                 sched_config = self._cfg.optim.sched
-                sched_config['max_steps'] = self._trainer.max_steps
                 self._scheduler = prepare_lr_scheduler(
                     optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
                 )
+
+        if getattr(self._cfg.optim, 'sched', None) is not None and self._scheduler is None:
+            # The error below refers in particular to logs from `prepare_lr_scheduler()` (when it retunrs `None`).
+            raise AssertionError(
+                "A scheduler config exists but no scheduler was instantiated! Previous logs may help identify the "
+                "root cause of this issue."
+            )
 
         # Configure distributed optimizer
         if self.with_distributed_adam:
 
             # Initialize param buckets if explicitly provided
-            if hasattr(self, 'distributed_adam_buckets'):
+            if getattr(self, 'distributed_adam_buckets', None) is not None:
                 for bucket in self.distributed_adam_buckets:
                     self._optimizer.init_params_bucket(bucket)
+                self._optimizer.init_params_bucket(self.parameters())
+            if hasattr(self, 'distributed_adam_buckets'):
                 del self.distributed_adam_buckets
 
             # Make sure all params are initialized so main grads are
@@ -556,10 +863,11 @@ class MegatronBaseModel(NLPModel):
             overlap_params = []
             no_overlap_params = []
             for p in self.parameters():
-                if getattr(p, '_disable_overlap_grad_sync', False):
-                    no_overlap_params.append(p)
-                else:
-                    overlap_params.append(p)
+                if p.requires_grad:
+                    if getattr(p, '_disable_overlap_grad_sync', False):
+                        no_overlap_params.append(p)
+                    else:
+                        overlap_params.append(p)
             self._optimizer.init_params(reversed(overlap_params))
             self._optimizer.init_params(reversed(no_overlap_params))
 
@@ -592,6 +900,8 @@ class MegatronBaseModel(NLPModel):
 
     def _compute_consumed_samples_after_training_step(self):
         # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+        if not hasattr(self, 'init_global_step'):
+            self.init_global_step = 0  # in case this method is called before training starts.
         return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
@@ -631,11 +941,14 @@ class MegatronBaseModel(NLPModel):
                 )
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
-
-        if self.cfg.get('gradient_accumulation_fusion', False) and not self.cfg.get('megatron_amp_O2', False):
-            logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
-            with open_dict(self.cfg):
-                self.cfg.gradient_accumulation_fusion = False
+            if self.cfg.get('fsdp', False):
+                logging.info("When using FSDP, gradient accumulation cannot be fused to gradient computation.")
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
+            if not self.cfg.get('megatron_amp_O2', False):
+                logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
 
         if self.cfg.get('use_emha', False):
             raise ValueError('use_emha is not yet supported please set to False')
@@ -651,12 +964,24 @@ class MegatronBaseModel(NLPModel):
                 ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
-            if not self.cfg.get('transformer_engine', False) or not self.cfg.get('sequence_parallel', False):
+            if not self.cfg.get('sequence_parallel', False):
                 logging.info(
-                    "Userbuffer tensor-parallel communication overlap is available with both Transformer Engine and sequence-parallelism."
+                    "Pipelined tensor-parallel communication overlap is available with sequence-parallelism."
+                    "Setting `ub_tp_comm_overlap` to False."
                 )
                 with open_dict(self.cfg):
                     self.cfg.ub_tp_comm_overlap = False
+
+            if self.cfg.get('fsdp', False):
+                logging.info(
+                    "Userbuffer tensor-parallel communication overlap is not available with FSDP."
+                    "Setting `ub_tp_comm_overlap` to False."
+                )
+                with open_dict(self.cfg):
+                    self.cfg.ub_tp_comm_overlap = False
+
+        if self.cfg.get('fsdp', False) and self.cfg.get('fp8', False):
+            raise ValueError('Torch FSDP does not support FP8.')
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
@@ -672,9 +997,11 @@ class MegatronBaseModel(NLPModel):
             else:
                 return False
 
-    def _get_total_params_across_model_parallel_groups_gpt_bert(self, model):
+    def _get_total_params_across_model_parallel_groups_gpt_bert(self):
         """Returns the total number of parameters across all model parallel groups."""
+        is_mcore_model = self.__dict__.get('mcore_gpt', False) or self.__dict__.get('mcore_bert', False)
         # log number of parameters
+        model = self.get_model_module_list()
         if isinstance(model, list):
             num_parameters_on_device = sum(
                 [sum([p.nelement() for p in model_module.parameters()]) for model_module in model]
@@ -685,8 +1012,8 @@ class MegatronBaseModel(NLPModel):
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 word_embeddings_weight = (
-                    model[-1].module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
+                    model[-1].shared_embedding_or_output_weight()
+                    if is_mcore_model
                     else model[-1].word_embeddings_weight()
                 )
                 # substract the embedding weights on the last virtual stage
@@ -700,9 +1027,7 @@ class MegatronBaseModel(NLPModel):
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 word_embeddings_weight = (
-                    model.module.shared_embedding_or_output_weight()
-                    if getattr(self, 'mcore_gpt', False)
-                    else model.word_embeddings_weight()
+                    model.shared_embedding_or_output_weight() if is_mcore_model else model.word_embeddings_weight()
                 )
                 # substract the embedding weights on the last stage
                 num_word_embedding_parameters = sum([p.nelement() for p in word_embeddings_weight])
@@ -785,7 +1110,7 @@ class MegatronBaseModel(NLPModel):
             and megatron_amp_O2,  # NeMo does not currently support fp16 training with megatron amp O2, eval and inference is supported
             "bf16": self.torch_dtype == torch.bfloat16 and megatron_amp_O2,
             "params_dtype": self.params_dtype,
-            "timers": None,  # NeMo does not currently support megatron core timers
+            "timers": self.megatron_timers,
             "async_tensor_model_parallel_allreduce": self.cfg.get('tensor_model_parallel_world_size', 1) > 1
             and not self.cfg.get('sequence_parallel', False),
             "pipeline_dtype": pipeline_dtype,
@@ -804,6 +1129,7 @@ class MegatronBaseModel(NLPModel):
             "no_sync_func": None,  # set dynamically during training
             "grad_sync_func": None,  # set dynamically during training
             "param_sync_func": None,  # set dynamically during training
+            "tp_comm_overlap": self.cfg.get('ub_tp_comm_overlap', False),
         }
 
         # instantitate ModelParallelConfig from this dict
@@ -844,3 +1170,87 @@ class MegatronBaseModel(NLPModel):
             return iterator, True
         # reinsert the element back to the iterator
         return itertools.chain([element], iterator), False
+
+    def _get_max_steps(self):
+        """
+        Compute the maximum number of training steps (-1 if it cannot be computed).
+        """
+        if getattr(self, "_trainer", None) is None:
+            logging.warning("Cannot compute `max_steps` as no trainer is set")
+            return -1
+
+        if self._trainer.max_steps >= 0:
+            # Note that when `trainer.max_steps` is defined, we ignore `max_epochs` (even if training may end
+            # before `max_steps` is reached due to `max_epochs`). This is for backward compatibility with older
+            # versions of NeMo.
+            if self._trainer.max_epochs is not None and self._trainer.max_epochs >= 0:
+                logging.warning(
+                    "Ignoring `trainer.max_epochs` when computing `max_steps` because `trainer.max_steps` is already "
+                    f"set to {self._trainer.max_steps}."
+                )
+            return self._trainer.max_steps
+
+        if self._trainer.max_epochs is None or self._trainer.max_epochs < 0:
+            logging.warning(
+                "Cannot compute `max_steps` if neither `trainer.max_steps` nor `trainer.max_epochs` is set"
+            )
+            return -1
+
+        if getattr(self, "_train_dl", None) is None:
+            logging.warning("Cannot compute `max_steps` from the number of epochs as the train dataloader is not set")
+            return -1
+
+        # The number of training step per epoch is typically the number of global batches in the training set...
+        num_global_batches = len(self._train_dl)
+        steps_per_epoch = num_global_batches
+
+        # ... unless it is constrained by the `limit_train_batches` option.
+        limit_batches = self._trainer.limit_train_batches
+        if limit_batches is not None:
+            if isinstance(limit_batches, float):
+                limit_batches = int(limit_batches * num_global_batches)
+            steps_per_epoch = min(num_global_batches, limit_batches)
+
+        return steps_per_epoch * self._trainer.max_epochs
+
+    def configure_sharded_model(self):
+        def find_frozen_submodules(model):
+            frozen_submodules = []
+            frozen_submodule_names = []
+            for name, module in model.named_modules():
+                if (
+                    isinstance(module, nn.Module)
+                    and list(module.parameters())
+                    and all(not param.requires_grad for param in module.parameters())
+                ):
+                    frozen_submodule_names.append(name)
+                    frozen_submodules.append(module)
+            return frozen_submodule_names, frozen_submodules
+
+        if self.use_fsdp:
+            """ Top-evel FSDP model sharding """
+            # Shard the top-level model hierarchically. We shard the strategy-unwrapped model not
+            # to lose the structure of non-FSDP wrapped parameters (e.g, embedding)
+            # TODO: Currently the main parameter data type is kept in fp32 (when O2=False). This needs to be
+            # extended to support lower precision main parameters.
+            frozen_submodule_names, frozen_submodules = find_frozen_submodules(self.model)
+            self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
+            # FSDP requires uniform status of require_grads
+            # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
+            self.model = self.trainer.strategy._setup_model(self.model)
+            # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
+            # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.
+            self.model = self.model.cuda(torch.cuda.current_device())
+
+    def megatron_timer_start(self, name, log_level):
+        if self.megatron_timers:
+            self.megatron_timers(name, log_level).start(barrier=False)
+
+    def megatron_timer_stop(self, name):
+        if self.megatron_timers:
+            self.megatron_timers(name).stop()
+
+    def optimizer_step(self, *args, **kwargs):
+        self.megatron_timer_start('optimizer', log_level=1)
+        super().optimizer_step(*args, **kwargs)
+        self.megatron_timer_stop('optimizer')

@@ -87,6 +87,7 @@ extras_require = {
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
     'slu': req_file("requirements_slu.txt"),
+    'multimodal': req_file("requirements_multimodal.txt"),
 }
 
 
@@ -98,6 +99,9 @@ extras_require['test'] = list(chain([extras_require['tts'], extras_require['core
 extras_require['asr'] = list(chain([extras_require['asr'], extras_require['core'], extras_require['common']]))
 extras_require['nlp'] = list(chain([extras_require['nlp'], extras_require['core'], extras_require['common'],]))
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['core'], extras_require['common'],]))
+extras_require['multimodal'] = list(
+    chain([extras_require['multimodal'], extras_require['nlp'], extras_require['core'], extras_require['common'],])
+)
 
 # TTS has extra dependencies
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
@@ -215,7 +219,6 @@ setuptools.setup(
         'License :: OSI Approved :: Apache Software License',
         # Supported python versions
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         # Additional Setting
         'Environment :: Console',
@@ -231,7 +234,7 @@ setuptools.setup(
     extras_require=extras_require,
     # Add in any packaged data.
     include_package_data=True,
-    exclude=['tools', 'tests'],
+    exclude=['tools', 'tests', 'nemo.deploy', 'nemo.export'],
     package_data={'': ['*.tsv', '*.txt', '*.far', '*.fst', '*.cpp', 'Makefile']},
     zip_safe=False,
     # PyPI package information.

@@ -38,10 +38,6 @@ _HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
 _BF16_TYPES = (torch.BFloat16Tensor, torch.cuda.BFloat16Tensor)
 
 
-def param_is_not_shared(param):
-    return not hasattr(param, 'shared') or not param.shared
-
-
 class MegatronModule(torch.nn.Module):
     """Megatron specific extensions of torch Module with support
     for pipelining."""
@@ -115,7 +111,7 @@ class MegatronModule(torch.nn.Module):
                 f"No decoder_cross_attention_relative_position_embedding found on this rank. Looking for decoder_cross_attention_relative_position_embedding.relative_position_embedding.weight"
             )
 
-    def initialize_word_embeddings(self, init_method, vocab_size, hidden_size, param_dtype=torch.float32):
+    def initialize_word_embeddings(self, init_method, vocab_size, hidden_size):
         if not self.share_token_embeddings:
             raise Exception('initialize_word_embeddings() was called but ' 'share_token_embeddings is false')
 

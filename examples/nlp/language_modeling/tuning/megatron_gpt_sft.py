@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#############################
+# THIS SCRIPT IS DEPRECATED #
+#############################
 import os
 import tempfile
 
@@ -71,6 +73,7 @@ def _modify_config(gpt_cfg, cfg, add_cfg_to_tree=False):
         gpt_cfg.ffn_dropout = cfg.model.ffn_dropout
         gpt_cfg.use_flash_attention = cfg.model.get('use_flash_attention', False)
         gpt_cfg.tensor_model_parallel_size = cfg.model.get('tensor_model_parallel_size', 1)
+        gpt_cfg.expert_model_parallel_size = cfg.model.get('expert_model_parallel_size', 1)
         gpt_cfg.pipeline_model_parallel_size = cfg.model.get('pipeline_model_parallel_size', 1)
         gpt_cfg.pipeline_model_parallel_split_rank = cfg.model.get('pipeline_model_parallel_split_rank', 0)
 
@@ -159,9 +162,13 @@ def validate_checkpoint_loading_args(cfg):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
 
+banner = '\n'.join(['' "*" * 80] * 5)
+
+
 @deprecated(
-    explanation=f"{__file__} is deprecated. PEFT and SFT scripts are now consolidated"
-    "See updated scripts `megatron_gpt_peft_tuning.py` and `megatron_gpt_peft_eval.py` for examples."
+    wait_seconds=20,
+    explanation=f"\n{banner}\n{__file__} is deprecated. PEFT and SFT scripts are now consolidated"
+    f"See updated scripts `megatron_gpt_finetuning.py` and `megatron_gpt_generate.py` for examples.\n{banner}\n",
 )
 @hydra_runner(config_path="conf", config_name="megatron_gpt_sft")
 def main(cfg) -> None:
@@ -192,11 +199,18 @@ def main(cfg) -> None:
             plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
         else:
             plugins.append(PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
+        # Set precision None after precision plugins are created as PTL >= 2.1 does not allow both
+        # precision plugins and precision to exist
+        cfg.trainer.precision = None
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[CustomProgressBar()])
+    callbacks = []
+    # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
+        callbacks.append(CustomProgressBar())
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=callbacks)
 
     exp_manager(trainer, cfg.exp_manager)
 

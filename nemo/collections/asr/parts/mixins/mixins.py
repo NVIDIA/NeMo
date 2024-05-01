@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import os
+import shutil
+import tarfile
 from abc import ABC, abstractmethod
 from typing import List
 
@@ -25,7 +27,7 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.utils import asr_module_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
-from nemo.utils import logging
+from nemo.utils import app_state, logging
 
 
 class ASRBPEMixin(ABC):
@@ -214,7 +216,13 @@ class ASRBPEMixin(ABC):
                         self.AGGREGATE_TOKENIZERS_DICT_PREFIX
                     ][lang]['type']
 
-        self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
+        if "custom_tokenizer" in tokenizer_cfg:
+            # Class which implements this is usually a ModelPT, has access to Serializable mixin by extension
+            self.tokenizer = self.from_config_dict(
+                {"_target_": tokenizer_cfg["custom_tokenizer"]["_target_"], "tokenizers": tokenizers_dict}
+            )
+        else:
+            self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
 
     def _make_tokenizer(self, tokenizer_cfg: DictConfig, lang=None):
 
@@ -366,6 +374,97 @@ class ASRBPEMixin(ABC):
                 if akey.startswith('tokenizer.' + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + '.'):
                     self.artifacts.pop(akey)
 
+    def save_tokenizers(self, directory: str):
+        """
+        Save the model tokenizer(s) to the specified directory.
+
+        Args:
+            directory: The directory to save the tokenizer(s) to.
+        """
+        if not hasattr(self, 'cfg'):
+            raise RuntimeError(
+                "The model has not been initialized with a tokenizer yet. Please call the model's "
+                "__init__ and _setup_tokenizer methods first."
+            )
+
+        if self.tokenizer_type == 'agg':
+            for lang in self.tokenizer.langs:
+                subconfig = self.cfg.tokenizer.langs.get(lang)
+                new_dir = os.path.join(directory, lang)
+                self._extract_tokenizer_from_config(subconfig, new_dir)
+        else:
+            self._extract_tokenizer_from_config(self.cfg.tokenizer, directory)
+
+    def _extract_tokenizer_from_config(self, tokenizer_cfg: DictConfig, dir: str):
+        """
+        Extracts the tokenizer from the config and write the objects to dir.
+        The file may be from a local path (new model init) or from a .nemo file (restored model).
+        If its from a newly initialized model, the file is copied to dir.
+        If its from a restored model, the file is extracted from the .nemo file and copied to dir.
+
+        Args:
+            tokenizer_cfg: The tokenizer config to extract the tokenizer from.
+            dir: The directory to write the tokenizer objects to.
+        """
+        if not os.path.exists(dir):
+            os.makedirs(dir, exist_ok=True)
+
+        nemo_file_objects = []
+
+        for k, v in tokenizer_cfg.items():
+            # Check if the value is a filepath (new model init) or has `nemo:` in it (restored model)
+            if isinstance(v, str) and os.path.exists(v):
+                # local file from first instantiation
+                loc = shutil.copy2(v, dir)
+                logging.info(f"Saved {k} at {loc}")
+
+            if isinstance(v, str) and v.startswith('nemo:'):
+                nemo_object_name = v[5:]
+                nemo_file_objects.append(nemo_object_name)
+
+        if len(nemo_file_objects) > 0:
+            logging.debug(f"Copying the following nemo file objects to {dir}: {nemo_file_objects}")
+
+            if not hasattr(self, 'model_guid'):
+                raise ValueError(
+                    "The model does not have a model_guid attribute. "
+                    "Please ensure that the model has been restored from a .nemo file."
+                )
+
+            appstate = app_state.AppState()
+            restore_path = appstate.get_model_metadata_from_guid(self.model_guid).restoration_path
+            if restore_path is None:
+                raise ValueError(
+                    "The model has not been restored from a .nemo file. Cannot extract the tokenizer "
+                    "as the nemo file cannot be located."
+                )
+
+            # Read the nemo file without fully extracting all contents
+            # we start with an assumption of uncompressed tar,
+            # which should be true for versions 1.7.0 and above
+            tar_header = "r:"
+            try:
+                tar_test = tarfile.open(restore_path, tar_header)
+                tar_test.close()
+            except tarfile.ReadError:
+                # can be older checkpoint => try compressed tar
+                tar_header = "r:gz"
+            tar = tarfile.open(restore_path, tar_header)
+
+            for nemo_object_name in nemo_file_objects:
+                members = [x for x in tar.getmembers() if nemo_object_name in x.name]
+                for member in members:
+                    tar.extract(member, dir)
+
+                    new_name = member.name.split("_")[1:]
+                    if len(new_name) > 1:
+                        new_name = "_".join(new_name)
+                    else:
+                        new_name = new_name[0]
+                    os.rename(os.path.join(dir, member.name), os.path.join(dir, new_name))
+
+                    logging.info(f"Saved {nemo_object_name} at {os.path.join(dir, new_name)}")
+
 
 class ASRModuleMixin(ASRAdapterModelMixin):
     """
@@ -402,10 +501,17 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
         Args:
             self_attention_model (str): type of the attention layer and positional encoding
-                'rel_pos': relative positional embedding and Transformer-XL
-                'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+
+                'rel_pos':
+                    relative positional embedding and Transformer-XL
+
+                'rel_pos_local_attn':
+                    relative positional embedding and Transformer-XL with local attention using
                     overlapping windows. Attention context is determined by att_context_size parameter.
-                'abs_pos': absolute positional embedding and Transformer
+
+                'abs_pos':
+                    absolute positional embedding and Transformer
+
                 If None is provided, the self_attention_model isn't changed. Defauts to None.
             att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes,
                 or None to keep as it is. Defauts to None.
@@ -497,7 +603,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             cache_last_time_next: the updated tensor cache for last time layers to be used for next streaming step
             cache_last_channel_next_len: the updated lengths for cache_last_channel
             best_hyp: the best hypotheses for the Transducer models
-
             log_probs: the logits tensor of current streaming chunk, only returned when return_log_probs=True
             encoded_len: the length of the output log_probs + history chunk log_probs, only returned when return_log_probs=True
         """
@@ -720,7 +825,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
         Args:
             paths2audio_files: (a list) of paths to audio files.
-            batch_size: (int) batch size to use during inference. \
+            batch_size: (int) batch size to use during inference.
                 Bigger will result in better throughput performance but would use more memory.
             online_normalization: whether to do online normalization
         Returns:

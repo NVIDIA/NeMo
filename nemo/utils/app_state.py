@@ -39,6 +39,7 @@ class AppState(metaclass=Singleton):
         self._local_rank = None
         self._global_rank = None
         self._tensor_model_parallel_rank = None
+        self._expert_model_parallel_rank = None
         self._pipeline_model_parallel_rank = None
         self._data_parallel_rank = None
 
@@ -46,6 +47,7 @@ class AppState(metaclass=Singleton):
         self._model_parallel_size = None
         self._tensor_model_parallel_size = None
         self._tensor_model_parallel_group = None
+        self._expert_model_parallel_size = None
         self._pipeline_model_parallel_size = None
         self._virtual_pipeline_model_parallel_size = None
         self._pipeline_model_parallel_group = None
@@ -53,8 +55,10 @@ class AppState(metaclass=Singleton):
         self._is_megatron_initialized = False
         self._data_parallel_size = None
         self._data_parallel_group = None
+        self._use_tp_pp_dp_mapping = False
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
+        self._context_parallel_size = None
         self._init_mpi_proc_gruop = False
 
         self._random_seed = None
@@ -141,6 +145,38 @@ class AppState(metaclass=Singleton):
         self._tensor_model_parallel_size = size
 
     @property
+    def expert_model_parallel_rank(self):
+        """ Property returns the expert model parallel rank.
+            Returns:
+                Tensor model parallel rank.
+        """
+        return self._expert_model_parallel_rank
+
+    @expert_model_parallel_rank.setter
+    def expert_model_parallel_rank(self, rank):
+        """ Property sets the expert model parallel rank.
+            Args:
+                rank (int):  Tensor model parallel rank.
+        """
+        self._expert_model_parallel_rank = rank
+
+    @property
+    def expert_model_parallel_size(self):
+        """ Property returns the number of GPUs in each expert parallel group.
+            Returns:
+                Number of GPUs in each expert parallel group.
+        """
+        return self._expert_model_parallel_size
+
+    @expert_model_parallel_size.setter
+    def expert_model_parallel_size(self, size):
+        """ Property sets the number of GPUs in each expert parallel group.
+            Args:
+                size (int):  Number of GPUs in each expert parallel group.
+        """
+        self._expert_model_parallel_size = size
+
+    @property
     def pipeline_model_parallel_size(self):
         """ Property returns the number of GPUs in each model parallel group.
             Returns:
@@ -155,6 +191,14 @@ class AppState(metaclass=Singleton):
                 size (int):  Number of GPUs in each model parallel group.
         """
         self._pipeline_model_parallel_size = size
+
+    @property
+    def use_tp_pp_dp_mapping(self):
+        return self._use_tp_pp_dp_mapping
+
+    @use_tp_pp_dp_mapping.setter
+    def use_tp_pp_dp_mapping(self, use_new_mapping):
+        self._use_tp_pp_dp_mapping = use_new_mapping
 
     @property
     def virtual_pipeline_model_parallel_size(self):
@@ -363,6 +407,22 @@ class AppState(metaclass=Singleton):
                 use_fp8:  Use of FP8.
         """
         self._use_fp8 = use_fp8
+
+    @property
+    def context_parallel_size(self):
+        """ Property returns the number of GPUs in each context parallel group.
+            Returns:
+                Number of GPUs in each context parallel group.
+        """
+        return self._context_parallel_size
+
+    @context_parallel_size.setter
+    def context_parallel_size(self, size):
+        """ Property sets the number of GPUs in each context parallel group.
+            Args:
+                size (int):  Number of GPUs in each context parallel group.
+        """
+        self._context_parallel_size = size
 
     @property
     def init_mpi_proc_group(self):

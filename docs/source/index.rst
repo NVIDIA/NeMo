@@ -1,80 +1,89 @@
-NVIDIA NeMo User Guide
-======================
+NVIDIA NeMo Framework Developer Docs
+====================================
+
+NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build, customize, and deploy generative AI models anywhere.
+
+`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ supports large-scale training features, including:
+
+- Mixed Precision Training
+- Parallelism
+- Distributed Optimizer
+- Fully Sharded Data Parallel (FSDP)
+- Flash Attention
+- Activation Recomputation
+- Positional Embeddings and Positional Interpolation
+- Post-Training Quantization (PTQ) with Ammo
+- Sequence Packing
+
+`NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ has separate collections for:
+
+* :doc:`Large Language Models (LLMs) <nlp/nemo_megatron/intro>`
+
+* :doc:`Automatic Speech Recognition (ASR) <asr/intro>`
+
+* :doc:`Multimodal Models (MMs) <multimodal/mllm/intro>`
+
+* :doc:`Text-to-Speech (TTS) <tts/intro>`
+
+* :doc:`Computer Vision (CV)  <vision/intro>`
+
+Each collection consists of prebuilt modules that include everything needed to train on your data.
+Every module can easily be customized, extended, and composed to create new generative AI
+model architectures.
+
+For quick guides and tutorials, see the "Getting started" section below.
+
 
 .. toctree::
    :maxdepth: 2
    :caption: Getting Started
    :name: starthere
+   :titlesonly:
 
    starthere/intro
-   starthere/tutorials
    starthere/best-practices
-   starthere/migration-guide
+   starthere/tutorials
 
-.. toctree::
-   :maxdepth: 2
-   :caption: NeMo Core
-   :name: core
+For more information, browse the developer docs for your area of interest in the contents section below or on the left sidebar.
 
-   core/core
-   core/exp_manager
-   core/neural_types
-   core/export
-   core/adapters/intro
-   core/api
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Speech Processing
-   :name: Speech Processing
-
-   asr/intro
-   asr/speech_classification/intro
-   asr/speaker_recognition/intro
-   asr/speaker_diarization/intro
-   asr/ssl/intro
-   asr/speech_intent_slot/intro
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Natural Language Processing
-   :name: Natural Language Processing
-
-   nlp/nemo_megatron/intro
-   nlp/machine_translation/machine_translation
-   nlp/text_normalization/intro
-   nlp/api
-   nlp/megatron_onnx_export
-   nlp/models
-   
 
 .. toctree::
    :maxdepth: 1
-   :caption: Text To Speech (TTS)
-   :name: Text To Speech
+   :caption: Key Optimizations
+   :name: Key Optimizations
 
-   tts/intro
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Common
-   :name: Common
-
-   text_processing/intro
+   features/mixed_precision
+   features/parallelisms
+   features/memory_optimizations
+   features/throughput_optimizations
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Text Processing
-   :name: Text Processing
+   :maxdepth: 1
+   :caption: Community Model Converters
+   :name: CheckpointConverters
 
-   text_processing/g2p/g2p
-   common/intro
-
+   ckpt_converters/intro
 
 .. toctree::
-   :maxdepth: 3
-   :caption: Tools
-   :name: Tools
+   :maxdepth: 1
+   :caption: APIs
+   :name: APIs
+   :titlesonly:
+
+   core/core_index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Collections
+   :name: Collections
+   :titlesonly:
+
+   collections
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Speech AI Tools
+   :name: Speech AI Tools
+   :titlesonly:
 
    tools/intro

@@ -29,32 +29,61 @@ __all__ = ['ASRModel']
 
 
 class ASRModel(ModelPT, ABC):
-    @abstractmethod
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, verbose: bool = True) -> List[str]:
-        """
-        Takes paths to audio files and returns text transcription
-        Args:
-            paths2audio_files: paths to audio fragment to be transcribed
-            verbose: (bool) whether to display tqdm progress bar
-
-        Returns:
-            transcription texts
-        """
-        pass
-
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {'val_loss': val_loss_mean, 'val_wer': wer_num / wer_denom}
-        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+        val_loss = {}
+        tensorboard_logs = {}
+
+        if 'val_loss' in outputs[0]:
+            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+            val_loss = {'val_loss': val_loss_mean}
+
+            tensorboard_logs.update(val_loss)
+
+        if "val_wer_num" in outputs[0]:
+            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            val_wer = {'val_wer': wer_num / wer_denom}
+
+            tensorboard_logs.update(val_wer)
+
+        if "val_bleu_num" in outputs[0]:
+            bleu_pred_len = torch.stack([x[f"val_bleu_pred_len"] for x in outputs]).sum()
+            bleu_target_len = torch.stack([x[f"val_bleu_target_len"] for x in outputs]).sum()
+            bleu_num = torch.stack([x[f"val_bleu_num"] for x in outputs]).sum(dim=0)
+            bleu_denom = torch.stack([x[f"val_bleu_denom"] for x in outputs]).sum(dim=0)
+            val_bleu = {"val_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+
+            tensorboard_logs.update(val_bleu)
+
+        return {**val_loss, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {'test_loss': val_loss_mean, 'test_wer': wer_num / wer_denom}
-        return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
+        val_loss = {}
+        tensorboard_logs = {}
+
+        if 'test_loss' in outputs[0]:
+            val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+            val_loss = {'test_loss': val_loss_mean}
+
+            tensorboard_logs.update(val_loss)
+
+        if "test_wer_num" in outputs[0]:
+            wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
+            wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
+            val_wer = {'test_wer': wer_num / wer_denom}
+
+            tensorboard_logs.update(val_wer)
+
+        if "test_bleu_num" in outputs[0]:
+            bleu_pred_len = torch.stack([x[f"test_bleu_pred_len"] for x in outputs]).sum()
+            bleu_target_len = torch.stack([x[f"test_bleu_target_len"] for x in outputs]).sum()
+            bleu_num = torch.stack([x[f"test_bleu_num"] for x in outputs]).sum()
+            bleu_denom = torch.stack([x[f"test_bleu_denom"] for x in outputs]).sum()
+            val_bleu = {"test_bleu": self.wer._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+
+            tensorboard_logs.update(val_bleu)
+
+        return {**val_loss, 'log': tensorboard_logs}
 
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
@@ -79,7 +108,7 @@ class ASRModel(ModelPT, ABC):
             Loss tensor used for back propagation.
         """
         # Add adapter auxiliary losses, if registered
-        if AccessMixin.is_access_enabled():
+        if AccessMixin.is_access_enabled(self.model_guid):
             registry = AccessMixin.get_module_registry(self)
             log_dict = {}
 
@@ -174,9 +203,9 @@ class ExportableEncDecModel(Exportable):
         """
         This forward is used when we need to export the model to ONNX format.
         Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
+
         Args:
-            input: Tensor that represents a batch of raw audio signals,
-                of shape [B, T]. T here represents timesteps.
+            input: Tensor that represents a batch of raw audio signals of shape [B, T]. T here represents timesteps.
             length: Vector of length B, that contains the individual lengths of the audio sequences.
             cache_last_channel: Tensor of shape [N, B, T, H] which contains the cache for last channel layers
             cache_last_time: Tensor of shape [N, B, H, T] which contains the cache for last time layers

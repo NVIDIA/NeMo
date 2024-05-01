@@ -17,6 +17,7 @@ import os
 import soundfile as sf
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
 from utils.data_prep import Segment, Word
+from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
 
 
 def make_ctm_files(
@@ -94,7 +95,7 @@ def make_ctm(
                     # make the predicted duration of the token/word/segment longer, growing it outwards equal
                     # amounts from the predicted center of the token/word/segment
                     token_mid_point = (start_time + end_time) / 2
-                    start_time = max(token_mid_point - ctm_file_config.minimum_timestamp_duration / 2, 0)
+                    start_time = max(token_mid_point - ctm_file_config.minimum_timestamp_duration / 2, 0.0)
                     end_time = min(
                         token_mid_point + ctm_file_config.minimum_timestamp_duration / 2, audio_file_duration
                     )
@@ -105,7 +106,17 @@ def make_ctm(
                     # replace any spaces with <space> so we dont introduce extra space characters to our CTM files
                     text = text.replace(" ", SPACE_TOKEN)
 
-                    f_ctm.write(f"{utt_obj.utt_id} 1 {start_time:.2f} {end_time - start_time:.2f} {text}\n")
+                    ctm_line = get_ctm_line(
+                        source=utt_obj.utt_id,
+                        channel=1,
+                        start_time=start_time,
+                        duration=end_time - start_time,
+                        token=text,
+                        conf=None,
+                        type_of_token='lex',
+                        speaker=None,
+                    )
+                    f_ctm.write(ctm_line)
 
     utt_obj.saved_output_files[f"{alignment_level}_level_ctm_filepath"] = os.path.join(
         output_dir, f"{utt_obj.utt_id}.ctm"

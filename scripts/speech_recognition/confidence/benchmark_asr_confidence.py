@@ -23,9 +23,9 @@ import torch
 from omegaconf import MISSING, OmegaConf
 from sklearn.model_selection import ParameterGrid
 
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import ASRModel, EncDecRNNTModel
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import (
     apply_confidence_parameters,
     run_confidence_benchmark,
@@ -82,6 +82,7 @@ def get_experiment_params(cfg):
         String with the experiment name.
     """
     blank = "no_blank" if cfg.exclude_blank else "blank"
+    duration = "duration" if cfg.tdt_include_duration else "no_duration"
     aggregation = cfg.aggregation
     method_name = cfg.method_cfg.name
     alpha = cfg.method_cfg.alpha
@@ -91,15 +92,24 @@ def get_experiment_params(cfg):
         experiment_param_list = [
             aggregation,
             str(cfg.exclude_blank),
+            str(cfg.tdt_include_duration),
             method_name,
             entropy_type,
             entropy_norm,
             str(alpha),
         ]
-        experiment_str = "-".join([aggregation, blank, method_name, entropy_type, entropy_norm, str(alpha)])
+        experiment_str = "-".join([aggregation, blank, duration, method_name, entropy_type, entropy_norm, str(alpha)])
     else:
-        experiment_param_list = [aggregation, str(cfg.exclude_blank), method_name, "-", "-", str(alpha)]
-        experiment_str = "-".join([aggregation, blank, method_name, str(alpha)])
+        experiment_param_list = [
+            aggregation,
+            str(cfg.exclude_blank),
+            str(cfg.tdt_include_duration),
+            method_name,
+            "-",
+            "-",
+            str(alpha),
+        ]
+        experiment_str = "-".join([aggregation, blank, duration, method_name, str(alpha)])
     return experiment_param_list, experiment_str
 
 
@@ -214,6 +224,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                 "model_type",
                 "aggregation",
                 "blank",
+                "duration",
                 "method_name",
                 "entropy_type",
                 "entropy_norm",

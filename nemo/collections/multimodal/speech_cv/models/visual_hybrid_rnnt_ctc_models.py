@@ -24,8 +24,9 @@ from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.multimodal.speech_cv.models.visual_rnnt_models import VisualEncDecRNNTModel
 from nemo.core.classes.common import PretrainedModelInfo
@@ -335,11 +336,11 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         # Reset access registry
-        if AccessMixin.is_access_enabled():
+        if AccessMixin.is_access_enabled(getattr(self, "model_guid", None)):
             AccessMixin.reset_registry(self)
 
         if self.is_interctc_enabled():
-            AccessMixin.set_access_enabled(access_enabled=True)
+            AccessMixin.set_access_enabled(access_enabled=True, guid=self.model_guid)
 
         signal, signal_len, transcript, transcript_len = batch
 
@@ -379,7 +380,12 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             }
 
             if (sample_id + 1) % log_every_n_steps == 0:
-                self.wer.update(encoded, encoded_len, transcript, transcript_len)
+                self.wer.update(
+                    predictions=encoded,
+                    predictions_lengths=encoded_len,
+                    targets=transcript,
+                    targets_lengths=transcript_len,
+                )
                 _, scores, words = self.wer.compute()
                 self.wer.reset()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
@@ -445,7 +451,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                 tensorboard_logs.update({'training_batch_wer_ctc': ctc_wer})
 
         # Reset access registry
-        if AccessMixin.is_access_enabled():
+        if AccessMixin.is_access_enabled(getattr(self, "model_guid", None)):
             AccessMixin.reset_registry(self)
 
         # Log items
@@ -474,7 +480,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         if self.is_interctc_enabled():
-            AccessMixin.set_access_enabled(access_enabled=True)
+            AccessMixin.set_access_enabled(access_enabled=True, guid=self.model_guid)
 
         signal, signal_len, transcript, transcript_len = batch
 
@@ -496,7 +502,12 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
 
                 tensorboard_logs['val_loss'] = loss_value
 
-            self.wer.update(encoded, encoded_len, transcript, transcript_len)
+            self.wer.update(
+                predictions=encoded,
+                predictions_lengths=encoded_len,
+                targets=transcript,
+                targets_lengths=transcript_len,
+            )
             wer, wer_num, wer_denom = self.wer.compute()
             self.wer.reset()
 
@@ -559,7 +570,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         # Reset access registry
-        if AccessMixin.is_access_enabled():
+        if AccessMixin.is_access_enabled(getattr(self, "model_guid", None)):
             AccessMixin.reset_registry(self)
 
         return tensorboard_logs

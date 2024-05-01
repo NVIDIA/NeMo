@@ -20,7 +20,7 @@ import os
 import numpy as np
 import torch
 
-from nemo.collections.common.tokenizers import SentencePieceTokenizer, YouTokenToMeTokenizer
+from nemo.collections.common.tokenizers import SentencePieceTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
     get_samples_mapping,
@@ -212,8 +212,6 @@ class T5Dataset(Dataset):
     @classmethod
     def _determine_tokenizer_type(cls, tokenizer, whole_word_masking=False):
         tokenizer_type = 'wordpiece'  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
-        if isinstance(tokenizer, YouTokenToMeTokenizer):
-            raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
 
         if isinstance(tokenizer, SentencePieceTokenizer):
             if not tokenizer.legacy:
@@ -254,7 +252,8 @@ class T5Dataset(Dataset):
         skip_masking_id=None,
     ):
         """Build training sample.
-        Arguments:
+
+        Args:
             sample: A list of sentences in which each sentence is a list token ids.
             target_seq_length: Desired sequence length.
             max_seq_length: Maximum length of the sequence. All values are padded to

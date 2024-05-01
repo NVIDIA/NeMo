@@ -1,0 +1,13 @@
+addict
+clip
+diffusers>=0.19.3
+einops_exts
+imageio
+kornia
+nerfacc>=0.5.3
+open_clip_torch
+PyMCubes
+taming-transformers
+torchdiffeq
+torchsde
+trimesh

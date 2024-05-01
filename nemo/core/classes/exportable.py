@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC
-from typing import List, Union
+from typing import Dict, List, Optional, Union
 
 import torch
 from pytorch_lightning.core.module import _jit_is_scripting
 
 from nemo.core.classes import typecheck
+from nemo.core.neural_types import NeuralType
 from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
 from nemo.utils import logging
 from nemo.utils.export_utils import (
@@ -72,32 +73,32 @@ class Exportable(ABC):
         Exports the model to the specified format. The format is inferred from the file extension of the output file.
 
         Args:
-        output (str): Output file name. File extension be .onnx, .pt, or .ts, and is used to select export
-            path of the model.
-        input_example (list or dict): Example input to the model's forward function. This is used to
-            trace the model and export it to ONNX/TorchScript. If the model takes multiple inputs, then input_example
-            should be a list of input examples. If the model takes named inputs, then input_example
-            should be a dictionary of input examples.
-        verbose (bool): If True, will print out a detailed description of the model's export steps, along with
-            the internal trace logs of the export process.
-        do_constant_folding (bool): If True, will execute constant folding optimization on the model's graph
-            before exporting. This is ONNX specific.
-        onnx_opset_version (int): The ONNX opset version to export the model to. If None, will use a reasonable
-            default version.
-        check_trace (bool): If True, will verify that the model's output matches the output of the traced
-            model, upto some tolerance.
-        dynamic_axes (dict): A dictionary mapping input and output names to their dynamic axes. This is
-            used to specify the dynamic axes of the model's inputs and outputs. If the model takes multiple inputs,
-            then dynamic_axes should be a list of dictionaries. If the model takes named inputs, then dynamic_axes
-            should be a dictionary of dictionaries. If None, will use the dynamic axes of the input_example
-            derived from the NeuralType of the input and output of the model.
-        check_tolerance (float): The tolerance to use when checking the model's output against the traced
-            model's output. This is only used if check_trace is True. Note the high tolerance is used because
-            the traced model is not guaranteed to be 100% accurate.
-        export_modules_as_functions (bool): If True, will export the model's submodules as functions. This is
-            ONNX specific.
-        keep_initializers_as_inputs (bool): If True, will keep the model's initializers as inputs in the onnx graph.
-            This is ONNX specific.
+            output (str): Output file name. File extension be .onnx, .pt, or .ts, and is used to select export
+                path of the model.
+            input_example (list or dict): Example input to the model's forward function. This is used to
+                trace the model and export it to ONNX/TorchScript. If the model takes multiple inputs, then input_example
+                should be a list of input examples. If the model takes named inputs, then input_example
+                should be a dictionary of input examples.
+            verbose (bool): If True, will print out a detailed description of the model's export steps, along with
+                the internal trace logs of the export process.
+            do_constant_folding (bool): If True, will execute constant folding optimization on the model's graph
+                before exporting. This is ONNX specific.
+            onnx_opset_version (int): The ONNX opset version to export the model to. If None, will use a reasonable
+                default version.
+            check_trace (bool): If True, will verify that the model's output matches the output of the traced
+                model, upto some tolerance.
+            dynamic_axes (dict): A dictionary mapping input and output names to their dynamic axes. This is
+                used to specify the dynamic axes of the model's inputs and outputs. If the model takes multiple inputs,
+                then dynamic_axes should be a list of dictionaries. If the model takes named inputs, then dynamic_axes
+                should be a dictionary of dictionaries. If None, will use the dynamic axes of the input_example
+                derived from the NeuralType of the input and output of the model.
+            check_tolerance (float): The tolerance to use when checking the model's output against the traced
+                model's output. This is only used if check_trace is True. Note the high tolerance is used because
+                the traced model is not guaranteed to be 100% accurate.
+            export_modules_as_functions (bool): If True, will export the model's submodules as functions. This is
+                ONNX specific.
+            keep_initializers_as_inputs (bool): If True, will keep the model's initializers as inputs in the onnx graph.
+                This is ONNX specific.
 
         Returns:
             A tuple of two outputs.
@@ -243,19 +244,19 @@ class Exportable(ABC):
         return (output, output_descr, output_example)
 
     @property
-    def disabled_deployment_input_names(self):
+    def disabled_deployment_input_names(self) -> List[str]:
         """Implement this method to return a set of input names disabled for export"""
-        return set()
+        return []
 
     @property
-    def disabled_deployment_output_names(self):
+    def disabled_deployment_output_names(self) -> List[str]:
         """Implement this method to return a set of output names disabled for export"""
-        return set()
+        return []
 
     @property
-    def supported_export_formats(self):
+    def supported_export_formats(self) -> List[ExportFormat]:
         """Implement this method to return a set of export formats supported. Default is all types."""
-        return set([ExportFormat.ONNX, ExportFormat.TORCHSCRIPT])
+        return [ExportFormat.ONNX, ExportFormat.TORCHSCRIPT]
 
     def _prepare_for_export(self, **kwargs):
         """
@@ -280,7 +281,7 @@ class Exportable(ABC):
         return get_io_names(self.output_module.output_types_for_export, self.disabled_deployment_output_names)
 
     @property
-    def input_types_for_export(self):
+    def input_types_for_export(self) -> Optional[Dict[str, NeuralType]]:
         return self.input_types
 
     @property

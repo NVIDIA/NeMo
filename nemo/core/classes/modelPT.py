@@ -42,6 +42,10 @@ from nemo.utils.get_rank import get_rank, is_global_rank_zero
 __all__ = ['ModelPT']
 
 
+# multiple interpolated values in the config
+OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
+
+
 class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
@@ -190,6 +194,9 @@ class ModelPT(LightningModule, Model):
         # Setup nsys profiling if it has been enabled in the model config
         self._setup_nsys_profiling()
 
+        # A flag for the profile generation
+        self._profile_complete = False
+
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 
@@ -281,21 +288,22 @@ class ModelPT(LightningModule, Model):
         In the saving process, the whole parent model (self) is held as a solid model with artifacts
         from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
         This method is necessary to create a nested model, e.g.
-            .. code-block:: python
 
-                class ParentModel(ModelPT):
-                    def __init__(self, cfg, trainer=None):
-                        super().__init__(cfg=cfg, trainer=trainer)
+        .. code-block:: python
 
-                        # annotate type for autocompletion and type checking (optional)
-                        self.child_model: Optional[ChildModel] = None
-                        if cfg.get("child_model") is not None:
-                            self.register_nemo_submodule(
-                                name="child_model",
-                                config_field="child_model",
-                                model=ChildModel(self.cfg.child_model, trainer=trainer),
-                            )
-                        # ... other code
+            class ParentModel(ModelPT):
+                def __init__(self, cfg, trainer=None):
+                    super().__init__(cfg=cfg, trainer=trainer)
+
+                    # annotate type for autocompletion and type checking (optional)
+                    self.child_model: Optional[ChildModel] = None
+                    if cfg.get("child_model") is not None:
+                        self.register_nemo_submodule(
+                            name="child_model",
+                            config_field="child_model",
+                            model=ChildModel(self.cfg.child_model, trainer=trainer),
+                        )
+                    # ... other code
 
         Args:
             name: name of the attribute for the submodule
@@ -585,32 +593,20 @@ class ModelPT(LightningModule, Model):
         # Setup the optimizer parameter groups (by default use all parameters that are trainable)
         self.setup_optimizer_param_groups()
 
-        # If config was not explicitly passed to us
-        if optim_config is None:
-            # See if internal config has `optim` namespace
-            if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                optim_config = self._cfg.optim
+        # Make copy of the config so it can be modified later
+        optim_config = self._optim_config_copy(optim_config)
 
-        # If config is still None, or internal config has no Optim, return without instantiation
+        # If config is still None, return without instantiation
         if optim_config is None:
             logging.info('No optimizer config provided, therefore no optimizer was created')
             return
 
-        else:
-            # Preserve the configuration
-            if not isinstance(optim_config, DictConfig):
-                optim_config = OmegaConf.create(optim_config)
-
-            # See if internal config has `optim` namespace before preservation
-            if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                if self._cfg.optim is None:
-                    self._cfg.optim = copy.deepcopy(optim_config)
-                else:
-                    with open_dict(self._cfg.optim):
-                        self._cfg.optim = copy.deepcopy(optim_config)
+        # See if internal config has `optim` namespace before preservation
+        if self._cfg is not None and hasattr(self._cfg, 'optim'):
+            self._cfg.optim = optim_config
 
         # Setup optimizer and scheduler
-        if optim_config is not None and isinstance(optim_config, DictConfig):
+        if optim_config is not None:
             optim_config = OmegaConf.to_container(optim_config, resolve=True)
 
         if self._trainer is None:
@@ -810,6 +806,20 @@ class ModelPT(LightningModule, Model):
         else:
             return [self._optimizer], [self._scheduler]
 
+    def propagate_model_guid(self):
+        """
+        Propagates the model GUID to all submodules, recursively.
+        """
+
+        def recursively_propagate_guid(module: "NeuralModule"):
+            module.model_guid = self.model_guid
+            for child in module.children():
+                recursively_propagate_guid(child)
+
+        for _, _, module in self.named_nemo_modules():
+            module.model_guid = self.model_guid
+            recursively_propagate_guid(module)
+
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
         This is called on every process when using DDP.
@@ -817,6 +827,7 @@ class ModelPT(LightningModule, Model):
         Args:
             stage: fit, validate, test or predict
         """
+        self.propagate_model_guid()
         if stage == 'fit':
             train_deferred_setup = (
                 'train_ds' in self._cfg
@@ -1720,8 +1731,8 @@ class ModelPT(LightningModule, Model):
         # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
-                if self._nsys_profile_enabled:
-                    if batch_idx == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
+                if self._nsys_profile_enabled and not self._profile_complete:
+                    if batch_idx >= self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== Start nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStart()
                         if self._nsys_profile_gen_shape:
@@ -1757,10 +1768,11 @@ class ModelPT(LightningModule, Model):
 
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
-                if self._nsys_profile_enabled:
-                    if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
+                if self._nsys_profile_enabled and not self._profile_complete:
+                    if batch_idx >= self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
+                        self._profile_complete = True
 
     def _cleanup_on_execution_end(self):
         """
@@ -1827,3 +1839,20 @@ class ModelPT(LightningModule, Model):
         elif isinstance(device, int):
             device = torch.device("cuda", index=device)
         return super().cuda(device=device)
+
+    def _optim_config_copy(self, optim_config: Optional[Union[DictConfig, Dict]]) -> Optional[DictConfig]:
+        """
+        Return a copy of `optim_config` if provided (and otherwise of the internal optim config, if available).
+        """
+        if optim_config is None:
+            # See if internal config has `optim` namespace
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                optim_config = self._cfg.optim
+
+        if optim_config is None:
+            return None
+
+        if isinstance(optim_config, DictConfig):
+            return copy.deepcopy(optim_config)
+        else:
+            return OmegaConf.create(optim_config)

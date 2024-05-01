@@ -16,6 +16,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -24,9 +25,9 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel, EncDecMultiTaskModel
+from nemo.collections.asr.parts.utils import manifest_utils, rnnt_utils
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchMultiTaskAED
 from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, model_utils
@@ -171,6 +172,65 @@ def get_buffered_pred_feat(
     return wrapped_hyps
 
 
+def get_buffered_pred_feat_multitaskAED(
+    asr: FrameBatchMultiTaskAED,
+    preprocessor_cfg: DictConfig,
+    model_stride_in_secs: int,
+    device: Union[List[int], int],
+    manifest: str = None,
+    filepaths: List[list] = None,
+    delay: float = 0.0,
+) -> List[rnnt_utils.Hypothesis]:
+    # Create a preprocessor to convert audio samples into raw features,
+    # Normalization will be done per buffer in frame_bufferer
+    # Do not normalize whatever the model's preprocessor setting is
+    preprocessor_cfg.normalize = "None"
+    preprocessor = EncDecMultiTaskModel.from_config_dict(preprocessor_cfg)
+    preprocessor.to(device)
+    hyps = []
+    refs = []
+
+    if filepaths and manifest:
+        raise ValueError("Please select either filepaths or manifest")
+    if filepaths is None and manifest is None:
+        raise ValueError("Either filepaths or manifest shoud not be None")
+
+    if filepaths:
+        logging.info(
+            "Deteced audio files as input, default to English ASR with Punctuation and Capitalization output. Please use manifest input for other options."
+        )
+        for audio_file in tqdm(filepaths, desc="Transcribing:", total=len(filepaths), ncols=80):
+            meta = {
+                'audio_filepath': audio_file,
+                'duration': 100000,
+                'source_lang': 'en',
+                'taskname': 'asr',
+                'target_lang': 'en',
+                'pnc': 'yes',
+                'answer': 'nothing',
+            }
+            asr.reset()
+            asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=meta)
+            hyp = asr.transcribe()
+            hyps.append(hyp)
+    else:
+        with open(manifest, "r", encoding='utf_8') as fin:
+            lines = list(fin.readlines())
+            for line in tqdm(lines, desc="Transcribing:", total=len(lines), ncols=80):
+                asr.reset()
+                sample = json.loads(line.strip())
+                if 'text' in sample:
+                    refs.append(sample['text'])
+                audio_file = get_full_path(audio_file=sample['audio_filepath'], manifest_file=manifest)
+                # do not support partial audio
+                asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=sample)
+                hyp = asr.transcribe()
+                hyps.append(hyp)
+
+    wrapped_hyps = wrap_transcription(hyps)
+    return wrapped_hyps
+
+
 def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     """ Wrap transcription to the expected format in func write_transcription """
     wrapped_hyps = []
@@ -199,7 +259,7 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    if hasattr(cfg, "model_change"):
+    if hasattr(cfg, "model_change") and hasattr(asr_model, "change_attention_model"):
         asr_model.change_attention_model(
             self_attention_model=cfg.model_change.conformer.get("self_attention_model", None),
             att_context_size=cfg.model_change.conformer.get("att_context_size", None),
@@ -222,21 +282,43 @@ def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
             logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
 
-        with open(cfg.dataset_manifest, 'r', encoding='utf_8') as f:
-            has_two_fields = []
-            for line in f:
-                item = json.loads(line)
-                if "offset" in item and "duration" in item:
-                    has_two_fields.append(True)
-                else:
-                    has_two_fields.append(False)
-                audio_key = cfg.get('audio_key', 'audio_filepath')
-                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
-                filepaths.append(audio_file)
-        partial_audio = all(has_two_fields)
+        all_entries_have_offset_and_duration = True
+        for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
+            if not ("offset" in item and "duration" in item):
+                all_entries_have_offset_and_duration = False
+            audio_key = cfg.get('audio_key', 'audio_filepath')
+            audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+            filepaths.append(audio_file)
+        partial_audio = all_entries_have_offset_and_duration
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
     return filepaths, partial_audio
+
+
+def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> List[dict]:
+    """Sorts the manifest if duration key is available for every utterance."""
+    items = manifest_utils.read_manifest(path)
+    if try_sort and all("duration" in item and item["duration"] is not None for item in items):
+        items = sorted(items, reverse=True, key=lambda item: item["duration"])
+    return items
+
+
+def restore_transcription_order(manifest_path: str, transcriptions: list) -> list:
+    with open(manifest_path) as f:
+        items = [(idx, json.loads(l)) for idx, l in enumerate(f)]
+    if not all("duration" in item[1] and item[1]["duration"] is not None for item in items):
+        return transcriptions
+    new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]
+    del items  # free up some memory
+    is_list = isinstance(transcriptions[0], list)
+    if is_list:
+        transcriptions = list(zip(*transcriptions))
+    reordered = [None] * len(transcriptions)
+    for new, old in enumerate(new2old):
+        reordered[old] = transcriptions[new]
+    if is_list:
+        reordered = tuple(map(list, zip(*reordered)))
+    return reordered
 
 
 def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
@@ -308,11 +390,14 @@ def write_transcription(
             if not cfg.decoding.beam.return_best_hypothesis:
                 beam = []
                 for hyp in hyps:
-                    beam.append((hyp.text, hyp.score))
+                    score = hyp.score.numpy().item() if isinstance(hyp.score, torch.Tensor) else hyp.score
+                    beam.append((hyp.text, score))
                 beams.append(beam)
     else:
         raise TypeError
 
+    # create output dir if not exists
+    Path(cfg.output_filename).parent.mkdir(parents=True, exist_ok=True)
     with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(best_hyps):  # type: rnnt_utils.Hypothesis or str
@@ -478,8 +563,8 @@ def compute_metrics_per_sample(
     manifest_path: str,
     reference_field: str = "text",
     hypothesis_field: str = "pred_text",
-    metrics: list[str] = ["wer"],
-    punctuation_marks: list[str] = [".", ",", "?"],
+    metrics: List[str] = ["wer"],
+    punctuation_marks: List[str] = [".", ",", "?"],
     output_manifest_path: str = None,
 ) -> dict:
 
