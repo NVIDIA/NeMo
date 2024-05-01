@@ -321,6 +321,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             conv_kernel_size=conv_kernel_size,
         )
 
+        # import ipdb; ipdb.set_trace()
+
         if xscaling:
             self.xscale = math.sqrt(d_model)
         else:
@@ -548,6 +550,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_len = 0
             offset = None
 
+        # Need to cast pos_emb to float16... or something.
         audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
 
         # Create the self-attention and padding masks
@@ -675,6 +678,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         device = next(self.parameters()).device
         self.pos_enc.extend_pe(max_audio_length, device)
 
+    # Why is this rerun every time that forward() is called? Seems like it needs to run only once
     def _create_masks(self, att_context_size, padding_length, max_audio_length, offset, device):
         if self.self_attention_model != "rel_pos_local_attn":
             att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
@@ -786,6 +790,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         return att_context_size_all, att_context_size_all[0], att_context_probs, conv_context_size
 
     def set_default_att_context_size(self, att_context_size):
+        print("GALVEZ:", self.att_context_size_all)
         if att_context_size not in self.att_context_size_all:
             logging.warning(
                 f"att_context_size={att_context_size} is not among the list of the supported look-aheads: {self.att_context_size_all}"
@@ -824,6 +829,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             if chunk_size < 1:
                 raise ValueError("chunk_size needs to be a number larger or equal to one.")
             lookahead_steps = chunk_size - 1
+            # So it looks like it retains its own cache on its own?
             streaming_cfg.cache_drop_size = chunk_size - shift_size
         elif self.att_context_style == "chunked_limited":
             lookahead_steps = att_context_size[1]

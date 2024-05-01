@@ -107,10 +107,12 @@ class MultiHeadAttention(nn.Module):
         n_batch = value.size(0)
         if mask is not None:
             mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
-            scores = scores.masked_fill(mask, -10000.0)
-            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
+            with torch.cuda.amp.autocast(enabled=False):
+                scores = scores.masked_fill(mask, -10000.0)
+                attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
         else:
-            attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
+            with torch.cuda.amp.autocast(enabled=False):
+                attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
 
         p_attn = self.dropout(attn)
         x = torch.matmul(p_attn, value)  # (batch, head, time1, d_k)
@@ -171,8 +173,11 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # these two learnable biases are used in matrix c and matrix d
         # as described in https://arxiv.org/abs/1901.02860 Section 3.3
         if pos_bias_u is None or pos_bias_v is None:
-            self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
-            self.pos_bias_v = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
+            # AMP does not really handle this situation that well. It
+            # would be better just to call half() on the model rather
+            # than do these hacks.
+            self.pos_bias_u = nn.Parameter(torch.HalfTensor(self.h, self.d_k))
+            self.pos_bias_v = nn.Parameter(torch.HalfTensor(self.h, self.d_k))
             # nn.init.normal_(self.pos_bias_u, 0.0, 0.02)
             # nn.init.normal_(self.pos_bias_v, 0.0, 0.02)
             nn.init.zeros_(self.pos_bias_u)
@@ -210,19 +215,27 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
         key, value, query, cache = self.update_cache(key=key, value=value, query=query, cache=cache)
 
-        if torch.is_autocast_enabled():
-            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
+        # if torch.is_autocast_enabled():
+        # query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
 
         # temporary until we solve this more gracefully
-        with avoid_float16_autocast_context():
+        from contextlib import nullcontext
+        with nullcontext(): # avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
             q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 
             n_batch_pos = pos_emb.size(0)
+            # embedding is not affected by autocast. Ignore for now...
+            
+            # Could make a custom torch.nn.Module that checks if we're
+            # in inference mode, and then caches its own weights'
+            # casted versions that way...
+            # assert pos_emb.dtype == torch.float16
             p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k)
             p = p.transpose(1, 2)  # (batch, head, time1, d_k)
 
             # (batch, head, time1, d_k)
+            # We are stuck casting this up to float32... ugh.
             q_with_bias_u = (q + self.pos_bias_u).transpose(1, 2)
             # (batch, head, time1, d_k)
             q_with_bias_v = (q + self.pos_bias_v).transpose(1, 2)
@@ -231,10 +244,17 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             # first compute matrix a and matrix c
             # as described in https://arxiv.org/abs/1901.02860 Section 3.3
             # (batch, head, time1, time2)
+            assert q_with_bias_u.dtype == torch.float16
+            assert k.dtype == torch.float16
+            # This has some reshapes associated with it. For some
+            # reason the transpose needs to be done explicitly... It's
+            # a bmm call as well...
+            # TODO: Consider whether we can do better
             matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
 
             # compute matrix b and matrix d
             # (batch, head, time1, time2)
+            # TODO: Here too...
             matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
             matrix_bd = self.rel_shift(matrix_bd)
             # drops extra elements in the matrix_bd to match the matrix_ac's size

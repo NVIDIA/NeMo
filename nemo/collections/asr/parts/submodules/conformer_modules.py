@@ -83,11 +83,11 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.fc_factor = 0.5
 
         # first feed forward module
-        self.norm_feed_forward1 = LayerNorm(d_model)
+        self.norm_feed_forward1 = LayerNorm(d_model).half()
         self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         # convolution module
-        self.norm_conv = LayerNorm(d_model)
+        self.norm_conv = LayerNorm(d_model).half()
         self.conv = ConformerConvolution(
             d_model=d_model,
             kernel_size=conv_kernel_size,
@@ -96,7 +96,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         )
 
         # multi-headed self-attention module
-        self.norm_self_att = LayerNorm(d_model)
+        self.norm_self_att = LayerNorm(d_model).half()
         MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
@@ -132,11 +132,11 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             )
 
         # second feed forward module
-        self.norm_feed_forward2 = LayerNorm(d_model)
+        self.norm_feed_forward2 = LayerNorm(d_model).half()
         self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         self.dropout = nn.Dropout(dropout)
-        self.norm_out = LayerNorm(d_model)
+        self.norm_out = LayerNorm(d_model).half()
 
     def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None, cache_last_channel=None, cache_last_time=None):
         """
@@ -153,11 +153,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             cache_last_time (torch.tensor) : next cache for convolutional layers (B, d_model, T_cache)
         """
         residual = x
-        x = self.norm_feed_forward1(x)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.norm_feed_forward1(x)
+        assert x.dtype == torch.float16
         x = self.feed_forward1(x)
         residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_self_att(residual)
+        assert residual.dtype == torch.float16
+
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb, cache=cache_last_channel)
         elif self.self_attention_model == 'rel_pos_local_attn':
@@ -183,17 +188,20 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             pack_ip = self.forward_enabled_adapters(pack_ip)
             residual = pack_ip['x']
 
-        x = self.norm_conv(residual)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
         if cache_last_time is not None:
             (x, cache_last_time) = x
         residual = residual + self.dropout(x)
 
-        x = self.norm_feed_forward2(residual)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.norm_feed_forward2(residual)
         x = self.feed_forward2(x)
         residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_out(residual)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.norm_out(residual)
 
         if self.is_adapter_available():
             # Call the adapters
@@ -348,7 +356,9 @@ class ConformerConvolution(nn.Module):
             x = self.pointwise_activation(x)
 
         if pad_mask is not None:
-            x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
+            # TODO: Get rid of this?
+            # assert False
+            x = x.masked_fill(pad_mask.unsqueeze(1), 0.0)
 
         x = self.depthwise_conv(x, cache=cache)
         if cache is not None:
@@ -397,10 +407,28 @@ class ConformerFeedForward(nn.Module):
         self.linear2 = nn.Linear(d_ff, d_model)
 
     def forward(self, x):
+        assert torch.is_inference_mode_enabled()
+        assert self.linear1.weight.dtype == torch.float32
+        assert self.linear1.bias.dtype == torch.float32
+        assert self.linear1.weight.is_leaf
+        assert self.linear1.bias.is_leaf
+        assert self.linear1.weight.requires_grad
+        assert self.linear1.bias.requires_grad
+        # TODO: is_view
+        assert torch.is_autocast_cache_enabled()
+
+        assert x.dtype == torch.float16
+        # It seems as though it is constantly casting the weight to
+        # fp16 here for some reason...
         x = self.linear1(x)
+        # import ipdb; ipdb.set_trace()
+        assert x.dtype == torch.float16
         x = self.activation(x)
+        assert x.dtype == torch.float16
         x = self.dropout(x)
+        assert x.dtype == torch.float16
         x = self.linear2(x)
+        assert x.dtype == torch.float16
         return x
 
     def reset_parameters_ff(self):

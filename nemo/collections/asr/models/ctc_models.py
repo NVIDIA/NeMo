@@ -499,6 +499,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
+        # assert all(param.requires_grad for param in self.parameters())
         encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
@@ -655,18 +656,19 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
         super()._transcribe_on_begin(audio, trcfg)
 
-        # Freeze the encoder and decoure_exder modules
-        self.encoder.freeze()
-        self.decoder.freeze()
+        # Freeze the encoder and decoder modules
+        # self.encoder.freeze()
+        # self.decoder.freeze()
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
         super()._transcribe_on_end(trcfg)
 
         # Unfreeze the encoder and decoder modules
-        self.encoder.unfreeze()
-        self.decoder.unfreeze()
+        # self.encoder.unfreeze()
+        # self.decoder.unfreeze()
 
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
+        # assert all(param.requires_grad for param in self.parameters())
         logits, logits_len, greedy_predictions = self.forward(input_signal=batch[0], input_signal_length=batch[1])
         output = dict(logits=logits, logits_len=logits_len)
         del greedy_predictions
@@ -684,6 +686,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 # See comment in
                 # ctc_greedy_decoding.py::GreedyCTCInfer::forward() to
                 # understand this idiom.
+                
+                # This is way way wayyyyy too slow. A single
+                # cudaHostAlloc takes an average of 10ms if the
+                # caching allocator fails to return an
+                # existing allocation. Consider reverting this change.
                 logits_cpu = torch.empty(logits.shape, dtype=logits.dtype, device=torch.device("cpu"), pin_memory=True)
                 logits_cpu.copy_(logits, non_blocking=True)
             else:

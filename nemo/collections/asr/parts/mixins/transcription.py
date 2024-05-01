@@ -183,7 +183,7 @@ class TranscriptionMixin(ABC):
 
     """
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def transcribe(
         self,
         audio: Union[str, List[str], np.ndarray],
@@ -234,6 +234,8 @@ class TranscriptionMixin(ABC):
                 - Dict[str, List[str/Hypothesis]]
         """
 
+        # assert all(param.requires_grad for param in self.parameters())
+
         if override_config is None:
             transcribe_cfg = TranscribeConfig(
                 batch_size=batch_size,
@@ -270,9 +272,10 @@ class TranscriptionMixin(ABC):
         # Hold the results here
         results = None  # type: GenericTranscriptionType
 
+        # assert all(param.requires_grad for param in self.parameters())
         try:
             generator = self.transcribe_generator(audio, override_config=transcribe_cfg)
-
+            # assert all(param.requires_grad for param in self.parameters())
             for processed_outputs in generator:
                 # Store results
                 if isinstance(processed_outputs, list):
@@ -362,12 +365,14 @@ class TranscriptionMixin(ABC):
 
         try:
             # Initialize and assert the transcription environment
+            # assert all(param.requires_grad for param in self.parameters())
             self._transcribe_on_begin(audio, transcribe_cfg)
+            # assert all(param.requires_grad for param in self.parameters())
 
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
                 transcribe_cfg._internal.temp_dir = tmpdir
-
+                # assert all(param.requires_grad for param in self.parameters())
                 dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
 
                 if hasattr(transcribe_cfg, 'verbose'):
@@ -377,8 +382,9 @@ class TranscriptionMixin(ABC):
 
                 for test_batch in tqdm(dataloader, desc="Transcribing", disable=not verbose):
                     # Move batch to device
+                    # assert all(param.requires_grad for param in self.parameters())
                     test_batch = move_to_device(test_batch, transcribe_cfg._internal.device)
-
+                    # assert all(param.requires_grad for param in self.parameters())
                     # Run forward pass
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
@@ -448,7 +454,9 @@ class TranscriptionMixin(ABC):
                 self.preprocessor.featurizer.pad_to = 0
 
         # Switch model to evaluation mode
+        # assert all(param.requires_grad for param in self.parameters())
         self.eval()
+        # assert all(param.requires_grad for param in self.parameters())
 
         # Disable logging
         trcfg._internal.logging_level = logging.get_verbosity()
@@ -748,15 +756,20 @@ class ASRTranscriptionMixin(TranscriptionMixin):
         """
         super()._transcribe_on_begin(audio, trcfg)
 
+        # assert all(param.requires_grad for param in self.parameters())
+
         # Freeze the encoder and decoder modules
-        if hasattr(self, 'encoder'):
-            self.encoder.freeze()
+        # if hasattr(self, 'encoder'):
+        #     self.encoder.freeze()
 
-        if hasattr(self, 'decoder'):
-            self.decoder.freeze()
+        # if hasattr(self, 'decoder'):
+        #     self.decoder.freeze()
 
-        if hasattr(self, 'joint'):
-            self.joint.freeze()
+        # if hasattr(self, 'joint'):
+        #     self.joint.freeze()
+        # assert all(param.requires_grad for param in self.parameters())
+        # import ipdb; ipdb.set_trace()
+
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
         """

@@ -253,7 +253,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
+
+    # assert all(param.requires_grad for param in asr_model.parameters())
     asr_model = asr_model.eval()
+    # assert all(param.requires_grad for param in asr_model.parameters())
 
     # we will adjust this flag if the model does not support it
     compute_timestamps = cfg.compute_timestamps
@@ -407,7 +410,27 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
-                transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
+                # assert all(param.requires_grad for param in asr_model.parameters())
+                for i in range(5):
+                    if i == 1:
+                        # import nvtx
+                        # pr = nvtx.Profile()
+                        # pr.enable()  # begin annotating function calls
+                        # ctx = torch.autograd.profiler.emit_nvtx()
+                        # ctx.__enter__()
+                        torch.cuda.cudart().cudaProfilerStart()
+                    import time
+                    start_time = time.time()
+                    # assert all(param.requires_grad for param in asr_model.parameters())
+                    transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
+                    # assert all(param.requires_grad for param in asr_model.parameters())
+                    end_time = time.time()
+                    print(5.1 * 60 * 60 / (end_time - start_time))
+                    if i == 1:
+                        # pr.disable()
+                        # ctx.__exit__(None, None, None)
+                        torch.cuda.cudart().cudaProfilerStop()
+
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")

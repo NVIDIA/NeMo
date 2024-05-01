@@ -55,8 +55,39 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
         r"""
         Freeze all params for inference.
         """
-        for param in self.parameters():
-            param.requires_grad = False
+        # Freezing your parameters when you are running in mixed
+        # precision prevents the automatic mixed precision "cast
+        # cache" from working. That is to say, your fp32 weights will
+        # be repeatedly cast to fp16, even though this work could be
+        # cached. This is a serious problem, as it can make running in
+        # mixed precision slower than running in fp32.
+
+        # See "arg.requires_grad()" here: https://github.com/pytorch/pytorch/blob/6f5f405b057c7de0f5fce0b1432cb74468f96f95/aten/src/ATen/autocast_mode.cpp#L121C61-L121C80
+
+        # It won't use the cache unless the parameter requires a
+        # gradient. This honestly seems like a mistake in pytorch's
+        # AMP implementation.
+
+        # TODO: This silly attempt does not really fix things. It will fix:
+
+        # with torch.cuda.amp.autocast():
+        #     my_model.freeze()
+        #     output = my_model(input)
+
+        # But it doesn't fix the following situation:
+
+        # my_model.freeze()
+        # with torch.cuda.amp.autocast():
+        #     output = my_model(input)
+
+        # A better way to handle this might be to call
+        # register_forward_pre_hook on every thing that ineherits from
+        # NeuralModule, and have the register hook check if
+        # `torch.is_autocast_enabled() == True and any(not param.requires_grad for param in self.parameters)`
+        # If so, it should warn (or crash), because that is probably not what the user wants to be doing.
+        if not torch.is_autocast_enabled():
+            for param in self.parameters():
+                param.requires_grad = False
 
         self.eval()
 

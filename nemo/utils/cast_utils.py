@@ -37,7 +37,7 @@ def avoid_float16_autocast_context():
 
     if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.float16:
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return torch.cuda.amp.autocast(dtype=torch.float32)
+            return torch.cuda.amp.autocast(enabled=False)
 
         if torch.cuda.is_bf16_supported():
             return torch.cuda.amp.autocast(dtype=torch.bfloat16)
