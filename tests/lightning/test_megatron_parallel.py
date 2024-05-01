@@ -105,7 +105,7 @@ class TestMegatronParallel:
         mocker.patch('megatron.core.parallel_state.set_virtual_pipeline_model_parallel_rank')
         mocker.patch('nemo.io.reinit', return_value=mock_pipeline)
 
-        megatron_parallel = mp.MegatronParallel(mock_pipeline, vp_size=2)
+        megatron_parallel = mp.MegatronParallel(mock_pipeline, vp_size=2, cpu=True)
 
         assert len(megatron_parallel.pipeline) == 2
         assert all(isinstance(mod, nn.Module) for mod in megatron_parallel.pipeline)
