@@ -159,6 +159,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Create mutex with timeout
         self._lock_with_timeout = None
         if lock_timeout is not None:
+
             @contextlib.contextmanager
             def lock_with_timeout():
                 result = self._lock.acquire(timeout=lock_timeout)
@@ -167,6 +168,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 finally:
                     if result:
                         self._lock.release()
+
             self._lock_with_timeout = lock_with_timeout
 
     def _broadcast_params(self) -> None:
