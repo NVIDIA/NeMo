@@ -120,7 +120,6 @@ class GriffinModel(LanguageModule):
     def embedding_decode(self, x, transpose):
         x = x.permute(1, 0, 2)
         logits = x @ self.embedding.word_embeddings.state_dict()['weight'].T
-        logits = nn.functional.tanh(logits / self.logits_soft_cap) * self.logits_soft_cap
         logits = self._embedding_decode_(logits, transpose)
 
         return logits
