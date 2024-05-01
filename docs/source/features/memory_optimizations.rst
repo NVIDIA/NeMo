@@ -39,3 +39,60 @@ Selective Activation Recomputation
 This method reduces memory footprint of activations significantly via smart activation checkpointing. This approach involves selectively storing only crucial activations and recomputing the others as needed. It is particularly useful in large models to minimize memory usage while controlling the computational cost.
 
 Refer to "Reducing Activation Recomputation in Large Transformer Models" for more details: https://arxiv.org/abs/2205.05198
+
+Multi-query Attention (MQA) and Grouped-query Attention (GQA)
+-------------------------------------------------------------
+
+**Multi-query Attention (MQA)** and **Grouped-query Attention (GQA)** are modifications of the traditional multihead attention mechanism in Transformer models. These methods improve the efficiency and effectiveness of attention mechanisms.
+
+Overview
+^^^^^^^^
+
+**Multi-query Attention (MQA)**
+    MQA treats all attention heads as a single group, reducing computational complexity and accelerating training times. It is beneficial when model scalability or limited computational resources are concerns.
+
+**Grouped-query Attention (GQA)**
+    GQA groups the heads into clusters, each processing a subset of queries independently. This method balances the detailed focus of traditional multihead attention with the broad approach of MQA, enhancing nuanced input data processing.
+
+These attention variants offer:
+
+- **Reduced computational load**: Both methods decrease computation, beneficial for large models.
+- **Increased processing speed**: Simplifying attention leads to faster training and inference.
+- **Flexibility and adaptability**: Adjustments can be made based on task needs or hardware constraints.
+
+Enabling MQA and GQA in NeMo
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To use MQA or GQA in NVIDIA's NeMo framework, adjust the `num_query_groups` parameter in the model configuration:
+
+1. **For Multi-query Attention (MQA)**:
+   - Set `num_query_groups` to `1` to treat all attention heads as a single group.
+
+   .. code-block:: yaml
+
+       num_query_groups: 1  # Enables Multi-query Attention
+
+2. **For Grouped-query Attention (GQA)**:
+   - Set `num_query_groups` to a number that is a divisor of the total number of attention heads (more than one but less than the total heads).
+
+   .. code-block:: yaml
+
+       num_query_groups: <number_of_groups>  # Enables Grouped-query Attention
+
+   - For regular attention, set this parameter to `None` or match it with the number of heads.
+
+   .. code-block:: yaml
+
+       num_query_groups: None  # Default setting for regular multihead attention
+
+Adjust the `num_query_groups` to explore different attention mechanisms and optimize your model's performance based on specific needs.
+
+Implementation
+^^^^^^^^^^^^^^
+
+NeMo's support for GQA and MQA is enabled through the integration of Megatron-Core's Attention mechanism. The underlying implementation details can be explored within the Attention class of Megatron-Core, which provides the functional backbone for these advanced attention methods. To understand the specific modifications and implementations of MQA and GQA, refer to the source code in the Attention class:
+
+.. code-block:: text
+
+    Check implementation details from Attention Class in Megatron-Core:
+    https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L49
