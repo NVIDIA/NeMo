@@ -73,6 +73,7 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
 
     HAVE_APEX = True
@@ -113,7 +114,9 @@ except (ImportError, ModuleNotFoundError):
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
 
-def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) -> None:
+def init_model_parallel(
+    sharp: bool, nccl_communicator_config_path: str = None, distributed_timeout_minutes: int = 30
+) -> None:
     """ Initializes Megatron-LM model parallel if using model parallelism.
 
     Args:
@@ -139,6 +142,7 @@ def init_model_parallel(sharp: bool, nccl_communicator_config_path: str = None) 
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 order='tp-pp-dp' if app_state.use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+                distributed_timeout_minutes=distributed_timeout_minutes,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -219,7 +223,11 @@ class NLPDDPStrategy(DDPStrategy):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-                init_model_parallel(self.sharp, self.nccl_communicator_config_path)
+                init_model_parallel(
+                    self.sharp,
+                    self.nccl_communicator_config_path,
+                    distributed_timeout_minutes=self._timeout.total_seconds() / 60,
+                )
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -1048,6 +1056,31 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     new_state_dict[new_key_] = state_dict[key_]
                 else:
                     new_state_dict[key_] = state_dict[key_]
+            state_dict = new_state_dict
+
+        if conf.get('unet_config') and conf.get('unet_config').get('use_te_fp8') == False:
+            # Mapping potential fp8 ckpt to fp16 model
+            # remove _extra_state in fp8 if there is.
+            new_state_dict = {}
+            for key in state_dict.keys():
+                if 'extra_state' in key:
+                    continue
+
+                ### LayerNormLinear
+                # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
+                # norm_to_q.weight -> to_q.weight
+                new_key = key.replace('norm_to_q.layer_norm_', 'norm.')
+                new_key = new_key.replace('norm_to_q.weight', 'to_q.weight')
+
+                ### LayerNormMLP
+                # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
+                # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
+                # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
+                new_key = new_key.replace('ff.net.layer_norm_', 'ff.net.0.')
+                new_key = new_key.replace('ff.net.fc1_', 'ff.net.1.proj.')
+                new_key = new_key.replace('ff.net.fc2_', 'ff.net.3.')
+
+                new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
 
         return state_dict
