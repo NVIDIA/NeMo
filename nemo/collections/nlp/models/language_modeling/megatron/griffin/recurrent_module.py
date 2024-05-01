@@ -18,7 +18,7 @@ from typing import Union
 
 import einops
 import torch
-from accelerated_scan.triton import scan as scan_triton
+from accelerated_scan.ref import scan
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
@@ -110,7 +110,7 @@ def rnn_scan(
         a = a.permute(0, 2, 1)
         x = x.contiguous()
         a = a.contiguous()
-        y = scan_triton(a.float(), x.float()).type_as(x)
+        y = scan(a.float(), x.float()).type_as(x)
         y = y.permute(0, 2, 1)
     return y, None
 
