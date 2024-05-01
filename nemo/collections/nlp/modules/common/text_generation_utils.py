@@ -179,8 +179,8 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             continue
 
         # Regular expression pattern to match the sequence
-        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}')
-        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}')
+        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|'))
+        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|'))
         combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
         clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
 
@@ -198,6 +198,9 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             clean_response = clean_response.split("<extra_id_1>")[-2][10:]  # [10:] for removing "Assistant\n"
         elif conv_template == "llama_2":
             clean_response = clean_response.rsplit("[/INST] ", 1)[-1]
+        elif conv_template == "llama_3":
+            clean_response = clean_response.rsplit("assistant<|end_header_id|>\n\n", 1)[-1]
+            clean_response = clean_response.rstrip("<|eot_id|>")
         elif conv_template == "v1":
             clean_response = clean_response.rsplit("ASSISTANT: ", 1)[-1]
 

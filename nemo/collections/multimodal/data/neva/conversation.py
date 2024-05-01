@@ -139,9 +139,9 @@ class Conversation:
                 if type(message) is tuple:
                     message, _, _ = message
                 elif i % 2 == 0:
-                    ret += wrap_user(message) + self.sep if message else ""
+                    ret += wrap_user(message) + self.sep
                 else:
-                    ret += wrap_assistant(message) + self.sep if message else ""
+                    ret += wrap_assistant(message) + (self.sep if message else "")
 
         elif self.sep_style == SeparatorStyle.PLAIN:
             seps = [self.sep, self.sep2]

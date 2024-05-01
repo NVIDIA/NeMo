@@ -334,6 +334,7 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
     from nemo.collections.multimodal.data.neva.neva_dataset import (
         DEFAULT_IMAGE_TOKEN,
         preprocess_llama_2,
+        preprocess_llama_3,
         preprocess_multimodal,
         preprocess_nv_dpo,
         preprocess_nvgpt,
@@ -376,6 +377,19 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
         data_dict = preprocess_llama_2(sources, tokenizer, multimodal_cfg)
+    elif multimodal_cfg["conv_template"] == "llama_3":
+        record = {
+            'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
+        }
+
+        for turn in record['conversations']:
+            if turn.get('value') is not None:
+                turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
+        list_data_dict.append(record)
+        sources = preprocess_multimodal(
+            copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
+        )  # HARDCODED FOR NOW
+        data_dict = preprocess_llama_3(sources, tokenizer, multimodal_cfg)
     elif multimodal_cfg["conv_template"] == "v1":
         record = {
             'conversations': [{'from': 'human', 'value': prompt,}, {'from': 'gpt', 'value': '',},],
@@ -410,6 +424,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             is_multimodal=self.data_cfg.is_multimodal,
             sep_image_conv_front=self.data_cfg.sep_image_conv_front,
             conv_template=self.data_cfg.get("conv_template", "nvgpt"),
+            model_type=self.cfg.mm_cfg.llm.get("model_type", "nvgpt"),
             image_token_len=self.data_cfg.image_token_len,
             image_folder=self.data_cfg.image_folder,
             image_aspect_ratio=self.data_cfg.image_aspect_ratio,
