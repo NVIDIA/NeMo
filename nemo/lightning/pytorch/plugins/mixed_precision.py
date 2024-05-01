@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, List, Literal, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Generator, List, Literal, Tuple, TypeVar, Union
 
 import pytorch_lightning as pl
 import torch
