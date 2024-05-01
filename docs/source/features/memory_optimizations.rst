@@ -63,17 +63,17 @@ These attention variants offer:
 Enabling MQA and GQA in NeMo
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To use MQA or GQA in NVIDIA's NeMo framework, adjust the `num_query_groups` parameter in the model configuration:
+To use MQA or GQA in the NeMo Framework, adjust the ``num_query_groups`` parameter in the model configuration:
 
 1. **For Multi-query Attention (MQA)**:
-   - Set `num_query_groups` to `1` to treat all attention heads as a single group.
+   - Set ``num_query_groups`` to `1` to treat all attention heads as a single group.
 
    .. code-block:: yaml
 
        num_query_groups: 1  # Enables Multi-query Attention
 
 2. **For Grouped-query Attention (GQA)**:
-   - Set `num_query_groups` to a number that is a divisor of the total number of attention heads (more than one but less than the total heads).
+   - Set ``num_query_groups`` to a number that is a divisor of the total number of attention heads (more than one but less than the total heads).
 
    .. code-block:: yaml
 
@@ -83,9 +83,9 @@ To use MQA or GQA in NVIDIA's NeMo framework, adjust the `num_query_groups` para
 
    .. code-block:: yaml
 
-       num_query_groups: None  # Default setting for regular multihead attention
+       num_query_groups: null  # Default setting for regular multihead attention
 
-Adjust the `num_query_groups` to explore different attention mechanisms and optimize your model's performance based on specific needs.
+Adjust the ``num_query_groups`` to explore different attention mechanisms and optimize your model's performance based on specific needs.
 
 Implementation
 ^^^^^^^^^^^^^^
