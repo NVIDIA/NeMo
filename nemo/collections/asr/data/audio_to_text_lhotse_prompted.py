@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
@@ -135,11 +136,21 @@ def canary_natural(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = 
     this format uses natural language to construct the prompt.
     """
     tokens, prompts = [], []
-    bos = tokenizer._tokenizer.token_to_id('<s>')
-    eos = tokenizer._tokenizer.token_to_id('</s>')
+    if isinstance(tokenizer._tokenizer, CanaryTokenizer):
+        bos = tokenizer._tokenizer.bos_id
+        eos = tokenizer._tokenizer.eos_id
+    else:
+        bos = tokenizer._tokenizer.token_to_id('<s>')
+        eos = tokenizer._tokenizer.token_to_id('</s>')
     for cut in cuts:
         assert hasattr(cut, "prompt"), f"Error: missing 'prompt' field in {cut=}"
-        prompt = cut.prompt + "\n\n"
+        prompt = cut.prompt
+        if (keys := list_placeholders(prompt)) :
+            kvs = {}
+            for k in keys:
+                assert hasattr(cut, k), f"Error: missing field '{k}' required by prompt '{prompt}' in {cut=}"
+                kvs[k] = getattr(cut, k)
+            prompt = prompt.format(**kvs)
         prompt_tokens = [bos] + tokenizer(prompt, cut.supervisions[0].language)
 
         prompt_with_answer_tokens = prompt_tokens
@@ -154,6 +165,13 @@ def canary_natural(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = 
         tokens.append(prompt_with_answer_tokens)
 
     return tokens, prompts
+
+
+_NATURAL_PROMPT_PLACEHOLDER = re.compile(r"{(.+?)}")
+
+
+def list_placeholders(prompt: str) -> list[str]:
+    return _NATURAL_PROMPT_PLACEHOLDER.findall(prompt)
 
 
 @registered_prompt_format_fn
