@@ -3,11 +3,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Optional, Protocol, TypeVar, Union
 
-import lightning as L
+import pytorch_lightning as pl
 import torch
-from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
-from lightning.fabric.utilities.cloud_io import get_filesystem
-from lightning.fabric.utilities.types import _PATH
+from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning_fabric.utilities.cloud_io import get_filesystem
+from lightning_fabric.utilities.types import _PATH
 from torch import nn
 from typing_extensions import Self, override
 
@@ -20,14 +20,14 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-LightningModuleT = TypeVar("LightningModuleT", bound=L.LightningModule)
+LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
 
 @dataclass
 class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
     model: LightningModuleT
-    trainer: L.Trainer
+    trainer: pl.Trainer
     extra: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -96,7 +96,6 @@ class MegatronCheckpointIO(CheckpointIO):
         if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
             logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
             return
-
         fs.makedirs(checkpoint_dir, exist_ok=True)
         dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=str(checkpoint_dir))
 
@@ -155,7 +154,6 @@ def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
     assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
     cur_dev = torch.device("cuda", index=torch.cuda.current_device())
-
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
 
     def _fix_device(t):
@@ -172,7 +170,6 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     to be used as a directory for distributed checkpoints.
     """
     filepath = Path(filepath)
-
     if not filepath.suffix == ".ckpt":
         filepath = filepath.with_suffix(filepath.suffix + ".ckpt")
 

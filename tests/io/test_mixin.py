@@ -1,4 +1,4 @@
-from nemo_ext import io
+from nemo import io
 
 
 class DummyClass(io.IOMixin):

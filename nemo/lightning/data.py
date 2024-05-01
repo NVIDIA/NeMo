@@ -40,7 +40,7 @@ def setup_microbatch_calculator(
         Exception: If the microbatch calculator has already been initialized with different settings.
 
     """
-    from nemo_ext.lightning._strategy_lib import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE
+    from nemo.lightning._strategy_lib import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE
 
     from nemo.utils import AppState
 
@@ -85,7 +85,7 @@ def add_megatron_sampler(
     dataloader_type: Literal["single", "cyclic"] = "single",
     # data_sharding: bool = False
 ) -> DataLoader:
-    from megatron.core import mpu
+    from megatron.core import parallel_state
 
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
@@ -94,8 +94,8 @@ def add_megatron_sampler(
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size(),
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
             drop_last=getattr(dataloader, "_drop_last", False),
             pad_samples_to_global_batch_size=getattr(dataloader, "_pad_samples_to_global_batch_size", False),
         )
@@ -105,8 +105,8 @@ def add_megatron_sampler(
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size(),
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
             pad_samples_to_global_batch_size=getattr(dataloader, "_pad_samples_to_global_batch_size", False),
             # data_sharding=data_sharding
         )

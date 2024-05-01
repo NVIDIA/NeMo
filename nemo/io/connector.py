@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
-import lightning as L
+import pytorch_lightning as pl
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':
@@ -77,7 +77,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         if base_path:
             _base = base_path
         else:
-            from nemo_ext.lightning.base import NEMO_CACHE_HOME
+            from nemo.lightning.base import NEMO_CACHE_HOME
 
             _base = Path(NEMO_CACHE_HOME)
 
@@ -87,7 +87,6 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         return self.local_path(base_path=base_path).exists()
 
 
-# TODO: Rename this to CheckpointConnector?
 class ModelConnector(Connector, Generic[SourceT, TargetT]):
     """
     A specialized connector that extends the generic Connector to handle model-specific operations
@@ -95,29 +94,29 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
     Methods
     -------
-        nemo_setup(model: L.LightningModule, trainer: Optional[L.Trainer] = None) -> L.Trainer:
+        nemo_setup(model: pl.LightningModule, trainer: Optional[pl.Trainer] = None) -> pl.Trainer:
             Sets up the model and trainer using a specified strategy, preparing it for training or inference.
         
-        nemo_save(output_path: Path, trainer: L.Trainer):
+        nemo_save(output_path: Path, trainer: pl.Trainer):
             Saves the model's state to the specified path using the trainer's current strategy.
         
-        nemo_load(path: Path, trainer: Optional[L.Trainer] = None, cpu: bool = True) -> Tuple[Any, L.Trainer]:
+        nemo_load(path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True) -> Tuple[Any, pl.Trainer]:
             Loads a model from the specified path, optionally using a CPU-focused strategy, and returns the model and trainer.
     """
 
-    def nemo_setup(self, model: L.LightningModule, trainer: Optional[L.Trainer] = None) -> L.Trainer:
+    def nemo_setup(self, model: pl.LightningModule, trainer: Optional[pl.Trainer] = None) -> pl.Trainer:
         """
         Sets up the model and trainer using a specified strategy, preparing it for training or inference.
 
         Args:
-            model (L.LightningModule): The model to be set up.
-            trainer (Optional[L.Trainer]): The trainer to be used, if not provided a new one will be created.
+            model (pl.LightningModule): The model to be set up.
+            trainer (Optional[pl.Trainer]): The trainer to be used, if not provided a new one will be created.
 
         Returns
         -------
-            L.Trainer: The trainer configured with the model and strategy.
+            pl.Trainer: The trainer configured with the model and strategy.
         """
-        from nemo_ext.lightning import MegatronStrategy, Trainer
+        from nemo.lightning import MegatronStrategy, Trainer
 
         _trainer = trainer or Trainer(devices=1, accelerator="cpu", strategy=MegatronStrategy())
 
@@ -131,34 +130,34 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
 
         return _trainer
 
-    def nemo_save(self, output_path: Path, trainer: L.Trainer) -> None:
+    def nemo_save(self, output_path: Path, trainer: pl.Trainer) -> None:
         """
         Saves the model's state to the specified path using the trainer's current strategy.
 
         Args:
             output_path (Path): The path where the model checkpoint will be saved.
-            trainer (L.Trainer): The trainer with the strategy to save the model.
+            trainer (pl.Trainer): The trainer with the strategy to save the model.
         """
         trainer.strategy.setup(trainer)
         trainer.save_checkpoint(output_path)
 
     def nemo_load(
-        self, path: Path, trainer: Optional[L.Trainer] = None, cpu: bool = True
-    ) -> Tuple[L.LightningModule, L.Trainer]:
+        self, path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True
+    ) -> Tuple[pl.LightningModule, pl.Trainer]:
         """
         Loads a model from the specified path.
 
         Args:
             path (Path): The path from which the model will be loaded.
-            trainer (Optional[L.Trainer]): The trainer to be used, if not provided a new one will be created.
+            trainer (Optional[pl.Trainer]): The trainer to be used, if not provided a new one will be created.
             cpu (bool): If True, the model will be loaded with a CPU-focused strategy.
 
         Returns
         -------
-            Tuple[L.LightningModule, L.Trainer]: The loaded model and the trainer configured with the model.
+            Tuple[pl.LightningModule, pl.Trainer]: The loaded model and the trainer configured with the model.
         """
-        from nemo_ext.io.api import load_ckpt
-        from nemo_ext.lightning import MegatronStrategy, Trainer, _strategy_lib
+        from nemo.io.api import load_ckpt
+        from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
 
         model = load_ckpt(path).model
         _trainer = trainer or Trainer(devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy())

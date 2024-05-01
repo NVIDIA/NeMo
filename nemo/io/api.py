@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Type, TypeVar
 
 import fiddle as fdl
-import lightning as L
+import pytorch_lightning as pl
 
 from nemo.io.mixin import ConnectorMixin, ConnT, ModelConnector
 from nemo.io.pl import TrainerCheckpoint
@@ -113,12 +113,12 @@ def model_exporter(
 
 
 def import_ckpt(
-    model: L.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False
+    model: pl.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False
 ) -> Path:
     """
     Imports a checkpoint into a model using the model's associated importer, typically for
     the purpose of fine-tuning a community model trained in an external framework, such as
-    HuggingFace. This function leverages the ConnectorMixin interface to integrate external
+    Hugging Face. This function leverages the ConnectorMixin interface to integrate external
     checkpoint data seamlessly into the specified model instance.
 
     The importer component of the model reads the checkpoint data from the specified source
@@ -138,7 +138,7 @@ def import_ckpt(
     fine-tuning. 
 
     Args:
-        model (L.LightningModule): The model into which the checkpoint will be imported.
+        model (pl.LightningModule): The model into which the checkpoint will be imported.
             This model must implement the ConnectorMixin, which includes the necessary
             importer method for checkpoint integration.
         source (str): The source from which the checkpoint will be imported. This can be
@@ -171,7 +171,7 @@ def import_ckpt(
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> ModelConnector:
-    model: L.LightningModule = load_ckpt(path).model
+    model: pl.LightningModule = load_ckpt(path).model
 
     if not isinstance(model, ConnectorMixin):
         raise ValueError("Model must be an instance of ConnectorMixin")

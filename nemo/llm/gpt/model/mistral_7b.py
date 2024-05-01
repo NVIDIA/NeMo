@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
-
+from typing import TYPE_CHECKING, List, Optional, Callable
 import torch
-
+import torch.nn.functional as F
 from nemo import io
 from nemo.llm.gpt.model.base import GPTConfig, GPTModel
 
@@ -15,24 +14,22 @@ if TYPE_CHECKING:
 
 @dataclass
 class Mistral7BConfig(GPTConfig):
-    normalization = "RMSNorm"
-    activation = "fast-swiglu"
-    position_embedding_type = "rope"
-    add_bias_linear = False
+    normalization: str = "RMSNorm"
+    activation_func: Callable = F.silu
+    position_embedding_type: str = "rope"
+    add_bias_linear: bool = False
     gated_linear_unit: bool = True
+    apply_query_key_layer_scaling: bool = True
 
     num_layers: int = 32
     hidden_size: int = 4096
     num_attention_heads: int = 32
     num_query_groups: int = 8
     ffn_hidden_size: int = 14336
-    seq_length: int = 4096
+    seq_length: int = 32768
 
-    make_vocab_size_divisible_by: int = 128
-    max_position_embeddings: int = 32768
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
-    rotary_base: float = 10000.0
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
 
 
@@ -91,12 +88,11 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             return base
 
         output = Mistral7BConfig(
-            seq_length=source.sliding_window,
+            seq_length=source.max_position_embeddings,
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             num_query_groups=source.num_key_value_heads,
@@ -155,12 +151,12 @@ class HFMistral7BExporter(io.ModelConnector[Mistral7BModel, "MistralForCausalLM"
         from transformers import MistralConfig
 
         return MistralConfig(
-            sliding_window=source.seq_length,
+            sliding_window=source.window_size[0],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.max_position_embeddings,
+            max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
