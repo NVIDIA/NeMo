@@ -19,6 +19,7 @@ from megatron.core.models.common.embeddings.language_model_embedding import Lang
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.jit import jit_fuser
 from torch import Tensor, nn
 
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_block import GriffinStack
@@ -109,11 +110,19 @@ class GriffinModel(LanguageModule):
 
         return embeddings
 
-    def embedding_decode(self, x):
+    @jit_fuser
+    def _embedding_decode_(self, logits, transpose):
+        logits = nn.functional.tanh(logits / self.logits_soft_cap) * self.logits_soft_cap
+        if transpose:
+            logits = logits.transpose(0, 1)
+        return logits.contiguous()
+
+    def embedding_decode(self, x, transpose):
         x = x.permute(1, 0, 2)
         logits = x @ self.embedding.word_embeddings.state_dict()['weight'].T
         logits = nn.functional.tanh(logits / self.logits_soft_cap) * self.logits_soft_cap
-
+        logits = self._embedding_decode_(logits, transpose)
+ 
         return logits
 
     def forward(
@@ -137,13 +146,12 @@ class GriffinModel(LanguageModule):
 
         hidden_states = self.decoder(hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb)
 
-        logits = self.embedding_decode(hidden_states)
+        logits = self.embedding_decode(hidden_states, labels is not None)
 
         if labels is None:
             # [b s h]
-            return logits.contiguous()
+            return logits
 
-        logits = logits.transpose(0, 1).contiguous()
         loss = self.compute_language_model_loss(labels, logits)
 
         return loss
