@@ -1,8 +1,10 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Callable
+from typing import TYPE_CHECKING, Callable, List, Optional
+
 import torch
 import torch.nn.functional as F
+
 from nemo import io
 from nemo.llm.gpt.model.base import GPTConfig, GPTModel
 
