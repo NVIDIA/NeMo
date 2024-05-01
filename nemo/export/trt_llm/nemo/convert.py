@@ -56,10 +56,11 @@ def save_split(split_vals, dir, key, i, split_factor):
 def save_expert_split(split_vals, dir, key, i, split_factor):
     for j, val in enumerate(split_vals):
         tp_num = i * split_factor + j
-        suffix = "bin" if tp_num is None else f"{tp_num}.bin"
+        suffix = "" if tp_num is None else f".{tp_num}.bin"
 
         global weights_dict
-        weights_dict[f"model.{key}.{suffix}"] = val
+        weights_dict[f"{key}{suffix}"] = val
+        # weights_dict[f"model.{key}.{suffix}"] = val
 
 
 def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):
@@ -233,9 +234,9 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
                 key = f'{layer_prefix}.input_layernorm.bias'
         elif "pre_mlp_layernorm" in key:
             if key.endswith('weight'):
-                key = f'{layer_prefix}.mlp_layernorm.weight'
+                key = f'{layer_prefix}.post_layernorm.weight'
             else:
-                key = f'{layer_prefix}.mlp_layernorm.bias'
+                key = f'{layer_prefix}.post_layernorm.bias'
         if tp_rank == 0:
             save_val(vals[0], saved_dir, key)
 
@@ -385,8 +386,8 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         pass
     elif "mlp.router.weight" in key:
         val = np.concatenate(vals, axis=1)
-        split_vals = np.split(val, split_factor, axis=0)
-        save_split(split_vals, saved_dir, key, tp_rank, split_factor)
+        key = f'{layer_prefix}.mlp.router.weight'
+        save_val(val, saved_dir, key)
     elif "experts.linear_fc1.weight" in key:
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
@@ -397,12 +398,14 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         split_w3s = np.split(w3, split_factor, axis=1)
 
         split_vals = [np.concatenate(item, axis=1) for item in zip(split_w3s, split_w1s)]
+        key = f'{layer_prefix}.mlp.experts_weight_1'
         save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
 
     elif "experts.linear_fc2.weight" in key:
         cat_dim = -1
         val = np.concatenate(vals, axis=cat_dim)
         split_vals = np.split(val, split_factor, axis=cat_dim)
+        key = f'{layer_prefix}.mlp.experts_weight_2'
         save_expert_split(split_vals, saved_dir, key, tp_rank, split_factor)
     else:
         print(f"[WARNING] {key} not handled by converter")
