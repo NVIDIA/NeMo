@@ -172,30 +172,17 @@ class LazyNeMoTarredIterator:
         text_field: str = "text",
         lang_field: str = "lang",
     ) -> None:
-        def strip_pipe(p):
-            if isinstance(p, str):
-                if p.startswith("pipe:"):
-                    p = p[5:]
-                return Path(p)
-            return p
-
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
             self.source = LazyJsonlIterator(self.paths[0])
             self.shard_id_to_manifest = groupby("shard_id", self.source)
         else:
-            pattern = re.compile(r".+_(\d+)\.jsonl?(?:.gz)?")
-            shard_ids = []
-            for p in self.paths:
-                m = pattern.match(p)
-                assert m is not None, f"Cannot determine shard_id from manifest path: {p}"
-                shard_ids.append(int(m.group(1)))
-            self.shard_id_to_manifest = {sid: LazyJsonlIterator(p) for sid, p in zip(shard_ids, self.paths)}
+            self.shard_id_to_manifest = {sid: LazyJsonlIterator(p) for sid, p in enumerate(self.paths)}
             self.source = LazyIteratorChain(*self.shard_id_to_manifest.values())
 
-        tar_paths = expand_sharded_filepaths(tar_paths)
-        self.shard_id_to_tar_path: dict[int, str] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
+        self.tar_paths = expand_sharded_filepaths(tar_paths)
+        self.shard_id_to_tar_path = dict(enumerate(self.tar_paths))
         self.shuffle_shards = shuffle_shards
         self.shard_seed = shard_seed
         self.text_field = text_field
@@ -225,8 +212,11 @@ class LazyNeMoTarredIterator:
         shard_ids_tars = set(self.shard_id_to_tar_path)
         shard_ids_manifest = set(self.shard_id_to_manifest)
         assert shard_ids_tars == shard_ids_manifest, (
-            f"Mismatch between shard IDs discovered from tar files ({len(shard_ids_tars)=}) and "
-            f"JSON manifest ({len(shard_ids_manifest)=}): {shard_ids_tars - shard_ids_manifest=}"
+            f"Mismatch between shard IDs. Details:\n"
+            f"* JSON manifest(s) {self.paths}\n"
+            f"* Tar files: {self.tar_paths}\n"
+            f"* JSON manifest(s) indicate(s) IDs: {sorted(shard_ids_manifest)}\n"
+            f"* Tar path(s) indicate(s) IDs: {sorted(shard_ids_tars)}\n"
         )
 
     @property
