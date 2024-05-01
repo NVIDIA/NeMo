@@ -574,7 +574,7 @@ class SaveRestoreConnector:
             if SaveRestoreConnector._is_safe_path(member, extract_to):
                 tar.extract(member, extract_to)
             else:
-                print(f"Skipping potentially unsafe member: {member.name}")
+                logging.warning(f"Skipping potentially unsafe member: {member.name}")
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str, extract_config_only: bool = False) -> str:
