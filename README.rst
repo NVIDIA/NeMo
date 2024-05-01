@@ -46,7 +46,7 @@ Latest News
   <details open>
     <summary><b>Large Language Models and Multimodal</b></summary>
         <details>
-          <summary><a href="https://cloud.google.com/blog/products/compute/gke-and-nvidia-nemo-framework-to-train-generative-ai-models">Accelerate your generative AI journey with NVIDIA NeMo framework on GKE</a> (2024/03/16) </summary>
+          <summary><a href="https://cloud.google.com/blog/products/compute/gke-and-nvidia-nemo-framework-to-train-generative-ai-models">Accelerate your generative AI journey with NVIDIA NeMo Framework on GKE</a> (2024/03/16) </summary>
 
           An end-to-end walkthrough to train generative AI models on the Google Kubernetes Engine (GKE) using the NVIDIA NeMo Framework is available at https://github.com/GoogleCloudPlatform/nvidia-nemo-on-gke. The walkthrough includes detailed instructions on how to set up a Google Cloud Project and pre-train a GPT model using the NeMo Framework.
           <br><br>
@@ -71,7 +71,32 @@ Latest News
     <details>
       <summary><a href="https://blogs.nvidia.com/blog/nemo-amazon-titan/">NVIDIA now powers training for Amazon Titan Foundation models</a> (2023/11/28) </summary>
 
-      NVIDIA NeMo framework now empowers the Amazon Titan foundation models (FM) with efficient training of large language models (LLMs). The Titan FMs form the basis of Amazon’s generative AI service, Amazon Bedrock. The NeMo Framework provides a versatile framework for building, customizing, and running LLMs.
+      NVIDIA NeMo Framework now empowers the Amazon Titan foundation models (FM) with efficient training of large language models (LLMs). The Titan FMs form the basis of Amazon’s generative AI service, Amazon Bedrock. The NeMo Framework provides a versatile framework for building, customizing, and running LLMs.
+      <br><br>
+    </details>
+
+  </details>
+
+  <details open>
+    <summary><b>Speech Recognition</b></summary>
+        <details>
+          <summary><a href="https://developer.nvidia.com/blog/new-standard-for-speech-recognition-and-translation-from-the-nvidia-nemo-canary-model/">New Standard for Speech Recognition and Translation from the NVIDIA NeMo Canary Model</a> (2024/04/18) </summary>
+
+          The NeMo team just released Canary, a multilingual model that transcribes speech in English, Spanish, German, and French with punctuation and capitalization. Canary also provides bi-directional translation, between English and the three other supported languages.
+          <br><br>
+        </details>
+
+      <details>
+        <summary><a href="https://developer.nvidia.com/blog/pushing-the-boundaries-of-speech-recognition-with-nemo-parakeet-asr-models/">Pushing the Boundaries of Speech Recognition with NVIDIA NeMo Parakeet ASR Models</a> (2024/04/18) </summary>
+
+        NVIDIA NeMo, an end-to-end platform for the development of multimodal generative AI models at scale anywhere—on any cloud and on-premises—released the Parakeet family of automatic speech recognition (ASR) models. These state-of-the-art ASR models, developed in collaboration with Suno.ai, transcribe spoken English with exceptional accuracy.
+        <br><br>
+    </details>
+
+    <details>
+      <summary><a href="https://developer.nvidia.com/blog/turbocharge-asr-accuracy-and-speed-with-nvidia-nemo-parakeet-tdt/">Turbocharge ASR Accuracy and Speed with NVIDIA NeMo Parakeet-TDT</a> (2024/04/18) </summary>
+
+      NVIDIA NeMo, an end-to-end platform for developing multimodal generative AI models at scale anywhere—on any cloud and on-premises—recently released Parakeet-TDT. This new addition to the  NeMo ASR Parakeet model family boasts better accuracy and 64% greater speed over the previously best model, Parakeet-RNNT-1.1B.
       <br><br>
     </details>
 
@@ -486,7 +511,7 @@ We welcome community contributions! Please refer to `CONTRIBUTING.md <https://gi
 Publications
 ------------
 
-We provide an ever-growing list of `publications <https://nvidia.github.io/NeMo/publications/>`_ that utilize the NeMo framework.
+We provide an ever-growing list of `publications <https://nvidia.github.io/NeMo/publications/>`_ that utilize the NeMo Framework.
 
 If you would like to add your own article to the list, you are welcome to do so via a pull request to this repository's ``gh-pages-src`` branch.
 Please refer to the instructions in the `README of that branch <https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme>`_.
