@@ -15,11 +15,11 @@
 import math
 
 import torch
+from megatron.core.jit import jit_fuser
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.jit import jit_fuser
 from torch import Tensor, nn
 
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_block import GriffinStack
@@ -122,7 +122,7 @@ class GriffinModel(LanguageModule):
         logits = x @ self.embedding.word_embeddings.state_dict()['weight'].T
         logits = nn.functional.tanh(logits / self.logits_soft_cap) * self.logits_soft_cap
         logits = self._embedding_decode_(logits, transpose)
- 
+
         return logits
 
     def forward(
