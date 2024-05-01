@@ -22,4 +22,11 @@ slurm._is_slurm_interactive_mode = _is_slurm_interactive_mode  # noqa: SLF001
 _pl_plugins._PLUGIN_INPUT = Union[_pl_plugins._PLUGIN_INPUT, _data_sampler.DataSampler]  # noqa: SLF001
 
 
-__all__ = ["MegatronStrategy", "MegatronDataSampler", "MegatronMixedPrecision", "Trainer", "get_vocab_size", "teardown"]
+__all__ = [
+    "MegatronStrategy",
+    "MegatronDataSampler",
+    "MegatronMixedPrecision",
+    "Trainer",
+    "get_vocab_size",
+    "teardown",
+]

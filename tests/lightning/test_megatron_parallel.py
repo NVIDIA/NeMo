@@ -1,11 +1,12 @@
 from collections import defaultdict
 
 import pytest
+from megatron.core import parallel_state
 from torch import nn
 
 from nemo import lightning as nl
 from nemo.lightning import megatron_parallel as mp
-from megatron.core import parallel_state
+
 
 class TestMegatronParallel:
     """Unit tests for the MegatronParallel class."""
@@ -71,7 +72,7 @@ class TestMegatronParallel:
         mock_callbacks,
         mock_data_step,
         mock_forward_step,
-        mock_loss_reduction
+        mock_loss_reduction,
     ):
         """Test __init__ with custom parameters."""
         mocker.patch('megatron.core.parallel_state.get_pipeline_model_parallel_world_size', return_value=1)
@@ -83,7 +84,7 @@ class TestMegatronParallel:
             callbacks=mock_callbacks,
             data_step=mock_data_step,
             forward_step=mock_forward_step,
-            loss_reduction=mock_loss_reduction
+            loss_reduction=mock_loss_reduction,
         )
 
         assert megatron_parallel.pipeline == mock_pipeline

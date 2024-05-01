@@ -17,21 +17,17 @@ from typing import Any, Callable, Generator, List, Literal, Optional, Tuple, Typ
 
 import pytorch_lightning as pl
 import torch
-from nemo.lightning._strategy_lib import GradScaler
 from pytorch_lightning.plugins.precision import MixedPrecision
 from torch.nn import Module
 from torch.optim import Optimizer
+
+from nemo.lightning._strategy_lib import GradScaler
 
 AnyT = TypeVar("AnyT")
 
 
 class MegatronMixedPrecision(MixedPrecision):
-    def __init__(
-        self,
-        precision: Literal["16-mixed", "bf16-mixed"],
-        amp_O2: bool = True,
-        device="cuda",
-    ) -> None:
+    def __init__(self, precision: Literal["16-mixed", "bf16-mixed"], amp_O2: bool = True, device="cuda",) -> None:
         if precision == "bf16-mixed":
             scaler = None
         else:
@@ -45,11 +41,13 @@ class MegatronMixedPrecision(MixedPrecision):
 
             def float16_convertor(val):
                 return val.half()
+
         elif precision == "bf16-mixed":
             dtype = torch.bfloat16
 
             def float16_convertor(val):
                 return val.bfloat16()
+
         else:
             raise ValueError("precision must be '16-mixed' or 'bf16-mixed'")
 
@@ -96,11 +94,7 @@ class MegatronMixedPrecision(MixedPrecision):
         if isinstance(optimizer, MainParamsOptimizerWrapper) or not self.amp_O2:
             return optimizer
 
-        return MainParamsOptimizerWrapper(
-            optimizer,
-            fp32_grad_accum=True,
-            contiguous_grad_bucket=True,
-        )
+        return MainParamsOptimizerWrapper(optimizer, fp32_grad_accum=True, contiguous_grad_bucket=True,)
 
     def convert_input(self, data: AnyT) -> AnyT:
         """Convert model inputs (forward) to the floating point precision type of this plugin.
