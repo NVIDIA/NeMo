@@ -135,7 +135,11 @@ def mcore_supports_moe() -> bool:
         return False
 
 
-def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True):
+def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, cfg_peft=None):
+    if cfg_peft and cfg_peft['peft_scheme'] == 'qlora':
+        from nemo.collections.nlp.modules.common.megatron.adapters.qlora import get_gpt_layer_with_QLoRA_spec
+        return get_gpt_layer_with_QLoRA_spec(cfg_peft)
+
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
 
@@ -397,6 +401,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.transformer_config.num_moe_experts,
                     self.transformer_config.moe_grouped_gemm,
                     self.transformer_engine,
+                    self.cfg.get('peft', None),
                 ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),

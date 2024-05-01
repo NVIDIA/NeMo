@@ -215,6 +215,9 @@ class LoraPEFTConfig(PEFTConfig):
 
         return adapter_cfg
 
+class QLoraPEFTConfig(LoraPEFTConfig):
+    pass
+
 
 class IA3PEFTConfig(PEFTConfig):
     def __init__(self, cfg):
@@ -325,6 +328,7 @@ PEFT_CONFIG_MAP = {
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,
+    "qlora": QLoraPEFTConfig,
     "selective": SelectivePEFTConfig,
     'none': None,
     None: None,
