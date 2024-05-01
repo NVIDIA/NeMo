@@ -153,7 +153,7 @@ def main(cfg) -> None:
         if cfg.model.peft.restore_from_path:
             if '\\' in cfg.model.peft.restore_from_path:
                 cfg.model.peft.restore_from_path = cfg.model.peft.restore_from_path.replace('\\', '')
-            if "peft" in model_cfg:
+            if "peft" in model_cfg and 'peft_scheme' in model_cfg.peft:
                 peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
                 model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
             else:

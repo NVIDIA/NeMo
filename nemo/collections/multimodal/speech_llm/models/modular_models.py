@@ -95,6 +95,10 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 else MultiAudioPerceptionModule(cfg=cfg.perception)
             )
 
+        if self._cfg.get('tensor_model_parallel_size', 1) == 1:
+            audio_model, _ = self.get_audio_encoder_models_and_configs(cfg)
+            self.perception.tokenizer = audio_model.tokenizer
+
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         super().__init__(cfg, trainer)
@@ -814,16 +818,16 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     @classmethod
     def get_audio_encoder_models_and_configs(cls, cfg):
-        if 'encoders' in cfg.model.perception:
+        if 'encoders' in cfg.perception:
             audio_encoders = {}
             audio_enc_cfgs = {}
-            for key, encoder_cfg in cfg.model.perception.encoders.items():
+            for key, encoder_cfg in cfg.perception.encoders.items():
                 audio_encoders[key] = cls.get_pretraind_audio_model(encoder_cfg)
                 audio_enc_cfgs[key] = audio_encoders[key].cfg
             return audio_encoders, audio_enc_cfgs
         else:
-            pretrained_audio_model = cfg.model.get("pretrained_audio_model", None)
-            pretrained_audio_model_class = cfg.model.get(
+            pretrained_audio_model = cfg.get("pretrained_audio_model", None)
+            pretrained_audio_model_class = cfg.get(
                 "pretrained_audio_model_target", "nemo.collections.asr.models.ASRModel"
             )
 
@@ -880,7 +884,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             raise RuntimeError("PEFT training needs a trained base model present.")
 
         base_model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
-        audio_model, audio_model_cfg = cls.get_audio_encoder_models_and_configs(cfg)
+        audio_model, audio_model_cfg = cls.get_audio_encoder_models_and_configs(cfg.model)
         speaker_model, speaker_cfg = cls.get_speaker_model_and_config(cfg)
         model_cfg = cls._modify_config(
             base_model_cfg, cfg, audio_model_cfg, add_cfg_to_tree=False, speaker_cfg=speaker_cfg
