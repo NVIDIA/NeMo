@@ -117,6 +117,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     config.manifest_filepath,
                     tar_paths=config.tarred_audio_filepaths,
                     shuffle_shards=config.shuffle,
+                    random_access = config.random_access,
                     **common_kwargs,
                 )
             )
@@ -141,7 +142,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                 if len(manifest_info) == 1:
                     (manifest_path,) = manifest_info
                     nemo_iter = LazyNeMoTarredIterator(
-                        manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=config.shuffle, **common_kwargs
+                        manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=config.shuffle, random_access = config.random_access, **common_kwargs
                     )
                     weight = len(nemo_iter)
                 else:
@@ -157,7 +158,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     )
                     manifest_path, weight = manifest_info
                     nemo_iter = LazyNeMoTarredIterator(
-                        manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=config.shuffle, **common_kwargs
+                        manifest_path=manifest_path, tar_paths=tar_path, shuffle_shards=config.shuffle, random_access = config.random_access, **common_kwargs
                     )
                 logging.info(f"- {manifest_path=} {weight=}")
                 if config.max_open_streams is not None:
