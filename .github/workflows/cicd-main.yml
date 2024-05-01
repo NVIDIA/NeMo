@@ -95,7 +95,7 @@ jobs:
             python tests/check_copyright_header.py --dir .
 
             # NeMo Installation
-            ./reinstall.sh
+            ./reinstall.sh release
 
             # Transformer Engine installation
             git clone https://github.com/NVIDIA/TransformerEngine.git && \
@@ -238,7 +238,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python -m tests.setup --save_dir /home/TestData/nlp
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -358,7 +358,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -384,7 +384,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -416,7 +416,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -445,7 +445,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -4803,7 +4803,7 @@ jobs:
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
         - name: Checkout repository
-          uses: actions/checkout@v2
+          uses: actions/checkout@v4
         - run: |
             rm -rf /home/TestData/nlp/megatron_ir/working_dir
 
