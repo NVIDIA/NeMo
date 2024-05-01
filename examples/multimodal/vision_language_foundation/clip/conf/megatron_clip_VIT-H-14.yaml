@@ -1,3 +1,4 @@
+# An example model that works with this config is "https://huggingface.co/yuvalkirstain/PickScore_v1"
 model:
   precision: 32
   # specify micro_batch_size, global_batch_size, and model parallelism
