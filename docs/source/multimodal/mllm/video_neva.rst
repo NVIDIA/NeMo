@@ -4,7 +4,12 @@ Video NeVA
 Model Introduction
 ------------------
 
-Video NeVa adds support for video modality in NeVa by representing video as multiple image frames.
+Video NeVa adds support for video modality in NeVa by representing video as multiple image frames. 
+
+There is only a minor change done to :class:`~nemo.collections.multimodal.models.multimodal_llm.neva.neva_model.MegatronNevaModel` class in order to support pretraining on video input data.
+
+Representing video input as a series of images is done in :class:`~nemo.collections.multimodal.data.neva.TarOrFolderVideoLoader` class, using Decord which provides convenient video slicing methods. 
+
 
 Video Neva Configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^
