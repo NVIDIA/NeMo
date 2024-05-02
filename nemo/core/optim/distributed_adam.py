@@ -153,12 +153,21 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if not isinstance(param_groups[0], dict):
             param_groups = [{'params': param_groups}]
 
+        # Create mutex with timeout
+        self._lock_timeout = lock_timeout
+
         # Construct distributed optimizer
         super().__init__(param_groups, **kwargs)
 
-        # Create mutex with timeout
-        self._lock_with_timeout = None
-        if lock_timeout is not None:
+    def _broadcast_params(self) -> None:
+        # Assume params have already been synchronized
+        pass
+
+    def _make_post_backward_hook(self, param: torch.nn.Parameter, param_group_id: int, param_id: int) -> Callable:
+
+        # Create lock with timeout if needed
+        lock_with_timeout = None
+        if self._lock_timeout is not None:
 
             @contextlib.contextmanager
             def lock_with_timeout():
@@ -171,15 +180,11 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                         self._lock.release()
                     else:
                         # Failed to acquire lock before timeout
-                        print(f'MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds.')
+                        print(
+                            f'MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds '
+                            f'in backward hook for param {param_id} in param group {param_group_id}'
+                        )
 
-            self._lock_with_timeout = lock_with_timeout
-
-    def _broadcast_params(self) -> None:
-        # Assume params have already been synchronized
-        pass
-
-    def _make_post_backward_hook(self, param: torch.nn.Parameter, param_group_id: int, param_id: int) -> Callable:
         def hook(*unused):
             if getattr(param, '_pre_forward_hook_is_enabled', False):
                 raise RuntimeError(
@@ -189,9 +194,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     'before the forward pass (e.g. by calling data_ptr) '
                     'or run DistributedFusedAdam with overlap_param_sync=False.'
                 )
-            lock = self._lock
-            if self._lock_with_timeout is not None:
-                lock = self._lock_with_timeout()
+            lock = self._lock if lock_with_timeout is None else lock_with_timeout()
             with lock:
                 need_to_initialize = 'fragments' not in self.state[param]
                 if need_to_initialize:
