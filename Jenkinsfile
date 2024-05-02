@@ -4584,6 +4584,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         +trainer.limit_test_batches=2 \
         exp_manager.checkpoint_callback_params.save_best_model=False \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
+        model.peft.peft_scheme=none \
         model.optim.name=distributed_fused_adam \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/megatron_starcoder_tp1_pp1.nemo \
         model.tensor_model_parallel_size=1 \
