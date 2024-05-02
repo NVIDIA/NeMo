@@ -15,7 +15,6 @@
 import collections
 import contextlib
 import itertools
-import threading
 from typing import Callable, Dict, Iterable, Optional, Union
 
 import torch
@@ -157,20 +156,20 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Construct distributed optimizer
         super().__init__(param_groups, **kwargs)
 
-        # Replace lock if timeout is provided
+        # Create mutex with timeout
+        self._lock_with_timeout = None
         if lock_timeout is not None:
-            self._lock_with_timeout: threading.Lock = threading.Lock()
 
             @contextlib.contextmanager
             def lock_with_timeout():
-                result = self._lock_with_timeout.acquire(timeout=lock_timeout)
+                result = self._lock.acquire(timeout=lock_timeout)
                 try:
                     yield result
                 finally:
                     if result:
-                        self._lock_with_timeout.release()
+                        self._lock.release()
 
-            self._lock = lock_with_timeout()
+            self._lock_with_timeout = lock_with_timeout
 
     def _broadcast_params(self) -> None:
         # Assume params have already been synchronized
@@ -186,7 +185,10 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     'before the forward pass (e.g. by calling data_ptr) '
                     'or run DistributedFusedAdam with overlap_param_sync=False.'
                 )
-            with self._lock:
+            lock = self._lock
+            if self._lock_with_timeout is not None:
+                lock = self._lock_with_timeout()
+            with lock:
                 need_to_initialize = 'fragments' not in self.state[param]
                 if need_to_initialize:
                     self._init_param_state(param, param_group_id, param_id)
