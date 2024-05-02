@@ -171,9 +171,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                         self._lock.release()
                     else:
                         # Failed to acquire lock before timeout
-                        raise RuntimeError(
-                            f'MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds.'
-                        )
+                        print(f'MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds.')
 
             self._lock_with_timeout = lock_with_timeout
 
