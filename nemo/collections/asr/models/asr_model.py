@@ -13,7 +13,7 @@
 # limitations under the License.
 import logging
 from abc import ABC
-from typing import List
+from typing import List, Optional
 
 import torch
 
@@ -193,13 +193,14 @@ class ASRModel(ModelPT, ABC):
         """
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
-    def on_validation_epoch_end(self) -> None:
+    def on_validation_epoch_end(self) -> Optional[dict[str, dict[str, torch.Tensor]]]:
         """
         After validation, we disable CUDA graphs, since `validation` can be called in training loop, and
         training will continue after validation
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
         WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        return super().on_validation_epoch_end()
 
     def on_test_epoch_start(self) -> None:
         """
