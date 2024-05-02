@@ -41,6 +41,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import M
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, get_specs
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.module import Float32Module
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     MultimodalProjectorAdapterConfig,
@@ -136,7 +137,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         use_im_start_end=False,
     ):
         self.vision_encoder = vision_encoder
-        self.from_hf = isinstance(vision_encoder, CLIPVisionModel)
+        self.from_hf = isinstance(vision_encoder.module, CLIPVisionModel)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.class_token_length = class_token_length
@@ -179,6 +180,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)
+        vision_x = vision_x.to(self.weight.dtype)
         vision_x = rearrange(vision_x, "(b T F) v d -> b T F v d", b=b, T=T, F=F)
         vision_x = vision_x[:, :, :, self.class_token_length :]
         assert self.is_adapter_available(), "Cannot find multimodal vision adapter!"
@@ -265,13 +267,13 @@ class NevaBaseModel:
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.from_hf:
             vision_encoder = CLIPVisionModel.from_pretrained(
-                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.float32,
             ).cuda()
-            vision_encoder = vision_encoder.to(torch.bfloat16)
             if mm_cfg.vision_encoder.freeze:
                 for param in vision_encoder.parameters():
                     param.requires_grad = False
                 vision_encoder = vision_encoder.eval()
+            vision_encoder = Float32Module(vision_encoder)
         else:
             vision_cfg = MegatronCLIPModel.restore_from(
                 mm_cfg.vision_encoder.from_pretrained, return_config=True

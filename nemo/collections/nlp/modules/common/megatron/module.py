@@ -359,3 +359,33 @@ class Float16Module(MegatronModule):
             raise ValueError(
                 f"No decoder_cross_attention_relative_position_embedding found on this rank. Looking for decoder_cross_attention_relative_position_embedding.relative_position_embedding.weight"
             )
+
+
+class Float32Module(MegatronModule):
+    """Convert a module to run in fp32"""
+    def __init__(self, module):
+        super().__init__()
+        self.add_module('module', module.to(torch.float32))
+        self.dtype = torch.float32
+
+    def forward(self, *inputs, **kwargs):
+        inputs = float16_to_fp32(inputs)
+        outputs = self.module(*inputs, **kwargs)
+        return outputs
+
+    def half(self, *args, **kwargs):
+        return self
+
+    def bfloat16(self, *args, **kwargs):
+        return self
+
+    def to(self, *args, **kwargs):
+        return self
+
+    def _apply(self, fn, recurse=True):
+        test_tensor = torch.tensor(1.0, dtype=torch.float32)
+        converted_tensor = fn(test_tensor)
+        if converted_tensor.dtype != torch.float32:
+            return self
+
+        return super()._apply(fn, recurse)
