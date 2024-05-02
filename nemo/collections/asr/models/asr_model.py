@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import List
 
 import torch
-import torch.nn as nn
 
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
