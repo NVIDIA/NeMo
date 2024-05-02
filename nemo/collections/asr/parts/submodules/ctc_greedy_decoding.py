@@ -193,7 +193,9 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
                 # each scalar from GPU to CPU one at a time, in the line:
                 # prediction = prediction[:out_len]
                 # Doing one GPU to CPU copy ahead of time amortizes that overhead.
-                decoder_lengths = decoder_lengths.cpu() # synchronizes. But this synchronizations is necessary and appropriate.
+                decoder_lengths = (
+                    decoder_lengths.cpu()
+                )  # synchronizes. But this synchronizations is necessary and appropriate.
 
             if prediction_cpu_tensor.ndim < 2 or prediction_cpu_tensor.ndim > 3:
                 raise ValueError(
@@ -233,8 +235,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         predictions_logprobs, predictions_labels = predictions.max(dim=-1)
         max_time = x.shape[1]
         time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
-        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id,
-                                               time_steps < out_len.unsqueeze(1))
+        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1))
         scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
 
         scores = scores.cpu()
@@ -251,20 +252,22 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
             hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
             hypothesis.score = scores[i]
 
-            prediction_labels_no_padding = predictions_labels[i, :out_len[i]].tolist()
+            prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
 
             assert predictions_labels.dtype == torch.int64
             hypothesis.y_sequence = prediction_labels_no_padding
 
             if self.preserve_alignments:
-                hypothesis.alignments = (predictions[i, :out_len[i], :].clone(),
-                                         predictions_labels[i, :out_len[i]].clone())
+                hypothesis.alignments = (
+                    predictions[i, : out_len[i], :].clone(),
+                    predictions_labels[i, : out_len[i]].clone(),
+                )
             if self.compute_timestamps:
                 # TOOD: Could do this in a vectorized manner... Would
                 # prefer to have nonzero_static, though, for sanity.
                 hypothesis.timestep = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
             if self.preserve_frame_confidence:
-                hypothesis.frame_confidence = self._get_confidence(predictions[i, :out_len[i], :])
+                hypothesis.frame_confidence = self._get_confidence(predictions[i, : out_len[i], :])
 
             hypotheses.append(hypothesis)
 
@@ -280,8 +283,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
         predictions_labels = x
         time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
-        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id,
-                                               time_steps < out_len.unsqueeze(1))
+        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1))
         predictions_labels = predictions_labels.cpu()
         out_len = out_len.cpu()
 
@@ -289,11 +291,13 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
         for i in range(batch_size):
             hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
-            hypothesis.y_sequence = predictions_labels[i, :out_len[i]].tolist()
+            hypothesis.y_sequence = predictions_labels[i, : out_len[i]].tolist()
             hypothesis.score = -1.0
 
             if self.preserve_alignments:
-                raise ValueError("Requested for alignments, but predictions provided were labels, not log probabilities.")                
+                raise ValueError(
+                    "Requested for alignments, but predictions provided were labels, not log probabilities."
+                )
             if self.compute_timestamps:
                 # TOOD: Could do this in a vectorized manner... Would
                 # prefer to have nonzero_static, though, for sanity.
@@ -303,7 +307,6 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
                 raise ValueError(
                     "Requested for per-frame confidence, but predictions provided were labels, not log probabilities."
                 )
-
 
             hypotheses.append(hypothesis)
 

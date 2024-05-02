@@ -199,7 +199,12 @@ class TestCTCDecoding:
     @pytest.mark.parametrize('preserve_frame_confidence', [False, True])
     def test_batched_decoding_logprobs(self, tmp_tokenizer, alignments, timestamps, preserve_frame_confidence):
         # timestamps not working...
-        cfg = CTCBPEDecodingConfig(strategy='greedy', preserve_alignments=alignments, compute_timestamps=timestamps, confidence_cfg=ConfidenceConfig(preserve_frame_confidence=preserve_frame_confidence))
+        cfg = CTCBPEDecodingConfig(
+            strategy='greedy',
+            preserve_alignments=alignments,
+            compute_timestamps=timestamps,
+            confidence_cfg=ConfidenceConfig(preserve_frame_confidence=preserve_frame_confidence),
+        )
         cfg.greedy.batched_inference = False
         unbatched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
@@ -234,7 +239,6 @@ class TestCTCDecoding:
                 if alignments:
                     assert torch.all(hyp.alignments[0] == batched_hyp.alignments[0])
                     assert torch.all(hyp.alignments[1] == batched_hyp.alignments[1])
-
 
     @pytest.mark.unit
     @pytest.mark.parametrize('timestamps', [False, True])
