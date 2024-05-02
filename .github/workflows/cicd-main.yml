@@ -14,9 +14,6 @@
 name: "CICD NeMo"
 
 on:
-  pull_request:
-    branches: [ "main" ]
-    types: [ labeled ]
   issue_comment:
     types: [created]
 
