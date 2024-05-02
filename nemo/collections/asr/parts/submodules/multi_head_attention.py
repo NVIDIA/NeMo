@@ -220,13 +220,14 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
         # temporary until we solve this more gracefully
         from contextlib import nullcontext
-        with nullcontext(): # avoid_float16_autocast_context():
+
+        with nullcontext():  # avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
             q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 
             n_batch_pos = pos_emb.size(0)
             # embedding is not affected by autocast. Ignore for now...
-            
+
             # Could make a custom torch.nn.Module that checks if we're
             # in inference mode, and then caches its own weights'
             # casted versions that way...

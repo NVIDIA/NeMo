@@ -686,7 +686,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 # See comment in
                 # ctc_greedy_decoding.py::GreedyCTCInfer::forward() to
                 # understand this idiom.
-                
+
                 # This is way way wayyyyy too slow. A single
                 # cudaHostAlloc takes an average of 10ms if the
                 # caching allocator fails to return an

@@ -770,7 +770,6 @@ class ASRTranscriptionMixin(TranscriptionMixin):
         # assert all(param.requires_grad for param in self.parameters())
         # import ipdb; ipdb.set_trace()
 
-
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
         """
         Internal function to teardown the model after transcription. Perform all teardown and post-checks here.

@@ -420,6 +420,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                         # ctx.__enter__()
                         torch.cuda.cudart().cudaProfilerStart()
                     import time
+
                     start_time = time.time()
                     # assert all(param.requires_grad for param in asr_model.parameters())
                     transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
@@ -430,7 +431,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                         # pr.disable()
                         # ctx.__exit__(None, None, None)
                         torch.cuda.cudart().cudaProfilerStop()
-
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
