@@ -176,14 +176,14 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 try:
                     yield result
                 finally:
-                    if:
+                    if result:
                         # Acquired lock before timeout
                         self._lock.release()
                     else:
                         # Failed to acquire lock before timeout
                         bucket_ids = [fragment.bucket_id for fragment in self.state[param]["fragments"]]
                         raise RuntimeError(
-                            f'MegatronDistributedFusedAdam: Failed to acquire lock within {self._lock_timeout} seconds '
+                            f'MegatronDistributedFusedAdam: Failed to acquire lock within {self._lock_timeout} seconds.'
                             f"({param_id=}, {param_group_id=}, {bucket_ids=})"
                         )
 
