@@ -477,11 +477,6 @@ class EfficientUNetModel(nn.Module):
         skip_connection_scaling=False,  # Whether to use 1/sqrt(2) scaling for ResBlock skip connection
         noise_cond_aug=False,
     ):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
-
         super().__init__()
 
         self.n_levels = len(channel_mult)
