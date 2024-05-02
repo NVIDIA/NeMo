@@ -265,6 +265,7 @@ class StateDictTransform(Generic[F]):
             else:
                 if source_matches.ndim == 0:
                     source_matches_list = [source_matches.item()]
+                    source_matches = np.array(source_matches_list, dtype=object)
                 else:
                     source_matches_list = list(source_matches)
 

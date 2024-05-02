@@ -79,6 +79,7 @@ class TestStateDictTransform:
             transform=lambda ctx, k, q, v: q + k + v,
         )
         transform(mock_ctx)
+        assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 6
         assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 6
 
     def test_transform_with_mapped_source_keys(self, mock_ctx):
@@ -95,6 +96,7 @@ class TestStateDictTransform:
             transform=lambda ctx, k, q, v: q + k + v,
         )
         transform(mock_ctx)
+        assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 6
         assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 6
 
     def test_transform_with_variable_arguments(self, mock_ctx):
@@ -107,6 +109,7 @@ class TestStateDictTransform:
             transform=lambda ctx, *args: sum(args),
         )
         transform(mock_ctx)
+        assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 6
         assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 6
 
     def test_transform_with_no_matching_source_keys(self, mock_ctx):
