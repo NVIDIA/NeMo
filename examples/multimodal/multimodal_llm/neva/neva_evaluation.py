@@ -72,12 +72,9 @@ def main(cfg) -> None:
     with open(cfg.prompt_file, 'r') as f:
         lines = f.readlines()
 
-    # add new media_type_token in inference config to specify wheter use video or image
-    # this will replace the original hardcoded `"<image>"` token in the prompt
     media_type_token = cfg.inference.get("media_type", "image")
     media_token = f"<{media_type_token}>"
 
-    # modify the original `insert_image_token` to `insert_media_token` to support both image and video
     insert_media_token = cfg.inference.get("insert_media_token", None)
     final_prompts = []
     for line in lines:
@@ -91,10 +88,10 @@ def main(cfg) -> None:
             prompt_dict['prompt'] = prompt_dict['prompt'] + media_token
         if 'image' in prompt_dict:
             prompt_dict['image_path'] = prompt_dict['image']
-            prompt_dict['image'] = image_processor(os.path.join(cfg.inference.images_base_path, prompt_dict['image']))
+            prompt_dict['image'] = image_processor(os.path.join(cfg.inference.media_base_path, prompt_dict['image']))
         if 'video' in prompt_dict:
             prompt_dict['video_path'] = prompt_dict['video']
-            prompt_dict['video'] = video_processor(os.path.join(cfg.inference.videos_base_path, prompt_dict['video']))
+            prompt_dict['video'] = video_processor(os.path.join(cfg.inference.media_base_path, prompt_dict['video']))
         final_prompts.append(prompt_dict)
 
     responses = model.generate(
@@ -135,22 +132,6 @@ def main(cfg) -> None:
     if responses is None:
         return
 
-    results = []
-    for response, prompt in zip(responses, final_prompts):
-
-        prompt['full_text'] = response["clean_text"]
-        prompt['text'] = response["clean_response"]
-        prompt['model_id'] = cfg.neva_model_file
-        if 'image_path' in prompt:
-            prompt['image'] = prompt.pop('image_path')
-        if 'video_path' in prompt:
-            prompt['video'] = prompt.pop('video_path')
-        if 'answer_id' not in prompt:
-            prompt['answer_id'] = 0
-        if 'metadata' not in prompt:
-            prompt['metadata'] = {}
-        results.append(prompt)
-
     if is_global_rank_zero():
         results = []
         for response, prompt in zip(responses, final_prompts):
@@ -159,6 +140,8 @@ def main(cfg) -> None:
             prompt['model_id'] = cfg.neva_model_file
             if 'image_path' in prompt:
                 prompt['image'] = prompt.pop('image_path')
+            if 'video_path' in prompt:
+                prompt['video'] = prompt.pop('video_path')
             if 'answer_id' not in prompt:
                 prompt['answer_id'] = 0
             if 'metadata' not in prompt:
