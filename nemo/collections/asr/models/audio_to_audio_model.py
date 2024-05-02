@@ -32,6 +32,7 @@ from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_va
 from nemo.collections.asr.metrics.audio import AudioMetricWrapper
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.prefetcher import DataLoaderPrefetcher
 from nemo.core.classes import ModelPT
 from nemo.utils import logging, model_utils
 
@@ -345,6 +346,7 @@ class AudioToAudioModel(ModelPT, ABC):
         self._update_dataset_config(dataset_name='train', config=train_data_config)
 
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+        self._train_dl = DataLoaderPrefetcher(self._train_dl)
 
         if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
             raise NotImplementedError('Tarred datasets not supported')

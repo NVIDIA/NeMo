@@ -37,6 +37,7 @@ from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCD
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.prefetcher import DataLoaderPrefetcher
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -368,6 +369,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         self._update_dataset_config(dataset_name='train', config=train_data_config)
 
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+        self._train_dl = DataLoaderPrefetcher(self._train_dl)
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.

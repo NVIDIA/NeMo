@@ -41,6 +41,7 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.prefetcher import DataLoaderPrefetcher
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
@@ -264,6 +265,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         # create audio-only data loader
         self._update_dataset_config(dataset_name='train', config=train_data_config)
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+        self._train_dl = DataLoaderPrefetcher(self._train_dl)
 
         # Need to set this because if using an IterableDataset, the length of the
         # dataloader is the total number of samples rather than the number of batches,
