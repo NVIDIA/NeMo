@@ -171,7 +171,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
             @contextlib.contextmanager
             def lock_with_timeout():
-                torch.distributed.barrier(self.distributed_process_group) ### HACK
+                torch.distributed.barrier(self.distributed_process_group)  ### HACK
                 result = self._lock.acquire(timeout=self._lock_timeout)
                 try:
                     yield result
