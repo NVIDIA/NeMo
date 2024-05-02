@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
-from nemo.export import TensorRTLLM
 from nemo.deploy.nlp import MegatronGPTDeployable
+from nemo.export import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -30,7 +30,13 @@ def get_args(argv):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
-    parser.add_argument("-dsn", "--direct_serve_nemo", default=False, action='store_true', help="Serve the nemo model directly instead of exporting to TRTLLM first. Will ignore other TRTLLM-specific arguments.")
+    parser.add_argument(
+        "-dsn",
+        "--direct_serve_nemo",
+        default=False,
+        action='store_true',
+        help="Serve the nemo model directly instead of exporting to TRTLLM first. Will ignore other TRTLLM-specific arguments.",
+    )
     parser.add_argument(
         "-ptnc",
         "--ptuning_nemo_checkpoint",
@@ -127,6 +133,7 @@ def get_args(argv):
 
     args = parser.parse_args(argv)
     return args
+
 
 def get_trtllm_deployable(args):
     if args.triton_model_repository is None:
@@ -232,11 +239,13 @@ def get_trtllm_deployable(args):
         return
     return trt_llm_exporter
 
+
 def get_nemo_deployable(args):
     if args.nemo_checkpoint is None:
         LOGGER.error("Direct serve requires a .nemo checkpoint")
         return
     return MegatronGPTDeployable(args.nemo_checkpoint, args.num_gpus)
+
 
 def nemo_deploy(argv):
     args = get_args(argv)
