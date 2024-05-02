@@ -17,6 +17,9 @@ on:
   pull_request:
     branches: [ "main" ]
     types: [ labeled ]
+  issue_comment:
+    branches: [ "main" ]
+    types: [created]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -26,6 +29,7 @@ jobs:
   gpu-test:
     runs-on: self-hosted-azure
     if: ${{ github.event.label.name == 'Run CICD' }}
+        || ( github.event.issue.pull_request && contains(github.event.comment.body, '/deploy') )
     steps:
     - name: Run nvidia-smi test
       run: |
@@ -35,6 +39,7 @@ jobs:
   cicd-cluster-clean:
     runs-on: self-hosted-azure-builder
     if: ${{ github.event.label.name == 'Run CICD' }}
+        || ( github.event.issue.pull_request && contains(github.event.comment.body, '/deploy') )
     steps:
     - name: Clean server from old files
       run: |
@@ -58,6 +63,7 @@ jobs:
     needs: [cicd-cluster-clean]
     runs-on: self-hosted-azure-builder
     if: ${{ github.event.label.name == 'Run CICD' }}
+        || ( github.event.issue.pull_request && contains(github.event.comment.body, '/deploy') )
     # uses: actions/cache@v2
     #container:
 #      image: nvcr.io/nvidia/pytorch:24.02-py3
