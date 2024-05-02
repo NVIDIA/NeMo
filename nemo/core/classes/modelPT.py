@@ -1734,7 +1734,9 @@ class ModelPT(LightningModule, Model):
                 if type(self._memory_profile_end_step) == int:
                     logging.info(f'CUDA memory profiling setup with end_step: {self._memory_profile_end_step}')
                 else:
-                    raise ValueError(f'CUDA memory end_step must be of type int. Found: {type(self._memory_profile_end_step)}')
+                    raise ValueError(
+                        f'CUDA memory end_step must be of type int. Found: {type(self._memory_profile_end_step)}'
+                    )
 
                 if self._memory_profile_end_step >= self._memory_profile_start_step:
                     pass
