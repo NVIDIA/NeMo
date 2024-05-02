@@ -45,7 +45,6 @@ def save_val(val, dir, key, tp_num=None):
         val = np.ascontiguousarray(np.transpose(val.reshape(val.shape[0], -1), [1, 0]))
     global weights_dict
     weights_dict[f"{key}{suffix}"] = val
-    # weights_dict[f"model.{key}.{suffix}"] = val
 
 
 def save_split(split_vals, dir, key, i, split_factor):
@@ -60,7 +59,6 @@ def save_expert_split(split_vals, dir, key, i, split_factor):
 
         global weights_dict
         weights_dict[f"{key}{suffix}"] = val
-        # weights_dict[f"model.{key}.{suffix}"] = val
 
 
 def generate_int8(weights, act_range, is_qkv=False, multi_query_mode=False):

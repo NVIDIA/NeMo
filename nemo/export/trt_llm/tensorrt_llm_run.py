@@ -153,37 +153,14 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
             debug_mode=False
         )
 
-        # runtime_mapping = tensorrt_llm.Mapping(world_size, runtime_rank, tp_size=tp_size, pp_size=pp_size)
-
-        # torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
-        # engine_name = get_engine_name(MODEL_NAME, dtype, tp_size, pp_size, runtime_rank)
-        # serialize_path = os.path.join(engine_dir, engine_name)
-        # logger.info(f"Reading from serialize path {serialize_path}")
-
-        # with open(serialize_path, "rb") as f:
-        #     engine_buffer = f.read()
-        # decoder = tensorrt_llm.runtime.GenerationSession(
-        #     model_config, engine_buffer, runtime_mapping, debug_mode=False
-        # )
-
         sampling_config = SamplingConfig(
             end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams
         )
-
-        # if decoder.use_lora_plugin:
-        #     lora_manager = LoraManager()
-        #     if lora_ckpt_list is not None:
-        #         lora_manager.load_from_nemo(
-        #             model_files=lora_ckpt_list, model_config=model_config, runtime_mapping=runtime_mapping,
-        #         )
-        # else:
-        #     lora_manager = None
 
         # Initialize the global context so it can be used during `run` API.
         global tensorrt_llm_worker_context
         tensorrt_llm_worker_context.decoder = decoder
         tensorrt_llm_worker_context.sampling_config = sampling_config
-        # tensorrt_llm_worker_context.lora_manager = lora_manager
         tensorrt_llm_worker_context.max_batch_size = max_batch_size
         tensorrt_llm_worker_context.max_input_len = max_input_len
 
@@ -232,55 +209,7 @@ def _forward(
         end_id = sampling_config.end_id
         num_beams = sampling_config.num_beams
 
-        # if decoder.remove_input_padding:
-        #     line_encoded = torch.concat(input_tensors).cuda()
-        # else:
-        #     line_encoded = torch.nested.to_padded_tensor(
-        #         torch.nested.nested_tensor(input_tensors, dtype=torch.int32), pad_id
-        #     ).cuda()
-
-        # input_lengths = torch.tensor(input_lengths, dtype=torch.int32).cuda()
-
-        # if prompt_table is None:
-        #     ptuning_args = []
-        # else:
-        #     if task_vocab_size is None:
-        #         raise Exception("task_vocab_size cannot be None")
-
-        #     task_vocab_size = torch.tensor([task_vocab_size], dtype=torch.int32, device="cuda")
-        #     task_ids = torch.tensor(task_ids, dtype=torch.int32, device="cuda")
-        #     prompt_table = prompt_table.cuda()
-        #     ptuning_args = [prompt_table, task_ids, task_vocab_size]
-
         with torch.no_grad():
-            # sampling_config.top_k = top_k
-            # sampling_config.top_p = top_p
-            # sampling_config.temperature = temperature
-            # for key, param in sampling_kwargs.items():
-            #     # set any additional SamplingConfig kwargs
-            #     setattr(sampling_config, key, param)
-
-            # decoder.setup(
-            #     batch_size,
-            #     max_context_length=max_length,
-            #     max_new_tokens=max_output_len,
-            #     lora_manager=lora_manager,
-            #     lora_uids=lora_uids,
-            # )
-
-            # outputs = decoder.decode(
-            #     line_encoded,
-            #     input_lengths,
-            #     sampling_config,
-            #     *ptuning_args,
-            #     stop_words_list=stop_words_list,
-            #     bad_words_list=bad_words_list,
-            #     no_repeat_ngram_size=no_repeat_ngram_size,
-            #     streaming=streaming,
-            #     output_sequence_lengths=True,
-            #     return_dict=True,
-            # )
-
             prompt_tasks = None if task_ids is None else ",".join(str(task) for task in task_ids)
 
             outputs = decoder.generate(
