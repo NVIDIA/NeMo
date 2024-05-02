@@ -183,7 +183,7 @@ class RGLRU(nn.Module):
     """
         for param in self.parameters():
             param.data_ptr()
-      
+
         bs, l, d = x.shape
         assert segment_pos.shape == (bs, l)
         reset = (segment_pos == 0).type(torch.int32)
