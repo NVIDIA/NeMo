@@ -194,7 +194,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         # calculate media features without gradients
         media_features = self.encode_vision_x(media)  # b T F S(eq) H(idden)
         num_images_per_sample = media_features.size(1)
-        num_patches = media_features.size(3) * media_features.size(2) 
+        num_patches = media_features.size(3) * media_features.size(2)
         # flatten patches
         media_features = media_features.view(batch_size, -1, hidden_size)
 

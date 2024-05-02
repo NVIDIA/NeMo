@@ -19,6 +19,8 @@ import re
 import tarfile
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence, Tuple, Union
+
+import decord
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -28,7 +30,6 @@ from omegaconf import DictConfig
 from PIL import Image
 from torch.utils.data import Dataset, default_collate
 from transformers import CLIPImageProcessor
-import decord
 
 import nemo.collections.multimodal.data.neva.conversation as conversation_lib
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
@@ -103,6 +104,7 @@ class TarOrFolderImageLoader:
         else:
             return Image.open(os.path.join(self.image_folder, file_name)).convert('RGB')
         return None
+
 
 class TarOrFolderVideoLoader:
     """
@@ -184,6 +186,7 @@ class TarOrFolderVideoLoader:
                     frames.append(frames[-1])
                 return frames
 
+
 def tokenize(
     texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
 ) -> torch.LongTensor:
@@ -256,25 +259,25 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         default_token = DEFAULT_VIDEO_TOKEN
     else:
         return sources
-    
+
     if not is_multimodal:
         return sources
 
     num_patches = image_token_len
     if media_type == 'video':
         num_patches *= multimodal_cfg['num_frames']
-    
+
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_patches
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_patches - 2)
-    
+
     replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
 
     for source in sources:
         conversation = source['conversations']
         if multimodal_cfg['sep_image_conv_front']:
-            assert default_token  in conversation[0]['value']
+            assert default_token in conversation[0]['value']
             conversation[0]['value'] = conversation[0]['value'].replace(default_token, '').strip()
             conversation[0]['value'] = (
                 default_token
@@ -285,7 +288,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             )
         if use_plain:
             assert default_token in conversation[0]['value']
-            conversation[0]['value'] = default_token 
+            conversation[0]['value'] = default_token
         for turn in conversation:
             turn["value"] = turn["value"].replace(default_token, replace_token)
 
@@ -860,7 +863,7 @@ class LazySupervisedDataset(Dataset):
                     cur_token_len,
                     use_plain=(self.conv_template == "plain"),
                 )
-            
+
         else:
             logging.warning("media not found in sources")
             media_tensors = torch.tensor([])
@@ -889,15 +892,13 @@ class LazySupervisedDataset(Dataset):
             else:
                 crop_size = self.multimodal_cfg['crop_size']
 
-            #Image does not exist in the data, but the model is multimodal
-            #TODO, if there are different videos on T dimensions.
+            # Image does not exist in the data, but the model is multimodal
+            # TODO, if there are different videos on T dimensions.
             if media_tensors.shape[0] < MAX_NUM_IMAGES:
                 padding_size = MAX_NUM_IMAGES - media_tensors.shape[0]
-                zero_padding = torch.zeros(
-                (padding_size, 3, crop_size[0], crop_size[1]), dtype=torch.float
-                )
+                zero_padding = torch.zeros((padding_size, 3, crop_size[0], crop_size[1]), dtype=torch.float)
                 media_tensors = torch.cat((media_tensors, zero_padding), dim=0)
-                
+
             if self.multimodal_cfg['media_type'] == 'image':
                 data_dict['image'] = media_tensors
             elif self.multimodal_cfg['media_type'] == 'video':

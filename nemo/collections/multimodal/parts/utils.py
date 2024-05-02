@@ -15,8 +15,8 @@ import os
 import tempfile
 from typing import Any, Callable, Tuple
 
-import torch
 import numpy as np
+import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
@@ -458,7 +458,7 @@ def create_neva_model_and_processor(cfg):
             image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
         else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0] # 3, 224, 224
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]  # 3, 224, 224
 
         if neva_cfg.precision in [16, '16', '16-mixed']:
             media = image.type(torch.float16)
@@ -467,15 +467,15 @@ def create_neva_model_and_processor(cfg):
         else:
             media = image.type(torch.bfloat16)
 
-        return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0) # shape is 1, 1, 1, 3, 224, 224
-    
+        return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0)  # shape is 1, 1, 1, 3, 224, 224
+
     # add video processor for video neva
     def video_processor(maybe_video_path):
-        #import decord
+        # import decord
         from decord import VideoReader
-        
+
         if isinstance(maybe_video_path, str):
-            vr = VideoReader(maybe_video_path)  
+            vr = VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
                 frames = [Image.fromarray(vr[0].asnumpy()[:, :, ::-1]).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'middle':
@@ -512,7 +512,7 @@ def create_neva_model_and_processor(cfg):
                 frames, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
             )['pixel_values']
         elif neva_cfg.data.image_aspect_ratio == 'pad':
-            
+
             def expand2square(pil_img, background_color):
                 width, height = pil_img.size
                 if width == height:
@@ -538,6 +538,6 @@ def create_neva_model_and_processor(cfg):
         else:
             media_tensors = frames.type(torch.bfloat16)
 
-        return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0) # shape is [1, 1, 12, 3, 224, 224]
+        return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0)  # shape is [1, 1, 12, 3, 224, 224]
 
     return model, image_processor, video_processor

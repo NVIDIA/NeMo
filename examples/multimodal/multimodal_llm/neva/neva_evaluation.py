@@ -76,7 +76,7 @@ def main(cfg) -> None:
     # this will replace the original hardcoded `"<image>"` token in the prompt
     media_type_token = cfg.inference.get("media_type", "image")
     media_token = f"<{media_type_token}>"
-    
+
     # modify the original `insert_image_token` to `insert_media_token` to support both image and video
     insert_media_token = cfg.inference.get("insert_media_token", None)
     final_prompts = []
@@ -134,10 +134,10 @@ def main(cfg) -> None:
     # PP middle stages do not yield any responses
     if responses is None:
         return
-    
+
     results = []
     for response, prompt in zip(responses, final_prompts):
-        
+
         prompt['full_text'] = response["clean_text"]
         prompt['text'] = response["clean_response"]
         prompt['model_id'] = cfg.neva_model_file
