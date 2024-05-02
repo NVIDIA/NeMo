@@ -167,7 +167,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                     yield result
                 finally:
                     if result:
+                        # Acquired lock before timeout
                         self._lock.release()
+                    else:
+                        # Failed to acquire lock before timeout
+                        raise RuntimeError(
+                            f'MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds.'
+                        )
 
             self._lock_with_timeout = lock_with_timeout
 
