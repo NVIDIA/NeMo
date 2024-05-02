@@ -13,7 +13,9 @@
 # limitations under the License.
 name: "CICD NeMo"
 
-on: issue_comment
+on: 
+  issue_comment:
+    branches: [ "pagaray/nemo_cicd_part24" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,7 +24,6 @@ concurrency:
 jobs:
   gpu-test:
     runs-on: self-hosted-azure
-    if: ${{ github.event.issue.pull_request }}
     steps:
     - name: Run nvidia-smi test
       run: |
@@ -31,7 +32,6 @@ jobs:
 
   cicd-cluster-clean:
     runs-on: self-hosted-azure-builder
-    if: ${{ github.event.issue.pull_request }}
     steps:
     - name: Clean server from old files
       run: |
@@ -54,7 +54,6 @@ jobs:
   cicd-test-container-setup:
     needs: [cicd-cluster-clean]
     runs-on: self-hosted-azure-builder
-    if: ${{ github.event.issue.pull_request }}
     # uses: actions/cache@v2
     #container:
 #      image: nvcr.io/nvidia/pytorch:24.02-py3
