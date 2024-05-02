@@ -477,6 +477,7 @@ class EfficientUNetModel(nn.Module):
         skip_connection_scaling=False,  # Whether to use 1/sqrt(2) scaling for ResBlock skip connection
         noise_cond_aug=False,
     ):
+
         super().__init__()
 
         self.n_levels = len(channel_mult)
