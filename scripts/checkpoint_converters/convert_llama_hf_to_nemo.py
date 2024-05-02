@@ -112,7 +112,7 @@ def convert(args):
     model = LlamaForCausalLM.from_pretrained(args.input_name_or_path)
     if os.path.exists(f'{args.input_name_or_path}/tokenizer.model'):
         tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
-        hf_config['tokenizer_model'] = str(tokenizer.vocab)
+        hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
     else:
         tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path)
     hf_config = vars(model.config)
