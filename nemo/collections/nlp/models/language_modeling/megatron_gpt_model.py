@@ -1416,7 +1416,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 kwargs['blend'] = data_prefix if mock_dataset else get_blend_from_list(data_prefix)
                 kwargs["split"] = self.cfg.data.splits_string
-            
+
             if self.cfg.data.get('add_fim', False):
                 dataset_config = GPTFIMDatasetConfig(self.cfg.data.fim, **kwargs)
                 dataset_type = GPTFIMDataset
