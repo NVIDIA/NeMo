@@ -26,9 +26,9 @@ from transformers import CLIPImageProcessor
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 
 try:
     from megatron.core import dist_checkpointing
@@ -459,10 +459,10 @@ def create_neva_model_and_processor(cfg):
             image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
         else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]  
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
 
         media = image.type(torch_dtype_from_precision(neva_cfg.precision))
-        return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0) 
+        return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0)
 
     # add video processor for video neva
     def video_processor(maybe_video_path):
@@ -526,6 +526,6 @@ def create_neva_model_and_processor(cfg):
             frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
 
         media_tensors = frames.type(torch_dtype_from_precision(neva_cfg.precision))
-        return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0)  
-    
+        return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0)
+
     return model, image_processor, video_processor
