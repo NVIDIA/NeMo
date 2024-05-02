@@ -10,6 +10,7 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentenceP
 
 TEMPLATE_PROMPT = "Transcribe in {target_lang} {pnc}. "
 COMPLETE_PROMPT = "Transcribe in Latin with PnC. "
+CUSTOM_LANG_PROMPT = "foo bar"
 TEXT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 
 
@@ -32,14 +33,34 @@ def bpe_tokenizer(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def canary_tokenizer(tmp_path_factory, bpe_tokenizer):
+def prompt_tokenizer(tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("prompt_tokenizer")
+    text_path = tmpdir / "text.txt"
+    text_path.write_text(CUSTOM_LANG_PROMPT)
+    create_spt_model(
+        text_path,
+        vocab_size=16,
+        sample_size=-1,
+        do_lower_case=False,
+        output_dir=str(tmpdir),
+        bos=True,
+        eos=True,
+        pad=True,
+    )
+    return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
+
+
+@pytest.fixture(scope="session")
+def canary_tokenizer(tmp_path_factory, bpe_tokenizer, prompt_tokenizer):
     tmpdir = tmp_path_factory.mktemp("spl_tokenizer")
     spl_tokenizer = CanaryTokenizer.build_special_tokenizer(tokens=["Latin"], model_dir=tmpdir)
-    return CanaryTokenizer({"spl_tokens": spl_tokenizer, "Latin": bpe_tokenizer})
+    return CanaryTokenizer({"spl_tokens": spl_tokenizer, "Latin": bpe_tokenizer, "prompt": prompt_tokenizer})
 
 
 def test_canary_natural_prompt_filled_bpe(bpe_tokenizer):
     cut = dummy_cut(0)
+
+    # The prompt will be tokenized using the only tokenizer we have.
     cut.prompt = COMPLETE_PROMPT
     cut.supervisions = [
         SupervisionSegment(
@@ -62,6 +83,8 @@ def test_canary_natural_prompt_filled_bpe(bpe_tokenizer):
 
 def test_canary_natural_prompt_filled_agg(canary_tokenizer):
     cut = dummy_cut(0)
+
+    # The prompt will be tokenized using language "Latin", same as cut/supervision.
     cut.prompt = COMPLETE_PROMPT
     cut.supervisions = [
         SupervisionSegment(
@@ -85,6 +108,8 @@ def test_canary_natural_prompt_filled_agg(canary_tokenizer):
 
 def test_canary_natural_prompt_template_bpe(bpe_tokenizer):
     cut = dummy_cut(0)
+
+    # The prompt will be tokenized using the only tokenizer we have.
     cut.prompt = TEMPLATE_PROMPT
     cut.supervisions = [
         SupervisionSegment(
@@ -109,6 +134,8 @@ def test_canary_natural_prompt_template_bpe(bpe_tokenizer):
 
 def test_canary_natural_prompt_template_agg(canary_tokenizer):
     cut = dummy_cut(0)
+
+    # The prompt will be tokenized using language "Latin", same as cut/supervision.
     cut.prompt = TEMPLATE_PROMPT
     cut.supervisions = [
         SupervisionSegment(
@@ -128,5 +155,35 @@ def test_canary_natural_prompt_template_agg(canary_tokenizer):
     assert tokens == expected_tokens
 
     expected_prompts = [[4, 13, 22, 16, 28, 20, 27, 25, 15, 29, 21, 30, 14, 13, 26, 18, 19, 13, 24, 14, 23, 17]]
+    assert prompts == expected_prompts
+    # fmt: on
+
+
+def test_canary_natural_prompt_template_agg_prompt_lang(canary_tokenizer):
+    cut = dummy_cut(0)
+
+    # Tells the tokenizer/prompt formatter to use a tokenizer for lang "prompt" to tokenize the prompt
+    cut.prompt = CUSTOM_LANG_PROMPT
+    cut.prompt_lang = "prompt"
+
+    cut.supervisions = [
+        SupervisionSegment(
+            cut.id, cut.recording_id, cut.start, cut.duration, text="Lorem ipsum dolor sit amet", language="Latin"
+        )
+    ]
+    cut.target_lang = "Latin"
+    cut.pnc = "with PnC"
+    cuts = CutSet.from_cuts([cut])
+
+    tokens, prompts = canary_natural(cuts=cuts, tokenizer=TokenizerWrapper(canary_tokenizer), inference=False)
+
+    # note: with aggregate, 4 is bos and 3 is eos, and all non-special symbols
+    #       are offset by the count of special tokens == 9 when compared to BPE
+    #       + since we're using an extra prompt tokenizer, there is an extra offset for the prompt tokens other than bos/eos
+    # fmt: off
+    expected_tokens = [[4, 115, 118, 114, 114, 115, 117, 116, 119, 21, 101, 36, 13, 49, 38, 48, 42, 13, 38, 18, 13, 64, 15, 34, 3]]
+    assert tokens == expected_tokens
+
+    expected_prompts = [[4, 115, 118, 114, 114, 115, 117, 116, 119]]
     assert prompts == expected_prompts
     # fmt: on

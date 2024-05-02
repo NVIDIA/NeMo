@@ -143,6 +143,7 @@ def canary_natural(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = 
         bos = tokenizer._tokenizer.token_to_id('<s>')
         eos = tokenizer._tokenizer.token_to_id('</s>')
     for cut in cuts:
+
         assert hasattr(cut, "prompt"), f"Error: missing 'prompt' field in {cut=}"
         prompt = cut.prompt
         if (keys := list_placeholders(prompt)) :
@@ -151,7 +152,13 @@ def canary_natural(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = 
                 assert hasattr(cut, k), f"Error: missing field '{k}' required by prompt '{prompt}' in {cut=}"
                 kvs[k] = getattr(cut, k)
             prompt = prompt.format(**kvs)
-        prompt_tokens = [bos] + tokenizer(prompt, cut.supervisions[0].language)
+
+        if hasattr(cut, "prompt_lang"):
+            prompt_lang = cut.prompt_lang  # the user defined which sub-tokenizer to use for prompts
+        else:
+            prompt_lang = cut.supervisions[0].language  # use the same sub-tokenizer as for the transcript
+
+        prompt_tokens = [bos] + tokenizer(prompt, prompt_lang)
 
         prompt_with_answer_tokens = prompt_tokens
         texts = [s.text for s in cut.supervisions if s.text is not None]
