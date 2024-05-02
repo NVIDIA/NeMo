@@ -254,7 +254,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 compute_timestamps=self.compute_timestamps,
                 preserve_frame_confidence=self.preserve_frame_confidence,
                 confidence_method_cfg=self.confidence_method_cfg,
-                batched_inference=self.cfg.greedy.get('batched_inference', True),
+                batched_inference=self.cfg.greedy.get('batched_inference', False),
             )
 
         elif self.cfg.strategy == 'beam':
