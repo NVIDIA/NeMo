@@ -33,6 +33,7 @@ from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
 from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
+from tensorrt_llm.layers import MoeConfig
 
 from nemo.export.trt_llm.model_config import (
     LAYERNORM_DEFAULT,
@@ -369,6 +370,10 @@ def nemo_to_trtllm_config(
             lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
         )
 
+    hidden_act = nemo_model_config.get('activation')
+    hidden_act = hidden_act.split("-")[-1] if nemo_model_config.get('num_moe_experts', 0) \
+            else non_gated_version(hidden_act)
+
     config = {
         'architecture':
         DECODER_MODEL_TYPE[decoder_type],
@@ -393,7 +398,7 @@ def nemo_to_trtllm_config(
         'max_position_embeddings':
         nemo_model_config.get('max_position_embeddings'),
         'hidden_act':
-        non_gated_version(nemo_model_config.get('activation')),
+        hidden_act,
         'use_parallel_embedding':
         use_parallel_embedding,
         'embedding_sharding_dim':
@@ -417,9 +422,9 @@ def nemo_to_trtllm_config(
         'moe_top_k':
         nemo_model_config.get('moe_router_topk'),
         'moe_normalization_mode':
-        nemo_model_config.get('moe_renorm_mode'),
+        nemo_model_config.get('moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE),
         'moe_tp_mode':
-        nemo_model_config.get('moe_tp_mode'),
+        nemo_model_config.get('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL),
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
