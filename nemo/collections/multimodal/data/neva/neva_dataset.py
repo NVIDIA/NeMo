@@ -193,7 +193,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     return sources
 
 
-def preprocess_llama_3(sources: dict, tokenizer, cfg, ) -> Dict:
+def preprocess_llama_3(sources: dict, tokenizer, cfg,) -> Dict:
     """
     Preprocesses sources for the LLaMA 3 model configuration.
 
@@ -261,7 +261,7 @@ def preprocess_llama_3(sources: dict, tokenizer, cfg, ) -> Dict:
             else:
                 round_len = len(tokenizer.text_to_ids(round_sep + rou))
                 instruction_len = len(tokenizer.text_to_ids(round_sep + parts[0]))
-            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
 
@@ -275,7 +275,7 @@ def preprocess_llama_3(sources: dict, tokenizer, cfg, ) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels, )
+    return dict(tokens=tokens, labels=labels,)
 
 
 def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
@@ -801,9 +801,9 @@ class LazySupervisedDataset(Dataset):
         elif self.conv_template == "v1":
             data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg,)
         elif self.conv_template == "llama_2":
-            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg, )
+            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg,)
         elif self.conv_template == "llama_3":
-            data_dict = preprocess_llama_3(sources, self.tokenizer, self.multimodal_cfg, )
+            data_dict = preprocess_llama_3(sources, self.tokenizer, self.multimodal_cfg,)
         elif self.conv_template == "plain":
             data_dict = preprocess_plain(sources, self.tokenizer, self.multimodal_cfg,)
         else:

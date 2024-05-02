@@ -179,8 +179,14 @@ def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_para
             continue
 
         # Regular expression pattern to match the sequence
-        pattern = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|'))
-        pattern_nvgpt = re.compile(rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|'))
+        pattern = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}( ⁇ )+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(r'|', r'\|')
+        )
+        pattern_nvgpt = re.compile(
+            rf'{DEFAULT_IM_START_TOKEN[model_type]}({DEFAULT_IMAGE_PATCH_TOKEN[model_type]})+{DEFAULT_IM_END_TOKEN[model_type]}'.replace(
+                r'|', r'\|'
+            )
+        )
         combined_pattern = re.compile(f'{pattern.pattern}|{pattern_nvgpt.pattern}')
         clean_text = re.sub(combined_pattern, '<image>', response['sentences'][0])
 
