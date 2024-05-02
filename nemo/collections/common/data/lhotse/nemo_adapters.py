@@ -192,7 +192,10 @@ class LazyNeMoTarredIterator:
             shard_ids = []
             for p in self.paths:
                 m = json_pattern.search(p)
-                assert m is not None, f"Cannot determine shard_id from manifest input specified: {p}"
+                assert m is not None, (
+                    f"Cannot determine shard_id from manifest input specified: "
+                    f"we searched with regex '{json_pattern.pattern}' in input '{p}'"
+                )
                 shard_ids.append(int(m.group(1)))
             self.shard_id_to_manifest = {sid: LazyJsonlIterator(p) for sid, p in zip(shard_ids, self.paths)}
             self.source = LazyIteratorChain(*self.shard_id_to_manifest.values())
@@ -202,7 +205,10 @@ class LazyNeMoTarredIterator:
         shard_ids = []
         for p in self.tar_paths:
             m = tar_pattern.search(p)
-            assert m is not None, f"Cannot determine shard_id from tar input specifier: {p}"
+            assert m is not None, (
+                f"Cannot determine shard_id from tar input specifier: "
+                f"we searched with regex '{tar_pattern.pattern}' in input '{p}'"
+            )
             shard_ids.append(int(m.group(1)))
         self.shard_id_to_tar_path = dict(zip(shard_ids, self.tar_paths))
 
