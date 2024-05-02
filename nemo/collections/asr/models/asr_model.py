@@ -173,50 +173,50 @@ class ASRModel(ModelPT, ABC):
                 logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
 
-    @classmethod
-    def disable_cuda_graphs_in_decoder(cls, module: nn.Module):
-        """
-        Disable CUDA graphs for decoding to preserve memory and avoid problems with memory usage.
-        Should be used in training pipeline
-        """
-        # in RNN-T model, `model.decoding` is not an instance of nn.Module,
-        # we need to check `model.decoding.decoding` explicitly
-        for submodule in module.modules():
-            if (
-                hasattr(submodule, "decoding")
-                and hasattr(submodule.decoding, "decoding")
-                and isinstance(submodule.decoding.decoding, WithOptionalCudaGraphs)
-            ):
-                submodule.decoding.decoding.disable_cuda_graphs()
-
-    @classmethod
-    def enable_cuda_graphs_in_decoder(cls, module: nn.Module):
-        """Enable CUDA graphs for decoding (validation/testing)"""
-        # in RNN-T model, model.decoding is not an instance of nn.Module,
-        # we need to check `model.decoding.decoding` explicitly
-        for submodule in module.modules():
-            if (
-                hasattr(submodule, "decoding")
-                and hasattr(submodule.decoding, "decoding")
-                and isinstance(submodule.decoding.decoding, WithOptionalCudaGraphs)
-            ):
-                submodule.decoding.decoding.maybe_enable_cuda_graphs()
-
     def on_train_epoch_start(self) -> None:
-        """Decoder with CUDA graphs does not release memory, thus we disable it for training epoch"""
-        self.disable_cuda_graphs_in_decoder(self)
+        """
+        Decoder with CUDA graphs does not release memory, thus we disable it for training epoch.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
     def on_train_epoch_end(self) -> None:
-        self.enable_cuda_graphs_in_decoder(self)
+        """
+        After training, we can enable the decoder with CUDA graphs.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
     def on_validation_epoch_start(self) -> None:
-        self.enable_cuda_graphs_in_decoder(self)
+        """
+        For validation, we enable CUDA graphs to speedup validation.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_validation_epoch_end(self) -> None:
+        """
+        After validation, we disable CUDA graphs, since `validation` can be called in training loop, and
+        training will continue after validation
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
     def on_test_epoch_start(self) -> None:
-        self.enable_cuda_graphs_in_decoder(self)
+        """
+        For testing, we enable CUDA graphs to speedup validation.
+        We do not need to disable CUDA graphs after testing, since `test` cannot be called in training loop.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
     def on_predict_epoch_start(self) -> None:
-        self.enable_cuda_graphs_in_decoder(self)
+        """
+        For predicting, we enable CUDA graphs to speedup validation.
+        We do not need to disable CUDA graphs after predicting, since `predict` cannot be called in training loop.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
 
 
 class ExportableEncDecModel(Exportable):
