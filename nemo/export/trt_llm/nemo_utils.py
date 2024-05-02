@@ -410,6 +410,8 @@ def nemo_to_trtllm_config(
         False,
         'rotary_pct':
         nemo_model_config.get('rotary_percentage', 1.0),
+        'rotary_base':
+        nemo_model_config.get('rotary_base', 10000),
         'moe_num_experts':
         nemo_model_config.get('num_moe_experts', 0),
         'moe_top_k':
