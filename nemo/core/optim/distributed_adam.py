@@ -171,18 +171,20 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
             @contextlib.contextmanager
             def lock_with_timeout():
-                result = self._lock.acquire(timeout=lock_timeout)
+                torch.distributed.barrier(self.distributed_process_group) ### HACK
+                result = self._lock.acquire(timeout=self._lock_timeout)
                 try:
                     yield result
                 finally:
-                    if result:
+                    if:
                         # Acquired lock before timeout
                         self._lock.release()
                     else:
                         # Failed to acquire lock before timeout
-                        print(
-                            f'MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds '
-                            f'in backward hook for param {param_id} in param group {param_group_id}'
+                        bucket_ids = [fragment.bucket_id for fragment in self.state[param]["fragments"]]
+                        raise RuntimeError(
+                            f'MegatronDistributedFusedAdam: Failed to acquire lock within {self._lock_timeout} seconds '
+                            f"({param_id=}, {param_group_id=}, {bucket_ids=})"
                         )
 
         def hook(*unused):
