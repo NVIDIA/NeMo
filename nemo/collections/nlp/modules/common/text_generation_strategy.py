@@ -354,8 +354,6 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
                 turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
         list_data_dict.append(record)
 
-        num_media_latents = min((num_media_latents // 14) * (num_media_latents // 14), 576)
-
         # overwrite the media_type in multimodal_cfg to image for image inference using video neva
         # if the prompt does not contain video, then the media_type is image
         if list_data_dict[0]['conversations'][0]['value'].find('video') == -1:
@@ -379,8 +377,6 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
                 turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
         list_data_dict.append(record)
 
-        num_media_latents = min((num_media_latents // 14) * (num_media_latents // 14), 576)
-
         sources = preprocess_multimodal(
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
         )  # HARDCODED FOR NOW
@@ -394,7 +390,6 @@ def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, c
             if turn.get('value') is not None:
                 turn['value'] = re.sub('<image>', f'{DEFAULT_IMAGE_TOKEN}\n', turn['value'])
         list_data_dict.append(record)
-        num_media_latents = min((num_media_latents // 14) * (num_media_latents // 14), 576)
 
         sources = preprocess_multimodal(
             copy.deepcopy(list_data_dict), multimodal_cfg, num_media_latents
