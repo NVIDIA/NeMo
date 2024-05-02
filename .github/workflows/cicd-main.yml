@@ -4761,7 +4761,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v4
         - run: |
-            python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
+            python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             trainer.precision=32 \
