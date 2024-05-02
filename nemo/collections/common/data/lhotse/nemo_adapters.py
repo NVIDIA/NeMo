@@ -171,14 +171,17 @@ class LazyNeMoTarredIterator:
         shard_seed: int | Literal["trng", "randomized"] = "trng",
         text_field: str = "text",
         lang_field: str = "lang",
+        random_access: bool = False,
     ) -> None:
+        
+        print("in init lazy nemo tarred")
         def strip_pipe(p):
             if isinstance(p, str):
                 if p.startswith("pipe:"):
                     p = p[5:]
                 return Path(p)
             return p
-
+        self.random_access = random_access
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
@@ -234,20 +237,32 @@ class LazyNeMoTarredIterator:
         return sorted(self.shard_id_to_manifest.keys())
 
     def __iter__(self) -> Generator[Cut, None, None]:
+        
         shard_ids = self.shard_ids
 
         if self.shuffle_shards:
             seed = resolve_seed(self.shard_seed)
             random.Random(seed).shuffle(shard_ids)
-
+     
         for sid in shard_ids:
             shard_manifest = self.shard_id_to_manifest[sid]
             tar_path = self.shard_id_to_tar_path[sid]
-            with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
-                for data, tar_info in zip(shard_manifest, tar):
-                    assert (
-                        data["audio_filepath"] == tar_info.name
-                    ), f"Mismatched JSON manifest and tar file. {data['audio_filepath']=} != {tar_info.name=}"
+            if self.random_access:
+                tar_file = tarfile.open(fileobj=BytesIO(open_best(tar_path, mode="rb").read()), mode="r")
+            else:
+                tar_file = tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*")
+            with tar_file as tar:
+
+                iterable_tar = iter(tar)
+                for data in shard_manifest:
+                    # Get tar_info based on access type
+                    if self.random_access:
+                        tar_info = tar.getmember(data["audio_filepath"])
+                    else:
+                        tar_info = next(iterable_tar)
+                        assert data["audio_filepath"] == tar_info.name, f"Mismatched JSON manifest and tar file. {data['audio_filepath']=} != {tar_info.name=}"
+
+                    # Extract and process audio data
                     raw_audio = tar.extractfile(tar_info).read()
                     # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
                     #       the profiling indicated significant overhead in torchaudio ffmpeg integration

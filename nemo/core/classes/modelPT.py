@@ -727,7 +727,7 @@ class ModelPT(LightningModule, Model):
 
         # Try to instantiate scheduler for optimizer
         self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
+            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl, ipl_config=self.cfg.get("ipl", None)
         )
 
         # Return the optimizer with/without scheduler

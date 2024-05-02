@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import pathlib
 import shutil
@@ -46,7 +47,18 @@ def is_datastore_path(path) -> bool:
     """Check if a path is from a data object store.
     Currently, only AIStore is supported.
     """
-    return path.startswith('ais://')
+    if path.startswith('ais://'):
+        return True
+    if os.path.exists(path) and path.endswith('.json'):
+        with open(path, 'r') as file:
+            first_line = file.readline()
+            if first_line:
+                data = json.loads(first_line)
+                if data.get('audio_filepath', None) and data['audio_filepath'].startswith('ais://'):
+                    return True
+
+    return False
+
 
 
 def is_tarred_path(path) -> bool:

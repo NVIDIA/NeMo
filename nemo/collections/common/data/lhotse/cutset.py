@@ -29,7 +29,8 @@ from nemo.collections.common.data.lhotse.text_adapters import LhotseTextAdapter,
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
-def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
+def read_cutset_from_config(config: DictConfig, pseudo_label_gen: bool = False) -> Tuple[CutSet, bool]:
+
     """
     Reads NeMo configuration and creates a CutSet either from Lhotse or NeMo manifests.
 
@@ -49,7 +50,7 @@ def read_cutset_from_config(config: DictConfig) -> Tuple[CutSet, bool]:
         is_tarred = config.get("shar_path") is not None
     if use_nemo_manifest:
         # Read NeMo manifest -- use the right wrapper depending on tarred/non-tarred.
-        cuts = read_nemo_manifest(config, is_tarred)
+        cuts = read_nemo_manifest(config, is_tarred, pseudo_label_gen)
     else:
         # Read Lhotse manifest (again handle both tarred(shar)/non-tarred).
         cuts = read_lhotse_manifest(config, is_tarred)
@@ -244,6 +245,8 @@ def parse_and_combine_datasets(
 
 
 def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
+
+
     if is_tarred:
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
         # The combination of shuffle_shards, and repeat causes this to
@@ -347,7 +350,7 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
     return cut
 
 
-def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
+def read_nemo_manifest(config, is_tarred: bool, pseudo_label_gen: bool = False) -> CutSet:
     common_kwargs = {
         "text_field": config.text_field,
         "lang_field": config.lang_field,
@@ -359,15 +362,28 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
     if isinstance(config.manifest_filepath, (str, Path)):
         logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
         if is_tarred:
-            cuts = CutSet(
-                LazyNeMoTarredIterator(
-                    config.manifest_filepath,
-                    tar_paths=config.tarred_audio_filepaths,
-                    shuffle_shards=config.shuffle,
-                    shard_seed=config.shard_seed,
-                    **common_kwargs,
+            if pseudo_label_gen:
+                cuts = CutSet(
+                    LazyNeMoTarredIterator(
+                        config.manifest_filepath,
+                        tar_paths=config.tarred_audio_filepaths,
+                        shuffle_shards=config.shuffle,
+                        shard_seed=config.shard_seed,
+                        random_access=config.random_access,
+                        **common_kwargs,
+                    )
                 )
-            ).repeat()
+            else:
+                cuts = CutSet(
+                    LazyNeMoTarredIterator(
+                        config.manifest_filepath,
+                        tar_paths=config.tarred_audio_filepaths,
+                        shuffle_shards=config.shuffle,
+                        shard_seed=config.shard_seed,
+                        random_access=config.random_access,
+                        **common_kwargs,
+                    )
+                ).repeat()
         else:
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
     else:
@@ -398,6 +414,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                     tar_paths=tar_path,
                     shuffle_shards=config.shuffle,
                     shard_seed=config.shard_seed,
+                    random_access=config.random_access,
                     **common_kwargs,
                 )
             else:

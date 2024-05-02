@@ -17,23 +17,31 @@ import json
 import os
 import tempfile
 from typing import Any, List, Optional, Tuple
+import editdistance
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
+import tempfile
+from nemo.collections.asr.data import audio_to_text_dataset
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin, TranscribeConfig
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
+from nemo.collections.asr.parts.utils.ipl_utils import *
+from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 
 
 class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
@@ -42,6 +50,18 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+
+        if cfg.get("ipl", None):
+            with open_dict(cfg.ipl):
+                
+                cfg.ipl.num_all_files, cfg.ipl.num_cache_files = count_files_for_pseudo_labeling(
+                    cfg.ipl.manifest_filepath, cfg.ipl.get('dataset_weights', None)
+                )
+                if not cfg.train_ds.get("is_tarred", False):
+                    if not cfg.ipl.get("cache_manifest", None):
+                        cfg.ipl.cache_manifest = str(Path.cwd() / f"{cfg.ipl.cache_prefix}_pseudo_labeled.json")
+                else:
+                    cfg.ipl.cache_manifest = []
         super().__init__(cfg=cfg, trainer=trainer)
 
         if 'aux_ctc' not in self.cfg:
@@ -93,6 +113,466 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         # setting up interCTC loss (from InterCTCMixin)
         self.setup_interctc(decoder_name='ctc_decoder', loss_name='ctc_loss', wer_name='ctc_wer')
 
+    def on_fit_start(self):
+        """
+            Cache datastore manifests for non tarred unlabeled data 
+        """
+        if self.cfg.get("ipl"):
+            if not self.cfg.ipl.get("is_tarred", False):
+                cache_datastore_manifests(self.cfg.ipl.get("manifest_filepath"), cache_audio=True)
+        super().on_fit_start()
+
+   
+
+    def on_train_epoch_end(self):
+        
+        """
+        This function is mainly used for iterative pseudo labeling algorithm.
+        To make it work in config file 'ipl' parameters should be provided.
+
+        """
+        if not self.cfg.get("ipl"):
+            return
+
+        if self.cfg.ipl.m_epochs > 0:
+            self.cfg.ipl.m_epochs -= 1
+            return
+        needs_update = True
+
+        if self.cfg.ipl.m_epochs == 0:
+            
+            self.build_cache(self.cfg.ipl.manifest_filepath, self.cfg.ipl.get("tarred_audio_filepaths", None), update_whole_cache=True)
+
+            self.encoder.set_dropout(self.cfg.ipl.dropout)            
+            self.cfg.ipl.m_epochs -= 1
+            needs_update = False
+
+        if self.cfg.ipl.m_epochs == -1 and self.cfg.ipl.n_l_epochs > 0:
+            self.cfg.ipl.n_l_epochs -= 1
+        else: 
+            if needs_update:
+ 
+                self.build_cache(self.cfg.ipl.manifest_filepath, self.cfg.ipl.get("tarred_audio_filepaths", None), update_whole_cache=False)
+                final_cache_manifests = self.combine_cache_hypotheses()    
+            else:
+        
+                final_cache_manifests = self.combine_cache_hypotheses()    
+                if self.cfg.ipl.n_l_epochs == 0:
+                    if self.cfg.train_ds.get("is_tarred", False):
+                        if not self.cfg.train_ds.get("use_lhotse", False):
+                            if isinstance(self.cfg.ipl.tarred_audio_filepaths, str):
+                                if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
+                                    self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths],[self.cfg.ipl.tarred_audio_filepaths] ]
+                                else:
+                                    self.cfg.train_ds.tarred_audio_filepaths.append([self.cfg.ipl.tarred_audio_filepaths])
+                            else:
+                                if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
+                                    self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths]]
+                                self.cfg.train_ds.tarred_audio_filepaths += self.cfg.ipl.tarred_audio_filepaths
+            
+                            if isinstance(self.cfg.train_ds.manifest_filepath, str):
+                                self.cfg.train_ds.manifest_filepath = [[self.cfg.train_ds.manifest_filepath]]
+       
+                            self.cfg.train_ds.manifest_filepath += final_cache_manifests
+
+                    else:
+                        if isinstance(self.cfg.train_ds.manifest_filepath, str):
+                            self.cfg.train_ds.manifest_filepath = [self.cfg.train_ds.manifest_filepath]
+                            self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
+                        else:
+                            self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
+
+                    self.cfg.ipl.n_l_epochs -= 1
+                    self.trainer.reload_dataloaders_every_n_epochs = 1
+
+            torch.distributed.barrier()
+
+            self.setup_training_data(self.cfg.train_ds, do_caching = False, update_limit_train_batches=True)
+    
+    
+    def build_cache(self, manifests: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str] = None, update_whole_cache = True):
+        """
+        Function to build cache file for maintaining pseudo labels
+        Args:
+            update_whole_cache: (bool) Indicates whether to update the entire cache or only a portion of it based on sampling.
+            manifests:  Manifest file(s) from which pseudo labels will be generated
+            tarred_audio_filepaths: Tar file paths for tarred datasets
+                
+        """
+        if self.cfg.train_ds.get("is_tarred", False):
+            if isinstance(manifests, str):
+                manifests = [[manifests]]
+            if isinstance(tarred_audio_filepaths, str):
+                tarred_audio_filepaths = [[tarred_audio_filepaths]]
+            if update_whole_cache:
+                self.create_tar_cache_hypotheses(manifests, tarred_audio_filepaths)
+            else:
+                self.update_tarr_cache_hyppotheses(tarred_audio_filepaths)
+        else:
+            self.create_cache_hypotheses(manifests, update_whole_cache)
+    
+
+    def create_cache_hypotheses(self, manifests: Union[List[List[str]], str], update_whole_cache: bool = True):
+        """
+        Function to create cache file for unlabeled dataset
+        Args:
+            update_whole_cache: Indicates whether to update the entire cache or only a portion of it based on sampling.
+            manifests:  Manifest file(s) from which pseudo labels will be generated
+        """
+
+        whole_pseudo_data = []
+        update_data = []
+
+        manifest_paths =  [manifests] if isinstance(manifests, str) else manifests
+        dataset_weights = self.cfg.ipl.get("dataset_weights", [1] * len(manifest_paths))
+
+        if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List) :
+            dataset_weights = [float(dataset_weights)]
+
+        for idx, manifest_path in enumerate(manifest_paths):
+            manifest_data = process_manifest(manifest_path)
+            whole_pseudo_data.extend(manifest_data)
+            weight = dataset_weights[idx] if idx < len(dataset_weights) else 1
+            update_data.extend(sample_data(manifest_data, weight, update_whole_cache, self.cfg.ipl.p_cache))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temporary_manifest = os.path.join(tmpdir, f'manifest_{torch.distributed.get_rank()}.json')
+            with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
+                transcriptions = [data_entry.get('text', "") for data_entry in update_data]
+                for data_entry in update_data:
+                    json.dump(data_entry, temp_manifest, ensure_ascii=False)
+                    temp_manifest.write('\n')
+
+            hypotheses = self.generate_pseudo_labels(temporary_manifest,
+                                                    target_transcripts=transcriptions, 
+                                                    restore_pc=self.cfg.ipl.restore_pc,
+                                                    )
+        torch.distributed.barrier()
+        gathered_hypotheses = [None]  * torch.distributed.get_world_size()
+        gathered_data = [None]  * torch.distributed.get_world_size()
+        torch.distributed.all_gather_object(gathered_data, update_data)
+        torch.distributed.all_gather_object(gathered_hypotheses, hypotheses)
+        if torch.distributed.get_rank() == 0:
+            write_cache_manifest(self.cfg.ipl.cache_manifest, gathered_hypotheses, gathered_data, update_whole_cache)
+        torch.distributed.barrier()
+
+
+    def create_tar_cache_hypotheses(self, manifests: Union[List[List[str]], str],  tarred_audio_filepaths: Union[List[List[str]], str]):
+        """
+        Function to create cache file for tarred unlabeled dataset for the first time
+        Args:
+            manifests:  Manifest file(s) from which pseudo labels will be generated
+            tarred_audio_filepaths: Tar file paths for tarred datasets
+        """
+
+        self.cfg.ipl.cache_manifest = []
+        for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                
+                expanded_audio = expand_sharded_filepaths(tarred_audio_filepath[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
+                expand_manifests = expand_sharded_filepaths(manifest[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
+                number_of_manifests = len(expand_manifests)
+            
+                shard_manifest_data = []
+                cache_manifest = []
+                transcriptions = []
+                for _, manifest_path in enumerate(expand_manifests): 
+                
+                    manifest_data = process_manifest(manifest_path)      
+                    shard_manifest_data.append(manifest_data)
+
+                    base_path, filename = os.path.split(manifest_path)
+                    cache_file = os.path.join(base_path, f'{self.cfg.ipl.cache_prefix}_cache_{filename}')
+                    cache_manifest.append(cache_file)
+                    
+                    temporary_manifest=os.path.join(tmpdir, f'temp_{filename}')
+                    
+                    with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
+                        
+                        for data_entry in manifest_data:
+                            
+                            if not data_entry.get("text", None):
+                                data_entry['text'] = ""
+                            transcriptions.append(data_entry.get('text', ""))
+                            json.dump(data_entry, temp_manifest, ensure_ascii=False)
+                            temp_manifest.write('\n')
+
+                if number_of_manifests > 1:
+                    temporary_manifest, expanded_audio = handle_multiple_tarr_filepaths(filename, tmpdir, number_of_manifests, expanded_audio[0])
+                else:
+                    expanded_audio = expanded_audio[0]
+
+                if self.cfg.train_ds.get("is_tarred", False):
+
+                    hypotheses = self.generate_pseudo_labels(cache_manifest = temporary_manifest,
+                                                        tarred_audio_filepaths=expanded_audio, 
+                                                        target_transcripts=None,
+                                                        restore_pc=self.cfg.ipl.restore_pc,
+                                                        )
+                
+                else:
+                    hypotheses = self.generate_pseudo_labels(manifest,
+                                                            target_transcripts=None,
+                                                                restore_pc=self.cfg.ipl.restore_pc,
+                                                                    )
+            
+                write_tarr_cache_manifest(cache_manifest, update_data=shard_manifest_data, hypotheses=hypotheses)
+                self.cfg.ipl.cache_manifest.append(cache_manifest)
+
+
+    def update_tarr_cache_hyppotheses(self, tarred_audio_filepaths: Union[List[List[str]], str]):
+        """
+            With given probability randomly chooses part of the cache hypotheses, generates new pseudo labels for them and updates the cache.
+            Args:
+                tarred_audio_filepaths: Path to tarred audio files.
+
+        """
+        for manifest, tarred_audio_filepath in zip(self.cfg.ipl.cache_manifest, tarred_audio_filepaths):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                expanded_audio = expand_sharded_filepaths(tarred_audio_filepath[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
+                shard_manifest_data = []
+                number_of_manifests = len(manifest)
+                for _, manifest_path in enumerate(manifest): 
+                
+                    manifest_data = process_manifest(manifest_path)  
+                    
+                    random.shuffle(manifest_data)
+                    shard_manifest_data.append(manifest_data)  
+            
+                    update_size = int(len(manifest_data) * self.cfg.ipl.p_cache)
+                    update_data = manifest_data[:update_size]
+
+                    _, filename = os.path.split(manifest_path)
+                    temporary_manifest = os.path.join(tmpdir, f'temp_{filename}')
+            
+                    with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
+                        transcriptions = []
+                        for data_entry in update_data:
+                            transcriptions.append(data_entry.get('text', ""))
+                            json.dump(data_entry, temp_manifest, ensure_ascii=False)
+                            temp_manifest.write('\n')
+                if number_of_manifests > 1:
+                    temporary_manifest, expanded_audio = handle_multiple_tarr_filepaths(filename, tmpdir, number_of_manifests, expanded_audio[0])
+                else:
+                    expanded_audio = expanded_audio[0]
+    
+
+                if self.cfg.train_ds.get("is_tarred", False):
+                    hypotheses = self.generate_pseudo_labels(temporary_manifest,
+                                                        tarred_audio_filepaths=expanded_audio, 
+                                                        target_transcripts=transcriptions,
+                                                        restore_pc=self.cfg.ipl.restore_pc,
+                                                        )
+                
+                else:
+                    hypotheses = self.generate_pseudo_labels(temporary_manifest,
+                                                            target_transcripts=transcriptions,
+                                                            restore_pc=self.cfg.ipl.restore_pc,
+                                                            )
+                torch.distributed.barrier()
+    
+            write_tarr_cache_manifest(manifest, update_data=shard_manifest_data, hypotheses=hypotheses, update_size=update_size)
+
+
+    def combine_cache_hypotheses(self):
+        """
+        For each dataset combines cache hypotheses from manifests into one final cache manifest
+        Returns:
+            final_cache_manifests: List of final cache manifests
+        """
+        if self.cfg.train_ds.get("is_tarred", False):
+            torch.distributed.barrier()
+            all_cache_gathered = [None]  * torch.distributed.get_world_size()
+            torch.distributed.all_gather_object(all_cache_gathered, self.cfg.ipl.cache_manifest) 
+            result = [[item for sublist in group for item in sublist] for group in zip(*all_cache_gathered)]
+
+            final_cache_manifests = []
+            if not self.cfg.train_ds.get("use_lhotse", False):
+                for manifests in result:
+                    base_path, _ = os.path.split(manifests[0])
+                    final_cache = os.path.join(base_path, f'{self.cfg.ipl.cache_prefix}_cache_tarred_audio_manifest.json')
+                    if torch.distributed.get_rank() == 0:
+                        create_final_cache_manifest(final_cache, manifests)
+
+                    final_cache_manifests.append([final_cache])
+            torch.distributed.barrier() 
+        return final_cache_manifests
+        
+
+    def generate_pseudo_labels(
+        self,
+        cache_manifest: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        restore_pc: bool = True,
+        target_transcripts: List[str] = None):
+        """
+        Generates pseudo labels for unlabeled data.
+        Args:
+            cache_manifest: Temprorary cache file with sampled data.
+            tarred_audio_filepaths: path to tarr audio files
+            batch_size: Batch size used for during inference.
+            restore_pc: Whether to restore PC for transcriptions that do not have any.
+            target_transcripts: Already existing transcriptions that can be used for restoring PC
+        Returns:
+            target_transcripts: List of generated labels.
+        """
+        device = next(self.parameters()).device
+        dither_value = self.preprocessor.featurizer.dither
+        pad_to_value = self.preprocessor.featurizer.pad_to
+
+        self.eval()
+        self.encoder.freeze()
+        self.decoder.freeze()
+        self.joint.freeze()
+        self.ctc_decoder.freeze()
+        hypotheses = []
+
+
+        dataloader = self._setup_pseudo_label_dataloader(cache_manifest, tarred_audio_filepaths, self.cfg.ipl.batch_size)
+        self.preprocessor.featurizer.dither = 0.0
+        self.preprocessor.featurizer.pad_to = 0
+        sample_idx = 0
+        count = 0
+        for test_batch in tqdm(dataloader, desc="Transcribing"):
+            count += 1
+            encoded, encoded_len = self.forward(
+                input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+            )
+
+            logits = self.ctc_decoder(encoder_output=encoded)
+            logits = logits.cpu()
+            if self.cfg.aux_ctc.decoding.strategy == "beam":
+                
+                best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
+                logits, encoded_len, return_hypotheses=True,
+                )
+                if all_hyp:
+                    for beams_idx, beams in enumerate(all_hyp):
+                        if restore_pc:
+                            target = target_transcripts[sample_idx + beams_idx ]
+                            if target != "":
+                                target_split_w = target.split()
+                                wer_dist_min = 1000
+                                min_pred_text = ""
+                                for _, candidate in enumerate(beams): 
+                                    pred_text = candidate.text
+                                    compare_text = pred_text
+                                    compare_text = compare_text.lower()
+                                    compare_text = rm_punctuation(compare_text, ",.?")
+                                    pred_split_w = compare_text.split()
+                                    wer_dist = editdistance.eval(target_split_w, pred_split_w)
+                                    if wer_dist < wer_dist_min:
+                                        min_pred_text = pred_text
+                                        wer_dist_min =  wer_dist
+                                hypotheses.append(min_pred_text)
+                            else:
+                                hypotheses.append(best_hyp[beams_idx].text)
+                        else:
+                            hypotheses.append(best_hyp[beams_idx].text)
+                    sample_idx += logits.shape[0]
+                else:
+                    hypotheses += [hyp.text for hyp in best_hyp]
+            else:
+                best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
+                logits, encoded_len, return_hypotheses=False,)
+                hypotheses += best_hyp
+            
+            del logits
+            del encoded
+            del test_batch
+        
+    
+        self.train()
+        self.preprocessor.featurizer.dither = dither_value
+        self.preprocessor.featurizer.pad_to = pad_to_value
+
+        self.encoder.unfreeze()
+        self.decoder.unfreeze()
+        self.joint.unfreeze()
+  
+        self.ctc_decoder.unfreeze()
+        return hypotheses
+    
+    def _setup_pseudo_label_dataloader(self, manifest_filepaths: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str] = None, batch_size: int = 64):
+        
+        """
+        Setup function for a data loader for unlabeled dataset
+
+        Args:
+            manifest_filepaths: Manifests containing information of unlabeled dataset. For tarred dataset manifests should be sharded
+            tarred_audio_filepaths: Tarr audio files which should correspond to manifest files.
+            batch_size: batch size to use during inference.
+                
+        Returns:
+            A DataLoader for the given audio file(s).
+        """
+
+        if self.cfg.train_ds.get("is_tarred", False):
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'tarred_audio_filepaths': tarred_audio_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': self.joint.vocabulary,
+                'is_tarred': True,
+                'use_lhotse' : True,
+                'shard_manifests': False,
+                'tarred_shard_strategy': 'replicate',
+                'batch_size': batch_size,
+                'drop_last': False,
+                'trim_silence': False,
+                'shuffle': False,
+                'shuffle_n': 0,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+                'random_access': True,
+                }
+            
+            dl_config = OmegaConf.create(dl_config)
+
+            return get_lhotse_dataloader_from_config(
+                dl_config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=LhotseSpeechToTextBpeDataset(tokenizer=make_parser(
+                        labels=self.joint.vocabulary,
+                        do_normalize=False)),
+                pseudo_label_gen=True)
+        else:
+
+            dl_config = {
+                'manifest_filepath': manifest_filepaths,
+                'sample_rate': self.preprocessor._sample_rate,
+                'labels': self.joint.vocabulary,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'shuffle': False,
+                'num_workers': self.cfg.train_ds.num_workers,
+                'pin_memory': True,
+            }
+            
+
+        dataset = audio_to_text_dataset.get_char_dataset(config=dl_config, augmentor=None, do_caching=False)
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        elif hasattr(dataset.datasets[0], 'collate_fn'):
+            # support datasets that are lists of entries
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            # support datasets that are lists of lists
+            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=dl_config['batch_size'],
+            collate_fn=collate_fn,
+            drop_last=False,
+            shuffle=False,
+            num_workers=dl_config['num_workers'],
+            pin_memory=True,
+        )
+    
+    
     @torch.no_grad()
     def transcribe(
         self,

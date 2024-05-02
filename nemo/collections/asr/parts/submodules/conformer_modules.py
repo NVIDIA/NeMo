@@ -138,6 +138,12 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
 
+    def set_dropout(self, dropout):
+        self.self_attn.set_dropout(dropout)
+        self.feed_forward1.set_dropout(dropout)
+        self.feed_forward2.set_dropout(dropout)
+        self.dropout.p = dropout
+
     def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None, cache_last_channel=None, cache_last_time=None):
         """
         Args:
@@ -395,6 +401,9 @@ class ConformerFeedForward(nn.Module):
         self.activation = activation
         self.dropout = nn.Dropout(p=dropout)
         self.linear2 = nn.Linear(d_ff, d_model)
+
+    def set_dropout(self, dropout):
+        self.dropout.p = dropout
 
     def forward(self, x):
         x = self.linear1(x)
