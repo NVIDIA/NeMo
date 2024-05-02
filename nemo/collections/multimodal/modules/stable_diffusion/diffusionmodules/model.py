@@ -17,7 +17,14 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-from apex.contrib.group_norm import GroupNorm
+
+try:
+    from apex.contrib.group_norm import GroupNorm
+    
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 from einops import rearrange
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearAttention

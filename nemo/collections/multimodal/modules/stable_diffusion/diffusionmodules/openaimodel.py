@@ -22,7 +22,13 @@ import torch
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from apex.contrib.group_norm import GroupNorm
+
+try:
+    from apex.contrib.group_norm import GroupNorm
+    
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
@@ -554,6 +560,11 @@ class UNetModel(nn.Module):
         lora_network_alpha=None,
         timesteps=1000,
     ):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         super().__init__()
         from omegaconf.listconfig import ListConfig
 
@@ -1229,6 +1240,11 @@ class EncoderUNetModel(nn.Module):
         *args,
         **kwargs,
     ):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         super().__init__()
         if num_heads_upsample == -1:
             num_heads_upsample = num_heads

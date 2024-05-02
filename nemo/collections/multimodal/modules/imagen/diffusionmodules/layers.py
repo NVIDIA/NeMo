@@ -43,8 +43,13 @@ import math
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from apex.contrib.group_norm import GroupNorm
 
+try:
+    from apex.contrib.group_norm import GroupNorm
+    
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 def conv_nd(dims, *args, **kwargs):
     """

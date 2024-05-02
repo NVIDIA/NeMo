@@ -16,7 +16,13 @@ from inspect import isfunction
 
 import torch
 import torch.nn.functional as F
-from apex.contrib.group_norm import GroupNorm
+
+try:
+    from apex.contrib.group_norm import GroupNorm
+    
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 from einops import rearrange, repeat
 from torch import einsum, nn
 from torch._dynamo import disable
@@ -142,6 +148,11 @@ class LinearAttention(nn.Module):
 
 class SpatialSelfAttention(nn.Module):
     def __init__(self, in_channels):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         super().__init__()
         self.in_channels = in_channels
 
@@ -432,6 +443,11 @@ class SpatialTransformer(nn.Module):
         use_flash_attention=False,
         lora_network_alpha=None,
     ):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         super().__init__()
         logging.info(
             f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads"
