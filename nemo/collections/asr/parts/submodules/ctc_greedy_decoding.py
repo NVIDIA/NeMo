@@ -163,12 +163,10 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         """
 
         if self.batched_inference:
-            torch.cuda.nvtx.range_push("batched hypotheses")
             if decoder_output.ndim == 2:
                 hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
             else:
                 hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
-            torch.cuda.nvtx.range_pop()
             packed_result = pack_hypotheses(hypotheses, decoder_lengths)
             return (packed_result,)
 
@@ -208,20 +206,16 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
                 greedy_decode = self._greedy_decode_labels
             else:
                 greedy_decode = self._greedy_decode_logprobs
-            torch.cuda.nvtx.range_push("hypotheses")
 
             for ind in range(prediction_cpu_tensor.shape[0]):
                 out_len = decoder_lengths[ind] if decoder_lengths is not None else None
                 # Gross, why are we doing this on CPU one at a time?
                 hypothesis = greedy_decode(prediction_cpu_tensor[ind], out_len)
                 hypotheses.append(hypothesis)
-            torch.cuda.nvtx.range_pop()
 
-            torch.cuda.nvtx.range_push("pack hypotheses")
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, decoder_lengths)
 
-            torch.cuda.nvtx.range_pop()
         return (packed_result,)
 
     @torch.no_grad()
@@ -324,9 +318,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         if out_len is not None:
             prediction = prediction[:out_len]
 
-        torch.cuda.nvtx.range_push("max")
         prediction_logprobs, prediction_labels = prediction.max(dim=-1)
-        torch.cuda.nvtx.range_pop()
 
         non_blank_ids = prediction_labels != self.blank_id
         hypothesis.y_sequence = prediction_labels.tolist()

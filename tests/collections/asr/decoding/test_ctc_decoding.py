@@ -198,7 +198,6 @@ class TestCTCDecoding:
     @pytest.mark.parametrize('timestamps', [False, True])
     @pytest.mark.parametrize('preserve_frame_confidence', [False, True])
     def test_batched_decoding_logprobs(self, tmp_tokenizer, alignments, timestamps, preserve_frame_confidence):
-        # timestamps not working...
         cfg = CTCBPEDecodingConfig(
             strategy='greedy',
             preserve_alignments=alignments,
@@ -254,8 +253,8 @@ class TestCTCDecoding:
         B, T = 4, 20
         V = unbatched_decoding.tokenizer.tokenizer.vocab_size + 1
         input_labels = torch.randint(V, size=(B, T))
-        # Set the blank index to a very high probability to make sure
-        # that we always handle at least a few blanks.
+        # Set some indices to blank to make sure that we always handle
+        # at least a few blanks.
         input_labels[:, 0] = unbatched_decoding.tokenizer.tokenizer.vocab_size
         input_labels[:, 1] = unbatched_decoding.tokenizer.tokenizer.vocab_size
         length = torch.randint(low=1, high=T, size=[B])
