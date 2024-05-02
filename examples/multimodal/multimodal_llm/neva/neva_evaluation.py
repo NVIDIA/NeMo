@@ -50,7 +50,7 @@ class RequestDataSet(Dataset):
 
 @hydra_runner(config_path="conf", config_name="neva_inference")
 def main(cfg) -> None:
-    model, image_processor = create_neva_model_and_processor(cfg)
+    model, image_processor, video_processor = create_neva_model_and_processor(cfg)
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
@@ -72,20 +72,29 @@ def main(cfg) -> None:
     with open(cfg.prompt_file, 'r') as f:
         lines = f.readlines()
 
-    insert_image_token = cfg.inference.get("insert_image_token", None)
+    # add new media_type_token in inference config to specify wheter use video or image
+    # this will replace the original hardcoded `"<image>"` token in the prompt
+    media_type_token = cfg.inference.get("media_type", "image")
+    media_token = f"<{media_type_token}>"
+    
+    # modify the original `insert_image_token` to `insert_media_token` to support both image and video
+    insert_media_token = cfg.inference.get("insert_media_token", None)
     final_prompts = []
     for line in lines:
         prompt_dict = json.loads(line)
         assert 'prompt' in prompt_dict or 'text' in prompt_dict
         if 'prompt' not in prompt_dict:
             prompt_dict['prompt'] = prompt_dict['text']
-        if insert_image_token == 'left':
-            prompt_dict['prompt'] = '<image>' + prompt_dict['prompt']
-        elif insert_image_token == 'right':
-            prompt_dict['prompt'] = prompt_dict['prompt'] + '<image>'
+        if insert_media_token == 'left':
+            prompt_dict['prompt'] = media_token + prompt_dict['prompt']
+        elif insert_media_token == 'right':
+            prompt_dict['prompt'] = prompt_dict['prompt'] + media_token
         if 'image' in prompt_dict:
             prompt_dict['image_path'] = prompt_dict['image']
             prompt_dict['image'] = image_processor(os.path.join(cfg.inference.images_base_path, prompt_dict['image']))
+        if 'video' in prompt_dict:
+            prompt_dict['video_path'] = prompt_dict['video']
+            prompt_dict['video'] = video_processor(os.path.join(cfg.inference.videos_base_path, prompt_dict['video']))
         final_prompts.append(prompt_dict)
 
     responses = model.generate(
@@ -125,6 +134,22 @@ def main(cfg) -> None:
     # PP middle stages do not yield any responses
     if responses is None:
         return
+    
+    results = []
+    for response, prompt in zip(responses, final_prompts):
+        
+        prompt['full_text'] = response["clean_text"]
+        prompt['text'] = response["clean_response"]
+        prompt['model_id'] = cfg.neva_model_file
+        if 'image_path' in prompt:
+            prompt['image'] = prompt.pop('image_path')
+        if 'video_path' in prompt:
+            prompt['video'] = prompt.pop('video_path')
+        if 'answer_id' not in prompt:
+            prompt['answer_id'] = 0
+        if 'metadata' not in prompt:
+            prompt['metadata'] = {}
+        results.append(prompt)
 
     if is_global_rank_zero():
         results = []
