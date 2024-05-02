@@ -18,3 +18,5 @@ try:
     from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMTensorRT
 except Exception:
     use_query_llm = False
+
+from nemo.deploy.nlp.megatrongpt_deployable import MegatronGPTDeployable
