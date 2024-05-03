@@ -6210,6 +6210,7 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
+        - timeout-minutes: 15
         - name: Checkout repository
           uses: actions/checkout@v4
         - run: |
