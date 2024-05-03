@@ -447,3 +447,53 @@ def mux(
     else:
         cuts = CutSet.mux(*[cs.repeat() for cs in cutsets], weights=weights, seed=seed)
     return cuts
+
+
+def guess_parse_cutset(inp: str | dict) -> CutSet:
+    """
+    Utility function that supports opening a CutSet from:
+    * a string path to YAML input spec (see :func:`read_dataset_config` for details)
+    * a string path to Lhotse non-tarred JSONL manifest
+    * a string path to NeMo non-tarred JSON manifest
+    * a dictionary specifying inputs with keys available in :class:`nemo.collections.common.data.lhotse.dataloader.LhotseDataLoadingConfig`
+
+    It's intended to be used in a generic context where we are not sure which way the user will specify the inputs.
+    """
+    from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig
+
+    if isinstance(inp, dict):
+        try:
+            config = OmegaConf.merge(
+                OmegaConf.structured(LhotseDataLoadingConfig),
+                OmegaConf.from_dotlist([f"{k}={v}" for k, v in inp.items()]),
+            )
+            cuts, _ = read_cutset_from_config(config)
+            return cuts
+        except Exception as e:
+            raise RuntimeError(
+                f"Couldn't open CutSet based on dict input {inp} (is it compatible with LhotseDataLoadingConfig?)"
+            ) from e
+    elif isinstance(inp, str):
+        if inp.endswith(".yaml"):
+            # Path to YAML file with the input configuration
+            config = OmegaConf.merge(
+                OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([f"input_cfg={inp}"])
+            )
+            cuts, _ = read_cutset_from_config(config)
+            return cuts
+        elif inp.endswith(".jsonl") or inp.endswith(".jsonl.gz"):
+            # Path to a Lhotse non-tarred manifest
+            config = OmegaConf.merge(
+                OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([f"cuts_path={inp}"])
+            )
+            cuts, _ = read_cutset_from_config(config)
+            return cuts
+        else:
+            # Assume anything else is a NeMo non-tarred manifest
+            config = OmegaConf.merge(
+                OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([f"manifest_filepath={inp}"])
+            )
+            cuts, _ = read_cutset_from_config(config)
+            return cuts
+    else:
+        raise RuntimeError(f'Unsupported input type: {type(inp)} (expected a dict or a string)')
