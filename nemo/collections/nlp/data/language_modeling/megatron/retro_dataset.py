@@ -33,6 +33,7 @@ from nemo.utils import logging
 
 try:
     from megatron.core import mpu, tensor_parallel
+    from megatron.core.datasets.utils import get_blend_from_list
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.retro.config import RetroGPTChunkDatasets
     from megatron.core.datasets.retro.query.multi_split_gpt_dataset import (
@@ -190,7 +191,7 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
     data_config = MultiSplitGPTDatasetConfig(
         random_seed=cfg.seed,
         sequence_length=cfg.data.seq_length,
-        blend=cfg.data.data_prefix,
+        blend=get_blend_from_list(cfg.data.data_prefix),
         split=cfg.data.splits_string,
         split_preprocessing=cfg.data.retro_data.retro_split_preprocessing,
         path_to_cache=None,
