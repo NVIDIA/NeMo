@@ -22,6 +22,11 @@ python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.p
     --lora_path nemo_style_lora_model.nemo \
     --output_path ./canonical_style_lora_model.nemo 
 
+Example usage to also convert into huggingface format (the script expects a adapter_config.json file which is standard in HF):
+python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.py \
+    --lora_path nemo_style_lora_model.nemo \
+    --output_path ./canonical_style_lora_model.nemo \
+    --hf_format --hf_config checkpoints/bin/adapter_config.json
 """
 import tempfile
 from argparse import ArgumentParser

@@ -14,15 +14,15 @@
 # limitations under the License.
 
 """
-Convert nemo style (fused) lora checkpoint to canonical (unfused) lora checkpoint.
-Currently supports TP=PP=1 only.
-
-Example usage:
-python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.py \
-    --lora_path nemo_style_lora_model.nemo \
-    --output_path ./canonical_style_lora_model.nemo 
-
+Example usage of this script:
+/checkpoints/bin/ is a folder containing the HF lora checkpoint (usually named adapter_model.bin)
+and a HF lora config file (usually named adapter_config.json)
+python scripts/checkpoint_converters/lora_converters/convert_hf_to_canonical.py \
+    --hf_lora_path /checkpoints/bin/ \
+    --output_path output_dir/mmm_hf_to_canonical.nemo \
+    --nemo_config model_config.yaml
 """
+
 import tempfile
 import json
 from argparse import ArgumentParser
@@ -117,7 +117,7 @@ def fix_for_O2(state_dict):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--lora_path",
+        "--hf_lora_path",
         type=str,
         default=None,
         required=True,
@@ -138,4 +138,4 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    convert_lora(args.lora_path, args.output_path, args.nemo_config)
+    convert_lora(args.hf_lora_path, args.output_path, args.nemo_config)
