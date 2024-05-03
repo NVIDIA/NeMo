@@ -19,7 +19,7 @@ from typing import Any, Optional, TypeVar, Union
 
 import numpy as np
 import torch
-from lhotse import CutSet
+from lhotse import CutSet, RecordingSet
 from lhotse.cut import Cut
 from lhotse.cut.text import TextExample, TextPairExample
 from lhotse.dataset import (
@@ -116,8 +116,9 @@ class LhotseDataLoadingConfig:
     #       III) common options
     keep_excessive_supervisions: bool = True  # when a cut is truncated in the middle of a supervision, should we keep them.
     #   e. RIR augmentation (synthetic RIR if rir_path is None)
+    #   at the moment supports only Lhotse recording manifests, e.g. https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/rir_noise.py
     rir_enabled: bool = False
-    rir_path: Any | None = None  # str | dict where dict can have any of keys: manifest_filepath, tarred_audio_filepaths, cuts_path, shar_path
+    rir_path: str | None = None  # str, must point to a lhotse RecordingSet manifest
     rir_prob: float = 0.5
 
     # 5. Other Lhotse options.
@@ -300,7 +301,7 @@ def get_lhotse_dataloader_from_config(
     if config.rir_enabled:
         sampler = sampler.map(
             ReverbWithImpulseResponse(
-                rir_recordings=guess_parse_cutset(config.rir_path) if config.rir_path is not None else None,
+                rir_recordings=RecordingSet.from_file(config.rir_path) if config.rir_path is not None else None,
                 p=config.rir_prob,
             )
         )
