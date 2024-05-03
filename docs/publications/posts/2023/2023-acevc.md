@@ -6,7 +6,7 @@ readtime: 30
 date: 2023-06-04
 
 # Optional: Categories
-categories: [Text to Speech]
+categories: [Voice Conversion, Speech Generation]
 continue_url: https://ieeexplore.ieee.org/abstract/document/10094850
 
 # Optional: OpenGraph metadata
