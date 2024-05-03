@@ -23,8 +23,8 @@ python scripts/checkpoint_converters/lora_converters/convert_hf_to_canonical.py 
     --nemo_config model_config.yaml
 """
 
-import tempfile
 import json
+import tempfile
 from argparse import ArgumentParser
 from typing import Dict
 
@@ -34,25 +34,12 @@ from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_numbe
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
-target_map = {"all": [
-    "gate_proj",
-    "o_proj",
-    "up_proj",
-    "down_proj",
-    "k_proj",
-    "q_proj",
-    "v_proj"
-    ],
-    "attention_qkv": [
-    "k_proj",
-    "q_proj",
-    "v_proj"
-    ],
-    "attention_dense": [
-        "gate_proj", 
-        "o_proj", 
-        "up_proj"
-]}
+target_map = {
+    "all": ["gate_proj", "o_proj", "up_proj", "down_proj", "k_proj", "q_proj", "v_proj"],
+    "attention_qkv": ["k_proj", "q_proj", "v_proj"],
+    "attention_dense": ["gate_proj", "o_proj", "up_proj"],
+}
+
 
 def map_target_modules_to_canonical(target_modules):
     tm = set(target_modules)
@@ -66,20 +53,25 @@ def reformat_module_names_to_canonical(tensors: Dict[str, torch.Tensor]) -> Dict
     new_tensors = dict()
     for module_name, module_weight in tensors.items():
         # map linear_in and linear_out to lora_a/lora_b counterparts
-        new_module_name = module_name.replace("lora_A", "linear_in").replace("lora_B", "linear_out").replace("base_model.", "")
+        new_module_name = (
+            module_name.replace("lora_A", "linear_in").replace("lora_B", "linear_out").replace("base_model.", "")
+        )
 
         new_module_name = new_module_name.replace(".q_proj", ".adapter_layer.lora_unfused_kqv_adapter.q_adapter")
         new_module_name = new_module_name.replace(".k_proj", ".adapter_layer.lora_unfused_kqv_adapter.k_adapter")
         new_module_name = new_module_name.replace(".v_proj", ".adapter_layer.lora_unfused_kqv_adapter.v_adapter")
         new_module_name = new_module_name.replace(".o_proj", ".adapter_layer.lora_dense_attention_adapter")
-        new_module_name = new_module_name.replace(".down_proj", ".adapter_layer.lora_4htoh_adapter") 
-        new_module_name = new_module_name.replace(".gate_proj", ".adapter_layer.lora_unfused_hto4h_adapter.gate_adapter")
+        new_module_name = new_module_name.replace(".down_proj", ".adapter_layer.lora_4htoh_adapter")
+        new_module_name = new_module_name.replace(
+            ".gate_proj", ".adapter_layer.lora_unfused_hto4h_adapter.gate_adapter"
+        )
         new_module_name = new_module_name.replace(".up_proj", ".adapter_layer.lora_unfused_hto4h_adapter.up_adapter")
         new_module_name = new_module_name.replace("self_attn", "self_attention")
         new_module_name = new_module_name.replace("model.model", "model.decoder")
 
         new_tensors[new_module_name] = module_weight
     return new_tensors
+
 
 def convert_lora(lora_hf_path, save_path, lora_yaml):
     config_file = f"{lora_hf_path}/adapter_config.json"
@@ -95,8 +87,9 @@ def convert_lora(lora_hf_path, save_path, lora_yaml):
             nemo_lora_config.peft.lora_tuning.variant = "canonical"
             nemo_lora_config.peft.lora_tuning.adapter_dim = hf_lora_config["r"]
             nemo_lora_config.peft.lora_tuning.alpha = hf_lora_config["lora_alpha"]
-            nemo_lora_config.peft.lora_tuning.target_modules = map_target_modules_to_canonical(hf_lora_config["target_modules"])
-            
+            nemo_lora_config.peft.lora_tuning.target_modules = map_target_modules_to_canonical(
+                hf_lora_config["target_modules"]
+            )
 
         with open(f"{tmpdir}/model_config.yaml", "w") as f:
             OmegaConf.save(nemo_lora_config, f)
