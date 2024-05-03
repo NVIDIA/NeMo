@@ -38,25 +38,12 @@ from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_numbe
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
-target_map = {"all": [
-    "gate_proj",
-    "o_proj",
-    "up_proj",
-    "down_proj",
-    "k_proj",
-    "q_proj",
-    "v_proj"
-    ],
-    "attention_qkv": [
-    "k_proj",
-    "q_proj",
-    "v_proj"
-    ],
-    "attention_dense": [
-        "gate_proj", 
-        "o_proj", 
-        "up_proj"
-]}
+target_map = {
+    "all": ["gate_proj", "o_proj", "up_proj", "down_proj", "k_proj", "q_proj", "v_proj"],
+    "attention_qkv": ["k_proj", "q_proj", "v_proj"],
+    "attention_dense": ["gate_proj", "o_proj", "up_proj"],
+}
+
 
 def rename_keys(key):
     new_keys = []
