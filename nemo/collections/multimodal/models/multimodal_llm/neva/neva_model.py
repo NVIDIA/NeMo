@@ -251,6 +251,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
             )
         return sharded_state_dict
 
+
 class NevaBaseModel:
     """
     Base class for a multimedia model integrating vision and language models.
