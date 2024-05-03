@@ -1100,7 +1100,37 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             logging.critical(f'Unexpected keys: \n{unexpected_keys}')
 
     def on_load_checkpoint(self, checkpoint) -> None:
-        pass
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
+
+        # mcore uses distributed checkpointing
+        # FSDP supports the lagecy checkpointing or torch-FSDP-native sharded checkpointing
+        if self.mcore_gpt and not self.use_fsdp:
+            if 'state_dict' in checkpoint and checkpoint['state_dict']:
+                for index, module in enumerate(self.get_model_module_list()):
+                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
+                    else:
+                        checkpoint_state_dict = checkpoint['state_dict']
+                    # checkpoint_state_dict has "model." but module does not so we need to remove it when loading
+                    checkpoint_state_dict = {
+                        key.replace('model.', ''): checkpoint_state_dict.pop(key)
+                        for key in list(checkpoint_state_dict.keys())
+                    }
+                    module.load_state_dict(checkpoint_state_dict, strict=False)
+            else:
+                # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
+                # see NLPModel.on_load_checkpoint
+                checkpoint['state_dict'] = {}
+
+        # legacy checkpointing for interleaved
+        else:
+            if isinstance(self.model, list):
+                for i in range(len(self.model)):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def sharded_state_dict(self, prefix: str = ''):
         original_sharded_state_dict = super().sharded_state_dict()
