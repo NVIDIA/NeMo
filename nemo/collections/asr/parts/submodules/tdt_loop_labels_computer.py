@@ -251,10 +251,18 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
 
+    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
+        """
+        Method to set graphs mode. Use only for testing purposes.
+        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
+        """
+        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
+        self.state = None
+
     def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs if conditions met"""
         if self.cuda_graphs_mode is not None:
-            # CUDA graphs are enabled
+            # CUDA graphs are already enabled
             return
 
         if not self.allow_cuda_graphs:
@@ -292,16 +300,12 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.full_graph = None
         self.separate_graphs = None
 
-    def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
-        """
-        Method to set graphs mode. Use only for testing purposes.
-        For debugging the algorithm use "no_graphs" mode, since it is impossible to debug CUDA graphs directly.
-        """
-        self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
-        self.state = None
-
     def loop_labels_torch(
-        self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
+        self,
+        encoder_output: torch.Tensor,
+        encoder_output_length: torch.Tensor,
+        prev_state: Optional[Any] = None,
+        prev_labels: Optional[torch.Tensor] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Pure PyTorch implementation
@@ -309,6 +313,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
+            prev_state: previous decoder state for the batch
+            prev_labels: batch of previously decoded labels
         """
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
@@ -346,11 +352,11 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         num_durations = all_durations.shape[0]
 
         # initial state, needed for torch.jit to compile (cannot handle None)
-        state = self.decoder.initialize_state(encoder_output_projected)
+        state = self.decoder.initialize_state(encoder_output_projected) if prev_state is None else prev_state
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
         # last found labels - initially <SOS> (<blank>) symbol
-        labels = torch.full_like(batch_indices, fill_value=self._SOS)
+        labels = torch.full_like(batch_indices, fill_value=self._SOS) if prev_labels is None else prev_labels
 
         # time indices
         time_indices = torch.zeros_like(batch_indices)
@@ -525,7 +531,11 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         return batched_hyps, None, last_decoder_state
 
     def loop_labels_cuda_graphs(
-        self, encoder_output: torch.Tensor, encoder_output_length: torch.Tensor,
+        self,
+        encoder_output: torch.Tensor,
+        encoder_output_length: torch.Tensor,
+        prev_state: Optional[Any] = None,
+        prev_labels: Optional[torch.Tensor] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         """
         Implementation with CUDA graphs.
@@ -533,6 +543,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         Args:
             encoder_output: output from the encoder
             encoder_output_length: lengths of the utterances in `encoder_output`
+            prev_state: previous decoder state for the batch
+            prev_labels: batch of previously decoded labels
         """
         assert self.cuda_graphs_mode is not None
 
@@ -553,6 +565,24 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(encoder_output_length)
         # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
+
+        if prev_state is None:
+            # initial state
+            self.decoder.batch_replace_states_all(
+                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
+                dst_states=self.state.decoder_state,
+            )
+        else:
+            self.decoder.batch_replace_states_all(
+                src_states=prev_state, dst_states=self.state.decoder_state,
+            )
+
+        if prev_labels is None:
+            # last found labels - initially <SOS> (<blank>) symbol
+            self.state.labels.fill_(self._SOS)
+        else:
+            self.state.labels.copy_(prev_labels, non_blocking=True)
+
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.full_graph.replay()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -730,13 +760,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         if self.state.alignments is not None:
             self.state.alignments.clear_()
 
-        # initial state
-        self.decoder.batch_replace_states_all(
-            src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
-            dst_states=self.state.decoder_state,
-        )
-        # last found labels - initially <SOS> (<blank>) symbol
-        self.state.labels.fill_(self._SOS)
         self.state.scores.fill_(0.0)
 
         # time indices
@@ -937,9 +960,26 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
     def __call__(
-        self, x: torch.Tensor, out_len: torch.Tensor,
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        prev_state: Optional[Any] = None,
+        prev_labels: Optional[torch.Tensor] = None,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
-        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
+        """
+        Entry point for the decoding algorithm
 
-        return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)
+        Args:
+            x: encoder output
+            out_len: encoder output length
+            prev_state: previous decoder state for the batch
+            prev_labels: batch of previously decoded labels
+        """
+        if self.cuda_graphs_mode is not None and x.device.type == "cuda":
+            return self.loop_labels_cuda_graphs(
+                encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+            )
+
+        return self.loop_labels_torch(
+            encoder_output=x, encoder_output_length=out_len, prev_state=prev_state, prev_labels=prev_labels
+        )
