@@ -746,13 +746,32 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         The main idea: search for next labels for the whole batch (evaluating Joint)
         and thus always evaluate prediction network with maximum possible batch size
         """
+        prev_labels = None
+        prev_state = None
         if partial_hypotheses is not None:
-            raise NotImplementedError("`partial_hypotheses` support is not implemented")
+            prev_labels = torch.tensor(
+                [hyp.y_sequence[-1] if len(hyp.y_sequence) else self._blank_index for hyp in partial_hypotheses]
+            ).to(device=x.device)
 
-        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
+            state_list = [hyp.dec_state for hyp in partial_hypotheses]
+            if all(state is not None for state in state_list):
+                prev_state = self.decoder.batch_unsplit_states(
+                    [hyp.dec_state for hyp in partial_hypotheses], device=x.device, dtype=x.dtype
+                )
+            elif any(state is not None for state in state_list):
+                logging.warning(f"State list: {state_list}")
+                raise NotImplementedError
+
+        batched_hyps, alignments, last_decoder_state = self._decoding_computer(
+            x=x, out_len=out_len, prev_labels=prev_labels, prev_state=prev_state
+        )
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
+
+        if partial_hypotheses:
+            for prev_hyp, hyp in zip(partial_hypotheses, hyps):
+                hyp.y_sequence = torch.cat((prev_hyp.y_sequence, hyp.y_sequence))
         return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(

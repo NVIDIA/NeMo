@@ -292,7 +292,8 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """Replace states in dst_states with states from src_states"""
         raise NotImplementedError()
 
-    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+    @classmethod
+    def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
