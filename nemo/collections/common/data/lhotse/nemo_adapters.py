@@ -64,7 +64,11 @@ class LazyNeMoIterator:
         lang_field: str = "lang",
         missing_sampling_rate_ok: bool = False,
     ) -> None:
-        self.source = LazyJsonlIterator(path)
+        paths = expand_sharded_filepaths(path)
+        if len(paths) == 1:
+            self.source = LazyJsonlIterator(paths[0])
+        else:
+            self.source = LazyIteratorChain(*(LazyJsonlIterator(p) for p in paths))
         self.text_field = text_field
         self.lang_field = lang_field
         self.missing_sampling_rate_ok = missing_sampling_rate_ok
