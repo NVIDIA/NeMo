@@ -80,6 +80,7 @@ try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.utils import make_sharded_tensor_for_checkpoint
 
     HAVE_MEGATRON_CORE = True
 
@@ -247,6 +248,19 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         return updated_input_embeds
 
+    def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), **kwargs):
+        sharded_state_dict = super().sharded_state_dict(prefix=prefix, sharded_offsets=sharded_offsets, **kwargs)
+
+        state_dict = self.state_dict(prefix='', keep_vars=True)
+        state_dict.pop('weight')
+        # duplicate everything else
+        for layer_name in state_dict.keys():
+            tensor = state_dict[layer_name]
+            layer_key = f'{prefix}{layer_name}'
+            sharded_state_dict[layer_key] = make_sharded_tensor_for_checkpoint(
+                tensor, layer_key, prepend_offsets=sharded_offsets,
+            )
+        return sharded_state_dict
 
 class NevaBaseModel:
     """
@@ -1104,10 +1118,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     def setup_test_data(self, cfg):
         pass
 
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
-        # Get the original state dictionary
-        original_state_dict = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
-
+    def get_keys_to_keep(self):
         keys_to_keep = list(self.adapter_keys)
         # TODO(yuya): maybe not hard-code vision_encoder keys here
         vision_encoder_keys = [k for k in self.base_keys if "vision_encoder" in k]
@@ -1116,6 +1127,12 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             keys_to_keep += llm_keys
         if not self.cfg.mm_cfg.vision_encoder.freeze:
             keys_to_keep += vision_encoder_keys
+        return keys_to_keep
+
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        # Get the original state dictionary
+        original_state_dict = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+        keys_to_keep = self.get_keys_to_keep()
         new_state_dict = {k: original_state_dict[k] for k in keys_to_keep}
         return new_state_dict
 
@@ -1137,7 +1154,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         pass
 
     def sharded_state_dict(self, prefix: str = ''):
-        return None
+        original_sharded_state_dict = super().sharded_state_dict()
+        keys_to_keep = self.get_keys_to_keep()
+        new_sharded_state_dict = {k: original_sharded_state_dict[k] for k in keys_to_keep}
+        return new_sharded_state_dict
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
