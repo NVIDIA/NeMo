@@ -19,6 +19,7 @@ from itertools import repeat
 from pathlib import Path
 from typing import Sequence, Tuple, Union
 
+import omegaconf
 from lhotse import CutSet, Features, Recording
 from lhotse.array import Array, TemporalArray
 from lhotse.cut import Cut, MixedCut, PaddingCut
@@ -449,7 +450,7 @@ def mux(
     return cuts
 
 
-def guess_parse_cutset(inp: str | dict) -> CutSet:
+def guess_parse_cutset(inp: Union[str, dict, omegaconf.DictConfig]) -> CutSet:
     """
     Utility function that supports opening a CutSet from:
     * a string path to YAML input spec (see :func:`read_dataset_config` for details)
@@ -459,14 +460,11 @@ def guess_parse_cutset(inp: str | dict) -> CutSet:
 
     It's intended to be used in a generic context where we are not sure which way the user will specify the inputs.
     """
-    from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig
+    from nemo.collections.common.data.lhotse.dataloader import make_structured_with_schema_warnings
 
-    if isinstance(inp, dict):
+    if isinstance(inp, (dict, omegaconf.DictConfig)):
         try:
-            config = OmegaConf.merge(
-                OmegaConf.structured(LhotseDataLoadingConfig),
-                OmegaConf.from_dotlist([f"{k}={v}" for k, v in inp.items()]),
-            )
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"{k}={v}" for k, v in inp.items()]))
             cuts, _ = read_cutset_from_config(config)
             return cuts
         except Exception as e:
@@ -476,24 +474,14 @@ def guess_parse_cutset(inp: str | dict) -> CutSet:
     elif isinstance(inp, str):
         if inp.endswith(".yaml"):
             # Path to YAML file with the input configuration
-            config = OmegaConf.merge(
-                OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([f"input_cfg={inp}"])
-            )
-            cuts, _ = read_cutset_from_config(config)
-            return cuts
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"input_cfg={inp}"]))
         elif inp.endswith(".jsonl") or inp.endswith(".jsonl.gz"):
             # Path to a Lhotse non-tarred manifest
-            config = OmegaConf.merge(
-                OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([f"cuts_path={inp}"])
-            )
-            cuts, _ = read_cutset_from_config(config)
-            return cuts
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"cuts_path={inp}"]))
         else:
             # Assume anything else is a NeMo non-tarred manifest
-            config = OmegaConf.merge(
-                OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([f"manifest_filepath={inp}"])
-            )
-            cuts, _ = read_cutset_from_config(config)
-            return cuts
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"manifest_filepath={inp}"]))
+        cuts, _ = read_cutset_from_config(config)
+        return cuts
     else:
         raise RuntimeError(f'Unsupported input type: {type(inp)} (expected a dict or a string)')

@@ -194,7 +194,7 @@ def get_lhotse_dataloader_from_config(
         noise = guess_parse_cutset(config.noise_path)
         cuts = cuts.mix(
             cuts=noise,
-            snr=config.noise_snr,
+            snr=tuple(config.noise_snr),
             mix_prob=config.noise_mix_prob,
             seed=config.shard_seed,
             random_mix_offset=True,
