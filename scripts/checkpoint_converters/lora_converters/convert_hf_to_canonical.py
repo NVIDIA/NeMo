@@ -30,7 +30,6 @@ from typing import Dict
 
 import torch
 from omegaconf import OmegaConf, open_dict
-from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
