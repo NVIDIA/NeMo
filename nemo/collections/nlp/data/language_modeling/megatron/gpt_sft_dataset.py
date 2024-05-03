@@ -480,20 +480,20 @@ class GPTSFTDataset(Dataset):
         answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
 
         processed_batch = {
-                'tokens': input_ids,
-                'labels': labels,
-                'loss_mask': loss_mask,
-                'position_ids': position_ids,
-                'contexts': contexts,
-                'context_lengths': context_lengths,
-                'answers': answers,
-                'metadata': metadata,
-                'token_count': token_count,
-            }
-        
+            'tokens': input_ids,
+            'labels': labels,
+            'loss_mask': loss_mask,
+            'position_ids': position_ids,
+            'contexts': contexts,
+            'context_lengths': context_lengths,
+            'answers': answers,
+            'metadata': metadata,
+            'token_count': token_count,
+        }
+
         if not self.get_attention_mask_from_fusion:
             processed_batch['attention_mask'] = attention_mask
- 
+
         return processed_batch
 
 

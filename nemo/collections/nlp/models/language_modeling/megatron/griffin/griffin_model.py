@@ -13,15 +13,18 @@
 # limitations under the License.
 
 import math
+
 import torch
-from torch import Tensor, nn
-from megatron.core.jit import jit_fuser
 from megatron.core import tensor_parallel
+from megatron.core.jit import jit_fuser
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
 from megatron.core.transformer.transformer_config import TransformerConfig
+from torch import Tensor, nn
+
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_block import GriffinStack
+
 
 class GriffinModel(LanguageModule):
     def __init__(
@@ -74,12 +77,11 @@ class GriffinModel(LanguageModule):
                 init_method=config.init_method,
                 bias=False,
                 skip_bias_add=False,
-                skip_weight_param_allocation=self.pre_process
-                and self.share_embeddings_and_output_weights,
+                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
                 embedding_activation_buffer=None,
                 grad_output_buffer=None,
             )
-        
+
         if self.pre_process or self.post_process:
             self.setup_embeddings_and_output_layer()
 
