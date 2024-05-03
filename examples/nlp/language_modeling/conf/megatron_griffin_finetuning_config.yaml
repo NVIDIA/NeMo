@@ -50,7 +50,7 @@ exp_manager:
 model:
   restore_from_path: 
   # model parallelism 
-  model.mcore_gpt: True
+  mcore_gpt: True
   micro_batch_size: 2
   global_batch_size: 2
   tensor_model_parallel_size: 1

@@ -16,11 +16,8 @@ import math
 from dataclasses import dataclass
 from typing import Union
 from megatron.core.jit import jit_fuser
-import einops
 import torch
 from accelerated_scan.triton import scan
-# from accelerated_scan.warp import scan
-# from accelerated_scan.ref import scan
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
@@ -73,16 +70,6 @@ class BlockDiagonalLinear(nn.Module):
         x = (torch.bmm(x, self.w).permute(1, 0, 2)+ self.b).reshape(bs, seq_l, self.num_blocks * self.block_width)
         out = torch.sigmoid(x)
         return out
-
-
-        x = einops.rearrange(x, "... (h i) -> ... h i", h=self.num_blocks)
-
-        # Linear layer over each block + bias.
-        y = torch.einsum("... h i, h i j -> ... h j", x, self.w) + self.b
-
-        # Flatten the output.
-        return einops.rearrange(y, "... h j -> ... (h j)", h=self.num_blocks)
-
 
 # Class copied from https://github.com/google-deepmind/recurrentgemma
 
@@ -202,8 +189,6 @@ class RGLRU(nn.Module):
     Returns:
       Output of the block together with the updated hidden state.
     """ 
-
-        torch.cuda.nvtx.range_push("first-chunk")
         for param in self.parameters():
             param.data_ptr()
 
@@ -211,45 +196,13 @@ class RGLRU(nn.Module):
         assert segment_pos.shape == (bs, l)
         reset = (segment_pos == 0).type(torch.int32).unsqueeze(-1)
 
-        torch.cuda.nvtx.range_pop()
         # Gates for x and a.
-        torch.cuda.nvtx.range_push("input_gate")
         gate_x = self.input_gate(x)
-        torch.cuda.nvtx.range_pop()
-        torch.cuda.nvtx.range_push("a_gate")
         gate_a = self.a_gate(x)
-        torch.cuda.nvtx.range_pop()
 
         # Compute the parameter `A` of the recurrence.
-
-        '''torch.cuda.nvtx.range_push("get_log_a")
-        log_a = -8.0 * gate_a * nn.functional.softplus(self.a_param)
-        torch.cuda.nvtx.range_pop()
-        torch.cuda.nvtx.range_push("exp_to_a")
-        a = torch.exp(log_a)
-        torch.cuda.nvtx.range_pop()
-        
-        # Gate the input.
-        torch.cuda.nvtx.range_push("gated_x")
-        gated_x = x * gate_x
-        torch.cuda.nvtx.range_pop()
-
-        # Apply gamma normalization to the input.
-        torch.cuda.nvtx.range_push("multiplier")
-        multiplier = torch.sqrt((1 - torch.exp(2 * log_a)) + 1e-6)
-        multiplier = reset[..., None] + (1 - reset)[..., None] * multiplier
-        torch.cuda.nvtx.range_pop()
-        torch.cuda.nvtx.range_push("normalized_x")
-        normalized_x = gated_x * multiplier.type(x.dtype)
-        torch.cuda.nvtx.range_pop()'''
-
-        torch.cuda.nvtx.range_push("_fused_pst_gates_")
         normalized_x, a = self._fused_pst_gates_(x, gate_a, gate_x, reset)
-        torch.cuda.nvtx.range_pop()
-
-        torch.cuda.nvtx.range_push("rnn_scan")
         y, last_h = rnn_scan(x=normalized_x, a=a, reset=reset)
-        torch.cuda.nvtx.range_pop()
 
         return y, last_h
 
@@ -313,7 +266,7 @@ class RecurrentLayer(MegatronModule):
         **kwargs,
     ):
         """
-        Top level Mamba Layer
+        Top level Recurrent Layer
         """
         super().__init__(config)
         self.config = config
@@ -361,8 +314,6 @@ class RecurrentLayer(MegatronModule):
 
         y = bias_gelu_impl(y_intermidiate_parallel, y_bias_parallel)
 
-        # x = x_intermidiate_parallel + x_bias_parallel
-        # x = x.permute(1, 0, 2)
         x = _fused_permute_add_(x_intermidiate_parallel, x_bias_parallel)
 
         x, _ = self.conv_1d(x=x, segment_pos=segment_pos, prev_x=None)
@@ -370,9 +321,7 @@ class RecurrentLayer(MegatronModule):
         x, _ = self.rg_lru(x=x, segment_pos=segment_pos, prev_h=None,)
 
         x = _fused_permute_mult_(x, y)
-        # x = x.permute(1, 0, 2)
 
-        # x = x * y
         x_intermidiate_parallel, x_bias_parallel = self.linear_out(x)
 
         return x_intermidiate_parallel, x_bias_parallel
