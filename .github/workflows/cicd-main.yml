@@ -6199,6 +6199,7 @@ jobs:
   L2_TTS_Fast_dev_runs_1_RADTTS:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 15
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -6210,7 +6211,6 @@ jobs:
         --env HYDRA_FULL_ERROR=1
         --volume /mnt/datadrive/TestData:/home/TestData
     steps:
-        - timeout-minutes: 15
         - name: Checkout repository
           uses: actions/checkout@v4
         - run: |
