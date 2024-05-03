@@ -19,7 +19,7 @@ Example usage of this script:
 and a HF lora config file (usually named adapter_config.json)
 python scripts/checkpoint_converters/lora_converters/convert_hf_to_canonical.py \
     --hf_lora_path /checkpoints/bin/ \
-    --output_path output_dir/mmm_hf_to_canonical.nemo \
+    --output_path output_dir/converted_lora.nemo \
     --nemo_config model_config.yaml
 """
 
