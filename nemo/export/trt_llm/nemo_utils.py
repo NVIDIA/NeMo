@@ -377,6 +377,7 @@ def nemo_to_trtllm_config(
         'num_hidden_layers': nemo_model_config.get('num_layers'),
         'num_attention_heads': nemo_model_config.get('num_attention_heads'),
         'num_key_value_heads': nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
+        'head_size': nemo_model_config.get('kv_channels'),
         'hidden_size': nemo_model_config.get('hidden_size'),
         'intermediate_size': nemo_model_config.get('ffn_hidden_size'),
         'norm_epsilon': nemo_model_config.get('layernorm_epsilon'),

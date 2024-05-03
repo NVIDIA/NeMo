@@ -78,7 +78,6 @@ def get_args(argv):
         '--use_lora_plugin',
         nargs='?',
         const=None,
-        default=False,
         choices=['float16', 'float32', 'bfloat16'],
         help="Activates the lora plugin which enables embedding sharing.",
     )
