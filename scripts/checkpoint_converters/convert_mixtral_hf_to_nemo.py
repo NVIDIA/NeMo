@@ -467,7 +467,6 @@ def make_sentencepiece_tokenizer(hf_tok):
                 found_boundary = True
             new_token.score = -1e09
         else:
-            found_non_pref = True
             new_token.score = -float(i) + prefix
         m.pieces.append(new_token)
 
