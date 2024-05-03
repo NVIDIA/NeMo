@@ -36,7 +36,9 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_config_legacy")
 def main(cfg) -> None:
-    logging.info('WARNING: This pretraining script for native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model pretraining script, at examples/nlp/language_modeling/megatron_retro_pretraining.py')
+    logging.info(
+        'WARNING: This pretraining script for native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model pretraining script, at examples/nlp/language_modeling/megatron_retro_pretraining.py'
+    )
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 

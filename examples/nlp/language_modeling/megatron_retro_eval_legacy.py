@@ -60,8 +60,10 @@ Usage:
 @hydra_runner(config_path="conf", config_name="megatron_retro_inference_legacy")
 def main(cfg) -> None:
 
-    print('WARNING: This evaluation script for native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model evaluation script, at examples/nlp/language_modeling/megatron_retro_eval.py')
-    
+    print(
+        'WARNING: This evaluation script for native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model evaluation script, at examples/nlp/language_modeling/megatron_retro_eval.py'
+    )
+
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
     model_path = cfg.retro_model_file

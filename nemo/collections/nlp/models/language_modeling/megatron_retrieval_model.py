@@ -79,8 +79,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
-        logging.info('WARNING: This native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model, at nemo/collections/nlp/models/language_modeling/megatron_retro_model.py')
-        
+        logging.info(
+            'WARNING: This native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model, at nemo/collections/nlp/models/language_modeling/megatron_retro_model.py'
+        )
+
         # TODO does not support PP yet
         self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
 
