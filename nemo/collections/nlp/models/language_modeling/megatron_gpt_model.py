@@ -166,7 +166,7 @@ class EmbeddingScalingMixin(torch.nn.Module):
         the superclass by the square root of the hidden size specified in the configuration.
         """
         embeddings = super().forward(**kwargs)
-        return embeddings * (self.config.hidden_size ** 0.5)
+        return embeddings * torch.tensor(self.config.hidden_size ** 0.5, dtype=embeddings.dtype)
 
 
 class MegatronGPTExportableModel(torch.nn.Module, Exportable):
@@ -367,9 +367,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
         self.loss_broadcast_src_rank = None
-        self.return_output_tensors = cfg.data.get('return_output_tensors', False)
-        self.validation_drop_last = cfg.data.get('validation_drop_last', True)
-        self.sample_weight = cfg.data.get('sample_weight', 'token')
+        data_cfg = cfg.get('data', {})
+        self.return_output_tensors = data_cfg.get('return_output_tensors', False)
+        self.validation_drop_last = data_cfg.get('validation_drop_last', True)
+        self.sample_weight = data_cfg.get('sample_weight', 'token')
         self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
 
         self.inference_params = None
@@ -783,7 +784,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_O2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) > 1
+                or self.cfg.get('sequence_parallel', False)
+                or not self.cfg.get('async_grad_allreduce', True)
+            ):
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
         else:
@@ -1470,9 +1475,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+        We setup datasets here as megatron datasets require DDP to instantiate.
+        See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
