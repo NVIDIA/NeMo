@@ -1,5 +1,7 @@
+accelerated-scan
 boto3
 boto3[crt]
+causal-conv1d>=1.2.0
 einops
 faiss-cpu
 fasttext
