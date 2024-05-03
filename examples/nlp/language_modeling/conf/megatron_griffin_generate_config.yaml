@@ -211,6 +211,7 @@ model:
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
       ceil_to_power_2: True
       get_attention_mask_from_fusion: True
+      pad_to_max_length: True
 
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']

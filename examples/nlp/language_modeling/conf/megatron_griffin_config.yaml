@@ -155,6 +155,7 @@ model:
     short_seq_prob: 0.1 # Probability of producing a short sequence.
     ceil_to_power_2: True
     get_attention_mask_from_fusion: True
+    pad_to_max_length: True
   
   optim:
     name: fused_adam
