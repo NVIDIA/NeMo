@@ -26,8 +26,7 @@ from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import ModelConfig, SamplingConfig
-from tensorrt_llm.runtime import ModelRunnerCpp
+from tensorrt_llm.runtime import ModelConfig, ModelRunnerCpp, SamplingConfig
 from transformers import PreTrainedTokenizer
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
@@ -136,7 +135,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
 
         engine_dir = Path(engine_dir)
         config_path = engine_dir / "config.json"
-        #model_config, world_size, tp_size, pp_size, dtype, max_input_len, max_batch_size = _read_config(config_path)
+        # model_config, world_size, tp_size, pp_size, dtype, max_input_len, max_batch_size = _read_config(config_path)
 
         with open(config_path, "r") as f:
             config = json.load(f)
@@ -157,7 +156,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
             max_input_len=max_input_len,
             max_output_len=max_output_len,
             max_beam_width=max_beam_width,
-            debug_mode=False
+            debug_mode=False,
         )
 
         sampling_config = SamplingConfig(

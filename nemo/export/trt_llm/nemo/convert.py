@@ -320,8 +320,10 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         v_split = np.split(qkv[2], split_factor, axis=0)
 
         # Concatenate Q, K, and V together
-        split_vals = [np.concatenate([q_split[i].reshape(-1), k_split[i].reshape(-1), v_split[i].reshape(-1)], axis=0)
-                      for i in range(split_factor)]
+        split_vals = [
+            np.concatenate([q_split[i].reshape(-1), k_split[i].reshape(-1), v_split[i].reshape(-1)], axis=0)
+            for i in range(split_factor)
+        ]
         key = f'{layer_prefix}.attention.qkv.bias'
         save_split(split_vals, saved_dir, key, tp_rank, split_factor)
 

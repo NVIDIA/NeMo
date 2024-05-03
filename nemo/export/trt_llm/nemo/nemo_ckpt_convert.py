@@ -27,7 +27,7 @@ import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import zarr
-from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy, pad_vocab_size
+from tensorrt_llm._utils import np_bfloat16, pad_vocab_size, str_dtype_to_torch, torch_to_numpy
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
@@ -216,11 +216,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
                 if vocab_size % inference_tp_size != 0:
                     vocab_size_padded = pad_vocab_size(vocab_size, inference_tp_size)
                     pad_width = vocab_size_padded - vocab_size
-                    val = torch.nn.functional.pad(
-                        val,
-                        (0, 0, 0, pad_width),
-                        value=0
-                    )
+                    val = torch.nn.functional.pad(val, (0, 0, 0, pad_width), value=0)
 
             val = torch_to_numpy(val.to(storage_type).cpu())
             model_level_weights["transformer.vocab_embedding.weight"].append(val)

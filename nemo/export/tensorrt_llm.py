@@ -33,9 +33,9 @@ from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
 from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_to_trtllm_config
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
+from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file
-from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 
 use_deploy = True
 try:
@@ -237,7 +237,7 @@ class TensorRTLLM(ITritonDeployable):
                         max_lora_rank=max_lora_rank,
                         lora_target_modules=lora_target_modules,
                         max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                        enable_multi_block_mode=enable_multi_block_mode
+                        enable_multi_block_mode=enable_multi_block_mode,
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")

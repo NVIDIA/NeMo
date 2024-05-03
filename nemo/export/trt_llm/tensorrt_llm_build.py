@@ -25,17 +25,15 @@ import tensorrt_llm
 import torch
 from tensorrt_llm import str_dtype_to_trt
 from tensorrt_llm._utils import np_dtype_to_trt
-from tensorrt_llm.builder import Builder, BuildConfig
+from tensorrt_llm.builder import BuildConfig, Builder
+from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.logger import logger
-from tensorrt_llm.models.modeling_utils import add_lora
+from tensorrt_llm.lora_manager import LoraBuildConfig
+from tensorrt_llm.models.modeling_utils import add_lora, optimize_model, preprocess_weights
 from tensorrt_llm.network import net_guard
+from tensorrt_llm.plugin import PluginConfig
 from tensorrt_llm.plugin.plugin import ContextFMHAType
 from tensorrt_llm.quantization import QuantMode
-
-from tensorrt_llm.commands.build import build as build_trtllm
-from tensorrt_llm.plugin import PluginConfig
-from tensorrt_llm.lora_manager import LoraBuildConfig
-from tensorrt_llm.models.modeling_utils import optimize_model, preprocess_weights
 
 MODEL_NAME = "NeMo"
 
@@ -354,6 +352,7 @@ def build(
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
     logger.info(f"Total time of building all {args.mapping.world_size} engines: {t}")
 
+
 def build_and_save_engine(
     max_input_len=1024,
     max_output_len=1024,
@@ -367,7 +366,7 @@ def build_and_save_engine(
     max_lora_rank=64,
     lora_target_modules=None,
     max_prompt_embedding_table_size=0,
-    enable_multi_block_mode: bool = False
+    enable_multi_block_mode: bool = False,
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -380,9 +379,7 @@ def build_and_save_engine(
     plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
     plugin_config.set_gemm_plugin(dtype=str_dtype)
     plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
-    max_num_tokens = max_batch_size*max_input_len
-
-
+    max_num_tokens = max_batch_size * max_input_len
 
     build_dict = {
         'max_input_len': max_input_len,
@@ -405,7 +402,8 @@ def build_and_save_engine(
             lora_dir=lora_ckpt_list,
             lora_ckpt_source='nemo',
             max_lora_rank=max_lora_rank,
-            lora_target_modules=lora_target_modules)
+            lora_target_modules=lora_target_modules,
+        )
         build_config.lora_config = lora_config
 
     model = model_cls.from_config(model_config)

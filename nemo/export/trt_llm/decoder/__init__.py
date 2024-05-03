@@ -45,7 +45,7 @@ DECODER_MODEL_TYPE = {
     DECODER_GPTNEXT: 'GPTForCausalLM',
     DECODER_LLAMA: 'LLaMAForCausalLM',
     DECODER_GEMMA: 'GemmaForCausalLM',
-    DECODER_FALCON: 'FalconForCausalLM'
+    DECODER_FALCON: 'FalconForCausalLM',
 }
 
 

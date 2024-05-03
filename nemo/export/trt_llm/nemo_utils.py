@@ -17,12 +17,12 @@ import argparse
 import copy
 import csv
 import datetime
+import json
 import logging
 import os
 import shutil
 import sys
 import tempfile
-import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
@@ -31,11 +31,12 @@ import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
 from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
-from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
-from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from tensorrt_llm.layers import MoeConfig
+from tensorrt_llm.models.modeling_utils import PretrainedConfig
+from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
 
 from nemo.export.tarutils import TarPath
+from nemo.export.trt_llm.decoder import DECODER_MODEL_TYPE
 from nemo.export.trt_llm.model_config import (
     LAYERNORM_DEFAULT,
     LAYERNORM_RMS,
@@ -49,7 +50,6 @@ from nemo.export.trt_llm.model_config import (
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint, convert_nemo_model
 from nemo.export.trt_llm.tensor_utils import get_tensor_from_dict, get_tensor_parallel_group, split
-from nemo.export.trt_llm.decoder import DECODER_MODEL_TYPE
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -329,6 +329,7 @@ def nemo_llm_model_to_model_config(
 
     return [model_config]
 
+
 def nemo_to_trtllm_config(
     in_file: str,
     decoder_type: str,
@@ -354,7 +355,7 @@ def nemo_to_trtllm_config(
         save_nemo_model_config=save_nemo_model_config,
     )
 
-    world_size = tensor_parallel_size*pipeline_parallel_size
+    world_size = tensor_parallel_size * pipeline_parallel_size
 
     lm_head_weight = weights_dict["lm_head.weight"]
 
@@ -363,65 +364,42 @@ def nemo_to_trtllm_config(
 
     if vocab_size_padded != vocab_size:
         pad_width = vocab_size_padded - vocab_size
-        lm_head_weight = np.pad(
-            lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0
-        )
+        lm_head_weight = np.pad(lm_head_weight, ((0, pad_width), (0, 0)), "constant", constant_values=0)
 
     hidden_act = nemo_model_config.get('activation')
-    hidden_act = hidden_act.split("-")[-1] if nemo_model_config.get('num_moe_experts', 0) \
-            else non_gated_version(hidden_act)
+    hidden_act = (
+        hidden_act.split("-")[-1] if nemo_model_config.get('num_moe_experts', 0) else non_gated_version(hidden_act)
+    )
 
     config = {
-        'architecture':
-        DECODER_MODEL_TYPE[decoder_type],
-        'dtype':
-        dtype_str,
-        'num_hidden_layers':
-        nemo_model_config.get('num_layers'),
-        'num_attention_heads':
-        nemo_model_config.get('num_attention_heads'),
-        'num_key_value_heads':
-        nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
-        'hidden_size':
-        nemo_model_config.get('hidden_size'),
-        'intermediate_size':
-        nemo_model_config.get('ffn_hidden_size'),
-        'norm_epsilon':
-        nemo_model_config.get('layernorm_epsilon'),
-        'vocab_size':
-        vocab_size_padded,
-        'position_embedding_type':
-        "rope_gpt_neox" if nemo_model_config.get('position_embedding_type') == "rope" else "learned_absolute",
-        'max_position_embeddings':
-        nemo_model_config.get('max_position_embeddings'),
-        'hidden_act':
-        hidden_act,
-        'use_parallel_embedding':
-        use_parallel_embedding,
-        'embedding_sharding_dim':
-        0,
-        'share_embedding_table':
-        False,
-        'quantization': {
-            'quant_algo': None,
-            'kv_cache_quant_algo': None,
-        },
-        'bias':
-        nemo_model_config.get('bias'),
-        'apply_query_key_layer_scaling':
-        False,
-        'rotary_pct':
-        nemo_model_config.get('rotary_percentage', 1.0),
-        'rotary_base':
-        nemo_model_config.get('rotary_base', 10000),
-        'moe_num_experts':
-        nemo_model_config.get('num_moe_experts', 0),
-        'moe_top_k':
-        nemo_model_config.get('moe_router_topk'),
-        'moe_normalization_mode':
-        nemo_model_config.get('moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE),
-        'moe_tp_mode':
-        nemo_model_config.get('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL),
+        'architecture': DECODER_MODEL_TYPE[decoder_type],
+        'dtype': dtype_str,
+        'num_hidden_layers': nemo_model_config.get('num_layers'),
+        'num_attention_heads': nemo_model_config.get('num_attention_heads'),
+        'num_key_value_heads': nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
+        'hidden_size': nemo_model_config.get('hidden_size'),
+        'intermediate_size': nemo_model_config.get('ffn_hidden_size'),
+        'norm_epsilon': nemo_model_config.get('layernorm_epsilon'),
+        'vocab_size': vocab_size_padded,
+        'position_embedding_type': "rope_gpt_neox"
+        if nemo_model_config.get('position_embedding_type') == "rope"
+        else "learned_absolute",
+        'max_position_embeddings': nemo_model_config.get('max_position_embeddings'),
+        'hidden_act': hidden_act,
+        'use_parallel_embedding': use_parallel_embedding,
+        'embedding_sharding_dim': 0,
+        'share_embedding_table': False,
+        'quantization': {'quant_algo': None, 'kv_cache_quant_algo': None,},
+        'bias': nemo_model_config.get('bias'),
+        'apply_query_key_layer_scaling': False,
+        'rotary_pct': nemo_model_config.get('rotary_percentage', 1.0),
+        'rotary_base': nemo_model_config.get('rotary_base', 10000),
+        'moe_num_experts': nemo_model_config.get('num_moe_experts', 0),
+        'moe_top_k': nemo_model_config.get('moe_router_topk'),
+        'moe_normalization_mode': nemo_model_config.get(
+            'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
+        ),
+        'moe_tp_mode': nemo_model_config.get('moe_tp_mode', MoeConfig.ParallelismMode.TENSOR_PARALLEL),
         'logits_dtype': 'float32',
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
@@ -441,15 +419,12 @@ def nemo_to_trtllm_config(
         "transformer.position_embedding.weight",
         "lm_head.weight",
         "transformer.ln_f.weight",
-        "transformer.ln_f.bias"
+        "transformer.ln_f.bias",
     }
 
     for i in range(world_size):
         mapping = tensorrt_llm.Mapping(
-            world_size=world_size,
-            rank=i,
-            tp_size=tensor_parallel_size,
-            pp_size=pipeline_parallel_size
+            world_size=world_size, rank=i, tp_size=tensor_parallel_size, pp_size=pipeline_parallel_size
         )
         layers_range = mapping.pp_layers(num_layers)
 
@@ -458,10 +433,10 @@ def nemo_to_trtllm_config(
             if k in pp_key:
                 continue
             new_key = k
-            if new_key.endswith(".bin"): # TP split
+            if new_key.endswith(".bin"):  # TP split
                 if new_key.endswith(f"{mapping.tp_rank}.bin"):
-                    new_key = new_key.replace(f".{mapping.tp_rank}.bin","")
-            if "layers" in new_key: # PP
+                    new_key = new_key.replace(f".{mapping.tp_rank}.bin", "")
+            if "layers" in new_key:  # PP
                 layer_num = int(new_key.split(".")[2])
                 if layer_num in layers_range:
                     new_key = new_key.replace(f"layers.{layer_num}", f"layers.{layer_num-layers_range[0]}")
@@ -470,9 +445,13 @@ def nemo_to_trtllm_config(
             weights_dict_local[new_key] = v
 
         if mapping.is_first_pp_rank():
-            embedding_weight = np.ascontiguousarray(
-                split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
-            ) if use_parallel_embedding else weights_dict["transformer.vocab_embedding.weight"]
+            embedding_weight = (
+                np.ascontiguousarray(
+                    split(weights_dict["transformer.vocab_embedding.weight"], mapping.tp_size, mapping.tp_rank)
+                )
+                if use_parallel_embedding
+                else weights_dict["transformer.vocab_embedding.weight"]
+            )
 
             weights_dict_local["transformer.vocab_embedding.weight"] = embedding_weight
 
