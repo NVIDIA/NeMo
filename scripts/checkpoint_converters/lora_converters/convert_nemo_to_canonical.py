@@ -33,6 +33,25 @@ from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_numbe
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
+target_map = {"all": [
+    "gate_proj",
+    "o_proj",
+    "up_proj",
+    "down_proj",
+    "k_proj",
+    "q_proj",
+    "v_proj"
+    ],
+    "attention_qkv": [
+    "k_proj",
+    "q_proj",
+    "v_proj"
+    ],
+    "attention_dense": [
+        "gate_proj", 
+        "o_proj", 
+        "up_proj"
+]}
 
 def rename_keys(key):
     new_keys = []
@@ -169,7 +188,13 @@ def convert_lora(lora_nemo, save_path, hf_format=False):
         lora_state_dict = lora_state_dict[0]
         if hf_format:
             lora_state_dict = reformat_module_names_to_hf(lora_state_dict)
-            torch.save(lora_state_dict, f"{save_path}/model_weights_hf_formatted.pt")
+            torch.save(lora_state_dict, f"{save_path}/adapter_model.bin")
+            adapter_config = OmegaConf.load(args.hf_config)
+            with open_dict(adapter_config):
+                adapter_config.peft_type = "LORA"
+                adapter_config.r = lora_config.peft.lora_tuning.adapter_dim
+                adapter_config.lora_alpha = lora_config.peft.lora_tuning.alpha
+            OmegaConf.save(adapter_config, f"{save_path}/adapter_config.yaml")
         else:
             torch.save(lora_state_dict, f"{tmpdir}/model_weights.ckpt")
             NLPSaveRestoreConnector._make_nemo_file_from_folder(save_path, tmpdir)
@@ -202,6 +227,7 @@ def get_args():
         help="Path to save the canonical (unfused) lora .nemo file.",
     )
     parser.add_argument("--hf_format", action='store_true', help="saves tensors in huggingface naming format.")
+    parser.add_argument("--hf_config", type=str, help="the adapter config in HF-PEFT format.")
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
     args = parser.parse_args()
     return args
