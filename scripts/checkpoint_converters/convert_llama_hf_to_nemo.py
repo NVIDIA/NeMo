@@ -110,12 +110,12 @@ def load_config(args, llama_config):
 def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
     model = LlamaForCausalLM.from_pretrained(args.input_name_or_path)
+    hf_config = vars(model.config)
     if os.path.exists(f'{args.input_name_or_path}/tokenizer.model'):
         tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
         hf_config['tokenizer_model'] = str(tokenizer.vocab_file)
     else:
         tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path)
-    hf_config = vars(model.config)
     print(f"hf_config: {hf_config}")
     print("named parameters:")
     for name, param in model.named_parameters():
