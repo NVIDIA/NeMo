@@ -35,6 +35,7 @@ jobs:
         github.event.issue.pull_request &&
         contains(fromJSON('["MEMBER", "COLLABORATOR", "OWNER"]'), github.event.comment.author_association) &&
         contains(github.event.comment.body, '/cicd')
+      )
     steps:
     - name: Run nvidia-smi test
       run: |
@@ -51,6 +52,7 @@ jobs:
         github.event.issue.pull_request &&
         contains(fromJSON('["MEMBER", "COLLABORATOR", "OWNER"]'), github.event.comment.author_association) &&
         contains(github.event.comment.body, '/cicd')
+      )
     steps:
     - name: Clean server from old files
       run: |
@@ -81,6 +83,7 @@ jobs:
         github.event.issue.pull_request &&
         contains(fromJSON('["MEMBER", "COLLABORATOR", "OWNER"]'), github.event.comment.author_association) &&
         contains(github.event.comment.body, '/cicd')
+      )
     # uses: actions/cache@v2
     #container:
 #      image: nvcr.io/nvidia/pytorch:24.02-py3
