@@ -405,10 +405,9 @@ def get_argmin_mat(timestamps_in_scales: List[torch.Tensor]) -> List[torch.Tenso
     base_scale_idx = max(scale_list)
     base_scale_anchor = segment_anchor_list[base_scale_idx]
     session_scale_mapping_list = [
-        torch.IntTensor([
-            torch.argmin(torch.abs(segment_anchor_list[scale_idx] - value)).item()
-            for value in base_scale_anchor
-        ])
+        torch.IntTensor(
+            [torch.argmin(torch.abs(segment_anchor_list[scale_idx] - value)).item() for value in base_scale_anchor]
+        )
         for scale_idx in scale_list
     ]
     return session_scale_mapping_list
