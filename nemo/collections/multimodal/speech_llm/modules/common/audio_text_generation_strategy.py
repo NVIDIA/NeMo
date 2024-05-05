@@ -53,15 +53,11 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             base_module = self.model.model.module
         else:
             base_module = self.model.model
-        audio_feats, audio_feat_lens, _ = self.model.perception(
+        audio_feats, audio_feat_lens = self.model.perception(
             input_signal=audio_signal,
             input_signal_length=audio_length,
             processed_signal=None,
             processed_signal_length=None,
-            lm_embedding=base_module.language_model.embedding
-            if hasattr(base_module, 'language_model')
-            else base_module.embedding,
-            canary_tokens=canary_tokens,
         )
 
         if num_audios is not None:
