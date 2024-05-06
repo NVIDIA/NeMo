@@ -145,7 +145,7 @@ class MegatronTrainerBuilder:
         elif async_save:
             raise MisconfigurationException(
                 'exp_manager.checkpoint_callback_params.async_save=True without'
-                'distributed checkoints is currently not supported'
+                'distributed checkpoints is currently not supported'
             )
 
         return plugins

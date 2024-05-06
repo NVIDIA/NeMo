@@ -89,6 +89,7 @@ try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
+    from megatron.core.datasets.utils import get_blend_from_list
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
     from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
 
@@ -784,7 +785,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._optimizer._finish_bucket_grad_sync()
         elif self.megatron_amp_O2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) > 1
+                or self.cfg.get('sequence_parallel', False)
+                or not self.cfg.get('async_grad_allreduce', True)
+            ):
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
         else:
@@ -1399,12 +1404,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
             }
 
+            data_prefix = self.cfg.data.data_prefix
+
             # support for dict data input type
-            if isinstance(self.cfg.data.data_prefix, DictConfig):
-                _pref = self.cfg.data.data_prefix
-                kwargs['blend_per_split'] = [_pref['train'], _pref['validation'], _pref['test']]
+            if isinstance(data_prefix, DictConfig):
+                kwargs['blend_per_split'] = [
+                    get_blend_from_list(data_prefix.train),
+                    get_blend_from_list(data_prefix.validation),
+                    get_blend_from_list(data_prefix.test),
+                ]
             else:
-                kwargs['blend'] = self.cfg.data.data_prefix
+                kwargs['blend'] = data_prefix if mock_dataset else get_blend_from_list(data_prefix)
                 kwargs["split"] = self.cfg.data.splits_string
 
             if self.cfg.data.get('add_fim', False):
@@ -1471,9 +1481,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+        We setup datasets here as megatron datasets require DDP to instantiate.
+        See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
