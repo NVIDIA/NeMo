@@ -1418,6 +1418,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     break
                 if t == self.decoder_context_len:
                     # Run first step manually
+                    # logging.debug(f"Calling first step with input size:{dec_input[:, :, : t + 1].shape} and mask:{dec_input_mask[:, : t + 1].shape}")
                     output_logits, _, token_and_speech_logits = self.forward(
                         virtual_tokens,
                         context_and_question_tokens,
@@ -1434,6 +1435,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     )
                     encoder_output = token_and_speech_logits[-1].transpose(0, 1)
                 else:
+                    # logging.debug(f"Calling step with input size:{dec_input[:, :, : t + 1].shape} and mask:{dec_input_mask[:, : t + 1].shape}")
                     # Prepare batch
                     batch = [
                         max_inference_timesteps,
@@ -1458,6 +1460,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                     output_logits = output_tensor[0]['output_logits']
                     token_and_speech_logits = output_tensor[0]['token_and_speech_logits']
                 # output_logits (B, T, V, 8)
+
                 token_logits = token_and_speech_logits[0]  # (B, T, V)
                 token_logits_currtimestep = token_logits[:, -1, :]  # (B, V)
                 token_preds = token_logits_currtimestep.argmax(dim=1)  # (B,)
@@ -1539,12 +1542,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 nemo_sv_model = nemo_sv_model.to(device)
                 nemo_sv_model.eval()
                 self.additional_models['nemo_sv_model'] = nemo_sv_model
+                logging.info(f"Loaded SV Model: {nemo_sv_model}")
             else:
                 nemo_sv_model = self.additional_models['nemo_sv_model']
 
             if 'asr_model' not in self.additional_models:
                 asr_model = self.cfg.get("asr_model_name", "stt_multilingual_fastconformer_hybrid_large_pc_blend_eu")
-                logging.info(f"Loading ASR Model: {asr_model}")
+
                 if "hybrid" in asr_model:
                     model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel
                 else:
@@ -1553,6 +1557,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 asr_model = asr_model.to(device)
                 asr_model.eval()
                 self.additional_models['asr_model'] = asr_model
+                logging.info(f"Loaded ASR Model: {asr_model}")
             else:
                 asr_model = self.additional_models['asr_model']
 

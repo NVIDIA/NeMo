@@ -517,8 +517,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             key_layer = self.inference_key_memory[:end, ...]
             value_layer = self.inference_value_memory[:end, ...]
             # Adjust attention mask
-            if attention_mask is not None:
-                attention_mask = attention_mask[..., :end]
+            if attention_mask is not None and self.attention_type == AttnType.self_attn:
+                attention_mask = attention_mask[..., start:end, :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
@@ -931,6 +931,9 @@ class CoreAttention(MegatronModule):
         # context_layer [b, np, sq, hn]
         # ==================================================
         if not return_scores:
+            logging.debug(
+                f"not returning scors: attn_fn: {self.attn_fn}, return_scores: {return_scores}"
+            )
             context_layer = self.attn_fn(
                 query_layer, key_layer, value_layer, attention_mask, relative_position_bias, inference_mode,
             )
