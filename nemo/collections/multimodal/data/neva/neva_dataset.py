@@ -740,8 +740,8 @@ class LazySupervisedDataset(Dataset):
         self.video_folder = multimodal_cfg['video_folder']
         self.processor = multimodal_cfg["image_processor"]
 
-        self.image_loader = TarOrFolderImageLoader(self.image_folder)
-        self.video_loader = TarOrFolderVideoLoader(self.video_folder, data_cfg)
+        self.image_loader = TarOrFolderImageLoader(self.image_folder) if self.image_folder else None
+        self.video_loader = TarOrFolderVideoLoader(self.video_folder, data_cfg) if self.video_folder else None
 
     def __len__(self):
         return len(self.list_data_dict)
