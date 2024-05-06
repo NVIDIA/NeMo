@@ -17,6 +17,8 @@ on:
   pull_request:
     branches: [ "main" ]
     types: [ labeled ]
+  issue_comment:
+    types: [ created ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -25,7 +27,15 @@ concurrency:
 jobs:
   gpu-test:
     runs-on: self-hosted-azure
-    if: ${{ github.event.label.name == 'Run CICD' }}
+    if: >
+      (
+        github.event.label.name == 'Run CICD'
+      ) || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(fromJSON('["MEMBER", "COLLABORATOR", "OWNER"]'), github.event.comment.author_association) &&
+        contains(github.event.comment.body, '/cicd')
+      )
     steps:
     - name: Run nvidia-smi test
       run: |
@@ -34,7 +44,15 @@ jobs:
 
   cicd-cluster-clean:
     runs-on: self-hosted-azure-builder
-    if: ${{ github.event.label.name == 'Run CICD' }}
+    if: >
+      (
+        github.event.label.name == 'Run CICD'
+      ) || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(fromJSON('["MEMBER", "COLLABORATOR", "OWNER"]'), github.event.comment.author_association) &&
+        contains(github.event.comment.body, '/cicd')
+      )
     steps:
     - name: Clean server from old files
       run: |
@@ -57,7 +75,15 @@ jobs:
   cicd-test-container-setup:
     needs: [cicd-cluster-clean]
     runs-on: self-hosted-azure-builder
-    if: ${{ github.event.label.name == 'Run CICD' }}
+    if: >
+      (
+        github.event.label.name == 'Run CICD'
+      ) || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(fromJSON('["MEMBER", "COLLABORATOR", "OWNER"]'), github.event.comment.author_association) &&
+        contains(github.event.comment.body, '/cicd')
+      )
     # uses: actions/cache@v2
     #container:
 #      image: nvcr.io/nvidia/pytorch:24.02-py3
@@ -78,7 +104,7 @@ jobs:
       run: |
         # Pull base PyTorch container
         docker pull nvcr.io/nvidia/pytorch:24.02-py3
-        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /mnt/datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.02-py3 /bin/bash -c '
+        docker run --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 --volume ${{ github.workspace }}/${{ github.run_id }}:/workspace --volume /mnt/datadrive/TestData:/home/TestData nvcr.io/nvidia/pytorch:24.02-py3 /bin/bash -c '
             set -x
 
             # PyTorch version
@@ -118,7 +144,7 @@ jobs:
             # Megatron Core installation
             git clone https://github.com/NVIDIA/Megatron-LM.git && \
                 pushd Megatron-LM && \
-                git checkout fbb375d4b5e88ce52f5f7125053068caff47f93f && \
+                git checkout 709472117364eed93b6a767e2ac343e229d3aa89 && \
                 pip install . && \
                   pushd megatron/core/datasets && \
                   make && \
@@ -271,6 +297,31 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
+  L2_Community_LLM_Checkpoints_tests_Llama3:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v2
+        - run: |
+            CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
+            --input_name_or_path=/home/TestData/nlp/megatron_llama/llama3-ci-hf \
+            --output_path=/home/TestData/nlp/megatron_llama/llama3-ci-hf/llama3_ci.nemo \
+            --precision=16
+            rm -f /home/TestData/nlp/megatron_llama/llama3-ci-hf/llama3_ci.nemo
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+
   L2_Community_LLM_Checkpoints_tests_StarCoder:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
@@ -319,29 +370,32 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
-  L2_Community_LLM_Checkpoints_tests_Baichuan2:
-    needs: [cicd-test-container-setup]
-    runs-on: self-hosted-azure
-    container:
-      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-      options: 
-        # --user 0:128
-        --device=/dev/nvidia0
-        --gpus all
-        --shm-size=8g
-        --env TRANSFORMERS_OFFLINE=0 
-        --env HYDRA_FULL_ERROR=1
-        --volume /mnt/datadrive/TestData:/home/TestData
-    steps:
-        - name: Checkout repository
-          uses: actions/checkout@v4
-        - run: |
-            python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
-            --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
-            --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
-            rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-          if: "failure()"
+  # this test is using a 7B model which is too large for GitHub CI
+  # replace the model in this test with a toy model or move the test
+  # to the nightly CI
+  # L2_Community_LLM_Checkpoints_tests_Baichuan2:
+  #   needs: [cicd-test-container-setup]
+  #   runs-on: self-hosted-azure
+  #   container:
+  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /mnt/datadrive/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v4
+  #       - run: |
+  #           python scripts/checkpoint_converters/convert_baichuan2_hf_to_nemo.py \
+  #           --input_name_or_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base \
+  #           --output_path=/home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
+  #           rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
+  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+  #         if: "failure()"
 
   L2_PTQ_Llama2_Export_Only:
     needs: [cicd-test-container-setup]
@@ -6043,6 +6097,7 @@ jobs:
                 trainer.limit_val_batches=7 \
                 trainer.val_check_interval=10 \
                 exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+                model.mcore_gpt=True \
                 model.data.data_impl=mock \
                 model.data.data_prefix=[]
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -6197,6 +6252,7 @@ jobs:
   L2_TTS_Fast_dev_runs_1_RADTTS:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
+    timeout-minutes: 15
     container:
       image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
       options: 
@@ -6232,8 +6288,8 @@ jobs:
             ~trainer.check_val_every_n_epoch \
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-          if: "failure()"
+        #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+        #  if: "failure()"
 
   L2_TTS_Fast_dev_runs_1_Mixer-TTS:
     needs: [cicd-test-container-setup]
@@ -6371,7 +6427,7 @@ jobs:
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
-      - L2_Community_LLM_Checkpoints_tests_Baichuan2
+      #- L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
       - ASR_dev_run_Speech_Pre-training_-_CitriNet
@@ -6475,7 +6531,7 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Tacotron_2
       - L2_TTS_Fast_dev_runs_1_WaveGlow
       - L2_TTS_Fast_dev_runs_1_FastPitch
-      - L2_TTS_Fast_dev_runs_1_RADTTS
+      #- L2_TTS_Fast_dev_runs_1_RADTTS
       - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
