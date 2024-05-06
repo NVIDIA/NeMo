@@ -1067,12 +1067,12 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             add_extra_token=add_extra_token,
             context_length=model_cfg.encoder_seq_length,
             media_type=data_cfg.media_type,
-            num_frames=data_cfg.num_frames,
+            num_frames=data_cfg.get('num_frames', -1),
         ),
         data_cfg=dict(
-            splice_single_frame=data_cfg.splice_single_frame,
-            num_frames=data_cfg.num_frames,
-            sep_token_between_frames=data_cfg.sep_token_between_frames,
+            splice_single_frame=data_cfg.get('splice_single_frame', None),
+            num_frames=data_cfg.get('num_frames', -1), 
+            sep_token_between_frames=data_cfg.get('sep_token_between_frames',False),
         ),
     )
 
