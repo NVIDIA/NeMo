@@ -566,6 +566,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             with open_dict(self.cfg):
                 self.cfg.encoder.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
 
+    # So I should run this, right? Either that or cache_aware_stream_step
     def conformer_stream_step(
         self,
         processed_signal: torch.Tensor,
@@ -646,45 +647,40 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 decoding = self.decoding
                 decoder = self.decoder
 
+            # I don't think this is a very useful thing to do.
+            # TODO: Consider rewriting this.
             log_probs = decoder(encoder_output=encoded)
-            predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
+            # predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
+
+            assert return_transcription
 
             # Concatenate the previous predictions with the current one to have the full predictions.
             # We drop the extra predictions for each sample by using the lengths returned by the encoder (encoded_len)
             # Then create a list of the predictions for the batch. The predictions can have different lengths because of the paddings.
             greedy_predictions = []
-            if return_transcription:
-                all_hyp_or_transcribed_texts = []
-            else:
-                all_hyp_or_transcribed_texts = None
-            for preds_idx, preds in enumerate(predictions_tensor):
-                if encoded_len is None:
-                    preds_cur = predictions_tensor[preds_idx]
-                else:
-                    preds_cur = predictions_tensor[preds_idx, : encoded_len[preds_idx]]
-                if previous_pred_out is not None:
-                    greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
-                    encoded_len[preds_idx] += len(previous_pred_out[preds_idx])
-                else:
-                    greedy_predictions_concat = preds_cur
-                greedy_predictions.append(greedy_predictions_concat)
 
-                # TODO: make decoding more efficient by avoiding the decoding process from the beginning
-                if return_transcription:
-                    decoded_out = decoding.ctc_decoder_predictions_tensor(
-                        decoder_outputs=greedy_predictions_concat.unsqueeze(0),
-                        decoder_lengths=encoded_len[preds_idx : preds_idx + 1],
-                        return_hypotheses=False,
-                    )
-                    all_hyp_or_transcribed_texts.append(decoded_out[0][0])
-            best_hyp = None
+            decoded_out = decoding.ctc_decoder_predictions_tensor(
+                decoder_outputs=log_probs,
+                decoder_lengths=encoded_len,
+                return_hypotheses=True,
+                previous_hypotheses=previous_hypotheses,
+            )
+
+            batch_size = encoded_len.shape[0]
+
+            # TODO: We need to merge the previous hypothesis output with this one...
+
+            all_hyp_or_transcribed_texts: List[Hypothesis] = [decoded_out[0][i] for i in range(batch_size)]
+
+            best_hyp = all_hyp_or_transcribed_texts
         else:
             best_hyp, all_hyp_or_transcribed_texts = self.decoding.rnnt_decoder_predictions_tensor(
                 encoder_output=encoded,
                 encoded_lengths=encoded_len,
                 return_hypotheses=True,
-                partial_hypotheses=previous_hypotheses,
+                partial_hypotheses=previous_hypotheses, # Here is my problem. Could change to CTC for now.
             )
+            # Just return hypotheses for now, I think? When does it get turned into text? Unclear.
             greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
 
             if all_hyp_or_transcribed_texts is None:

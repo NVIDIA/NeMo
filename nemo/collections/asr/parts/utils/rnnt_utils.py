@@ -139,6 +139,27 @@ class Hypothesis:
         """
         return [] if self.text is None else self.text.split()
 
+    # TODO: Does htis need to run inside of torch.inference_mode() or torch.no_grad()?
+    def merge(self, other):
+        self.score += other.score
+        # TODO: Consider what to do if this is a tensor, not a list. Concatenate?
+        self.y_sequence.extend(other.y_sequence)
+        self.dec_state = other.dec_state
+        if self.timestep is not None:
+            self.timestep.extend(other.timestep)
+        self.length += other.length
+        self.last_token = other.last_token
+
+        # TODO: Concatenate for alignments and frame_confidence.
+        if self.alignments is not None:
+            self.alignments[0] = torch.cat(self.alignments[0], other.alignments[0])
+            self.alignments[1] = torch.cat(self.alignments[1], other.alignments[1])
+        if self.frame_confidence is not None:
+            self.frame_confidence.extend(other.frame_confidence)
+
+        # Invalidated. Need to rerun decode_hypothesis here.
+        self.text = None
+
 
 @dataclass
 class NBestHypotheses:
@@ -561,7 +582,7 @@ class BatchedAlignments:
         # increase lengths
         self.current_lengths += active_mask
 
-
+# I may want to consider adapting his work here...
 def batched_hyps_to_hypotheses(
     batched_hyps: BatchedHyps, alignments: Optional[BatchedAlignments] = None, batch_size=None
 ) -> List[Hypothesis]:

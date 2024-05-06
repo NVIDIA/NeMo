@@ -315,6 +315,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
         decoder_lengths: torch.Tensor = None,
         fold_consecutive: bool = True,
         return_hypotheses: bool = False,
+        # TODO: Maybe this should be Union with NBestHypothesis. Also consider the BatchedHyps class
+        previous_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
         """
         Decodes a sequence of labels to words
@@ -360,7 +362,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
             )  # type: List[List[Hypothesis]]
 
             # extract the hypotheses
+            # import ipdb; ipdb.set_trace()
             hypotheses_list = hypotheses_list[0]  # type: List[Hypothesis]
+
+            if previous_hypotheses is not None:
+                for i, hypothesis in enumerate(hypotheses_list):
+                    # I am mutating previous_hypothses here... Perhaps not the wisest idea
+                    previous_hypotheses[i].merge(hypothesis)
+                hypotheses_list = previous_hypotheses
 
         if isinstance(hypotheses_list[0], NBestHypotheses):
             hypotheses = []

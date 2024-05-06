@@ -135,6 +135,7 @@ class CausalConv1D(nn.Conv1d):
             new_x = F.pad(x, pad=(0, self._right_padding))
             new_x = torch.cat([cache, new_x], dim=-1)
             if self.cache_drop_size > 0:
+                # Where is the cache saved?
                 next_cache = new_x[:, :, : -self.cache_drop_size]
             else:
                 next_cache = new_x

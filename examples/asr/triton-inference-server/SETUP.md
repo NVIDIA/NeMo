@@ -31,6 +31,6 @@ python client.py --audio_file=xxx.wav
 
 # verify manifest accuracy
 pip install nemo_toolkit['asr']
-python client.py --manifest=<path to manifest>.json  --do_wer_cer=1  # 1 for wer, 2 for cer
-/home/dgalvez/scratch/data/test_other_sorted_downward.json
+python client.py --manifest=/home/dgalvez/scratch/data/test_other_sorted_downward.json  --do_wer_cer=1  # 1 for wer, 2 for cer
+
 ```

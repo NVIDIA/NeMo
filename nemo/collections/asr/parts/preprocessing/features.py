@@ -299,6 +299,7 @@ class FilterbankFeatures(nn.Module):
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
+        # import ipdb; ipdb.set_trace()
         self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
 
         if exact_pad:
@@ -398,6 +399,7 @@ class FilterbankFeatures(nn.Module):
     def get_seq_len(self, seq_len):
         # Assuming that center is True is stft_pad_amount = 0
         pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
+        # pad_amount = 512
         seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length) + 1
         return seq_len.to(dtype=torch.long)
 
@@ -414,6 +416,7 @@ class FilterbankFeatures(nn.Module):
             ).squeeze(1)
 
         # dither (only in training mode for eval determinism)
+        # TODO: We probably want to apply "deterministic dithering" to unbias this.
         if self.training and self.dither > 0:
             x += self.dither * torch.randn_like(x)
 
@@ -476,6 +479,8 @@ class FilterbankFeatures(nn.Module):
             pad_amt = x.size(-1) % pad_to
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
+
+        # import ipdb; ipdb.set_trace()
         return x, seq_len
 
 

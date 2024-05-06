@@ -34,7 +34,7 @@ def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Ten
             logitlen_cpu = logitlen
 
     for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
-        hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
+        # hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
 
         if logitlen is not None:
             hyp.length = logitlen_cpu[idx]
@@ -135,6 +135,10 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
     ):
         super().__init__()
 
+        print("GALVEZ:batched_inference=", batched_inference)
+
+        # import ipdb; ipdb.set_trace()
+
         self.blank_id = blank_id
         self.preserve_alignments = preserve_alignments
         # we need timestamps to extract non-blank per-frame confidence
@@ -164,10 +168,14 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
         if self.batched_inference:
             torch.cuda.nvtx.range_push("batched hypotheses")
-            hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
+            if decoder_output.ndim == 2:
+                hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
+            else:
+                hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
             torch.cuda.nvtx.range_pop()
             packed_result = pack_hypotheses(hypotheses, decoder_lengths)
             return (packed_result,)
+
         with torch.inference_mode():
             hypotheses = []
             # Process each sequence independently
@@ -218,7 +226,6 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
             torch.cuda.nvtx.range_pop()
         return (packed_result,)
 
-    # Cannot naively call vmap because this does not return tensors...
     @torch.no_grad()
     def _greedy_decode_logprobs_batched(self, x: torch.Tensor, out_len: torch.Tensor):
         # x: [B, T, D]
@@ -249,18 +256,59 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
             hypothesis.score = scores[i]
 
             # prediction_labels_no_padding = predictions_labels[i, :labels_segments[i]]
+            # import ipdb; ipdb.set_trace()
             prediction_labels_no_padding = predictions_labels[i, :out_len[i]]
 
             assert predictions_labels.dtype == torch.int64
-            hypothesis.y_sequence = prediction_labels_no_padding
+            hypothesis.y_sequence = prediction_labels_no_padding.tolist()
 
             if self.preserve_alignments:
                 hypothesis.alignments = (predictions[i].clone(), predictions_labels[i].clone())
             if self.compute_timestamps:
-                # Could do this in a vectorized manner...
+                # TOOD: Could do this in a vectorized manner... Would
+                # prefer to have nonzero_static, though, for sanity.
                 hypothesis.timestep = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
             if self.preserve_frame_confidence:
                 hypothesis.frame_confidence = self._get_confidence(predictions[i])
+
+            hypotheses.append(hypothesis)
+
+        return hypotheses
+
+    @torch.no_grad()
+    def _greedy_decode_labels_batched(self, x: torch.Tensor, out_len: torch.Tensor):
+        # x: [B, T]
+        # out_len: [B]
+
+        batch_size = x.shape[0]
+        max_time = x.shape[1]
+
+        predictions_labels = x
+        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
+        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id,
+                                               time_steps < out_len.unsqueeze(1))
+        predictions_labels = predictions_labels.cpu()
+        out_len = out_len.cpu()
+
+        hypotheses = []
+
+        for i in range(batch_size):
+            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+            hypothesis.y_sequence = predictions_labels[i, :out_len[i]].tolist()
+            hypothesis.score = -1.0
+
+            if self.preserve_alignments:
+                raise ValueError("Requested for alignments, but predictions provided were labels, not log probabilities.")                
+            if self.compute_timestamps:
+                # TOOD: Could do this in a vectorized manner... Would
+                # prefer to have nonzero_static, though, for sanity.
+                # Or do a prefix sum on out_len
+                hypothesis.timestep = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
+            if self.preserve_frame_confidence:
+                raise ValueError(
+                    "Requested for per-frame confidence, but predictions provided were labels, not log probabilities."
+                )
+
 
             hypotheses.append(hypothesis)
 

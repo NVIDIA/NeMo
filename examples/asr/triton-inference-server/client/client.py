@@ -63,7 +63,7 @@ class OfflineSpeechClient(object):
             result = b" ".join(decoding_results).decode("utf-8")
         else:
             result = decoding_results.decode("utf-8")
-        print("Recognized: ", wav_file, result)
+        # print("Recognized: ", wav_file, result)
         return (wav_file, result, latency)
 
 

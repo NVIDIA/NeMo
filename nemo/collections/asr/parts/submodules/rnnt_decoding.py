@@ -1466,6 +1466,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
         return lang_list
 
+    # This might be the thing taking a few extra milliseconds in the end.
     def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
         """
         Decode a list of hypotheses into a list of strings.
