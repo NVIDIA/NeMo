@@ -553,11 +553,11 @@ class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
             out_features = kv_channels * num_query_groups
         else:
             out_features = in_features
-        
+
         self.kv_channels = kv_channels
         adapter_args = {
             "in_features": in_features,
-            "out_features": in_features, 
+            "out_features": in_features,
             "dim": dim,
             "activation": activation,
             "norm_position": norm_position,
@@ -572,7 +572,7 @@ class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
             "dropout_position": dropout_position,
             "a2a_experimental": a2a_experimental,
         }
-    
+
         self.q_adapter = ParallelLinearAdapter(**adapter_args)
         adapter_args["out_features"] = out_features
         self.k_adapter = ParallelLinearAdapter(**adapter_args)

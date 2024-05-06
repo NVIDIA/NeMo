@@ -31,12 +31,12 @@ python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.p
 import json
 import tempfile
 from argparse import ArgumentParser
-from typing import Dict, Any
+from pathlib import Path
+from typing import Any, Dict
 
 import torch
 from omegaconf import OmegaConf, open_dict
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
-from pathlib import Path
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
@@ -58,12 +58,14 @@ def rename_keys(key):
         new_keys.append(key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.up_adapter."))
     return new_keys
 
+
 def rename_qkv_keys(key):
     new_keys = []
     new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.q_adapter."))
     new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.k_adapter."))
     new_keys.append(key.replace(".lora_kqv_adapter.", ".lora_unfused_kqv_adapter.v_adapter."))
     return new_keys
+
 
 def reformat_module_names_to_hf(tensors: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     new_tensors = dict()
@@ -90,32 +92,33 @@ def reformat_module_names_to_hf(tensors: Dict[str, torch.Tensor]) -> Dict[str, t
         new_tensors[new_module_name] = module_weight
     return new_tensors
 
-def convert_lora_weights_to_canonical(config: Dict[str, Any], lora_weights: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+
+def convert_lora_weights_to_canonical(
+    config: Dict[str, Any], lora_weights: Dict[str, torch.Tensor]
+) -> Dict[str, torch.Tensor]:
     """This function converts nemo style (fused) lora weights to canonical (unfused)
     LoRA weights. Namely, it unfuses the QKV adapter layers and the H-to-4H adapter layers.
 
     Returns:
         Dict[str, torch.Tensor]: The new LoRA weights with unfused layers.
     """
-    
+
     hidden_size = int(config["hidden_size"])
     num_heads = int(config["num_attention_heads"])
     head_size = hidden_size // num_heads
     num_query_groups = int(config.get("num_query_groups", num_heads))  # num_kv_heads
-    
+
     heads_per_group = num_heads // num_query_groups
     qkv_total_dim = num_heads + 2 * num_query_groups
 
     adapter_size = config['peft']['lora_tuning']['adapter_dim']
 
     q_slice = torch.cat(
-                    [
-                        torch.arange(
-                            (heads_per_group + 2) * group_idx, (heads_per_group + 2) * group_idx + heads_per_group
-                        )
-                        for group_idx in range(num_query_groups)
-                    ]
-                )
+        [
+            torch.arange((heads_per_group + 2) * group_idx, (heads_per_group + 2) * group_idx + heads_per_group)
+            for group_idx in range(num_query_groups)
+        ]
+    )
     k_slice = torch.arange(heads_per_group, qkv_total_dim, heads_per_group + 2)
     v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, heads_per_group + 2)
 
@@ -137,15 +140,19 @@ def convert_lora_weights_to_canonical(config: Dict[str, Any], lora_weights: Dict
         elif "linear_out" in key:
             assert lora_weights[key].size(1) == adapter_size
             for new_key, size in zip(rename_qkv_keys(key), [q_slice, k_slice, v_slice]):
-                lora_weights[new_key] = lora_weights[key].reshape((qkv_total_dim, head_size, adapter_size))[size].reshape((-1, adapter_size))
+                lora_weights[new_key] = (
+                    lora_weights[key]
+                    .reshape((qkv_total_dim, head_size, adapter_size))[size]
+                    .reshape((-1, adapter_size))
+                )
                 assert len(lora_weights[new_key].size()) == 2
         lora_weights.pop(key)
-        
+
     # This maps to gate_up_proj in HF, but we need to split it up into gate_proj and up_proj
     for key in hto4h_keys_to_update:
         gate_proj_key = key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.gate_adapter.")
         up_proj_key = key.replace(".lora_hto4h_adapter.", ".lora_unfused_hto4h_adapter.up_adapter.")
-        
+
         module_weight = lora_weights[key]
         if "linear_in" in key:
             # lora_a gets duplicated
