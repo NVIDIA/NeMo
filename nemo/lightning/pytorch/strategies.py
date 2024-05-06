@@ -4,38 +4,42 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, ContextManager, Dict, List, Mapping, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, ContextManager, Dict, List, Mapping, Optional, TypeVar, Union, cast
 
-import lightning.pytorch as pl
+import pytorch_lightning as pl
 import torch
 import torch.distributed
-from lightning.fabric.plugins import CheckpointIO, ClusterEnvironment
-from lightning.fabric.utilities.optimizer import _optimizers_to_device
-from lightning.pytorch.accelerators import CPUAccelerator
-from lightning.pytorch.callbacks.progress import TQDMProgressBar
-from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
-from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
-from lightning.pytorch.overrides.distributed import _sync_module_states
-from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
-from lightning.pytorch.strategies.ddp import DDPStrategy
-from lightning.pytorch.trainer.states import RunningStage, TrainerFn
-from lightning.pytorch.utilities.model_helpers import is_overridden
-from lightning.pytorch.utilities.types import STEP_OUTPUT
+from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
+from lightning_fabric.utilities.optimizer import _optimizers_to_device
+from pytorch_lightning.accelerators import CPUAccelerator
+from pytorch_lightning.callbacks.progress import TQDMProgressBar
+from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
+from pytorch_lightning.loops.fetchers import _DataLoaderIterDataFetcher
+from pytorch_lightning.overrides.distributed import _sync_module_states
+from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.trainer.states import RunningStage, TrainerFn
+from pytorch_lightning.utilities.model_helpers import is_overridden
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
-from nemo.io.pl import MegatronCheckpointIO
+from nemo import io
+from nemo.io.pl import MegatronCheckpointIO, TrainerCheckpoint, TrainerCkptProtocol
 from nemo.lightning import _strategy_lib
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, _ModuleStepFunction
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar
 
+if TYPE_CHECKING:
+    from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
+
 ConfigT = TypeVar("ConfigT")
 
 
-class MegatronStrategy(DDPStrategy):
+class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
 
     Args:
@@ -51,12 +55,14 @@ class MegatronStrategy(DDPStrategy):
         pipeline_model_parallel_size: int = 1,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
         sequence_parallel: bool = False,
-        # data_sampler: Optional[DataSampler] = None,
+        data_sampler: Optional['DataSampler'] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
         checkpoint_io=None,  # TODO: Add type-hint
         no_ddp_communication_hook: bool = True,
         find_unused_parameters: bool = False,
+        enable_nemo_ckpt_io: bool = True,
+        ckpt_type: TrainerCkptProtocol = TrainerCheckpoint,
         lazy_init: bool = False,
         **kwargs,
     ) -> None:
@@ -69,11 +75,13 @@ class MegatronStrategy(DDPStrategy):
         )
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
-        # self.data_sampler: Optional[DataSampler] = data_sampler
+        self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
+        self.enable_nemo_ckpt_io = enable_nemo_ckpt_io
+        self.ckpt_type = ckpt_type
         self.lazy_init = lazy_init
 
         # used in NVIDIA NGC PyTorch containers
@@ -343,6 +351,8 @@ class MegatronStrategy(DDPStrategy):
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        if self.enable_nemo_ckpt_io and self.is_global_zero and self.ckpt_type:
+            self.ckpt_type.from_strategy(self).io_dump(ckpt_to_dir(filepath))
 
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
@@ -371,10 +381,10 @@ class MegatronStrategy(DDPStrategy):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         assert self.megatron_parallel is not None
-        from megatron.core import mpu
+        from megatron.core import parallel_state
 
         for index, module in enumerate(self.megatron_parallel):
-            if mpu.get_virtual_pipeline_model_parallel_world_size() is not None:
+            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
                 checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
             else:
                 checkpoint_state_dict = checkpoint['state_dict']
@@ -402,9 +412,9 @@ class MegatronStrategy(DDPStrategy):
         return None
 
     def _get_forward_step(self, step_type: str) -> Optional[_ModuleStepFunction]:
-        from megatron.core import mpu
+        from megatron.core import parallel_state
 
-        if mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             if not hasattr(self.lightning_module, f"{step_type}_step"):
                 raise ValueError(f"LightningModule does not have {step_type}_step method")
 
@@ -463,7 +473,6 @@ class MegatronStrategy(DDPStrategy):
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
-            sequence_parallel=self.sequence_parallel,
         )
 
 
@@ -485,8 +494,6 @@ def _data_fetcher_wrapper(fn):
     def wrapped(trainer: pl.Trainer, stage: RunningStage):
         if isinstance(trainer.strategy, MegatronStrategy):
             return _DataLoaderIterDataFetcher()
-
-        return fn(trainer, stage)
 
     return wrapped
 

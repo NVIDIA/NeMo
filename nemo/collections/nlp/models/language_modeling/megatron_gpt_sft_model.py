@@ -290,6 +290,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),
+                ceil_to_power_2=data_cfg.get('ceil_to_power_2', False),
+                get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', False),
                 virtual_tokens=self.virtual_tokens,
                 tokens_to_generate=data_cfg.get(
                     'tokens_to_generate', 0
@@ -804,7 +806,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
+            if self._validation_ds:
+                logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
             self.maybe_build_test()
