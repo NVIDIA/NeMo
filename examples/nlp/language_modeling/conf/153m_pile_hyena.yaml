@@ -31,7 +31,6 @@ model:
     order: 2
     filter_order: 64
     short_filter_order: 3
-    fused_fft_conv: true
     modulate: true
     w: 14 # frequency of periodic activations
     learn_pos_emb_z: true
