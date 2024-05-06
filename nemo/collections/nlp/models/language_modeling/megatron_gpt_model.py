@@ -1400,7 +1400,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "reset_position_ids": self.reset_position_ids,
                 "reset_attention_mask": self.reset_attention_mask,
                 "eod_mask_loss": self.eod_mask_loss,
-                "mock": mock_dataset,
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
             }
 
