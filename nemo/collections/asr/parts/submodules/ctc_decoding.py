@@ -213,7 +213,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
 
-        possible_strategies = ['greedy', 'beam', 'pyctcdecode', 'flashlight']
+        possible_strategies = ['greedy', 'greedy_vectorized', 'beam', 'pyctcdecode', 'flashlight']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}. Given {self.cfg.strategy}")
 
@@ -254,7 +254,15 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 compute_timestamps=self.compute_timestamps,
                 preserve_frame_confidence=self.preserve_frame_confidence,
                 confidence_method_cfg=self.confidence_method_cfg,
-                batched_inference=self.cfg.greedy.get('batched_inference', False),
+            )
+
+        elif self.cfg.strategy == "greedy_vectorized":
+            self.decoding = ctc_greedy_decoding.GreedyVectorizedCTCInfer(
+                blank_id=self.blank_id,
+                preserve_alignments=self.preserve_alignments,
+                compute_timestamps=self.compute_timestamps,
+                preserve_frame_confidence=self.preserve_frame_confidence,
+                confidence_method_cfg=self.confidence_method_cfg,
             )
 
         elif self.cfg.strategy == 'beam':
