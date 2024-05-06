@@ -62,6 +62,16 @@ class PoolingMLPConnectors(NeuralModule, Exportable, AccessMixin):
         pooling_factor: int = 2,
         **kwargs,  # keep this to avoid breaking existing code
     ):
+        """
+        Args:
+            input_dim: input dimension of the features
+            hidden_dim: hidden dimension of the MLP layers
+            output_dim: output dimension of the features
+            num_layers: number of layers in the MLP
+            activation: activation function used in MLP
+            pooling: type of pooling, currently only supports "mean" and "cat"
+            pooling_factor: size of the pooling window
+        """
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim

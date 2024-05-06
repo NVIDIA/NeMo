@@ -19,9 +19,7 @@ import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
 from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import write_predictions_to_file
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -63,31 +61,35 @@ CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
-    assert cfg.model.restore_from_path is not None
+    logging.info("**************************************************\n\n")
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
 
     if cfg.model.from_pretrained:
-        logging.info(f"Loading model from cloud: {cfg.model.restore_from_path}")
+        # Load model from NGC or HuggingFace
+        logging.info(f"Loading model from cloud: {cfg.model.from_pretrained}")
         model_cfg = ModularAudioGPTModel.from_pretrained(
-            cfg.model.restore_from_path, trainer=trainer, return_config=True
+            cfg.model.from_pretrained, trainer=trainer, return_config=True
         )
         model_cfg = ModularAudioGPTModel.merge_inference_cfg(cfg, trainer, model_cfg)
-        model = ModularAudioGPTModel.from_pretrained(
-            cfg.model.restore_from_path,
+        model_file = ModularAudioGPTModel.from_pretrained(
+            cfg.model.from_pretrained, trainer=trainer, return_model_file=True
+        )
+        model = ModularAudioGPTModel.restore_from(
+            restore_path=model_file, trainer=trainer, override_config_path=model_cfg, strict=False, map_location="cpu",
+        )
+        if "peft" in model_cfg and model_cfg.peft.get("peft_scheme", None):
+            # need this due to the way that MegatronGPTSFTModel doesn't load adapters in model initialization
+            model.load_adapters(model_file, map_location="cpu")
+    else:
+        # Load model from a local file
+        model_cfg = ModularAudioGPTModel.merge_inference_cfg(cfg, trainer)
+        model = ModularAudioGPTModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             override_config_path=model_cfg,
             strict=False,
             map_location="cpu",
-        )
-        if "peft" in model_cfg and model_cfg.peft.get("peft_scheme", None):
-            # special case for loading a complete speechllm checkpoint in nemo format
-            peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
-            model.load_adapters(cfg.model.restore_from_path, peft_cfg_cls(model_cfg), map_location="cpu")
-    else:
-        model_cfg = ModularAudioGPTModel.merge_inference_cfg(cfg, trainer)
-        model = ModularAudioGPTModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False
         )
         model = ModularAudioGPTModel.load_adapters_for_inference(cfg, model_cfg, model)
         model = ModularAudioGPTModel.load_audio_encoder_for_inference(cfg, model_cfg, model)
@@ -104,14 +106,8 @@ def main(cfg) -> None:
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)
 
-    if cfg.evaluate_metric:
-        # Evaluate the model on the test set
-        trainer.test(model)
-    else:
-        # otherwise, generate predictions
-        dataloaders = model.get_test_dataloader(model_cfg.data.test_ds)
-        predictions = trainer.predict(model, dataloaders)
-        write_predictions_to_file(cfg, predictions, model)
+    # run inference
+    trainer.test(model)
 
 
 if __name__ == "__main__":

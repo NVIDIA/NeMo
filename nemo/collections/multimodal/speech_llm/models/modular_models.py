@@ -125,30 +125,37 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             known_groups.append('model.')
 
         if self.cfg.get('freeze_audio_encoder', False):
+            # freeze speaker model if there is any
             if self.cfg.perception.get("speaker_model", None) is not None:
                 if self.cfg.perception.speaker_model.get("freeze", False):
                     self.perception.speaker_model.freeze()
                     known_groups.append('perception.speaker_model.')
+            # freeze other audio encoders
             if self.cfg.perception.get("encoders", None) is not None:
+                # multiple audio encoders
                 for key, enc_cfg in self.cfg.perception.encoders.items():
                     if enc_cfg.get("freeze", False):
                         self.perception.encoders[key].freeze()
                         known_groups.append(f'perception.encoders.{key}.')
             else:
+                # single audio encoder
                 self.perception.encoder.freeze()
                 known_groups.append('perception.encoder.')
 
         if self.cfg.get('freeze_modality_adapter', False):
+            # freeze modality adapter
             self.perception.modality_adapter.freeze()
             known_groups.append('perception.modality_adapter.')
 
         opt_params = []
         for _, module in self.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                # add adapters to the optimizer
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters()]
 
+        # add param groups with specified args, if any
         param_groups = []
         if "optim_param_groups" in self.cfg:
             param_groups_cfg = self.cfg.optim_param_groups
@@ -165,6 +172,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 else:
                     raise ValueError(f"{group} does not have parameters.")
 
+        # add other trainable params
         for n, p in self.named_parameters():
             is_unknown = True
             for group in known_groups:
@@ -553,7 +561,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 virtual_tokens=self.virtual_tokens,
             )
 
-    def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
+    def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_predict=False):
         """Buld dataloader given an input dataset."""
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         if isinstance(dataset, BlendableDataset):
@@ -583,6 +591,17 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             )
             return dataloader
 
+        if is_predict:
+            # MegatronPretrainingBatchSampler doesn't work with trainer.predict()
+            dataloader = torch.utils.data.DataLoader(
+                dataset,
+                collate_fn=collate_fn,
+                batch_size=data_cfg.micro_batch_size,
+                num_workers=data_cfg.num_workers,
+                pin_memory=data_cfg.pin_memory,
+            )
+            return dataloader
+
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
@@ -590,8 +609,8 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             global_batch_size=data_cfg.global_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=True,
-            pad_samples_to_global_batch_size=False,
+            drop_last=data_cfg.drop_last,
+            pad_samples_to_global_batch_size=not data_cfg.drop_last,
         )
 
         dataloader = torch.utils.data.DataLoader(
@@ -600,6 +619,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             collate_fn=collate_fn,
             num_workers=data_cfg.num_workers,
             pin_memory=data_cfg.pin_memory,
+            persistent_workers=True if data_cfg.num_workers > 0 else False,
         )
         return dataloader
 
@@ -1440,19 +1460,19 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
         if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0)
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0)
             dataloaders.append(eval_dl)
         return dataloaders
 
-    def get_test_dataloader(self, data_cfg):
+    def setup_predict_dataloader(self, data_cfg):
         datasets = self._build_dataset(data_cfg, False)
         dataloaders = []
         if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0,)
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0, is_predict=True)
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0,)
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0, is_predict=True)
             dataloaders.append(eval_dl)
         return dataloaders
 
