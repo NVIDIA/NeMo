@@ -1,1 +1,2 @@
 mkdocs-video==1.4.0
+mkdocs-redirects

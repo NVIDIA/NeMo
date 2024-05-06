@@ -88,6 +88,25 @@ plugins:
   - mkdocs-video:
       is_video: true
       video_controls: true
+  - redirects:
+      redirect_maps:
+        # homepage -> homepage
+        'index.md': 'https://research.nvidia.com/labs/conv-ai/'
+        # publications main page -> publications main page
+        'publications/index.md': 'https://research.nvidia.com/labs/conv-ai/publications/'
+        # blogs main page -> blogs main page
+        'blogs/index.md': 'https://research.nvidia.com/labs/conv-ai/blogs/'
+        # all existing blogs -> blogs main page
+        'blogs/posts/2022/2022-08-introduction.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2022/2022-nvidia-technical-blog.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2023/2023-06-07-fast-conformer.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2023/2023-08-forced-alignment.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2023/2023-08-nfa.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2023/2023-10-28-numba-fp16.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2023/2023-nvidia-technical-blog.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2024/2024-01-parakeet.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2024/2024-01-parakeet-tdt.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
+        'blogs/posts/2024/2024-02-canary.md': 'https://research.nvidia.com/labs/conv-ai/blogs'
 
 # Customization
 extra:
