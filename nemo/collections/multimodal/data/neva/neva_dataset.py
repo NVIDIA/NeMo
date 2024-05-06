@@ -1071,8 +1071,8 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
         ),
         data_cfg=dict(
             splice_single_frame=data_cfg.get('splice_single_frame', None),
-            num_frames=data_cfg.get('num_frames', -1), 
-            sep_token_between_frames=data_cfg.get('sep_token_between_frames',False),
+            num_frames=data_cfg.get('num_frames', -1),
+            sep_token_between_frames=data_cfg.get('sep_token_between_frames', False),
         ),
     )
 
