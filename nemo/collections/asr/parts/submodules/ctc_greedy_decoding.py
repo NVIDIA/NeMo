@@ -272,6 +272,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
+
 class GreedyVectorizedCTCInfer(Typing, ConfidenceMethodMixin):
     """A vectorized greedy CTC decoder.
 
