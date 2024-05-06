@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from typing import List, Optional
 
 import numpy as np
 import torch
-from omegaconf import DictConfig
-
-from nemo.core.classes import ModelPT
-from nemo.utils import logging
 
 
 def maybe_cast_to_list(x):
