@@ -266,7 +266,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         return self.forward(*args, **kwargs)
 
 
-class GreedyVectorizedCTCInfer(Typing, ConfidenceMethodMixin):
+class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
     """A vectorized greedy CTC decoder.
 
     This is basically always faster than GreedyCTCInfer, and supports
@@ -274,7 +274,7 @@ class GreedyVectorizedCTCInfer(Typing, ConfidenceMethodMixin):
     with GreedyCTCInfer. GreedyCTCInfer loops over each element in the
     batch, running kernels at batch size one. CPU overheads end up
     dominating. This implementation does appropriate masking to
-    appropriately do the same operation in a vectorized manner.
+    appropriately do the same operation in a batched manner.
 
     Args:
         blank_index: int index of the blank token. Can be 0 or len(vocabulary).
