@@ -17,7 +17,6 @@ import argparse
 import copy
 import csv
 import datetime
-import json
 import logging
 import os
 import shutil
@@ -410,10 +409,13 @@ def nemo_to_trtllm_config(
     model_configs = []
     weights_dicts = []
     num_layers = nemo_model_config.get('num_layers')
+    rotary_scaling = nemo_model_config.get("seq_len_interpolation_factor")
 
     if decoder_type == "falcon":
         config["new_decoder_architecture"] = False if num_layers == 32 else True
         config["parallel_attention"] = True
+    if rotary_scaling is not None:
+        config["rotary_scaling"] = {"type": "linear", "factor": float(rotary_scaling)}
 
     pp_key = {
         "transformer.vocab_embedding.weight",

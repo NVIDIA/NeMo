@@ -178,7 +178,6 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
     tp_size = config.get("tp_size", 1)
     int8_outputs = config.get("int8_outputs", None)
     multi_query_mode = config.get("multi_query_mode", False)
-    local_dim = config.get("local_dim", None)
     num_kv_heads = config.get("num_kv_heads", num_attention_heads)
     size_per_head = config.get("kv_channels", None)
 
