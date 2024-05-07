@@ -387,8 +387,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     pass
                 else:
                     cut.question = self.question + ' ' + canary_text
+        metadata = []
         for id, cut in enumerate(cuts):
             self._inject_random_context_into_question(cut, random_context_positive_percent=self.random_context_positive_percent)
+            metadata.append({'audio_filepath': cut.id +'.wav'})
 
         collated_text_data = collate_text_data(
             cuts=cuts,
@@ -404,6 +406,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 "audio_signal": audio,
                 "audio_signal_length": audio_lens,
                 "audio_ratio": torch.FloatTensor(audio_ratio),
+                "metadata": metadata,
                 **collated_text_data,
             }
         )
