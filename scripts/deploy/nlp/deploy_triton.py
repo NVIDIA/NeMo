@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
-from nemo.deploy.nlp import MegatronGPTDeployable
+from nemo.deploy.nlp import MegatronLLMDeployable
 from nemo.export import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
@@ -244,7 +244,7 @@ def get_nemo_deployable(args):
     if args.nemo_checkpoint is None:
         LOGGER.error("Direct serve requires a .nemo checkpoint")
         return
-    return MegatronGPTDeployable(args.nemo_checkpoint, args.num_gpus)
+    return MegatronLLMDeployable(args.nemo_checkpoint, args.num_gpus)
 
 
 def nemo_deploy(argv):

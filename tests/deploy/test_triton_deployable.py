@@ -6,12 +6,12 @@ from pytriton.client import ModelClient
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.nlp import NemoTritonQueryLLMTensorRT
-from nemo.deploy.nlp.megatrongpt_deployable import MegatronGPTDeployable
+from nemo.deploy.nlp.megatrongpt_deployable import MegatronLLMDeployable
 from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
 
 
 def test_triton_deployable(args):
-    megatron_deployable = MegatronGPTDeployable(args.nemo_checkpoint, args.num_gpus)
+    megatron_deployable = MegatronLLMDeployable(args.nemo_checkpoint, args.num_gpus)
 
     prompts = ["What is the biggest planet in the solar system?", "What is the fastest steam locomotive in history?"]
     url = "localhost:8000"

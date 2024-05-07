@@ -56,7 +56,7 @@ def GetNumpyDtype(pyvalue):
     return numpy_type
 
 
-class MegatronGPTDeployable(ITritonDeployable):
+class MegatronLLMDeployable(ITritonDeployable):
     def __init__(self, nemo_checkpoint_filepath: str, num_devices: int = 1, num_nodes: int = 1):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
         self._load(nemo_checkpoint_filepath, num_devices, num_nodes)
@@ -142,7 +142,7 @@ class MegatronGPTDeployable(ITritonDeployable):
             Tensor(
                 name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value[0]),
             )
-            for parameter_name, parameter_value in MegatronGPTDeployable._BLANK_OUTPUTTYPE.items()
+            for parameter_name, parameter_value in MegatronLLMDeployable._BLANK_OUTPUTTYPE.items()
         ]
         return outputs
 
@@ -180,13 +180,13 @@ class MegatronGPTDeployable(ITritonDeployable):
         num_prompts = len(input_strings)
         triton_output = {}
         for model_output_field, value in model_output.items():
-            field_dtype = GetNumpyDtype(MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field][0])
+            field_dtype = GetNumpyDtype(MegatronLLMDeployable._BLANK_OUTPUTTYPE[model_output_field][0])
             if value is None:
                 # triton does not allow for optional output parameters, so need to populate them if they don't exist
                 # 'sentences' should always have a valid value, so use that for the output shape
                 triton_output[model_output_field] = np.full(
                     np.shape(model_output['sentences']),
-                    MegatronGPTDeployable._BLANK_OUTPUTTYPE[model_output_field][0],
+                    MegatronLLMDeployable._BLANK_OUTPUTTYPE[model_output_field][0],
                     dtype=field_dtype,
                 )
             elif field_dtype == bytes:
