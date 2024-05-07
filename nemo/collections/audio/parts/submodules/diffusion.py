@@ -28,17 +28,9 @@ from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import FloatType, LengthsType, NeuralType, SpectrogramType, VoidType
 from nemo.utils import logging
 
-__all__ = [
-    'OrnsteinUhlenbeckVarianceExplodingSDE',
-    'SpectrogramNoiseConditionalScoreNetworkPlusPlus',
-    'NoiseConditionalScoreNetworkPlusPlus',
-    'PredictorCorrectorSampler',
-]
-
 
 class StochasticDifferentialEquation(NeuralModule, ABC):
-    """Base class for stochastic differential equations.
-    """
+    """Base class for stochastic differential equations."""
 
     def __init__(self, time_min: float, time_max: float, num_steps: int):
         super().__init__()
@@ -68,8 +60,7 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
 
     @property
     def time_delta(self) -> float:
-        """Time range for this SDE.
-        """
+        """Time range for this SDE."""
         return self.time_max - self.time_min
 
     def generate_time(self, size: int, device: torch.device) -> torch.Tensor:
@@ -100,8 +91,12 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
         pass
 
     @typecheck(
-        input_types={"prior_mean": NeuralType(('B', 'C', 'D', 'T'), VoidType()),},
-        output_types={"sample": NeuralType(('B', 'C', 'D', 'T'), VoidType()),},
+        input_types={
+            "prior_mean": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
+        },
+        output_types={
+            "sample": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
+        },
     )
     @abstractmethod
     def prior_sampling(self, prior_mean: torch.Tensor) -> torch.Tensor:
@@ -156,8 +151,7 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
 
     @abstractmethod
     def copy(self):
-        """Create a copy of this SDE.
-        """
+        """Create a copy of this SDE."""
         pass
 
     def __repr__(self):
@@ -235,7 +229,9 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
             "prior_mean": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
             "time": NeuralType(tuple('B'), FloatType()),
         },
-        output_types={"mean": NeuralType(('B', 'C', 'D', 'T'), FloatType()),},
+        output_types={
+            "mean": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
+        },
     )
     def perturb_kernel_mean(self, state: torch.Tensor, prior_mean: torch.Tensor, time: torch.Tensor) -> torch.Tensor:
         """Return the mean of the perturbation kernel for this SDE.
@@ -260,8 +256,12 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
         return mean
 
     @typecheck(
-        input_types={"time": NeuralType(tuple('B'), FloatType()),},
-        output_types={"std": NeuralType(tuple('B'), FloatType()),},
+        input_types={
+            "time": NeuralType(tuple('B'), FloatType()),
+        },
+        output_types={
+            "std": NeuralType(tuple('B'), FloatType()),
+        },
     )
     def perturb_kernel_std(self, time: torch.Tensor) -> torch.Tensor:
         """Return the standard deviation of the perturbation kernel for this SDE.
@@ -275,7 +275,7 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
         Returns:
             A tensor of shape (B,)
         """
-        var = (self.std_min ** 2) * self.log_std_ratio
+        var = (self.std_min**2) * self.log_std_ratio
         var *= torch.pow(self.std_ratio, 2 * time) - torch.exp(-2 * self.stiffness * time)
         var /= self.stiffness + self.log_std_ratio
         std = torch.sqrt(var)
@@ -429,8 +429,7 @@ class ReverseStochasticDifferentialEquation(StochasticDifferentialEquation):
         raise NotImplementedError('Coefficients not necessary for the reverse SDE.')
 
     def prior_sampling(self, shape: torch.Size, device: torch.device) -> torch.Tensor:
-        """Prior sampling is not necessary for the reverse SDE.
-        """
+        """Prior sampling is not necessary for the reverse SDE."""
         raise NotImplementedError('Prior sampling not necessary for the reverse SDE.')
 
     def discretize(
@@ -527,8 +526,7 @@ class SpectrogramNoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "input_length": NeuralType(('B',), LengthsType(), optional=True),
@@ -537,8 +535,7 @@ class SpectrogramNoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             "output_length": NeuralType(('B',), LengthsType(), optional=True),
@@ -632,8 +629,8 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
         self.conditioned_on_time = conditioned_on_time
 
         # padding setup
-        self.pad_time_to = pad_time_to or 2 ** self.num_resolutions
-        self.pad_dimension_to = pad_dimension_to or 2 ** self.num_resolutions
+        self.pad_time_to = pad_time_to or 2**self.num_resolutions
+        self.pad_dimension_to = pad_dimension_to or 2**self.num_resolutions
 
         if self.conditioned_on_time:
             self.time_embedding = torch.nn.Sequential(
@@ -711,12 +708,15 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
                 module.init_weights_()
 
     @typecheck(
-        input_types={"input": NeuralType(('B', 'C', 'D', 'T')),},
-        output_types={"output": NeuralType(('B', 'C', 'D', 'T')),},
+        input_types={
+            "input": NeuralType(('B', 'C', 'D', 'T')),
+        },
+        output_types={
+            "output": NeuralType(('B', 'C', 'D', 'T')),
+        },
     )
     def pad_input(self, input: torch.Tensor) -> torch.Tensor:
-        """Pad input tensor to match the required dimensions across `T` and `D`.
-        """
+        """Pad input tensor to match the required dimensions across `T` and `D`."""
         *_, D, T = input.shape
         output = input
 
@@ -732,8 +732,7 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
             "input_length": NeuralType(('B',), LengthsType(), optional=True),
@@ -742,8 +741,7 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
             "output_length": NeuralType(('B',), LengthsType(), optional=True),
@@ -839,7 +837,7 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
 class GaussianFourierProjection(NeuralModule):
     """Gaussian Fourier embeddings for input scalars.
-    
+
     The input scalars are typically time or noise levels.
     """
 
@@ -849,16 +847,14 @@ class GaussianFourierProjection(NeuralModule):
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "input": NeuralType(('B',), FloatType()),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "output": NeuralType(('B', 'D'), VoidType()),
         }
@@ -907,7 +903,8 @@ class ResnetBlockBigGANPlusPlus(torch.nn.Module):
         self.init_scale = init_scale
 
         self.input_block = torch.nn.Sequential(
-            torch.nn.GroupNorm(num_groups=in_num_groups, num_channels=in_ch, eps=eps), activation,
+            torch.nn.GroupNorm(num_groups=in_num_groups, num_channels=in_ch, eps=eps),
+            activation,
         )
 
         self.middle_conv = torch.nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=3, padding=1)
@@ -935,8 +932,7 @@ class ResnetBlockBigGANPlusPlus(torch.nn.Module):
         self.init_weights_()
 
     def init_weights_(self):
-        """Weight initialization
-        """
+        """Weight initialization"""
         for module in self.modules():
             if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
                 torch.nn.init.xavier_uniform_(module.weight)
@@ -1233,7 +1229,9 @@ class Corrector(NeuralModule, ABC):
             "score_condition": NeuralType(('B', 'C', 'D', 'T'), VoidType(), optional=True),
             "state_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         },
-        output_types={"state": NeuralType(('B', 'C', 'D', 'T'), VoidType()),},
+        output_types={
+            "state": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
+        },
     )
     @torch.inference_mode()
     def forward(self, state, time, score_condition=None, state_length=None):

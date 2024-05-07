@@ -104,7 +104,12 @@ def create_array(path: str) -> Array:
     assert path.endswith(".npy"), f"Currently only conversion of numpy files is supported (got: {path})"
     arr = np.load(path)
     parent, path = os.path.split(path)
-    return Array(storage_type="numpy_files", storage_path=parent, storage_key=path, shape=list(arr.shape),)
+    return Array(
+        storage_type="numpy_files",
+        storage_path=parent,
+        storage_key=path,
+        shape=list(arr.shape),
+    )
 
 
 def convert_manifest_nemo_to_lhotse(
@@ -118,7 +123,7 @@ def convert_manifest_nemo_to_lhotse(
 ):
     """
     Convert an audio-to-audio manifest from NeMo format to Lhotse format.
-    
+
     Args:
         input_manifest: Path to the input NeMo manifest.
         output_manifest: Path where we'll write the output Lhotse manifest (supported extensions: .jsonl.gz and .jsonl).

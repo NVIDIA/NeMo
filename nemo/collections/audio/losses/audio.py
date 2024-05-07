@@ -19,7 +19,7 @@ import numpy as np
 import torch
 
 from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
-from nemo.collections.asr.parts.utils.audio_utils import toeplitz
+from nemo.collections.audio.parts.utils.audio import toeplitz
 from nemo.core.classes import Loss, Typing, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, LossType, MaskType, NeuralType, VoidType
 from nemo.utils import logging
@@ -253,7 +253,7 @@ def calculate_sdr_batch(
         SDR in dB for each channel, shape (B, C)
     """
     if scale_invariant and convolution_invariant:
-        raise ValueError(f'Arguments scale_invariant and convolution_invariant cannot be used simultaneously.')
+        raise ValueError('Arguments scale_invariant and convolution_invariant cannot be used simultaneously.')
 
     assert (
         estimate.shape == target.shape
@@ -277,7 +277,11 @@ def calculate_sdr_batch(
         target = scale_invariant_target(estimate=estimate, target=target, mask=mask, eps=eps)
     elif convolution_invariant:
         target = convolution_invariant_target(
-            estimate=estimate, target=target, mask=mask, filter_length=convolution_filter_length, eps=eps,
+            estimate=estimate,
+            target=target,
+            mask=mask,
+            filter_length=convolution_filter_length,
+            eps=eps,
         )
 
     distortion = estimate - target
@@ -327,9 +331,9 @@ class SDRLoss(Loss, Typing):
             elif not np.isclose(sum(weight), 1, atol=1e-6):
                 raise ValueError(f'Weight should add to one, current weight: {weight}')
             weight = torch.tensor(weight).reshape(1, -1)
-            logging.info(f'Channel weight set to %s', weight)
+            logging.info('Channel weight set to %s', weight)
         self.register_buffer('weight', weight)
-        self.weight: Optional[Tensor]
+        self.weight: Optional[torch.Tensor]
 
         # Batch reduction
         self.reduction = reduction
@@ -352,8 +356,7 @@ class SDRLoss(Loss, Typing):
 
     @property
     def input_types(self):
-        """Input types definitions for SDRLoss.
-        """
+        """Input types definitions for SDRLoss."""
         signal_shape = ('B', 'C', 'T')
         return {
             "estimate": NeuralType(signal_shape, AudioSignal()),
@@ -481,7 +484,10 @@ class MSELoss(Loss, Typing):
     """
 
     def __init__(
-        self, weight: Optional[List[float]] = None, reduction: str = 'mean', ndim: int = 3,
+        self,
+        weight: Optional[List[float]] = None,
+        reduction: str = 'mean',
+        ndim: int = 3,
     ):
         super().__init__()
 
@@ -492,9 +498,9 @@ class MSELoss(Loss, Typing):
             elif not np.isclose(sum(weight), 1, atol=1e-6):
                 raise ValueError(f'Weight should add to one, current weight: {weight}')
             weight = torch.tensor(weight).reshape(1, -1)
-            logging.info(f'Channel weight set to %s', weight)
+            logging.info('Channel weight set to %s', weight)
         self.register_buffer('weight', weight)
-        self.weight: Optional[Tensor]
+        self.weight: Optional[torch.Tensor]
 
         # Batch reduction
         self.reduction = reduction
@@ -523,8 +529,7 @@ class MSELoss(Loss, Typing):
 
     @property
     def input_types(self):
-        """Input types definitions for SDRLoss.
-        """
+        """Input types definitions for SDRLoss."""
         return {
             "estimate": NeuralType(self.signal_shape, VoidType()),
             "target": NeuralType(self.signal_shape, VoidType()),
@@ -560,7 +565,12 @@ class MSELoss(Loss, Typing):
         Returns:
             Scalar loss.
         """
-        mse = calculate_mse_batch(estimate=estimate, target=target, input_length=input_length, mask=mask,)
+        mse = calculate_mse_batch(
+            estimate=estimate,
+            target=target,
+            input_length=input_length,
+            mask=mask,
+        )
 
         # channel averaging
         if self.weight is None:

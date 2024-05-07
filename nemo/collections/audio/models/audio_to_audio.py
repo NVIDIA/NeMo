@@ -26,11 +26,11 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 
-from nemo.collections.asr.data import audio_to_audio_dataset
-from nemo.collections.asr.data.audio_to_audio_lhotse import LhotseAudioToTargetDataset
 from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
-from nemo.collections.asr.metrics.audio import AudioMetricWrapper
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
+from nemo.collections.audio.data import audio_to_audio_dataset
+from nemo.collections.audio.data.audio_to_audio_lhotse import LhotseAudioToTargetDataset
+from nemo.collections.audio.metrics.audio import AudioMetricWrapper
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes import ModelPT
 from nemo.utils import logging, model_utils
@@ -45,8 +45,7 @@ class AudioToAudioModel(ModelPT, ABC):
         self._setup_loss()
 
     def _setup_loss(self):
-        """Setup loss for this model.
-        """
+        """Setup loss for this model."""
         self.loss = AudioToAudioModel.from_config_dict(self._cfg.loss)
 
     def _get_num_dataloaders(self, tag: str = 'val'):
@@ -168,120 +167,6 @@ class AudioToAudioModel(ModelPT, ABC):
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
-
-    @torch.no_grad()
-    def process(
-        self,
-        paths2audio_files: List[str],
-        output_dir: str,
-        batch_size: int = 1,
-        num_workers: Optional[int] = None,
-        input_channel_selector: Optional[ChannelSelectorType] = None,
-    ) -> List[str]:
-        """
-        Process audio files provided in paths2audio_files.
-        Processed signals will be saved in output_dir.
-
-        Args:
-            paths2audio_files: (a list) of paths to audio files. \
-                Recommended length per file is between 5 and 25 seconds. \
-                But it is possible to pass a few hours long file if enough GPU memory is available.
-            output_dir: 
-            batch_size: (int) batch size to use during inference.
-                Bigger will result in better throughput performance but would use more memory.
-            num_workers: Number of workers for the dataloader
-            input_channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
-
-        Returns:
-        """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
-            return {}
-
-        if num_workers is None:
-            num_workers = min(batch_size, os.cpu_count() - 1)
-
-        # Output
-        paths2processed_files = []
-
-        # Model's mode and device
-        mode = self.training
-        device = next(self.parameters()).device
-
-        try:
-            # Switch model to evaluation mode
-            self.eval()
-            # Freeze weights
-            self.freeze()
-
-            logging_level = logging.get_verbosity()
-            logging.set_verbosity(logging.WARNING)
-
-            # Processing
-            with tempfile.TemporaryDirectory() as tmpdir:
-                # Save temporary manifest
-                temporary_manifest_filepath = os.path.join(tmpdir, 'manifest.json')
-                with open(temporary_manifest_filepath, 'w', encoding='utf-8') as fp:
-                    for audio_file in paths2audio_files:
-                        entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(path=audio_file)}
-                        fp.write(json.dumps(entry) + '\n')
-
-                config = {
-                    'manifest_filepath': temporary_manifest_filepath,
-                    'input_key': 'input_filepath',
-                    'input_channel_selector': input_channel_selector,
-                    'batch_size': min(batch_size, len(paths2audio_files)),
-                    'num_workers': num_workers,
-                }
-
-                # Create output dir if necessary
-                if not os.path.isdir(output_dir):
-                    os.makedirs(output_dir)
-
-                # DataLoader for the input files
-                temporary_dataloader = self._setup_process_dataloader(config)
-
-                # Indexing of the original files, used to form the output file name
-                file_idx = 0
-
-                # Process batches
-                for test_batch in tqdm(temporary_dataloader, desc="Processing"):
-                    input_signal = test_batch[0]
-                    input_length = test_batch[1]
-
-                    # Expand channel dimension, if necessary
-                    # For consistency, the model uses multi-channel format, even if the channel dimension is 1
-                    if input_signal.ndim == 2:
-                        input_signal = input_signal.unsqueeze(1)
-
-                    processed_batch, _ = self.forward(
-                        input_signal=input_signal.to(device), input_length=input_length.to(device)
-                    )
-
-                    for example_idx in range(processed_batch.size(0)):
-                        # This assumes the data loader is not shuffling files
-                        file_name = os.path.basename(paths2audio_files[file_idx])
-                        # Prepare output file
-                        output_file = os.path.join(output_dir, f'processed_{file_name}')
-                        # Crop the output signal to the actual length
-                        output_signal = processed_batch[example_idx, :, : input_length[example_idx]].cpu().numpy()
-                        # Write audio
-                        sf.write(output_file, output_signal.T, self.sample_rate, 'float')
-                        # Update the file counter
-                        file_idx += 1
-                        # Save processed file
-                        paths2processed_files.append(output_file)
-
-                    del test_batch
-                    del processed_batch
-
-        finally:
-            # set mode back to its original value
-            self.train(mode=mode)
-            if mode is True:
-                self.unfreeze()
-            logging.set_verbosity(logging_level)
-
-        return paths2processed_files
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
@@ -593,5 +478,5 @@ class AudioToAudioModel(ModelPT, ABC):
                 torch.distributed.all_reduce(valid_gradients, op=torch.distributed.ReduceOp.MIN)
 
             if valid_gradients < 1:
-                logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
+                logging.warning('detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()

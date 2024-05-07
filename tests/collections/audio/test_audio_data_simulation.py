@@ -19,7 +19,8 @@ import numpy as np
 import pytest
 from numpy.random import default_rng
 
-from nemo.collections.asr.data.data_simulation import (
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.audio.data.data_simulation import (
     ArrayGeometry,
     check_angle,
     convert_placement_to_range,
@@ -27,7 +28,6 @@ from nemo.collections.asr.data.data_simulation import (
     simulate_room_mix,
     wrap_to_180,
 )
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 
 
 class TestDataSimulationUtils:

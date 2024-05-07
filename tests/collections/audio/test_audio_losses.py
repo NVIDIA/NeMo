@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.losses.audio_losses import (
+from nemo.collections.audio.losses.audio import (
     MSELoss,
     SDRLoss,
     calculate_mse_batch,
@@ -24,7 +24,7 @@ from nemo.collections.asr.losses.audio_losses import (
     convolution_invariant_target,
     scale_invariant_target,
 )
-from nemo.collections.asr.parts.utils.audio_utils import (
+from nemo.collections.audio.parts.utils.audio import (
     calculate_sdr_numpy,
     convolution_invariant_target_numpy,
     scale_invariant_target_numpy,

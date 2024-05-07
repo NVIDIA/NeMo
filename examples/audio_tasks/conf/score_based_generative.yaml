@@ -31,21 +31,21 @@ model:
     pin_memory: true
 
   encoder:
-    _target_: nemo.collections.asr.modules.audio_preprocessing.AudioToSpectrogram
+    _target_: nemo.collections.audio.modules.transform.AudioToSpectrogram
     fft_length: 510 # Number of subbands in the STFT = fft_length // 2 + 1 = 256
     hop_length: 128
     magnitude_power: 0.5
     scale: 0.33
 
   decoder:
-    _target_: nemo.collections.asr.modules.audio_preprocessing.SpectrogramToAudio
+    _target_: nemo.collections.audio.modules.transform.SpectrogramToAudio
     fft_length: ${model.encoder.fft_length} 
     hop_length: ${model.encoder.hop_length}
     magnitude_power: ${model.encoder.magnitude_power}
     scale: ${model.encoder.scale}
 
   estimator:
-    _target_: nemo.collections.asr.parts.submodules.diffusion.SpectrogramNoiseConditionalScoreNetworkPlusPlus
+    _target_: nemo.collections.audio.parts.submodules.diffusion.SpectrogramNoiseConditionalScoreNetworkPlusPlus
     in_channels: 2 # concatenation of single-channel perturbed and noisy
     out_channels: 1 # single-channel score estimate
     conditioned_on_time: true
@@ -54,14 +54,14 @@ model:
     pad_dimension_to: 0 # no padding in the frequency dimension
 
   sde:
-    _target_: nemo.collections.asr.parts.submodules.diffusion.OrnsteinUhlenbeckVarianceExplodingSDE
+    _target_: nemo.collections.audio.parts.submodules.diffusion.OrnsteinUhlenbeckVarianceExplodingSDE
     stiffness: 1.5
     std_min: 0.05
     std_max: 0.5
     num_steps: 1000
 
   sampler:
-    _target_: nemo.collections.asr.parts.submodules.diffusion.PredictorCorrectorSampler
+    _target_: nemo.collections.audio.parts.submodules.diffusion.PredictorCorrectorSampler
     predictor: reverse_diffusion
     corrector: annealed_langevin_dynamics
     num_steps: 50
@@ -69,7 +69,7 @@ model:
     snr: 0.5
     
   loss:
-    _target_: nemo.collections.asr.losses.MSELoss
+    _target_: nemo.collections.audio.losses.MSELoss
     ndim: 4 # loss is calculated on the score in the encoded domain (batch, channel, dimension, time)
 
   metrics:

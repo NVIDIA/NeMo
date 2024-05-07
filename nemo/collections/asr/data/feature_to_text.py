@@ -19,7 +19,7 @@ import torch
 from nemo.collections.asr.data.feature_to_label import _audio_feature_collate_fn
 from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.utils.vad_utils import load_speech_segments_from_rttm
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers

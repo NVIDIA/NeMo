@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.data import audio_to_audio
+from nemo.collections.audio.data import audio_to_audio
 
 
 def get_audio_to_target_dataset(config: dict) -> audio_to_audio.AudioToTargetDataset:

@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.modules.audio_preprocessing import AudioToSpectrogram, SpectrogramToAudio
+from nemo.collections.audio.modules.transform import AudioToSpectrogram, SpectrogramToAudio
 
 try:
     importlib.import_module('torchaudio')

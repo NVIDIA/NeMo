@@ -15,7 +15,7 @@
 import pytest
 import torch
 
-from nemo.collections.asr.parts.submodules.multichannel_modules import (
+from nemo.collections.audio.parts.submodules.multichannel import (
     ChannelAttentionPool,
     ChannelAugment,
     ChannelAveragePool,

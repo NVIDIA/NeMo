@@ -32,7 +32,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.enhancement_models import (
+from nemo.collections.audio.models.enhancement import (
     EncMaskDecAudioToAudioModel,
     PredictiveAudioToAudioModel,
     ScoreBasedGenerativeAudioToAudioModel,

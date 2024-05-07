@@ -23,8 +23,7 @@ import librosa
 import numpy as np
 import torch
 
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.common.parts.utils import flatten
 from nemo.core.classes import Dataset
@@ -137,7 +136,11 @@ class ASRAudioProcessor:
     """
 
     def __init__(
-        self, sample_rate: float, random_offset: bool, normalization_signal: Optional[str] = None, eps: float = 1e-8,
+        self,
+        sample_rate: float,
+        random_offset: bool,
+        normalization_signal: Optional[str] = None,
+        eps: float = 1e-8,
     ):
         self.sample_rate = sample_rate
         self.random_offset = random_offset
@@ -226,8 +229,7 @@ class ASRAudioProcessor:
 
     @property
     def embedding_setup(self) -> SignalSetup:
-        """Setup signals corresponding to an embedding vector.
-        """
+        """Setup signals corresponding to an embedding vector."""
         return self._embedding_setup
 
     @embedding_setup.setter
@@ -477,7 +479,7 @@ class ASRAudioProcessor:
             available_duration = min_audio_duration - fixed_offset
 
             if available_duration <= 0:
-                raise ValueError(f'Fixed offset {fixed_offset}s is larger than shortest file {min_duration}s.')
+                raise ValueError(f'Fixed offset {fixed_offset}s is larger than shortest file {min_audio_duration}s.')
 
             if duration + fixed_offset > min_audio_duration:
                 # The shortest file is shorter than the requested duration
@@ -584,11 +586,14 @@ class ASRAudioProcessor:
             channel_selector: Select a subset of available channels.
 
         Returns:
-           An array with shape (samples,) or (channels, samples) 
+           An array with shape (samples,) or (channels, samples)
         """
         if num_samples is None:
             segment = AudioSegment.from_file(
-                audio_file=audio_file, target_sr=sample_rate, offset=offset, channel_selector=channel_selector,
+                audio_file=audio_file,
+                target_sr=sample_rate,
+                offset=offset,
+                channel_selector=channel_selector,
             )
 
         else:
@@ -682,7 +687,7 @@ class ASRAudioProcessor:
         Args:
             filepath: path to a file storing a vector.
                     Currently, it is assumed the file is a npy file.
-        
+
         Returns:
             Array loaded from filepath.
         """
@@ -709,12 +714,10 @@ class BaseAudioDataset(Dataset):
     @property
     @abc.abstractmethod
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
 
     def __init__(self, collection: collections.Audio, audio_processor: Callable, output_type: Type[namedtuple]):
-        """Instantiates an audio dataset.
-        """
+        """Instantiates an audio dataset."""
         super().__init__()
 
         self.collection = collection
@@ -732,7 +735,7 @@ class BaseAudioDataset(Dataset):
 
         NOTE:
         This assumes that all examples have the same number of channels.
-        
+
         Args:
             signal_key: string, used to select a signal from the dictionary
                         output by __getitem__
@@ -774,13 +777,11 @@ class BaseAudioDataset(Dataset):
         return output
 
     def __len__(self) -> int:
-        """Return the number of examples in the dataset.
-        """
+        """Return the number of examples in the dataset."""
         return len(self.collection)
 
     def _collate_fn(self, batch) -> Tuple[torch.Tensor]:
-        """Collate items in a batch.
-        """
+        """Collate items in a batch."""
         return self.output_type(*_audio_collate_fn(batch))
 
 
@@ -865,7 +866,9 @@ class AudioToTargetDataset(BaseAudioDataset):
         )
 
         audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate, random_offset=random_offset, normalization_signal=normalization_signal,
+            sample_rate=sample_rate,
+            random_offset=random_offset,
+            normalization_signal=normalization_signal,
         )
         audio_processor.sync_setup = SignalSetup(
             signals=['input_signal', 'target_signal'],
@@ -886,7 +889,7 @@ class AudioToTargetDataset(BaseAudioDataset):
                 'input_signal': batched single- or multi-channel format,
                 'input_length': batched original length of each input signal
                 'target_signal': batched single- or multi-channel format,
-                'target_length': batched original length of each target signal                
+                'target_length': batched original length of each target signal
             }
             ```
         """
@@ -996,7 +999,9 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         )
 
         audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate, random_offset=random_offset, normalization_signal=normalization_signal,
+            sample_rate=sample_rate,
+            random_offset=random_offset,
+            normalization_signal=normalization_signal,
         )
 
         if reference_is_synchronized:
@@ -1130,7 +1135,9 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
         )
 
         audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate, random_offset=random_offset, normalization_signal=normalization_signal,
+            sample_rate=sample_rate,
+            random_offset=random_offset,
+            normalization_signal=normalization_signal,
         )
         audio_processor.sync_setup = SignalSetup(
             signals=['input_signal', 'target_signal'],

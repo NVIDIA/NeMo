@@ -39,17 +39,17 @@ model:
     permute_channels: true
 
   encoder:
-    _target_: nemo.collections.asr.modules.audio_preprocessing.AudioToSpectrogram
+    _target_: nemo.collections.audio.modules.transform.AudioToSpectrogram
     fft_length: 512 # Length of the window and FFT for calculating spectrogram
     hop_length: 256 # Hop length for calculating spectrogram
 
   decoder:
-    _target_: nemo.collections.asr.modules.audio_preprocessing.SpectrogramToAudio
+    _target_: nemo.collections.audio.modules.transform.SpectrogramToAudio
     fft_length: ${model.encoder.fft_length} 
     hop_length: ${model.encoder.hop_length}
 
   mask_estimator:
-    _target_: nemo.collections.asr.modules.audio_modules.MaskEstimatorFlexChannels
+    _target_: nemo.collections.audio.modules.masking.MaskEstimatorFlexChannels
     num_outputs: ${model.num_outputs} # number of output masks
     num_subbands: 257 # number of subbands for the input spectrogram
     num_blocks: 5 # number of blocks in the model
@@ -67,7 +67,7 @@ model:
     
   mask_processor:
     # Mask-based multi-channel processor
-    _target_: nemo.collections.asr.modules.audio_modules.MaskBasedBeamformer
+    _target_: nemo.collections.audio.modules.masking.MaskBasedBeamformer
     filter_type: pmwf # parametric multichannel wiener filter
     filter_beta: 0.0 # mvdr
     filter_rank: one
@@ -78,7 +78,7 @@ model:
     num_subbands: ${model.mask_estimator.num_subbands}
 
   loss:
-    _target_: nemo.collections.asr.losses.SDRLoss
+    _target_: nemo.collections.audio.losses.SDRLoss
     convolution_invariant: true # convolution-invariant loss
     sdr_max: 30 # soft threshold for SDR 
 

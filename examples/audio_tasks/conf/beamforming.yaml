@@ -41,17 +41,17 @@ model:
     pin_memory: true
 
   encoder:
-    _target_: nemo.collections.asr.modules.audio_preprocessing.AudioToSpectrogram
+    _target_: nemo.collections.audio.modules.transform.AudioToSpectrogram
     fft_length: 512 # Length of the window and FFT for calculating spectrogram
     hop_length: 256 # Hop length for calculating spectrogram
 
   decoder:
-    _target_: nemo.collections.asr.modules.audio_preprocessing.SpectrogramToAudio
+    _target_: nemo.collections.audio.modules.transform.SpectrogramToAudio
     fft_length: 512 # Length of the window and FFT for calculating spectrogram
     hop_length: 256 # Hop length for calculating spectrogram
 
   mask_estimator:
-    _target_: nemo.collections.asr.modules.audio_modules.MaskEstimatorRNN
+    _target_: nemo.collections.audio.modules.masking.MaskEstimatorRNN
     num_outputs: ${model.num_outputs}
     num_subbands: 257 # Number of subbands of the input spectrogram
     num_features: 256 # Number of features at RNN input
@@ -59,11 +59,11 @@ model:
     bidirectional: true # Use bi-directional RNN
     
   mask_processor:
-    _target_: nemo.collections.asr.modules.audio_modules.MaskBasedBeamformer # Mask-based multi-channel processing
+    _target_: nemo.collections.audio.modules.masking.MaskBasedBeamformer # Mask-based multi-channel processing
     ref_channel: 0 # Reference channel for the output
 
   loss:
-    _target_: nemo.collections.asr.losses.SDRLoss
+    _target_: nemo.collections.audio.losses.SDRLoss
     scale_invariant: true # Use scale-invariant SDR
 
   metrics:

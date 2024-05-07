@@ -19,16 +19,16 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.modules.audio_modules import (
+from nemo.collections.audio.modules.features import SpectrogramToMultichannelFeatures
+from nemo.collections.audio.modules.masking import (
     MaskBasedDereverbWPE,
     MaskEstimatorFlexChannels,
     MaskEstimatorGSS,
     MaskReferenceChannel,
-    SpectrogramToMultichannelFeatures,
-    WPEFilter,
 )
-from nemo.collections.asr.modules.audio_preprocessing import AudioToSpectrogram
-from nemo.collections.asr.parts.utils.audio_utils import convmtx_mc_numpy
+from nemo.collections.audio.modules.transform import AudioToSpectrogram
+from nemo.collections.audio.parts.submodules.multichannel import WPEFilter
+from nemo.collections.audio.parts.utils.audio import convmtx_mc_numpy
 from nemo.utils import logging
 
 try:

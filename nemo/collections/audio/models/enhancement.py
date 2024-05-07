@@ -11,22 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-import os
-import tempfile
-from typing import Dict, List, Optional, Union
+
+from typing import Dict, Optional
 
 import einops
 import hydra
-import librosa
-import soundfile as sf
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from tqdm import tqdm
 
-
-from nemo.collections.asr.models.audio_to_audio_model import AudioToAudioModel
+from nemo.collections.audio.models.audio_to_audio import AudioToAudioModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, LossType, NeuralType
 from nemo.utils import logging
@@ -261,11 +255,11 @@ class PredictiveAudioToAudioModel(AudioToAudioModel):
     @typecheck()
     def forward(self, input_signal, input_length=None):
         """Forward pass of the model.
-        
+
         Args:
             input_signal: time-domain signal
             input_length: valid length of each example in the batch
-        
+
         Returns:
             Output signal `output` in the time domain and the length of the output signal `output_length`.
         """
@@ -361,7 +355,7 @@ class PredictiveAudioToAudioModel(AudioToAudioModel):
 class ScoreBasedGenerativeAudioToAudioModel(AudioToAudioModel):
     """This models is using a score-based diffusion process to generate
     an encoded representation of the enhanced signal.
-    
+
     The model consists of the following blocks:
         - encoder: transforms input multi-channel audio signal into an encoded representation (analysis transform)
         - estimator: neural model, estimates a score for the diffusion process
@@ -481,7 +475,9 @@ class ScoreBasedGenerativeAudioToAudioModel(AudioToAudioModel):
             "input_signal": NeuralType(('B', 'C', 'T'), AudioSignal()),
             "input_length": NeuralType(tuple('B'), LengthsType()),
         },
-        output_types={"loss": NeuralType(None, LossType()),},
+        output_types={
+            "loss": NeuralType(None, LossType()),
+        },
     )
     def _step(self, target_signal, input_signal, input_length=None):
         """Randomly generate a time step for each example in the batch, estimate
