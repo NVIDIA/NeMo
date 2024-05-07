@@ -916,7 +916,7 @@ class NevaDataset(LazySupervisedDataset):
             super(NevaDataset, self).__init__(data_path, tokenizer, multimodal_cfg, data_cfg)
 
         elif data_path.endswith(".jsonl"):
-            super(NevaDataset, self).__init__(None, tokenizer, multimodal_cfg)
+            super(NevaDataset, self).__init__(None, tokenizer, multimodal_cfg, data_cfg)
             logging.warning("Loading image inputs from SteerLM Dataset")
             if multimodal_cfg['media_type'] == 'image':
                 image_folder = multimodal_cfg['image_folder']
@@ -940,6 +940,7 @@ class NevaDataset(LazySupervisedDataset):
                         turn['value'] = re.sub('<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn['value'])
 
                     self.list_data_dict.append(record)
+            
 
         else:
             raise ValueError(f"Formatting of {data_path} is not supported in Neva.")
@@ -1066,7 +1067,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             image_processor=image_processor,
             add_extra_token=add_extra_token,
             context_length=model_cfg.encoder_seq_length,
-            media_type=data_cfg.media_type,
+            media_type=data_cfg.get('media_type','image'),
             num_frames=data_cfg.get('num_frames', -1),
         ),
         data_cfg=dict(
