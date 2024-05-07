@@ -6,7 +6,7 @@ from pytriton.client import ModelClient
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.nlp import NemoTritonQueryLLMTensorRT
-from nemo.deploy.nlp.megatrongpt_deployable import MegatronLLMDeployable
+from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
 
 

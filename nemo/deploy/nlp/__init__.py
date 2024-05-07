@@ -19,4 +19,4 @@ try:
 except Exception:
     use_query_llm = False
 
-from nemo.deploy.nlp.megatrongpt_deployable import MegatronLLMDeployable
+from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
