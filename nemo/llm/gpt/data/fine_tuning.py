@@ -33,6 +33,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training. Defaults to True.
         persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
     """
+
     def __init__(
         self,
         dataset_root: Union[str, Path],
@@ -45,7 +46,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         memmap_workers: int = 1,
         num_workers: int = 8,
         pin_memory: bool = True,
-        persistent_workers: bool = False
+        persistent_workers: bool = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -73,22 +74,12 @@ class FineTuningDataModule(pl.LightningDataModule):
         return self._create_dataloader(self._create_dataset(str(self.validation_path)))
 
     def test_dataloader(self) -> DataLoader:
-        return self._create_dataloader(
-            self._create_dataset(
-                str(self.test_path),
-                tokens_to_generate=32,
-                is_test=True,
-            )
-        )
+        return self._create_dataloader(self._create_dataset(str(self.test_path), tokens_to_generate=32, is_test=True,))
 
     @lru_cache
     def _create_dataset(self, path, **kwargs):
         return create_sft_dataset(
-            path,
-            tokenizer=self.tokenizer,
-            seq_length=self.seq_length,
-            memmap_workers=self.memmap_workers,
-            **kwargs
+            path, tokenizer=self.tokenizer, seq_length=self.seq_length, memmap_workers=self.memmap_workers, **kwargs
         )
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:

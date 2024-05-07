@@ -24,6 +24,7 @@ class SquadDataModule(FineTuningDataModule):
         delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing. Defaults to True.
         See FineTuningDataModule for the other args
     """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -37,7 +38,7 @@ class SquadDataModule(FineTuningDataModule):
         memmap_workers: int = 1,
         num_workers: int = 8,
         pin_memory: bool = True,
-        persistent_workers: bool = False
+        persistent_workers: bool = False,
     ):
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
@@ -56,7 +57,6 @@ class SquadDataModule(FineTuningDataModule):
             persistent_workers=persistent_workers,
         )
 
-        
     def prepare_data(self) -> None:
         # if train file is specified, no need to do anything
         if self.train_path.exists() and not self.force_redownload:
@@ -64,20 +64,17 @@ class SquadDataModule(FineTuningDataModule):
 
         dset = self._download_data()
         self._preprocess_and_split_data(dset)
-        
+
     def _download_data(self):
         logging.info(f"Downloading {self.__class__.__name__}...")
         return load_dataset(
             "squad",
             cache_dir=str(self.dataset_root),
-            download_mode="force_redownload" if self.force_redownload else None
+            download_mode="force_redownload" if self.force_redownload else None,
         )
-    
+
     def _preprocess_and_split_data(
-        self, 
-        dset: DatasetDict,
-        split_val_from_train: bool = True,
-        val_proportion: float = 0.05
+        self, dset: DatasetDict, split_val_from_train: bool = True, val_proportion: float = 0.05
     ):
         """Preprocesses and splits the downloaded dataset into training, validation, and test sets.
 
@@ -104,7 +101,6 @@ class SquadDataModule(FineTuningDataModule):
             save_splits['validation'] = split_dataset['test']
             save_splits['test'] = split_dataset['train']
 
-
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.jsonl"
 
@@ -112,8 +108,9 @@ class SquadDataModule(FineTuningDataModule):
                 for example in dataset:
                     json_line = {}
                     # Write each example as a JSON line in the output file
-                    json_line["input"] = "Context: " + example["context"] + " Question: " + example[
-                        'question'] + " Answer:"
+                    json_line["input"] = (
+                        "Context: " + example["context"] + " Question: " + example['question'] + " Answer:"
+                    )
                     json_line["output"] = example["answers"]["text"][0]
                     if split_name == "test":
                         json_line["original_answers"] = example["answers"]["text"]

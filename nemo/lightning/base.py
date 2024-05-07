@@ -2,11 +2,11 @@ import gc
 import inspect
 import os
 from pathlib import Path
-from typing import Optional, TypeVar, Generic, Type
+from typing import Generic, Optional, Type, TypeVar
 
 import torch
 import torch.distributed
-from pytorch_lightning import Trainer, LightningModule
+from pytorch_lightning import LightningModule, Trainer
 from torch import nn
 
 from nemo import io
@@ -64,6 +64,7 @@ class ModelConfig(Generic[ModelT], io.IOMixin):
             model.cuda(torch.cuda.current_device())
 
         return model
+
 
 def get_vocab_size(config, vocab_size: int, make_vocab_size_divisible_by: int = 128,) -> int:
     from nemo.utils import logging

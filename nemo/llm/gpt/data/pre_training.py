@@ -31,7 +31,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         reset_attention_mask: bool = False,
         eod_mask_loss: bool = False,
         seed: int = 1234,
-        split: str = "900,50,50"
+        split: str = "900,50,50",
     ) -> None:
         super().__init__()
         self.path = path
@@ -48,7 +48,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         self.eod_mask_loss = eod_mask_loss
         self.seed = seed
         self.split = split
-        
+
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
@@ -58,13 +58,14 @@ class PreTrainingDataModule(pl.LightningDataModule):
             global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
         )
-         
+
     def setup(self, stage: str = "") -> None:
         from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
         from megatron.core.datasets.gpt_dataset import GPTDataset
-        
-        assert hasattr(self, "trainer") and self.trainer is not None, \
-            "Setup should be completed when trainer and config are attached."
+
+        assert (
+            hasattr(self, "trainer") and self.trainer is not None
+        ), "Setup should be completed when trainer and config are attached."
 
         # Trainer API
         max_train_steps = self.trainer.max_steps
@@ -81,9 +82,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-            GPTDataset, train_valid_test_num_samples,
-            is_built_on_rank=lambda: True,
-            config=self.gpt_dataset_config,
+            GPTDataset, train_valid_test_num_samples, is_built_on_rank=lambda: True, config=self.gpt_dataset_config,
         ).build()
 
     # uncomment once fabric API is merged
@@ -102,16 +101,16 @@ class PreTrainingDataModule(pl.LightningDataModule):
     #     self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
     #         GPTDataset, train_valid_test_num_samples, self.gpt_dataset_config,
     #     ).build()
-    
+
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._create_dataloader(self._train_ds)
-    
+
     def val_dataloader(self) -> EVAL_DATALOADERS:
         return self._create_dataloader(self._validation_ds)
-    
+
     def test_dataloader(self) -> EVAL_DATALOADERS:
         return self._create_dataloader(self._test_ds)
-        
+
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
@@ -119,13 +118,13 @@ class PreTrainingDataModule(pl.LightningDataModule):
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=dataset.collate_fn,
-            **kwargs
+            **kwargs,
         )
-        
+
     @property
     def gpt_dataset_config(self) -> "GPTDatasetConfig":
         from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
-        
+
         return GPTDatasetConfig(
             blend=[[str(self.path)], [1.0]],
             random_seed=self.seed,
@@ -135,5 +134,5 @@ class PreTrainingDataModule(pl.LightningDataModule):
             path_to_cache=None,
             reset_position_ids=self.reset_position_ids,
             reset_attention_mask=self.reset_attention_mask,
-            eod_mask_loss=self.eod_mask_loss
+            eod_mask_loss=self.eod_mask_loss,
         )

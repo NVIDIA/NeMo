@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 def get_dataset_root(name: str) -> Path:
     output = Path(NEMO_DATASETS_CACHE) / name
     output.mkdir(parents=True, exist_ok=True)
-    
+
     return output
 
 
@@ -35,10 +35,10 @@ def create_sft_dataset(
     **kwargs
 ) -> "GPTSFTDataset":
     from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
-        
+
     return GPTSFTDataset(
-        file_path=str(path), 
-        tokenizer=tokenizer, 
+        file_path=str(path),
+        tokenizer=tokenizer,
         max_seq_length=seq_length,
         memmap_workers=memmap_workers,
         hf_dataset=hf_dataset,
