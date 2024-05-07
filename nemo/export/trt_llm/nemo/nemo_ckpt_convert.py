@@ -326,7 +326,14 @@ def get_layer_num(param_name):
     return int(split_key[layer_index])
 
 @torch.no_grad()
-def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, reshard_model=False, cpu=True):
+def convert_nemo_model(
+    nemo_model, 
+    nemo_model_config,  
+    tokenizer_vocab_size, 
+    reshard_model=False, 
+    cpu=True,
+    trt_model_type=None
+):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility
 
@@ -551,8 +558,18 @@ def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, res
         save_weight_torch(**starmap_arg)
     toc = time.time()
     print(f"     weight save took {toc-tic}")
-    return weights_dict
 
+    # ----------------Rename weights----------------  
+    renamed_weight_dict = {}
+    if trt_model_type == 'GPTForCausalLM':
+        for key, val in weights_dict.items():
+            if 'layernorm' in key:
+                new_key = key.replace("pre_mlp_layernorm", "post_layernorm")
+            else:
+                new_key = key
+            renamed_weight_dict[new_key] = val
+
+    return renamed_weight_dict
 
 
 def create_out_dir(args):
