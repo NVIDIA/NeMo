@@ -438,7 +438,12 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         if self.mrl_dims:
             for dim in self.mrl_dims:
                 cs_dim, _, _, _ = self.constrastive_scores(
-                    pos_doc_hs[:, :dim], neg_doc_hs[:, :dim], query_hs[:, :dim], bs, self.temperature, self.use_all_possible_negatives
+                    pos_doc_hs[:, :dim],
+                    neg_doc_hs[:, :dim],
+                    query_hs[:, :dim],
+                    bs,
+                    self.temperature,
+                    self.use_all_possible_negatives,
                 )
                 loss += torch.nn.functional.cross_entropy(cs_dim, labels)
 
