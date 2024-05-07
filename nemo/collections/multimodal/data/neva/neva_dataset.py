@@ -940,7 +940,6 @@ class NevaDataset(LazySupervisedDataset):
                         turn['value'] = re.sub('<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn['value'])
 
                     self.list_data_dict.append(record)
-            
 
         else:
             raise ValueError(f"Formatting of {data_path} is not supported in Neva.")
@@ -1067,7 +1066,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             image_processor=image_processor,
             add_extra_token=add_extra_token,
             context_length=model_cfg.encoder_seq_length,
-            media_type=data_cfg.get('media_type','image'),
+            media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
         ),
         data_cfg=dict(
