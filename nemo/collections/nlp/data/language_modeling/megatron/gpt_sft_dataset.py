@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import List, Mapping, Optional
 
@@ -60,6 +61,8 @@ class GPTSFTDataset(Dataset):
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         is_test: bool = False,
         output_original_text: bool = False,
+        ceil_to_power_2: bool = False,
+        get_attention_mask_from_fusion: bool = False,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -109,6 +112,9 @@ class GPTSFTDataset(Dataset):
         self.truncation_method = truncation_method
         self.is_test = is_test
         self.output_original_text = output_original_text
+        self.ceil_to_power_2 = ceil_to_power_2
+        self.get_attention_mask_from_fusion = get_attention_mask_from_fusion
+
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -406,7 +412,11 @@ class GPTSFTDataset(Dataset):
         return x
 
     def _ceil_to_nearest(self, n, m):
-        return (n + m - 1) // m * m
+        if self.ceil_to_power_2:
+            # Reccurent Gemma (AKA Griffin) requires seq length to be a power of 2 for parallel scan
+            return 2 ** math.ceil(math.log2(n))
+        else:
+            return (n + m - 1) // m * m
 
     def _collate_item(self, item, max_length, pad_id):
         item = self._maybe_cast_to_list(item)
@@ -456,8 +466,9 @@ class GPTSFTDataset(Dataset):
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult))
         assert max_length <= self.max_seq_length
 
-        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-        attention_mask = torch.stack(attention_mask)
+        if not self.get_attention_mask_from_fusion:
+            attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+            attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
@@ -471,7 +482,6 @@ class GPTSFTDataset(Dataset):
         processed_batch = {
             'tokens': input_ids,
             'labels': labels,
-            'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
             'contexts': contexts,
@@ -480,6 +490,9 @@ class GPTSFTDataset(Dataset):
             'metadata': metadata,
             'token_count': token_count,
         }
+
+        if not self.get_attention_mask_from_fusion:
+            processed_batch['attention_mask'] = attention_mask
 
         return processed_batch
 

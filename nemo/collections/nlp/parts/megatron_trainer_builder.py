@@ -31,6 +31,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
+from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
 
 class MegatronTrainerBuilder:
@@ -55,6 +56,7 @@ class MegatronTrainerBuilder:
         if self.cfg.model.get('fsdp', False):
             assert (
                 not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+                and not self.cfg.model.optim.get('name') == 'mcore_distributed_optim'
             ), 'Distributed optimizer cannot be used with FSDP.'
             sharded_checkpoint = self.cfg.model.get('fsdp_sharded_checkpoint', False)
             if self.cfg.model.get('tensor_model_parallel_size', 1) > 1:
@@ -80,7 +82,6 @@ class MegatronTrainerBuilder:
             find_unused_parameters=False,
             nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
             sharp=self.cfg.model.get('sharp', False),
-            torch_dist_ckpt=self.cfg.model.get('torch_distributed_checkpoint', False),
         )
 
     def _grad_scaler(self) -> GradScaler:
@@ -100,7 +101,12 @@ class MegatronTrainerBuilder:
         """
         megatron_amp_O2 = self.cfg.model.get('megatron_amp_O2', False)
         with_distributed_adam = (
-            self.cfg.model.optim.get('name') == 'distributed_fused_adam' if self.cfg.model.get('optim') else False
+            (
+                self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+                or self.cfg.model.optim.get('name') == 'mcore_distributed_optim'
+            )
+            if self.cfg.model.get('optim')
+            else False
         )
 
         plugins = []
@@ -126,6 +132,13 @@ class MegatronTrainerBuilder:
 
         if self.cfg.get('cluster_type', None) == 'BCP':
             plugins.append(TorchElasticEnvironment())
+
+        # Use dist-ckt for non-FSDP MCore models
+        use_dist_ckpt = not self.cfg.model.get('fsdp', False) and (
+            self.cfg.model.get('mcore_gpt', False) or self.cfg.model.get('mcore_bert', False)
+        )
+        if use_dist_ckpt:
+            plugins.append(DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr')))
 
         return plugins
 
