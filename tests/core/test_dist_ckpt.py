@@ -118,6 +118,7 @@ class TestDistCkptIO:
 
 
 class TestAsyncSave:
+    @pytest.mark.run_only_on('GPU')
     def test_async_save_produces_same_checkpoints_as_sync(self, tmp_path):
         strategy = NLPDDPStrategy()
         # skip optimizer sharded state creation:
