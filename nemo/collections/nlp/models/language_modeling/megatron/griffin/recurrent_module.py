@@ -27,7 +27,8 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 # Class copied from https://github.com/google-deepmind/recurrentgemma
 class BlockDiagonalLinear(nn.Module):
     """Block-diagonal linear layer."""
@@ -60,7 +61,7 @@ class BlockDiagonalLinear(nn.Module):
         """Initializes the weight `w` of the layer."""
         std = math.sqrt(self.w_init_variance_scale / self.block_width)
         torch.nn.init.normal_(w, mean=0.0, std=std)
-
+    @jit_fuser
     def _fused_pre_reshape_(self, x, bs, seq_l):
         x = (
             x.reshape(bs, seq_l, self.num_blocks, self.block_width)
@@ -68,7 +69,7 @@ class BlockDiagonalLinear(nn.Module):
             .reshape(self.num_blocks, bs * seq_l, self.block_width)
         )
         return x
-
+    @jit_fuser
     def _post_add_reshape_sigmoid_(self, x, bs, seq_l):
         x = (x.permute(1, 0, 2) + self.b).reshape(bs, seq_l, self.num_blocks * self.block_width)
         x = torch.sigmoid(x)
