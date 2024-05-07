@@ -27,8 +27,7 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-import torch._dynamo
-torch._dynamo.config.suppress_errors = True
+
 # Class copied from https://github.com/google-deepmind/recurrentgemma
 class BlockDiagonalLinear(nn.Module):
     """Block-diagonal linear layer."""
@@ -61,7 +60,7 @@ class BlockDiagonalLinear(nn.Module):
         """Initializes the weight `w` of the layer."""
         std = math.sqrt(self.w_init_variance_scale / self.block_width)
         torch.nn.init.normal_(w, mean=0.0, std=std)
-    @jit_fuser
+
     def _fused_pre_reshape_(self, x, bs, seq_l):
         x = (
             x.reshape(bs, seq_l, self.num_blocks, self.block_width)
@@ -69,7 +68,7 @@ class BlockDiagonalLinear(nn.Module):
             .reshape(self.num_blocks, bs * seq_l, self.block_width)
         )
         return x
-    @jit_fuser
+
     def _post_add_reshape_sigmoid_(self, x, bs, seq_l):
         x = (x.permute(1, 0, 2) + self.b).reshape(bs, seq_l, self.num_blocks * self.block_width)
         x = torch.sigmoid(x)
@@ -79,10 +78,10 @@ class BlockDiagonalLinear(nn.Module):
         # Split x to blocks.
         bs, seq_l = x.shape[0], x.shape[1]
         x = self._fused_pre_reshape_(x, bs, seq_l)
-        # x = (torch.bmm(x, self.w).permute(1, 0, 2) + self.b).reshape(bs, seq_l, self.num_blocks * self.block_width)
+
         x = torch.bmm(x, self.w)
         x = self._post_add_reshape_sigmoid_(x, bs, seq_l)
-        # out = torch.sigmoid(x)
+
         return x
 
 
@@ -92,15 +91,14 @@ class BlockDiagonalLinear(nn.Module):
 @jit_fuser
 # def _scan_preprocess_(a, x, reset):
 def _scan_preprocess_(x, gate_a, gate_x, reset, a_params):
-    # torch.cuda.nvtx.range_push("pre part 1")
+
     log_a = -8.0 * gate_a * nn.functional.softplus(a_params)
     a = torch.exp(log_a)
     gated_x = x * gate_x
     multiplier = torch.sqrt((1 - torch.exp(2 * log_a)) + 1e-6)
     multiplier = reset + (1 - reset) * multiplier
     x = gated_x * multiplier.type(x.dtype)
-    # torch.cuda.nvtx.range_pop()
-    # torch.cuda.nvtx.range_push("pre part 2")
+
     assert x.ndim == 3
     assert a.shape == x.shape[-a.ndim :]
     assert a.dtype == x.dtype
@@ -114,7 +112,7 @@ def _scan_preprocess_(x, gate_a, gate_x, reset, a_params):
     a = a.permute(0, 2, 1)
     x = x.contiguous()
     a = a.contiguous()
-    # torch.cuda.nvtx.range_pop()
+
     return a, x
 
 
@@ -133,14 +131,13 @@ def rnn_scan(x, gate_a, gate_x, reset, a_params
   Returns:
     The output of the linear recurrence.
   """
-    # a, x = _scan_preprocess_(a, x, reset)
+
     a, x = _scan_preprocess_(x, gate_a, gate_x, reset, a_params)
-    # torch.cuda.nvtx.range_push("main scan")
+
     y = scan(a.float(), x.float()).type_as(x)
-    # torch.cuda.nvtx.range_pop()
-    # torch.cuda.nvtx.range_push("premute")
+
     y = y.permute(0, 2, 1)
-    # torch.cuda.nvtx.range_pop()
+
     return y, None
 
 
@@ -222,30 +219,18 @@ class RGLRU(nn.Module):
     Returns:
       Output of the block together with the updated hidden state.
     """
-        # torch.cuda.nvtx.range_push("pre_gates")
+
         for param in self.parameters():
             param.data_ptr()
 
         bs, l, d = x.shape
         assert segment_pos.shape == (bs, l)
         reset = (segment_pos == 0).type(torch.int32).unsqueeze(-1)
-        # torch.cuda.nvtx.range_pop()
-        # Gates for x and a.
-        # print(x.shape)
-        # torch.cuda.nvtx.range_push("gates")
-        # gate_x, gate_a = self.input_gate(x)[0].chunk(2, dim=-1)
+
         gate_x = self.input_gate(x)
         gate_a = self.a_gate(x)
-        # torch.cuda.nvtx.range_pop()
 
-        # Compute the parameter `A` of the recurrence.
-        # torch.cuda.nvtx.range_push("_fused_pst_gates_")
-        # normalized_x, a = self._fused_pst_gates_(x, gate_a, gate_x, reset)
-        # torch.cuda.nvtx.range_pop()
-        # torch.cuda.nvtx.range_push("rnn_scan")
         y, last_h = rnn_scan(x, gate_a, gate_x, reset, x)
-        # y, last_h = rnn_scan(x=normalized_x, a=a, reset=reset)
-        # torch.cuda.nvtx.range_pop()
 
         return y, last_h
 
