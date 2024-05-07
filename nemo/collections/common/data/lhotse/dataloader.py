@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import warnings
 from dataclasses import dataclass
 from functools import partial
@@ -19,7 +19,7 @@ from typing import Any, Optional, TypeVar, Union
 
 import numpy as np
 import torch
-from lhotse import CutSet
+from lhotse import CutSet, RecordingSet
 from lhotse.cut import Cut
 from lhotse.cut.text import TextExample, TextPairExample
 from lhotse.dataset import (
@@ -27,6 +27,7 @@ from lhotse.dataset import (
     DynamicBucketingSampler,
     DynamicCutSampler,
     IterableDatasetWrapper,
+    ReverbWithImpulseResponse,
     make_worker_init_fn,
 )
 from lhotse.dataset.dataloading import resolve_seed
@@ -35,7 +36,7 @@ from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
+from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
 from nemo.utils import logging
 
 
@@ -74,6 +75,7 @@ class LhotseDataLoadingConfig:
     drop_last: bool = False
     shard_seed: int | str = "trng"
     max_open_streams: int | None = None
+    cuda_expandable_segments: bool = True
 
     # 2.1 Multimodal sampling override options
     use_multimodal_sampling: bool = False
@@ -89,10 +91,11 @@ class LhotseDataLoadingConfig:
     seed: int | str = 0
     num_workers: int = 0
     pin_memory: bool = False
+    channel_selector: int | str | None = None
 
     # 4. Optional Lhotse data augmentation.
     #   a. On-the-fly noise/audio mixing.
-    noise_path: str | None = None
+    noise_path: Any | None = None  # str | dict where dict can have any of keys: manifest_filepath, tarred_audio_filepaths, cuts_path, shar_path
     noise_snr: tuple[float, float] = (10.0, 20.0)
     noise_mix_prob: float = 0.5
     #   b. On-the-fly 3-way speed perturbation.
@@ -112,6 +115,11 @@ class LhotseDataLoadingConfig:
     cut_into_windows_hop: Optional[float] = None
     #       III) common options
     keep_excessive_supervisions: bool = True  # when a cut is truncated in the middle of a supervision, should we keep them.
+    #   e. RIR augmentation (synthetic RIR if rir_path is None)
+    #   at the moment supports only Lhotse recording manifests, e.g. https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/rir_noise.py
+    rir_enabled: bool = False
+    rir_path: str | None = None  # str, must point to a lhotse RecordingSet manifest
+    rir_prob: float = 0.5
 
     # 5. Other Lhotse options.
     text_field: str = "text"  # key to read the transcript from
@@ -149,12 +157,19 @@ def get_lhotse_dataloader_from_config(
 
     config = make_structured_with_schema_warnings(config)
 
+    maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
+
     # First, resolve the random seed in case a string value was provided.
     seed = resolve_seed(config.seed)
     fix_random_seed(seed)
 
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)
+
+    # Apply channel selector
+    if config.channel_selector is not None:
+        logging.info('Using channel selector %s.', config.channel_selector)
+        cuts = cuts.map(partial(_select_channel, channel_selector=config.channel_selector))
 
     # Resample as a safeguard; it's a no-op when SR is already OK
     cuts = cuts.resample(config.sample_rate)
@@ -176,10 +191,10 @@ def get_lhotse_dataloader_from_config(
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
     if config.noise_path is not None:
-        noise = CutSet.from_file(config.noise_path)
+        noise = guess_parse_cutset(config.noise_path)
         cuts = cuts.mix(
             cuts=noise,
-            snr=config.noise_snr,
+            snr=tuple(config.noise_snr),
             mix_prob=config.noise_mix_prob,
             seed=config.shard_seed,
             random_mix_offset=True,
@@ -282,6 +297,14 @@ def get_lhotse_dataloader_from_config(
             sampler = sampler.map(partial(_normalize_loudness, db_norm=config.db_norm))
         if config.concatenate_merge_supervisions:
             sampler = sampler.map(_merge_supervisions)
+
+    if config.rir_enabled:
+        sampler = sampler.map(
+            ReverbWithImpulseResponse(
+                rir_recordings=RecordingSet.from_file(config.rir_path) if config.rir_path is not None else None,
+                p=config.rir_prob,
+            )
+        )
 
     # 4. Creating dataloader.
     if is_tarred:
@@ -443,3 +466,47 @@ def _flatten_alt_text(cut) -> list:
         text_instance.custom = {"text": data.pop("text"), "lang": data.pop("lang"), **data}
         ans.append(text_instance)
     return ans
+
+
+def maybe_set_cuda_expandable_segments(enabled: bool):
+    """
+    Configures PyTorch memory allocator to expand existing allocated segments
+    instead of re-allocating them when tensor shape grows.
+    This can help speed up the training when sequence length and/or batch size change often,
+    and makes GPU more robust towards OOM.
+
+    See here for more details:
+    https://pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf
+    """
+    if enabled and torch.cuda.is_available():
+        if (
+            (value := os.environ.get("PYTORCH_CUDA_ALLOC_CONF")) is not None
+            and len(value) > 0
+            and "expandable_segments:True" not in value
+        ):
+            warnings.warn(
+                "You have set PYTORCH_CUDA_ALLOC_CONF without expandable_segments:True option. We're setting that option anyway. To disable it, set cuda_expandable_segments=False in NeMo dataloader configuration."
+            )
+        torch.cuda.memory._set_allocator_settings("expandable_segments:True")
+
+
+def _select_channel(cut, channel_selector: int | str) -> list:
+    if isinstance(channel_selector, int):
+        channel_idx = channel_selector
+    elif isinstance(channel_selector, str):
+        if channel_selector in cut.custom:
+            channel_idx = cut.custom[channel_selector]
+        else:
+            raise ValueError(f"Channel selector {channel_selector} not found in cut.custom")
+
+    if channel_idx >= cut.num_channels:
+        raise ValueError(
+            f"Channel index {channel_idx} is larger than the actual number of channels {cut.num_channels}"
+        )
+
+    if cut.num_channels == 1:
+        # one channel available and channel_idx==0
+        return cut
+    else:
+        # with_channels only defined on MultiCut
+        return cut.with_channels(channel_idx)

@@ -74,6 +74,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        assert trainer.max_steps > 0, "max_steps for SFT can't be negative as its required to build the dataset"
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get('sep_id', 49704)
         if hasattr(self.cfg.data, "validation_ds"):
@@ -253,9 +254,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         # TE requires that the first input dim is divisible by 8 and the second by 16 for fp8
         # When using sequence parallel, sequence will further be split by TP size
+        # When using context parallel, sequence is split by CP size as well
         pad_seq_length_to_mult = (
             8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
         )
+        pad_seq_length_to_mult *= self.cfg.get('context_parallel_size', 1)
 
         dataset_kwargs = {}
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
@@ -290,6 +293,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),
+                ceil_to_power_2=data_cfg.get('ceil_to_power_2', False),
+                get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', False),
                 virtual_tokens=self.virtual_tokens,
                 tokens_to_generate=data_cfg.get(
                     'tokens_to_generate', 0
@@ -804,7 +809,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
+            if self._validation_ds:
+                logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
             self.maybe_build_test()
