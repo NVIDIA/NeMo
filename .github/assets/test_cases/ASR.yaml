@@ -1,0 +1,100 @@
+ASR_dev_run_Speech_to_Text: |
+  python examples/asr/asr_ctc/speech_to_text_ctc.py \
+  model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+  model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+  trainer.devices=1 \
+  trainer.accelerator="gpu" \
+  +trainer.fast_dev_run=True \
+  exp_manager.exp_dir=examples/asr/speech_to_text_results
+  rm -rf examples/asr/speech_to_text_results
+ASR_dev_run_Speech_to_Text_WPE_-_CitriNet: |
+  python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+  --config-path="../conf/citrinet/" --config-name="config_bpe" \
+  model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+  model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+  model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+  model.tokenizer.type="wpe" \
+  trainer.devices=1 \
+  trainer.accelerator="gpu" \
+  +trainer.fast_dev_run=True \
+  exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results
+  rm -rf examples/asr/speech_to_text_wpe_results
+ASR_dev_run_Speech_Pre-training_-_CitriNet: |
+  python examples/asr/speech_pretraining/speech_pre_training.py \
+  --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
+  model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+  model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+  trainer.devices=1 \
+  trainer.accelerator="gpu" \
+  +trainer.fast_dev_run=True \
+  exp_manager.exp_dir=examples/asr/speech_pre_training_results
+  rm -rf examples/asr/speech_pre_training_results
+ASR_dev_run_Speech_To_Text_Finetuning: |
+  python examples/asr/speech_to_text_finetune.py \
+  --config-path="conf/asr_finetune" --config-name="speech_to_text_finetune" \
+  model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+  model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+  init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
+  model.tokenizer.update_tokenizer=False \
+  trainer.devices=1 \
+  trainer.accelerator="gpu" \
+  +trainer.fast_dev_run=True \
+  exp_manager.exp_dir=examples/asr/speech_finetuning_results
+  rm -rf examples/asr/speech_finetuning_results
+ASR_dev_run_Speech_To_Text_HF_Finetuning: |
+  python examples/asr/speech_to_text_finetune.py \
+  --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
+  ~model.train_ds.hf_data_cfg \
+  model.train_ds.num_workers=1 \
+  model.train_ds.batch_size=2 model.validation_ds.batch_size=2 \
+  model.train_ds.streaming=true \
+  +model.train_ds.hf_data_cfg.path="librispeech_asr" \
+  +model.train_ds.hf_data_cfg.name=null \
+  +model.train_ds.hf_data_cfg.split="test.clean" \
+  +model.train_ds.hf_data_cfg.streaming=true \
+  ~model.validation_ds.hf_data_cfg \
+  model.validation_ds.streaming=true \
+  +model.validation_ds.hf_data_cfg.path="librispeech_asr" \
+  +model.validation_ds.hf_data_cfg.name=null \
+  +model.validation_ds.hf_data_cfg.split="test.clean" \
+  +model.validation_ds.hf_data_cfg.streaming=true \
+  ~model.test_ds \
+  init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
+  model.tokenizer.update_tokenizer=False \
+  model.optim.sched.warmup_steps=0 \
+  +model.optim.sched.max_steps=3 \
+  trainer.max_epochs=null \
+  trainer.devices=1 \
+  trainer.accelerator="gpu" \
+  +trainer.fast_dev_run=True \
+  exp_manager.exp_dir=examples/asr/speech_finetuning_results
+  rm -rf examples/asr/speech_finetuning_results
+ASR_dev_run_Speech_to_Text_WPE_-_Conformer: |
+  python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+  --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
+  model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+  model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+  model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+  model.tokenizer.type="wpe" \
+  model.train_ds.batch_size=4 \
+  model.validation_ds.batch_size=4 \
+  trainer.devices=1 \
+  trainer.accelerator="gpu" \
+  +trainer.fast_dev_run=True \
+  exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results
+  rm -rf examples/asr/speech_to_text_wpe_conformer_results
+ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer: |
+  python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+  --config-path="../conf/squeezeformer" --config-name="squeezeformer_ctc_bpe" \
+  model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+  model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+  model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+  model.tokenizer.type="wpe" \
+  model.encoder.d_model=144 \
+  model.train_ds.batch_size=4 \
+  model.validation_ds.batch_size=4 \
+  trainer.devices=1 \
+  trainer.accelerator="gpu" \
+  +trainer.fast_dev_run=True \
+  exp_manager.exp_dir=examples/asr/speech_to_text_wpe_squeezeformer_results
+  rm -rf examples/asr/speech_to_text_wpe_squeezeformer_results
