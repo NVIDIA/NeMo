@@ -1,6 +1,7 @@
 import argparse
 
 import numpy as np
+import torch
 from pytriton.client import ModelClient
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton
@@ -8,7 +9,6 @@ from nemo.deploy.nlp import NemoTritonQueryLLMTensorRT
 from nemo.deploy.nlp.megatrongpt_deployable import MegatronGPTDeployable
 from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
 
-import torch
 
 def test_triton_deployable(args):
     megatron_deployable = MegatronGPTDeployable(args.nemo_checkpoint, args.num_gpus)
@@ -18,7 +18,7 @@ def test_triton_deployable(args):
     model_name = args.model_name
     init_timeout = 600.0
 
-    #test broadcast
+    # test broadcast
     if torch.distributed.get_rank() == 0:
         testb = torch.cuda.LongTensor([0])
         print(f"0testb is {testb}")
@@ -34,7 +34,7 @@ def test_triton_deployable(args):
             choice = torch.cuda.LongTensor([1])
             torch.distributed.broadcast(choice, 0)
             if choice[0].item() == 0:
-                #megatron_deployable.triton_infer_fn(prompts=[""])
+                # megatron_deployable.triton_infer_fn(prompts=[""])
                 megatron_deployable.model.generate(inputs=[""], length_params=None)
 
     nm = DeployPyTriton(
