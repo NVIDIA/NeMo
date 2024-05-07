@@ -131,6 +131,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         self.sample_rate = cfg.sample_rate
         self._setup_tokenizer(cfg.tokenizer)
 
+        from nemo.collections.common.tokenizers.canary_tokenizer import CanaryTokenizer
+
+        self.tokenizer = CanaryTokenizer(self.tokenizer.tokenizers_dict)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup audio preprocessor
@@ -460,6 +464,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 prompt_format_fn=get_prompt_format_fn(self.prompt_format),
                 inference=inference,
             ),
+            tokenizer=self.tokenizer,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
