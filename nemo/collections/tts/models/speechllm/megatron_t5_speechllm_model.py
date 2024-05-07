@@ -886,6 +886,13 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
         if batch_idx == 0 and self.is_rank_zero:
             self.frozen_model.enc_dec_model.logging_step = True
+            self.predict_step_outputs = []
+            self.predict_step(batch=batch, batch_idx=self.global_step)
+            for inf_key in self.predict_step_outputs[0]:
+                if self.predict_step_outputs[0][inf_key] is not None:
+                    self.logger.experiment.add_scalar(
+                        f'Val_{inf_key}', self.predict_step_outputs[0][inf_key], self.global_step
+                    )
 
         labels_original = labels.clone()  # (b, 8, t)
         output_loss, _, output_logits = self.forward(
@@ -1399,7 +1406,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             end_indices = {}
             # pad dec_input (B, 8, T) to 1000 timesteps
-            max_inference_timesteps = self.cfg.get('max_inference_timesteps', 1200)
+            max_inference_timesteps = self.cfg.get('max_inference_timesteps', 2000)
             dec_input = torch.nn.functional.pad(dec_input, (0, max_inference_timesteps - dec_input.shape[2]), value=0)
             dec_input[:, :, self.decoder_context_len + 1:].zero_()
             dec_input_mask = torch.nn.functional.pad(
@@ -1485,7 +1492,7 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
                 output_logits_currtimestep_rescored = output_logits_currtimestep.clone()
                 output_logits_currtimestep_rescored[indices_to_remove] = -float('Inf')
 
-                temperature = self.cfg.get('temperature', 0.7)  # Set temp 0.01 for greedy decoding
+                temperature = self.cfg.get('temperature', 0.85)  # Set temp 0.01 for greedy decoding
                 output_logits_currtimestep_rescored = output_logits_currtimestep_rescored / temperature
                 output_logits_currtimestep_rescored = torch.nn.functional.softmax(
                     output_logits_currtimestep_rescored, dim=1
@@ -1583,12 +1590,18 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
 
             # predicting audio
             batch_size = output_tokens_combined.shape[0]
+            test_dataloader_batch_size = batch_size
+            # self.test_dataloader() is not defined during validation
+            if isinstance(self.test_dataloader(), torch.utils.data.DataLoader):
+                test_dataloader_batch_size = self.test_dataloader().batch_size
+
             wer_score = 0
             audio_to_pred = []
             audio_to_pred_zh = []
             for i in range(batch_size):
                 audio_len = (labels[i][0] != 0).sum().item()
-                step = batch_idx * self.test_dataloader().batch_size + i
+                # step = batch_idx * self.test_dataloader().batch_size + i
+                step = batch_idx * test_dataloader_batch_size + i 
                 if torch.count_nonzero(speech_mask) > 0:
                     dec_input_to_1024 = self.convert_tokens_to_range(dec_input_raw[i, :, 0:audio_len])
                     dec_input_to_1024_answer = dec_input_to_1024[:,self.decoder_context_len+1:]
@@ -1731,7 +1744,8 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
             wer_tts = []
             for i in range(0, len(greedy_transcripts) - 1, 2):
                 assert all_audio_to_pred[i]["step"] == all_audio_to_pred[i + 1]["step"]
-                step = batch_idx * self.test_dataloader().batch_size + all_audio_to_pred[i]["step"]
+                # step = batch_idx * self.test_dataloader().batch_size + all_audio_to_pred[i]["step"]
+                step = batch_idx * test_dataloader_batch_size + all_audio_to_pred[i]["step"]
                 cer_sample = word_error_rate([greedy_transcripts[i]], [greedy_transcripts[i + 1]], use_cer=True)
                 wer_sample = word_error_rate([greedy_transcripts[i]], [greedy_transcripts[i + 1]], use_cer=False)
                 self.logger.experiment.add_text("Inf Predicted Text", greedy_transcripts[i], step)
