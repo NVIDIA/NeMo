@@ -338,6 +338,7 @@ class TensorRTLLM(ITritonDeployable):
             nemo_model_config=nemo_model_config,
             reshard_model=self.reshard_model,
             mapping=mapping,
+            trt_model_type=trt_model_type,
         )
 
         print_mem("pre build_and_save_engine")

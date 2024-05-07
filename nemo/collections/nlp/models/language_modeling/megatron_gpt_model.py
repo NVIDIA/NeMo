@@ -359,7 +359,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         module.cuda(torch.cuda.current_device())
                 else:
                     self.model.cuda(torch.cuda.current_device())
-
             self._wrap_model_for_O2()
 
         self.enable_autocast = (
