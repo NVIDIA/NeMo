@@ -1,0 +1,327 @@
+defaults:
+  - _self_
+
+name: megatrin_mcore
+restore_from_path: null # used when starting from a .nemo file
+
+trainer:
+  devices: 1
+  num_nodes: 1
+  accelerator: gpu
+  precision: 16
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  use_distributed_sampler: False
+  max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
+  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
+  val_check_interval: 100
+  limit_val_batches: 50
+  limit_test_batches: 500
+  accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
+  gradient_clip_val: 1.0
+  benchmark: False
+  enable_model_summary: False # default PTL callback for this does not support model parallelism, instead we log manually
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: megatron_mcore
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: null
+    name: null
+  create_neptune_logger: false
+  neptune_logger_kwargs:
+    project: null
+    name: null
+    prefix: train
+    log_model_checkpoints: false
+    tags: null # can specify as an array of strings in yaml array format
+    description: null
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  resume_from_checkpoint: ${model.resume_from_checkpoint}
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 3
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    save_nemo_on_train_end: True # not recommended when training large models on clusters with short time limits
+    filename: 'megatron_mcore--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+
+model:
+  model_parent: 'gpt' # gpt, t5, bert
+  model_architecture: 'gpt' # gpt, t5, bert
+  megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
+  micro_batch_size: 4 # limited by GPU memory
+  global_batch_size: 8 # will use more micro batches to reach global batch size
+  rampup_batch_size: null # Should be a list of 3 values: [<start_batch_size>, <batch_size_increment>, <rampup_samples>]
+
+  ###################
+  # NeMo Config
+  ###################
+  seed: 1234
+  resume_from_checkpoint: null # manually set the checkpoint file to load from
+  # bert, gpt
+  encoder_seq_length: ${.max_sequence_length}
+  transformer_engine: True
+  # t5
+  seq_length: ${.encoder_seq_length}
+  # gpt
+  get_attention_mask_from_fusion: ${.masked_softmax_fusion} # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
+  validation_param_sync_overlap: False # Overlap parameter AllGather with validation step.
+  # base
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
+  grad_allreduce_chunk_size_mb: 125
+  apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+  ub_tp_comm_overlap: False
+  ub_tp_comm_overlap_cfg: null
+  use_tp_pp_dp_mapping: False
+  gc_interval: 0
+  # Strategy
+  gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  nccl_communicator_config_path: null # Path to the yaml file with NCCL communicator options (min_ctas, max_ctas, and cga_cluster_size)
+  sharp: False # Enable the use of SHARP for NCCL data-parallel communications. This is going to be ignored if the network doesn't support SHARP.
+  torch_distributed_checkpoint: False # Set to True to use PyTorch distributed checkpoint format.
+  fsdp: False # Enable training with torch FSDP.
+  fsdp_sharding_strategy: 'full' # Method to shard model states. Available options are 'full', 'hybrid', and 'grad'.
+  fsdp_grad_reduce_dtype: 32 # Gradient reduction data type.
+  fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
+  fsdp_cpu_offload: False
+  fsdp_use_orig_params: False
+  fsdp_limit_all_gathers: True
+  
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  hysteresis: 2 # Gradient scale hysteresis
+  # ModelPT
+  nsys_profile:
+    enabled: False
+    start_step: 10  # Global batch to start profiling
+    end_step: 10 # Global batch to end profiling
+    ranks: [0] # Global rank IDs to profile
+    gen_shape: False # Generate model and kernel details including input shapes
+  
+  ###################
+  # Model Specific Config
+  ###################
+  # gpt/t5/bert
+  max_sequence_length: 512
+  position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
+  rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
+  share_embeddings_and_output_weights: False # Share embedding and output layer weights.
+  seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+  parallel_output: True # Do not gather the outputs, keep them split across tensor parallel ranks.
+  fp16_lm_cross_entropy: False
+  # gpt
+  rotary_base: 10000
+  # bert
+  num_tokentypes: 2 
+  bert_binary_head: True # BERT binary head
+  
+  ###################
+  # Transformer Config
+  ###################
+  # Architecture
+  num_layers: 12
+  num_attention_heads: 12
+  kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  hidden_size: 768
+  ffn_hidden_size: 3072
+  num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used. 
+  hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+  attention_dropout: 0.1 # Dropout probability for attention
+  apply_residual_connection_post_layernorm: False
+  normalization: 'LayerNorm' # LayerNorm, RMSNorm
+  layernorm_epsilon: 1e-5
+  layernorm_zero_centered_gamma: False # True for layernorm1p
+  add_bias_linear: False # Whether to use bias terms in all weight matrices.
+  add_qkv_bias: False
+  activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu', 'squared-relu', 'fast-geglu', 'fast-swiglu', 'fast-reglu']: 
+  activation_func_fp8_input_store: False
+  rotary_interleaved: False
+  window_size: null # Tuple (int, int)
+  qk_layernorm: False # Whether to apply LayerNorm to the query and key embeddings.
+  
+  # Initialization
+  init_method_std: 0.02
+  use_scaled_init_method: True
+  
+  # Mixed precision
+  fp32_residual_connection: False # Move residual connections to fp32
+  apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number This improve numeric stability when training with fp16.
+  attention_softmax_in_fp32: True
+  
+  # Fusion
+  bias_activation_fusion: True  # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+  persist_layer_norm: True # Use the persistent fused layer norm kernel. This kernel only supports a fixed set of hidden sizes.
+  memory_efficient_layer_norm: False #  Use local layers (not from TE), tells Apex to use the memory efficient fused LayerNorm kernel. Ignored if not using LayerNorm.
+  bias_dropout_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+  apply_rope_fusion: False # Use a kernel to add rotary positional embeddings. Only used if position_embedding_type=rope
+
+  # Transformer engine
+  fp8: False # enables fp8 in TransformerLayer forward
+  fp8_margin: 0 # scaling margin
+  fp8_interval: 1 # scaling update interval
+  fp8_wgrad: True # When set to False, override FP8 config options and do the wgrad computation in higher precision.
+  fp8_amax_history_len: 1024 # Number of steps for which amax history is recorded per tensor
+  fp8_amax_compute_algo: 'max' # 'most_recent' or 'max'. Algorithm for computing amax from history
+  
+  # Activation recomputation
+  recompute_granularity: null
+  recompute_method: null
+  recompute_num_layers: null
+  distribute_saved_activations: null
+
+  # MoE
+  num_moe_experts: null
+  moe_router_load_balancing_type: 'aux_loss'
+  moe_router_topk: 2
+  moe_grouped_gemm: False
+  moe_aux_loss_coeff: 0
+  moe_z_loss_coeff: null
+  moe_input_jitter_eps: null
+  moe_token_dropping: False
+  moe_token_dispatcher_type: 'allgather'
+  moe_per_layer_logging: False
+
+  # miscellaneous
+  clone_scatter_output_in_embedding: True
+  disable_parameter_transpose_cache: False
+  enable_cuda_graph: False
+  test_mode: False
+
+  ###################
+  # Model Parallel Config
+  ###################
+  # Parallelism
+  tensor_model_parallel_size: 1 # intra-layer model parallelism
+  pipeline_model_parallel_size: 1 # inter-layer model parallelism
+  virtual_pipeline_model_parallel_size: null # interleaved pipeline
+  expert_model_parallel_size: 1 # expert model parallelism
+  context_parallel_size: 1
+  sequence_parallel: False # Makes tensor parallelism more memory efficient for LLMs (20B+) by parallelizing layer norms and dropout sequentially
+  
+  # Pipeline parallelism
+  variable_seq_lengths: False
+  overlap_p2p_comm: False # Overlap p2p communication with computes. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
+  batch_p2p_comm: True # Batch consecutive inter-peer send/recv operations. This argument is valid only when `virtual_pipeline_model_parallel_size` is larger than 1
+  batch_p2p_sync: True
+  use_ring_exchange_p2p: False
+  deallocate_pipeline_outputs: True
+  defer_embedding_wgrad_compute: False
+  pipeline_model_parallel_split_rank: 0
+  
+  # Initialization
+  perform_initialization: True
+  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  
+  # Training
+  enable_megatron_timers: False
+  megatron_timer_kwargs:
+    log_every_n_steps: 10
+    log_mode: minmax
+    barrier: False
+  barrier_with_L1_time: True
+  no_sync_func: null
+  grad_sync_func: null
+  param_sync_func: null
+  num_microbatches_with_partial_activation_checkpoints: null
+  
+  # Optimizations
+  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism and O2.
+  use_te_rng_tracker: False
+  tp_comm_overlap: False
+  tp_comm_bulk_wgrad: True
+  tp_comm_bulk_dgrad: True
+  tp_comm_overlap_ag: True
+  tp_comm_overlap_rs: True
+  tp_comm_overlap_rs_dgrad: False
+  
+  
+  # CPU Offloading
+  cpu_offloading: False
+  cpu_offloading_num_layers: ${sum:${.num_layers},-1} #This value should be between [1,num_layers-1] as we don't want to offload the final layer's activations and expose any offloading duration for the final layer
+  cpu_offloading_activations: True
+  cpu_offloading_weights: True
+
+  ###################
+  # Tokenizer
+  ###################
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: null
+    vocab_file: null
+    merge_file: null
+    delimiter: null # only used for tabular tokenizer
+    sentencepiece_legacy: False # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
+
+  ###################
+  # Dataset and Dataloader
+  ###################
+  data:
+   # Path to data must be specified by the user.
+    # Supports List, String and Dictionary
+    # List : can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
+    # Or see example below:
+    # data_prefix:
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_00_text_document
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_01_text_document
+    # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
+    # Or see example below:
+    # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
+    data_prefix: ???
+    splits_string: 980,20,
+    index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+    mmap_bin_files: True
+    seq_length: ${model.max_sequence_length}
+    dataloader_type: single # cyclic
+    drop_last: True # Set to false if the last partial samples is to be consumed
+    num_workers: 2
+
+    dataset_type: gpt # gpt, t5, bert
+    
+    gpt_reset_position_ids: False # Reset position ids after end-of-document token
+    gpt_reset_attention_mask: False # Reset attention mask after end-of-document token
+    gpt_eod_mask_loss: False # Mask loss for the end of document tokens
+    gpt_create_attention_mask: False
+    
+    t5_masked_lm_prob: 0.15
+    t5_short_seq_prob: 0
+    t5_max_ngram_size: 10
+    t5_whole_word_masking: True
+    t5_permutation: False
+    t5_favor_longer_ngrams: False
+    t5_geometric_dist: True
+    
+    bert_masked_lm_prob: 0.15
+    bert_short_seq_prob: 0.1
+
+  ###################
+  # Optimizer
+  ###################
+  do_layer_norm_weight_decay: False # True means weight decay on all params for gpt
+  optim:
+    name: fused_adam
+    lr: 2e-4
+    weight_decay: 0.01
+    betas:
+    - 0.9
+    - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 500
+      constant_steps: 0
+      min_lr: 2e-5
+
+  
