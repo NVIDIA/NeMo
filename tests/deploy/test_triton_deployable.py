@@ -18,25 +18,6 @@ def test_triton_deployable(args):
     model_name = args.model_name
     init_timeout = 600.0
 
-    # test broadcast
-    if torch.distributed.get_rank() == 0:
-        testb = torch.cuda.LongTensor([0])
-        print(f"0testb is {testb}")
-    else:
-        testb = torch.cuda.LongTensor([1])
-        print(f"1testb is {testb}")
-    torch.distributed.broadcast(testb, 0)
-    print(f"after testb is {testb}")
-
-    # only deploy the server on main thread, other threads enter this evaluation loop
-    if torch.distributed.get_rank() != 0:
-        while True:
-            choice = torch.cuda.LongTensor([1])
-            torch.distributed.broadcast(choice, 0)
-            if choice[0].item() == 0:
-                # megatron_deployable.triton_infer_fn(prompts=[""])
-                megatron_deployable.model.generate(inputs=[""], length_params=None)
-
     nm = DeployPyTriton(
         model=megatron_deployable,
         triton_model_name=model_name,
@@ -51,9 +32,6 @@ def test_triton_deployable(args):
 
     # run once with NemoTritonQueryLLMPyTorch
     nemo_triton_query = NemoTritonQueryLLMPyTorch(url, model_name)
-    # JUSTIN try broadcast to other gpus here before query, ideally we would do it inside one of the functions
-    choice = torch.cuda.LongTensor([0])
-    torch.distributed.broadcast(choice, 0)
 
     result_dict = nemo_triton_query.query_llm(
         prompts,
@@ -78,10 +56,6 @@ def test_triton_deployable(args):
     min_length = np.full(prompts.shape, 0, dtype=np.int_)
 
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
-        # JUSTIN try broadcast to other gpus here before query, ideally we would do it inside one of the functions
-        choice = torch.cuda.LongTensor([0])
-        torch.distributed.broadcast(choice, 0)
-
         result_dict = client.infer_batch(
             prompts=prompts, max_length=max_output_token, top_k=top_k, top_p=top_p, temperature=temperature,
         )
@@ -94,9 +68,6 @@ def test_triton_deployable(args):
     compute_logprob = np.full(prompts.shape, True, dtype=np.bool_)
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
         for i in range(prompts.size):
-            # JUSTIN try broadcast to other gpus here before query, ideally we would do it inside one of the functions
-            choice = torch.cuda.LongTensor([0])
-            torch.distributed.broadcast(choice, 0)
             logprob_results = client.infer_batch(
                 prompts=prompts[i : i + 1],
                 min_length=min_length[i : i + 1],

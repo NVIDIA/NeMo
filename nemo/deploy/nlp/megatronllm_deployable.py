@@ -16,7 +16,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list, typedict2tensor
-
+from enum import IntEnum, auto
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -55,11 +55,25 @@ def GetNumpyDtype(pyvalue):
     numpy_type = py_to_numpy_mapping[python_type]
     return numpy_type
 
+class ServerSync(IntEnum):
+    WAIT = auto()
+    SIGNAL = auto()
+
+    def to_long_tensor(self):
+        return torch.cuda.LongTensor([self])
 
 class MegatronLLMDeployable(ITritonDeployable):
     def __init__(self, nemo_checkpoint_filepath: str, num_devices: int = 1, num_nodes: int = 1):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
         self._load(nemo_checkpoint_filepath, num_devices, num_nodes)
+
+        # only deploy the server on main thread, other threads enter this evaluation loop
+        if torch.distributed.get_rank() != 0:
+            while True:
+                wait_value = ServerSync.WAIT.to_long_tensor()
+                torch.distributed.broadcast(wait_value, 0)
+                if wait_value.item() == ServerSync.SIGNAL:
+                    self.model.generate(inputs=[""], length_params=None)
 
     def _load(self, nemo_checkpoint_filepath: str, num_devices: int, num_nodes: int):
         if Path(nemo_checkpoint_filepath).exists():
@@ -164,6 +178,10 @@ class MegatronLLMDeployable(ITritonDeployable):
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
+        assert (torch.distributed.get_rank() == 0), "Triton inference should only be called on main thread "
+        signal_value = ServerSync.SIGNAL.to_long_tensor()
+        torch.distributed.broadcast(signal_value, 0)
+
         input_strings = str_ndarray2list(inputs.pop("prompts"))
         sampling_params = self._sampling_params_from_triton_inputs(**inputs)
         length_params = self._length_params_from_triton_inputs(**inputs)
