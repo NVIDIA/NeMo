@@ -81,9 +81,12 @@ class PreTrainingDataModule(pl.LightningDataModule):
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-            GPTDataset, train_valid_test_num_samples, self.gpt_dataset_config,
+            GPTDataset, train_valid_test_num_samples,
+            is_built_on_rank=lambda: True,
+            config=self.gpt_dataset_config,
         ).build()
-        
+
+    # uncomment once fabric API is merged
     # def fabric_setup(
     #     self,
     #     fabric: fl.Fabric,
@@ -124,8 +127,7 @@ class PreTrainingDataModule(pl.LightningDataModule):
         from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
         
         return GPTDatasetConfig(
-            blend=[1.0, str(self.path)],
-            is_built_on_rank=lambda: True,
+            blend=[[str(self.path)], [1.0]],
             random_seed=self.seed,
             sequence_length=self.seq_length,
             tokenizer=self.tokenizer,
