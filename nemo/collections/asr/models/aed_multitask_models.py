@@ -623,7 +623,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             return torch.tensor([0.0])
 
         # During training prompt and prompt_len are null, ignore.
-        signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
+        signal, signal_len, transcript, transcript_len, prompt, prompt_len, text_minibatch = batch
+        print(f'{text_minibatch["input_ids"].shape=}')
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
@@ -644,7 +645,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0, eval_mode="val"):
         # During inference, dataloader passes pure prompt without transcript text.
-        signal, signal_len, transcript, transcript_len, prompt, prompt_len = batch
+        signal, signal_len, transcript, transcript_len, prompt, prompt_len, text_minibatch = batch
         input_ids, labels = transcript[:, :-1], transcript[:, 1:]
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
@@ -952,7 +953,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         return MultiTaskTranscriptionConfig()
 
     def predict_step(self, batch, batch_idx=0, dataloader_idx=0, has_processed_signal=False):
-        signal, signal_len, _, _, prompt, prompt_len = batch
+        signal, signal_len, _, _, prompt, prompt_len, text_minibatch = batch
 
         processed_signal = None
         processed_signal_length = None
