@@ -68,6 +68,7 @@ class Exportable(ABC):
         check_tolerance=0.01,
         export_modules_as_functions=False,
         keep_initializers_as_inputs=None,
+        use_dynamo=True,
     ):
         """
         Exports the model to the specified format. The format is inferred from the file extension of the output file.
@@ -143,6 +144,7 @@ class Exportable(ABC):
         check_tolerance=0.01,
         export_modules_as_functions=False,
         keep_initializers_as_inputs=None,
+        use_dynamo=True,
     ):
         my_args = locals().copy()
         my_args.pop('self')
@@ -218,19 +220,27 @@ class Exportable(ABC):
                     if dynamic_axes is None:
                         dynamic_axes = get_dynamic_axes(self.input_module.input_types_for_export, input_names)
                         dynamic_axes.update(get_dynamic_axes(self.output_module.output_types_for_export, output_names))
-                    torch.onnx.export(
-                        jitted_model,
-                        input_example,
-                        output,
-                        input_names=input_names,
-                        output_names=output_names,
-                        verbose=verbose,
-                        do_constant_folding=do_constant_folding,
-                        dynamic_axes=dynamic_axes,
-                        opset_version=onnx_opset_version,
-                        keep_initializers_as_inputs=keep_initializers_as_inputs,
-                        export_modules_as_functions=export_modules_as_functions,
-                    )
+                    if use_dynamo:
+                        options = torch.onnx.ExportOptions(dynamic_shapes=dynamic_axes)
+                        ex_model = torch.export.export(jitted_model, tuple(input_list), kwargs=input_dict)
+                        ex_model = ex_model.run_decompositions()
+                        ex = torch.onnx.dynamo_export(ex_model, *input_list, **input_dict, export_options=options)
+                        ex.save(output)
+                        input_names = None
+                    else:
+                        torch.onnx.export(
+                            jitted_model,
+                            input_example,
+                            output,
+                            input_names=input_names,
+                            output_names=output_names,
+                            verbose=verbose,
+                            do_constant_folding=do_constant_folding,
+                            dynamic_axes=dynamic_axes,
+                            opset_version=onnx_opset_version,
+                            keep_initializers_as_inputs=keep_initializers_as_inputs,
+                            export_modules_as_functions=export_modules_as_functions,
+                        )
 
                     if check_trace:
                         verify_runtime(self, output, check_trace_input, input_names, check_tolerance=check_tolerance)

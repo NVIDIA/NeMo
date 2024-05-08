@@ -126,6 +126,11 @@ def parse_input_example(input_example):
 
 def to_onnxrt_input(ort_input_names, input_names, input_dict, input_list):
     odict = {}
+    if not input_names:
+        input_list.extend(input_dict.values())
+        for k, v in zip(ort_input_names, input_list):
+            odict[k] = v.cpu().numpy()
+        return odict
     for k in reversed(input_names):
         val = None
         if k in input_dict:

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.01-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/tritonserver:24.04-py3
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -61,20 +61,17 @@ RUN apt-get update && \
   libgts-dev && \
   rm -rf /var/lib/apt/lists/*
 
+RUN pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
+RUN pip3 install onnxscript==0.1.0.dev20240430
+
 WORKDIR /workspace/
 # Install megatron core, this can be removed once 0.3 pip package is released
 # We leave it here in case we need to work off of a specific commit in main
 RUN git clone https://github.com/NVIDIA/Megatron-LM.git && \
   cd Megatron-LM && \
-  git checkout 36e9b6bf3d8034b10c9bbd9fc357c2df2bd1515c && \
-  git cherry-pick -n e69187bc3679ea5841030a165d587bb48b56ee77 && \
   pip install .
 
-# Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
-RUN git clone https://github.com/NVIDIA/apex.git && \
-  cd apex && \
-  git checkout f058162b215791b15507bb542f22ccfde49c872d && \
-  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --distributed_adam --deprecated_fused_adam" ./
+RUN pip3 install packaging
 
 # Transformer Engine 1.2.0
 RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
@@ -83,6 +80,12 @@ RUN git clone https://github.com/NVIDIA/TransformerEngine.git && \
   git checkout FETCH_HEAD && \
   git submodule init && git submodule update && \
   NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .
+
+# Performance optimizations for distributed optimizer: https://github.com/NVIDIA/apex/pull/1771
+RUN git clone https://github.com/NVIDIA/apex.git && \
+  cd apex && \
+  sed -i '178d' setup.py && \
+  pip install -v --no-build-isolation --disable-pip-version-check --no-cache-dir --config-settings "--build-option=--cpp_ext --cuda_ext --fast_layer_norm --group_norm --distributed_adam --deprecated_fused_adam" ./
 
 WORKDIR /tmp/
 
@@ -152,11 +155,13 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
 
 # Install NeMo
 RUN --mount=from=nemo-src,target=/tmp/nemo,rw cd /tmp/nemo && pip install ".[all]"
+RUN apt-get install -y python3 
+RUN alias python=python3
 
 # Check install
-RUN python -c "import nemo.collections.nlp as nemo_nlp" && \
-  python -c "import nemo.collections.tts as nemo_tts" && \
-  python -c "import nemo_text_processing.text_normalization as text_normalization"
+RUN python3 -c "import nemo.collections.nlp as nemo_nlp" && \
+  python3 -c "import nemo.collections.tts as nemo_tts" && \
+  python3 -c "import nemo_text_processing.text_normalization as text_normalization"
 
 
 # copy scripts/examples/tests into container for end user

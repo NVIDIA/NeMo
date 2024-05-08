@@ -292,6 +292,7 @@ class FilterbankFeatures(nn.Module):
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
         self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
+        self.exact_pad = exact_pad
 
         if exact_pad:
             logging.info("STFT using exact pad")
@@ -305,15 +306,6 @@ class FilterbankFeatures(nn.Module):
         window_fn = torch_windows.get(window, None)
         window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
         self.register_buffer("window", window_tensor)
-        self.stft = lambda x: torch.stft(
-            x,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            win_length=self.win_length,
-            center=False if exact_pad else True,
-            window=self.window.to(dtype=torch.float),
-            return_complex=True,
-        )
 
         self.normalize = normalize
         self.log = log
@@ -371,6 +363,17 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"fmax: {highfreq}")
         logging.debug(f"using grads: {use_grads}")
         logging.debug(f"nb_augmentation_prob: {nb_augmentation_prob}")
+
+    def stft(self, x):
+        return torch.stft(
+            x,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            center=False if self.exact_pad else True,
+            window=self.window.to(dtype=torch.float),
+            return_complex=True,
+        )
 
     def log_zero_guard_value_fn(self, x):
         if isinstance(self.log_zero_guard_value, str):
