@@ -197,7 +197,7 @@ class HyenaFilter(nn.Module):
         self.normalized = normalized
 
         if self.fftconv_type == 'flash':
-            self.flashfftconv = FlashFFTConv(self.seq_len, torch_dtype_from_precision(precision)).flashfftconv
+            self.flashfftconv = FlashFFTConv(2 * self.seq_len, torch_dtype_from_precision(precision)).flashfftconv
         else:
             self.flashfftconv = None
 
