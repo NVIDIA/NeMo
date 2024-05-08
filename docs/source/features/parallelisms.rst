@@ -44,7 +44,7 @@ Sequence Parallelism
 
 Expert Parallelism
 ^^^^^^^^^^^^^^^^^^
-Expert Paralellim (EP) distributes experts across GPUs.
+Expert Paralellim (EP) is a type of model parallelism that distributes experts of an MoE across GPUs.
 
 
 .. image:: ../nlp/nemo_megatron/images/ep.png
