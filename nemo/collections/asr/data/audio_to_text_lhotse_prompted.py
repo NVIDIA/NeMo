@@ -16,7 +16,7 @@ from typing import Callable, Sequence
 
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.cut import Cut, MixedCut, MonoCut
+from lhotse.cut import MixedCut, MonoCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 from lhotse.utils import ifnone

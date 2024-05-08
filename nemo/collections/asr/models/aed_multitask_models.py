@@ -130,10 +130,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         self.sample_rate = cfg.sample_rate
         self._setup_tokenizer(cfg.tokenizer)
 
-        from nemo.collections.common.tokenizers.canary_tokenizer import CanaryTokenizer
-
-        self.tokenizer = CanaryTokenizer(self.tokenizer.tokenizers_dict)
-
         super().__init__(cfg=cfg, trainer=trainer)
 
         prompt_cls = PromptFormatter.resolve(self.prompt_format)
@@ -516,7 +512,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 tokenizer=self.tokenizer,
                 prompt_format_fn=get_prompt_format_fn(self.prompt_format),
             ),
-            tokenizer=self.tokenizer,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
