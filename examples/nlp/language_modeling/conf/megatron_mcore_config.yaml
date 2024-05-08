@@ -1,7 +1,7 @@
 defaults:
   - _self_
 
-name: megatrin_mcore
+name: megatron_mcore
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -65,15 +65,18 @@ model:
   ###################
   seed: 1234
   resume_from_checkpoint: null # manually set the checkpoint file to load from
-  # bert, gpt
+  # gpt, bert
   encoder_seq_length: ${.max_sequence_length}
   transformer_engine: True
-  # t5
-  seq_length: ${.encoder_seq_length}
   # gpt
   get_attention_mask_from_fusion: ${.masked_softmax_fusion} # When using fused softmax it will create the attention mask so we won't copy it to the pipeline stages.
   validation_param_sync_overlap: False # Overlap parameter AllGather with validation step.
-  # base
+  do_layer_norm_weight_decay: False # True means weight decay on all params.
+  # bert
+  bert_binary_head: ${.add_binary_head}
+  # t5
+  seq_length: ${.encoder_seq_length}
+  # MegatronBaseModel
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce. Only used with O2 and no pipeline parallelism..
   grad_allreduce_chunk_size_mb: 125
@@ -82,11 +85,7 @@ model:
   ub_tp_comm_overlap_cfg: null
   use_tp_pp_dp_mapping: False
   gc_interval: 0
-  # Strategy
-  gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  nccl_communicator_config_path: null # Path to the yaml file with NCCL communicator options (min_ctas, max_ctas, and cga_cluster_size)
-  sharp: False # Enable the use of SHARP for NCCL data-parallel communications. This is going to be ignored if the network doesn't support SHARP.
-  torch_distributed_checkpoint: False # Set to True to use PyTorch distributed checkpoint format.
+  # MegatronTrainerBuilder
   fsdp: False # Enable training with torch FSDP.
   fsdp_sharding_strategy: 'full' # Method to shard model states. Available options are 'full', 'hybrid', and 'grad'.
   fsdp_grad_reduce_dtype: 32 # Gradient reduction data type.
@@ -94,7 +93,10 @@ model:
   fsdp_cpu_offload: False
   fsdp_use_orig_params: False
   fsdp_limit_all_gathers: True
-  
+  gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  nccl_communicator_config_path: null # Path to the yaml file with NCCL communicator options (min_ctas, max_ctas, and cga_cluster_size)
+  sharp: False # Enable the use of SHARP for NCCL data-parallel communications. This is going to be ignored if the network doesn't support SHARP.
+  torch_distributed_checkpoint: False # Set to True to use PyTorch distributed checkpoint format.
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   hysteresis: 2 # Gradient scale hysteresis
@@ -107,14 +109,14 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
   
   ###################
-  # Model Specific Config
+  # Mcore Model Config
   ###################
   # gpt/t5/bert
   max_sequence_length: 512
   position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'rope', 'alibi', 'kerple' , 'xpos', 'sandwich'] xpos and sandwich are experimental.
   rotary_percentage: 1.0 # If using position_embedding_type=rope, then the per head dim is multiplied by this.
   share_embeddings_and_output_weights: False # Share embedding and output layer weights.
-  seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
+  seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE.
   pre_process: True # add embedding
   post_process: True # add pooler
   parallel_output: True # Do not gather the outputs, keep them split across tensor parallel ranks.
@@ -122,11 +124,10 @@ model:
   # gpt
   rotary_base: 10000
   # bert
-  num_tokentypes: 2 
-  bert_binary_head: True # BERT binary head
+  add_binary_head: False # BERT binary head. Only set True if you have dataset with at least two sentences in one sample.
   
   ###################
-  # Transformer Config
+  # Mcore Transformer Config
   ###################
   # Architecture
   num_layers: 12
@@ -199,7 +200,7 @@ model:
   test_mode: False
 
   ###################
-  # Model Parallel Config
+  # Mcore Model Parallel Config
   ###################
   # Parallelism
   tensor_model_parallel_size: 1 # intra-layer model parallelism
@@ -287,6 +288,7 @@ model:
     seq_length: ${model.max_sequence_length}
     dataloader_type: single # cyclic
     drop_last: True # Set to false if the last partial samples is to be consumed
+    validation_drop_last: ${.drop_last}
     num_workers: 2
 
     dataset_type: gpt # gpt, t5, bert
@@ -306,11 +308,16 @@ model:
     
     bert_masked_lm_prob: 0.15
     bert_short_seq_prob: 0.1
+    bert_max_ngram_size: 3
+    bert_whole_word_masking: True
+    bert_permutation: False
+    bert_favor_longer_ngrams: False
+    bert_geometric_dist: False
+    bert_classification_head: ${model.add_binary_head}
 
   ###################
   # Optimizer
   ###################
-  do_layer_norm_weight_decay: False # True means weight decay on all params for gpt
   optim:
     name: fused_adam
     lr: 2e-4

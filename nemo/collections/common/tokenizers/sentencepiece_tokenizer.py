@@ -255,7 +255,11 @@ class SentencePieceTokenizer(TokenizerSpec):
         ]
         return main_vocab + special_tokens
 
-
+    @property
+    def inv_vocab(self):
+        return {i: v for i, v in enumerate(self.vocab)}
+        
+    
 def create_spt_model(
     data_file: str,
     vocab_size: int,
