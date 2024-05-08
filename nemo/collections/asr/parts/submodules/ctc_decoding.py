@@ -219,14 +219,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # Update preserve alignments
         if self.preserve_alignments is None:
-            if self.cfg.strategy in ['greedy']:
+            if self.cfg.strategy in ['greedy', 'greedy_batched']:
                 self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
             else:
                 self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
         # Update compute timestamps
         if self.compute_timestamps is None:
-            if self.cfg.strategy in ['greedy']:
+            if self.cfg.strategy in ['greedy', 'greedy_batched']:
                 self.compute_timestamps = self.cfg.greedy.get('compute_timestamps', False)
             elif self.cfg.strategy in ['beam']:
                 self.compute_timestamps = self.cfg.beam.get('compute_timestamps', False)
@@ -234,10 +234,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
-        # Confidence estimation is not implemented for strategies other than `greedy`
+        # Confidence estimation is not implemented for strategies other than `greedy` and `greedy_batched`
         if (
             not self.preserve_frame_confidence
-            and self.cfg.strategy != 'greedy'
+            and self.cfg.strategy not in ('greedy', 'greedy_batched')
             and self.cfg.beam.get('preserve_frame_confidence', False)
         ):
             raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
