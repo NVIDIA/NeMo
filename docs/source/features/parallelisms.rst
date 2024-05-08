@@ -49,6 +49,8 @@ To enable it users can pass `model.expert_model_parallel_size=k`, where k is an 
 parallelism level, for example if the model has three experts (i.e. `model.num_moe_experts=3`), we can specify
 k=3 (i.e. `model.expert_model_parallel_size=3`). The number of experts should be divible by the expert_model_parallel_size.
 
+The expert parallelism functionality is provided by Megatron-LM repository, please consult the corresponding `Moe-layer <https://github.com/NVIDIA/Megatron-LM/blob/e2ec14ab5690fead7e33760b0f8fb20c83b4fd1f/megatron/core/transformer/moe/moe_layer.py#L29>`_.
+
 .. image:: ../nlp/nemo_megatron/images/ep.png
     :align: center
     :width: 800px
