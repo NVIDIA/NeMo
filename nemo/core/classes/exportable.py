@@ -222,10 +222,12 @@ class Exportable(ABC):
                         dynamic_axes.update(get_dynamic_axes(self.output_module.output_types_for_export, output_names))
                     if use_dynamo:
                         options = torch.onnx.ExportOptions(dynamic_shapes=dynamic_axes)
-                        ex_model = torch.export.export(jitted_model, tuple(input_list), kwargs=input_dict)
+                        ex_model = torch.export.export(
+                            jitted_model, tuple(input_list), kwargs=input_dict, strict=False
+                        )
                         ex_model = ex_model.run_decompositions()
                         ex = torch.onnx.dynamo_export(ex_model, *input_list, **input_dict, export_options=options)
-                        ex.save(output)
+                        ex.save(output, model_state=jitted_model.state_dict())
                         input_names = None
                     else:
                         torch.onnx.export(

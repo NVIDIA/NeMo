@@ -1005,7 +1005,7 @@ class typecheck:
         self.ignore_collections = ignore_collections
 
     def __call__(self, wrapped):
-        return self.unwrapped_call(wrapped) if is_typecheck_enabled() else self.unwrapped_call(wrapped)
+        return self.wrapped_call(wrapped) if is_typecheck_enabled() else self.unwrapped_call(wrapped)
 
     def unwrapped_call(self, wrapped):
         return wrapped
