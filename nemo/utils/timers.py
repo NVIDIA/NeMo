@@ -16,17 +16,12 @@ This module support timing of code blocks.
 # limitations under the License.
 
 import time
+from typing import Optional
 
 import numpy as np
 import torch
 
-from nemo.utils.exceptions import NeMoBaseException
-
-__all__ = ["NamedTimer"]
-
-
-class NeMoTimerException(NeMoBaseException, RuntimeError):
-    pass
+__all__ = ["NamedTimer", "SimpleTimer"]
 
 
 class NamedTimer(object):
@@ -95,7 +90,7 @@ class NamedTimer(object):
         timer_data = self.timers.get(name, {})
 
         if "start" in timer_data:
-            raise NeMoTimerException(f"Cannot start timer = '{name}' since it is already active")
+            raise RuntimeError(f"Cannot start timer = '{name}' since it is already active")
 
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
@@ -114,7 +109,7 @@ class NamedTimer(object):
         """
         timer_data = self.timers.get(name, None)
         if (timer_data is None) or ("start" not in timer_data):
-            raise NeMoTimerException(f"Cannot end timer = '{name}' since it is not active")
+            raise RuntimeError(f"Cannot end timer = '{name}' since it is not active")
 
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
@@ -164,3 +159,56 @@ class NamedTimer(object):
         data = {k: fn(v["dt"]) for k, v in self.timers.items() if ("dt" in v)}
 
         return data
+
+
+class SimpleTimer:
+    """
+    Simple Timer with maximum possible resolution, uses `time.perf_counter_ns`.
+    """
+
+    def __init__(self, sync_cuda=True):
+        """
+
+        Args:
+            sync_cuda: synchronize CUDA device.
+                The synchronization is done only if the device for start/stop is None or CUDA device.
+        """
+        self.total_time = 0
+        self._start_time: Optional[int] = None
+        self.sync_cuda = sync_cuda
+
+    def reset(self):
+        """Reset timer"""
+        self.total_time = 0
+        self._start_time = None
+
+    def start(self, device: Optional[torch.device] = None):
+        """
+        Start timer.
+
+        Args:
+            device: CUDA device to synchronize (optional).
+        """
+        if self.sync_cuda and torch.cuda.is_initialized() and (device is None or device.type == "cuda"):
+            torch.cuda.synchronize(device=device)
+        if self._start_time is not None:
+            raise RuntimeError("Timer already started")
+        self._start_time = time.perf_counter_ns()
+
+    def stop(self, device: Optional[torch.device] = None):
+        """
+        Stop device.
+
+        Args:
+            device: CUDA device to synchronize (optional).
+        """
+        if self.sync_cuda and torch.cuda.is_initialized() and (device is None or device.type == "cuda"):
+            torch.cuda.synchronize(device=device)
+        if self._start_time is None:
+            raise RuntimeError("Timer not started")
+        self.total_time += time.perf_counter_ns() - self._start_time
+        self._start_time = None
+
+    def total_sec(self) -> float:
+        """Return total time in seconds"""
+        return self.total_time / 1e9

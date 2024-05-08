@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from nemo.collections.common.parts.preprocessing import manifest, parsers
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 
 
 class _Collection(collections.UserList):
@@ -343,12 +343,12 @@ class ASRAudioText(AudioText):
         )
 
 
-class AudioQAEntity(object):
-    def __init__(self, sid, audio_file, duration, question, answer, offset, speaker, orig_sr, lang) -> None:
+class SpeechLLMAudioTextEntity(object):
+    def __init__(self, sid, audio_file, duration, context, answer, offset, speaker, orig_sr, lang) -> None:
         self.id = sid
         self.audio_file = audio_file
         self.duration = duration
-        self.question = question
+        self.context = context
         self.answer = answer
         self.offset = offset
         self.speaker = speaker
@@ -392,10 +392,10 @@ class ASRVideoText(VideoText):
         )
 
 
-class ALMAudioText(object):
+class SpeechLLMAudioText(object):
     """List of audio-transcript text correspondence with preprocessing.
     
-    All of the audio, duration, question, answer are optional.
+    All of the audio, duration, context, answer are optional.
     If answer is not present, text is treated as the answer.
     """
 
@@ -404,7 +404,7 @@ class ALMAudioText(object):
         ids: List[int],
         audio_files: List[str],
         durations: List[float],
-        questions: List[str],
+        context_list: List[str],
         answers: List[str],
         offsets: List[str],
         speakers: List[Optional[int]],
@@ -417,14 +417,14 @@ class ALMAudioText(object):
         index_by_file_id: bool = False,
         max_num_samples: Optional[int] = None,
     ):
-        """Instantiates audio-question-answer manifest with filters and preprocessing.
+        """Instantiates audio-context-answer manifest with filters and preprocessing.
 
 
         Args:
             ids: List of examples positions.
             audio_files: List of audio files.
             durations: List of float durations.
-            questions: List of raw text transcripts.
+            context_list: List of raw text transcripts.
             answers: List of raw text transcripts.
             offsets: List of duration offsets or None.
             speakers: List of optional speakers ids.
@@ -441,8 +441,8 @@ class ALMAudioText(object):
         if index_by_file_id:
             self.mapping = {}
 
-        for id_, audio_file, duration, offset, question, answer, speaker, orig_sr, lang in zip(
-            ids, audio_files, durations, offsets, questions, answers, speakers, orig_sampling_rates, langs
+        for id_, audio_file, duration, offset, context, answer, speaker, orig_sr, lang in zip(
+            ids, audio_files, durations, offsets, context_list, answers, speakers, orig_sampling_rates, langs
         ):
             # Duration filters.
             if duration is not None:
@@ -465,7 +465,9 @@ class ALMAudioText(object):
                 num_filtered += 1
                 continue
 
-            data.append(AudioQAEntity(id_, audio_file, duration, question, answer, offset, speaker, orig_sr, lang))
+            data.append(
+                SpeechLLMAudioTextEntity(id_, audio_file, duration, context, answer, offset, speaker, orig_sr, lang)
+            )
             if index_by_file_id and audio_file is not None:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 if file_id not in self.mapping:
@@ -509,19 +511,18 @@ class ALMAudioText(object):
         return len(self.data)
 
 
-class ALMAudioTextCollection(ALMAudioText):
-    """`ALMAudioText` collector from audio-LM json files.
+class SpeechLLMAudioTextCollection(SpeechLLMAudioText):
+    """`SpeechLLMAudioText` collector from SpeechLLM json files.
     
-    This collector also keeps backward compatibility with ASRFeatureLabel.
+    This collector also keeps backward compatibility with SpeechLLMAudioText.
     """
 
     def __init__(
         self,
         manifests_files: Union[str, List[str]],
-        question_file: Optional[Union[List[str], str]] = None,
-        random_context_prob: Optional[float] = None,
-        random_context_num: Optional[int] = 3,
-        random_context_positive_percent: Optional[float] = 0.1,
+        context_file: Optional[Union[List[str], str]] = None,
+        context_key: str = "context",
+        answer_key: str = "answer",
         *args,
         **kwargs,
     ):
@@ -533,8 +534,10 @@ class ALMAudioTextCollection(ALMAudioText):
             *args: Args to pass to `AudioText` constructor.
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
+        self.context_key = context_key
+        self.answer_key = answer_key
 
-        ids, audio_files, durations, questions, answers, offsets, = (
+        ids, audio_files, durations, context_list, answers, offsets, = (
             [],
             [],
             [],
@@ -547,34 +550,31 @@ class ALMAudioTextCollection(ALMAudioText):
             [],
             [],
         )
-        if question_file is not None:
-            question_file_list = question_file.split(",") if isinstance(question_file, str) else question_file
-            self.random_questions = []
+        if context_file is not None:
+            question_file_list = context_file.split(",") if isinstance(context_file, str) else context_file
+            self.context_list = []
             for filepath in question_file_list:
                 with open(filepath, 'r') as f:
                     for line in f.readlines():
                         line = line.strip()
                         if line:
-                            self.random_questions.append(line)
-            logging.info(f"Use random questions from {question_file} for {manifests_files}")
+                            self.context_list.append(line)
+            logging.info(f"Use random text context from {context_file} for {manifests_files}")
         else:
-            self.random_questions = None
-        self.random_context_prob = random_context_prob
-        self.random_context_num = random_context_num
-        self.random_context_positive_percent = random_context_positive_percent
-        self.random_context = []
+            self.context_list = None
+
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
-            questions.append(item['question'])
+            context_list.append(item['context'])
             answers.append(item['answer'])
             offsets.append(item['offset'])
             speakers.append(item['speaker'])
             orig_srs.append(item['orig_sr'])
             langs.append(item['lang'])
         super().__init__(
-            ids, audio_files, durations, questions, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
+            ids, audio_files, durations, context_list, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
         )
 
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
@@ -600,51 +600,42 @@ class ALMAudioTextCollection(ALMAudioText):
             item['duration'] = None
 
         # Answer.
-        if 'answer' in item:
-            pass
+        if self.answer_key in item:
+            item['answer'] = item.pop(self.answer_key)
         elif 'text' in item:
+            # compatability with ASR manifests that uses 'text' as answer key
             item['answer'] = item.pop('text')
         elif 'text_filepath' in item:
             with open(item.pop('text_filepath'), 'r') as f:
-                item['answer'] = f.read().replace('\n', '')
-        elif 'normalized_text' in item:
-            item['answer'] = item['normalized_text']
+                item['answer'] = f.read()
         else:
             item['answer'] = "na"
 
-        # Question.
-        if 'question' in item:
-            pass
-        elif 'question_filepath' in item:
-            with open(item.pop('text_filepath'), 'r') as f:
-                item['question'] = f.read().replace('\n', '')
-        elif 'normalized_text' in item:
-            item['question'] = item['normalized_text']
-        elif self.random_questions is None:
-            item['question'] = "what does this audio mean"
+        # context.
+        if self.context_key in item:
+            item['context'] = item.pop(self.context_key)
+        elif 'context_filepath' in item:
+            with open(item.pop('context_filepath'), 'r') as f:
+                item['context'] = f.read()
+        elif self.context_list is not None:
+            context = np.random.choice(self.context_list).strip()
+            item['context'] = context
+        elif 'question' in item:
+            # compatability with old manifests that uses 'question' as context key
+            logging.warning(
+                f"Neither `{self.context_key}` is found nor `context_file` is set, but found `question` in item: {item}",
+                mode=logging_mode.ONCE,
+            )
+            item['context'] = item.pop('question')
         else:
-            question = np.random.choice(self.random_questions).strip()
-            if self.random_context_prob is not None and self.random_context_prob > 0:
-                current_words = item['answer'].strip().split()
-                if len(current_words) == 0:
-                    logging.warning(f"Empty answer for sample: {item}, in manifest file: {manifest_file}")
-                    current_words = ["empty"]
-                if np.random.random() < self.random_context_prob and self.random_context:
-                    positive_num = int(self.random_context_num * self.random_context_positive_percent)
-                    positives = np.random.choice(current_words, positive_num)
-                    negatives = np.random.choice(self.random_context, self.random_context_num - positive_num)
-                    candidate_words = np.concatenate((positives, negatives))
-                    np.random.shuffle(candidate_words)
-                    context = f"Following words may occur in audio: {candidate_words} ".replace('\n', '')
-                    question = context + question
-                self.random_context = current_words
-            item['question'] = question
+            # default context if nothing is found
+            item['context'] = "what does this audio mean"
 
         item = dict(
             audio_file=item['audio_file'],
             duration=item['duration'],
-            question=item['question'],
-            answer=item['answer'],
+            context=str(item['context']),
+            answer=str(item['answer']),
             offset=item.get('offset', None),
             speaker=item.get('speaker', None),
             orig_sr=item.get('orig_sample_rate', None),

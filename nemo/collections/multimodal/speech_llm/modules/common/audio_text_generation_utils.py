@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -312,6 +312,7 @@ def synced_generate(
                 torch.distributed.broadcast(full_logits, src, group)
     if tokens is not None:
         return tokens[:, :context_length], output_logits, full_logits, audio_feat_lens
+    return None
 
 
 def generate(
@@ -513,6 +514,7 @@ def generate(
         output['audio_feat_lens'] = audio_feat_lens
         output = inference_strategy.post_generation_process(output)
         return output
+    return None
 
 
 def switch(val1, val2, boolean):

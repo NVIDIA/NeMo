@@ -31,9 +31,6 @@ TRAIN_MANIFESTS="[/data/train_1.json,/data/train_2.json]"
 VAL_MANIFESTS="[/data/dev_1.json,/data/dev_2.json]"
 VAL_NAMES="[dev-1,dev-2]"
 
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
-NVTE_MASKED_SOFTMAX_FUSION=0 \
 CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./conf" --config-name "modular_audio_gpt_config_peft" \
     trainer.devices=-1 \
     model.freeze_audio_encoder=True \

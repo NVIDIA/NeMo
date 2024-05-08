@@ -22,6 +22,12 @@ from apex.contrib.optimizers.distributed_fused_adam import (
     _disable_pre_forward_hook,
     _multi_tensor_copy,
 )
+
+try:
+    import apex.contrib.nccl_allocator as nccl_allocator
+except ImportError:
+    nccl_allocator = None
+
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
@@ -44,6 +50,11 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         disable_distributed_parameters (bool, optional): use standard
             data-parallel communication instead of ZeRO.
             (default: False)
+        distribute_within_nodes (bool, optional): distribute states
+            within the same node, e.g. DGX. This can improve performance
+            but requires larger memory than distributing within all
+            ranks, especially for pure data parallel models.
+            (default: False).
         **kwargs: keyword arguments to pass to Apex
             DistributedFusedAdam.
 
@@ -53,6 +64,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         self,
         params: Union[Iterable[torch.nn.Parameter], Iterable[dict]],
         disable_distributed_parameters: bool = False,
+        distribute_within_nodes: bool = False,
         **kwargs,
     ):
 
@@ -65,6 +77,28 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             self_groups = [torch.distributed.new_group(ranks=[i]) for i in range(world_size)]
             kwargs['distributed_process_group'] = self_groups[rank]
             kwargs['redundant_process_group'] = kwargs['process_group']
+        elif distribute_within_nodes:
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            devices = torch.cuda.device_count()
+            nodes = world_size // devices
+            assert nodes * devices == world_size, "Expected all nodes have teh same amout of devices."
+            node_id = rank // devices
+            device_id = rank % devices
+
+            distributed_pgs = []
+            for i in range(nodes):
+                ranks = [i * devices + j for j in range(devices)]
+                pg = torch.distributed.new_group(ranks=ranks)
+                distributed_pgs.append(pg)
+            kwargs['distributed_process_group'] = distributed_pgs[node_id]
+
+            redundant_pgs = []
+            for i in range(devices):
+                ranks = [i + j * devices for j in range(nodes)]
+                pg = torch.distributed.new_group(ranks=ranks)
+                redundant_pgs.append(pg)
+            kwargs['redundant_process_group'] = redundant_pgs[device_id]
 
         # Make sure dtypes are in right type
         for keyword in ('dtype', 'grad_sync_dtype', 'param_sync_dtype'):
@@ -284,8 +318,15 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             buffer_sizes[dtypes] = max(bucket.contiguous_buffer_offset + bucket.bucket_size, buffer_sizes[dtypes])
         for dtypes, buffer_size in buffer_sizes.items():
             _, _, param_sync_dtype = dtypes
-            self._param_buffers[dtypes] = torch.zeros([buffer_size], dtype=param_sync_dtype, device=self.device)
-
+            if getattr(self, "nccl_ub", False):
+                if not nccl_allocator:
+                    raise RuntimeError("NCCL allocator importing failed but nccl ub is still requested")
+                with nccl_allocator.nccl_mem():
+                    self._param_buffers[dtypes] = torch.zeros(
+                        [buffer_size], dtype=param_sync_dtype, device=self.device
+                    )
+            else:
+                self._param_buffers[dtypes] = torch.zeros([buffer_size], dtype=param_sync_dtype, device=self.device)
         # Figure out corresponding positions in params and param buffer
         params = list(self.parameters())
         param_flat_views = []
@@ -412,6 +453,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 buffers_in.append(buffer_in)
                 buffers_out.append(buffer_out)
             elif torch.is_floating_point(buffer_in) and torch.is_floating_point(param):
+                # Conv with NHWC layout, i.e. shape (N, C, H, W) and stride
+                # (HWC, 1, WC, C), can't `.view(-1)`. Here to turn it to
+                # tensor with shape (N, H, W, C) and stride (HWC, WC, C, 1).
+                # Note: https://github.com/NVIDIA/apex/pull/1794
+                if param.is_contiguous(memory_format=torch.channels_last):
+                    param = param.permute(0, 2, 3, 1)
+
                 # Cast between floating-point dtypes
                 buffer_out = param.detach().view(-1)[param_start:param_end]
                 buffers_in.append(buffer_in)
@@ -549,8 +597,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         # Handle any remaining dtype conversions
         super()._check_params_shard_dtypes(params_buckets)
 
-    def sharded_state_dict(self, model_sharded_state_dict):
-        optimizer_state_dict = self.state_dict()
+    def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None):
+        if optimizer_state_dict is None:
+            optimizer_state_dict = self.state_dict()
 
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict=model_sharded_state_dict, optim_params_iter=self.parameters(),

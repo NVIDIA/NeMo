@@ -11,7 +11,7 @@ In general, there're three main components of a modular SpeechLLM:
 - An audio encoder that processes the input audio and produces a sequence of audio embeddings.
 - A modality adapter that processes the audio embeddings and produces a sequence of embeddings in the same latent space as the token embeddings of a pretrained large language model (LLM).
 - A pretrained large language model (LLM) that processes embeddings from the modality adapter as well as token embeddings of input prompt, and produces the text output. The audio embeddings and text token embeddings are concatenated in time dimension before going into the LLM.
-
+- The LLM produces text outputs based on the concatenated input audio and text embedding.
 
 ## Usage
 
@@ -23,13 +23,39 @@ You'll need to prepare data in the NeMo manifest format, where each line is a py
     "audio_filepath": "path/to/audio.wav",
     "offset": 0.0, # offset of the audio in seconds, this is an optional field
     "duration": 10.0 , # duration of the audio in seconds, can set to `None` to load the whole audio
-    "question": "what is the transcription of the audio?", # text prompt for the audio, see below for more details
+    "context": "what is the transcription of the audio?", # text prompt for the audio, see below for more details
     "answer": "the transcription of the audio", # optional for inference, default to "na" in dataloader
 }
 ```
 
-The `question` field in the manifest is optional, and you can put a list of questions in a file then set `++model.data.train_ds.question_file=<path to to question file>` to ask the dataloader to randomly pick a question from the file for each audio sample. This is useful for training with multiple prompts for the same task. If neither `question` field nor `question_file` is provided, the dataloader will use a default question `what does the audio mean?` for all aduios. During inference, it is best to have the `question` field in the manifest.
+The `context` field in the manifest is optional, and you can put a list of context in a context file (one context for each line) then set `++model.data.train_ds.context_file=<path to to context file>` to ask the dataloader to randomly pick a context from the file for each audio sample. This is useful for training with multiple prompts for the same task. If neither `context` field nor `context_file` is provided, the dataloader will use a default context `what does the audio mean?` for all audios. During inference, it is recommended to have the `context` field in the manifest. 
 
+#### **Customizing the fields to use**
+
+You can also use other fields in the manifest to replace the `context` and `answer`fields, but you'll also need to change the `prompt_template` to use the new field names. For example, if you desire to use the new fields `input_text` and `output_text`, you need to set:
+```bash
+++model.data.train_ds.context_key=input_text \
+++model.data.train_ds.answer_key=output_text \
+++model.data.train_ds.prompt_template="'Q: {input_text}\nA: {output_text}'"
+```
+Note that there're single quotes around the prompt template (to avoid hydra errors), and the field names are wrapped in curly braces.
+
+#### **Customizing the input format**
+
+If you would like to use multiple audios, you can set the `audio_filepath` to be a list of audio file paths, and specify the location of each audio by using a special `audio_locator` string in the context. The choice of `audio_locator` should also be passed into the config. For example, if you have a manifest item like this:
+```
+{
+    "audio_filepath": ["path/to/audio1.wav", "path/to/audio2.wav"],
+    "context": "what is the transcription of the [audio] and [audio]?", # text prompt for the audio, see below for more details
+    "answer": "the transcription of the audio1 and audio2", # optional for inference, default to "na" in dataloader
+}
+```
+You can set the `audio_locator` to be `[audio]` in the config:
+```bash
+++model.data.train_ds.audio_locator='[audio]'
+```
+
+By using `audio_locator`, the dataloader will replace the `audio_locator` in the context with the corresponding audio features extracted for each audio. You need to make sure that the number of audio locators in the context matches the number of audio files in the `audio_filepath` field. 
 
 ### Training
 
@@ -43,25 +69,22 @@ With any config, you can set the following flags to control which components to 
 - `model.freeze_audio_encoder` # Generally set to `False` unless you want to freeze the audio encoder.
 - `model.freeze_modality_adapter` # Generally set to `False` since we want to train the modality adapter.
 
-In addition to the config file, you will also need two prepare the audio encoder and the LLM as `*.nemo` files.
+In addition to the config file, you will also need to prepare the audio encoder and the LLM as `*.nemo` files.
 
-To train a SpeechLLM, you can run the following script:
+To train a SpeechLLM that uses LoRA, you can run the following script:
 ```bash
 MEGATRON_MODEL=/path/to/megatron-model.nemo
-ASR_MODEL=/path/to/audio-encoder.nemo
+ASR_MODEL=/path/to/audio-model.nemo  # only the encoder part will be loaded. e.g, stt_en_fastconformer_transducer_large.nemo 
 
 TRAIN_MANIFESTS="[/data/train_1.json,/data/train_2.json]"
 VAL_MANIFESTS="[/data/dev_1.json,/data/dev_2.json]"
-VAL_NAMES="[dev-1,dev-2]"
+VAL_NAMES="[dev-1,dev-2]"  # names to display when logging validation results for each dataset
 
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
-NVTE_MASKED_SOFTMAX_FUSION=0 \
 CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./conf" --config-name "modular_audio_gpt_config_peft" \
     trainer.devices=-1 \
     model.freeze_audio_encoder=True \
     model.freeze_llm=True \
-    model.global_batch_size=4 \  # global_batch_size = micro_batch_size * num_gpus_per_node * num_nodes * gradient_accumulation_steps
+    model.global_batch_size=4 \  # global_batch_size = micro_batch_size * num_gpus_per_node * num_nodes * accumulate_grad_batches
     model.micro_batch_size=2 \  # micro_batch_size = batch_size_per_gpu
     model.pretrained_audio_model=$ASR_MODEL \
     model.restore_from_path=$MEGATRON_MODEL \
@@ -70,12 +93,12 @@ CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./co
     ++model.data.validation_ds.names=$VAL_NAMES \
 ```
 
-You can also use tarred datasets for faster training by converting normal NeMo datasets to tarred datasets using this [script](https://github.com/NVIDIA/NeMo/blob/main/scripts/speech_recognition/convert_to_tarred_audio_dataset.py) and follow the same dataset setting as shown in the script.
+You can also use tarred datasets for faster training by converting normal NeMo datasets to tarred datasets using this [script](https://github.com/NVIDIA/NeMo/blob/main/scripts/speech_recognition/convert_to_tarred_audio_dataset.py) and follow the same dataset setting as shown in the script. Also, `accumulate_grad_batches` is automatically set by the model based on `global_batch_size` and `micro_batch_size`, so there's no need to manually calculate and set `trainer.accumulate_grad_batches`.
 
 
 #### **Multi-task Training**
 
-In order to use a question file, you can set `++model.data.train_ds.question_file=<path to to question file>` in the command line or use multiple question files with `++model.data.train_ds.question_file=[<path to to question file1>,<path to question file2>,...]`. If the number of question files is equal to the number of provided datasets, the dataloader will assigne each question file to a dataset. Otherwise, the dataloader will randomly pick a question file from all provided question files for each audio sample. Using multiple question files is useful for training with multiple tasks, where each task has its own set of prompts. Meanwhile, you can control the weights for different tasks/datasets by using concatentated tarred datasets, where you can assign weights to datasets by:
+In order to use a context file, you can set `++model.data.train_ds.context_file=<path to to context file>` in the command line or use multiple context files with `++model.data.train_ds.context_file=[<path to to context file1>,<path to context file2>,...]`. If the number of context files is equal to the number of provided datasets, the dataloader will assigne each context file to a dataset. Otherwise, the dataloader will randomly pick a context file from all provided context files for each audio sample. Using multiple context files is useful for training with multiple tasks, where each task has its own set of prompts. Meanwhile, you can control the weights for different tasks/datasets by using concatentated tarred datasets, where you can assign weights to datasets by:
 ```
 ++model.data.train_ds.is_tarred=True \
 ++model.data.train_ds.is_concat=True \
@@ -109,9 +132,6 @@ ALM_CKPT="$ALM_DIR/checkpoints/AudioGPT--validation_wer\=0.2-step\=100000-epoch\
 TEST_MANIFESTS="[/data/test_1.json,/data/test_2.json]"
 TEST_NAMES="[test-1,test-2]"
 
-NVTE_MASKED_SOFTMAX_FUSION=0 \
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
 CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
     model.restore_from_path=$MEGATRON_CKPT \
     model.peft.restore_from_path=$ALM_CKPT \
@@ -147,9 +167,6 @@ If you want to load a trained SpeechLLM from cloud, you can use the following sc
 TEST_MANIFESTS="[/data/test_1.json,/data/test_2.json]"
 TEST_NAMES="[test-1,test-2]"
 
-NVTE_MASKED_SOFTMAX_FUSION=0 \
-NVTE_FLASH_ATTN=0 \
-NVTE_FUSED_ATTN=0 \
 CUDA_VISIBLE_DEVICES=0 python modular_audio_gpt_eval.py \
     model.from_pretrained="speechllm_fc_llama2_7b" \
     model.data.test_ds.manifest_filepath=$TEST_MANIFESTS \

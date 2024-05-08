@@ -95,7 +95,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
             self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
 
-        self._reset_activation_checkpointing_args()
         self.virtual_tokens = 0
         self.init_global_step = 0
 
@@ -162,7 +161,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         return set(["f1", "accuracy", "average_precision"])
 
     def maybe_setup_test(self):
-        if hasattr(self.cfg.data, 'test_ds'):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
         return
 
@@ -254,9 +253,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
 
         # TE requires that the first input dim is divisible by 8 and the second by 16 for fp8
         # When using sequence parallel, sequence will further be split by TP size
+        # When using context parallel, sequence is split by CP size as well
         pad_seq_length_to_mult = (
             8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
         )
+        pad_seq_length_to_mult *= self.cfg.get('context_parallel_size', 1)
 
         dataset_kwargs = {}
         for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
@@ -291,6 +292,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 index_mapping_dir=data_cfg.get('index_mapping_dir', None),
                 prompt_template=data_cfg.get('prompt_template', None),
+                ceil_to_power_2=data_cfg.get('ceil_to_power_2', False),
+                get_attention_mask_from_fusion=data_cfg.get('get_attention_mask_from_fusion', False),
                 virtual_tokens=self.virtual_tokens,
                 tokens_to_generate=data_cfg.get(
                     'tokens_to_generate', 0
@@ -347,10 +350,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if log_token_counts:
             token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
 
-        # TODO: Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
-        if 'context_start_idx' not in batch:
-            # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
-            batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
         _, seq_length = batch['tokens'].shape
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
@@ -375,7 +376,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         fwd_bwd_function = get_forward_backward_func()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(tuning=True),
+            forward_step_func=self.get_forward_output_and_loss_func(tuning=True, validation_step=forward_only),
             data_iterator=self._make_data_iterator_list(data_iter),
             model=self.model,
             num_microbatches=get_num_microbatches(),
@@ -795,12 +796,11 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
                 )
 
     def maybe_build_test(self):
-        if hasattr(self.cfg.data, 'test_ds'):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             logging.info('Building GPT SFT test datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-            # lengths = [len(x) for x in self._test_ds]
-            # logging.info(f'Length of test datasets: {lengths}, total: {sum(lengths)}')
+            logging.info(f'Length of test dataset: {len(self._test_ds[0])}')
         return
 
     def build_train_valid_test_datasets(self, stage):
@@ -808,9 +808,8 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             logging.info('Building GPT SFT validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            # TODO: for lhotse
-            # lengths = [len(x) for x in self._validation_ds]
-            # logging.info(f'Length of val datasets: {lengths}, total: {sum(lengths)}')
+            if self._validation_ds:
+                logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
 
         if stage != 'validate':
             self.maybe_build_test()
@@ -819,7 +818,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             return
         logging.info('Building GPT SFT traing datasets.')
         self._train_ds = self._build_dataset(self.cfg.data.train_ds)
-        # logging.info(f'Length of train dataset: {len(self._train_ds)}')
+        logging.info(f'Length of train dataset: {len(self._train_ds)}')
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
         """Buld dataloader given an input dataset."""

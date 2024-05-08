@@ -21,6 +21,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
 from omegaconf.dictconfig import DictConfig
+from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
 from transformers import CLIPVisionModel
 
@@ -28,6 +29,7 @@ from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
+    NevaPackedSeqDatatset,
     make_supervised_data_module,
 )
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
@@ -43,7 +45,10 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     MultimodalProjectorAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_iterator_k_split,
+)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -61,6 +66,7 @@ from nemo.utils import logging
 
 try:
     import apex.transformer.pipeline_parallel.utils
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 
@@ -71,6 +77,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -161,7 +168,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
 
         assert vision_x.ndim == 6, "vision_x should be of shape (b, T_img, F, C, H, W)"
         b, T, F = vision_x.shape[:3]
-        assert F == 1, "Only single frame supported"
 
         vision_x = rearrange(vision_x, "b T F c h w -> (b T F) c h w")
         vision_x = vision_x.to(self.vision_encoder.dtype)
@@ -188,7 +194,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         # calculate media features without gradients
         media_features = self.encode_vision_x(media)  # b T F S(eq) H(idden)
         num_images_per_sample = media_features.size(1)
-        num_patches = media_features.size(3)
+        num_patches = media_features.size(3) * media_features.size(2)
         # flatten patches
         media_features = media_features.view(batch_size, -1, hidden_size)
 
@@ -385,17 +391,24 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
 
     def freeze_llm(self, mm_cfg):
-        for param in chain(self.embedding.parameters(), self.decoder.parameters(), self.output_layer.parameters(),):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            embedding_parameters = self.embedding.parameters()
+        else:
+            embedding_parameters = {}
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+            output_layer_parameters = self.output_layer.parameters()
+        else:
+            output_layer_parameters = {}
+
+        for param in chain(embedding_parameters, self.decoder.parameters(), output_layer_parameters,):
             param.requires_grad = False
-        self.embedding = self.embedding.eval()
-        self.decoder = self.decoder.eval()
-        self.output_layer = self.output_layer.eval()
 
     def forward(
         self, *args, **kwargs,
     ):
         media = kwargs.pop('media', None)
-        self.embedding.word_embeddings.set_media(media)
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            self.embedding.word_embeddings.set_media(media)
         return MCoreGPTModel.forward(self, *args, **kwargs)
 
 
@@ -421,7 +434,8 @@ class NevaModel(GPTModel, NevaBaseModel):
         self, *args, **kwargs,
     ):
         media = kwargs.pop('media', None)
-        self.embedding.word_embeddings.set_media(media)
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            self.embedding.word_embeddings.set_media(media)
         return GPTModel.forward(self, *args, **kwargs)
 
 
@@ -461,7 +475,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         media_end_id = self.tokenizer.token_to_id(DEFAULT_IM_END_TOKEN)
 
         if self.mcore_gpt:
-            if parallel_state.is_unitialized():
+            if not parallel_state.is_initialized():
 
                 def dummy():
                     return
@@ -614,7 +628,73 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         return output_tensor
 
     def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
-        return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step)
+        if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+            return MegatronGPTModel.fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step)
+        else:
+            batch, _, _ = next(dataloader_iter)
+            _, seq_length = batch['tokens'].shape
+            batch_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+            # handle asynchronous grad reduction
+            no_sync_func = None
+            grad_sync_func = None
+            param_sync_func = None
+            if not forward_only and self.with_distributed_adam:
+                no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+                grad_sync_func = self.reduce_overlap_gradients
+                param_sync_func = self.sync_overlap_parameters
+
+            # pipeline schedules will get these from self.model.config
+            for module in self.get_model_module_list():
+                module.config.no_sync_func = no_sync_func
+                module.config.grad_sync_func = grad_sync_func
+                module.config.param_sync_func = param_sync_func
+
+            # run forward and backwards passes for an entire global batch
+            # we do this inside training_step to support pipeline parallelism
+            fwd_bwd_function = get_forward_backward_func()
+            # print(f"{torch.distributed.get_rank()}: {parallel_state.is_pipeline_last_stage()} {fwd_bwd_function}")
+
+            # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
+            losses_reduced_per_micro_batch = fwd_bwd_function(
+                forward_step_func=self.get_forward_output_and_loss_func(forward_only),
+                data_iterator=self._make_data_iterator_list(batch_iter),
+                model=self.model,
+                num_microbatches=get_num_microbatches(),
+                forward_only=forward_only,
+                seq_length=seq_length,
+                micro_batch_size=self.cfg.micro_batch_size,
+                first_val_step=first_val_step,
+            )
+
+            # only the last stages of the pipeline return losses
+            if losses_reduced_per_micro_batch:
+                if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                    # average loss across micro batches
+                    loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensor = torch.concat(loss_tensors_list)
+                    loss_mean = loss_tensor.mean()
+                else:
+                    # Get the total loss since micro batches sizes are not uniform
+                    loss_sum_tensors_list = [
+                        loss_sum['loss_sum_and_ub_size']
+                        for loss_sum in losses_reduced_per_micro_batch
+                        if loss_sum['loss_sum_and_ub_size'][1] > 0
+                    ]
+                    loss_sum = (
+                        torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                        if len(loss_sum_tensors_list) > 0
+                        else torch.tensor([0.0, 0.0]).cuda()
+                    )
+                    return loss_sum
+            else:
+                # we're not on the last pipeline stage so no losses
+                if forward_only:
+                    loss_mean = []
+                else:
+                    loss_mean = torch.tensor(0.0).cuda()
+
+            return loss_mean
 
     def training_step(self, dataloader_iter):
         """
@@ -634,7 +714,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return loss_for_ub, dict(avg=reduced_loss[0].unsqueeze(0))
 
         def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
-            batch, _, _ = next(dataloader_iter)
+            batch = next(dataloader_iter)
+            if isinstance(batch, tuple):
+                batch = batch[0]
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 for k in batch.keys():
                     if self.get_attention_mask_from_fusion:
@@ -647,28 +729,36 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
                             batch[k] = (
-                                batch[k].cuda(non_blocking=True) if k in ['tokens', 'position_ids', 'media'] else None
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['tokens', 'position_ids', 'media', 'cu_seqlens']
+                                else None
                             )
                         else:
                             batch[k] = (
                                 batch[k].cuda(non_blocking=True)
-                                if k in ['tokens', 'position_ids', 'attention_mask', 'media']
+                                if k in ['tokens', 'position_ids', 'attention_mask', 'media', 'cu_seqlens']
                                 else None
                             )
                 elif parallel_state.is_pipeline_last_stage():
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
-                            batch[k] = batch[k].cuda(non_blocking=True) if k in ['labels', 'loss_mask'] else None
+                            batch[k] = (
+                                batch[k].cuda(non_blocking=True)
+                                if k in ['labels', 'loss_mask', 'cu_seqlens']
+                                else None
+                            )
                         else:
                             batch[k] = (
                                 batch[k].cuda(non_blocking=True)
-                                if k in ['labels', 'loss_mask', 'attention_mask']
+                                if k in ['labels', 'loss_mask', 'attention_mask', 'cu_seqlens']
                                 else None
                             )
                 else:
                     # Intermediate pipeline stage doesn't need any inputs
-                    batch = {k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media']}
+                    batch = {
+                        k: None for k in ['tokens', 'position_ids', 'attention_mask', 'labels', 'media', 'loss_mask']
+                    }
 
             forward_args = {
                 'input_ids': batch['tokens'],
@@ -681,16 +771,40 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 if self.use_loss_mask:
                     forward_args['loss_mask'] = batch['loss_mask']
                 forward_args['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
+            else:
+                if 'cu_seqlens' in batch:  # packed sequence
+                    # these args are passed eventually into TEDotProductAttention.forward()
+                    cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+                    max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
+
+                    try:
+                        from megatron.core.packed_seq_params import PackedSeqParams
+                    except (ImportError, ModuleNotFoundError) as e:
+                        mcore_version = packaging.version.Version(version('megatron-core'))
+                        logging.error(
+                            f"megatron-core v{mcore_version} does not support training with packed sequence. "
+                            "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
+                        )
+                        raise e
+                    forward_args['packed_seq_params'] = PackedSeqParams(
+                        cu_seqlens_q=cu_seqlens,
+                        cu_seqlens_kv=cu_seqlens,
+                        max_seqlen_q=max_seqlen,
+                        max_seqlen_kv=max_seqlen,
+                        qkv_format='thd',
+                    )
 
             output_tensor = model(**forward_args)
 
-            return output_tensor, partial(loss_func, loss_mask=batch['loss_mask'])
+            return output_tensor, partial(loss_func, loss_mask=batch.get('loss_mask'))
 
         return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
-            batch, _, _ = next(dataloader_iter)
+            batch = next(dataloader_iter)
+            if isinstance(batch, tuple):
+                batch = batch[0]
             extra_arg = {}
             (
                 tokens,
@@ -795,9 +909,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
-            self.model
-        )
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert()
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
@@ -864,9 +976,14 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building Neva datasets.')
-        ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
-        self._train_ds = ds_dict["train_dataset"]
-        self._validation_ds = ds_dict["eval_dataset"]
+        if self.cfg.data.get("packed_sequence", False):
+            assert self.cfg.micro_batch_size == 1, "Micro batch size must be 1 if using packed sequence"
+            self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
+            self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
+        else:
+            ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
+            self._train_ds = ds_dict["train_dataset"]
+            self._validation_ds = ds_dict["eval_dataset"]
 
         return self._train_ds, self._validation_ds
 
@@ -877,12 +994,17 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
+        if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+            micro_batch_size = self.cfg.micro_batch_size
+        else:
+            micro_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
+
         if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
             if self.cfg.data.dataloader_type == 'single':
                 batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
-                    micro_batch_size=self.cfg.micro_batch_size,
+                    micro_batch_size=micro_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=drop_last,
@@ -894,7 +1016,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     dataset=dataset,
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
-                    micro_batch_size=self.cfg.micro_batch_size,
+                    micro_batch_size=micro_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self.cfg.get('drop_last', True),
@@ -958,14 +1080,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def on_load_checkpoint(self, checkpoint) -> None:
         pass
-        # if self.mcore_gpt:
-        #     state_dict = checkpoint["state_dict"]
-        #     self.load_state_dict(state_dict)
 
     def sharded_state_dict(self, prefix: str = ''):
         return None
-        # sharded_state_dict = MegatronGPTModel.sharded_state_dict(self, prefix)
-        # return sharded_state_dict
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
@@ -998,7 +1115,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
     ) -> OutputType:
 
         # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return

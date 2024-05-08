@@ -617,6 +617,15 @@ class ASRTarredDatasetBuilder:
         with open(manifest_path, 'r', encoding='utf-8') as m:
             for line in m:
                 entry = json.loads(line)
+                audio_key = "audio_filepath" if "audio_filepath" in entry else "audio_file"
+                if audio_key not in entry:
+                    raise KeyError(f"Manifest entry does not contain 'audio_filepath' or  'audio_file' key: {entry}")
+                audio_filepath = entry[audio_key]
+                if not os.path.isfile(audio_filepath) and not os.path.isabs(audio_filepath):
+                    audio_filepath_abs = os.path.join(os.path.dirname(manifest_path), audio_filepath)
+                    if not os.path.isfile(audio_filepath_abs):
+                        raise FileNotFoundError(f"Could not find {audio_filepath} or {audio_filepath_abs}!")
+                    entry[audio_key] = audio_filepath_abs
                 if (config.max_duration is None or entry['duration'] < config.max_duration) and (
                     config.min_duration is None or entry['duration'] >= config.min_duration
                 ):

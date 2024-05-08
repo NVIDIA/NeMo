@@ -1,3 +1,4 @@
+fiddle
 huggingface_hub>=0.20.3
 numba
 numpy>=1.22
@@ -10,6 +11,5 @@ tensorboard
 text-unidecode
 torch
 tqdm>=4.41.0
-triton
 wget
 wrapt

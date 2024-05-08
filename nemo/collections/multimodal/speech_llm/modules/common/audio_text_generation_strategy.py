@@ -47,7 +47,6 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
     ):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
-        micro_batch_size = context_tokens.shape[0]
 
         if self.model.cfg.get('megatron_amp_O2', False):
             base_module = self.model.model.module

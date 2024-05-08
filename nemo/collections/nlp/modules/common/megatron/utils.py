@@ -22,6 +22,8 @@ import torch.nn as nn
 
 from torch import Tensor
 
+from nemo.utils import logging, logging_mode
+
 try:
     from apex.normalization import MixedFusedRMSNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
@@ -175,6 +177,13 @@ def openai_gelu(x):
     return gelu_impl(x)
 
 
+try:
+    jit_fuser = torch.compile
+except:
+    jit_fuser = torch.jit.script
+
+
+@jit_fuser
 def squared_relu(x):
     return torch.pow(torch.nn.functional.relu(x), 2)
 
@@ -366,17 +375,25 @@ def get_params_for_weight_decay_optimization(
     is_expert = lambda param: not getattr(param, 'allreduce', True)
     # Do the actual param classification
     for module in modules:
-        for name, param in module.named_parameters():
-            if param is None:
-                continue
-            if name.endswith('.bias'):
-                no_weight_decay_params['params'].extend([param])
+        for module_ in module.modules():
+            if isinstance(module_, (FusedLayerNorm, FastLayerNorm, MixedFusedRMSNorm)):
+                no_weight_decay_params['params'].extend(
+                    list(filter(lambda p: p is not None, module_._parameters.values()))
+                )
             else:
-                if is_expert(param):
-                    weight_decay_expert_params['params'].extend([param])
-                else:
-                    weight_decay_params['params'].extend([param])
-    return weight_decay_params, weight_decay_expert_params, no_weight_decay_params
+                for name, param in module_._parameters.items():
+                    if param is None:
+                        continue
+                    if name.endswith('bias'):
+                        no_weight_decay_params['params'].extend([param])
+                    else:
+                        if is_expert(param):
+                            weight_decay_expert_params['params'].extend([param])
+                        else:
+                            weight_decay_params['params'].extend([param])
+
+    param_groups = [weight_decay_params, weight_decay_expert_params, no_weight_decay_params]
+    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 
 def get_all_params_for_weight_decay_optimization(
@@ -394,7 +411,8 @@ def get_all_params_for_weight_decay_optimization(
         weight_decay_params['params'] += list(filter(lambda x: not is_expert(x), module.parameters()))
         weight_decay_expert_params['params'] += list(filter(is_expert, module.parameters()))
 
-    return weight_decay_params, weight_decay_expert_params
+    param_groups = [weight_decay_params, weight_decay_expert_params]
+    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 
 def split_list(inputs, num_chunks):
@@ -415,7 +433,7 @@ def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatche
     if isinstance(batch, dict):
         discard_items = [k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))]
         if len(discard_items) > 0:
-            logging.warning(f"Discarding the following items from the batch: {discard_items}", mode=logging_mode.ONCE)
+            logging.warning(f"Discarding the following keys from the batch: {discard_items}", mode=logging_mode.ONCE)
 
         batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         tensor_items = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}

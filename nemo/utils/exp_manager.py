@@ -48,7 +48,6 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
-from nemo.utils.timers import NeMoTimerException
 
 
 class NotFoundError(NeMoBaseException):
@@ -203,12 +202,7 @@ class TimingCallback(Callback):
         self.timer.start(name)
 
     def _on_batch_end(self, name, pl_module):
-        try:
-            self.timer.stop(name)
-        except NeMoTimerException as e:
-            # Skip the error
-            pass
-
+        self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(
             name + ' in s',
@@ -310,16 +304,16 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
                 Defaults to True.
             - create_early_stopping_callback (bool): Flag to decide if early stopping should be used to stop training. Default is False.
-             See EarlyStoppingParams dataclass above.
+                See EarlyStoppingParams dataclass above.
             - create_preemption_callback (bool): Flag to decide whether to enable preemption callback to save checkpoints and exit training
-             immediately upon preemption. Default is True.
+                immediately upon preemption. Default is True.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
             - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
-            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want
+            - max_time (str): The maximum wall clock time *per run*. This is intended to be used on clusters where you want 
                 a checkpoint to be saved after this specified time and be able to resume from that checkpoint. Defaults to None.
             - seconds_to_sleep (float): seconds to sleep non rank 0 processes for. Used to give enough time for rank 0 to initialize
 

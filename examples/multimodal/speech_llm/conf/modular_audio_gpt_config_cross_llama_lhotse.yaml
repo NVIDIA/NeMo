@@ -140,10 +140,10 @@ model:
       init_std: 0.023
 
   perception:
-    target: nemo.collections.multimodal.speech_llm.modules.perception.AudioPerceptionModule
+    target: nemo.collections.multimodal.speech_llm.modules.perception_modules.AudioPerceptionModule
     use_multi_layer_feat: false
     xattn:
-      target: nemo.collections.multimodal.speech_llm.modules.perception.TransformerCrossAttention
+      target: nemo.collections.multimodal.speech_llm.modules.perception_modules.TransformerCrossAttention
       num_attention_heads: 8
       attn_score_dropout: 0.1
       attn_layer_dropout: 0.1

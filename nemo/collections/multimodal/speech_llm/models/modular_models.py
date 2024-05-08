@@ -26,18 +26,23 @@ from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities import rank_zero_only
 
-from nemo.collections.asr.models import EncDecSpeakerLabelModel
+from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
-    get_aqa_dataset_from_config,
-    get_tarred_aqa_dataset_from_config,
+from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
+    get_audio_text_dataset_from_config,
+    get_tarred_audio_text_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speech_llm.modules.perception import AudioPerceptionModule, MultiAudioPerceptionModule
+from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
+    AudioPerceptionModule,
+    MultiAudioPerceptionModule,
+)
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import get_nested_dict_value
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -54,6 +59,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import AppState, logging, model_utils
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
@@ -125,13 +131,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
-        rate for the frozen model's params will always be zero effectively
-        freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        Override parent method to setup optimizer groups for training/freezing different parts of the model.
         """
         known_groups = []
         self.unfreeze()
@@ -143,30 +143,37 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             param.requires_grad = not freeze_llm
 
         if self.cfg.get('freeze_audio_encoder', False):
+            # freeze speaker model if there is any
             if self.cfg.perception.get("speaker_model", None) is not None:
                 if self.cfg.perception.speaker_model.get("freeze", False):
                     self.perception.speaker_model.freeze()
                     known_groups.append('perception.speaker_model.')
+            # freeze other audio encoders
             if self.cfg.perception.get("encoders", None) is not None:
+                # multiple audio encoders
                 for key, enc_cfg in self.cfg.perception.encoders.items():
                     if enc_cfg.get("freeze", False):
                         self.perception.encoders[key].freeze()
                         known_groups.append(f'perception.encoders.{key}.')
             else:
+                # single audio encoder
                 self.perception.encoder.freeze()
                 known_groups.append('perception.encoder.')
 
         if self.cfg.get('freeze_modality_adapter', False):
+            # freeze modality adapter
             self.perception.modality_adapter.freeze()
             known_groups.append('perception.modality_adapter.')
 
         opt_params = []
         for _, module in self.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
+                # add adapters to the optimizer
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters()]
 
+        # add param groups with specified args, if any
         param_groups = []
         if "optim_param_groups" in self.cfg:
             param_groups_cfg = self.cfg.optim_param_groups
@@ -183,6 +190,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 else:
                     raise ValueError(f"{group} does not have parameters.")
 
+        # add other trainable params
         for n, p in self.named_parameters():
             is_unknown = True
             for group in known_groups:
@@ -412,7 +420,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 inference_max_sequence_len,
             ) = batch
             tokens = tokens.cuda()
-            position_ids = position_ids.cuda()
+
             if attention_mask is not None:
                 attention_mask = attention_mask.cuda()
                 attention_mask = attention_mask[0:1]
@@ -624,7 +632,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get('is_tarred', False):
-            return get_tarred_aqa_dataset_from_config(
+            return get_tarred_audio_text_dataset_from_config(
                 config=data_cfg,
                 tokenizer=self.tokenizer,
                 augmentor=augmentor,
@@ -635,7 +643,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 world_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
-            return get_aqa_dataset_from_config(
+            return get_audio_text_dataset_from_config(
                 manifest_filepath=data_cfg.manifest_filepath,
                 config=data_cfg,
                 tokenizer=self.tokenizer,
@@ -646,12 +654,12 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 virtual_tokens=self.virtual_tokens,
             )
 
-    def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_eval=False):
+    def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_predict=False):
         """Buld dataloader given an input dataset."""
         if data_cfg.get("use_lhotse"):
             from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 
-            if data_cfg.get('is_tarred', False) or not is_eval:
+            if data_cfg.get('is_tarred', False) or not is_predict:
                 return get_lhotse_dataloader_from_config(
                     data_cfg,
                     global_rank=parallel_state.get_data_parallel_rank(),
@@ -710,6 +718,17 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             )
             return dataloader
 
+        if is_predict:
+            # MegatronPretrainingBatchSampler doesn't work with trainer.predict()
+            dataloader = torch.utils.data.DataLoader(
+                dataset,
+                collate_fn=collate_fn,
+                batch_size=data_cfg.micro_batch_size,
+                num_workers=data_cfg.num_workers,
+                pin_memory=data_cfg.pin_memory,
+            )
+            return dataloader
+
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
@@ -717,8 +736,8 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             global_batch_size=data_cfg.global_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=True,
-            pad_samples_to_global_batch_size=False,
+            drop_last=data_cfg.drop_last,
+            pad_samples_to_global_batch_size=not data_cfg.drop_last,
         )
 
         dataloader = torch.utils.data.DataLoader(
@@ -727,11 +746,13 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             collate_fn=collate_fn,
             num_workers=data_cfg.num_workers,
             pin_memory=data_cfg.pin_memory,
+            persistent_workers=True if data_cfg.num_workers > 0 else False,
         )
         return dataloader
 
     @classmethod
     def _modify_audio_encoder_config(cls, gpt_cfg, audio_cfg, speaker_cfg=None):
+        """load the ecoder configs from the pretrained audio models and updating the model's config."""
         with open_dict(gpt_cfg):
             use_multi_encoder = gpt_cfg.perception.get("encoders", None) is not None
             if not use_multi_encoder:
@@ -751,10 +772,32 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             if 'output_dim' in modality_adapter_cfg:
                 modality_adapter_cfg.output_dim = gpt_cfg.hidden_size
             if not use_multi_encoder:
-                if 'feat_in' in modality_adapter_cfg:  # conformer encoder
-                    modality_adapter_cfg.feat_in = audio_cfg.encoder.d_model
-                if 'input_dim' in modality_adapter_cfg:
-                    modality_adapter_cfg.input_dim = audio_cfg.encoder.d_model
+                model_dim_key = gpt_cfg.perception.get("model_dim_key", "d_model")
+                encoder_dim = get_nested_dict_value(audio_cfg.encoder, model_dim_key)
+                input_dim = encoder_dim
+                if (
+                    gpt_cfg.perception.get('use_multi_layer_feat', False)
+                    and gpt_cfg.perception.multi_layer_feat.aggregator.get("mode", "cat") == "cat"
+                ):
+                    input_dim = encoder_dim * len(gpt_cfg.perception.multi_layer_feat.layer_idx_list)
+            else:
+                input_dim = 0
+                if speaker_cfg is not None:
+                    input_dim += speaker_cfg.decoder.emb_sizes
+                for enc_cfg in gpt_cfg.perception.encoders.values():
+                    encoder_dim = get_nested_dict_value(enc_cfg.model, enc_cfg.get("model_dim_key", "d_model"))
+                    if (
+                        enc_cfg.get('use_multi_layer_feat', False)
+                        and enc_cfg.multi_layer_feat.aggregator.get("mode", "cat") == "cat"
+                    ):
+                        input_dim += encoder_dim * len(enc_cfg.multi_layer_feat.layer_idx_list)
+                    else:
+                        input_dim += encoder_dim
+
+            if 'feat_in' in modality_adapter_cfg:
+                modality_adapter_cfg.feat_in = input_dim
+            elif 'input_dim' in modality_adapter_cfg:
+                modality_adapter_cfg.input_dim = input_dim
 
     @classmethod
     def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False, speaker_cfg=None):
@@ -768,7 +811,21 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             # for AudioGPTLoRAModel
             gpt_cfg.target = f"{cls.__module__}.{cls.__name__}"
             gpt_cfg.perception = cfg.model.perception
+            # inject audio encoder configs into the target config (gpt_cfg)
             cls._modify_audio_encoder_config(gpt_cfg, audio_cfg, speaker_cfg)
+
+            # inject the sample rate from the audio encoder into the gpt config
+            if isinstance(audio_cfg, (ListConfig, list)):
+                sample_rate = [_cfg.preprocessor.sample_rate for _cfg in audio_cfg]
+                if not all([sr == sample_rate[0] for sr in sample_rate]):
+                    raise ValueError("All audio encoders must have the same sample rate.")
+                gpt_cfg.data.train_ds.sample_rate = sample_rate[0]
+                gpt_cfg.data.validation_ds.sample_rate = sample_rate[0]
+            else:
+                sample_rate = audio_cfg.preprocessor.sample_rate
+                gpt_cfg.data.train_ds.sample_rate = sample_rate
+                gpt_cfg.data.validation_ds.sample_rate = sample_rate
+
             # This is needed when modifying a hparam file directly to load `.ckpt` files.
             # This is not needed to modify the cfg in `.nemo` files.
             if add_cfg_to_tree:
@@ -779,7 +836,14 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     @classmethod
     def get_pretraind_audio_model(cls, encoder_cfg: DictConfig) -> ModelPT:
-        encoder_cls = get_class(encoder_cfg.get("_target_")) if encoder_cfg.get("_target_", None) is not None else None
+        """load pretrained audio model from a given config"""
+        if encoder_cfg.get("_target_", None) is not None:
+            encoder_cls = get_class(encoder_cfg.get("_target_"))
+        elif encoder_cfg.get("target", None) is not None:
+            encoder_cls = get_class(encoder_cfg.get("target"))
+        else:
+            encoder_cls = ASRModel
+
         pretrained_model = encoder_cfg.get('pretrained_model', None)
         if pretrained_model is None:
             return None
@@ -798,19 +862,23 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     @classmethod
     def get_speaker_model_and_config(cls, cfg):
+        """load speaker embedding model and config if present in the config."""
         if 'speaker_model' in cfg.model.perception:
+            if cfg.model.get("_target_", None) is not None:
+                model_cls = get_class(cfg.model.get("_target_"))
+            elif cfg.model.get("target", None) is not None:
+                model_cls = get_class(cfg.model.get("target"))
+            else:
+                model_cls = EncDecSpeakerLabelModel
+
             speaker_cfg = cfg.model.perception.speaker_model
             if speaker_cfg.get('pretrained_model', None) is not None:
                 if speaker_cfg.pretrained_model.endswith('.nemo'):
                     logging.info(f'Loading pretrained speaker model from local file: {speaker_cfg.pretrained_model}')
-                    speaker_model = EncDecSpeakerLabelModel.restore_from(
-                        speaker_cfg.pretrained_model, map_location='cpu'
-                    )
+                    speaker_model = model_cls.restore_from(speaker_cfg.pretrained_model, map_location='cpu')
                 else:
                     logging.info(f'Loading pretrained speaker model from NGC: {speaker_cfg.pretrained_model}')
-                    speaker_model = EncDecSpeakerLabelModel.from_pretrained(
-                        speaker_cfg.pretrained_model, map_location='cpu'
-                    )
+                    speaker_model = model_cls.from_pretrained(speaker_cfg.pretrained_model, map_location='cpu')
                 return speaker_model, speaker_model.cfg
             return None, None
         else:
@@ -874,6 +942,12 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def restore_from_pretrained_models(
         cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
     ):
+        """
+        load pretrained LLM and audio encoders, and maybe add adapters, used for training.
+        Args:
+            cfg: input yaml config, with trainer, model, exp_manager, etc.
+            trainer: trainer object
+        """
         if (
             cfg.model.get("pretrained_audio_model", None) is None
             and cfg.model.perception.get("encoders", None) is None
@@ -892,7 +966,11 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
         # load llm
         model = cls.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=model_cfg, strict=False,
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            strict=False,
+            map_location="cpu",
         )
 
         if "peft" in cfg.model:
@@ -901,7 +979,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 # initialize peft weights from a checkpoint instead of randomly
                 # This is not the same as resume training because optimizer states are not restored.
                 logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
-                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg), map_location="cpu")
             elif peft_cfg_cls is not None:
                 logging.info("Adding adapter weights to the model for PEFT")
                 model.add_adapter(peft_cfg_cls(model_cfg))
@@ -918,6 +996,128 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             model.set_inference_config(inference_cfg)
         return model
 
+    @classmethod
+    def load_audio_encoder_for_inference(cls, cfg: DictConfig, model_cfg: DictConfig, model: ModelPT) -> ModelPT:
+        """
+        load audio encoder for inference.
+        Args:
+            cfg: inference config
+            model_cfg: model config
+            model: model object
+        Returns:
+            model: model object with audio encoder weights loaded
+        """
+        if model_cfg.freeze_audio_encoder and model_cfg.get("pretrained_audio_model", None) is not None:
+            with open_dict(cfg):
+                cfg.model.perception = model_cfg.perception
+
+            audio_model, _ = cls.get_audio_encoder_models_and_configs(cfg)
+            speaker_model, _ = cls.get_speaker_model_and_config(cfg)
+            model = cls.load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
+        return model
+
+    @classmethod
+    def merge_inference_cfg(
+        cls, cfg: DictConfig, trainer: Trainer, pretrained_model_cfg: DictConfig = None
+    ) -> DictConfig:
+        """
+        Merge the inference config with the model config, used for inference only. 
+        if no pretrained_model_cfg is given, it will be loaded from the checkpoint specified in cfg.
+        Args:
+            cfg: inference config
+            trainer: trainer object
+            pretrained_model_cfg: a pre-loaded SpeechLLM model config
+        Returns:
+            model_cfg: merged model config
+        """
+        if pretrained_model_cfg:
+            model_cfg = pretrained_model_cfg
+        elif cfg.model.peft.restore_from_path:
+            if cfg.model.peft.restore_from_path.endswith(".nemo"):
+                model_cfg = ModularAudioGPTModel.restore_from(
+                    restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
+                )
+            elif cfg.model.peft.restore_from_hparams_path:  # not a .nemo model we expect a hparams.yaml file
+                model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.peft.restore_from_hparams_path).cfg)
+                model_cfg = OmegaConf.create(model_cfg)
+                # extract dict inside cfg key and convert it to DictConfig
+                # this allows interpolation to work the same way as config from the .restore_from method
+            else:
+                raise RuntimeError(
+                    "This script requires a .nemo peft model or path to hparams.yaml (and a ckpt path)."
+                )
+        else:
+            model_cfg = MegatronGPTSFTModel.restore_from(
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
+            )
+        # overwrite pretrained_audio_model if there
+        if hasattr(cfg.model, "pretrained_audio_model"):
+            model_cfg.pretrained_audio_model = cfg.model.pretrained_audio_model
+        if hasattr(model_cfg, 'peft') and model_cfg.peft.peft_scheme not in [None, 'none']:
+            # before PEFT migrates to distributed ckpt, eval must use same TP/PP as training
+            for p in ['tensor_model_parallel_size', 'pipeline_model_parallel_size']:
+                assert model_cfg.get(p) == cfg.model.get(
+                    p
+                ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({model_cfg.get(p)})"
+
+        with open_dict(model_cfg):
+            # to be compatible with old checkpoints
+            if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
+                model_cfg.data.train_ds.context_key = "question"
+                model_cfg.data.train_ds.answer_key = "answer"
+
+            # update the model config of the trained model with params we want to set at inference time.
+            model_cfg.precision = cfg.trainer.precision
+            for key, val in cfg.model.items():
+                if key != 'data' and key != 'peft':
+                    model_cfg[key] = val
+            model_cfg.data.test_ds = cfg.model.data.test_ds
+
+        with open_dict(cfg):
+            if model_cfg.data.test_ds is not None:
+                cfg.inference.add_BOS = model_cfg.data.test_ds.get("add_BOS", False)
+                cfg.inference.tokens_to_generate = model_cfg.data.test_ds.get("tokens_to_generate", 1)
+
+        model_cfg.megatron_amp_O2 = False  # always evaluate with O1
+        return model_cfg
+
+    @classmethod
+    def load_adapters_for_inference(cls, cfg: DictConfig, model_cfg: DictConfig, model: ModelPT) -> ModelPT:
+        if cfg.model.peft.restore_from_path:
+            if '\\' in cfg.model.peft.restore_from_path:
+                cfg.model.peft.restore_from_path = cfg.model.peft.restore_from_path.replace('\\', '')
+            if "peft" in model_cfg and 'peft_scheme' in model_cfg.peft:
+                peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
+                model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg), map_location="cpu")
+            else:
+                torch_state_dict = torch.load(cfg.model.peft.restore_from_path)['state_dict']
+                model.load_state_dict(torch_state_dict, strict=False)
+        elif cfg.model.peft.restore_from_ckpt.checkpoint_dir and cfg.model.peft.restore_from_ckpt.checkpoint_name:
+            checkpoint_path = os.path.join(
+                cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name
+            )
+            # checkpoint_path is a dir in case of distributed checkpointing
+            if not os.path.isdir(checkpoint_path):
+                # legacy checkpoint needs model parallel rank injection
+                checkpoint_path = inject_model_parallel_rank(
+                    os.path.join(
+                        cfg.model.peft.restore_from_ckpt.checkpoint_dir,
+                        cfg.model.peft.restore_from_ckpt.checkpoint_name,
+                    )
+                )
+                if "peft" in model_cfg:
+                    peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
+                    model.load_adapters(checkpoint_path, peft_cfgs=peft_cfg_cls(model_cfg), map_location="cpu")
+                else:
+                    model.load_state_dict(torch.load(checkpoint_path), strict=False)
+            else:
+                raise NotImplementedError("distributed checkpointing of PEFT weights is not supported")
+        elif model_cfg.peft.get("peft_scheme", None):
+            # special case for loading a complete speechllm checkpoint in nemo format
+            peft_cfg_cls = PEFT_CONFIG_MAP[model_cfg.peft.peft_scheme]
+            model.load_adapters(cfg.model.restore_from_path, peft_cfg_cls(model_cfg), map_location="cpu")
+        return model
+
     def _build_vocab(self):
         """
         Manipulate vocabulary (e.g., pad vocabulary for increased performance)/
@@ -932,7 +1132,10 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             )
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        if self.setup_complete:
+        """
+        Overwrite the state_dict method to include only the trainable parameters.
+        """
+        if self.setup_complete and self.trainer.state.fn == "fit":
             # Once setup is complete we only need adapter and perception model.
             if self.cfg.freeze_llm and self.cfg.get("peft", None) is not None:
                 return_state_dict = self.get_peft_state_dict()
@@ -946,6 +1149,12 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 state_dict = {k: v for k, v in state_dict.items() if not k.startswith("perception.encoder.")}
 
             return_state_dict.update(state_dict)
+            state_dict = self.perception.state_dict(prefix="perception.")
+            return_state_dict.update(state_dict)
+            return return_state_dict
+        elif self.setup_complete and self.trainer.state.fn != "fit":
+            # used to save the whole model as a nemo file
+            return_state_dict = self.model.state_dict(prefix="model.")
             state_dict = self.perception.state_dict(prefix="perception.")
             return_state_dict.update(state_dict)
             return return_state_dict
@@ -1032,6 +1241,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return metric, metric_name
 
     def inference_step(self, dataloader_iter, mode):
+        """
+        Used for validation and test steps, added postprocessing after calling self.predict_step().
+        """
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -1116,6 +1328,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return outputs
 
     def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
+        """
+        Used to get LLM predictions for validation and test steps based on the given inference config.
+        """
         inference_config = self.get_inference_config()
         if inference_config is not None:
             # need to overwrite some configuration, make it immutable
@@ -1181,7 +1396,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
         if not outputs or (all([not x for x in outputs])):
-            return
+            return None
 
         if isinstance(outputs[0], dict):
             outputs = [outputs]
@@ -1355,6 +1570,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return averaged_loss, averaged_metric
 
     # consistent with speech models
+    @rank_zero_only
     def write_predictions_to_file(self, outputs, output_file_path_prefix, output_dir):
         os.makedirs(output_dir, exist_ok=True)
         output_file_path = output_file_path_prefix + "_inputs_preds_labels.jsonl"
@@ -1375,19 +1591,19 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
         if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0)
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0)
             dataloaders.append(eval_dl)
         return dataloaders
 
-    def get_test_dataloader(self, data_cfg):
+    def setup_predict_dataloader(self, data_cfg):
         datasets = self._build_dataset(data_cfg, False)
         dataloaders = []
         if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0, is_predict=True)
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0, is_predict=True)
             dataloaders.append(eval_dl)
         return dataloaders
 
@@ -1399,6 +1615,39 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             return None
         else:
             return super().sharded_state_dict(prefix=prefix)
+
+    def maybe_build_test(self):
+        # overwrite the parent class's maybe_build_test() method in MegatronGPTModel
+        if hasattr(self.cfg.data, 'test_ds'):
+            logging.info('Building test datasets...')
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
+            lengths = [len(x) for x in self._test_ds]
+            logging.info(f'Length of test datasets: {lengths}, total: {sum(lengths)}')
+        return
+
+    def maybe_setup_test(self):
+        # overwrite the parent class's maybe_build_test() method in MegatronGPTModel
+        if hasattr(self.cfg.data, 'test_ds'):
+            self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
+        return
+
+    def build_train_valid_test_datasets(self, stage):
+        if stage != 'test':
+            logging.info('Building validation datasets.')
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
+            lengths = [len(x) for x in self._validation_ds]
+            logging.info(f'Length of validation datasets: {lengths}, total: {sum(lengths)}')
+
+        if stage != 'validate':
+            self.maybe_build_test()
+
+        if stage == 'validate' or stage == 'test':
+            return
+        logging.info('Building training datasets.')
+        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
+        logging.info(f'Length training datasets: {len(self._train_ds)}')
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -1412,14 +1661,34 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
         model = PretrainedModelInfo(
             pretrained_model_name="speechllm_fc_llama2_7b",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speechllm_fc_llama2_7b",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speechllm_fc_llama2_7b/versions/1.24.0/files/speechllm_fc_llama2_7b.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia/nemo/speechllm_fc_llama2_7b",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speechllm_fc_llama2_7b/versions/1.23.1/files/speechllm_fc_llama2_7b.nemo",
         )
         results.append(model)
         return results
 
+    def maybe_build_test(self):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
+            logging.info('Building GPT SFT test datasets.')
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
+        return
 
-# TODO: https://www.diffchecker.com/b8kTpgGV/
+    def build_train_valid_test_datasets(self, stage):
+        if stage != 'test':
+            logging.info('Building GPT SFT validation datasets.')
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
+
+        if stage != 'validate':
+            self.maybe_build_test()
+
+        if stage == 'validate' or stage == 'test':
+            return
+        logging.info('Building GPT SFT traing datasets.')
+        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
+
+
 class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
     """Modularized speech GPT model."""
 

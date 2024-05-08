@@ -1,3 +1,4 @@
+# this config is used to perform inference on SpeechLLM checkpoints
 name: megatron_audio_gpt_eval
 
 trainer:
@@ -8,10 +9,10 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
-  max_epochs: 9999
-  max_steps: 20000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_epochs: 1
+  max_steps: 1000000
   log_every_n_steps: 10 # frequency with which training steps are logged 
-  val_check_interval: 200 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
+  val_check_interval: 1.0 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   gradient_clip_val: 1.0
 
 exp_manager:
@@ -72,8 +73,11 @@ model:
 
   peft: # keep these basic params for reusing in both sft and peft SpeechLMs
     restore_from_path: null
-    restore_from_ckpt_name: null
     restore_from_hparams_path: null
+    restore_from_ckpt:
+      checkpoint_name: null
+      checkpoint_dir: null
+
 
   data:
     test_ds:
@@ -89,7 +93,7 @@ model:
       drop_last: False
       end_string: ${data.train_ds.end_string}  # don't change, let hydra resolve from saved config
       context_key: ${data.train_ds.context_key} # don't change, let hydra resolve from saved config
-      label_key: ${data.train_ds.label_key} # don't change, let hydra resolve from saved config
+      answer_key: ${data.train_ds.answer_key} # don't change, let hydra resolve from saved config
       add_eos: ${data.train_ds.add_eos} # don't change, let hydra resolve from saved config
       add_sep: ${data.train_ds.add_sep} # don't change, let hydra resolve from saved config
       add_bos: ${data.train_ds.add_bos} # don't change, let hydra resolve from saved config
@@ -110,7 +114,7 @@ model:
         num_classes: null
 
 save_as_nemo: null  # optional string, set to save the whole model into a single nemo file
-evaluate_metric: True  # set 'true' to calculate metrics (must have labels in data), 'false' to use trainer.predict() to do inference only
+
 inference:
   greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
