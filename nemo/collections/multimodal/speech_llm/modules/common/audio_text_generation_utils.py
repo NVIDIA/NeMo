@@ -74,7 +74,6 @@ def send_generate_info(
     end_strings,
     num_audios: Optional[torch.Tensor] = None,
     context_start_idx: Optional[List[List[int]]] = None,
-    canary_tokens: Optional[torch.Tensor] = None,
 ):
     """
     Needs to be synced up with receive_generate_info
@@ -99,11 +98,7 @@ def send_generate_info(
         repetition_penalty,
         min_tokens_to_generate,
     ]
-    if canary_tokens is not None:
-        input_info.append(canary_tokens.size(1))
-        torch.distributed.broadcast(canary_tokens, src, model_parallel_group)
-    else:
-        input_info.append(0)
+    input_info.append(0)
     input_info_tensor = torch.cuda.FloatTensor(input_info)
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
 
@@ -187,13 +182,6 @@ def receive_generate_info(has_multi_audios=False):
         torch.distributed.broadcast(context_idx_tensor, src, model_parallel_group)
         bytes = context_idx_tensor.cpu().numpy().tobytes()
         context_start_idx = pickle.loads(bytes)
-    if len(input_info_tensor) > 12 and input_info_tensor[12].item() > 0:
-        canary_tokens = torch.empty(
-            batch_size, int(input_info_tensor[12].item()), dtype=torch.int64, device=torch.cuda.current_device()
-        )
-        torch.distributed.broadcast(canary_tokens, src, model_parallel_group)
-    else:
-        canary_tokens = None
 
     return (
         context_length_tensor,
@@ -212,7 +200,6 @@ def receive_generate_info(has_multi_audios=False):
         end_strings,
         num_audios,
         context_start_idx,
-        canary_tokens,
     )
 
 
@@ -236,7 +223,6 @@ def synced_generate(
     min_tokens_to_generate=0,
     num_audios: Optional[torch.Tensor] = None,
     context_start_idx: Optional[List[List[int]]] = None,
-    canary_tokens: Optional[torch.Tensor] = None,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -265,7 +251,6 @@ def synced_generate(
             },
             num_audios=num_audios,
             context_start_idx=context_start_idx,
-            canary_tokens=canary_tokens,
         )
 
     for tokens, lengths, output_logits, full_logits, audio_feat_lens in batch_token_iterator:
@@ -366,13 +351,10 @@ def generate(
     context_start_idx = None
     audio_signal, audio_signal_length = None, None
     if torch.distributed.get_rank() == text_generation_utils.get_model_parallel_src_rank():
-        canary_tokens = None
         if isinstance(inputs, tuple) and len(inputs) == 2:
             context_tokens_tensor, context_length_tensor = inputs
         elif isinstance(inputs, tuple) and len(inputs) == 4:
             context_tokens_tensor, context_length_tensor, audio_signal, audio_signal_length = inputs
-        elif isinstance(inputs, tuple) and len(inputs) == 5:
-            context_tokens_tensor, context_length_tensor, audio_signal, audio_signal_length, canary_tokens = inputs
         elif isinstance(inputs, tuple) and len(inputs) == 6:  # multi-audio
             has_multi_audios = True
             (
@@ -405,7 +387,6 @@ def generate(
             end_strings,
             num_audios,
             context_start_idx,
-            canary_tokens=canary_tokens,
         )
     else:
         (
@@ -425,7 +406,6 @@ def generate(
             end_strings,
             num_audios,
             context_start_idx,
-            canary_tokens,
         ) = receive_generate_info(has_multi_audios)
 
     output = synced_generate(
@@ -448,7 +428,6 @@ def generate(
         min_tokens_to_generate=min_tokens_to_generate,
         num_audios=num_audios,
         context_start_idx=context_start_idx,
-        canary_tokens=canary_tokens,
     )
     special_tokens = set()
     if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
@@ -539,7 +518,6 @@ def sample_sequence_batch(
     extra={},
     num_audios: Optional[torch.Tensor] = None,
     context_start_idx: Optional[List[List[int]]] = None,
-    canary_tokens: Optional[torch.Tensor] = None,
 ):
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
@@ -572,7 +550,6 @@ def sample_sequence_batch(
             compute_attention_mask,
             num_audios,
             context_start_idx,
-            canary_tokens,
         )
         audio_text_context_lengths = context_lengths + audio_feat_lens
         context_length = audio_text_context_lengths.min().item()

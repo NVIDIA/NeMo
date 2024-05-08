@@ -5,6 +5,7 @@ from typing import Optional
 import numpy as np
 import torch.utils.data
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
+from nemo.utils import logging
 
 
 def collate_vectors(items, max_length: int, padding_value):
@@ -108,8 +109,10 @@ class TextProcessing:
 
         function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
         """
+
         def _text_to_ids(text, alpha=None, lang=None):
             from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
+
             if isinstance(self.tokenizer, AggregateTokenizer):
                 return self.tokenizer.text_to_ids(text, lang)
             else:
@@ -167,7 +170,6 @@ class TextProcessing:
         # If the total number of token is greater than the max, we will try to truncate the answer
         if total_ids > self.max_seq_length:
             truncation_length = total_ids - self.max_seq_length
-            # TODO(zhehuai)
             answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
             context_ids = context_ids[: -min(truncation_length, len(context_ids))]
 
@@ -186,7 +188,7 @@ class TextProcessing:
             input_ids = input_ids + [self.sep_id]
             answer_start_idx += 1
 
-        # TODO: create a copy of answer_ids and mask on it
+        # create a copy of answer_ids and mask on it
         if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
             if self.sample_alpha is None:
                 masked_answer_ids, _ = self._random_mask_tokens(
@@ -225,15 +227,6 @@ class TextProcessing:
             processed_example['masked_input_ids'] = torch.as_tensor(masked_input_ids)
 
         return processed_example
-
-
-# TODO(zhehuai)
-def update_to_asr_task(canary_tokens):
-    if canary_tokens.shape[1] > 5:
-        canary_tokens = copy.deepcopy(canary_tokens)
-        canary_tokens[:, 3] = canary_tokens[:, 1]
-        canary_tokens[:, 2] = 8
-    return canary_tokens
 
 
 def convert_canary_prompt_to_text(prompt, is_canary_tokens_augment):
@@ -341,7 +334,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             current_words = cut.supervisions[0].text.split()
             if len(current_words) == 0:
                 return
-            if np.random.random() < self.random_context_prob and hasattr(self, 'random_context') and len(self.random_context) > 0:
+            if (
+                np.random.random() < self.random_context_prob
+                and hasattr(self, 'random_context')
+                and len(self.random_context) > 0
+            ):
                 positive_num = int(random_context_num * random_context_positive_percent)
                 positives = np.random.choice(current_words, positive_num)
                 negatives = np.random.choice(self.random_context, random_context_num - positive_num)
@@ -368,15 +365,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         if self.canary_processor != None:
             is_canary_tokens_augment = torch.rand(1) < self.canary_tokens_augment_ratio
             _, _, _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
-            if is_canary_tokens_augment:
-                return_batch['canary_tokens'] = update_to_asr_task(canary_tokens)
-            else:
-                return_batch['canary_tokens'] = canary_tokens
-            return_batch['canary_token_lengths'] = canary_token_lens
             for id, cut in enumerate(cuts):
-                canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(
-                    canary_tokens[id].tolist()
-                )
+                canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(canary_tokens[id].tolist())
                 if audio_ratio[id] == 0.0:
                     assert hasattr(cut, "question")
                 elif self.prepend_to_exist_question and hasattr(cut, "question"):
@@ -389,8 +379,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     cut.question = self.question + ' ' + canary_text
         metadata = []
         for id, cut in enumerate(cuts):
-            self._inject_random_context_into_question(cut, random_context_positive_percent=self.random_context_positive_percent)
-            metadata.append({'audio_filepath': cut.id +'.wav'})
+            self._inject_random_context_into_question(
+                cut, random_context_positive_percent=self.random_context_positive_percent
+            )
+            metadata.append({'audio_filepath': cut.id + '.wav'})
 
         collated_text_data = collate_text_data(
             cuts=cuts,
@@ -428,8 +420,9 @@ def collate_text_data(
     examples = [
         adjust_input_ids(
             text_processor._process_example(
-                context=cut.question if hasattr(cut, "question") else default_question, output=cut.supervisions[0].text,
-                lang='en' if cut.supervisions[0].language is None else cut.supervisions[0].language
+                context=cut.question if hasattr(cut, "question") else default_question,
+                output=cut.supervisions[0].text,
+                lang='en' if cut.supervisions[0].language is None else cut.supervisions[0].language,
             )
         )
         for cut in cuts
@@ -464,7 +457,7 @@ def collate_text_data(
         "contexts": collate_vectors(fields["context_ids"], max_length=max_length, padding_value=pad_id),
         "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
         "answers": collate_vectors(fields["answer_ids"], max_length=max_length, padding_value=pad_id),
-        "max_length": torch.LongTensor([max_length]*batch_size),
+        "max_length": torch.LongTensor([max_length] * batch_size),
     }
 
 

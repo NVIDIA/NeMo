@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import itertools
 import json
-import os, copy
-from typing import List, Optional, Union
+import os
 from pathlib import Path
+from typing import List, Optional, Union
 
 import hydra
 import sacrebleu
@@ -90,10 +91,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def setup_perception_modules(self, cfg):
         if 'target' in cfg.perception:
             imported_cls = model_utils.import_class_by_path(cfg.perception.target)
-            pretrained_audio_model = cfg.pretrained_canary_model if hasattr(cfg, "pretrained_canary_model") else cfg.pretrained_audio_model
-            self.perception = imported_cls(
-                cfg=cfg.perception
-            )
+            self.perception = imported_cls(cfg=cfg.perception)
         else:
             self.perception = (
                 AudioPerceptionModule(cfg=cfg.perception)
@@ -109,7 +107,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         self.cfg = cfg
         super().__init__(cfg, trainer)
         self.setup_perception_modules(cfg)
-        
+
         # print out params in more details
         self.summarize(max_depth=2)
 
@@ -608,10 +606,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                     if hasattr(self.perception, "tokenizer")
                     else self.perception.asr_model.tokenizer
                 )
-                canary_processer=PromptedAudioToTextLhotseDataset(
-                    tokenizer=perception_tokenizer,
-                    prompt_format_fn=get_prompt_format_fn('canary'),
-                    inference=True,
+                # get the canary dataset as a processor to read canary prompt from data and convert_canary_prompt_to_text
+                canary_processer = PromptedAudioToTextLhotseDataset(
+                    tokenizer=perception_tokenizer, prompt_format_fn=get_prompt_format_fn('canary'), inference=True,
                 )
             else:
                 canary_processer = None
@@ -1623,8 +1620,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             logging.info('Building test datasets...')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-            lengths = [len(x) for x in self._test_ds]
-            logging.info(f'Length of test datasets: {lengths}, total: {sum(lengths)}')
         return
 
     def maybe_setup_test(self):
@@ -1638,8 +1633,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             logging.info('Building validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-            lengths = [len(x) for x in self._validation_ds]
-            logging.info(f'Length of validation datasets: {lengths}, total: {sum(lengths)}')
 
         if stage != 'validate':
             self.maybe_build_test()
@@ -1667,27 +1660,6 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         )
         results.append(model)
         return results
-
-    def maybe_build_test(self):
-        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
-            logging.info('Building GPT SFT test datasets.')
-            # Wrap this in a list since the general finetuning parent class supports multi-validation.
-            self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
-        return
-
-    def build_train_valid_test_datasets(self, stage):
-        if stage != 'test':
-            logging.info('Building GPT SFT validation datasets.')
-            # Wrap this in a list since the general finetuning parent class supports multi-validation.
-            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, is_train=False)
-
-        if stage != 'validate':
-            self.maybe_build_test()
-
-        if stage == 'validate' or stage == 'test':
-            return
-        logging.info('Building GPT SFT traing datasets.')
-        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
 
 
 class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
@@ -1724,18 +1696,16 @@ class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
             processed_signal_length=None,
         )
         input_embeds = self._get_text_embeddings(input_ids, None).transpose(0, 1)
-        encoder_input, extra_outputs = self.perception_cross_attn(encoded, encoded_len, input_embeds, input_lengths=input_length, return_mems=True)
+        encoder_input, extra_outputs = self.perception_cross_attn(
+            encoded, encoded_len, input_embeds, input_lengths=input_length, return_mems=True
+        )
         if 'audio_ratio' in audio_batch:
             audio_ratio = audio_batch['audio_ratio'][..., None, None]
             encoder_input = encoder_input * audio_ratio + input_embeds * (1 - audio_ratio)
         if 'alpha_xattn' in extra_outputs:
             alpha_xattn = extra_outputs['alpha_xattn']
             self.log(
-                'alpha_xattn',
-                alpha_xattn.mean(),
-                prog_bar=True,
-                batch_size=1,
-                rank_zero_only=True,
+                'alpha_xattn', alpha_xattn.mean(), prog_bar=True, batch_size=1, rank_zero_only=True,
             )
         attention_mask = self._create_attention_mask(encoder_input)
 

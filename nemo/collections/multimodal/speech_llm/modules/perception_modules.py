@@ -23,11 +23,11 @@ from omegaconf import DictConfig
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder, ConformerMultiLayerFeatureExtractor
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import align_feat_seq_list
+from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils.decorators import experimental
-from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 
 __all__ = ["AudioPerceptionModule", "MultiAudioPerceptionModule"]
 
@@ -414,7 +414,6 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
         return encoded, encoded_len
 
 
-
 def lens_to_mask(lens, max_length):
     batch_size = lens.shape[0]
     mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
@@ -428,12 +427,12 @@ class TransformerCrossAttention(NeuralModule, Exportable):
         super().__init__()
         xformer_num_layers = cfg.xattn.get('xformer_num_layers', 2)
         self.cfg = cfg
-        cross_attn_cfg= cfg.xattn
+        cross_attn_cfg = cfg.xattn
         # causal attention decoder by default
         self.xattn_decoder = TransformerDecoder(
             hidden_size=cfg.output_dim,
             num_layers=xformer_num_layers,
-            inner_size=1*cfg.output_dim,
+            inner_size=1 * cfg.output_dim,
             num_attention_heads=cross_attn_cfg.num_attention_heads,
             ffn_dropout=cross_attn_cfg.ffn_dropout,
             attn_score_dropout=cross_attn_cfg.attn_score_dropout,
@@ -443,8 +442,17 @@ class TransformerCrossAttention(NeuralModule, Exportable):
             pre_ln_final_layer_norm=cross_attn_cfg.pre_ln_final_layer_norm,
         )
 
-
-    def forward(self, encoder_states, encoded_len, input_embeds, input_lengths, decoder_mems_list = None, return_mems = False, *args, **kwargs):
+    def forward(
+        self,
+        encoder_states,
+        encoded_len,
+        input_embeds,
+        input_lengths,
+        decoder_mems_list=None,
+        return_mems=False,
+        *args,
+        **kwargs,
+    ):
         assert input_embeds.shape[-1] == encoder_states.shape[-1]
         enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(encoder_states.dtype)
         dec_mask = lens_to_mask(input_lengths, input_embeds.shape[1]).to(input_lengths.dtype)
@@ -458,8 +466,8 @@ class TransformerCrossAttention(NeuralModule, Exportable):
             return_mems_as_list=False,
         )
         if return_mems:
-            extra_outpus = {'decoder_mems_list':y}
-            y = y[-1][:, -input_embeds.shape[1]:]
+            extra_outpus = {'decoder_mems_list': y}
+            y = y[-1][:, -input_embeds.shape[1] :]
         assert y.shape == input_embeds.shape
         return y, extra_outpus
 
@@ -472,15 +480,15 @@ class ProjectTransformerCrossAttention(NeuralModule, Exportable):
         xformer_num_layers = cfg.xattn.get('xformer_num_layers', 2)
         xformer_dims = cfg.xattn.get('xformer_dims', 1024)
         self.cfg = cfg
-        cross_attn_cfg= cfg.xattn
+        cross_attn_cfg = cfg.xattn
         # causal attention decoder by default
-        self.input_proj1= nn.Linear(cfg.output_dim, xformer_dims)
-        self.input_proj2= nn.Linear(cfg.output_dim, xformer_dims)
-        self.output_proj= nn.Linear(xformer_dims, cfg.output_dim)
+        self.input_proj1 = nn.Linear(cfg.output_dim, xformer_dims)
+        self.input_proj2 = nn.Linear(cfg.output_dim, xformer_dims)
+        self.output_proj = nn.Linear(xformer_dims, cfg.output_dim)
         self.xattn_decoder = TransformerDecoder(
             hidden_size=xformer_dims,
             num_layers=xformer_num_layers,
-            inner_size=4*xformer_dims,
+            inner_size=4 * xformer_dims,
             num_attention_heads=cross_attn_cfg.num_attention_heads,
             ffn_dropout=cross_attn_cfg.ffn_dropout,
             attn_score_dropout=cross_attn_cfg.attn_score_dropout,
@@ -490,8 +498,17 @@ class ProjectTransformerCrossAttention(NeuralModule, Exportable):
             pre_ln_final_layer_norm=cross_attn_cfg.pre_ln_final_layer_norm,
         )
 
-
-    def forward(self, encoder_states, encoded_len, input_embeds, input_lengths, decoder_mems_list = None, return_mems = False, *args, **kwargs):
+    def forward(
+        self,
+        encoder_states,
+        encoded_len,
+        input_embeds,
+        input_lengths,
+        decoder_mems_list=None,
+        return_mems=False,
+        *args,
+        **kwargs,
+    ):
         assert input_embeds.shape[-1] == encoder_states.shape[-1]
         enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(encoder_states.dtype)
         dec_mask = lens_to_mask(input_lengths, input_embeds.shape[1]).to(input_lengths.dtype)
@@ -505,8 +522,8 @@ class ProjectTransformerCrossAttention(NeuralModule, Exportable):
             return_mems_as_list=False,
         )
         if return_mems:
-            extra_outpus = {'decoder_mems_list':y}
-            y = y[-1][:, -input_embeds.shape[1]:]
-        y=self.output_proj(y) + input_embeds
+            extra_outpus = {'decoder_mems_list': y}
+            y = y[-1][:, -input_embeds.shape[1] :]
+        y = self.output_proj(y) + input_embeds
         assert y.shape == input_embeds.shape
         return y, extra_outpus

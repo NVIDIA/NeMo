@@ -18,10 +18,7 @@ import torch
 
 import nemo.collections.nlp.modules.common.text_generation_strategy as text_generation_strategy
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
-
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    build_position_ids,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 
 # the text representation of eos_id, it applies for all tokenizers
 END_OF_SEQ = '<|endoftext|>'
@@ -43,7 +40,6 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         compute_attention_mask: bool,
         num_audios: Optional[torch.Tensor] = None,
         context_start_idx: Optional[List[List[int]]] = None,
-        canary_tokens: Optional[torch.Tensor] = None,
     ):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
@@ -184,21 +180,40 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         compute_attention_mask: bool,
         num_audios: Optional[torch.Tensor] = None,
         context_start_idx: Optional[List[List[int]]] = None,
-        canary_tokens: Optional[torch.Tensor] = None,
     ):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
-        batch = {'audio_signal': audio_signal, 'audio_signal_length': audio_length, 'tokens': context_tokens, 'tokens_length': context_lengths,
-                 'labels': context_tokens, 'loss_mask': None}
-        if canary_tokens is not None:
-            batch['canary_tokens'] = canary_tokens
+        batch = {
+            'audio_signal': audio_signal,
+            'audio_signal_length': audio_length,
+            'tokens': context_tokens,
+            'tokens_length': context_lengths,
+            'labels': context_tokens,
+            'loss_mask': None,
+        }
         if self.model.perception.cfg.get('combine_return', True):
-            encoder_input, self.attention_mask, context_tokens, _, (speech_encoded, speech_encoded_len, extra_outputs) = self.model.prepare_llm_input(batch)
+            (
+                encoder_input,
+                self.attention_mask,
+                context_tokens,
+                _,
+                (speech_encoded, speech_encoded_len, extra_outputs),
+            ) = self.model.prepare_llm_input(batch)
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
             self.extra_outputs = extra_outputs
-            return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), torch.zeros_like(context_lengths)
+            return (
+                context_tokens,
+                (encoder_input, speech_encoded, speech_encoded_len),
+                torch.zeros_like(context_lengths),
+            )
         else:
-            encoder_input, self.attention_mask, context_tokens, _, (speech_encoded, speech_encoded_len, llm_encoded_len, extra_outputs) = self.model.prepare_llm_input(batch)
+            (
+                encoder_input,
+                self.attention_mask,
+                context_tokens,
+                _,
+                (speech_encoded, speech_encoded_len, llm_encoded_len, extra_outputs),
+            ) = self.model.prepare_llm_input(batch)
             self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
             self.extra_outputs = extra_outputs
             return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), llm_encoded_len
@@ -235,11 +250,21 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
             # [1, b, d]
             decoder_mems_list = self.extra_outputs.get('decoder_mems_list', None)
             if decoder_mems_list is not None:
-                decoder_mems_list = decoder_mems_list[:,:,:curr_context_length-1]
+                decoder_mems_list = decoder_mems_list[:, :, : curr_context_length - 1]
             # need to use audio_ratio field if to support text-only decoding
-            embeddings2use, self.extra_outputs = self.model.perception_cross_attn(speech_encoded, speech_encoded_len, embeddings2use, input_embeds_hidden = self.input_embeds_hidden, decoder_mems_list=decoder_mems_list, input_lengths=tokens2use.squeeze(-1) != self.model.tokenizer.eos_id, return_mems=True)
+            embeddings2use, self.extra_outputs = self.model.perception_cross_attn(
+                speech_encoded,
+                speech_encoded_len,
+                embeddings2use,
+                input_embeds_hidden=self.input_embeds_hidden,
+                decoder_mems_list=decoder_mems_list,
+                input_lengths=tokens2use.squeeze(-1) != self.model.tokenizer.eos_id,
+                return_mems=True,
+            )
             self.input_embeds_hidden = self.extra_outputs.get('input_embeds_hidden', None)
-            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use.transpose(0, 1), started)
+            embeddings2use = switch(
+                input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use.transpose(0, 1), started
+            )
 
         """Prepare batch for each of the inference steps"""
         setkey_value_array = torch.tensor(
@@ -253,7 +278,10 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel, CrossAttendModularAudioGPTModel
+    from nemo.collections.multimodal.speech_llm.models.modular_models import (
+        CrossAttendModularAudioGPTModel,
+        ModularAudioGPTModel,
+    )
 
     if isinstance(model, CrossAttendModularAudioGPTModel):
         return CrossAttendAudioToTextGenerationStrategy(model, **args)
