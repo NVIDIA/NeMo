@@ -267,20 +267,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self._optimizer.zero_grad()
         batch = next(dataloader_iter)
         loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
-        if self.with_distributed_adam:
-            # synchronize asynchronous grad reductions
-            # note: not necessary, but reduces performance degradation
-            # from multiple simultaneous NCCL calls
-            self._optimizer._finish_bucket_grad_sync()
-        elif self.megatron_amp_O2:
-            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-                # main grads are stored in the MainParamsOptimizer wrapper
-                self._optimizer.allreduce_main_grads()
-        else:
-            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
-            # so we allreduce gradients after the pipeline
-            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+        self.allreduce_gradients()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank

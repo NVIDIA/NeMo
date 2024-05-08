@@ -34,12 +34,12 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import to_cuda
-from nemo.collections.multimodal.speech_llm.data.audio_text_qa_dataset import (
-    get_aqa_dataset_from_config,
-    get_tarred_aqa_dataset_from_config,
+from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
+    get_audio_text_dataset_from_config,
+    get_tarred_audio_text_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
-from nemo.collections.multimodal.speech_llm.modules.perception import AudioPerceptionModule, MultiAudioPerceptionModule
+from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule, MultiAudioPerceptionModule
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -591,7 +591,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             )
 
         if data_cfg.get('is_tarred', False):
-            return get_tarred_aqa_dataset_from_config(
+            return get_tarred_audio_text_dataset_from_config(
                 config=data_cfg,
                 tokenizer=self.tokenizer,
                 augmentor=augmentor,
@@ -602,7 +602,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 world_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
-            return get_aqa_dataset_from_config(
+            return get_audio_text_dataset_from_config(
                 manifest_filepath=data_cfg.manifest_filepath,
                 config=data_cfg,
                 tokenizer=self.tokenizer,
@@ -829,9 +829,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             model.perception.encoder.load_state_dict(
                 audio_model.encoder.state_dict(), strict='adapter' not in cfg.model.perception
             )
-            logging.info(f'Loaded pretrained audio model from {pretrained_audio_model}')
+            logging.info(f'Loaded pretrained audio model from {cfg.model.pretrained_audio_model}')
         else:
-            logging.info(f'Not load pretrained audio model from {pretrained_audio_model}')
+            logging.info(f'Not load pretrained audio model from {cfg.model.pretrained_audio_model}')
         if cfg.model.get('use_am_tokenizer', False):
             model.tokenizer = audio_model.tokenizer
             logging.info(f'Use AM tokenizer: {audio_model.tokenizer}')
@@ -1464,6 +1464,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         return super().training_step(itertools.chain([batch]), batch_idx=batch_idx)
 
+    def setup_mcore_distributed_parallel(self):
+        """Set up mcore distributed data parallel called by configure_ddp in nlp_overrides. """
+        if self.with_distributed_adam and self.use_mcore_dist_optim:
+            raise ValueError("T5 does not support both distributed adam and mcore distributed data parallel.")
 
 class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
     """Modularized speech GPT model."""

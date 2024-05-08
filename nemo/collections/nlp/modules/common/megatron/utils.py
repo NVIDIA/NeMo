@@ -419,8 +419,8 @@ def split_list(inputs, num_chunks):
     """
     Split a list into equal sized chunks
     """
+    # if len(inputs) % chunk_size != 0, round down the chunk size
     chunk_size = len(inputs) // num_chunks
-    # assert len(inputs) % chunk_size == 0, "Issue with batch size configuration!"
     return [inputs[i : i + chunk_size] for i in range(0, len(inputs), chunk_size)]
 
 
@@ -442,6 +442,7 @@ def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatche
         # Split tensor items
         items = list(tensor_items.items())
         split_batch = [torch.tensor_split(item[1], num_microbatches, dim=0) for item in items]
+        # handle the case where the batch size from dynamic bucketting is not divisible
         if items[0][1].shape[0] % num_microbatches != 0:
             chunk_size = split_batch[0][-1].shape[0]
             split_batch = [[j[:chunk_size] for j in i] for i in split_batch]
