@@ -54,7 +54,7 @@ exp_manager:
 
 model:
   model_parent: 'gpt' # gpt, t5, bert
-  model_architecture: 'gpt' # gpt, t5, bert
+  model_name: 'gpt' # gpt, t5, bert
   megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
   micro_batch_size: 4 # limited by GPU memory
   global_batch_size: 8 # will use more micro batches to reach global batch size

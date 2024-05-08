@@ -63,7 +63,7 @@ class MegatronMcoreModel(MegatronGPTModel, MegatronLMEncoderDecoderModel, Megatr
         
         MegatronBaseModel.__init__(self, cfg, trainer)
         self.model_parent = cfg.get('model_parent')
-        self.model_architecture = cfg.get('model_architecture')
+        self.model_name = cfg.get('model_name')
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
         self.architecture_config = self.build_architecture_config()
         self.model_config = self.build_model_config()
@@ -93,7 +93,7 @@ class MegatronMcoreModel(MegatronGPTModel, MegatronLMEncoderDecoderModel, Megatr
         return None
         
     def model_provider_func(self, pre_process, post_process, add_encoder=False, add_decoder=False):
-        match self.model_architecture:
+        match self.model_name:
             case 'gpt':
                 model = GPTModel(
                     config=self.architecture_config,
@@ -116,7 +116,7 @@ class MegatronMcoreModel(MegatronGPTModel, MegatronLMEncoderDecoderModel, Megatr
                     **self.model_config,
                 )
             case _:
-                raise NotImplementedError(f'{self.model_architecture} model architecture is not supported')
+                raise NotImplementedError(f'{self.model_name} model architecture is not supported')
         return model
 
     def build_architecture_config(self):
@@ -162,7 +162,7 @@ class MegatronMcoreModel(MegatronGPTModel, MegatronLMEncoderDecoderModel, Megatr
     def build_model_config(self):
         # create a dictionary copy of the model config
         cfg = OmegaConf.to_container(self.cfg, resolve=True)
-        match self.model_architecture:
+        match self.model_name:
             case 'gpt':
                 transformer_layer_spec = get_gpt_layer_with_transformer_engine_spec if cfg.get('transformer_engine') else get_gpt_layer_local_spec
                 model_config = {
