@@ -192,7 +192,7 @@ class NLPDDPStrategy(DDPStrategy):
         self.nccl_communicator_config_path = nccl_communicator_config_path
         self.sharp = sharp
         self.torch_dist_ckpt = torch_dist_ckpt
-
+        
     def setup(self, trainer: "pl.Trainer") -> None:
         """
         Override setup() of DDPStrategy to avoid _sync_module_states(self.model) during eval as it can cause PP > 1 to hang

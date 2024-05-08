@@ -79,7 +79,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        super().__init__(cfg, trainer=trainer)
+        MegatronBaseModel.__init__(self, cfg, trainer=trainer)
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -194,7 +194,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
                     param._with_fp32_optimizer = True
 
-        return super().configure_optimizers()
+        return MegatronBaseModel.configure_optimizers(self)
 
     def _handle_bias_activation_fusion_args(self, cfg):
         # For oldest models, we don't have the option to turn on/off bias activation fusion. It is always on.
@@ -1500,8 +1500,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def build_model_parallel_config(self):
         """ Hidden size needs to be set from the cfg.encoder for the pipeline schedule.
         """
-
-        model_parallel_config = super().build_model_parallel_config()
+        model_parallel_config = MegatronBaseModel.build_model_parallel_config(self)
         try:
             # hidden size is needed for pipeline schedules but is not currently in ModelParallelConfig
             setattr(model_parallel_config, 'hidden_size', self.cfg.encoder.hidden_size)
