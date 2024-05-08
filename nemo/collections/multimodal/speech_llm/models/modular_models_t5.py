@@ -17,7 +17,6 @@ import itertools
 import json
 import os
 from functools import partial
-from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import sacrebleu
@@ -27,25 +26,14 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
-    get_audio_text_dataset_from_config,
-    get_tarred_audio_text_dataset_from_config,
-)
-from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
+from nemo.collections.multimodal.speech_llm.data.build_dataset import build_salm_dataloader, build_salm_dataset
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
     MultiAudioPerceptionModule,
 )
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import to_cuda
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -54,17 +42,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
     get_iterator_k_split,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    get_computeprob_response,
-    get_default_length_params,
-    get_default_sampling_params,
-    megatron_gpt_generate,
-)
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import AppState, logging, model_utils
 
 try:
@@ -509,193 +489,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return fwd_output_and_loss_func
 
     def _build_dataset(self, data_cfg, is_train=True):
-        if 'augmentor' in data_cfg:
-            augmentor = process_augmentations(
-                data_cfg['augmentor'], global_rank=self.global_rank, world_size=self.world_size
-            )
-        else:
-            augmentor = None
-
-        # Check dataset max_seq_legnth and max_position_embeddings size
-        if (
-            self.cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
-            and data_cfg.max_seq_length > self.cfg.max_position_embeddings
-        ):
-            logging.warning(
-                f"Set dataset max_seq_length to max_position_embeddings {self.cfg.max_position_embeddings} if using learned_absolute position embedding"
-            )
-            data_cfg.max_seq_length = self.cfg.max_position_embeddings
-
-        # Notably, the data weights are controlled by either bucketing_weights
-        # or concat_sampling_probabilities depending on the dataset type.
-        if data_cfg.get("use_lhotse"):
-            from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import (
-                LhotseAudioQuestionAnswerDataset,
-                TextProcessing,
-            )
-
-            tp = TextProcessing(
-                self.tokenizer,
-                max_seq_length=data_cfg["max_seq_length"],
-                min_seq_length=data_cfg["min_seq_length"],
-                add_bos=data_cfg.get('add_bos', False),
-                add_eos=data_cfg.get('add_eos', False),
-                add_sep=data_cfg.get('add_sep', False),
-                sep_id=self.sep_id,
-                seed=data_cfg.get('seed', 1234),
-                separate_prompt_and_response_with_newline=data_cfg.get(
-                    'separate_prompt_and_response_with_newline', True
-                ),
-                answer_only_loss=self.cfg.get('answer_only_loss', True),
-                truncation_field=data_cfg.get('truncation_field', 'context'),
-                pad_to_max_length=data_cfg.get('pad_to_max_length', False),
-                prompt_template=data_cfg.get('prompt_template', None),
-                virtual_tokens=self.virtual_tokens,
-                tokens_to_generate=data_cfg.get(
-                    'tokens_to_generate', 0
-                ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
-                input_key=data_cfg.get('input_key', 'input'),
-                output_key=data_cfg.get('output_key', 'output'),
-                end_string=data_cfg.get('end_string', None),
-                sample_alpha=data_cfg.get('sample_alpha', None),
-                input_text_mask_ratio=data_cfg.get('input_text_mask_ratio', None),
-            )
-            if self.cfg.perception.get("is_canary", False):
-                from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
-                    PromptedAudioToTextLhotseDataset,
-                    get_prompt_format_fn,
-                )
-
-                perception_tokenizer = (
-                    self.perception.tokenizer
-                    if hasattr(self.perception, "tokenizer")
-                    else self.perception.asr_model.tokenizer
-                )
-                canary_processer = PromptedAudioToTextLhotseDataset(
-                    tokenizer=perception_tokenizer, prompt_format_fn=get_prompt_format_fn('canary'), inference=True,
-                )
-            else:
-                canary_processer = None
-            return LhotseAudioQuestionAnswerDataset(
-                tp,
-                default_question="answer the question according to the previous audio",
-                tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
-                pad_to_max_length=data_cfg.get('pad_to_max_length', False),
-                max_seq_length=data_cfg["max_seq_length"],
-                canary_processor=canary_processer,
-                convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
-                prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
-                canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),
-                random_context_prob=data_cfg.get('random_context_prob', 0.0),
-                random_context_positive_percent=data_cfg.get('random_context_positive_percent', 0.1),
-            )
-
-        if data_cfg.get('is_tarred', False):
-            return get_tarred_audio_text_dataset_from_config(
-                config=data_cfg,
-                tokenizer=self.tokenizer,
-                augmentor=augmentor,
-                sep_id=self.sep_id,
-                answer_only_loss=self.cfg.get('answer_only_loss', True),
-                virtual_tokens=self.virtual_tokens,
-                global_rank=parallel_state.get_data_parallel_rank(),
-                world_size=parallel_state.get_data_parallel_world_size(),
-            )
-        else:
-            return get_audio_text_dataset_from_config(
-                manifest_filepath=data_cfg.manifest_filepath,
-                config=data_cfg,
-                tokenizer=self.tokenizer,
-                augmentor=augmentor,
-                is_train=is_train,
-                sep_id=self.sep_id,
-                answer_only_loss=self.cfg.get('answer_only_loss', True),
-                virtual_tokens=self.virtual_tokens,
-            )
+        return build_salm_dataset(self, data_cfg, is_train)
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_eval=False):
-        """Buld dataloader given an input dataset."""
-        if data_cfg.get("use_lhotse"):
-            from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-
-            if data_cfg.get('is_tarred', False) or not is_eval:
-                return get_lhotse_dataloader_from_config(
-                    data_cfg,
-                    global_rank=parallel_state.get_data_parallel_rank(),
-                    world_size=parallel_state.get_data_parallel_world_size(),
-                    dataset=dataset,
-                )
-            else:
-                dls = []
-                for dataset_idx, (cur_manifest_filepath) in enumerate(data_cfg.manifest_filepath):
-                    conf = copy.deepcopy(data_cfg)
-                    conf['manifest_filepath'] = cur_manifest_filepath
-                    question_file_set = data_cfg.get('question_file_set', None)
-                    if question_file_set is not None:
-                        conf['question_file_set'] = [question_file_set[dataset_idx]]
-                    dls.append(
-                        get_lhotse_dataloader_from_config(
-                            conf,
-                            global_rank=parallel_state.get_data_parallel_rank(),
-                            world_size=parallel_state.get_data_parallel_world_size(),
-                            dataset=dataset,
-                        )
-                    )
-                if 'names' not in data_cfg:
-                    names = []
-                    for cur_manifest_filepath in data_cfg.manifest_filepath:
-                        names.append(Path(cur_manifest_filepath).stem)
-                    OmegaConf.update(data_cfg, 'names', names, force_add=True)
-                    logging.info(f'Update dataset names as {names}')
-                return dls
-
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
-        if isinstance(dataset, BlendableDataset):
-            collate_fn = dataset.datasets[0].collate_fn
-        elif hasattr(dataset, 'collate_fn'):
-            collate_fn = dataset.collate_fn
-        elif hasattr(dataset.datasets[0], 'collate_fn'):
-            # support datasets that are lists of entries
-            collate_fn = dataset.datasets[0].collate_fn
-        else:
-            # support datasets that are lists of lists
-            collate_fn = dataset.datasets[0].datasets[0].collate_fn
-
-        if isinstance(dataset, torch.utils.data.IterableDataset):
-            data_parallel_size = parallel_state.get_data_parallel_world_size()
-            num_micro_batches = data_cfg.global_batch_size // (data_cfg.micro_batch_size * data_parallel_size)
-            global_batch_size_on_this_data_parallel_rank = num_micro_batches * data_cfg.micro_batch_size
-
-            dataloader = torch.utils.data.DataLoader(
-                dataset,
-                collate_fn=collate_fn,
-                shuffle=False,
-                batch_size=global_batch_size_on_this_data_parallel_rank,
-                drop_last=True,
-                num_workers=data_cfg.num_workers,
-                pin_memory=data_cfg.pin_memory,
-            )
-            return dataloader
-
-        batch_sampler = MegatronPretrainingBatchSampler(
-            total_samples=len(dataset),
-            consumed_samples=consumed_samples,
-            micro_batch_size=data_cfg.micro_batch_size,
-            global_batch_size=data_cfg.global_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=True,
-            pad_samples_to_global_batch_size=False,
-        )
-
-        dataloader = torch.utils.data.DataLoader(
-            dataset,
-            batch_sampler=batch_sampler,
-            collate_fn=collate_fn,
-            num_workers=data_cfg.num_workers,
-            pin_memory=data_cfg.pin_memory,
-        )
-        return dataloader
+        return build_salm_dataloader(dataset, data_cfg, consumed_samples, is_eval=is_eval)
 
     @classmethod
     def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False):
