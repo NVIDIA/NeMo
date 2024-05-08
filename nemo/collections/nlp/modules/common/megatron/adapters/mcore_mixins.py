@@ -11,16 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import nullcontext
 
 import torch
+from torch import Tensor
 import torch.nn.functional as F
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
+from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.transformer.attention import SelfAttention
+from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.custom_layers.transformer_engine import (
     SplitAlongDim,
     TEColumnParallelLinear,
@@ -40,6 +45,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraUnfusedHto4HAdapterConfig,
     LoraUnfusedKQVAdapterConfig,
     MLPInfusedAdapterConfig,
+    MLPHeadAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
 )
@@ -62,7 +68,139 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         """
         raise NotImplementedError("Mcore mixins should implement setup_adapters on a subclass of MyBase")
 
+class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
+    def mcore_register_adapters(self):
+        """
+        Setup NeMo (canonical) Adapter to this MCore layer.
+        """
+        self.set_accepted_adapter_types([MLPHeadAdapterConfig._target_])
 
+    def forward(
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        context: Tensor = None,
+        context_mask: Tensor = None,
+        rotary_pos_emb: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
+    ):
+        # hidden_states (float): [s, b, h]
+        # attention_mask (bool): [1, 1, s, s]
+
+        if not self.pre_process:
+            # See set_input_tensor()
+            hidden_states = self.input_tensor
+
+        # Viewless tensor.
+        # - We only need to create a viewless tensor in the case of micro batch
+        #   size (mbs) == 1, since in this case, 'hidden_states.transpose()'
+        #   above creates a view tensor, and '.contiguous()' is a pass-through.
+        #   For mbs >= 2, '.contiguous()' creates a new tensor, eliminating
+        #   the need to make it viewless.
+        #
+        #   However, we don't explicitly check mbs == 1 here because
+        #   make_viewless_tensor() has negligible overhead when its input
+        #   is already viewless.
+        #
+        # - For the 'else' case above, calling make_viewless_tensor() here is
+        #   likely redundant, since p2p_communication.py (likely originator)
+        #   already creates viewless tensors. That said, make_viewless_tensor()
+        #   is called here to be future-proof and corner-case-proof.
+        hidden_states = make_viewless_tensor(
+            inp=hidden_states, requires_grad=True, keep_graph=True,
+        )
+
+        if self.config.sequence_parallel:
+            rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
+        else:
+            rng_context = nullcontext()
+
+        if self.config.fp8:
+            import transformer_engine  # To keep out TE dependency when not training in fp8
+
+            if self.config.fp8 == "e4m3":
+                fp8_format = transformer_engine.common.recipe.Format.E4M3
+            elif self.config.fp8 == "hybrid":
+                fp8_format = transformer_engine.common.recipe.Format.HYBRID
+            else:
+                raise ValueError("E4M3 and HYBRID are the only supported FP8 formats.")
+
+            fp8_recipe = TEDelayedScaling(
+                config=self.config,
+                fp8_format=fp8_format,
+                override_linear_precision=(False, False, not self.config.fp8_wgrad),
+            )
+            fp8_group = None
+            if parallel_state.model_parallel_is_initialized():
+                fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True)
+            fp8_context = transformer_engine.pytorch.fp8_autocast(
+                enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group
+            )
+        else:
+            fp8_context = nullcontext()
+
+        with rng_context and fp8_context:
+            # Forward pass.
+            if self.config.recompute_granularity == 'full' and self.training:
+                hidden_states = self._checkpointed_forward(
+                    hidden_states=hidden_states,
+                    attention_mask=attention_mask,
+                    context=context,
+                    context_mask=context_mask,
+                    rotary_pos_emb=rotary_pos_emb,
+                    packed_seq_params=packed_seq_params,
+                )
+            else:
+                for l_no, layer in enumerate(self.layers):
+                    with self.offload_context:
+                        if (len(self.cuda_graphs) == 0) or (not self.training):
+                            hidden_states, context = layer(
+                                hidden_states=hidden_states,
+                                attention_mask=attention_mask,
+                                context=context,
+                                context_mask=context_mask,
+                                rotary_pos_emb=rotary_pos_emb,
+                                inference_params=inference_params,
+                                packed_seq_params=packed_seq_params,
+                            )
+                            # CUDA graph doesn't output context and is expected to be None
+                            assert (
+                                (context is None)
+                                or (not self.config.enable_cuda_graph)
+                                or (not self.training)
+                            )
+                        else:
+                            # CUDA graph replay for layer `l_no` and microbatch `self.current_microbatch`
+                            # CUDA graph requires positional arguments with the exception of is_first_microbatch.
+                            # Also CUDA graph accepts only Tensor inputs and outputs. Hence, the arg list and
+                            # returned list is limited to `hidden_states`.
+                            assert (len(self.cuda_graphs) > l_no) and (
+                                self.current_microbatch < len(self.cuda_graphs[l_no])
+                            )
+                            hidden_states = self.cuda_graphs[l_no][self.current_microbatch](
+                                hidden_states, is_first_microbatch=(self.current_microbatch == 0),
+                            )
+
+                    if (
+                        torch.is_grad_enabled()
+                        and self.config.cpu_offloading
+                        and self.group_prefetch_offload_commit_async is not None
+                    ):
+                        hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
+
+        # Final layer norm.
+        print("im here")
+        if self.post_process and self.post_layer_norm:
+            hidden_states = self.final_layernorm(hidden_states)
+        
+        mlp_head_adapter = self.get_adapter_module(AdapterName.MLP_HEAD_ADAPTER)
+        if mlp_head_adapter and self.adapter_cfg[AdapterName.MLP_HEAD_ADAPTER]['enabled']:
+            hidden_states = mlp_head_adapter(hidden_states)
+
+        return hidden_states
+
+    
 class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
