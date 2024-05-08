@@ -18,7 +18,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 class NeMoLLM(CustomLLM):
-    context_window: int = 3900
+    context_window: int = 2048
     num_output: int = 256
     model_name: str = "NeMo LLM"
     dummy_response: str = "My response"
@@ -41,22 +41,23 @@ class NeMoLLM(CustomLLM):
     }
 
     _model: Any = PrivateAttr()
-    _model_config: Any = PrivateAttr()
+    _model_cfg: Any = PrivateAttr()
     _tokenizer: Any = PrivateAttr()
 
     def __init__(
         self,
         model_path: str = None,
+        cfg: Any = None,
         **kwargs: Any,
     ) -> None:
 
         # set up trainer
         trainer_config = {
-            "devices": 1,
+            "devices": cfg.trainer.devices,
             "num_nodes": 1,
             "accelerator": "gpu",
             "logger": False,
-            "precision": 'bf16-mixed',
+            "precision": cfg.trainer.precision
         }
     
         tensor_model_parallel_size = 1
@@ -72,9 +73,9 @@ class NeMoLLM(CustomLLM):
         # setup/override model config
         model_cfg = MegatronGPTModel.restore_from(restore_path=model_path, trainer=trainer, return_config=True)
         model_cfg.micro_batch_size = 1
-        model_cfg.global_batch_size = 1
-        self._model_config = model_cfg
-        print("model_cfg: ", model_cfg)
+        model_cfg.global_batch_size = cfg.trainer.devices
+        self._model_cfg = model_cfg
+        print("self._model_cfg: ", self._model_cfg)
 
         # restore model
         model = MegatronGPTModel.restore_from(restore_path=model_path, trainer=trainer, override_config_path=model_cfg, strict=True)
@@ -83,7 +84,7 @@ class NeMoLLM(CustomLLM):
         super().__init__(**kwargs)
 
         # update LLM metadata
-        self.context_window = self._model_config.encoder_seq_length
+        self.context_window = self._model_cfg.encoder_seq_length
 
     @property
     def metadata(self) -> LLMMetadata:

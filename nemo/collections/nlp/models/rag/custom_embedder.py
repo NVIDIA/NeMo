@@ -16,24 +16,25 @@ class NeMoEmbeddings(BaseEmbedding):
     def __init__(
         self,
         model_path: str = None,
-        embed_batch_size: int = 18,
+        cfg: Any = None,
+        embed_batch_size: int = 16,        
         **kwargs: Any,
     ) -> None:
 
         # set up trainer
         trainer_config = {
-            "devices": 1,
+            "devices": cfg.trainer.devices,
             "num_nodes": 1,
             "accelerator": "gpu",
             "logger": False,
-            "precision": 'bf16-mixed'
+            "precision": cfg.trainer.precision
         }
         trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_config)
     
         # setup/override model config
         model_cfg = MegatronBertEmbeddingModel.restore_from(restore_path=model_path, trainer=trainer, return_config=True)
         model_cfg.micro_batch_size = 1
-        model_cfg.global_batch_size = 1
+        model_cfg.global_batch_size = cfg.trainer.devices
         self._model_cfg = model_cfg
         print("self._model_cfg: ", self._model_cfg)
 
@@ -58,6 +59,7 @@ class NeMoEmbeddings(BaseEmbedding):
         return self._get_text_embedding(text)
 
     def _construct_forward_input(self, texts: List[str]):
+        # this method construct model's forward input arguments from texts, following the constructing step in nemo/collections/nlp/data/information_retrieval/bert_embedding_dataset.py 
 
         # retrieve arguments from model_config
         max_seq_length = self._model_cfg.encoder_seq_length
@@ -102,12 +104,6 @@ class NeMoEmbeddings(BaseEmbedding):
             'token_type_ids': token_type_ids,
             'attention_mask': attention_mask,
         }
-
-        # DEBUGGING
-        print("input_ids.shape: ", input_ids.shape)
-        print("token_type_ids.shape: ", token_type_ids.shape)
-        print("attention_mask.shape: ", attention_mask.shape)
-        print(stop_here)
 
         return processed_batch
 
