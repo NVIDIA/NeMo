@@ -471,7 +471,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             adapter_type=self.cfg.mm_cfg.get("mm_mlp_adapter_type", "linear"),
             in_features=self.cfg.mm_cfg.vision_encoder.hidden_size,
             out_features=self.cfg.hidden_size,
-            bias=True,
+            bias=True,  # self.cfg.get("bias", False),
         )
         for name, module in self.named_modules():
             self._check_and_add_adapter(
@@ -598,6 +598,13 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             super().setup_optimizer_param_groups()
         else:
             MegatronGPTModel.setup_optimizer_param_groups(self)
+
+        # TODO(yuya): Refactor the handling of distributed checkpoint optimizer state loading
+        # With Pipeline Parallelism (PP) greater than 1, different stages might have varying lengths for `self._optimizer_param_groups`.
+        # This inconsistency can lead to errors during the loading of distributed checkpoints.
+        # As a temporary workaround, if `self._optimizer_param_groups` has less than 2 groups, add an empty parameter group marked as non-expert.
+        if len(self._optimizer_param_groups) < 2:
+            self._optimizer_param_groups = (self._optimizer_param_groups[0], {'params': [], 'is_expert': False})
 
         # filter out params doesn't have grad
         for param_group in self._optimizer_param_groups:
