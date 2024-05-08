@@ -1,4 +1,5 @@
 import logging
+from enum import IntEnum, auto
 from pathlib import Path
 
 import numpy as np
@@ -16,7 +17,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list, typedict2tensor
-from enum import IntEnum, auto
+
 
 @wrapt.decorator
 def noop_decorator(func):
@@ -55,6 +56,7 @@ def GetNumpyDtype(pyvalue):
     numpy_type = py_to_numpy_mapping[python_type]
     return numpy_type
 
+
 class ServerSync(IntEnum):
     WAIT = auto()
     SIGNAL = auto()
@@ -62,9 +64,18 @@ class ServerSync(IntEnum):
     def to_long_tensor(self):
         return torch.tensor([self], dtype=torch.long, device='cuda')
 
+
 class MegatronLLMDeployable(ITritonDeployable):
-    def __init__(self, nemo_checkpoint_filepath: str = None, num_devices: int = 1, num_nodes: int = 1, existing_model: MegatronGPTModel = None):
-        assert (nemo_checkpoint_filepath is not None or existing_model is not None), "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel"
+    def __init__(
+        self,
+        nemo_checkpoint_filepath: str = None,
+        num_devices: int = 1,
+        num_nodes: int = 1,
+        existing_model: MegatronGPTModel = None,
+    ):
+        assert (
+            nemo_checkpoint_filepath is not None or existing_model is not None
+        ), "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel"
         if existing_model is not None:
             self.model = existing_model
         else:
@@ -186,7 +197,7 @@ class MegatronLLMDeployable(ITritonDeployable):
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        assert (torch.distributed.get_rank() == 0), "Triton inference should only be called on main thread "
+        assert torch.distributed.get_rank() == 0, "Triton inference should only be called on main thread "
         signal_value = ServerSync.SIGNAL.to_long_tensor()
         torch.distributed.broadcast(signal_value, 0)
 
