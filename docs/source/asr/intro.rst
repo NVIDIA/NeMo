@@ -182,27 +182,8 @@ running those scripts. It also includes guidance for creating your own NeMo-comp
 NeMo ASR Documentation
 ----------------------
 For more information, see additional sections in the ASR docs on the left-hand-side menu or in the list below:
-ASR tutorial notebooks
-----------------------
-Hands-on speech recognition tutorial notebooks can be found under `the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/main/tutorials/asr>`_.
-If you are a beginner to NeMo, consider trying out the `ASR with NeMo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_with_NeMo.ipynb>`_ tutorial.
-This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
-
-ASR model configuration
------------------------
-Documentation regarding the configuration files specific to the ``nemo_asr`` models can be found in the :doc:`Configuration Files <./configs>` section.
-
-Preparing ASR datasets
-----------------------
-NeMo includes preprocessing scripts for several common ASR datasets. The :doc:`Datasets <./datasets>` section contains instructions on
-running those scripts. It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
-
-Further information 
--------------------
-For more information, see additional sections in the ASR docs on the left-hand-side menu or in the list below:
 
 .. toctree::
-   :maxdepth: 1
    :maxdepth: 1
 
    models

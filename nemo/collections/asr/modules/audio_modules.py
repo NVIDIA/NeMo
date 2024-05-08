@@ -36,7 +36,6 @@ from nemo.utils.decorators import experimental
 __all__ = [
     'MaskEstimatorRNN',
     'MaskEstimatorFlexChannels',
-    'MaskEstimatorFlexChannels',
     'MaskReferenceChannel',
     'MaskBasedBeamformer',
     'MaskBasedDereverbWPE',
@@ -76,7 +75,6 @@ class SpectrogramToMultichannelFeatures(NeuralModule):
         super().__init__()
         self.mag_reduction = mag_reduction
         self.mag_power = mag_power
-        self.mag_power = mag_power
         self.use_ipd = use_ipd
 
         if mag_normalization not in [None, 'mean', 'mean_var']:
@@ -93,19 +91,6 @@ class SpectrogramToMultichannelFeatures(NeuralModule):
         else:
             self._num_features = num_subbands
             self._num_channels = num_input_channels if self.mag_reduction is None else 1
-
-        self.eps = eps
-
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tnum_subbands:      %d', num_subbands)
-        logging.debug('\tmag_reduction:     %s', self.mag_reduction)
-        logging.debug('\tmag_power:         %s', self.mag_power)
-        logging.debug('\tuse_ipd:           %s', self.use_ipd)
-        logging.debug('\tmag_normalization: %s', self.mag_normalization)
-        logging.debug('\tipd_normalization: %s', self.ipd_normalization)
-        logging.debug('\teps:               %f', self.eps)
-        logging.debug('\t_num_features:     %s', self._num_features)
-        logging.debug('\t_num_channels:     %s', self._num_channels)
 
         self.eps = eps
 
@@ -252,102 +237,6 @@ class SpectrogramToMultichannelFeatures(NeuralModule):
         output = (input - mean) / std
         return output
 
-    @staticmethod
-    def get_mean_time_channel(input: torch.Tensor, input_length: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Calculate mean across time and channel dimensions.
-
-        Args:
-            input: tensor with shape (B, C, F, T)
-            input_length: tensor with shape (B,)
-
-        Returns:
-            Mean of `input` calculated across time and channel dimension
-            with shape (B, 1, F, 1)
-        """
-        assert input.ndim == 4, f'Expected input to have 4 dimensions, got {input.ndim}'
-
-        if input_length is None:
-            mean = torch.mean(input, dim=(-1, -3), keepdim=True)
-        else:
-            # temporal mean
-            mean = temporal_mean(input, input_length, keepdim=True)
-            # channel mean
-            mean = torch.mean(mean, dim=-3, keepdim=True)
-
-        return mean
-
-    @classmethod
-    def get_mean_std_time_channel(
-        cls, input: torch.Tensor, input_length: Optional[torch.Tensor] = None, eps: float = 1e-10
-    ) -> torch.Tensor:
-        """Calculate mean and standard deviation across time and channel dimensions.
-
-        Args:
-            input: tensor with shape (B, C, F, T)
-            input_length: tensor with shape (B,)
-
-        Returns:
-            Mean and standard deviation of the `input` calculated across time and
-            channel dimension, each with shape (B, 1, F, 1).
-        """
-        assert input.ndim == 4, f'Expected input to have 4 dimensions, got {input.ndim}'
-
-        if input_length is None:
-            std, mean = torch.std_mean(input, dim=(-1, -3), unbiased=False, keepdim=True)
-        else:
-            mean = cls.get_mean_time_channel(input, input_length)
-            std = (input - mean).pow(2)
-            # temporal mean
-            std = temporal_mean(std, input_length, keepdim=True)
-            # channel mean
-            std = torch.mean(std, dim=-3, keepdim=True)
-            # final value
-            std = torch.sqrt(std.clamp(eps))
-
-        return mean, std
-
-    @typecheck(
-        input_types={
-            'input': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            'input_length': NeuralType(tuple('B'), LengthsType()),
-        },
-        output_types={'output': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),},
-    )
-    def normalize_mean(self, input: torch.Tensor, input_length: torch.Tensor) -> torch.Tensor:
-        """Mean normalization for the input tensor.
-
-        Args:
-            input: input tensor
-            input_length: valid length for each example
-
-        Returns:
-            Mean normalized input.
-        """
-        mean = self.get_mean_time_channel(input=input, input_length=input_length)
-        output = input - mean
-        return output
-
-    @typecheck(
-        input_types={
-            'input': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            'input_length': NeuralType(tuple('B'), LengthsType()),
-        },
-        output_types={'output': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),},
-    )
-    def normalize_mean_var(self, input: torch.Tensor, input_length: torch.Tensor) -> torch.Tensor:
-        """Mean and variance normalization for the input tensor.
-
-        Args:
-            input: input tensor
-            input_length: valid length for each example
-
-        Returns:
-            Mean and variance normalized input.
-        """
-        mean, std = self.get_mean_std_time_channel(input=input, input_length=input_length, eps=self.eps)
-        output = (input - mean) / std
-        return output
-
     @typecheck()
     def forward(self, input: torch.Tensor, input_length: torch.Tensor) -> torch.Tensor:
         """Convert input batch of C-channel spectrograms into
@@ -382,32 +271,16 @@ class SpectrogramToMultichannelFeatures(NeuralModule):
             mag = self.normalize_mean(input=mag, input_length=input_length)
         elif self.mag_normalization == 'mean_var':
             mag = self.normalize_mean_var(input=mag, input_length=input_length)
-        if self.mag_power is not None:
-            mag = torch.pow(mag, self.mag_power)
-
-        if self.mag_normalization == 'mean':
-            # normalize mean across channels and time steps
-            mag = self.normalize_mean(input=mag, input_length=input_length)
-        elif self.mag_normalization == 'mean_var':
-            mag = self.normalize_mean_var(input=mag, input_length=input_length)
 
         features = mag
 
         if self.use_ipd:
             # Calculate IPD relative to the average spec
             spec_mean = torch.mean(input, axis=1, keepdim=True)  # channel average
-            # Calculate IPD relative to the average spec
-            spec_mean = torch.mean(input, axis=1, keepdim=True)  # channel average
             ipd = torch.angle(input) - torch.angle(spec_mean)
             # Modulo to [-pi, pi]
             ipd = wrap_to_pi(ipd)
 
-            if self.ipd_normalization == 'mean':
-                # normalize mean across channels and time steps
-                # mean across time
-                ipd = self.normalize_mean(input=ipd, input_length=input_length)
-            elif self.ipd_normalization == 'mean_var':
-                ipd = self.normalize_mean_var(input=ipd, input_length=input_length)
             if self.ipd_normalization == 'mean':
                 # normalize mean across channels and time steps
                 # mean across time
@@ -508,11 +381,6 @@ class MaskEstimatorRNN(NeuralModule):
         )
         self.norm = torch.nn.LayerNorm(num_features)
 
-        self.fc = torch.nn.Linear(
-            in_features=2 * num_features if bidirectional else num_features, out_features=num_features
-        )
-        self.norm = torch.nn.LayerNorm(num_features)
-
         # Each output shares the RNN and has a separate projection
         self.output_projections = torch.nn.ModuleList(
             [torch.nn.Linear(in_features=num_features, out_features=num_subbands) for _ in range(num_outputs)]
@@ -572,18 +440,11 @@ class MaskEstimatorRNN(NeuralModule):
 
         # Layer normalization and skip connection
         output = self.norm(self.fc(output)) + input
-        output, output_length = torch.nn.utils.rnn.pad_packed_sequence(input_packed, batch_first=True)
-        output_length = output_length.to(input.device)
-
-        # Layer normalization and skip connection
-        output = self.norm(self.fc(output)) + input
 
         # Create `num_outputs` masks
         masks = []
-        masks = []
         for output_projection in self.output_projections:
             # Output projection
-            mask = output_projection(output)
             mask = output_projection(output)
             mask = self.output_nonlinearity(mask)
 
@@ -593,13 +454,10 @@ class MaskEstimatorRNN(NeuralModule):
 
             # Append to the output
             masks.append(mask)
-            masks.append(mask)
 
         # Stack along channel dimension to get (B, M, F, N)
         masks = torch.stack(masks, axis=1)
-        masks = torch.stack(masks, axis=1)
 
-        # Mask frames beyond output length
         # Mask frames beyond output length
         length_mask: torch.Tensor = make_seq_mask_like(
             lengths=output_length, like=masks, time_dim=-1, valid_ones=False
@@ -1135,11 +993,6 @@ class MaskReferenceChannel(NeuralModule):
         logging.debug('\tmask_min:    %f', self.mask_min)
         logging.debug('\tmask_max:    %f', self.mask_max)
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tref_channel: %d', self.ref_channel)
-        logging.debug('\tmask_min:    %f', self.mask_min)
-        logging.debug('\tmask_max:    %f', self.mask_max)
-
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports.
@@ -1196,18 +1049,8 @@ class MaskBasedBeamformer(NeuralModule):
         ref_hard_use_grad: If true, use straight-through gradient when using the hard reference
         ref_subband_weighting: If true, use subband weighting when estimating reference channel
         num_subbands: Optional, used to determine the parameter size for reference estimation
-        filter_beta: Parameter of the parameteric multichannel Wiener filter
-        filter_rank: Parameter of the parametric multichannel Wiener filter
-        filter_postfilter: Optional, postprocessing of the filter
-        ref_channel: Optional, reference channel. If None, it will be estimated automatically
-        ref_hard: If true, hard (one-hot) reference. If false, a soft reference
-        ref_hard_use_grad: If true, use straight-through gradient when using the hard reference
-        ref_subband_weighting: If true, use subband weighting when estimating reference channel
-        num_subbands: Optional, used to determine the parameter size for reference estimation
         mask_min_db: Threshold mask to a minimal value before applying it, defaults to -200dB
         mask_max_db: Threshold mask to a maximal value before applying it, defaults to 0dB
-        diag_reg: Optional, diagonal regularization for the multichannel filter
-        eps: Small regularization constant to avoid division by zero
         diag_reg: Optional, diagonal regularization for the multichannel filter
         eps: Small regularization constant to avoid division by zero
     """
@@ -1257,55 +1100,13 @@ class MaskBasedBeamformer(NeuralModule):
             diag_reg=diag_reg,
             eps=eps,
         )
-
-        self.filter_type = filter_type
-        if self.filter_type == 'mvdr_souden' and filter_beta != 0:
-            logging.warning(
-                'Using filter type %s: beta will be automatically set to zero (current beta %f) and rank to one (current rank %s).',
-                self.filter_type,
-                filter_beta,
-                filter_rank,
-            )
-            filter_beta = 0.0
-            filter_rank = 'one'
-        # Prepare filter
-        self.filter = ParametricMultichannelWienerFilter(
-            beta=filter_beta,
-            rank=filter_rank,
-            postfilter=filter_postfilter,
-            ref_channel=ref_channel,
-            ref_hard=ref_hard,
-            ref_hard_use_grad=ref_hard_use_grad,
-            ref_subband_weighting=ref_subband_weighting,
-            num_subbands=num_subbands,
-            diag_reg=diag_reg,
-            eps=eps,
-        )
         # Mask thresholding
-        if mask_min_db >= mask_max_db:
-            raise ValueError(
-                f'Lower bound for the mask {mask_min_db}dB must be smaller than the upper bound {mask_max_db}dB'
-            )
         if mask_min_db >= mask_max_db:
             raise ValueError(
                 f'Lower bound for the mask {mask_min_db}dB must be smaller than the upper bound {mask_max_db}dB'
             )
         self.mask_min = db2mag(mask_min_db)
         self.mask_max = db2mag(mask_max_db)
-        # Postmask thresholding
-        if postmask_min_db > postmask_max_db:
-            raise ValueError(
-                f'Lower bound for the postmask {postmask_min_db}dB must be smaller or equal to the upper bound {postmask_max_db}dB'
-            )
-        self.postmask_min = db2mag(postmask_min_db)
-        self.postmask_max = db2mag(postmask_max_db)
-
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\tfilter_type:  %s', self.filter_type)
-        logging.debug('\tmask_min:     %e', self.mask_min)
-        logging.debug('\tmask_max:     %e', self.mask_max)
-        logging.debug('\tpostmask_min: %e', self.postmask_min)
-        logging.debug('\tpostmask_max: %e', self.postmask_max)
         # Postmask thresholding
         if postmask_min_db > postmask_max_db:
             raise ValueError(
@@ -1330,8 +1131,6 @@ class MaskBasedBeamformer(NeuralModule):
             "mask": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
             "mask_undesired": NeuralType(('B', 'C', 'D', 'T'), FloatType(), optional=True),
             "input_length": NeuralType(('B',), LengthsType(), optional=True),
-            "mask_undesired": NeuralType(('B', 'C', 'D', 'T'), FloatType(), optional=True),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
         }
 
     @property
@@ -1340,7 +1139,6 @@ class MaskBasedBeamformer(NeuralModule):
         """
         return {
             "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
             "output_length": NeuralType(('B',), LengthsType(), optional=True),
         }
 
@@ -1358,50 +1156,16 @@ class MaskBasedBeamformer(NeuralModule):
         and the output is concatenation of individual outputs along the channel dimension.
         The total number of outputs is `num_masks * M`, where `M` is the number of channels
         at the filter output.
-        If `mask` has multiple channels, a multichannel filter is created for each mask,
-        and the output is concatenation of individual outputs along the channel dimension.
-        The total number of outputs is `num_masks * M`, where `M` is the number of channels
-        at the filter output.
 
         Args:
             input: Input signal complex-valued spectrogram, shape (B, C, F, N)
-            mask: Mask for M output signals, shape (B, num_masks, F, N)
             mask: Mask for M output signals, shape (B, num_masks, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
         
         Returns:
             Multichannel output signal complex-valued spectrogram, shape (B, num_masks * M, F, N)
-            Multichannel output signal complex-valued spectrogram, shape (B, num_masks * M, F, N)
         """
         # Length mask
-        if input_length is not None:
-            length_mask: torch.Tensor = make_seq_mask_like(
-                lengths=input_length, like=mask[:, 0, ...], time_dim=-1, valid_ones=False
-            )
-
-        # Use each mask to generate an output
-        output, num_masks = [], mask.size(1)
-        for m in range(num_masks):
-            # Desired signal mask
-            mask_d = mask[:, m, ...]
-            # Undesired signal mask
-            if mask_undesired is not None:
-                mask_u = mask_undesired[:, m, ...]
-            elif num_masks == 1:
-                # If a single mask is estimated, use the complement
-                mask_u = 1 - mask_d
-            else:
-                # Use sum of all other sources
-                mask_u = torch.sum(mask, dim=1) - mask_d
-
-            # Threshold masks
-            mask_d = torch.clamp(mask_d, min=self.mask_min, max=self.mask_max)
-            mask_u = torch.clamp(mask_u, min=self.mask_min, max=self.mask_max)
-
-            if input_length is not None:
-                mask_d = mask_d.masked_fill(length_mask, 0.0)
-                mask_u = mask_u.masked_fill(length_mask, 0.0)
-
         if input_length is not None:
             length_mask: torch.Tensor = make_seq_mask_like(
                 lengths=input_length, like=mask[:, 0, ...], time_dim=-1, valid_ones=False
@@ -1439,23 +1203,8 @@ class MaskBasedBeamformer(NeuralModule):
                 output_m = output_m * postmask_m.unsqueeze(1)
 
             # Save the current output (B, M, F, T)
-            output_m = self.filter(input=input, mask_s=mask_d, mask_n=mask_u)
-
-            # Optional: apply a postmask with min and max thresholds
-            if self.postmask_min < self.postmask_max:
-                postmask_m = torch.clamp(mask[:, m, ...], min=self.postmask_min, max=self.postmask_max)
-                output_m = output_m * postmask_m.unsqueeze(1)
-
-            # Save the current output (B, M, F, T)
             output.append(output_m)
 
-        # Combine outputs along the channel dimension
-        # Each output is (B, M, F, T)
-        output = torch.concatenate(output, axis=1)
-
-        # Apply masking
-        if input_length is not None:
-            output = output.masked_fill(length_mask[:, None, ...], 0.0)
         # Combine outputs along the channel dimension
         # Each output is (B, M, F, T)
         output = torch.concatenate(output, axis=1)
@@ -1774,7 +1523,6 @@ class MaskBasedDereverbWPE(NeuralModule):
         diag_reg: Diagonal regularization for WPE
         eps: Small regularization constant
         dtype: Data type for internal computations
-        dtype: Data type for internal computations
 
     References:
         - Kinoshita et al, Neural network-based spectrum estimation for online WPE dereverberation, 2017
@@ -1801,16 +1549,6 @@ class MaskBasedDereverbWPE(NeuralModule):
         # Mask thresholding
         self.mask_min = db2mag(mask_min_db)
         self.mask_max = db2mag(mask_max_db)
-        # Internal calculations
-        if dtype not in [torch.cfloat, torch.cdouble]:
-            raise ValueError(f'Unsupported dtype {dtype}, expecting torch.cfloat or torch.cdouble')
-        self.dtype = dtype
-
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\tnum_iterations: %s', self.num_iterations)
-        logging.debug('\tmask_min:       %g', self.mask_min)
-        logging.debug('\tmask_max:       %g', self.mask_max)
-        logging.debug('\tdtype:          %s', self.dtype)
         # Internal calculations
         if dtype not in [torch.cfloat, torch.cdouble]:
             raise ValueError(f'Unsupported dtype {dtype}, expecting torch.cfloat or torch.cdouble')
@@ -1849,24 +1587,18 @@ class MaskBasedDereverbWPE(NeuralModule):
 
         Args:
             input: C-channel complex-valued spectrogram, shape (B, C, F, T)
-            input: C-channel complex-valued spectrogram, shape (B, C, F, T)
             input_length: Optional length for each signal in the batch, shape (B,)
-            mask: Optional mask, shape (B, 1, F, N) or (B, C, F, T)
             mask: Optional mask, shape (B, 1, F, N) or (B, C, F, T)
 
         Returns:
             Processed tensor with the same number of channels as the input,
-            shape (B, C, F, T).
             shape (B, C, F, T).
         """
         io_dtype = input.dtype
 
         with torch.cuda.amp.autocast(enabled=False):
             output = input.to(dtype=self.dtype)
-            output = input.to(dtype=self.dtype)
 
-            if not output.is_complex():
-                raise RuntimeError(f'Expecting complex input, got {output.dtype}')
             if not output.is_complex():
                 raise RuntimeError(f'Expecting complex input, got {output.dtype}')
 
@@ -1883,75 +1615,6 @@ class MaskBasedDereverbWPE(NeuralModule):
                 output, output_length = self.filter(input=output, input_length=input_length, power=power)
 
         return output.to(io_dtype), output_length
-
-
-class MixtureConsistencyProjection(NeuralModule):
-    """Ensure estimated sources are consistent with the input mixture.
-    Note that the input mixture is assume to be a single-channel signal.
-    
-    Args:
-        weighting: Optional weighting mode for the consistency constraint.
-            If `None`, use uniform weighting. If `power`, use the power of the
-            estimated source as the weight.
-        eps: Small positive value for regularization
-
-    Reference:
-        Wisdom et al, Differentiable consistency constraints for improved deep speech enhancement, 2018
-    """
-
-    def __init__(self, weighting: Optional[str] = None, eps: float = 1e-8):
-        super().__init__()
-        self.weighting = weighting
-        self.eps = eps
-
-        if self.weighting not in [None, 'power']:
-            raise NotImplementedError(f'Weighting mode {self.weighting} not implemented')
-
-    @property
-    def input_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            "mixture": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "estimate": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-        }
-
-    @property
-    def output_types(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-        }
-
-    @typecheck()
-    def forward(self, mixture: torch.Tensor, estimate: torch.Tensor) -> torch.Tensor:
-        """Enforce mixture consistency on the estimated sources.
-        Args:
-            mixture: Single-channel mixture, shape (B, 1, F, N)
-            estimate: M estimated sources, shape (B, M, F, N)
-
-        Returns:
-            Source estimates consistent with the mixture, shape (B, M, F, N)
-        """
-        # number of sources
-        M = estimate.size(-3)
-        # estimated mixture based on the estimated sources
-        estimated_mixture = torch.sum(estimate, dim=-3, keepdim=True)
-
-        # weighting
-        if self.weighting is None:
-            weight = 1 / M
-        elif self.weighting == 'power':
-            weight = estimate.abs().pow(2)
-            weight = weight / (weight.sum(dim=-3, keepdim=True) + self.eps)
-        else:
-            raise NotImplementedError(f'Weighting mode {self.weighting} not implemented')
-
-        # consistent estimate
-        consistent_estimate = estimate + weight * (mixture - estimated_mixture)
-
-        return consistent_estimate
 
 
 class MixtureConsistencyProjection(NeuralModule):

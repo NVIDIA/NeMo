@@ -654,12 +654,13 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 virtual_tokens=self.virtual_tokens,
             )
 
-    def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_predict=False):
+    def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_predict=False, is_eval=False):
         """Buld dataloader given an input dataset."""
         if data_cfg.get("use_lhotse"):
             from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 
-            if data_cfg.get('is_tarred', False) or not is_predict:
+            # for eval, we need to create separate dataset so as to report splitted numbers
+            if data_cfg.get('is_tarred', False) or (is_eval == False and is_predict == False):
                 return get_lhotse_dataloader_from_config(
                     data_cfg,
                     global_rank=parallel_state.get_data_parallel_rank(),
@@ -1591,9 +1592,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     def setup_eval_dataloader(self, datasets, data_cfg):
         dataloaders = []
         if not isinstance(datasets, list):
-            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0)
+            return self.build_data_loader(dataset=datasets, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
         for dataset in datasets:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0)
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=data_cfg, consumed_samples=0, is_eval=True)
             dataloaders.append(eval_dl)
         return dataloaders
 

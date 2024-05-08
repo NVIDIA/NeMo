@@ -28,7 +28,7 @@ repos:
       - id: check-case-conflict
       - id: detect-private-key
       - id: check-added-large-files
-        args: ['--maxkb=5000']
+        args: ['--maxkb=1000']
       - id: requirements-txt-fixer
 
   - repo: https://github.com/PyCQA/isort

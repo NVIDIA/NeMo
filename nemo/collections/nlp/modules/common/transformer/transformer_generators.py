@@ -151,12 +151,12 @@ class GreedySequenceGenerator:
         # everything after <eos> with <pad> token
         decoder_parameter = next(self.decoder.parameters())
         pad_profile = torch.zeros(batch_size, 1).long().to(decoder_parameter.device)
+
         decoder_mems_list = None
-        if decoder_input_ids is not None:
-            _, decoder_mems_list = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
         for i in range(max_generation_length):
+
             log_probs, decoder_mems_list = self._one_step_forward(
-                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i + 1
+                tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
 
             next_tokens = torch.argmax(log_probs[:, -1], dim=-1, keepdim=True)
@@ -301,8 +301,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
         # repeat init target prefixes and cached memory states beam_size times
-        # prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
-        prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, tgt.shape[1]), prefixes), dim=1)
+        prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
             decoder_mems_list[j] = decoder_mems_list[j].repeat(self.beam_size, 1, 1)
 

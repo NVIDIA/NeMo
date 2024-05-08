@@ -70,6 +70,7 @@ class AudioPerceptionModule(NeuralModule, Exportable):
     def __init__(self, cfg: DictConfig):
         super().__init__()
         # Initialize components
+        self.cfg = cfg
         self.preprocessor = self.from_config_dict(cfg.preprocessor)
         self.encoder = self.from_config_dict(cfg.encoder)
 

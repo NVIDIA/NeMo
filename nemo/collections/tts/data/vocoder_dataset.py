@@ -151,11 +151,6 @@ class VocoderDataset(Dataset):
         self.weighted_sampling_steps_per_epoch = weighted_sampling_steps_per_epoch
         self.load_precomputed_mel = False
 
-        if trunc_duration:
-            self.trunc_samples = int(trunc_duration * self.sample_rate)
-        else:
-            self.trunc_samples = None
-
         if feature_processors:
             logging.info(f"Found feature processors {feature_processors.keys()}")
             self.feature_processors = list(feature_processors.values())

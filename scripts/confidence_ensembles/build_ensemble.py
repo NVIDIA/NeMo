@@ -226,9 +226,6 @@ class BuildEnsembleConfig:
     transcription: transcribe_speech.TranscriptionConfig = field(
         default_factory=lambda: transcribe_speech.TranscriptionConfig()
     )
-    transcription: transcribe_speech.TranscriptionConfig = field(
-        default_factory=lambda: transcribe_speech.TranscriptionConfig()
-    )
 
     # set to True to tune the confidence.
     # requires dev manifests to be specified for each model
@@ -237,14 +234,10 @@ class BuildEnsembleConfig:
     # reasonalbe grid, so that it does not take forever.
     # Can be changed as needed
     tune_confidence_config: TuneConfidenceConfig = field(default_factory=lambda: TuneConfidenceConfig())
-    tune_confidence_config: TuneConfidenceConfig = field(default_factory=lambda: TuneConfidenceConfig())
 
     # very fast to tune and can be important in case of imbalanced datasets
     # will automatically set to False if dev data is not available
     tune_logistic_regression: bool = True
-    tune_logistic_regression_config: TuneLogisticRegressionConfig = field(
-        default_factory=lambda: TuneLogisticRegressionConfig()
-    )
     tune_logistic_regression_config: TuneLogisticRegressionConfig = field(
         default_factory=lambda: TuneLogisticRegressionConfig()
     )

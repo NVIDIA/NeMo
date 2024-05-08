@@ -142,8 +142,6 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
         # set confidence calculation method
         self._init_confidence_method(confidence_method_cfg)
-        # set confidence calculation method
-        self._init_confidence_method(confidence_method_cfg)
 
     @typecheck()
     def forward(
@@ -277,11 +275,6 @@ class GreedyCTCInferConfig:
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
-        self.confidence_method_cfg = OmegaConf.structured(
-            self.confidence_method_cfg
-            if isinstance(self.confidence_method_cfg, ConfidenceMethodConfig)
-            else ConfidenceMethodConfig(**self.confidence_method_cfg)
-        )
         self.confidence_method_cfg = OmegaConf.structured(
             self.confidence_method_cfg
             if isinstance(self.confidence_method_cfg, ConfidenceMethodConfig)

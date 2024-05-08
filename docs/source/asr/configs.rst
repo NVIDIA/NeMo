@@ -986,8 +986,6 @@ Main parts of the config:
 
 Finetuning with Text-Only Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Finetuning with Text-Only Data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To finetune existing ASR model using text-only data use ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text_finetune.py`` script with the corresponding config ``<NeMo_git_root>/examples/asr/conf/asr_tts/hybrid_asr_tts.yaml``.
 
@@ -1041,27 +1039,13 @@ Fine-tuning by updating or retaining current tokenizer
 
 In this case, the model architecture is not updated. The model is initialized with the pre-trained weights by
 two ways:
-Models can be fine-tuned in two ways: 
-* By updating or retaining current tokenizer alone
-* By updating model architecture and tokenizer
-
-Fine-tuning by updating or retaining current tokenizer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In this case, the model architecture is not updated. The model is initialized with the pre-trained weights by 
-two ways:
 
 1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
 
 Then users can use existing tokenizer or update the tokenizer with new vocabulary. This is useful when users don't want to update the model architecture
 but want to update the tokenizer with new vocabulary.
-Then users can use existing tokenizer or update the tokenizer with new vocabulary. This is useful when users don't want to update the model architecture 
-but want to update the tokenizer with new vocabulary.
 
-The same script can be used to finetune CTC, RNNT or Hybrid models as well.
-
-<NeMo_repo>/examples/asr/speech_to_text_finetune.py script supports this type of fine-tuning with the following arguments:
 The same script can be used to finetune CTC, RNNT or Hybrid models as well.
 
 <NeMo_repo>/examples/asr/speech_to_text_finetune.py script supports this type of fine-tuning with the following arguments:
@@ -1069,14 +1053,10 @@ The same script can be used to finetune CTC, RNNT or Hybrid models as well.
 .. code-block:: sh
 
     python examples/asr/speech_to_text_finetune.py \
-    python examples/asr/speech_to_text_finetune.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
-        model.tokenizer.update_tokenizer=<True/False> \ # True to update tokenizer, False to retain existing tokenizer
-        model.tokenizer.dir=<path to tokenizer dir> \ # Path to tokenizer dir when update_tokenizer=True
-        model.tokenizer.type=<tokenizer type> \ # tokenizer type when update_tokenizer=True
         model.tokenizer.update_tokenizer=<True/False> \ # True to update tokenizer, False to retain existing tokenizer
         model.tokenizer.dir=<path to tokenizer dir> \ # Path to tokenizer dir when update_tokenizer=True
         model.tokenizer.type=<tokenizer type> \ # tokenizer type when update_tokenizer=True
@@ -1126,16 +1106,6 @@ To reinitialize part of the model, to make it different from the pretrained mode
 
 .. code-block:: yaml
 
-    init_from_nemo_model: "<path to .nemo model file>"
-        asr_model:
-            include: ["preprocessor","encoder"]
-            exclude: ["decoder"]
-        +init_from_nemo_model="<path to .nemo model file>" # (or +init_from_pretrained_model, +init_from_ptl_ckpt )
-
-To reinitialize part of the model, to make it different from the pretrained model, users can mention them through config:
-
-.. code-block:: yaml
-    
     init_from_nemo_model: "<path to .nemo model file>"
         asr_model:
             include: ["preprocessor","encoder"]

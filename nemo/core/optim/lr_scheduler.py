@@ -864,11 +864,7 @@ def prepare_lr_scheduler(
         max_epochs = scheduler_config.get('t_max_epochs')
         accumulate_grad_batches = scheduler_config.get('t_accumulate_grad_batches')
         limit_train_batches = scheduler_config.get('t_limit_train_batches')
-        num_workers = (
-            scheduler_config.get('t_num_workers')
-            if not getattr(train_dataloader.dataset, "is_megatron_iterable", False)
-            else 1
-        )
+        num_workers = scheduler_config.get('t_num_workers')
 
         # Compute effective num max_steps
         num_samples = len(train_dataloader.dataset)

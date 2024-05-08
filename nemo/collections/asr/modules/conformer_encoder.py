@@ -1086,10 +1086,6 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
             conformer_layer.set_enabled_adapters(name=name, enabled=enabled)
 
-    def unfreeze_enabled_adapters(self, freeze_batchnorm: bool = True) -> None:
-        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
-            conformer_layer.unfreeze_enabled_adapters(freeze_batchnorm=freeze_batchnorm)
-
     def get_enabled_adapters(self) -> List[str]:
         names = set([])
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
