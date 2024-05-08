@@ -1,7 +1,11 @@
+from typing import Optional
+
 import torch.utils.data
+from lhotse.cut import Cut, CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
+from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
     build_loss_mask,
@@ -63,48 +67,61 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.context_key = context_key
         self.default_context_key = default_context_key
 
-    def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
-        cuts = cuts.sort_by_duration()
+    def __getitem__(self, all_cuts: CutSet) ->  dict[str, torch.Tensor | list[str] | dict]:
+        ans = {}
 
-        audio, audio_lens, cuts = self.load_audio(cuts)
+        # convert audio cuts to mini-batch
+        cuts = all_cuts.filter(lambda c: isinstance(c, Cut))
+        if cuts:
+            audio, audio_lens, cuts = self.load_audio(cuts)
 
-        return_batch = {}
-        audio_ratio = []
-        for id, cut in enumerate(cuts):
-            audio_ratio.append(1.0)
+            return_batch = {}
+            audio_ratio = [1.0] * len(cuts)
+            for _, cut in enumerate(cuts):
+                if hasattr(cut, self.context_key):
+                    cut.context = getattr(cut, self.context_key)
+                elif hasattr(cut, self.default_context_key):
+                    cut.context = getattr(cut, self.default_context_key)
+                else:
+                    cut.context = self.default_context
 
-        for _, cut in enumerate(cuts):
-            if hasattr(cut, self.context_key):
-                cut.context = getattr(cut, self.context_key)
-            elif hasattr(cut, self.default_context_key):
-                cut.context = getattr(cut, self.default_context_key)
-            else:
-                cut.context = self.default_context
+            metadata = []
+            for id, cut in enumerate(cuts):
+                metadata.append({'audio_filepath': cut.id + '.wav'})
 
-        metadata = []
-        for id, cut in enumerate(cuts):
-            metadata.append({'audio_filepath': cut.id + '.wav'})
+            collated_text_data = collate_text_data(
+                cuts=cuts,
+                default_context=self.default_context,
+                text_processor=self.text_processor,
+                tokens_to_generate=self.tokens_to_generate,
+                pad_to_max_length=self.pad_to_max_length,
+                max_seq_length=self.max_seq_length,
+            )
+            return_batch.update(
+                {
+                    "sample_ids": list(cuts.ids),
+                    "audio_signal": audio,
+                    "audio_signal_length": audio_lens,
+                    "audio_ratio": torch.FloatTensor(audio_ratio),
+                    "metadata": metadata,
+                    **collated_text_data,
+                }
+            )
+            ans.update(return_batch)
 
-        collated_text_data = collate_text_data(
-            cuts=cuts,
-            default_context=self.default_context,
-            text_processor=self.text_processor,
-            tokens_to_generate=self.tokens_to_generate,
-            pad_to_max_length=self.pad_to_max_length,
-            max_seq_length=self.max_seq_length,
-        )
-        return_batch.update(
-            {
-                "sample_ids": list(cuts.ids),
-                "audio_signal": audio,
-                "audio_signal_length": audio_lens,
-                "audio_ratio": torch.FloatTensor(audio_ratio),
-                "metadata": metadata,
-                **collated_text_data,
-            }
-        )
+        # convert text examples to tensors
+        text_examples = all_cuts.filter(lambda c: isinstance(c, NeMoSFTExample))
+        if text_examples:
+            pad_id = self.text_processor.pad_id
+            text_minibatch = dict(
+                text_input_ids=collate_vectors_lhotse([e.input_ids for e in text_examples], padding_value=pad_id),
+                text_answer_ids=collate_vectors_lhotse([e.answer_ids for e in text_examples], padding_value=pad_id),
+                text_context_ids=collate_vectors_lhotse([e.context_ids for e in text_examples], padding_value=pad_id),
+                text_masks=collate_vectors_lhotse([e.mask for e in text_examples], padding_value=pad_id),
+            )
+            ans.update(text_minibatch)
 
-        return return_batch
+        return ans
 
 
 def collate_text_data(
