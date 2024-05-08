@@ -60,20 +60,18 @@ class ServerSync(IntEnum):
     SIGNAL = auto()
 
     def to_long_tensor(self):
-        return torch.cuda.LongTensor([self])
+        return torch.tensor([self], dtype=torch.long, device='cuda')
 
 class MegatronLLMDeployable(ITritonDeployable):
-    def __init__(self, nemo_checkpoint_filepath: str, num_devices: int = 1, num_nodes: int = 1):
-        self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
-        self._load(nemo_checkpoint_filepath, num_devices, num_nodes)
+    def __init__(self, nemo_checkpoint_filepath: str = None, num_devices: int = 1, num_nodes: int = 1, existing_model: MegatronGPTModel = None):
+        assert (nemo_checkpoint_filepath is not None or existing_model is not None), "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel"
+        if existing_model is not None:
+            self.model = existing_model
+        else:
+            self._load(nemo_checkpoint_filepath, num_devices, num_nodes)
 
-        # only deploy the server on main thread, other threads enter this evaluation loop
-        if torch.distributed.get_rank() != 0:
-            while True:
-                wait_value = ServerSync.WAIT.to_long_tensor()
-                torch.distributed.broadcast(wait_value, 0)
-                if wait_value.item() == ServerSync.SIGNAL:
-                    self.model.generate(inputs=[""], length_params=None)
+        self.model.eval()
+        self._helper_thread_evaluation_loop()
 
     def _load(self, nemo_checkpoint_filepath: str, num_devices: int, num_nodes: int):
         if Path(nemo_checkpoint_filepath).exists():
@@ -93,12 +91,22 @@ class MegatronLLMDeployable(ITritonDeployable):
             custom_config.transformer_engine = True
             # using multi-gpu for tensor parallelism directly for now, could do pipeline parallel instead or a combination
             custom_config.tensor_model_parallel_size = num_devices
+            # had to override these to make Nemotron3-22B work, see sample_sequence_batch() in text_generation_utils.py
+            custom_config.activations_checkpoint_granularity = None
+            custom_config.activations_checkpoint_method = None
 
             self.model = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, override_config_path=custom_config
             )
 
-            self.model.eval()
+    def _helper_thread_evaluation_loop(self):
+        # only deploy the server on main thread, other threads enter this evaluation loop
+        if torch.distributed.get_rank() != 0:
+            while True:
+                wait_value = ServerSync.WAIT.to_long_tensor()
+                torch.distributed.broadcast(wait_value, 0)
+                if wait_value.item() == ServerSync.SIGNAL:
+                    self.model.generate(inputs=[""], length_params=None)
 
     _INPUT_PARAMETER_FIELDS = {
         "prompts": (-1, bytes, False),
