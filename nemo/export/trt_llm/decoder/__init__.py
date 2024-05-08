@@ -29,6 +29,8 @@ from nemo.export.trt_llm.model_config import (
     DECODER_GPTJ,
     DECODER_GPTNEXT,
     DECODER_LLAMA,
+    DECODER_BAICHUAN,
+    DECODER_CHATGLM,
     QUANTIZATION_NONE,
 )
 
@@ -46,6 +48,8 @@ DECODER_MODEL_TYPE = {
     DECODER_LLAMA: 'LLaMAForCausalLM',
     DECODER_GEMMA: 'GemmaForCausalLM',
     DECODER_FALCON: 'FalconForCausalLM',
+    DECODER_BAICHUAN: 'BaichuanForCausalLM',
+    DECODER_CHATGLM: 'ChatGLMForCausalLM'
 }
 
 
