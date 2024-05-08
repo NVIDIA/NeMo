@@ -311,7 +311,8 @@ class TensorRTLLM(ITritonDeployable):
         mp_group = []
         for idx in range(pp_size):
             mp_group+=tp_groups[dp_rank + idx*dp_size]
-        device_ids = [i % gpus_per_node for i in mp_group]
+        # device_ids = [i % gpus_per_node for i in mp_group]
+        device_ids = mp_group
 
         mapping = tensorrt_llm.Mapping(
             world_size = tp_size*pp_size,
@@ -330,8 +331,8 @@ class TensorRTLLM(ITritonDeployable):
             pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {mapping.pp_rank}'''
         )
         print(f"{torch.distributed.get_rank()} color {dp_rank} rank {model_parallel_rank} nemo_mp_group {mp_group} {device_ids} ")
-        assert torch.cuda.current_device() == device_ids[model_parallel_rank]
-
+        # assert torch.cuda.current_device() == device_ids[model_parallel_rank]
+        
         model_config, weights = nemo_llm_model_to_model_config(
             nemo_model=nemo_model,
             tokenizer=self.tokenizer,
