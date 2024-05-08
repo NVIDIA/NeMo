@@ -143,20 +143,18 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
         # first, validate the utterance
         missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in cut.custom]
         if missing_keys:
-            # TODO(zhehuaic): revert the following changes
-            taskname = 'asr'
-            pnc = True
-            source_lang = 'en'
-            target_lang = 'en'
-        else:
-            taskname = cut.custom['taskname']
-            pnc = cut.custom['pnc']
-            source_lang = cut.custom['source_lang']
-            target_lang = cut.custom['target_lang']
+            raise RuntimeError(
+                f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
+                f"Please ensure that every utterance in the input manifests contains these keys."
+            )
 
         # Actual tokenization. If a cut has multiple supervisions, we'll stitch their tokenized texts together.
         texts = [sup.text for sup in cut.supervisions]
-        langs = [sup.language if sup.language is not None else 'en' for sup in cut.supervisions]
+        langs = [sup.language for sup in cut.supervisions]
+        taskname = cut.custom['taskname']
+        pnc = cut.custom['pnc']
+        source_lang = cut.custom['source_lang']
+        target_lang = cut.custom['target_lang']
 
         tokens.append(canary_prompt(tokenizer, texts, langs, source_lang, target_lang, taskname, pnc))
         if inference:

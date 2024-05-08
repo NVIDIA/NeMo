@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: megatron_audio_gpt_peft_tuning
+name: megatron_audio_t5_salm_lhotse
 
 trainer:
   devices: 1
