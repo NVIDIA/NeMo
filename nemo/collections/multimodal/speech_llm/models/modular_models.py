@@ -366,39 +366,49 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     def forward(
         self,
-        audio_batch,
+        batch,
         checkpoint_activations_all_layers,
     ):
         """
         Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
         """
-        if 'audio_ratio' in audio_batch:
-            self.log(
-                'local_batch_size',
-                audio_batch['audio_ratio'].shape[0],
-                prog_bar=True,
-                batch_size=1,
-                rank_zero_only=False,
-            )
+        audio_batch = {k: v for k, v in batch.items() if not k.startswith("text_")}
+        text_batch = {k: v for k, v in batch.items() if k.startswith("text_")}
 
-        encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
-        if self.mcore_gpt:
-            output = self.model(
-                input_ids=None,
-                position_ids=None,
-                decoder_input=encoder_input,
-                attention_mask=attention_mask,
-                labels=labels,
-            )
-        else:
-            output = self.model(
-                input_ids=None,
-                position_ids=None,
-                encoder_input=encoder_input,
-                attention_mask=attention_mask,
-                labels=labels,
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-            )
+        output, loss_mask = None, None
+
+        if audio_batch:
+            # TODO: handle the possibility that there might be no audio data in the mini-batch
+            if 'audio_ratio' in audio_batch:
+                self.log(
+                    'local_batch_size',
+                    audio_batch['audio_ratio'].shape[0],
+                    prog_bar=True,
+                    batch_size=1,
+                    rank_zero_only=False,
+                )
+
+            encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
+            if self.mcore_gpt:
+                output = self.model(
+                    input_ids=None,
+                    position_ids=None,
+                    decoder_input=encoder_input,
+                    attention_mask=attention_mask,
+                    labels=labels,
+                )
+            else:
+                output = self.model(
+                    input_ids=None,
+                    position_ids=None,
+                    encoder_input=encoder_input,
+                    attention_mask=attention_mask,
+                    labels=labels,
+                    checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                )
+
+        if text_batch:
+            pass  # TODO: implement text-only mini-batch forward
 
         return output, loss_mask
 
@@ -1063,6 +1073,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Used for validation and test steps, added postprocessing after calling self.predict_step().
         """
+        # TODO: support text-only part of mini-batch
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -1150,6 +1161,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Used to get LLM predictions for validation and test steps based on the given inference config.
         """
+        # TODO: support text-only part of mini-batch
+
         inference_config = self.get_inference_config()
         if inference_config is not None:
             # need to overwrite some configuration, make it immutable
