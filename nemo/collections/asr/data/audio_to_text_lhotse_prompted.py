@@ -15,11 +15,10 @@ from typing import Callable, Sequence
 
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.cut import Cut, MixedCut, MonoCut
+from lhotse.cut import MixedCut, MonoCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
-from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter
 from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
@@ -56,50 +55,24 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self.prompt_format_fn = prompt_format_fn
         self.inference = inference
 
-    def __getitem__(self, all_cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        # Prepare audio data mini-batch portion
-        cuts = all_cuts.filter(lambda c: isinstance(c, Cut))
-        print(f"{cuts=}")
-        if cuts:
-            audio, audio_lens, cuts = self.load_audio(cuts)
+    def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        audio, audio_lens, cuts = self.load_audio(cuts)
 
-            prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
+        prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
 
-            prompts_with_answers = [torch.as_tensor(t) for t in prompts_with_answers]
-            prompts_with_answers_lens = torch.tensor([t.size(0) for t in prompts_with_answers], dtype=torch.long)
-            prompts_with_answers = collate_vectors(prompts_with_answers, padding_value=self.padding_value)
+        prompts_with_answers = [torch.as_tensor(t) for t in prompts_with_answers]
+        prompts_with_answers_lens = torch.tensor([t.size(0) for t in prompts_with_answers], dtype=torch.long)
+        prompts_with_answers = collate_vectors(prompts_with_answers, padding_value=self.padding_value)
 
-            if self.inference:
-                prompts = [torch.as_tensor(t) for t in prompts]
-                prompts_lens = torch.tensor([t.size(0) for t in prompts], dtype=torch.long)
-                prompts = collate_vectors(prompts, padding_value=self.padding_value)
-            else:
-                prompts = None
-                prompts_lens = None
+        if self.inference:
+            prompts = [torch.as_tensor(t) for t in prompts]
+            prompts_lens = torch.tensor([t.size(0) for t in prompts], dtype=torch.long)
+            prompts = collate_vectors(prompts, padding_value=self.padding_value)
         else:
-            audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens = (
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
+            prompts = None
+            prompts_lens = None
 
-        # Prepare text data mini-batch portion
-        text_examples = all_cuts.filter(lambda c: isinstance(c, NeMoSFTExample))
-        print(f"{text_examples=}")
-        if text_examples:
-            text_minibatch = dict(
-                input_ids=collate_vectors([e.input_ids for e in text_examples], padding_value=self.padding_value),
-                answer_ids=collate_vectors([e.answer_ids for e in text_examples], padding_value=self.padding_value),
-                context_ids=collate_vectors([e.context_ids for e in text_examples], padding_value=self.padding_value),
-                masks=collate_vectors([e.mask for e in text_examples], padding_value=self.padding_value),
-            )
-        else:
-            text_minibatch = {k: None for k in "input_ids answer_ids context_ids masks".split()}
-
-        return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens, text_minibatch
+        return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens
 
 
 # Mapping from a string name to a known prompt formatter function.
