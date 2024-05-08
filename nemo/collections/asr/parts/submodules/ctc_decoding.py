@@ -247,8 +247,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.compute_timestamps |= self.preserve_frame_confidence
 
         if self.cfg.strategy == 'greedy':
-            logging.warning("CTC decoding strategy 'greedy' is slower than 'greedy_batched', which implements the same exact interface. Consider changing your strategy to 'greedy_batched' for a free performance improvement.",
-                            mode=logging_mode.ONCE)
+            logging.warning(
+                "CTC decoding strategy 'greedy' is slower than 'greedy_batched', which implements the same exact interface. Consider changing your strategy to 'greedy_batched' for a free performance improvement.",
+                mode=logging_mode.ONCE,
+            )
 
             self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
                 blank_id=self.blank_id,
