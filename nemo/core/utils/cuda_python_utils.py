@@ -94,6 +94,100 @@ def cu_call(f_call_out):
     else:
         return tuple(others)
 
+def nvrtc_compile_handle_setter():
+    kernel_string = r"""\
+    typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
+
+    extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
+
+    extern "C" __global__
+    void while_loop_conditional(cudaGraphConditionalHandle handle, const bool *pred)
+    {
+     cudaGraphSetConditional(handle, *pred);
+    }
+    """
+    return run_nvrtc(kernel_string, b"conditional_handle_setter", b"conditional_handle_setter.cu")
+
+def if_else_node(pred: torch.Tensor, true_fn, false_fn, operands):
+    from cuda import cuda, cudart, nvrtc
+    if not pred.is_cuda:
+        raise ValueError("Conditions must be on a cuda device to use conditional node in cuda graphs")
+    # if-else is not supported yet in CUDA 12.4. Therefore, we use two if conditions, where one evaluates !pred
+    handle_setter_kernel = nvrtc_compile_handle_setter()
+
+    outs = []
+
+    # We use a lambda with no arguments to do "lazy" evaluation.
+    for lazy_pred, fn in [(lambda: pred, true_fn), (lambda: not pred, false_fn)]:
+        capture_status, _, graph, _, _ = cu_call(
+            cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=pred.device).cuda_stream)
+        )
+        assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+        conditional_handle, = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
+
+        pred_ptr = np.array([pred.data_ptr()], dtype=np.uint64)
+        handle_setter_args = np.array(
+            [conditional_handle.getPtr(), pred_ptr.ctypes.data],
+            dtype=np.uint64,
+        )
+
+        cuda.cuLaunchKernel(
+            handle_setter_kernel,
+            1, 1, 1,
+            1, 1, 1,
+            0,
+            torch.cuda.current_stream(device=pred.device).cuda_stream,
+            handle_setter_args.ctypes.data,
+            0,
+        )
+
+        capture_status, _, graph, dependencies, _ = cu_call(
+            cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=pred.device).cuda_stream)
+        )
+        assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+
+        params = cudart.cudaGraphNodeParams()
+        params.type = cudart.cudaGraphNodeType.cudaGraphNodeTypeConditional
+        params.conditional.handle = conditional_handle
+        params.conditional.type = cudart.cudaGraphConditionalNodeType.cudaGraphCondTypeIf
+        params.conditional.size = 1
+
+        node, = cu_call(cudart.cudaGraphAddNode(graph, dependencies, len(dependencies), params))
+
+        body_graph = params.conditional.phGraph_out[0]
+
+        cu_call(
+            cudart.cudaStreamUpdateCaptureDependencies(
+                torch.cuda.current_stream(device=pred.device).cuda_stream,
+                [node],
+                1,
+                cudart.cudaStreamUpdateCaptureDependenciesFlags.cudaStreamSetCaptureDependencies,
+            )
+        )    
+        body_stream = torch.cuda.Stream(pred.device)
+        cu_call(
+            cudart.cudaStreamBeginCaptureToGraph(
+                body_stream.cuda_stream,
+                body_graph,
+                None,
+                None,
+                0,
+                cudart.cudaStreamCaptureMode.cudaStreamCaptureModeThreadLocal,
+            )
+        )
+        with torch.cuda.stream(body_stream):
+            outs.append(fn(*operands))
+            # Copy these two outputs into a new output buffer. Well,
+            # actually, what we would like is to be able to merge these two
+            # tensors into the same tensor... Is there an obvious way to do
+            # that?
+            if len(outs) == 2:
+                outs[0].copy_(outs[1])
+        cu_call(cudart.cudaStreamEndCapture(body_stream.cuda_stream))
+    assert len(outs) == 2
+    assert outs[0].shape == outs[1].shape
+    outs[0].copy_(outs[1])
+    return outs[0]
 
 @contextlib.contextmanager
 def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditional_handle, device):
@@ -108,19 +202,15 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
     from cuda import __version__ as cuda_python_version
     from cuda import cuda, cudart, nvrtc
 
-    capture_status, _, graph, _, _ = cu_call(
+    capture_status, _, _, _, _ = cu_call(
         cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=device).cuda_stream)
     )
     assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
     cuda.cuLaunchKernel(
         while_loop_kernel,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
+        1, 1, 1,
+        1, 1, 1,
         0,
         torch.cuda.current_stream(device=device).cuda_stream,
         while_loop_args.ctypes.data,

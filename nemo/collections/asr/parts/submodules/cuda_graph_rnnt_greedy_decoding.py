@@ -34,6 +34,19 @@ from nemo.core.utils.cuda_python_utils import (
 
 _CUDA_PROGRAM_NAME = b"while_loop_conditional.cu"
 
+# Meant to mimic https://pytorch.org/docs/stable/generated/torch.cond.html
+
+# torch.cond does not support conditional nodes in cuda graphs at the
+# time of writing. However, I would like to begin to understand what
+# that might look like by writing this one
+def my_torch_cond(pred: torch.tensor, true_fn, false_fn, operands):
+    if not torch.cuda.is_available() or torch.cuda.is_current_stream_capturing():
+        if pred:
+            return true_fn(*operands)
+        else:
+            return false_fn(*operands)
+    else:
+        return if_else_node(pred, true_fn, false_fn)
 
 def create_outer_for_loop_kernel():
     """
@@ -77,6 +90,7 @@ def create_inner_while_loop_kernel():
 
 class RNNTGreedyDecodeCudaGraph:
     def __init__(self, max_symbols: int, caller):
+        assert False, "GALVEZ here!"
         if HAVE_CUDA_PYTHON:
             check_cuda_python_cuda_graphs_conditional_nodes_supported()
         else:
@@ -183,11 +197,16 @@ class RNNTGreedyDecodeCudaGraph:
                 device=encoder_output.device,
             )
             hidden = self.caller.decoder.initialize_state(self.f)
-            self.last_label = torch.full(
+            self.last_label = \
+                my_torch_cond(
+                    lambda: torch.cat([partial_hypotheses[i].last_label for i in range(len(partial_hypotheses))],
+                    lambda: self.caller._SOS,
+                    ())
+            torch.full(
                 [self.batch_size], fill_value=self.caller._SOS, dtype=torch.long, device=encoder_output.device
             )
             self.blank_mask = torch.full(
-                [self.batch_size], fill_value=0, dtype=torch.bool, device=encoder_output.device
+                [self.batch_size], fill_value=False, dtype=torch.bool, device=encoder_output.device
             )
             self.seq_idx_t = torch.zeros([1], dtype=torch.int64, device=encoder_output.device)
 
@@ -226,6 +245,8 @@ class RNNTGreedyDecodeCudaGraph:
                 self.symbols_added_t.fill_(0)
 
                 torch.ge(self.time_idx_t, self.encoder_output_length, out=self.blank_mask)
+
+                my_torch_cond(lambda: self.last_label, lambda: self.caller._SOS, ())
 
                 while_loop_kernel = create_inner_while_loop_kernel()
                 (while_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
@@ -283,7 +304,8 @@ class RNNTGreedyDecodeCudaGraph:
                 non_blocking=True,
             )
 
-            self.last_label.fill_(self.caller._SOS)
+            # I think this is redundant
+            # self.last_label.fill_(self.caller._SOS)
             self.time_idx_t.fill_(0)
 
     def __call__(
@@ -316,6 +338,18 @@ class RNNTGreedyDecodeCudaGraph:
         # case for some reason the user passes in a larger buffer than
         # required, since we know that `out_len.max() <= x.shape[1]`.
         max_time = x.shape[1]
+
+        if partial_hypotheses is None:
+            streaming_inference = False
+            hypotheses = [
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
+            ]
+        else:
+            streaming_inference = True
+            # Unfortunately, we have a bit of a stringent requirement
+            # here... We need to copy the relevant data in the partial
+            # hypotheses into the right place, right?
+            hypotheses = partial_hypotheses
 
         if torch.is_autocast_enabled():
             x = x.to(torch.get_autocast_gpu_dtype())
@@ -351,17 +385,16 @@ class RNNTGreedyDecodeCudaGraph:
         labels_segments = valid_labels_mask.sum(axis=(1, 2))
         labels_packed = self.labels_cpu[valid_labels_mask]
 
-        hypotheses = [
-            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batch_size)
-        ]
-
         timestep_start = 0
         labels_start = 0
         for i in range(batch_size):
-            hypotheses[i].timestep = timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist()
+            hypotheses[i].timestep.extend(timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist())
             timestep_start += timestep_segments[i]
-            hypotheses[i].score = float(total_scores[i])
-            hypotheses[i].y_sequence = labels_packed[labels_start : labels_start + labels_segments[i]].tolist()
+            hypotheses[i].score += float(total_scores[i])
+            hypotheses[i].y_sequence.extend(labels_packed[labels_start : labels_start + labels_segments[i]].tolist())
+            hypotheses[i].last_token = labels_packed[labels_start + labels_segments[i] - 1]
+            # TODO: dec_state
+            hypotheses[i].dec_state = 
             labels_start += labels_segments[i]
 
         return hypotheses
