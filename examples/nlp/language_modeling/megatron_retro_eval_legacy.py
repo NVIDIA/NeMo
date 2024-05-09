@@ -59,12 +59,12 @@ Usage:
 
 banner = '\n'.join(['' "*" * 80] * 5)
 
+
 @deprecated(
     wait_seconds=1,
     explanation=f"\n{banner}\nWARNING: This evaluating script is for the native NeMo RETRO model, which will soon be deprecated in future releases. \nThe replacing Mcore-based RETRO model is implemented at nemo/collections/nlp/models/language_modeling/megatron_retro_model.py. \nThe evaluating script for this new model is implemented at examples/nlp/language_modeling/megatron_retro_eval.py."
     f"\nPlease switch to the new script.\n{banner}\n",
 )
-
 @hydra_runner(config_path="conf", config_name="megatron_retro_inference_legacy")
 def main(cfg) -> None:
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
