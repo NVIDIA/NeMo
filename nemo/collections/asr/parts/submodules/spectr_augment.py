@@ -131,35 +131,52 @@ class SpecAugment(nn.Module, Typing):
         return masked_spec
 
     def _forward_fast(self, input_spec: torch.Tensor, length: torch.Tensor) -> torch.Tensor:
-        for _ in range(self.time_masks):
-            input_spec = self._apply_mask(
-                input_spec, length, width=self.time_width, mask_value=self.mask_value, axis=2
-            )
-        for _ in range(self.freq_masks):
-            input_spec = self._apply_mask(
-                input_spec, length, width=self.freq_width, mask_value=self.mask_value, axis=1
-            )
+        #time masks
+        input_spec = self._apply_masks(input_spec=input_spec, num_masks=self.time_masks, 
+                length=length, width = self.time_width, axis=2, mask_value=self.mask_value)
+        #freq masks
+        input_spec = self._apply_masks(input_spec=input_spec, num_masks=self.freq_masks, 
+                length=length, width = self.freq_width, axis=1, mask_value=self.mask_value)
         return input_spec
 
-    def _apply_mask(
-        self, x: torch.Tensor, length: torch.Tensor, width: int | float, mask_value: float, axis: int,
-    ) -> torch.Tensor:
-        if isinstance(width, float):
-            width = length * width
-        # We force float32 dtype for begin/end mask markers before they are quantized to long.
+    def _apply_masks(
+            self, input_spec: torch.Tensor, num_masks: int, length: torch.Tensor, width: int | float, 
+            mask_value: float, axis: int) -> torch.Tensor:
+        batch_size = input_spec.shape[0]
+        axis_length = input_spec.shape[axis]
+
+        # We use float32 dtype for begin/end mask markers before they are quantized to long.
         # Using x.dtype might cause us to encounter dtypes such as bf16 or smaller which
         # wouldn't be able to represent every frame index leading to subtle bugs.
-        value = torch.rand(x.shape[0], device=x.device, dtype=torch.float32) * width
-        min_value = torch.rand(x.shape[0], device=x.device, dtype=torch.float32) * (x.size(axis) - value)
-        mask_start = min_value.long()[..., None, None]
-        mask_end = (min_value.long() + value.long())[..., None, None]
-        mask = torch.arange(0, x.shape[axis], device=x.device, dtype=torch.long)
-        if axis == 2:
-            mask = mask[None, None, :]
+        if isinstance(width, float):
+            scaled_width = torch.clamp(width * length, max = axis_length).unsqueeze(1)
+            mask_width =  torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * scaled_width
+            mask_width = mask_width.long()
+            mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * (axis_length - mask_width)
+            mask_start.long()
         else:
-            mask = mask[None, :, None]
-        return x.masked_fill((mask >= mask_start) & (mask < mask_end), mask_value)
+            #Since we don't need to compute scaled width, we can call randint mask_width and mask_start
+            width = min(width, axis_length)
+            mask_start = torch.randint(low=0, high = max(1, axis_length - width), size=(batch_size, num_masks), 
+                device=input_spec.device, dtype=torch.long)
+            mask_width = torch.randint(low=0, high = max(1, width), size=(batch_size, num_masks), 
+                device=input_spec.device, dtype=torch.long)
+            mask_end = mask_start + mask_width
 
+        mask_end = mask_start + mask_width 
+
+        indices = torch.arange(axis_length, device=input_spec.device)
+        mask_tensor = (indices >= mask_start.unsqueeze(-1)) & (indices < mask_end.unsqueeze(-1))
+        mask_tensor = mask_tensor.any(dim=1)
+
+        mask = torch.zeros_like(input_spec, dtype=torch.bool)
+        if axis == 2:
+            mask_ranges = mask_tensor[:, None, :]
+        elif axis == 1:
+            mask_ranges = mask_tensor[:, :, None]
+
+        mask[:, :, :] = mask_ranges
+        return input_spec.masked_fill(mask=mask, value=mask_value)
 
 class SpecCutout(nn.Module, Typing):
     """
