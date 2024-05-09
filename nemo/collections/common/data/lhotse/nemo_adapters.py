@@ -63,15 +63,22 @@ class LazyNeMoIterator:
         text_field: str = "text",
         lang_field: str = "lang",
         missing_sampling_rate_ok: bool = False,
+        shuffle_shards: bool = False,
+        shard_seed: int | Literal["randomized", "trng"] = "trng",
     ) -> None:
-        self.source = LazyJsonlIterator(path)
+        self.path = path
+        self.shuffle_shards = shuffle_shards
+        self.shard_seed = shard_seed
+        paths = expand_sharded_filepaths(path)
+        if len(paths) == 1:
+            self.source = LazyJsonlIterator(paths[0])
+        else:
+            self.source = LazyIteratorChain(
+                *(LazyJsonlIterator(p) for p in paths), shuffle_iters=self.shuffle_shards, seed=self.shard_seed
+            )
         self.text_field = text_field
         self.lang_field = lang_field
         self.missing_sampling_rate_ok = missing_sampling_rate_ok
-
-    @property
-    def path(self) -> str | Path:
-        return self.source.path
 
     def __iter__(self) -> Generator[Cut, None, None]:
         for data in self.source:

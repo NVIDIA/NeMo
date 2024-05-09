@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import argparse
+
+from lhotse.cut import Cut
 from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
 from omegaconf import OmegaConf
 
@@ -23,22 +25,25 @@ from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConf
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Estimate duration bins for Lhotse dynamic bucketing using a sample of the input dataset. "
-        "The dataset is read either from one or more manifest files and supports data weighting."
+        "The dataset is read either from one or more manifest files and supports data weighting.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "input",
         help='Same input format as in model configs under model.train_ds.manifest_filepath. Options: '
         '1) "path.json"; '
         '2) "[[path1.json],[path2.json],...]"; '
-        '3) "[[path1.json,weight1],[path2.json,weight2],...]"',
+        '3) "[[path1.json,weight1],[path2.json,weight2],...]; "'
+        '4) "input_cfg.yaml" (a new option supporting input configs, same as in model training \'input_cfg\' arg).',
     )
     parser.add_argument("-b", "--buckets", type=int, default=30, help="The desired number of buckets.")
     parser.add_argument(
         "-n",
         "--num_examples",
         type=int,
-        default=-1,
-        help="The number of examples (utterances) to estimate the bins. -1 means use all data.",
+        default=1_000_000,
+        help="The number of examples (utterances) to estimate the bins. -1 means use all data "
+        "(be careful: it could be iterated over infinitely).",
     )
     parser.add_argument(
         "-l",
@@ -62,21 +67,25 @@ def parse_args():
 
 def main():
     args = parse_args()
+    inp_arg = f"input_cfg={args.input}" if args.input.endswith(".yaml") else f"manifest_filepath={args.input}"
     config = OmegaConf.merge(
         OmegaConf.structured(LhotseDataLoadingConfig),
-        OmegaConf.from_dotlist([f"manifest_filepath={args.input}", "missing_sampling_rate_ok=true"]),
+        OmegaConf.from_dotlist([inp_arg, "missing_sampling_rate_ok=true"]),
     )
     cuts, _ = read_cutset_from_config(config)
     min_dur, max_dur = args.min_duration, args.max_duration
-    discarded, tot = 0, 0
+    nonaudio, discarded, tot = 0, 0, 0
 
     def duration_ok(cut) -> bool:
-        nonlocal discarded, tot
-        ans = min_dur <= cut.duration <= max_dur
-        if not ans:
-            discarded += 1
+        nonlocal nonaudio, discarded, tot
         tot += 1
-        return ans
+        if not isinstance(cut, Cut):
+            nonaudio += 1
+            return False
+        if not (min_dur <= cut.duration <= max_dur):
+            discarded += 1
+            return False
+        return True
 
     cuts = cuts.filter(duration_ok)
     if (N := args.num_examples) > 0:
@@ -89,6 +98,8 @@ def main():
     if discarded:
         ratio = discarded / tot
         print(f"Note: we discarded {discarded}/{tot} ({ratio:.2%}) utterances due to min/max duration filtering.")
+    if nonaudio:
+        print(f"Note: we discarded {nonaudio} non-audio examples found during iteration.")
     print("Use the following options in your config:")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={duration_bins}")
