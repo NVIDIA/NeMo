@@ -78,10 +78,9 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
     def maybe_build_test(self):
         if (
             hasattr(self.cfg.data, 'test_ds')
-            and self.cfg.data.test_ds.get('doc_file_names', None) is not None
-            and self.cfg.data.test_ds.get('query_file_names', None) is not None
+            and self.cfg.data.test_ds.get('file_names', None) is not None
         ):
-            logging.info('Building GPT Embedder test datasets.')
+            logging.info('Building GPT Reranker test datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
 
@@ -123,10 +122,7 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
             _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
         else:
-            num_query_files = len(data_cfg.query_file_names) if data_cfg.query_file_names is not None else 0
-            num_doc_files = len(data_cfg.doc_file_names) if data_cfg.doc_file_names is not None else 0
-            num_query_samples_per_dataset = [[None]] * num_query_files
-            num_doc_samples_per_dataset = [[None]] * num_doc_files
+            num_train_samples_per_dataset = [[None]] * len(data_cfg.file_names)
 
         # Check dataset max_seq_legnth and max_position_embeddings size
         if (
@@ -143,236 +139,41 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
         pad_seq_length_to_mult = (
             8 * self.cfg.get('tensor_model_parallel_size', 1) if self.cfg.get('sequence_parallel', False) else 16
         )
-        if is_train:
-            datasets = []
-            for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
-                dataset = GPTEmbeddingDataset(
-                    file_path=file_path,
-                    tokenizer=self.tokenizer,
-                    max_seq_length=data_cfg.max_seq_length,
-                    min_seq_length=data_cfg.min_seq_length,
-                    add_bos=data_cfg.get('add_bos', False),
-                    add_eos=data_cfg.get('add_eos', True),
-                    max_num_samples=num_samples[0],
-                    seed=data_cfg.get('seed', 1234),
-                    index_mapping_dir=data_cfg.get('index_mapping_dir', None),
-                    virtual_tokens=self.virtual_tokens,
-                    memmap_workers=data_cfg.get(
-                        'memmap_workers', None
-                    ),  # used to set num. of workers to create the memmap index files
-                    truncation_method=data_cfg.get(
-                        'truncation_method', 'right'
-                    ),  # used to choose truncation method. Options: ['random', 'left', 'right']
-                    special_tokens=self.cfg.data.get(
-                        'chat_prompt_tokens', None
-                    ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
-                )
-                datasets.append(dataset)
-            if packed_sequence:
-                raise NotImplementedError("Packed sequence is not supported for MegatronGPTEmbeddingModel")
+        pad_seq_length_to_mult *= self.cfg.get('context_parallel_size', 1)
 
+        datasets = []
+        for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
+            dataset = GPTRerankerDataset(
+                file_path=file_path,
+                tokenizer=self.tokenizer,
+                max_seq_length=data_cfg.max_seq_length,
+                min_seq_length=data_cfg.min_seq_length,
+                add_bos=data_cfg.get('add_bos', False),
+                add_eos=data_cfg.get('add_eos', True),
+                max_num_samples=num_samples[0],
+                seed=data_cfg.get('seed', 1234),
+                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
+                virtual_tokens=self.virtual_tokens,
+                memmap_workers=data_cfg.get(
+                    'memmap_workers', None
+                ),  # used to set num. of workers to create the memmap index files
+                truncation_method=data_cfg.get(
+                    'truncation_method', 'right'
+                ),  # used to choose truncation method. Options: ['random', 'left', 'right']
+                special_tokens=self.cfg.data.get(
+                    'chat_prompt_tokens', None
+                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+            )
+            datasets.append(dataset)
+        if is_train:
+            if packed_sequence:
+                num_train_samples_after_blend = sum(len(dataset) for dataset in datasets)
             dataset = BlendableDataset(
                 datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
             )
             return dataset
         else:
-            if data_cfg.query_file_names is None or data_cfg.doc_file_names is None:
-                return []
-
-            query_dataset = GPTEmbeddingDataset(
-                file_path=data_cfg.query_file_names[0],
-                tokenizer=self.tokenizer,
-                max_seq_length=data_cfg.max_seq_length,
-                min_seq_length=data_cfg.min_seq_length,
-                add_bos=data_cfg.get('add_bos', False),
-                add_eos=data_cfg.get('add_eos', True),
-                max_num_samples=None,
-                seed=data_cfg.get('seed', 1234),
-                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
-                virtual_tokens=self.virtual_tokens,
-                memmap_workers=data_cfg.get(
-                    'memmap_workers', None
-                ),  # used to set num. of workers to create the memmap index files
-                truncation_method=data_cfg.get(
-                    'truncation_method', 'right'
-                ),  # used to choose truncation method. Options: ['random', 'left', 'right']
-                special_tokens=self.cfg.data.get(
-                    'chat_prompt_tokens', None
-                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
-                data_type="query",
-            )
-            doc_dataset = GPTEmbeddingDataset(
-                file_path=data_cfg.doc_file_names[0],
-                tokenizer=self.tokenizer,
-                max_seq_length=data_cfg.max_seq_length,
-                min_seq_length=data_cfg.min_seq_length,
-                add_bos=data_cfg.get('add_bos', False),
-                add_eos=data_cfg.get('add_eos', True),
-                max_num_samples=None,
-                seed=data_cfg.get('seed', 1234),
-                index_mapping_dir=data_cfg.get('index_mapping_dir', None),
-                virtual_tokens=self.virtual_tokens,
-                memmap_workers=data_cfg.get(
-                    'memmap_workers', None
-                ),  # used to set num. of workers to create the memmap index files
-                truncation_method=data_cfg.get(
-                    'truncation_method', 'right'
-                ),  # used to choose truncation method. Options: ['random', 'left', 'right']
-                special_tokens=self.cfg.data.get(
-                    'chat_prompt_tokens', None
-                ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
-                data_type="doc",
-            )
-            return [query_dataset, doc_dataset]
-
-    def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
-        loss_mean, non_loss_tensors = self.fwd_bwd_step(dataloader_iter, forward_only)
-        avg_pos_cs = non_loss_tensors['avg_pos_cs'][0].item()
-        avg_neg_cs = non_loss_tensors['avg_neg_cs'][0].item()
-        diff_cs = non_loss_tensors['diff_cs'][0].item()
-        self.log("avg_pos_cs", avg_pos_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log("avg_neg_cs", avg_neg_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log("diff_cs", diff_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
-        return loss_mean
-
-    def inference_step_validation_call(self, batch, batch_idx, data_cfg, dataloader_idx=0):
-        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
-        loss, non_loss_tensors = self.local_validation_step(itertools.chain([dataloader_idx], [batch]))
-        outputs = {
-            'loss': loss,
-            'metadata': metadata,  # [dict]
-            'q_hs': non_loss_tensors['query_hs'],  # [batch_size, hidden_size]
-            'd_hs': non_loss_tensors['doc_hs'],  # [batch_size, hidden_size]
-        }
-        return outputs
-
-    def gather_and_maybe_write_predictions(self, output, data_cfg, mode, averaged_metric, dataloader_idx=0):
-        if not data_cfg.get("write_embeddings_to_file", False):
-            return True
-        gathered_output_batches = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-        torch.distributed.all_gather_object(
-            gathered_output_batches,
-            [{'q_hs': batch['q_hs'], 'd_hs': batch['d_hs'], 'metadata': batch['metadata'],} for batch in output],
-            group=parallel_state.get_data_parallel_group(),
-        )
-
-        # Remove duplicate examples due to distributed sampler.
-        deduplicated_outputs = {
-            'q_hs': [],
-            'd_hs': [],
-            'metadata': [],
-        }
-        total_size, skipped = 0, 0
-        for rank in range(0, parallel_state.get_data_parallel_world_size()):
-            for batch in gathered_output_batches[rank]:
-                l_q_hs = listify(batch['q_hs'])
-                l_d_hs = listify(batch['d_hs'])
-                l_m = batch['metadata']
-                assert len(l_m) == len(l_q_hs) == len(l_d_hs)
-                for q_hs, d_hs, metadata in zip(l_q_hs, l_d_hs, l_m,):
-                    total_size += 1
-                    if not metadata.get("__AUTOGENERATED__", False):
-                        deduplicated_outputs['q_hs'].append(q_hs)
-                        deduplicated_outputs['d_hs'].append(d_hs)
-                        deduplicated_outputs['metadata'].append(metadata)
-                    else:
-                        skipped += 1
-
-        logging.info(
-            f"{total_size-skipped} deduplicated outputs in dataloader:{dataloader_idx}, (skipped {skipped} autogenerated examples)."
-        )
-        # Compute metric score
-        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-        assert metric_name == "loss", "Only loss is supported for now."
-        # avg_pos_cs = torch.tensor(deduplicated_outputs['avg_pos_cs']).mean().item()
-        # avg_neg_cs = torch.tensor(deduplicated_outputs['avg_neg_cs']).mean().item()
-        # diff_cs = torch.tensor(deduplicated_outputs['diff_cs']).mean().item()
-        # self.log('val_avg_pos_cs', avg_pos_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
-        # self.log('val_avg_neg_cs', avg_neg_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
-        # self.log('val_diff_cs', diff_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
-
-        # Write predictions to file
-        if self.global_rank == 0 and data_cfg.get("write_embeddings_to_file", False):
-            logging.info(
-                f"Total deduplicated inference data size: {total_size} to {len(deduplicated_outputs['metadata'])}"
-            )
-
-            # Check if the user provided a prefix path to the file(s) they want to write.
-            if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
-                raise ValueError(
-                    f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
-                )
-            # (@adithyare) We are not using the log key to write the embeddings to file
-            filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-            consumed_samples = self._compute_consumed_samples_after_training_step()
-            fldr_path = f"{data_cfg.output_file_path_prefix}/consumed_samples{consumed_samples}/{filename_log_key}"
-            self.write_embeddings_to_file(deduplicated_outputs, fldr_path, dataloader_idx)
-        return deduplicated_outputs, total_size
-
-    def write_embeddings_to_file(self, outputs, output_file_path, d_idx):
-        emb_type = 'query' if d_idx == 0 else 'doc'
-        hs = torch.cat(outputs['q_hs' if d_idx == 0 else 'd_hs'], dim=0)
-        hs_npy = hs.float().numpy()
-        emb_fldr = f"{output_file_path}"
-        os.makedirs(emb_fldr, exist_ok=True)
-        with open(f"{output_file_path}/{emb_type}.ids", "w") as f:
-            for m in outputs['metadata']:
-                f.write(m[f"{emb_type}_id"] + "\n")
-        np.save(f"{emb_fldr}/{emb_type}.npy", hs_npy)
-        return True
-
-    def local_validation_step(self, dataloader_iter):
-        """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
-        """
-        # Check if iterator is exhausted
-        # dataloader_iter, done = self._val_iterator_done(dataloader_iter)
-        # if done:
-        #     return
-        # Get the dataloader_idx when MegatronGPTSFTModel calls validation_step of MegatronGPTModel
-        next_item_dataloader = next(dataloader_iter)
-        if isinstance(next_item_dataloader, int):
-            dataloader_idx = next_item_dataloader
-        else:
-            dataloader_iter = itertools.chain([next_item_dataloader], dataloader_iter)
-        mode = 'test' if self.trainer.testing else 'val'
-        # Initialize userbuffer communicators.
-        if self.initialize_ub:
-            self.initialize_ub_func()
-
-        if isinstance(self.model, list):
-            for model_module in self.model:
-                model_module.eval()
-
-        if self.cfg.get('fp8', False):
-            first_val_step = self.prev_step_training and not self.training
-            self.prev_step_training = self.training
-        else:
-            first_val_step = None
-
-        loss, non_loss_tensors = self.fwd_bwd_step(dataloader_iter, True, first_val_step)
-
-        if isinstance(self.model, list):
-            for model_module in self.model:
-                model_module.train()
-
-        if mode == 'val':
-            # MegatronGPTSFTModel class supports multiple dataloaders and uses validation_step of MegatronGPTModel.
-            # Supporting that case with below lines
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-                self.validation_step_outputs[dataloader_idx].append(loss)
-            else:
-                self.validation_step_outputs.append(loss)
-        else:
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
-                self.test_step_outputs[dataloader_idx].append(loss)
-            else:
-                self.test_step_outputs.append(loss)
-
-        return loss, non_loss_tensors
+            return datasets
 
     def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, use_all_possible_negatives=False):
         all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size

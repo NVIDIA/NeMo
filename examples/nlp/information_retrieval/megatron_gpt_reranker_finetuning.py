@@ -19,6 +19,7 @@ from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning.loggers import WandbLogger
 
 from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
+from nemo.collections.nlp.models.information_retrieval.megatron_gpt_reranker_model import MegatronGPTRerankerModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
@@ -47,13 +48,13 @@ def main(cfg) -> None:
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = MegatronGPTEmbeddingModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    model_cfg = MegatronGPTRerankerModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
     if trainer.global_rank == 0:
         for logger in trainer.loggers:
             if isinstance(logger, WandbLogger):
                 fd = flatten_dict(dict(model_cfg), sep="/")
                 logger.experiment.config.update(fd)
-    model = MegatronGPTEmbeddingModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+    model = MegatronGPTRerankerModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
     if cfg.model.peft.restore_from_path is not None:

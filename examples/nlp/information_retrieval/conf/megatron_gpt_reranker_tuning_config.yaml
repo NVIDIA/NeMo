@@ -85,7 +85,7 @@ model:
   precision: bf16
 
   peft:
-    peft_scheme: "lora"  # can be either adapter,ia3, or ptuning
+    peft_scheme: "mlp_head"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
 
     # Used for adapter peft training
@@ -161,9 +161,8 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
     validation_ds:
-      query_file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-      doc_file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
-      names: ["queries", "doc"] # Names of the corresponding datasets used to log metrics.
+      file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+      names: ["validation"] # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False
@@ -177,7 +176,7 @@ model:
       add_eos: ${model.data.train_ds.add_eos}
       add_bos: ${model.data.train_ds.add_bos}
       write_embeddings_to_file: False
-      output_file_path_prefix: "validation_embeddings" # Prefix of the file to write predictions to.
+      output_file_path_prefix: "validation_rankings" # Prefix of the file to write predictions to.
       index_mapping_dir: null # Path to a directory to write index mapping files.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right']
       metric:
