@@ -95,6 +95,9 @@ model:
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   
+  # Distributed checkpoint format
+  dist_ckpt_format: 'torch_dist' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
+
   ## Activation Checkpointing
   # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
   # These memory intensive activations are also less compute intensive which makes activation checkpointing more efficient for LLMs (20B+).

@@ -82,6 +82,9 @@ model:
   fsdp_grad_reduce_dtype: 'fp32' # Gradient reduction data type.
   fsdp_sharded_checkpoint: False # Store and load FSDP shared checkpoint.
   fsdp_use_orig_params: False # Set to True to use FSDP for specific peft scheme.
+  
+  # Distributed checkpoint format
+  dist_ckpt_format: 'torch_dist' # Set to 'torch_dist' to use PyTorch distributed checkpoint format.
 
   peft:
     peft_scheme: "adapter"  # can be either adapter,ia3, or ptuning
