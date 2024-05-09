@@ -181,6 +181,7 @@ class SpecAugment(nn.Module, Typing):
         # Apply the mask value and return a new tensor
         return input_spec.masked_fill(mask=mask, value=mask_value)
 
+
 class SpecCutout(nn.Module, Typing):
     """
     Zeroes out(cuts) random rectangles in the spectrogram
