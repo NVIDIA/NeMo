@@ -364,6 +364,29 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         return encoder_input, attention_mask, labels, loss_mask, encoder_length
 
+    def _gpt_forward(
+        self, input_ids, position_ids, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
+    ):
+        """Forward pass of the GPT model."""
+        if self.mcore_gpt:
+            output = self.model(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                decoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
+        else:
+            output = self.model(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            )
+        return output
+
     def forward(
         self,
         batch,
@@ -377,40 +400,26 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         output, loss_mask = None, None
 
+        multimodal_output = {}
         if audio_batch:
-            # TODO: handle the possibility that there might be no audio data in the mini-batch
-            if 'audio_ratio' in audio_batch:
-                self.log(
-                    'local_batch_size',
-                    audio_batch['audio_ratio'].shape[0],
-                    prog_bar=True,
-                    batch_size=1,
-                    rank_zero_only=False,
-                )
-
             encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
-            if self.mcore_gpt:
-                output = self.model(
-                    input_ids=None,
-                    position_ids=None,
-                    decoder_input=encoder_input,
-                    attention_mask=attention_mask,
-                    labels=labels,
-                )
-            else:
-                output = self.model(
-                    input_ids=None,
-                    position_ids=None,
-                    encoder_input=encoder_input,
-                    attention_mask=attention_mask,
-                    labels=labels,
-                    checkpoint_activations_all_layers=checkpoint_activations_all_layers,
-                )
-
+            output = self._gpt_forward(
+                None, None, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
+            )
+            multimodal_output['audio_text'] = (output, loss_mask)
         if text_batch:
-            pass  # TODO: implement text-only mini-batch forward
+            input_ids = text_batch.text_input_ids[:, :-1]
+            labels = text_batch.text_input_ids[:, 1:]
+            attention_mask = self._create_attention_mask(input_ids)
+            loss_mask = text_batch.text_mask[:, 1:]
+            output = self._gpt_forward(
+                input_ids, None, None, attention_mask, labels, checkpoint_activations_all_layers
+            )
+            multimodal_output['text'] = (output, loss_mask)
+        if not audio_batch and not text_batch:
+            raise ValueError("No input data found for the model.")
 
-        return output, loss_mask
+        return multimodal_output
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
@@ -496,18 +505,26 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             if not self.mcore_gpt:
                 batch['checkpoint_activations_all_layers'] = checkpoint_activations_all_layers
 
-            output_tensor, loss_mask = self.forward(
+            multimodal_output = self.forward(
                 batch, checkpoint_activations_all_layers=checkpoint_activations_all_layers
             )
-            batch['loss_mask'] = loss_mask
 
-            def loss_func(output_tensor):
+            def loss_func(multimodal_output):
                 # Loss for a micro-batch (ub)
-                loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
+                loss_for_ub = 0
+
+                for key, (output, loss_mask) in multimodal_output.items():
+                    cur_loss = self.loss_func(loss_mask, loss_mask.sum(), output)
+                    loss_for_ub += cur_loss
+                    self.log(
+                        f'{key}_loss', cur_loss.mean(), prog_bar=True, batch_size=1, rank_zero_only=False,
+                    )
+                    self.log(
+                        f'{key}_batch_size', loss_mask.shape[0], prog_bar=True, batch_size=1, rank_zero_only=False,
+                    )
+
                 cp_size = self.cfg.get('context_parallel_size', 1)
-                if self.cfg.data.get(
-                    "return_output_tensors", False
-                ):  # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
+                if self.cfg.data.get("return_output_tensors", False):
                     loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     pos_cs = average_losses_across_data_parallel_group([pos_cs])
@@ -547,7 +564,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
                     return loss_for_ub * cp_size, {'avg': reduced_loss}
 
-            return output_tensor, loss_func
+            return multimodal_output, loss_func
 
         return fwd_output_and_loss_func
 
@@ -1073,7 +1090,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Used for validation and test steps, added postprocessing after calling self.predict_step().
         """
-        # TODO: support text-only part of mini-batch
+        # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
@@ -1161,7 +1178,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Used to get LLM predictions for validation and test steps based on the given inference config.
         """
+        # TODO: we expect only one modality in each batch of inference. In lhotse, can we specify a list of datasets which only have one modality either audio-text or text-only?
         # TODO: support text-only part of mini-batch
+        # the following supports STT (audio-text) inference
 
         inference_config = self.get_inference_config()
         if inference_config is not None:
