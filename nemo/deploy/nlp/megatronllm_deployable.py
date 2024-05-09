@@ -40,7 +40,6 @@ def noop_decorator(func):
 
     return wrapper
 
-
 use_pytriton = True
 batch = noop_decorator
 try:
@@ -59,7 +58,6 @@ def GetTensorShape(pyvalue):
     """
     return (-1 if type(pyvalue) == list else 1,)
 
-
 def GetNumpyDtype(pyvalue):
     """
     utility function to get numpy dtype of a python value
@@ -77,7 +75,6 @@ def GetNumpyDtype(pyvalue):
     numpy_type = py_to_numpy_mapping[python_type]
     return numpy_type
 
-
 class ServerSync(IntEnum):
     """Enum for synchronization messages using torch.distributed"""
 
@@ -86,7 +83,6 @@ class ServerSync(IntEnum):
 
     def to_long_tensor(self):
         return torch.tensor([self], dtype=torch.long, device='cuda')
-
 
 class MegatronLLMDeployable(ITritonDeployable):
     """Triton inference server compatible deploy class for a .nemo model file"""
@@ -274,7 +270,7 @@ class MegatronLLMDeployable(ITritonDeployable):
                     # numpy currently does not support bfloat16, so need to manually convert it
                     triton_output[model_output_field] = np.array([tensor.cpu().float().numpy() for tensor in value])
                 else:
-                    triton_output[model_output_field] = np.array([cast_output(entry, field_dtype) for entry in value])
+                    triton_output[model_output_field] = np.array([tensor.cpu().numpy() for tensor in value])
             else:
                 # non-strings are output as-is (in numpy format)
                 triton_output[model_output_field] = np.array(value)
