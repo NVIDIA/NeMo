@@ -52,7 +52,7 @@ model:
   # model parallelism 
   recompute_num_layers: 1
   recompute_method: 'uniform'
-  recompute_granularity: null
+  recompute_granularity: null # 'uniform' for checkpointing every layer, 'recurrent' for only checkpointing rglru and conv1d
   mcore_gpt: True
   micro_batch_size: 2
   global_batch_size: 2

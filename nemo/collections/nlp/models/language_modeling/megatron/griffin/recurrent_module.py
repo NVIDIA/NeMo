@@ -15,7 +15,7 @@
 import math
 from dataclasses import dataclass
 from typing import Union
-
+from megatron.core import tensor_parallel
 import torch
 from accelerated_scan.triton import scan
 from causal_conv1d import causal_conv1d_fn
@@ -337,6 +337,15 @@ class RecurrentLayer(MegatronModule):
             submodules.rg_lru, width=self.config.hidden_size, num_heads=self.config.num_attention_heads
         )
 
+    def checkpoint_handler(self, forward_func, x, segment_pos, prev_x):
+        return tensor_parallel.checkpoint(
+            forward_func,
+            self.config.distribute_saved_activations,
+            x, 
+            segment_pos, 
+            prev_x
+            )
+            
     def forward(self, hidden_states, attention_mask=None, rotary_pos_emb=None):
 
         segment_pos = torch.arange(hidden_states.shape[0]).unsqueeze(0).repeat(hidden_states.shape[1], 1).cuda()
@@ -349,9 +358,13 @@ class RecurrentLayer(MegatronModule):
 
         x = _fused_permute_add_(x_intermidiate_parallel, x_bias_parallel)
 
-        x, _ = self.conv_1d(x=x, segment_pos=segment_pos, prev_x=None)
-
-        x, _ = self.rg_lru(x=x, segment_pos=segment_pos, prev_h=None,)
+        if self.config.recompute_granularity == 'recurrent' and self.training:
+            x, _ = self.checkpoint_handler(self.conv_1d, x=x, segment_pos=segment_pos, prev_x=None)
+            x, _ = self.checkpoint_handler(self.rg_lru, x=x, segment_pos=segment_pos, prev_x=None)
+            
+        else:
+            x, _ = self.conv_1d(x=x, segment_pos=segment_pos, prev_x=None)
+            x, _ = self.rg_lru(x=x, segment_pos=segment_pos, prev_h=None)
 
         x = _fused_permute_mult_(x, y)
 
