@@ -48,6 +48,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
+
 def check_cuda():
     if not torch.cuda.is_available():
         raise ImportError('CUDA is not available')

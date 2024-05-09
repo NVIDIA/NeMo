@@ -58,6 +58,7 @@ except Exception:
     print('Fused optimized group norm has not been installed.')
     OPT_GROUP_NORM = False
 
+
 def convert_module_to_dtype(module, dtype, enable_norm_layers=False):
     # Convert module parameters to dtype
     if isinstance(module, (torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Linear)):

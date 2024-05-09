@@ -43,6 +43,7 @@ import math
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+
 try:
     from apex.contrib.group_norm import GroupNorm
 

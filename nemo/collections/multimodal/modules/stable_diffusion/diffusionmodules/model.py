@@ -30,6 +30,7 @@ except Exception:
     print('Fused optimized group norm has not been installed.')
     OPT_GROUP_NORM = False
 
+
 def get_timestep_embedding(timesteps, embedding_dim):
     """
     This matches the implementation in Denoising Diffusion Probabilistic Models:
