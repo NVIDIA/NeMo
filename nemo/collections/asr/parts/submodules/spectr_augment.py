@@ -131,17 +131,35 @@ class SpecAugment(nn.Module, Typing):
         return masked_spec
 
     def _forward_fast(self, input_spec: torch.Tensor, length: torch.Tensor) -> torch.Tensor:
-        #time masks
-        input_spec = self._apply_masks(input_spec=input_spec, num_masks=self.time_masks, 
-                length=length, width = self.time_width, axis=2, mask_value=self.mask_value)
-        #freq masks
-        input_spec = self._apply_masks(input_spec=input_spec, num_masks=self.freq_masks, 
-                length=length, width = self.freq_width, axis=1, mask_value=self.mask_value)
+        # time masks
+        input_spec = self._apply_masks(
+            input_spec=input_spec,
+            num_masks=self.time_masks,
+            length=length,
+            width=self.time_width,
+            axis=2,
+            mask_value=self.mask_value,
+        )
+        # freq masks
+        input_spec = self._apply_masks(
+            input_spec=input_spec,
+            num_masks=self.freq_masks,
+            length=length,
+            width=self.freq_width,
+            axis=1,
+            mask_value=self.mask_value,
+        )
         return input_spec
 
     def _apply_masks(
-            self, input_spec: torch.Tensor, num_masks: int, length: torch.Tensor, width: int | float, 
-            mask_value: float, axis: int) -> torch.Tensor:
+        self,
+        input_spec: torch.Tensor,
+        num_masks: int,
+        length: torch.Tensor,
+        width: int | float,
+        mask_value: float,
+        axis: int,
+    ) -> torch.Tensor:
         batch_size = input_spec.shape[0]
         axis_length = input_spec.shape[axis]
 
@@ -149,21 +167,31 @@ class SpecAugment(nn.Module, Typing):
         # Using x.dtype might cause us to encounter dtypes such as bf16 or smaller which
         # wouldn't be able to represent every frame index leading to subtle bugs.
         if isinstance(width, float):
-            scaled_width = torch.clamp(width * length, max = axis_length).unsqueeze(1)
-            mask_width =  torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * scaled_width
+            scaled_width = torch.clamp(width * length, max=axis_length).unsqueeze(1)
+            mask_width = (
+                torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * scaled_width
+            )
             mask_width = mask_width.long()
-            mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * (axis_length - mask_width)
+            mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * (
+                axis_length - mask_width
+            )
             mask_start.long()
         else:
-            #Since we don't need to compute scaled width, we can call randint mask_width and mask_start
+            # Since we don't need to compute scaled width, we can call randint mask_width and mask_start
             width = min(width, axis_length)
-            mask_start = torch.randint(low=0, high = max(1, axis_length - width), size=(batch_size, num_masks), 
-                device=input_spec.device, dtype=torch.long)
-            mask_width = torch.randint(low=0, high = max(1, width), size=(batch_size, num_masks), 
-                device=input_spec.device, dtype=torch.long)
+            mask_start = torch.randint(
+                low=0,
+                high=max(1, axis_length - width),
+                size=(batch_size, num_masks),
+                device=input_spec.device,
+                dtype=torch.long,
+            )
+            mask_width = torch.randint(
+                low=0, high=max(1, width), size=(batch_size, num_masks), device=input_spec.device, dtype=torch.long
+            )
             mask_end = mask_start + mask_width
 
-        mask_end = mask_start + mask_width 
+        mask_end = mask_start + mask_width
 
         indices = torch.arange(axis_length, device=input_spec.device)
         mask_tensor = (indices >= mask_start.unsqueeze(-1)) & (indices < mask_end.unsqueeze(-1))
@@ -177,6 +205,7 @@ class SpecAugment(nn.Module, Typing):
 
         mask[:, :, :] = mask_ranges
         return input_spec.masked_fill(mask=mask, value=mask_value)
+
 
 class SpecCutout(nn.Module, Typing):
     """
