@@ -51,13 +51,13 @@ except Exception:
 
 LOGGER = logging.getLogger("NeMo")
 
+
 def GetTensorShape(pyvalue):
     """
     utility function to get Triton Tensor shape from a python value
     assume that lists are shape -1 and all others are scalars with shape 1
     """
     return (-1 if type(pyvalue) == list else 1,)
-
 
 
 def GetNumpyDtype(pyvalue):
@@ -80,6 +80,7 @@ def GetNumpyDtype(pyvalue):
 
 class ServerSync(IntEnum):
     """Enum for synchronization messages using torch.distributed"""
+
     WAIT = auto()
     SIGNAL = auto()
 
@@ -89,6 +90,7 @@ class ServerSync(IntEnum):
 
 class MegatronLLMDeployable(ITritonDeployable):
     """Triton inference server compatible deploy class for a .nemo model file"""
+
     def __init__(
         self,
         nemo_checkpoint_filepath: str = None,
@@ -97,9 +99,13 @@ class MegatronLLMDeployable(ITritonDeployable):
         existing_model: MegatronGPTModel = None,
     ):
         if nemo_checkpoint_filepath is None and existing_model is None:
-            raise ValueError("MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None")
+            raise ValueError(
+                "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None"
+            )
         if num_devices > 1:
-            LOGGER.warning("Creating a MegatronLLMDeployable with num_devices>1 will assume running with a PyTorch Lightning DDP-variant strategy, which will run the main script once per device. Make sure any user code is compatible with multiple executions!")
+            LOGGER.warning(
+                "Creating a MegatronLLMDeployable with num_devices>1 will assume running with a PyTorch Lightning DDP-variant strategy, which will run the main script once per device. Make sure any user code is compatible with multiple executions!"
+            )
 
         # if both existing_model and nemo_checkpoint_filepath are provided, existing_model will take precedence
         if existing_model is not None:
@@ -113,11 +119,7 @@ class MegatronLLMDeployable(ITritonDeployable):
 
     def _load_from_nemo_checkpoint(self, nemo_checkpoint_filepath: str, num_devices: int, num_nodes: int):
         if Path(nemo_checkpoint_filepath).exists():
-            trainer = Trainer(
-                strategy=NLPDDPStrategy(),
-                devices=num_devices,
-                num_nodes=num_nodes,
-            )
+            trainer = Trainer(strategy=NLPDDPStrategy(), devices=num_devices, num_nodes=num_nodes,)
 
             custom_config = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, return_config=True
@@ -230,7 +232,9 @@ class MegatronLLMDeployable(ITritonDeployable):
         """Triton server inference function that actually runs the model"""
         distributed_rank = torch.distributed.get_rank()
         if distributed_rank != 0:
-            raise ValueError(f"Triton inference function should not be called on a thread with torch.distributed rank != 0, but this thread is rank {distributed_rank}")
+            raise ValueError(
+                f"Triton inference function should not be called on a thread with torch.distributed rank != 0, but this thread is rank {distributed_rank}"
+            )
         signal_value = ServerSync.SIGNAL.to_long_tensor()
         torch.distributed.broadcast(signal_value, 0)
 
