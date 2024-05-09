@@ -6,12 +6,18 @@ This document illustrates how NeMo models can be used with LlamaIndex, a popular
 
 ## Quick Start
 
-In this example, we set up a pipeline that let us index a document file (e.g., a manual, repository documentation) then ask questions and details from the document.
+In this example, we set up a pipeline that let us index a document file (e.g., a manual, repository documentation) then ask questions and details in the document.
 
 The only dependency in this example is LlamaIndex, which can be installed with:
 ```
 !pip install llama-index
 ```
+
+A general RAG pipeline includes an Indexing step, in which the corpus document(s) are processed, embedded and indexed, and Generating step, in which given a query, the relevant neighbors text chunks are retrieved from the index to provide context to the query and fed into the LLM to generate answers. Below we walk through these two steps of the pipeline.
+
+<p align="center">
+        <img src="images/rag_pipeline.png" width="1000" >
+</p>
 
 ### Indexing data
 
