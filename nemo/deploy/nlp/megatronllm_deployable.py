@@ -98,6 +98,8 @@ class MegatronLLMDeployable(ITritonDeployable):
     ):
         if nemo_checkpoint_filepath is None and existing_model is None:
             raise ValueError("MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None")
+        if num_devices > 1:
+            LOGGER.warning("Creating a MegatronLLMDeployable with num_devices>1 will assume running with a PyTorch Lightning DDP-variant strategy, which will run the main script once per device. Make sure any user code is compatible with multiple executions!")
 
         # if both existing_model and nemo_checkpoint_filepath are provided, existing_model will take precedence
         if existing_model is not None:
