@@ -286,6 +286,7 @@ class TensorRTLLM(ITritonDeployable):
 
         self.use_refit = use_refit
         self.tokenizer = build_tokenizer(tokenizer)
+        self.trt_model_type = trt_model_type
 
         pp_size = parallel_state.get_pipeline_model_parallel_world_size()
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
@@ -388,6 +389,7 @@ class TensorRTLLM(ITritonDeployable):
         weights = convert_nemo_model(
             nemo_model=nemo_model,
             nemo_model_config=nemo_model_config,
+            trt_model_type=self.trt_model_type,
             tokenizer_vocab_size=self.tokenizer.vocab_size,
             reshard_model=self.reshard_model,
         )

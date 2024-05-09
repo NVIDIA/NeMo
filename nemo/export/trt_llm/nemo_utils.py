@@ -276,16 +276,8 @@ def nemo_llm_model_to_model_config(
         nemo_model=nemo_model, 
         nemo_model_config=nemo_model_config,
         tokenizer_vocab_size=tokenizer.vocab_size,
+        trt_model_type=trt_model_type,
         reshard_model=reshard_model)
-
-    renamed_weight_dict = {}
-    if trt_model_type == 'GPTForCausalLM':
-        for key, val in weights_dict.items():
-            if 'layernorm' in key:
-                new_key = key.replace("pre_mlp_layernorm", "post_layernorm")
-            else:
-                new_key = key
-            renamed_weight_dict[new_key] = val
 
     activation = None
     if nemo_model_config['activation'] == 'fast-swiglu':
@@ -336,4 +328,4 @@ def nemo_llm_model_to_model_config(
         bias=False
     )
     model_config.mapping = mapping
-    return model_config, renamed_weight_dict
+    return model_config, weights_dict

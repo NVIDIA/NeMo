@@ -321,7 +321,14 @@ def get_layer_num(param_name):
     return int(split_key[layer_index])
 
 @torch.no_grad()
-def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, reshard_model=False, cpu=True):
+def convert_nemo_model(
+    nemo_model, 
+    nemo_model_config,  
+    tokenizer_vocab_size, 
+    trt_model_type,
+    reshard_model=False, 
+    cpu=True
+):
     from megatron.core import parallel_state
     from megatron.core.tensor_parallel.utils import VocabUtility
 
@@ -494,15 +501,13 @@ def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, res
 
     # ----------------Convert Embeddings----------------  
     def remove_vocab_padding(tensor):
-        vocab_size_per_tp = tensor.shape[0]
-        vocab_size_padded = vocab_size_per_tp*tp_size
+        vocab_size_padded = tensor.shape[0]*tp_size
         vocab_start_index, vocab_end_index = VocabUtility.vocab_range_from_global_vocab_size(
-        vocab_size_padded, tp_rank, tp_size)
-
+            vocab_size_padded, tp_rank, tp_size)
         dim_size = list(tensor.size())
         dim_size[0] = vocab_size_padded
 
-        gathered_tensor = torch.zeros(dim_size, dtype=tensor.dtype).cuda()
+        gathered_tensor = torch.zeros(dim_size, dtype=tensor.dtype, device=torch.cuda.current_device())
         gathered_tensor[vocab_start_index:vocab_end_index] = tensor
         torch.distributed.all_reduce(gathered_tensor, group=tp_group)
         return gathered_tensor[:tokenizer_vocab_size]
@@ -538,7 +543,17 @@ def convert_nemo_model(nemo_model, nemo_model_config,  tokenizer_vocab_size, res
         save_weight_torch(**starmap_arg)
     toc = time.time()
     print(f"     weight save took {toc-tic}")
-    return weights_dict
+
+    renamed_weight_dict = {}
+    if trt_model_type == 'GPTForCausalLM':
+        for key, val in weights_dict.items():
+            if 'layernorm' in key:
+                new_key = key.replace("pre_mlp_layernorm", "post_layernorm")
+            else:
+                new_key = key
+            renamed_weight_dict[new_key] = val
+    return  renamed_weight_dict
+
 
 
 def create_out_dir(args):
