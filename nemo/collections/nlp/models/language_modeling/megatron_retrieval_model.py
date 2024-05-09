@@ -56,7 +56,6 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
-from nemo.utils.decorators import deprecated
 
 try:
     from megatron.core import parallel_state
