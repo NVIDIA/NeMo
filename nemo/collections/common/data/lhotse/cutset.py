@@ -269,7 +269,9 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
             logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
             cuts = CutSet.from_shar(
                 **_resolve_shar_inputs(config.shar_path, metadata_only), shuffle_shards=True, seed=shard_seed
-            ).repeat()
+            )
+            if not metadata_only:
+                cuts = cuts.repeat()
         else:
             # Multiple datasets in Lhotse Shar format: we will dynamically multiplex them
             # with probability approximately proportional to their size
