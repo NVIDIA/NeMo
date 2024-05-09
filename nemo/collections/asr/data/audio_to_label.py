@@ -338,6 +338,10 @@ target_label_n, "offset": offset_in_sec_n}
             logging.warning(f'NaN/Inf found in features for file {sample.audio_file}.')
             idx = np.random.randint(len(self.collection))
             return self.__getitem__(idx)
+        if np.sum(np.abs(features)) == 0:
+            logging.warning(f'Zero array found in features for file {sample.audio_file}.')
+            idx = np.random.randint(len(self.collection))
+            return self.__getitem__(idx)
 
         f, fl = features, torch.tensor(features.shape[0]).long()
 

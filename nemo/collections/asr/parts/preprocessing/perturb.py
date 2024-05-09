@@ -389,6 +389,10 @@ class ImpulsePerturbation(Perturbation):
         # len of input data samples
         len_data = len(data._samples)
 
+        if max(abs(data._samples)) == 0:
+            logging.warning("Zero audio input found, skipping impulse perturbation.")
+            return
+
         # convolve with the full impulse response
         data._samples = signal.fftconvolve(data._samples, impulse_norm, "full")
 
@@ -400,6 +404,10 @@ class ImpulsePerturbation(Perturbation):
 
         # trim to match the input data length
         data._samples = data._samples[:len_data]
+
+        if max(abs(data._samples)) == 0:
+            logging.warning("Zero audio input found after impulse perturbation.")
+            return
 
         # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
         data._samples = data._samples / max(abs(data._samples))
@@ -520,6 +528,12 @@ class NoisePerturbation(Perturbation):
             )
 
         snr_db = random.uniform(self._min_snr_db, self._max_snr_db)
+
+        if data.is_empty():
+            logging.warning(
+                f"Empty audio segment found for {data.audio_file} with offset {data.offset} and duration {data.duration}."
+            )
+
         if data_rms is None:
             data_rms = data.rms_db
 
@@ -530,6 +544,11 @@ class NoisePerturbation(Perturbation):
             noise_rms = -float("inf")
         else:
             noise_rms = noise.rms_db
+
+        if data.is_empty() and noise.is_empty():
+            logging.warning("Both data and noise segments are empty. Skipping perturbation.")
+            return
+
         if data.num_channels > 1:
             noise_gain_db = data_rms[ref_mic] - noise_rms[ref_mic] - snr_db
         else:
