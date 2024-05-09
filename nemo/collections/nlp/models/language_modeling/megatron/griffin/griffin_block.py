@@ -58,9 +58,6 @@ class GriffinStack(LanguageModule):
 
         super().__init__(config)
         self.config = config
-        self.config.recompute_method="uniform"
-        self.config.recompute_granularity="full"
-        self.config.recompute_num_layers=2
         self.griffin_layers = get_griffin_layers(self.config.num_layers)
 
         self.layers = nn.ModuleList(
