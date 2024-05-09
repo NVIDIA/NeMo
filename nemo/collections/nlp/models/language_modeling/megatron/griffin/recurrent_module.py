@@ -29,6 +29,8 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 import torch._dynamo
 torch._dynamo.config.suppress_errors = True
+# import torch.utils.checkpoint as checkpoint
+
 # Class copied from https://github.com/google-deepmind/recurrentgemma
 class BlockDiagonalLinear(nn.Module):
     """Block-diagonal linear layer."""
@@ -336,6 +338,12 @@ class RecurrentLayer(MegatronModule):
             submodules.rg_lru, width=self.config.hidden_size, num_heads=self.config.num_attention_heads
         )
 
+    # def custom(self, module):
+    #     def custom_forward(*inputs):
+    #         inputs = module(inputs[0])
+    #         return inputs
+    #     return custom_forward
+    
     def forward(self, hidden_states, attention_mask=None, rotary_pos_emb=None):
 
         segment_pos = torch.arange(hidden_states.shape[0]).unsqueeze(0).repeat(hidden_states.shape[1], 1).cuda()
@@ -349,6 +357,7 @@ class RecurrentLayer(MegatronModule):
         x = _fused_permute_add_(x_intermidiate_parallel, x_bias_parallel)
 
         x, _ = self.conv_1d(x=x, segment_pos=segment_pos, prev_x=None)
+        # x, _ = checkpoint.checkpoint(self.custom(self.conv_1d), x, use_reentrant=True)
 
         x, _ = self.rg_lru(x=x, segment_pos=segment_pos, prev_h=None,)
 
