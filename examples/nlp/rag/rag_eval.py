@@ -8,7 +8,7 @@ import json
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path="conf", config_name="rag")
+@hydra_runner(config_path="conf", config_name="rasg")
 def main(cfg) -> None:
 
     # load LLM
@@ -38,7 +38,7 @@ def main(cfg) -> None:
 
 
     # query and print response
-    print("Responding to query using neighbors.")
+    print("Responding to query using relevant contexts.")
     query_engine = index.as_query_engine(similarity_top_k=3)
     response = query_engine.query(query)
     print(response)

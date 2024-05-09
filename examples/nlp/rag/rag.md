@@ -22,7 +22,7 @@ A general RAG pipeline includes an Indexing step, in which the corpus document(s
 ### Indexing data
 
 
-The first step is creating the index from the corpus document(s). Set the path to the embedder checkpoint, document path, index saving path and relevant arguments, then run the following command. Below we explain in more details the steps run within the script.
+The first step is processing and indexing the corpus document(s). To do so, set the path to the embedder checkpoint, corpus document(s), index saving directory and relevant arguments, then run the following command. Below we explain in more details the steps run within the script.
 
 
 ```
@@ -37,7 +37,7 @@ python examples/nlp/rag/rag_indexing.py \
         indexing.index_path='/path/to/index'
 ```
 
-Followings are the detailed steps ran in the script.
+Inside the script, the following steps are run.
 
 First, the document is read into LlamaIndex's `SimpleDirectoryReader` object.
 
@@ -55,7 +55,7 @@ Settings.chunk_size = cfg.indexing.data.chunk_size
 Settings.chunk_overlap = cfg.indexing.data.chunk_overlap
 ```
 
-We then load the embedder NeMo model. Currently, this script only support `.nemo` checkpoints. The wrapper around NeMo LLM to work with LLamaIndex interface is implemented at `nemo/collections/nlp/models/rag/custom_embedder.py`. We can trying different embedding batch size to balance the number of samples embedded at once and embedding speed.
+We then load the trained embedder NeMo model. Currently, this script only supports `.nemo` checkpoints. The wrapper around NeMo embedder to work with LLamaIndex interface is implemented at `nemo/collections/nlp/models/rag/custom_embedder.py`. We can try different embedding batch size to balance the number of samples embedded at once and embedding speed.
 
 ```
 print("Loading embedding models.")
@@ -65,7 +65,7 @@ embed_model = NeMoEmbeddings(model_path = model_path, cfg = cfg, embed_batch_siz
 Settings.embed_model = embed_model
 ```
 
-Next, we will index the corpus document(s), simply by using the LlamaIndex `VectorStoreIndex.from_documents()` method. Under the hood, this method will splitting the document to smaller chunks having with pre-defined chunk size, batch them and feed them to the embedder, then put the output embeddings into the index. In this example, we use the built-in LlamaIndex's in-memory vector store. We can also use external vector stores, such as Milvus, Qdrant. Seeing more at [LlamaIndex Vector Stores](https://docs.llamaindex.ai/en/stable/module_guides/storing/vector_stores/).          
+Next, we will index the corpus document(s), simply by using the LlamaIndex `VectorStoreIndex.from_documents()` method. Under the hood, this method will split the corpus document(s) into smaller chunks having a pre-defined chunk size, batch them and feed them to the embedder, then put the output embeddings into an index. In this example, we use the built-in LlamaIndex's in-memory vector store to save the index. We can also use external vector stores, such as Milvus, Qdrant, etc. Seeing more at [LlamaIndex Vector Stores](https://docs.llamaindex.ai/en/stable/module_guides/storing/vector_stores/).          
 
 
 ```
@@ -73,7 +73,7 @@ print("Indexing data.")
 index = VectorStoreIndex.from_documents(documents, show_progress=True)
 ```
 
-After indexing, we save the index to disk that we can load later to be used with an LLM.
+After indexing, we save the index to disk that later we can load to be used with an LLM.
 
 ```
 print("Saving index to disk.")
@@ -84,7 +84,7 @@ index.storage_context.persist(persist_dir=index_path)
 
 ###  Generation
 
-After processing and indexing the document, we can have an LLM model to interactive with the doc through RAG, such as asking details within the document. Setting a query to ask and run the following command. Below we explain in more details the steps run within the script.
+After processing and indexing the document, we can have a NeMo LLM model to interactive with the corpus document(s) through RAG, such as asking details within the documents. To do so, set the path to the LLM checkpoint, saved index, and a query to ask and run the following command. Below we explain in more details the steps run within the script.
 
 ```
 python examples/nlp/rag/rag_eval.py \
@@ -98,7 +98,7 @@ python examples/nlp/rag/rag_eval.py \
         generating.query='Which art schools did I applied to?'
 ```
 
-Followings are the detailed steps ran in the script.
+Inside the script, the following steps are run.
 
 
 First, the LLM is loaded from `generating.llm.model_path`. Currently the script only works with `.nemo` checkpoints. The wrapper around NeMo LLM to work with LLamaIndex interface is implemented at `nemo/collections/nlp/models/rag/custom_llm.py`. 
@@ -109,7 +109,7 @@ model_path = cfg.generating.llm.model_path
 Settings.llm = NeMoLLM(model_path = model_path, cfg = cfg)
 ```
 
-Then we load the index saved on disk in the indexing step. If using Milvus database, it can also be loaded at this step.
+Then we load the index saved on disk in the previous indexing step. If using Milvus database, it can also be loaded at this step.
 ```
 print("Loading index from disk.")
 index_path = cfg.indexing.index_path
@@ -117,15 +117,15 @@ storage_context = StorageContext.from_defaults(persist_dir=index_path)
 index = load_index_from_storage(storage_context)
 ```
 
-Finally, we have the LlamaIndex retrieve relevant neighbors and generate answers for the query by the following code piece. With `query` as the input argument, this code piece automatically embed the query with the defined embedder, then retrieve the k relevant neighbors from the index, and add those neighbors to a predefined template along with the query before feeding them to the LLM for generation.
+Finally, we will retrieve the relevant contexts and generate answers for the query using LlamaIndex's `query_engine.query()` method. Under the hood, this method automatically embeds the query with the defined embedder, then retrieve the k relevant contexts from the index, and add those contexts to a predefined template along with the query before feeding them to the LLM for generation. We can set the number of relevant contexts to be retrieved by setting the argument `similarity_top_k` value.
 ```
-print("Responding to query using neighbors.")
+print("Responding to query using relevant contexts.")
 query_engine = index.as_query_engine(similarity_top_k=3)
 response = query_engine.query(query)
 print(response)
 ```
 
-Below is an example of the default template created by LlamaIndex to feed the LLM, which can be modified following LlamaIndex's documentation ;[Prompts RAG](https://docs.llamaindex.ai/en/stable/examples/prompts/prompts_rag/).
+Below is an example of the default template by LlamaIndex to feed a query and relevant contexts to the LLM. This template can be modified following LlamaIndex's documentation [Prompts RAG](https://docs.llamaindex.ai/en/stable/examples/prompts/prompts_rag/).
 
 
 ```
