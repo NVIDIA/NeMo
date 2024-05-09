@@ -110,6 +110,7 @@ def main():
         print(f"Note: we discarded {discarded}/{tot} ({ratio:.2%}) utterances due to min/max duration filtering.")
     if nonaudio:
         print(f"Note: we discarded {nonaudio} non-audio examples found during iteration.")
+    print(f"Used {tot - nonaudio - discarded} examples for the estimation.")
     print("Use the following options in your config:")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={duration_bins}")
