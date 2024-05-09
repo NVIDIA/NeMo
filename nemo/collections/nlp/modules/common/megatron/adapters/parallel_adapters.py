@@ -378,7 +378,7 @@ class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
     def __init__(self, 
                  in_features: int, 
                  out_features: int, 
-                 input_is_parallel: bool,  
+                 input_is_parallel: bool = False,  
                  model_parallel_config: Optional[ModelParallelConfig] = None,
                  **kwargs):
         super().__init__()
@@ -412,7 +412,8 @@ class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
 
     def forward(self, x):
-        return self.linear(x)
+        x, _ = self.linear(x)
+        return x
 
 @dataclass
 class MLPHeadAdapterConfig(AdapterConfig):

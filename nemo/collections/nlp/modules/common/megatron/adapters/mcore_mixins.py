@@ -24,6 +24,7 @@ from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
 from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -190,7 +191,6 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
                         hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
 
         # Final layer norm.
-        print("im here")
         if self.post_process and self.post_layer_norm:
             hidden_states = self.final_layernorm(hidden_states)
         

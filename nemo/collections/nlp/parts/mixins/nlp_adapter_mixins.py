@@ -29,7 +29,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig, MLPHeadAdapterConfig
 from nemo.collections.nlp.parts.peft_config import (
     PEFT_CONFIG_MAP,
     CanonicalAdaptersPEFTConfig,
@@ -137,7 +137,7 @@ class NLPAdapterModelMixin:
 
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
             # self.mcore_gpt means is GPT and not T5
-            if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
+            if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig) and not isinstance(adapter_cfg, MLPHeadAdapterConfig):
                 if layer_selection is not None:
                     logging.info(
                         f"Layer selection {layer_selection} is enabled for the current model ("

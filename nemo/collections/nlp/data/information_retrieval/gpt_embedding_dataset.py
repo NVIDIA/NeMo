@@ -321,7 +321,7 @@ class GPTRerankerDataset(GPTEmbeddingDataset):
         metadata = {k: v for k, v in example.items()}
         if self.data_type == 'train':
             qd = self.tokenizer.text_to_ids("query: " + example['query'].strip() + " passage: " + example['pos_doc'].strip())
-            qnd = self.tokenizer.text_to_ids("query: " + example['query'].strip() + " passage: " + example['ned_doc'].strip())
+            qnd = self.tokenizer.text_to_ids("query: " + example['query'].strip() + " passage: " + example['neg_doc'].strip())
         else:
             qd = self.tokenizer.text_to_ids("query: " + example['query'].strip() + " passage: " + example['pos_doc'].strip())
             qnd = []
@@ -342,11 +342,11 @@ class GPTRerankerDataset(GPTEmbeddingDataset):
 
         if self.add_eos:
             qd = qd + [self.tokenizer.eos_id]  # type: ignore
-            qnd = nd + [self.tokenizer.eos_id]  # type: ignore
+            qnd = qnd + [self.tokenizer.eos_id]  # type: ignore
 
         processed_example = {
             'query_pos_doc': qd,
-            'quer_neg_doc': qnd,
+            'query_neg_doc': qnd,
             'metadata': metadata,
         }
 

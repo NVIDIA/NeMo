@@ -375,7 +375,7 @@ PEFT_CONFIG_MAP = {
     "ia3": IA3PEFTConfig,
     "ptuning": PtuningPEFTConfig,
     "lora": LoraPEFTConfig,
-    "mlp_head": MLPHeadPeftConfig,
+    "mlp_head": MLPHeadPEFTConfig,
     "selective": SelectivePEFTConfig,
     'none': None,
     None: None,

@@ -161,7 +161,7 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       truncation_method: 'right' # Truncation from which position, Options: ['left', 'right'] 
     validation_ds:
-      file_names: null # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
+      file_names: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       names: ["validation"] # Names of the corresponding datasets used to log metrics.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
