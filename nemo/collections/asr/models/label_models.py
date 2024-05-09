@@ -381,6 +381,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.eval_loss(logits=logits, labels=labels)
+        if loss_value.isnan():
+            logging.warning(f"Received an NaN loss at step {batch_idx}")
+        if logits.isnan().any():
+            logging.warning(f"Received an NaN output at step {batch_idx}")
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
         self._macro_accuracy.update(preds=logits, target=labels)

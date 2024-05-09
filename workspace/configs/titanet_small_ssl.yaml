@@ -1,4 +1,4 @@
-name: &name "TitaNet-L"
+name: &name "TitaNet-S"
 
 model:
   sample_rate: 16000

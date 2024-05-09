@@ -73,6 +73,7 @@ def load_ssl_encoder(model, cfg):
             encoder_state_dict[f'preprocessor.feature_extractor.{key}'] = value
 
     model.load_state_dict(encoder_state_dict, strict=False)
+    logging.info("Loaded ssl encoder state dict.")
 
     return model
 
@@ -86,7 +87,8 @@ def main(cfg):
 
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
 
-    speaker_model = load_ssl_encoder(speaker_model, cfg)
+    if cfg.model.preprocessor.get("feature_extractor", None) is not None:
+        speaker_model = load_ssl_encoder(speaker_model, cfg)
 
     # save labels to file
     if log_dir is not None:

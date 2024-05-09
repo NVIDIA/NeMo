@@ -15,6 +15,7 @@ import io
 import os
 from typing import Dict, List, Optional, Union
 
+import numpy as np
 import torch
 import webdataset as wds
 
@@ -325,7 +326,19 @@ target_label_n, "offset": offset_in_sec_n}
         if offset is None:
             offset = 0
 
-        features = self.featurizer.process(sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim)
+        try:
+            features = self.featurizer.process(
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim
+            )
+        except Exception as e:
+            logging.warning(f'Error featurizing file {sample.audio_file}: {e}')
+            idx = np.random.randint(len(self.collection))
+            return self.__getitem__(idx)
+        if np.isnan(features).any() or np.isinf(features).any():
+            logging.warning(f'NaN/Inf found in features for file {sample.audio_file}.')
+            idx = np.random.randint(len(self.collection))
+            return self.__getitem__(idx)
+
         f, fl = features, torch.tensor(features.shape[0]).long()
 
         if not self.is_regression_task:

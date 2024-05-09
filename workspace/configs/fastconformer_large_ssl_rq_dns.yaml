@@ -226,13 +226,14 @@ trainer:
 exp_manager:
   exp_dir: null
   name: ${name}
+  # filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{epoch}'
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
     # in case of multiple validation sets, first one is used
     monitor: "val_loss"
     mode: "min"
-    save_top_k: 5
+    save_top_k: 1
 
   # you need to set these two to True to continue the training
   resume_if_exists: true

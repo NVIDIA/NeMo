@@ -133,15 +133,15 @@ model:
     margin: 0.2
 
   optim:
-    name: sgd
-    lr: 0.08
+    name: adamw
+    lr: 0.001
     weight_decay: 0.0002
 
     # scheduler setup
     sched:
       name: CosineAnnealing
       warmup_ratio: 0.1
-      min_lr: 0.0001
+      min_lr: 0.00001
 
 trainer:
   devices: -1 # number of gpus (trained on four nodes - each node has 8 gpus)
