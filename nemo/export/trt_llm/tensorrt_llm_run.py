@@ -319,11 +319,13 @@ def load_refit(engine_dir, device_ids):
 
     tp_size = json_config.tensor_parallelism
     pp_size = json_config.pipeline_parallelism
-    world_config = WorldConfig.mpi(tensor_parallelism=tp_size,
+    mp_size = tp_size*pp_size
+    world_config = WorldConfig.mpi(gpus_per_node=mp_size,
+                                    tensor_parallelism=tp_size,
                                     pipeline_parallelism=pp_size,
                                     device_ids=device_ids)
 
-    assert tensorrt_llm.bindings.MpiComm.getRank() == world_config.rank
+    assert torch.cuda.current_device() == world_config.device
     engine_filename = json_config.engine_filename(world_config)
     serialize_path = Path(engine_dir) / engine_filename
 
