@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+from itertools import islice
 
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
@@ -89,7 +90,7 @@ def main():
 
     cuts = cuts.filter(duration_ok)
     if (N := args.num_examples) > 0:
-        cuts = cuts.subset(first=N)
+        cuts = islice(cuts, N)
     duration_bins = estimate_duration_buckets(cuts, num_buckets=args.buckets)
     duration_bins = f"[{','.join(str(round(b, ndigits=5)) for b in duration_bins)}]"
     if args.quiet:
