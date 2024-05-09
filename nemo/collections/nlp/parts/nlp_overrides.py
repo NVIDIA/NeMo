@@ -78,7 +78,7 @@ try:
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
-
+    from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
@@ -294,7 +294,7 @@ class NLPDDPStrategy(DDPStrategy):
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
 
-        if isinstance(optimizer, MegatronDistributedFusedAdam):
+        if isinstance(optimizer, MegatronDistributedFusedAdam) or isinstance(optimizer, McoreDistributedOptimizer):
             return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
         elif not isinstance(optimizer, MainParamsOptimizerWrapper):
             # Regular optimizer, e.g. Adam or FusedAdam
