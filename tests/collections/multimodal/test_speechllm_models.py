@@ -148,6 +148,7 @@ def test_batch():
     return batch
 
 
+@pytest.mark.skip(reason="nedd to move pretrained GPT model to /home/works/TestData first")
 class TestModularAudioGPTModel:
     @pytest.mark.unit
     def test_init_and_train(self, llm_model_config, perception_model_config, trainer_config):
