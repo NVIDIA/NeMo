@@ -13,16 +13,16 @@
 # limitations under the License.
 
 import sys
-
 from typing import Union
+
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     CustomProgressBar,
+    FSDPMixedPrecisionPlugin,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
@@ -31,6 +31,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.utils import logging
+from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
 
 class MegatronTrainerBuilder:
@@ -55,6 +56,7 @@ class MegatronTrainerBuilder:
         if self.cfg.model.get('fsdp', False):
             assert (
                 not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+                and not self.cfg.model.optim.get('name') == 'mcore_distributed_optim'
             ), 'Distributed optimizer cannot be used with FSDP.'
             sharded_checkpoint = self.cfg.model.get('fsdp_sharded_checkpoint', False)
             if self.cfg.model.get('tensor_model_parallel_size', 1) > 1:
@@ -80,7 +82,6 @@ class MegatronTrainerBuilder:
             find_unused_parameters=False,
             nccl_communicator_config_path=self.cfg.model.get('nccl_communicator_config_path', None),
             sharp=self.cfg.model.get('sharp', False),
-            torch_dist_ckpt=self.cfg.model.get('torch_distributed_checkpoint', False),
         )
 
     def _grad_scaler(self) -> GradScaler:
@@ -100,14 +101,20 @@ class MegatronTrainerBuilder:
         """
         megatron_amp_O2 = self.cfg.model.get('megatron_amp_O2', False)
         with_distributed_adam = (
-            self.cfg.model.optim.get('name') == 'distributed_fused_adam' if self.cfg.model.get('optim') else False
+            (
+                self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+                or self.cfg.model.optim.get('name') == 'mcore_distributed_optim'
+            )
+            if self.cfg.model.get('optim')
+            else False
         )
 
         plugins = []
         if self.cfg.trainer.precision in [16, '16', 'bf16', '16-mixed', 'bf16-mixed']:
             scaler = None
             if self.cfg.trainer.precision in [16, '16', '16-mixed']:
-                scaler = self._grad_scaler()
+                if not self.cfg.model.get('fsdp', False):
+                    scaler = self._grad_scaler()
                 plugin_precision = '16-mixed'
             else:
                 plugin_precision = 'bf16-mixed'
@@ -116,7 +123,7 @@ class MegatronTrainerBuilder:
                 plugins.append(MegatronHalfPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler))
             else:
                 if self.cfg.model.get('fsdp', False):
-                    plugins.append(FSDPPrecision(precision=plugin_precision, scaler=scaler))
+                    plugins.append(FSDPMixedPrecisionPlugin(precision=plugin_precision, scaler=scaler))
                 else:
                     plugins.append(
                         PipelineMixedPrecisionPlugin(precision=plugin_precision, device='cuda', scaler=scaler)
@@ -125,6 +132,13 @@ class MegatronTrainerBuilder:
 
         if self.cfg.get('cluster_type', None) == 'BCP':
             plugins.append(TorchElasticEnvironment())
+
+        # Use dist-ckt for non-FSDP MCore models
+        use_dist_ckpt = not self.cfg.model.get('fsdp', False) and (
+            self.cfg.model.get('mcore_gpt', False) or self.cfg.model.get('mcore_bert', False)
+        )
+        if use_dist_ckpt:
+            plugins.append(DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr')))
 
         return plugins
 

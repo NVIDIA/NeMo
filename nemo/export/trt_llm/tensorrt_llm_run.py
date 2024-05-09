@@ -24,12 +24,14 @@ import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.logger import logger
+from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import LoraManager, ModelConfig, SamplingConfig
+from tensorrt_llm.runtime import ModelConfig, SamplingConfig
 from transformers import PreTrainedTokenizer
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
 from nemo.export.trt_llm.tensorrt_llm_model import LMHeadModelBuilder
+
 from nemo.export.trt_llm.tensorrt_llm_build import get_engine_name, MODEL_NAME, refit_runtime_engine  # isort:skip
 from nemo.export.trt_llm.nemo_utils import to_word_list_format  # isort:skip
 
@@ -87,9 +89,17 @@ def _read_config(config_path: Path):
     else:
         tokens_per_block = config["builder_config"]["tokens_per_block"]
 
+    if quantization := config["builder_config"].get("quantization"):
+        # Field "quantization" (dict) is introduced for quantized Nemo checkpoints support.
+        # For regular Nemo checkpoints "quant_mode" field should be used (default: 0).
+        quant_mode = QuantMode.from_quant_algo(quantization['quant_algo'], quantization['kv_cache_quant_algo'])
+    else:
+        quant_mode = QuantMode(config["builder_config"]["quant_mode"])
+
     model_config = ModelConfig(
         model_name=config["builder_config"]["name"],
         max_batch_size=config["builder_config"]["max_batch_size"],
+        max_beam_width=config["builder_config"]["max_beam_width"],
         vocab_size=config["builder_config"]["vocab_size"],
         num_layers=config["builder_config"]["num_layers"],
         num_heads=num_heads,
@@ -104,7 +114,7 @@ def _read_config(config_path: Path):
         dtype=config["builder_config"]["precision"],
         lora_plugin=config["plugin_config"]["lora_plugin"],
         lora_target_modules=config["builder_config"]["lora_target_modules"],
-        quant_mode=QuantMode(config["builder_config"]["quant_mode"]),
+        quant_mode=quant_mode,
         use_custom_all_reduce=config["plugin_config"]["use_custom_all_reduce"],
         use_context_fmha_for_generation=config["plugin_config"]["use_context_fmha_for_generation"],
         gather_context_logits=config["builder_config"]["gather_context_logits"],
@@ -481,6 +491,47 @@ def forward(
         raise RuntimeError("Internal error")
 
 
+def prepare_input_tensors(
+    input_texts: List[str],
+    host_context: TensorrtLLMHostContext,
+    prompt_table=None,
+    task_vtoken_counts: List[int] = None,
+    task_ids: List[int] = None,
+):
+    tokenizer = host_context.tokenizer
+
+    if host_context.add_bos:
+        bos_tokens = [tokenizer.bos_token_id]
+    else:
+        bos_tokens = []
+
+    input_tokens = [bos_tokens + tokenizer.encode(t) for t in input_texts]
+
+    # If p-tuning is used, we need to prepend vtokens to each input.
+    if prompt_table is not None:
+
+        # Go over the tokenized prompts and prepend vtokens.
+        # The number of vtokens could be different for each task.
+        for prompt_index in range(len(input_texts)):
+            # Find out the number of vtokens to generate
+            task_id = task_ids[prompt_index]
+            num_vtokens = task_vtoken_counts[task_id]
+
+            # Create a tensor with vtokens, e.g. 32000, 32001, 32002... when vocab_size=32000
+            # TRT-LLM will convert each vtoken into its corresponding embedding row from the prompt table.
+            vocab_size = tokenizer.vocab_size
+            vtokens = list(range(vocab_size, vocab_size + num_vtokens))
+
+            # Concatenate the vtokens with the real tokens
+            real_tokens = input_tokens[prompt_index]
+            input_tokens[prompt_index] = vtokens + real_tokens
+
+    # Convert input token lists to tensors
+    input_tensors = [torch.IntTensor(token_list) for token_list in input_tokens]
+
+    return input_tensors
+
+
 def generate(
     input_texts: List[str],
     max_output_len: int,
@@ -490,6 +541,7 @@ def generate(
     temperature: float = 1.0,
     prompt_table=None,
     task_vocab_size=None,
+    task_vtoken_counts: List[int] = None,
     task_ids: List[int] = None,
     lora_uids: List[str] = None,
     stop_words_list=None,
@@ -505,11 +557,7 @@ def generate(
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-
-    if host_context.add_bos:
-        input_tensors = [torch.IntTensor([tokenizer.bos_token_id] + tokenizer.encode(t)) for t in input_texts]
-    else:
-        input_tensors = [torch.IntTensor(tokenizer.encode(t)) for t in input_texts]
+    input_tensors = prepare_input_tensors(input_texts, host_context, prompt_table, task_vtoken_counts, task_ids)
 
     stop_words_list_tensors = None
     if stop_words_list is not None:
@@ -572,6 +620,7 @@ def generate_streaming(
     temperature: float = 1.0,
     prompt_table=None,
     task_vocab_size=None,
+    task_vtoken_counts: List[int] = None,
     task_ids: List[int] = None,
     lora_uids: List[str] = None,
     stop_words_list=None,
@@ -584,11 +633,7 @@ def generate_streaming(
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-
-    if host_context.add_bos:
-        input_tensors = [torch.IntTensor([tokenizer.bos_token_id] + tokenizer.encode(t)) for t in input_texts]
-    else:
-        input_tensors = [torch.IntTensor(tokenizer.encode(t)) for t in input_texts]
+    input_tensors = prepare_input_tensors(input_texts, host_context, prompt_table, task_vtoken_counts, task_ids)
 
     batch_size = len(input_texts)
 
