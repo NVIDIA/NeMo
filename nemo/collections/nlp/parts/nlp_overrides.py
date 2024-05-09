@@ -868,7 +868,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     model.trainer.strategy.setup_environment()
                 checkpoint_io = DistributedCheckpointIO(model.cfg.get('dist_ckpt_format', 'zarr'))
                 checkpoint_io.save_checkpoint(sharded_state_dict, dist_ckpt_dir)
-               
+
             else:
 
                 # first we save the weights for each model parallel rank
