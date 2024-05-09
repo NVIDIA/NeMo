@@ -7,7 +7,6 @@ from typing import List, Optional, Tuple
 
 import boto3
 import botocore
-import s3transfer
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
 from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_delay, wait_exponential
