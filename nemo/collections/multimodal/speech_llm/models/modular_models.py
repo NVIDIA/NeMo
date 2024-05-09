@@ -15,6 +15,7 @@
 import itertools
 import json
 import os
+from functools import partial
 from typing import List, Optional, Union
 
 import hydra
@@ -408,10 +409,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             )
             multimodal_output['audio_text'] = (output, loss_mask)
         if text_batch:
-            input_ids = text_batch.text_input_ids[:, :-1]
-            labels = text_batch.text_input_ids[:, 1:]
+            input_ids = text_batch["text_input_ids"][:, :-1]
+            labels = text_batch["text_input_ids"][:, 1:]
             attention_mask = self._create_attention_mask(input_ids)
-            loss_mask = text_batch.text_mask[:, 1:]
+            loss_mask = text_batch["text_masks"][:, 1:]
             output = self._gpt_forward(
                 input_ids, None, None, attention_mask, labels, checkpoint_activations_all_layers
             )
@@ -420,6 +421,122 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             raise ValueError("No input data found for the model.")
 
         return multimodal_output
+
+    def fwd_bwd_step(self, dataloader_iter, forward_only, first_val_step=None):
+        """
+        Copy of megatron_gpt_sft_model.py function with the same name.
+        Modified not to assume certain fields like 'tokens' are always available in the mini-batch,
+        since we have mixed text/audio dataloading and sometimes one of the modalities might be missing.
+        """
+        # TODO(pzelasko): I marked the sections that are modified from the original with TODOs like this one.
+
+        # Local imports mimic global imports in the original file that had this func.
+        from apex.transformer.pipeline_parallel.utils import get_micro_batch_size
+        from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+        from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
+
+        from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+
+        # Return only batch if batch, batch_idx, dataloder_idx are extracted as a tuple in the previous func
+        # call like validation_step otherwise return tuple (in which case dataloader_iter is still a PTL _DataFetcherWrapper object)
+        if isinstance(dataloader_iter, _DataFetcherWrapper):
+            batch, _, _ = next(dataloader_iter)
+        else:
+            batch = next(dataloader_iter)
+
+        # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
+        # log_token_counts = self.cfg.get('log_token_counts', False)
+        # if log_token_counts:
+        #     token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
+
+        # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
+        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+
+        # TODO(pzelasko): For the prototype, computing seq_length as a max from both modalities,
+        #                 but I feel like this needs larger refactoring
+        if 'tokens' in batch and 'text_input_ids' in batch:
+            seq_length = max(batch['tokens'].shape[1], batch['text_input_ids'].shape[1])
+        elif 'tokens' in batch:
+            seq_length = batch['tokens'].shape[1]
+        elif 'text_input_ids' in batch:
+            seq_length = batch['text_input_ids'].shape[1]
+        else:
+            seq_length = None  # TODO(pzelasko): not sure if it is even needed ???
+
+        data_iter = get_iterator_k_split(batch, get_num_microbatches())
+
+        # TODO(pzelasko): restore this logging once we decide what's the right format for joint text-audio batches
+        # if log_token_counts:
+        #     self.log('seq_length_padded', seq_length, prog_bar=True, batch_size=1)
+        #     self.log('tokens_avg', token_count_avg, prog_bar=True, sync_dist=True, batch_size=1)
+
+        # handle asynchronous grad reduction
+        no_sync_func = None
+        grad_sync_func = None
+        param_sync_func = None
+        if not forward_only and self.with_distributed_adam:
+            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            grad_sync_func = self.reduce_overlap_gradients
+            param_sync_func = self.sync_overlap_parameters
+
+        for module in self.get_model_module_list():
+            module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
+
+        fwd_bwd_function = get_forward_backward_func()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(tuning=True, validation_step=forward_only),
+            data_iterator=self._make_data_iterator_list(data_iter),
+            model=self.model,
+            num_microbatches=get_num_microbatches(),
+            forward_only=forward_only,
+            seq_length=seq_length,
+            micro_batch_size=get_micro_batch_size(),
+            first_val_step=first_val_step,
+        )
+
+        non_loss_tensors = {}
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            for item in losses_reduced_per_micro_batch:
+                for k, v in item.items():
+                    if k != 'avg':
+                        av = non_loss_tensors.get(k, [])
+                        av.append(v)
+                        non_loss_tensors[k] = av
+            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+                # average loss across micro batches
+                loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensor = torch.concat(loss_tensors_list)
+                loss_mean = loss_tensor.mean()
+            else:
+                # Get the total loss since micro batches sizes are not uniform
+                loss_sum_tensors_list = [
+                    loss_sum['loss_sum_and_ub_size']
+                    for loss_sum in losses_reduced_per_micro_batch
+                    if loss_sum['loss_sum_and_ub_size'][1] > 0
+                ]
+                loss_sum = (
+                    torch.vstack(loss_sum_tensors_list).sum(axis=0)
+                    if len(loss_sum_tensors_list) > 0
+                    else torch.tensor([0.0, 0.0]).cuda()
+                )
+                return loss_sum
+        else:
+            # we're not on the last pipeline stage so no losses
+            if forward_only:
+                loss_mean = []
+            else:
+                loss_mean = torch.tensor(0.0).cuda()
+
+        # if forward_only:
+        # return loss_mean
+        if non_loss_tensors:  # TODO: need a nicer way to do this via inheritance (@adithyare)
+            return loss_mean, non_loss_tensors
+        else:
+            return loss_mean
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(dataloader_iter, model):
