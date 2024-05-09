@@ -45,7 +45,7 @@ def parse_args():
         "-n",
         "--num_examples",
         type=int,
-        default=1_000_000,
+        default=-1,
         help="The number of examples (utterances) to estimate the bins. -1 means use all data "
         "(be careful: it could be iterated over infinitely).",
     )
