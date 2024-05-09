@@ -82,6 +82,7 @@ class TextProcessing:
         else:
             self.eos_id = None
         self.pad_id = self.eos_id if self.eos_id is not None else 0
+        self.pad_id = tokenizer.pad_id if tokenizer.pad_id >= 0 else self.pad_id
 
         self.sep_id = sep_id if add_sep else None
 
@@ -164,7 +165,7 @@ class TextProcessing:
         if self.add_sep:
             total_ids += 1
         # Only training need to consider eos token
-        if self.add_eos and self.tokens_to_generate == 0:
+        if self.add_eos:
             total_ids += 1
 
         # If the total number of token is greater than the max, we will try to truncate the answer
@@ -204,8 +205,9 @@ class TextProcessing:
         input_ids = input_ids + answer_ids
 
         # Only training need to consider eos token
-        if self.add_eos and self.tokens_to_generate == 0:
+        if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
+            answer_ids = answer_ids + [self.tokenizer.eos_id]
             if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
                 masked_input_ids = masked_input_ids + [self.tokenizer.eos_id]
 
