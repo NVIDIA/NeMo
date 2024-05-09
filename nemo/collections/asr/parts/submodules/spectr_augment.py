@@ -67,7 +67,7 @@ class SpecAugment(nn.Module, Typing):
         time_width: int | float = 10,
         rng: random.Random | None = None,
         mask_value: float = 0.0,
-        fast: bool = True,
+        use_vectorized_code: bool = True,
     ):
         super().__init__()
 
@@ -80,7 +80,7 @@ class SpecAugment(nn.Module, Typing):
         self.time_width = time_width
 
         self.mask_value = mask_value
-        self.fast = fast
+        self.use_vectorized_code = use_vectorized_code
 
         if isinstance(time_width, int):
             self.adaptive_temporal_width = False
@@ -93,8 +93,8 @@ class SpecAugment(nn.Module, Typing):
     @typecheck()
     @torch.no_grad()
     def forward(self, input_spec, length):
-        if self.fast:
-            return self._forward_fast(input_spec, length)
+        if self.use_vectorized_code:
+            return self._forward_vectorized(input_spec, length)
         else:
             return self._forward_legacy(input_spec, length)
 
@@ -130,7 +130,7 @@ class SpecAugment(nn.Module, Typing):
         masked_spec = input_spec.masked_fill(mask=fill_mask, value=self.mask_value)
         return masked_spec
 
-    def _forward_fast(self, input_spec: torch.Tensor, length: torch.Tensor) -> torch.Tensor:
+    def _forward_vectorized(self, input_spec: torch.Tensor, length: torch.Tensor) -> torch.Tensor:
         #time masks
         input_spec = self._apply_masks(input_spec=input_spec, num_masks=self.time_masks, 
                 length=length, width = self.time_width, axis=2, mask_value=self.mask_value)
@@ -142,40 +142,43 @@ class SpecAugment(nn.Module, Typing):
     def _apply_masks(
             self, input_spec: torch.Tensor, num_masks: int, length: torch.Tensor, width: int | float, 
             mask_value: float, axis: int) -> torch.Tensor:
+
         batch_size = input_spec.shape[0]
         axis_length = input_spec.shape[axis]
 
-        # We use float32 dtype for begin/end mask markers before they are quantized to long.
+        #If width is float then it is transformed into a tensor
+        if isinstance(width, float):
+                width = torch.clamp(width * length, max = axis_length).unsqueeze(1)
+
+        # Generate [0-1) random numbers and then scale the tensors.
+        # Use float32 dtype for begin/end mask markers before they are quantized to long.
         # Using x.dtype might cause us to encounter dtypes such as bf16 or smaller which
         # wouldn't be able to represent every frame index leading to subtle bugs.
-        if isinstance(width, float):
-            scaled_width = torch.clamp(width * length, max = axis_length).unsqueeze(1)
-            mask_width =  torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * scaled_width
-            mask_width = mask_width.long()
-            mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * (axis_length - mask_width)
-            mask_start.long()
-        else:
-            #Since we don't need to compute scaled width, we can call randint mask_width and mask_start
-            width = min(width, axis_length)
-            mask_start = torch.randint(low=0, high = max(1, axis_length - width), size=(batch_size, num_masks), 
-                device=input_spec.device, dtype=torch.long)
-            mask_width = torch.randint(low=0, high = max(1, width), size=(batch_size, num_masks), 
-                device=input_spec.device, dtype=torch.long)
-            mask_end = mask_start + mask_width
-
+        mask_width = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * width
+        mask_width = mask_width.long()
+        mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * (axis_length - mask_width)
+        mask_start.long()
         mask_end = mask_start + mask_width 
 
+        # Create mask values using vectorized indexing
         indices = torch.arange(axis_length, device=input_spec.device)
+        # Create a mask_tensor with all the indices.
+        # The mask_tensor shape is (batch_size, num_masks, axis_length).
         mask_tensor = (indices >= mask_start.unsqueeze(-1)) & (indices < mask_end.unsqueeze(-1))
+        # Reduce masks to one mask
         mask_tensor = mask_tensor.any(dim=1)
 
+        # Create a final mask that aligns with the full tensor
         mask = torch.zeros_like(input_spec, dtype=torch.bool)
         if axis == 2:
             mask_ranges = mask_tensor[:, None, :]
         elif axis == 1:
             mask_ranges = mask_tensor[:, :, None]
-
+        else:
+            raise Exception("axis can be either 1 or 2")
         mask[:, :, :] = mask_ranges
+
+        # Apply the mask value and return a new tensor
         return input_spec.masked_fill(mask=mask, value=mask_value)
 
 class SpecCutout(nn.Module, Typing):
