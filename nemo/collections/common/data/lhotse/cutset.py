@@ -238,6 +238,7 @@ def parse_and_combine_datasets(
             weights=weights if weights else None,
             max_open_streams=propagate_attrs["max_open_streams"],
             seed=propagate_attrs["shard_seed"],
+            metadata_only=propagate_attrs["metadata_only"],
         )
     else:
         (cuts,) = cuts
@@ -315,7 +316,7 @@ def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
 
 def _resolve_shar_inputs(path: str | Path, only_metadata: bool) -> dict:
     if only_metadata:
-        return dict(fields={"cuts": Path(path).glob("cuts.*")})
+        return dict(fields={"cuts": sorted(Path(path).glob("cuts.*"))})
     else:
         return dict(in_dir=path)
 
