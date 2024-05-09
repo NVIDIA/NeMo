@@ -70,8 +70,7 @@ def main():
     args = parse_args()
     inp_arg = f"input_cfg={args.input}" if args.input.endswith(".yaml") else f"manifest_filepath={args.input}"
     config = OmegaConf.merge(
-        OmegaConf.structured(LhotseDataLoadingConfig),
-        OmegaConf.from_dotlist([inp_arg, "missing_sampling_rate_ok=true"]),
+        OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([inp_arg, "metadata_only=true"]),
     )
     cuts, _ = read_cutset_from_config(config)
     min_dur, max_dur = args.min_duration, args.max_duration
@@ -104,8 +103,6 @@ def main():
     print("Use the following options in your config:")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={duration_bins}")
-    print("Computing utterance duration distribution...")
-    cuts.describe()  # prints a nice table with duration stats + other info
 
 
 if __name__ == "__main__":
