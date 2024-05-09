@@ -23,6 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model impo
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
+from nemo.utils.decorators import deprecated
 
 try:
     from megatron.core import parallel_state
@@ -56,14 +57,17 @@ Usage:
             retrieval_service.neighbors=20
 """
 
+banner = '\n'.join(['' "*" * 80] * 5)
+
+
+@deprecated(
+    wait_seconds=1,
+    explanation=f"\n{banner}\nWARNING: This evaluating script is for the native NeMo RETRO model, which will soon be deprecated in future releases. \nThe replacing Mcore-based RETRO model is implemented at nemo/collections/nlp/models/language_modeling/megatron_retro_model.py. \nThe evaluating script for this new model is implemented at examples/nlp/language_modeling/megatron_retro_eval.py."
+    f"\nPlease switch to the new script.\n{banner}\n",
+)
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_inference_legacy")
 def main(cfg) -> None:
-
-    print(
-        'WARNING: This evaluation script for native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model evaluation script, at examples/nlp/language_modeling/megatron_retro_eval.py'
-    )
-
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
     model_path = cfg.retro_model_file

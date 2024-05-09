@@ -31,14 +31,19 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 from nemo.utils.exp_manager import exp_manager
 
+banner = '\n'.join(['' "*" * 80] * 5)
+
+@deprecated(
+    wait_seconds=1,
+    explanation=f"\n{banner}\nWARNING: This pretraining script is for the native NeMo RETRO model, which will soon be deprecated in future releases. \nThe replacing Mcore-based RETRO model is implemented at nemo/collections/nlp/models/language_modeling/megatron_retro_model.py. \nThe training script for this new model is implemented at examples/nlp/language_modeling/megatron_retro_pretraining.py."
+    f"\nPlease switch to the new script.\n{banner}\n",
+)
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_config_legacy")
 def main(cfg) -> None:
-    logging.info(
-        'WARNING: This pretraining script for native NeMo RETRO model will soon be deprecated in future releases and replaced by Mcore-based RETRO model pretraining script, at examples/nlp/language_modeling/megatron_retro_pretraining.py'
-    )
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
