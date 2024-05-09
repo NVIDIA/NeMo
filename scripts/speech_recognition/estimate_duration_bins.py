@@ -14,6 +14,7 @@
 
 import argparse
 from itertools import islice
+from pathlib import Path
 
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
@@ -31,11 +32,13 @@ def parse_args():
     )
     parser.add_argument(
         "input",
-        help='Same input format as in model configs under model.train_ds.manifest_filepath. Options: '
-        '1) "path.json"; '
-        '2) "[[path1.json],[path2.json],...]"; '
-        '3) "[[path1.json,weight1],[path2.json,weight2],...]; "'
-        '4) "input_cfg.yaml" (a new option supporting input configs, same as in model training \'input_cfg\' arg).',
+        help='Data input. Options: '
+        '1) "path.json" - any single NeMo manifest; '
+        '2) "[[path1.json],[path2.json],...]" - any collection of NeMo manifests; '
+        '3) "[[path1.json,weight1],[path2.json,weight2],...]" - any collection of weighted NeMo manifests; '
+        '4) "input_cfg.yaml" - a new option supporting input configs, same as in model training \'input_cfg\' arg; '
+        '5) "path/to/shar_data" - a path to Lhotse Shar data directory; '
+        '6) "key=val" - in case none of the previous variants cover your case: "key" is the key you\'d use in NeMo training config with its corresponding value ',
     )
     parser.add_argument("-b", "--buckets", type=int, default=30, help="The desired number of buckets.")
     parser.add_argument(
@@ -68,7 +71,14 @@ def parse_args():
 
 def main():
     args = parse_args()
-    inp_arg = f"input_cfg={args.input}" if args.input.endswith(".yaml") else f"manifest_filepath={args.input}"
+    if '=' in args.input:
+        inp_arg = args.input
+    elif args.input.endswith(".yaml"):
+        inp_arg = f"input_cfg={args.input}"
+    elif Path(args.input).is_dir():
+        inp_arg = f"shar_path={args.input}"
+    else:
+        inp_arg = f"manifest_filepath={args.input}"
     config = OmegaConf.merge(
         OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([inp_arg, "metadata_only=true"]),
     )
