@@ -12,7 +12,7 @@ from nemo.core.config import hydra_runner
 def main(cfg) -> None:
 
     # load data
-    print("Loading data.")
+    print("Loading documents.")
     documents = SimpleDirectoryReader(cfg.indexing.data.data_path).load_data()
 
 
