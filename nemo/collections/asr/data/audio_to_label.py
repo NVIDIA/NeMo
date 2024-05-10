@@ -339,6 +339,13 @@ target_label_n, "offset": offset_in_sec_n}
             logging.warning(f'NaN/Inf found in features for file {sample.audio_file}.')
             idx = np.random.randint(len(self.collection))
             return self.__getitem__(idx)
+
+        try:
+            _ = torch.sum(torch.abs(features))
+        except:
+            logging.info(f"idx {index}, sample: {sample}")
+            logging.info(features)
+
         if torch.sum(torch.abs(features)) == 0:
             logging.warning(f'Zero array found in features for file {sample.audio_file}.')
             idx = np.random.randint(len(self.collection))
