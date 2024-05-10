@@ -174,6 +174,7 @@ class VoiceboxModel(TextToWaveform):
         self.maybe_init_from_pretrained_checkpoint(cfg=cfg, map_location='cpu')
 
         self.val_0_tts = cfg.get("val_0_tts", False)
+        self.waveform_loss = cfg.voicebox.get("waveform_loss", False)
 
     def _download_libriheavy(self, target_dir, dataset_parts):
         """ Download LibriHeavy manifests. """
@@ -1108,6 +1109,10 @@ class VoiceboxModel(TextToWaveform):
             cond_mask=None,
             input_sampling_rate=None
         )
+
+        if self.waveform_loss:
+            waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
+            losses['waveform'] = waveform_loss
         
         if self.training and self.trainer._logger_connector.should_update_logs:
             plot_id = 0
@@ -1116,7 +1121,7 @@ class VoiceboxModel(TextToWaveform):
                 cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
                 cond = cond * ~cond_mask
                 σ = self.cfm_wrapper.sigma
-                pred_x1 = pred_dx + (1 - σ) * x0 if not self.voicebox.no_diffusion else pred_dx
+                pred_x1 = pred_dx + (1 - σ) * x0
                 self.log_image("train_vb/x1", plot_spectrogram_to_numpy(x1[plot_id].T.detach().cpu().numpy()), self.global_step)
                 self.log_image("train_vb/xt", plot_spectrogram_to_numpy(w[plot_id].T.detach().cpu().numpy()), self.global_step)
                 self.log_image("train_vb/cond", plot_spectrogram_to_numpy(cond[plot_id].T.detach().cpu().numpy()), self.global_step)
@@ -1164,6 +1169,10 @@ class VoiceboxModel(TextToWaveform):
             cond_mask=None,
             input_sampling_rate=None
         )
+        
+        if self.waveform_loss:
+            waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
+            losses['waveform'] = waveform_loss
         
         if batch_idx == 0:
             # first batch of validation
@@ -1263,8 +1272,9 @@ class VoiceboxModel(TextToWaveform):
         align_loss = losses.get('align', 0)
         bin_loss = losses.get('bin', 0)
         vb_loss = losses['vb']
+        wv_loss = losses.get('waveform', 0)
 
-        loss = align_loss + bin_loss + dp_loss + vb_loss
+        loss = align_loss + bin_loss + dp_loss + vb_loss + wv_loss
 
         self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
         self.log("train_loss_vb", vb_loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
@@ -1368,8 +1378,9 @@ class VoiceboxModel(TextToWaveform):
         align_loss = losses.get('align', 0)
         bin_loss = losses.get('bin', 0)
         vb_loss = losses['vb']
+        wv_loss = losses.get('waveform', 0)
 
-        loss = align_loss + bin_loss + dp_loss + vb_loss
+        loss = align_loss + bin_loss + dp_loss + vb_loss + wv_loss
         self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
         self.log("val_loss_total", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         return loss

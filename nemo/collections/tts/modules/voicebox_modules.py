@@ -202,6 +202,7 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
         else:
             return self.model.latent_dim
 
+    @torch.no_grad()
     def encode(self, audio):
         audio = rearrange(audio, 'b t -> b 1 t')
         audio = self.model.preprocess(audio, self.sampling_rate)
@@ -1305,16 +1306,20 @@ class VoiceBox(_VB, LightningModule):
             if self.code_project:
                 # x: (b,c,t,n), target: (b,t,n)
                 return F.cross_entropy(x[:, :, :, :self.audio_enc_dec.bandwidth_id], target[:, :, :self.audio_enc_dec.bandwidth_id]), outputs
-            else:
+            elif isinstance(self.audio_enc_dec, DACVoco):
                 # (b,t,d)
                 return F.mse_loss(x[:, :, :self.audio_enc_dec.masked_latent_dim], target[:, :, :self.audio_enc_dec.masked_latent_dim]), outputs
+            else:
+                return F.mse_loss(x, target), outputs
 
         if self.code_project:
             # x: (b,c,t,n), target: (b,t,n)
             loss = F.cross_entropy(x[:, :, :, :self.audio_enc_dec.bandwidth_id], target[:, :, :self.audio_enc_dec.bandwidth_id], reduction = 'none')
-        else:
+        elif isinstance(self.audio_enc_dec, DACVoco):
             # (b,t,d)
             loss = F.mse_loss(x[:, :, :self.audio_enc_dec.masked_latent_dim], target[:, :, :self.audio_enc_dec.masked_latent_dim], reduction = 'none')
+        else:
+            loss = F.mse_loss(x, target, reduction = 'none')
 
         # TODO: weighted loss for different codes? or simply use less codes?
         loss = reduce(loss, 'b n d -> b n', 'mean')
@@ -1325,6 +1330,10 @@ class VoiceBox(_VB, LightningModule):
         num = reduce(loss, 'b n -> b', 'sum')
         den = loss_mask.sum(dim = -1).clamp(min = 1e-5)
         loss = num / den
+
+        outputs["loss_mask"] = loss_mask
+        outputs["cond_mask"] = cond_mask
+        outputs["self_attn_mask"] = self_attn_mask
 
         return loss.mean(), outputs
     
@@ -1565,7 +1574,8 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
                 cond = self.voicebox.audio_enc_dec.encode(cond)
 
             audio_len = mask.sum(-1)
-            mel_len = audio_len * x1.shape[1] // mask.shape[-1]
+            # mel_len = audio_len * x1.shape[1] // mask.shape[-1]
+            mel_len = torch.ceil(audio_len / self.voicebox.audio_enc_dec.downsample_factor)
             mask = get_mask_from_lengths(mel_len)
 
         return {
@@ -1700,3 +1710,34 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         }
 
         return loss, losses, outputs
+
+    def waveform_loss(self, outputs, audio, audio_mask):
+        if self.voicebox.no_diffusion:
+            pred_x1 = outputs['vb']['pred']
+        else:
+            x0, pred_dx = outputs['vb']['x0'], outputs['vb']['pred']
+            σ = self.sigma
+            pred_x1 = pred_dx + (1 - σ) * x0
+        with torch.set_grad_enabled(True):
+            pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1)
+
+        loss_mask = outputs['vb']['loss_mask']
+        # cond, cond_mask = outputs['vb']["cond"], outputs['vb']["cond_mask"]
+        #TODO: feature mask -> waveform mask
+
+        # mel_len
+        hop_size = self.voicebox.audio_enc_dec.downsample_factor
+        audio_loss_mask = self.duration_predictor.align_phoneme_ids_with_durations(loss_mask, torch.ones_like(loss_mask)*hop_size).bool()
+        max_audio_len = min(audio_mask.shape[-1], audio_loss_mask.shape[-1])
+        audio_loss_mask = audio_loss_mask[:, :max_audio_len] & audio_mask[:, :max_audio_len]
+
+        loss = F.l1_loss(pred_audio[:, :max_audio_len], audio[:, :max_audio_len], reduction='none')
+        # loss = reduce(loss, 'b n d -> b n', 'mean')
+        loss = loss.masked_fill(~audio_loss_mask, 0.)
+
+        # masked mean
+
+        num = reduce(loss, 'b n -> b', 'sum')
+        den = audio_loss_mask.sum(dim = -1).clamp(min = 1e-5)
+        loss = num / den
+        return loss
