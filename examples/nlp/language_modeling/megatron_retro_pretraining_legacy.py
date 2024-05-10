@@ -59,7 +59,7 @@ def main(cfg) -> None:
         scaler = None
         if cfg.trainer.precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                init_scale=cfg.model.get('native_amp_init_scale', 2**32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 hysteresis=cfg.model.get('hysteresis', 2),
             )
