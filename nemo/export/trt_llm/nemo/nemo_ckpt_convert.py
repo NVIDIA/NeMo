@@ -377,7 +377,8 @@ def convert_nemo_model(
         "storage_type": storage_type,
         "move_to_cpu": cpu,
         "save_dict": weights_dict,
-        "tp_rank": tp_rank
+        "tp_rank": tp_rank,
+        "weight_type" : None,
     }
 
     tl_params = {}
@@ -440,6 +441,7 @@ def convert_nemo_model(
                 "key": key,
                 "val": val,
                 "config": export_config,
+                "weight_type" : 'layernorm_weight' if 'layernorm.weight' in key else None
             })
 
     def broadcast_item(item, group, src_rank):
@@ -449,7 +451,7 @@ def convert_nemo_model(
 
     #broadcast a tensor across PP group and save it
     def save_pp_weight(
-        src_key_or_tensor, dst_key, pp_src_idx, transpose_weights=False):
+        src_key_or_tensor, dst_key, pp_src_idx, transpose_weights=False, weight_type=None):
 
         have_tensor = False
         if torch.distributed.get_rank() == pp_src_idx:
@@ -479,10 +481,12 @@ def convert_nemo_model(
 
         temp_config = dict(export_config)
         temp_config['transpose_weights'] = transpose_weights
+        temp_config['weight_type'] = weight_type
         starmap_args.append({
                     "key": dst_key,
                     "val": tensor,
                     "config": temp_config,
+                    "weight_type": weight_type
                 })
     # ----------------Convert Final Layernorm----------------  
     if pp_is_last or reshard_model:
@@ -490,13 +494,14 @@ def convert_nemo_model(
             get_layer_name("final_layernorm.weight", transformer_layer_prefix), 
             "ln_f.weight", 
             pp_last_rank, 
-            transpose_weights=True
+            transpose_weights=True,
+            weight_type='layernorm_weight'
         )
         save_pp_weight(
             get_layer_name("final_layernorm.bias", transformer_layer_prefix), 
             "ln_f.bias", 
             pp_last_rank, 
-            transpose_weights=True
+            transpose_weights=True,
         )
 
     # ----------------Convert Embeddings----------------  
@@ -518,9 +523,9 @@ def convert_nemo_model(
             world_embed = remove_vocab_padding(world_embed)
         save_pp_weight(
             world_embed, 
-            "transformer.vocab_embedding.weight", 
+            "vocab_embedding.weight", 
             pp_first_rank, 
-            transpose_weights=False, 
+            transpose_weights=True, 
         )
 
     if pp_is_last or reshard_model:
@@ -535,7 +540,7 @@ def convert_nemo_model(
             lm_head, 
             "lm_head.weight", 
             pp_last_rank,
-            transpose_weights=False, 
+            transpose_weights=True, 
         )
     
     tic = time.time()
@@ -552,6 +557,7 @@ def convert_nemo_model(
             else:
                 new_key = key
             renamed_weight_dict[new_key] = val
+
     return  renamed_weight_dict
 
 

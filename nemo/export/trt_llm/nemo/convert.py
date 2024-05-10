@@ -49,7 +49,7 @@ def save_val(val, dir, key, tp_num=None):
 
 def save_split(split_vals, dir, key, i, split_factor):
     for j, val in enumerate(split_vals):
-        save_val(val, dir, key, i * split_factor + j)
+        tensor(val, dir, key, i * split_factor + j)
 
 
 def save_expert_split(split_vals, dir, key, i, split_factor):
@@ -165,7 +165,7 @@ def write_int8(vals, dir, base_key, split_dim, tp_rank, split_factor, kv_cache_o
 
     if tp_rank == 0:
         for save_key in saved_keys_once:
-            save_val(vals[save_key], dir, f"{base_key}.{save_key}")
+            tensor(vals[save_key], dir, f"{base_key}.{save_key}")
 
 
 # Note: in multi_query_mode, only query heads are split between multiple GPUs, while key/value head
@@ -235,7 +235,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
             else:
                 key = f'{layer_prefix}.post_layernorm.bias'
         if tp_rank == 0:
-            save_val(vals[0], saved_dir, key)
+            tensor(vals[0], saved_dir, key)
 
     elif (
         "attention.dense.weight" in key
@@ -415,8 +415,28 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
 #Similar to split_save_weight but done on GPU for performance
 @torch.no_grad()
-def save_weight_torch(key, val, config):
-    def save(key, tensor):
+def save_weight_torch(key, val, config, weight_type):
+    num_layers = config["num_layers"]
+    storage_type = config["storage_type"]
+    split_gated_activation = config["split_gated_activation"]
+    num_attention_heads = config["num_attention_heads"]
+    tp_size = config["tp_size"]
+    tp_rank = config["tp_rank"]
+    num_kv_heads = config["num_kv_heads"]
+    move_to_cpu = config["move_to_cpu"]
+    save_dict = config["save_dict"]
+    
+    def save(key, tensor, add_prefix=True):
+        assert torch.is_tensor(tensor)
+        if add_prefix:
+            key = f"transformer.{key}"
+        
+        if len(tensor.shape) >= 2:
+            tensor = tensor.reshape(tensor.shape[0], -1)
+            tensor = torch.transpose(tensor, 0 , 1)
+        tensor = tensor.detach().contiguous()
+        tensor = tensor.to(storage_type)
+        
         if move_to_cpu:
             if key not in save_dict:
                 cpu_copy = torch.empty(
@@ -429,15 +449,8 @@ def save_weight_torch(key, val, config):
         else:
             save_dict[key] = tensor.cuda()
 
-    def save_tranpose(val, key, shared=False):
-        assert torch.is_tensor(val)
-        key = f"transformer.{key}"
-        
-        if len(val.shape) >= 2:
-            val = val.reshape(val.shape[0], -1)
-            val = torch.transpose(val, 0 , 1)
-        val = val.detach().contiguous()
-        save(key, val)
+    if config.get("transpose_weights", False) and val.ndim == 2:
+        val = val.T 
 
     if "self_attention" in key:
         key = key.replace("self_attention", "attention")
@@ -446,47 +459,26 @@ def save_weight_torch(key, val, config):
     if "mlp.linear_fc1.layer_norm_weight" in key:
         key = key.replace("mlp.linear_fc1.layer_norm_weight", "post_attention_layernorm.weight")
 
-    num_layers = config["num_layers"]
-    storage_type = config["storage_type"]
-    split_gated_activation = config["split_gated_activation"]
-    num_attention_heads = config["num_attention_heads"]
-    tp_size = config["tp_size"]
-    tp_rank = config["tp_rank"]
-    num_kv_heads = config["num_kv_heads"]
-    move_to_cpu = config["move_to_cpu"]
-    save_dict = config["save_dict"]
-
-    if config.get("transpose_weights", False) and val.ndim == 2:
-        val = val.T 
-    if "layernorm.weight" in key and config.get("apply_layernorm_1p", False):
-        val = val + 1.0 
-    gpu_val = val.to(storage_type) 
-
-    if (
-        "input_layernorm.weight" in key
-        or "input_layernorm.bias" in key
-        or "pre_mlp_layernorm.weight" in key
+    if weight_type == 'layernorm_weight':
+        if config.get("apply_layernorm_1p", False):
+            val = val.float() + 1.0
+        save(key, val)
+    elif (
+        "input_layernorm.bias" in key
         or "pre_mlp_layernorm.bias" in key
         or "attention.dense.bias" in key
         or "attention.linear_proj.bias" in key
-        or "post_attention_layernorm.weight" in key
         or "post_attention_layernorm.bias" in key
-        or "post_self_attn_layernorm.weight" in key
         or "mlp.dense_4h_to_h.bias" in key
         or "mlp.linear_fc2.bias" in key
-        or "ln_f.weight" in key
         or "ln_f.bias" in key
+        or "vocab_embedding" in key
     ):
-        if "post_self_attn_layernorm.weight" in key:
-            key = key.replace("post_self_attn_layernorm.weight", "post_attention_layernorm.weight")
-        elif "mlp.linear_fc2.bias" in key:
+        if "mlp.linear_fc2.bias" in key:
             key =  key.replace("mlp.linear_fc2.bias", "mlp.dense_4h_to_h.bias")
         elif "attention.linear_proj.bias" in key:
             key = key.replace("attention.linear_proj.bias", "attention.dense.bias")
-        elif "post_attention_layernorm.weight" in key:
-            key = key.replace("post_attention_layernorm.weight", "post_layernorm.weight")
-
-        save_tranpose(gpu_val, key, shared=True)
+        save(key, val)
 
     elif (
         "attention.dense.weight" in key
@@ -500,7 +492,7 @@ def save_weight_torch(key, val, config):
             key = key.replace("attention.linear_proj.weight", "attention.dense.weight")
         elif "mlp.linear_fc2.weight" in key:
             key = key.replace("mlp.linear_fc2.weight", "mlp.proj.weight")
-        save_tranpose(gpu_val, key)
+        save(key, val)
 
     elif (
         "mlp.dense_h_to_4h.weight" in key
@@ -509,15 +501,15 @@ def save_weight_torch(key, val, config):
         or "mlp.linear_fc1.bias" in key
     ):
         if split_gated_activation:
-            val, gate = torch.chunk(gpu_val, 2, axis=-1) 
+            val, gate = torch.chunk(val, 2, axis=-1) 
 
         if "mlp.linear_fc1" in key:
             key = key.replace("mlp.linear_fc1", "mlp.fc")
-        save_tranpose(val, key)
+        save(key, val)
         
         if split_gated_activation:
             key = key.replace("mlp.fc", "mlp.gate")
-            save_tranpose(gate, key)
+            save(key, gate)
 
     elif "attention.query_key_value.weight" in key or "attention.linear_qkv.weight" in key:
         if "attention.linear_qkv.weight" in key:
@@ -527,19 +519,20 @@ def save_weight_torch(key, val, config):
         size_per_head = hidden_dim // num_attention_heads
         q_num = num_attention_heads // num_kv_heads
 
-        gpu_val = gpu_val.reshape(hidden_dim, num_kv_heads // tp_size, q_num + 2, size_per_head)
+        val = val.reshape(hidden_dim, num_kv_heads // tp_size, q_num + 2, size_per_head)
 
         # Split the QKV to separate variables.
         #[qqqqkkvv] - > [qqqq,kk,vv]
-        qkv = torch.split(gpu_val, [q_num, 1, 1], dim=2)
+        qkv = torch.split(val, [q_num, 1, 1], dim=2)
         split_vals = torch.concatenate([
                 qkv[0].reshape(hidden_dim, -1), 
                 qkv[1].reshape(hidden_dim, -1), 
                 qkv[2].reshape(hidden_dim, -1)
             ], dim=1)
-        save_tranpose(split_vals, key)
-    elif "vocab_embedding" in key or "lm_head.weight" in key:
-        save(key, gpu_val)
+        save(key, split_vals)
+
+    elif "lm_head.weight" in key:
+        save(key, val, add_prefix=False)
     else:
         raise RuntimeError(f"{key} not handled by NeMo->TRTLLM converter!")
 

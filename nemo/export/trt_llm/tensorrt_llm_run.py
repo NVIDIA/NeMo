@@ -320,10 +320,11 @@ def load_refit(engine_dir, device_ids):
     tp_size = json_config.tensor_parallelism
     pp_size = json_config.pipeline_parallelism
     mp_size = tp_size*pp_size
-    world_config = WorldConfig.mpi(gpus_per_node=mp_size,
+    world_config = WorldConfig.mpi(gpus_per_node=999, #Unused so just choose a big number to avoid asserts
                                     tensor_parallelism=tp_size,
                                     pipeline_parallelism=pp_size,
                                     device_ids=device_ids)
+
 
     assert torch.cuda.current_device() == world_config.device
     engine_filename = json_config.engine_filename(world_config)

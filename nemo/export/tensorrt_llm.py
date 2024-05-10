@@ -316,9 +316,8 @@ class TensorRTLLM(ITritonDeployable):
         # So we manipulate TRTLLM to emulate a TP->PP single node setup
         tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
         device_ids = [
-            (i+torch.cuda.current_device()-mp_rank) % mp_size 
+            (i+torch.cuda.current_device()-mp_rank) 
             for i in range(mp_size)]
-        assert device_ids[mp_rank] == torch.cuda.current_device()
 
         mapping = tensorrt_llm.Mapping(
             world_size = mp_size,
@@ -356,19 +355,20 @@ class TensorRTLLM(ITritonDeployable):
         )
         torch.distributed.barrier()
         print(f"engine saved to {self.model_dir}")
+
         if torch.cuda.current_device() == 0:
-            with open(os.path.join(self.model_dir, 'config.json'),
-                    "w", encoding="utf-8") as f:
-                json.dump(engine.config.to_dict(), f, indent=4)
+            cfg_path = Path(os.path.join(self.model_dir, 'config.json'))
+            if not cfg_path.exists():
+                with open(cfg_path, "w", encoding="utf-8") as f:
+                    json.dump(engine.config.to_dict(), f, indent=4)
 
         print_mem("post build_and_save_engine")
-
+        
         self.model_runner, self.session_params = load_refit(
             engine_dir=self.model_dir,
             device_ids=device_ids)
 
         print(f"device: {origdev} {torch.cuda.current_device()}")
-
 
     def refit(
         self,
