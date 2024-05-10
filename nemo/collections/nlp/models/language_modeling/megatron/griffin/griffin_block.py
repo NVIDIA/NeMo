@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.models.common.language_module.language_module import LanguageModule
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.custom_layers.transformer_engine import TENorm, te_checkpoint
 from megatron.core.transformer.spec_utils import build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
-from megatron.core import parallel_state, tensor_parallel
-from torch import Tensor
-from megatron.core.packed_seq_params import PackedSeqParams
+from torch import Tensor, nn
 
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_layer_spec import (
     griffin_mqa_layer_with_transformer_engine_spec,
@@ -44,16 +43,22 @@ def get_griffin_layers(num_layers):
 
 
 def create_block(
-    config, layer_spec, layer_idx,
+    config,
+    layer_spec,
+    layer_idx,
 ):
-    block = build_module(layer_spec, config,)
+    block = build_module(
+        layer_spec,
+        config,
+    )
     block.layer_number = layer_idx + 1
     return block
 
 
 class GriffinStack(LanguageModule):
     def __init__(
-        self, config: TransformerConfig,
+        self,
+        config: TransformerConfig,
     ):
 
         super().__init__(config)
@@ -61,10 +66,19 @@ class GriffinStack(LanguageModule):
         self.griffin_layers = get_griffin_layers(self.config.num_layers)
 
         self.layers = nn.ModuleList(
-            [create_block(self.config, layer_spec, layer_idx=i,) for i, layer_spec in enumerate(self.griffin_layers)]
+            [
+                create_block(
+                    self.config,
+                    layer_spec,
+                    layer_idx=i,
+                )
+                for i, layer_spec in enumerate(self.griffin_layers)
+            ]
         )
         self.final_layernorm = TENorm(
-            config=self.config, hidden_size=self.config.hidden_size, eps=self.config.layernorm_epsilon,
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
         )
         self.num_layers = len(self.layers)
 
@@ -138,9 +152,7 @@ class GriffinStack(LanguageModule):
             # A method to further reduce memory usage reducing checkpoints.
             l = 0
             while l < self.num_layers:
-                hidden_states, context = checkpoint_handler(
-                    custom(l, l + self.config.recompute_num_layers)
-                )
+                hidden_states, context = checkpoint_handler(custom(l, l + self.config.recompute_num_layers))
 
                 l += self.config.recompute_num_layers
 
@@ -155,10 +167,7 @@ class GriffinStack(LanguageModule):
                 # for re-enterant autograd engine.
                 if self.config.fp8 and not hidden_states.requires_grad:
                     recompute_skip_num_layers += 1
-                if (
-                    l >= recompute_skip_num_layers
-                    and l < self.config.recompute_num_layers + recompute_skip_num_layers
-                ):
+                if l >= recompute_skip_num_layers and l < self.config.recompute_num_layers + recompute_skip_num_layers:
                     hidden_states, context = checkpoint_handler(custom(l, l + 1))
                 else:
                     hidden_states, context = custom(l, l + 1)(
@@ -175,13 +184,13 @@ class GriffinStack(LanguageModule):
         return hidden_states
 
     def forward(self, hidden_states, attention_mask, rotary_pos_emb):
-        
+
         if self.config.recompute_granularity == 'full' and self.training:
-                hidden_states = self._checkpointed_forward(
-                    hidden_states=hidden_states,
-                    attention_mask=attention_mask,
-                    rotary_pos_emb=rotary_pos_emb,
-                )
+            hidden_states = self._checkpointed_forward(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                rotary_pos_emb=rotary_pos_emb,
+            )
         else:
             for layer in self.layers:
 

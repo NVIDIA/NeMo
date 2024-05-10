@@ -70,9 +70,9 @@ class MegatronGriffinModel(MegatronGPTModel):
 
     def build_transformer_config(self):
         transformer_config = super().build_transformer_config()
-        transformer_config.recompute_num_layers=self.cfg.get('recompute_num_layers', 1)
-        transformer_config.recompute_method=self.cfg.get('recompute_method', 'uniform')
-        transformer_config.recompute_granularity=self.cfg.get('recompute_granularity', 'full')
+        transformer_config.recompute_num_layers = self.cfg.get('recompute_num_layers', 1)
+        transformer_config.recompute_method = self.cfg.get('recompute_method', 'uniform')
+        transformer_config.recompute_granularity = self.cfg.get('recompute_granularity', 'full')
         transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', True)
         transformer_config.layernorm_zero_centered_gamma = self.cfg.get('layernorm_zero_centered_gamma', True)
 
