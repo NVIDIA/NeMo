@@ -17,7 +17,6 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
-from omegaconf import open_dict
 from pytorch_lightning import Trainer
 from transformers import Qwen2ForCausalLM, Qwen2Tokenizer, Qwen2TokenizerFast, convert_slow_tokenizer
 
