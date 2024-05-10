@@ -355,7 +355,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         return encoder_input, attention_mask, labels, loss_mask, encoder_length
 
     def forward(
-        self, audio_batch, checkpoint_activations_all_layers,
+        self,
+        audio_batch,
+        checkpoint_activations_all_layers,
     ):
         """
         Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
@@ -814,7 +816,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     @classmethod
     def restore_from_pretrained_models(
-        cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
+        cls,
+        cfg: Optional[Union[OmegaConf, str]] = None,
+        trainer: Optional[Trainer] = None,
     ):
         """
         load pretrained LLM and audio encoders, and maybe add adapters, used for training.
@@ -895,7 +899,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         cls, cfg: DictConfig, trainer: Trainer, pretrained_model_cfg: DictConfig = None
     ) -> DictConfig:
         """
-        Merge the inference config with the model config, used for inference only. 
+        Merge the inference config with the model config, used for inference only.
         if no pretrained_model_cfg is given, it will be loaded from the checkpoint specified in cfg.
         Args:
             cfg: inference config
@@ -909,7 +913,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         elif cfg.model.peft.restore_from_path:
             if cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
-                    restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
+                    restore_path=cfg.model.peft.restore_from_path,
+                    trainer=trainer,
+                    return_config=True,
                 )
             elif cfg.model.peft.restore_from_hparams_path:  # not a .nemo model we expect a hparams.yaml file
                 model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.peft.restore_from_hparams_path).cfg)
@@ -922,7 +928,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 )
         else:
             model_cfg = MegatronGPTSFTModel.restore_from(
-                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                return_config=True,
             )
 
         if hasattr(model_cfg, 'peft') and model_cfg.peft.peft_scheme not in [None, 'none']:
@@ -1075,8 +1083,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
-         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
-         """
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
         checkpoint_state_dict = checkpoint['state_dict']
         self.load_state_dict(checkpoint_state_dict, strict=False)
 

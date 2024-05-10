@@ -121,7 +121,7 @@ class PoolingMLPConnectors(NeuralModule, Exportable, AccessMixin):
     @typecheck()
     def forward(self, audio_signal, length=None):
         """
-        Args: 
+        Args:
             audio_signal: [batch_size, input_dim, seq_len]
             length: [batch_size]
         Returns:

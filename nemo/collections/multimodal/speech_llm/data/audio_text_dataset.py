@@ -91,7 +91,7 @@ def _audio_collate_fn(audio_signals, audio_lengths):
 
 
 def _build_loss_mask(processed_example: Dict, answer_only_loss: bool = True):
-    """ Pad input_ids in batch to max batch length while building loss mask """
+    """Pad input_ids in batch to max batch length while building loss mask"""
     # function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
     input_ids = processed_example['input_ids']
     answer_start_idx = processed_example['answer_start_idx']
@@ -113,7 +113,11 @@ def _collate_item(item: Union[torch.Tensor, np.ndarray, List], max_length: int, 
 
 
 def _speechllm_audio_text_collate_fn(
-    batch: Dict, tokens_to_generate: int, pad_to_max_length: bool, max_seq_length: int, text_pad_id: int,
+    batch: Dict,
+    tokens_to_generate: int,
+    pad_to_max_length: bool,
+    max_seq_length: int,
+    text_pad_id: int,
 ):
     sample_ids = [x["idx"] for x in batch]
     sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
@@ -167,7 +171,11 @@ def _speechllm_audio_text_collate_fn(
 
 
 def _speechllm_multi_audio_text_collate_fn(
-    batch: Dict, tokens_to_generate: int, pad_to_max_length: bool, max_seq_length: int, text_pad_id: int,
+    batch: Dict,
+    tokens_to_generate: int,
+    pad_to_max_length: bool,
+    max_seq_length: int,
+    text_pad_id: int,
 ):
     """Collate function for multi audio case."""
     context_start_idx = [item['context_start_idx'] for item in batch]
@@ -570,25 +578,27 @@ class MultiAudioTextDataset(AudioTextDataset):
     """
     Dataset for having multi audios per sample, for example in few-shot in-context learning.
     To use this dataset, you need to specify the `audio_locator` field in the dataset config,
-    and use that to specify the locations of the audio files in your manifest. In this case, 
+    and use that to specify the locations of the audio files in your manifest. In this case,
     the `audio_filepath` field in the manifest is a list of audio filepaths, and the `duration`
     field is a list of durations, one for each audio file. The `offset` field is optional, and
     if not specified, it is assumed to be 0.0. The `offset` field is also a list of offsets if specified.
 
     Example manifest item for audio_locator='|audio|':
     {
-    "audio_filepath": ["1.wav","2.wav","3.wav"], 
+    "audio_filepath": ["1.wav","2.wav","3.wav"],
     "duration": [1.05,1.05,2.0],
-    "answer": "this was her dream as nearly as she could recall it", 
-    "question": "Following are examples of speech audios and their transcriptions. 
-        Example 1: audio is |audio|, transcription is 'I have a dream'. 
-        Example 2: audio is |audio|, transcription is ' I don't have a dream'. 
+    "answer": "this was her dream as nearly as she could recall it",
+    "question": "Following are examples of speech audios and their transcriptions.
+        Example 1: audio is |audio|, transcription is 'I have a dream'.
+        Example 2: audio is |audio|, transcription is ' I don't have a dream'.
         Given the following audio |audio|, transcribe the audio into words."
     }
     """
 
     def __init__(
-        self, *args, **kwargs,
+        self,
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
@@ -939,8 +949,7 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         return TarredAudioFilter(self.collection, iterator)
 
     def _loop_offsets(self, iterator):
-        """This function is used to iterate through utterances with different offsets for each file.
-        """
+        """This function is used to iterate through utterances with different offsets for each file."""
         return TarredAudioLoopOffsets(self.collection, iterator)
 
     def _collate_fn(self, batch):
@@ -957,8 +966,7 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         return self._collate_fn(batch)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_bytes, audio_filename, offset_id = tup
 
         if audio_filename is not None:

@@ -77,7 +77,7 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         return new_context_tokens, encoder_input, audio_feat_lens
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
         # for positional embedding types that allow length extrapolation, don't clip the max length
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
             if maxlen > self.model.cfg.encoder_seq_length + 1:

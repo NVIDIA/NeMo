@@ -24,7 +24,10 @@ from nemo.utils import logging
 
 class SpeechLLMAdapterMixin(NLPAdapterModelMixin):
     def load_adapters(
-        self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
+        self,
+        filepath: str,
+        peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None,
+        map_location: str = None,
     ):
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
