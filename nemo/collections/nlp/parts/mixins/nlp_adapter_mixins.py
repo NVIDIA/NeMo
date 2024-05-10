@@ -311,11 +311,7 @@ class NLPAdapterModelMixin:
             state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
         self.add_adapter(peft_cfgs)
         if not self.ptuning_only_and_non_first_stage:
-            target_keys = self.adapter_keys.union(self.tunable_base_param_keys)
-            if set(state_dict.keys()) != target_keys:
-                logging.warning(
-                    f"Unexpected keys found in state_dict: {set(state_dict.keys()) - target_keys}, missing keys in state_dict: {target_keys - set(state_dict.keys())}"
-                )
+            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
         super().load_state_dict(state_dict, strict=False)
 
     def set_tunable_base_params(self, peft_cfg):
@@ -404,13 +400,10 @@ class NLPAdapterModelMixin:
             # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
             # safety in strict=True anymore.
             if not self.ptuning_only_and_non_first_stage:
-                if set(state_dict.keys()) != self.adapter_keys.union(self.tunable_base_param_keys):
-                    logging.warning(
-                        f"Unexpected keys found in state_dict: {set(state_dict.keys()) - self.adapter_keys.union(self.tunable_base_param_keys)}, missing keys in state_dict: {self.adapter_keys.union(self.tunable_base_param_keys) - set(state_dict.keys())}"
-                    )
+                assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
                 super().load_state_dict(state_dict, strict=False)
         else:
-            super().load_state_dict(state_dict, strict=strict)
+            super().load_state_dict(state_dict, strict=True)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
