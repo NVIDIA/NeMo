@@ -37,8 +37,8 @@ except (ImportError, ModuleNotFoundError) as e:
 class GPTFIMDatasetConfig(GPTDatasetConfig):
     """Configuration object for Megatron Core GPT FIM datasets
 
-        Attributes:
-            fim: fill in the middle parameters config
+    Attributes:
+        fim: fill in the middle parameters config
     """
 
     def __init__(self, fim, **kwargs):
@@ -101,8 +101,6 @@ class GPTFIMDataset(GPTDataset):
             self.pad_tok_id,
             self.eod_tok_id,
         ) = fim_tokens_ids
-
-        
 
     def _query_document_sample_shuffle_indices(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
         """Get the text (token ids) and document ids for a given index
@@ -249,7 +247,7 @@ class GPTFIMDataset(GPTDataset):
         no_fim_prefix=None,
     ):
         """
-        Take in a sample (np array w/ size (0,chunklength)) and perform a FIM transformation on it. 
+        Take in a sample (np array w/ size (0,chunklength)) and perform a FIM transformation on it.
         Maintain the same sample length (if transform creates a few extra tokens, drop them).
         """
         if np_rng.binomial(1, fim_rate):  # sample bernoulli dist
