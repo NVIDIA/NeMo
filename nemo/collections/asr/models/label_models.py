@@ -435,16 +435,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.reset()
         self._macro_accuracy.reset()
 
-        self.log(f'{tag}_loss', loss_mean, sync_dist=True)
+        tensorboard_logs = {f'{tag}_loss': loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            self.log(f'{tag}_acc_micro_top_{top_k}', score, sync_dist=True)
-        self.log(f'{tag}_acc_macro', macro_accuracy_score, sync_dist=True)
+            tensorboard_logs[f'{tag}_acc_micro_top_{top_k}'] = score
+        tensorboard_logs[f'{tag}_acc_macro'] = macro_accuracy_score
 
-        return {
-            f'{tag}_loss': loss_mean,
-            f'{tag}_acc_micro_top_k': topk_scores,
-            f'{tag}_acc_macro': macro_accuracy_score,
-        }
+        return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         return self.evaluation_step(batch, batch_idx, dataloader_idx, 'val')
