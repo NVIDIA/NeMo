@@ -334,6 +334,10 @@ target_label_n, "offset": offset_in_sec_n}
             logging.warning(f'Error featurizing file {sample.audio_file}: {e}')
             idx = np.random.randint(len(self.collection))
             return self.__getitem__(idx)
+        if features is None:
+            logging.warning(f"File {sample.audio_file} is None after processing.")
+            idx = np.random.randint(len(self.collection))
+            return self.__getitem__(idx)
         if np.isnan(features).any() or np.isinf(features).any():
             logging.warning(f'NaN/Inf found in features for file {sample.audio_file}.')
             idx = np.random.randint(len(self.collection))
