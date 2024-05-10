@@ -28,7 +28,7 @@ fi
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
-    ${PIP} install --editable ".[all]"
+    ${PIP} install --no-cache-dir --editable ".[all]"
 else
     rm -rf dist/
     ${PIP} install build pytest-runner
