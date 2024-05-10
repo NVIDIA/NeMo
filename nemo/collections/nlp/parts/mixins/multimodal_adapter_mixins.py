@@ -115,20 +115,26 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
             else:
                 map_location = 'cpu'
 
-        if filepath.endswith('.nemo'):
-            conf, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
-        elif filepath.endswith('.ckpt'):
-            state_dict = torch.load(filepath, map_location)['state_dict']
-        else:
-            raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
+
+        # TODO (yuya): this logic needs to change for dist ckpt because after
+        # adding adapaters the checkpoint will change
         if not peft_cfgs:
             assert filepath.endswith(
                 '.nemo'
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
+        self.add_adapter(peft_cfgs)
+        if filepath.endswith('.nemo'):
+            sharded_state_dict = None
+            if getattr(self, "sharded_state_dict", None) is not None:
+                sharded_state_dict = self.sharded_state_dict(prefix="model.")
+            conf, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location, sharded_state_dict)
+        elif filepath.endswith('.ckpt'):
+            state_dict = torch.load(filepath, map_location)['state_dict']
+        else:
+            raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
         if self.cfg.megatron_amp_O2:
             state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
-        self.add_adapter(peft_cfgs)
         if not self.ptuning_only_and_non_first_stage:
             assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
 

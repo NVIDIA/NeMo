@@ -1140,6 +1140,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def sharded_state_dict(self, prefix: str = ''):
+        if self.use_peft:
+            return None
+
         original_sharded_state_dict = super().sharded_state_dict()
         keys_to_keep = self.get_keys_to_keep()
         new_sharded_state_dict = {k: original_sharded_state_dict[k] for k in keys_to_keep}
