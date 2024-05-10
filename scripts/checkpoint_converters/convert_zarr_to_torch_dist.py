@@ -69,7 +69,9 @@ def get_args():
     )
     parser.add_argument("--path_to_save", type=str, default=None, required=True, help="Path to output ckpt files.")
     parser.add_argument(
-        "--save_to_nemo", action="store_true", help="If passed, output will be written as .nemo file.",
+        "--save_to_nemo",
+        action="store_true",
+        help="If passed, output will be written as .nemo file.",
     )
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
@@ -93,7 +95,11 @@ def get_args():
     )
 
     parser.add_argument(
-        "--model_type", type=str, required=True, default="gpt", choices=["gpt", "sft", "bert"],
+        "--model_type",
+        type=str,
+        required=True,
+        default="gpt",
+        choices=["gpt", "sft", "bert"],
     )
 
     args = parser.parse_args()
@@ -114,7 +120,7 @@ def convert(local_rank, rank, world_size, args):
             'precision': args.precision,
         },
         'model': {
-            'native_amp_init_scale': 2 ** 32,
+            'native_amp_init_scale': 2**32,
             'native_amp_growth_interval': 1000,
             'hysteresis': 2,
             'gradient_as_bucket_view': True,
