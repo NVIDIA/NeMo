@@ -239,7 +239,8 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
-            self.model.setup_mcore_distributed_parallel()
+            if self.model.use_mcore_dist_optim:
+                self.model.setup_mcore_distributed_parallel()
             self._model = self.model
         else:
             app_state = AppState()
@@ -655,8 +656,8 @@ class NLPFSDPStrategy(FSDPStrategy):
                     app_state.tensor_model_parallel_size == 1
                 ), "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
             init_model_parallel(self.sharp, self.nccl_communicator_config_path)
-            # Set the FSDP process group as DP process group
-            self._process_group = parallel_state.get_data_parallel_group()
+        # Set the FSDP process group as DP(+CP) process group
+        self.kwargs["process_group"] = parallel_state.get_data_parallel_group(with_context_parallel=True)
 
         # Set the params to omit from sharding.
         self.kwargs["ignored_states"] = []
