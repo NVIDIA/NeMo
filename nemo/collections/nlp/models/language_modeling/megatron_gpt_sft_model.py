@@ -74,7 +74,6 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        assert trainer.max_steps > 0, "max_steps for SFT can't be negative as its required to build the dataset"
         super().__init__(cfg, trainer=trainer)
         self.sep_id = cfg.get('sep_id', 49704)
         if hasattr(self.cfg.data, "validation_ds"):
@@ -95,6 +94,9 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         if hasattr(self, '_nsys_profile_enabled'):
             self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
             self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
+        if hasattr(self, '_memory_profile_enabled'):
+            self._memory_profile_start_step = self.cfg.memory_profile.get('start_step', 0)
+            self._memory_profile_end_step = self.cfg.memory_profile.get('end_step', 0)
 
         self.virtual_tokens = 0
         self.init_global_step = 0
