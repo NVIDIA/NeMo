@@ -44,7 +44,8 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
         }
 
     def __init__(self, normalizer=None, text_normalizer_call_kwargs=None, tokenizer=None,
-                 corpus_dir=None, textgrid_dir=None, use_word_postfix=False, use_word_ghost_silence=False, num_workers=0, load_audio=True, sampling_rate=24000):
+                 ds_name="", corpus_dir=None, old_prefix=None, textgrid_dir=None,
+                 use_word_postfix=False, use_word_ghost_silence=False, num_workers=0, load_audio=True, sampling_rate=24000):
         super().__init__()
         self.tokenizer = tokenizer
 
@@ -71,9 +72,9 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
                 self.text_normalizer_call_kwargs = {}
                 self.textgrid_dir = textgrid_dir
 
+        self.ds_name = ds_name
         self.corpus_dir = corpus_dir
-        if corpus_dir is not None:
-            self.old_prefix = "download/librilight"
+        self.old_prefix = old_prefix
 
         if load_audio:
             self.load_audio = AudioSamples(num_workers=num_workers, fault_tolerant=True)
@@ -89,9 +90,9 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
             old_path = cut.recording.sources[0].source
             new_path = old_path.replace(self.old_prefix, self.corpus_dir)
             cut.recording.sources[0].source = new_path
-        if not os.path.exists(old_path):
+        if self.ds_name == "gigaspeech" and not os.path.exists(cut.recording.sources[0].source):
             # HF random path
-            old_path = Path(old_path)
+            old_path = Path(cut.recording.sources[0].source)
             new_path = glob(str(old_path.parents[2] / "*" / old_path.parts[-2] / old_path.parts[-1]))[0]
             # print(str(old_path), str(new_path))
             cut.recording.sources[0].source = new_path

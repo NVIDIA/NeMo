@@ -7,7 +7,7 @@ defaults:
   - /experiment@_global_:
     - a100
     - tricks/dac
-    - tricks/no_diffusion
+    # - tricks/no_diffusion
   - /dataset:
     - gigaspeech-XS
 

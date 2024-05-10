@@ -6,9 +6,10 @@ ds_name: gigaspeech
 
 # password: ???
 
-corpus_dir: data/download/GigaSpeech
-manifests_dir: data/parsed/GigaSpeech  # parsed manifests (e.g. filtering, add alignments, etc.)
+corpus_dir: data/download/GigaSpeech  # /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/gigaspeech_hf
+manifests_dir: data/parsed/GigaSpeech  # /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/voicebox/GigaSpeech/
 textgrid_dir: data/aligned/GigaSpeech/textgrid
+old_prefix: /home/sungfengh/.cache/huggingface/datasets
 
 subsets: ["XL", "L", "M", "S", "XS", "DEV", "TEST"]
 

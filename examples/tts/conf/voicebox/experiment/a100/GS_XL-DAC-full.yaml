@@ -15,8 +15,8 @@ model:
   voicebox:
     audio_enc_dec:
       # factorized_latent: True
-      return_code: True
-      bandwidth_id: 2
+      # return_code: True
+      bandwidth_id: 12
 
   duration_predictor:
     audio_enc_dec: ${..voicebox.audio_enc_dec}
@@ -32,4 +32,4 @@ exp_manager:
     project: voicebox-GS_XL
 
 # task name, determines output directory path
-task_name: "a100-GS_XL-cDAC_2-full"
+task_name: "a100-GS_XL-DAC_12-full"

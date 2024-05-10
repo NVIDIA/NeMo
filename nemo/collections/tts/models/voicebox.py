@@ -174,7 +174,9 @@ class VoiceboxModel(TextToWaveform):
         self.maybe_init_from_pretrained_checkpoint(cfg=cfg, map_location='cpu')
 
         self.val_0_tts = cfg.get("val_0_tts", False)
-        self.waveform_loss = cfg.voicebox.get("waveform_loss", False)
+        self.waveform_loss = cfg.get("waveform_loss", False)
+        self.cap_vocode = cfg.get("cap_vocode", False)
+        self.ce_loss_lambda = 0.1
 
     def _download_libriheavy(self, target_dir, dataset_parts):
         """ Download LibriHeavy manifests. """
@@ -496,8 +498,9 @@ class VoiceboxModel(TextToWaveform):
                 self._download_libritts(target_dir=self._cfg.corpus_dir, dataset_parts=dataset_parts)
                 self._prepare_libritts(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
             elif self._cfg.ds_name == "gigaspeech":
-                self._download_gigaspeech(target_dir=self._cfg.corpus_dir, dataset_parts=dataset_parts)
-                self._prepare_gigaspeech(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
+                # self._download_gigaspeech(target_dir=self._cfg.corpus_dir, dataset_parts=dataset_parts)
+                # self._prepare_gigaspeech(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
+                pass
 
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.
@@ -561,7 +564,9 @@ class VoiceboxModel(TextToWaveform):
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=LhotseTextToSpeechDataset(
+                ds_name= self.cfg.ds_name,
                 corpus_dir=self.cfg.corpus_dir,
+                old_prefix=self.cfg.old_prefix,
                 **ds_kwargs
             ),
         )
@@ -1110,6 +1115,10 @@ class VoiceboxModel(TextToWaveform):
             input_sampling_rate=None
         )
 
+        if getattr(self.voicebox.audio_enc_dec, "preq_ce", False):
+            ce_loss = self.cfm_wrapper.cross_entropy_loss(outputs, audio, audio_mask)
+            losses['ce'] = ce_loss
+
         if self.waveform_loss:
             waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
             losses['waveform'] = waveform_loss
@@ -1137,6 +1146,8 @@ class VoiceboxModel(TextToWaveform):
                 self.log_image("train_vb/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id].T.detach().cpu().numpy()), self.global_step)
 
             with torch.no_grad():
+                if self.cap_vocode:
+                    pred_x1 = torch.where(cond_mask, pred_x1, x1)
                 pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1)[plot_id].detach().cpu().numpy()
                 recon_audio = self.voicebox.audio_enc_dec.decode(x1)[plot_id].detach().cpu().numpy()
             orig_audio = audio[plot_id].detach().cpu().numpy()
@@ -1169,6 +1180,10 @@ class VoiceboxModel(TextToWaveform):
             cond_mask=None,
             input_sampling_rate=None
         )
+
+        if getattr(self.voicebox.audio_enc_dec, "preq_ce", False):
+            ce_loss = self.cfm_wrapper.cross_entropy_loss(outputs, audio, audio_mask)
+            losses['ce'] = ce_loss
         
         if self.waveform_loss:
             waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
@@ -1207,8 +1222,11 @@ class VoiceboxModel(TextToWaveform):
             audio_len = audio_mask.sum(-1)
             mel_len = self_attn_mask.sum(-1)
 
-            cond = cond * ~rearrange(cond_mask, '... -> ... 1')
+            cond_mask = rearrange(cond_mask, '... -> ... 1')
+            cond = cond * ~cond_mask
             pred_x1 = output_audio
+            if self.cap_vocode:
+                pred_x1 = torch.where(cond_mask, pred_x1, x1)
 
             for plot_id in range(x1.shape[0]):
                 self.log_image(f"val_vb/{plot_id}/x1", plot_spectrogram_to_numpy(x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
@@ -1273,8 +1291,9 @@ class VoiceboxModel(TextToWaveform):
         bin_loss = losses.get('bin', 0)
         vb_loss = losses['vb']
         wv_loss = losses.get('waveform', 0)
+        ce_loss = losses.get('ce', 0) * self.ce_loss_lambda
 
-        loss = align_loss + bin_loss + dp_loss + vb_loss + wv_loss
+        loss = align_loss + bin_loss + dp_loss + vb_loss + wv_loss + ce_loss
 
         self.log_dict({f"train_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
         self.log("train_loss_vb", vb_loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
@@ -1379,8 +1398,9 @@ class VoiceboxModel(TextToWaveform):
         bin_loss = losses.get('bin', 0)
         vb_loss = losses['vb']
         wv_loss = losses.get('waveform', 0)
+        ce_loss = losses.get('ce', 0) * self.ce_loss_lambda
 
-        loss = align_loss + bin_loss + dp_loss + vb_loss + wv_loss
+        loss = align_loss + bin_loss + dp_loss + vb_loss + wv_loss + ce_loss
         self.log_dict({f"val_loss/{k}": v for k, v in losses.items()}, sync_dist=True, batch_size=audio.shape[0])
         self.log("val_loss_total", loss, prog_bar=True, sync_dist=True, batch_size=audio.shape[0])
         return loss
