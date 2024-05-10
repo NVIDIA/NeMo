@@ -603,7 +603,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         # With Pipeline Parallelism (PP) greater than 1, different stages might have varying lengths for `self._optimizer_param_groups`.
         # This inconsistency can lead to errors during the loading of distributed checkpoints.
         # As a temporary workaround, if `self._optimizer_param_groups` has less than 2 groups, add an empty parameter group marked as non-expert.
-        if len(self._optimizer_param_groups) < 2:
+        if len(self._optimizer_param_groups) < 2 and not self.use_peft:
             self._optimizer_param_groups = (self._optimizer_param_groups[0], {'params': [], 'is_expert': False})
 
         # filter out params doesn't have grad

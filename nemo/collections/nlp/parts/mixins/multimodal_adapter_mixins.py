@@ -12,26 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import tempfile
 from typing import List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import replace_prefix, NLPAdapterModelMixin
 from nemo.collections.nlp.parts.peft_config import (
     PEFT_CONFIG_MAP,
-    CanonicalAdaptersPEFTConfig,
-    LoraPEFTConfig,
     PEFTConfig,
     PtuningPEFTConfig,
 )
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
-from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import parallel_state
@@ -57,32 +50,44 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
         return set(k)
 
     def add_adapter(self, peft_cfgs: Union[PEFTConfig, List[PEFTConfig]]):
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None):
+            raise ValueError('Virtual pipeline model parallel is not supported when using PEFT')
+        if self.cfg.optim.name == "distributed_fused_adam":
+            raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
+
+        self.use_peft = True
         if not isinstance(peft_cfgs, List):
             peft_cfgs = [peft_cfgs]
+
+        # @chcui crucial to set self.virtual_tokens and self.use_peft for all PP ranks
+        for peft_cfg in peft_cfgs:
+            if isinstance(peft_cfg, PtuningPEFTConfig):
+                self.virtual_tokens = peft_cfg.virtual_tokens
+        ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
+        self.ptuning_only_and_non_first_stage = ptuning_only and not self.first_stage_of_pipeline()
+        if self.ptuning_only_and_non_first_stage:
+            # There are no params to add if we are not in the first state of the pipeline
+            return
 
         self.base_keys = getattr(self, "base_keys", self._get_all_keys())
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
-        self.use_ptuning_only = len(peft_cfgs) == 1 and isinstance(peft_cfgs[0], PtuningPEFTConfig)
-
         for peft_cfg in peft_cfgs:
-            if self.use_ptuning_only:
-                if not self.first_stage_of_pipeline():
-                    # There are no params to add if we are not in the first state of the pipeline
-                    continue
-                self.virtual_tokens = peft_cfg.virtual_tokens
-
             self._check_and_add_peft_cfg(peft_cfg)
 
         logging.info(f"After adding PEFT params:\n{self.summarize()}")
         self.adapter_keys = self._get_all_keys() - self.base_keys
-        if self.megatron_amp_O2:
-            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
+        self.tunable_base_param_keys = set()
 
         for cfg in peft_cfgs:
-            if cfg.weight_tying:
+            if hasattr(cfg, "weight_tying") and cfg.weight_tying:
                 self.tie_weights(cfg)
-        self.use_peft = True
+
+            if hasattr(cfg, "tunable_base_param_names") and cfg.tunable_base_param_names:
+                self.set_tunable_base_params(cfg)
+
+        if self.megatron_amp_O2:
+            self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
     def load_adapters(
         self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
@@ -121,11 +126,11 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
                 '.nemo'
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
+        if self.cfg.megatron_amp_O2:
+            state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
         self.add_adapter(peft_cfgs)
-        assert set(state_dict.keys()) == self.adapter_keys
-
-        if self.megatron_amp_O2:
-            state_dict = {k.replace("model.", "model.module.", 1): v for k, v in state_dict.items()}
+        if not self.ptuning_only_and_non_first_stage:
+            assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
 
         missing_keys, unexpected_keys = NLPModel.load_state_dict(self, state_dict, strict=False)
 
