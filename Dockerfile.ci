@@ -17,11 +17,11 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
 
 FROM ${BASE_IMAGE}
+RUN echo
 
 ENV TRANSFORMERS_OFFLINE=0 
 ENV HYDRA_FULL_ERROR=1
 ENV PYTHONUNBUFFERED=1
-
 # APT packages
 RUN <<"EOF" bash -ex
 apt-get update
