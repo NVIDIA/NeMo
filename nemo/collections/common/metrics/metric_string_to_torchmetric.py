@@ -14,6 +14,11 @@
 
 from torchmetrics import Accuracy, AveragePrecision, F1Score, MatthewsCorrCoef, PearsonCorrCoef, SpearmanCorrCoef
 from torchmetrics.text.rouge import ROUGEScore
+from torchmetrics.text.bleu import BLEUScore
+from torchmetrics.text.sacre_bleu import SacreBLEUScore
+from torchmetrics.text.bert import BERTScore
+from torchmetrics.text.edit import EditDistance
+from torchmetrics.text.perplexity import Perplexity
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric, TokenF1Score
 
@@ -31,4 +36,9 @@ MetricStringToTorchMetric = {
     'matthews_corr_coef': MatthewsCorrCoef,
     'exact_string_match': ExactStringMatchMetric,
     'rouge': ROUGEScore,
+    'bleu': BLEUScore,
+    'sacre_bleu': SacreBLEUScore,
+    'bertscore': BERTScore,
+    'edit_distance': EditDistance,
+    'perplexity': Perplexity,
 }
