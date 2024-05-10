@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from torchmetrics import Accuracy, AveragePrecision, F1Score, MatthewsCorrCoef, PearsonCorrCoef, SpearmanCorrCoef
-from torchmetrics.text.rouge import ROUGEScore
-from torchmetrics.text.bleu import BLEUScore
-from torchmetrics.text.sacre_bleu import SacreBLEUScore
 from torchmetrics.text.bert import BERTScore
+from torchmetrics.text.bleu import BLEUScore
 from torchmetrics.text.edit import EditDistance
 from torchmetrics.text.perplexity import Perplexity
+from torchmetrics.text.rouge import ROUGEScore
+from torchmetrics.text.sacre_bleu import SacreBLEUScore
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric, TokenF1Score
 
