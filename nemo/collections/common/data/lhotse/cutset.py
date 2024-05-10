@@ -164,7 +164,10 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
         is_tarred = True
         cuts = read_txt_pair_paths(grp_cfg)
     elif grp_cfg.type == "group":
-        cuts, is_tarred = parse_and_combine_datasets(grp_cfg.input_cfg, propagate_attrs=propagate_attrs,)
+        cuts, is_tarred = parse_and_combine_datasets(
+            grp_cfg.input_cfg,
+            propagate_attrs=propagate_attrs,
+        )
     else:
         raise ValueError(f"Unrecognized group: {grp_cfg.type}")
     # Attach extra tags to every utterance dynamically, if provided.
@@ -176,7 +179,10 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
 def read_txt_paths(config: DictConfig) -> CutSet:
     return CutSet(
         LhotseTextAdapter(
-            paths=config.paths, language=config.language, shuffle_shards=config.shuffle, shard_seed=config.shard_seed,
+            paths=config.paths,
+            language=config.language,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
         )
     ).repeat()
 
@@ -391,7 +397,9 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         if is_tarred and not metadata_only:
             cuts = CutSet(
                 LazyNeMoTarredIterator(
-                    config.manifest_filepath, tar_paths=config.tarred_audio_filepaths, **common_kwargs,
+                    config.manifest_filepath,
+                    tar_paths=config.tarred_audio_filepaths,
+                    **common_kwargs,
                 )
             ).repeat()
         else:
@@ -419,7 +427,11 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
             # First, convert manifest_path[+tar_path] to an iterator.
             manifest_path = manifest_info[0]
             if is_tarred and not metadata_only:
-                nemo_iter = LazyNeMoTarredIterator(manifest_path=manifest_path, tar_paths=tar_path, **common_kwargs,)
+                nemo_iter = LazyNeMoTarredIterator(
+                    manifest_path=manifest_path,
+                    tar_paths=tar_path,
+                    **common_kwargs,
+                )
             else:
                 nemo_iter = LazyNeMoIterator(manifest_path, **notar_kwargs, **common_kwargs)
             # Then, determine the weight or use one provided

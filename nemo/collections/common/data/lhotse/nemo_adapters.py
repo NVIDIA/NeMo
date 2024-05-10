@@ -111,7 +111,12 @@ class LazyNeMoIterator:
     def __add__(self, other):
         return LazyIteratorChain(self, other)
 
-    def _create_recording(self, audio_path: str, duration: float, sampling_rate: int | None = None,) -> Recording:
+    def _create_recording(
+        self,
+        audio_path: str,
+        duration: float,
+        sampling_rate: int | None = None,
+    ) -> Recording:
         if sampling_rate is not None:
             # TODO(pzelasko): It will only work with single-channel audio in the current shape.
             return Recording(

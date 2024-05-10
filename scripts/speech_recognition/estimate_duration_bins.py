@@ -80,7 +80,8 @@ def main():
     else:
         inp_arg = f"manifest_filepath={args.input}"
     config = OmegaConf.merge(
-        OmegaConf.structured(LhotseDataLoadingConfig), OmegaConf.from_dotlist([inp_arg, "metadata_only=true"]),
+        OmegaConf.structured(LhotseDataLoadingConfig),
+        OmegaConf.from_dotlist([inp_arg, "metadata_only=true"]),
     )
     cuts, _ = read_cutset_from_config(config)
     min_dur, max_dur = args.min_duration, args.max_duration
