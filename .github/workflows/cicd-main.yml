@@ -58,16 +58,6 @@ jobs:
     needs: [cicd-cluster-clean]
     runs-on: self-hosted-azure-builder
     # if: ${{ github.event.label.name == 'Run CICD' }}
-    # uses: actions/cache@v2
-    #container:
-#      image: nvcr.io/nvidia/pytorch:24.02-py3
-#      options: 
-#        # --user 0:128
-#        --device=/dev/nvidia0
-#        --gpus all
-#        --shm-size=8g 
-#        --env TRANSFORMERS_OFFLINE=0
-#        --env HYDRA_FULL_ERROR=1
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -84,41 +74,29 @@ jobs:
       with:
         file: Dockerfile.ci
         push: true
-        cache-from: nemoci.azurecr.io/nemo_container:latest
+        # cache-from: nemoci.azurecr.io/nemo_container:latest
         tags: |
           nemoci.azurecr.io/nemo_container_${{ github.run_id }}
           nemoci.azurecr.io/nemo_container:latest
 
-    # - name: Build & push container
-    #   run: |
-    #     docker info 
-    #     mkdir -p ~/.docker/cli-plugins/
-    #     rm -rf ~/.docker/cli-plugins/docker-buildx
-    #     wget https://github.com/docker/buildx/releases/download/v0.14.0/buildx-v0.14.0.linux-amd64
-    #     chmod a+x buildx-v0.14.0.linux-amd64
-    #     mv buildx-v0.14.0.linux-amd64 ~/.docker/cli-plugins/docker-buildx
-    #     file ~/.docker/cli-plugins/docker-buildx
-    #     DOCKER_BUILDKIT=1 docker build --cache-from nemoci.azurecr.io/nemo_container -f ${{ github.run_id }}/Dockerfile.ci -t nemoci.azurecr.io/nemo_container_${{ github.run_id }} -t nemoci.azurecr.io/nemo_container ${{ github.run_id }}
-    #     docker push nemoci.azurecr.io/nemo_container_${{ github.run_id }}
-    #     docker push nemoci.azurecr.io/nemo_container
-
     - name: Run some checks
       run: |
         docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container_${{ github.run_id }} bash -c '\
-        # PyTorch Lightning version
-        python -c "import pytorch_lightning; print(pytorch_lightning.__version__)" && \
+          # PyTorch Lightning version
+          python -c "import pytorch_lightning; print(pytorch_lightning.__version__)" && \
 
-        # PyTorch Lightning DDP Checks
-        CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py" && \
+          # PyTorch Lightning DDP Checks
+          CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py" && \
 
-        # Basic Import Checks
-        python -c "import nemo.collections.asr as nemo_asr" && \
-        python -c "import nemo.collections.nlp as nemo_nlp" && \
-        python -c "import nemo.collections.tts as nemo_tts"'
-        # && \
+          # Basic Import Checks
+          python -c "import nemo.collections.asr as nemo_asr" && \
+          python -c "import nemo.collections.nlp as nemo_nlp" && \
+          python -c "import nemo.collections.tts as nemo_tts"'
+          # && \
 
-        #python setup.py style && \
-        #python tests/check_copyright_header.py --dir .'
+          #python setup.py style && \
+          #python tests/check_copyright_header.py --dir .
+        '
 
     - name: Push container to registry for future use
       run: |
