@@ -889,6 +889,28 @@ class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
 class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
     _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
 
+class DownSampleBlock(nn.Module):
+    def forward(self, x):
+        vit_embeds = x
+        h = w = int(vit_embeds.shape[3] ** 0.5)
+        vit_embeds = vit_embeds.reshape(*vit_embeds.shape[:3], h, w, -1)
+        vit_embeds = self.flat_square(vit_embeds)
+        vit_embeds = vit_embeds.reshape(*vit_embeds.shape[:3], -1, vit_embeds.shape[-1])
+        return vit_embeds
+
+    def flat_square(self, x):
+        b, T, F, h, w, c = x.size()
+        if w % 2 == 1:
+            x = torch.cat([x, torch.zeros((b, T, F, h, 1, c), dtype=x.dtype).to(x.device)], dim=4)
+            b, T, F, h, w, c = x.size()
+        if h % 2 == 1:
+            x = torch.cat([x, torch.zeros((b, T, F, 1, w, c), dtype=x.dtype).to(x.device)], dim=3)
+            b, T, F, h, w, c = x.size()
+        x = x.view(b, T, F, h, int(w / 2), int(c * 2))
+        x = x.permute(0, 1, 2, 4, 3, 5).contiguous()
+        x = x.view(b, T, F, int(w / 2), int(h / 2), int(c * 4))
+        return x
+    
 
 class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
     def __init__(self, adapter_type: str, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
@@ -898,6 +920,14 @@ class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
             self.mm_projector = torch.nn.Linear(in_features, out_features, bias)
         elif adapter_type == 'identity':
             self.mm_projector = lambda x: x
+        elif adapter_type == 'mlp_downsample':
+            self.mm_projector = torch.nn.Sequential(
+                DownSampleBlock(),
+                torch.nn.LayerNorm(in_features*4),
+                torch.nn.Linear(in_features*4, out_features,bias),
+                torch.nn.GELU(),
+                torch.nn.Linear(out_features, out_features,bias)
+            )
         else:
             mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', adapter_type)
             if mlp_gelu_match:

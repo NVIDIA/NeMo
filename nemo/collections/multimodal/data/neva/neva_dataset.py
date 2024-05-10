@@ -267,6 +267,9 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     if media_type == 'video':
         num_patches *= multimodal_cfg['num_frames']
 
+    if multimodal_cfg['mm_mlp_adapter_type'] =='mlp_downsample':
+        num_patches //= 4
+    
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_patches
     else:
@@ -981,7 +984,7 @@ class DataCollatorForSupervisedDataset(object):
 
         tokens = batch['tokens']
         labels = batch['labels']
-        media_type = model_cfg.data.get('media_type')
+        media_type = model_cfg.data.get('media_type','image')
         if media_type == 'image':
             media = batch.get('image')
         elif media_type == 'video':
@@ -1068,6 +1071,7 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             context_length=model_cfg.encoder_seq_length,
             media_type=data_cfg.get('media_type', 'image'),
             num_frames=data_cfg.get('num_frames', -1),
+            mm_mlp_adapter_type=model_cfg.mm_cfg.get('mm_mlp_adapter_type', 'linear'),
         ),
         data_cfg=dict(
             splice_single_frame=data_cfg.get('splice_single_frame', None),
