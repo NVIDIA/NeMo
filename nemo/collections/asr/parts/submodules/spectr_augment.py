@@ -38,7 +38,7 @@ class SpecAugment(nn.Module, Typing):
         to be cut in one segment.
         If a float value, defines maximum percentage of timesteps that
         are cut adaptively.
-    fast - GPU-based implementation with batched masking and GPU rng,
+    use_vectorized_code - GPU-based implementation with batched masking and GPU rng,
         setting it to False reverts to the legacy implementation.
         Fast implementation is inspired by torchaudio:
         https://github.com/pytorch/audio/blob/ea437b31ce316ea3d66fe73768c0dcb94edb79ad/src/torchaudio/functional/functional.py#L816
@@ -175,9 +175,9 @@ class SpecAugment(nn.Module, Typing):
         mask_width = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * width
         mask_width = mask_width.long()
         mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * (
-            axis_length - mask_width
+             length.unsqueeze(1) - mask_width
         )
-        mask_start.long()
+        mask_start = mask_start.long()
         mask_end = mask_start + mask_width
 
         # Create mask values using vectorized indexing
