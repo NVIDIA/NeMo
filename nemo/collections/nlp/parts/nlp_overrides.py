@@ -239,7 +239,8 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.model, 'with_distributed_adam') and self.model.with_distributed_adam
         ):
             # do not use DDP if using megatron amp O2 or distributed optimizer
-            self.model.setup_mcore_distributed_parallel()
+            if self.model.use_mcore_dist_optim:
+                self.model.setup_mcore_distributed_parallel()
             self._model = self.model
         else:
             app_state = AppState()
@@ -474,7 +475,7 @@ class NLPDDPStrategy(DDPStrategy):
             logging.warning(
                 'Distributed checkpoints requires DistributedCheckpointIO plugin to be used. Setting up a default now.'
             )
-            self.checkpoint_io = DistributedCheckpointIO(self.lightning_module.cfg.get('dist_ckpt_format', 'zarr'))
+            self.checkpoint_io = DistributedCheckpointIO.from_config(self.lightning_module.cfg)
         if not has_sharded_state_dict and has_dist_ckpt_io:
             logging.warning(
                 'DistributedCheckpointIO configured but should not be used. Reverting back to TorchCheckpointIO'
@@ -655,8 +656,8 @@ class NLPFSDPStrategy(FSDPStrategy):
                     app_state.tensor_model_parallel_size == 1
                 ), "FSDP hybrid sharding cannot be used when tensor_model_parallel_size > 1."
             init_model_parallel(self.sharp, self.nccl_communicator_config_path)
-            # Set the FSDP process group as DP process group
-            self._process_group = parallel_state.get_data_parallel_group()
+        # Set the FSDP process group as DP(+CP) process group
+        self.kwargs["process_group"] = parallel_state.get_data_parallel_group(with_context_parallel=True)
 
         # Set the params to omit from sharding.
         self.kwargs["ignored_states"] = []
@@ -1150,7 +1151,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                checkpoint_io = DistributedCheckpointIO(conf.get('dist_ckpt_format', 'zarr'))
+                checkpoint_io = DistributedCheckpointIO.from_config(conf)
                 checkpoint = checkpoint_io.load_checkpoint(tmp_model_weights_dir, sharded_state_dict=checkpoint)
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
