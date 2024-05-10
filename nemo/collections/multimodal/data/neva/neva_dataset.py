@@ -38,8 +38,8 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IMAGE_TOKEN,
-    DEFAULT_VIDEO_TOKEN,
     DEFAULT_LABELS_TOKEN,
+    DEFAULT_VIDEO_TOKEN,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -182,7 +182,10 @@ class TarOrFolderVideoLoader:
 
 
 def tokenize(
-    texts: Union[str, List[str]], tokenizer: Any, context_length: int, add_extra_token: int,
+    texts: Union[str, List[str]],
+    tokenizer: Any,
+    context_length: int,
+    add_extra_token: int,
 ) -> torch.LongTensor:
     """
     Returns the tokenized representation of given input string(s). If the list of tokens exceeds the context
@@ -289,7 +292,11 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     return sources
 
 
-def preprocess_llama_3(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_llama_3(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocesses sources for the LLaMA 3 model configuration.
 
@@ -371,10 +378,17 @@ def preprocess_llama_3(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_llama_2(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocesses sources for the LLaMA 2 model configuration.
 
@@ -458,10 +472,17 @@ def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_v1(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocesses sources for the Vicuna V1 model configuration.
 
@@ -541,10 +562,17 @@ def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_nvgpt(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocess a given set of conversational sources using nvgpt conversation template
 
@@ -582,9 +610,9 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
             if i % 2 == 1:
                 turn['from'] = conv.roles[1]
                 if 'label' not in turn:
-                    turn[
-                        'label'
-                    ] = "quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4"
+                    turn['label'] = (
+                        "quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4"
+                    )
                 value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
                 conv.append_message(turn['from'], value)
                 if not turn["value"]:
@@ -646,10 +674,17 @@ def preprocess_nvgpt(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
+def preprocess_nv_dpo(
+    sources: dict,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocess a given set of conversational sources using nvgpt conversation template
 
@@ -745,10 +780,17 @@ def preprocess_nv_dpo(sources: dict, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
-def preprocess_plain(sources, tokenizer, cfg,) -> Dict:
+def preprocess_plain(
+    sources,
+    tokenizer,
+    cfg,
+) -> Dict:
     """
     Preprocesses plain text sources (no template) for tokenization and label generation.
 
@@ -796,7 +838,10 @@ def preprocess_plain(sources, tokenizer, cfg,) -> Dict:
         labels = torch.roll(labels, shifts=-1, dims=-1)
         labels[:, -1] = IGNORE_INDEX
 
-    return dict(tokens=tokens, labels=labels,)
+    return dict(
+        tokens=tokens,
+        labels=labels,
+    )
 
 
 class LazySupervisedDataset(Dataset):
@@ -949,17 +994,41 @@ class LazySupervisedDataset(Dataset):
             sources = copy.deepcopy(sources)
 
         if self.conv_template in ["nvgpt", "nv_steerlm"]:
-            data_dict = preprocess_nvgpt(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_nvgpt(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "nv_dpo":
-            data_dict = preprocess_nv_dpo(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_nv_dpo(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "v1":
-            data_dict = preprocess_v1(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_v1(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "llama_2":
-            data_dict = preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_llama_2(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "llama_3":
-            data_dict = preprocess_llama_3(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_llama_3(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         elif self.conv_template == "plain":
-            data_dict = preprocess_plain(sources, self.tokenizer, self.multimodal_cfg,)
+            data_dict = preprocess_plain(
+                sources,
+                self.tokenizer,
+                self.multimodal_cfg,
+            )
         else:
             raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
 
@@ -1129,7 +1198,12 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
         )
     else:
         # TODO(yuya): Fix this hard-code for our own CLIP
-        image_processor = image_transform(crop_size, is_train=False, mean=None, std=None,)
+        image_processor = image_transform(
+            crop_size,
+            is_train=False,
+            mean=None,
+            std=None,
+        )
 
     train_dataset = NevaDataset(
         tokenizer=tokenizer,

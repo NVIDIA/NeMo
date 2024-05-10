@@ -121,11 +121,11 @@ class Conversation:
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
             {{ system_prompt }}<|eot_id|><|start_header_id|>user<|end_header_id|>
-            
+
             {{ user_message_1 }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-            
+
             {{ model_answer_1 }}<|eot_id|><|start_header_id|>user<|end_header_id|>
-            
+
             {{ user_message_2 }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
             """
             wrap_sys = lambda msg: f"<|start_header_id|>system<|end_header_id|>\n\n{msg}"
@@ -394,7 +394,12 @@ conv_llava_llama_3 = Conversation(
 )
 
 conv_llava_plain = Conversation(
-    system="", roles=("", ""), messages=(), offset=0, sep_style=SeparatorStyle.PLAIN, sep="\n",
+    system="",
+    roles=("", ""),
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.PLAIN,
+    sep="\n",
 )
 
 conv_llava_v0 = Conversation(
