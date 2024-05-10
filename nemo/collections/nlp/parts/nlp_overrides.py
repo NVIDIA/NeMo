@@ -1151,12 +1151,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
-                # if not strict:
-                #     for key in list(sharded_state_dict.keys()):
-                #         if not os.path.isdir(f"{tmp_model_weights_dir}/{key}"):
-                #             checkpoint['state_dict'].pop(key)
                 checkpoint_io = DistributedCheckpointIO.from_config(conf)
-                checkpoint = checkpoint_io.load_checkpoint(tmp_model_weights_dir, sharded_state_dict=checkpoint)
+                checkpoint = checkpoint_io.load_checkpoint(tmp_model_weights_dir, sharded_state_dict=checkpoint, strict=strict)
                 instance.on_load_checkpoint(checkpoint)
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
                     instance.setup_transformer_engine_tp_groups()

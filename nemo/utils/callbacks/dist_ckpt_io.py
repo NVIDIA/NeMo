@@ -1,3 +1,4 @@
+import os
 import shutil
 from typing import Any, Dict, Optional
 
@@ -50,7 +51,7 @@ class DistributedCheckpointIO(CheckpointIO):
         )
 
     def load_checkpoint(
-        self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: Dict[str, Any] = None
+        self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: Dict[str, Any] = None, strict: Optional[bool] = True,
     ) -> Dict[str, Any]:
         """ Loads a distributed checkpoint.
 
@@ -74,6 +75,11 @@ class DistributedCheckpointIO(CheckpointIO):
             sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
         else:
             sharded_strategy = None
+
+        if not strict:
+            for key in list(sharded_state_dict.keys()):
+                if not os.path.isdir(f"{path}/{key}"):
+                    sharded_state_dict['state_dict'].pop(key)
 
         return dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy
