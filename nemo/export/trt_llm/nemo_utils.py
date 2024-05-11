@@ -116,7 +116,7 @@ def _nemo_llm_decode(
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
     if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
-        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
+        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"), trust_remote_code=True)
 
     model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
     tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
@@ -423,6 +423,9 @@ def nemo_to_trtllm_config(
     if decoder_type == "falcon":
         config["new_decoder_architecture"] = False if num_layers == 32 else True
         config["parallel_attention"] = True
+    elif decoder_type == "chatglm":
+        config["position_embedding_type"] = "rope_gptj"
+        config["hidden_act"] = "swiglu"
     if rotary_scaling is not None:
         config["rotary_scaling"] = {"type": "linear", "factor": float(rotary_scaling)}
 

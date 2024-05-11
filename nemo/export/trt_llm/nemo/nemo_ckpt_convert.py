@@ -186,13 +186,15 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         "tp_size": training_tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
         in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
-        and (args.decoder_type == "gptnext" or is_mcore),
+        and (args.decoder_type == "gptnext" or is_mcore)
+        and args.decoder_type != "chatglm",
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
         "kv_channels": kv_channels,
         "use_attention_nemo_shape": True,
         "transpose_weights": True,
         "use_parallel_embedding": use_parallel_embedding,
+        "decoder_type": args.decoder_type,
     }
 
     # split_factor: in how many parts a TP training node is split
@@ -293,7 +295,9 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
     if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
         tokenizer = AutoTokenizer.from_pretrained(
-            nemo_model_config["tokenizer"]["type"], use_fast=nemo_model_config["tokenizer"].get("use_fast", False)
+            nemo_model_config["tokenizer"]["type"],
+            use_fast=nemo_model_config["tokenizer"].get("use_fast", False),
+            trust_remote_code=True
         )
     else:
         tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)

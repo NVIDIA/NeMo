@@ -262,6 +262,9 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         or "mlp.linear_fc1.weight" in key
         or "mlp.linear_fc1.bias" in key
     ):
+        if config["decoder_type"] == "chatglm":
+            splits = [np.split(val, 2, axis=-1) for val in vals]
+            vals = [np.concatenate([gate, val], axis=-1) for val, gate in splits]
         if split_gated_activation:
             splits = [np.split(val, 2, axis=-1) for val in vals]
             vals, gates = list(zip(*splits))
