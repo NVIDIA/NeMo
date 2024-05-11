@@ -61,7 +61,6 @@ def main(cfg) -> None:
     # update resume from checkpoint found by exp_manager
     logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
 
-
     if hasattr(cfg, 'model_target'):
         imported_cls = model_utils.import_class_by_path(cfg.model_target)
     else:
