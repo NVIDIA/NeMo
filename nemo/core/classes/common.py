@@ -219,7 +219,10 @@ class Typing(ABC):
                     hasattr(value, 'neural_type')
                     and is_semantic_typecheck_enabled()
                     and not metadata.base_types[key].compare(value.neural_type)
-                    in (NeuralTypeComparisonResult.SAME, NeuralTypeComparisonResult.GREATER,)
+                    in (
+                        NeuralTypeComparisonResult.SAME,
+                        NeuralTypeComparisonResult.GREATER,
+                    )
                 ):
                     error_msg = [
                         f"{input_types[key].compare(value.neural_type)} :",
@@ -398,7 +401,10 @@ class Typing(ABC):
             hasattr(obj, 'neural_type')
             and is_semantic_typecheck_enabled()
             and not type_val.compare(obj.neural_type)
-            in (NeuralTypeComparisonResult.SAME, NeuralTypeComparisonResult.GREATER,)
+            in (
+                NeuralTypeComparisonResult.SAME,
+                NeuralTypeComparisonResult.GREATER,
+            )
         ):
             raise TypeError(
                 f"{type_val.compare(obj.neural_type)} : \n"
