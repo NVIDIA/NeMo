@@ -386,7 +386,6 @@ def convert_nemo_model(
     starmap_args = []
 
     import time
-    tic = time.time()
 
     layers_per_pp = num_layers // pp_size
     layers_per_chunk = layers_per_pp // vp_size
@@ -428,9 +427,6 @@ def convert_nemo_model(
                     gathered_params[key2] = weight_list[idx]
         tl_params = gathered_params
 
-    toc = time.time()
-    print(f"    PP Reshard save took {toc-tic}")
-
     # ----------------Convert layer level weights----------------  
     layer_params = extract_layers_with_prefix(tl_params, transformer_layer_prefix)
     layer_params = {
@@ -451,7 +447,7 @@ def convert_nemo_model(
 
     #broadcast a tensor across PP group and save it
     def save_pp_weight(
-        src_key_or_tensor, dst_key, pp_src_idx, transpose_weights=False, weight_type=None):
+        src_key_or_tensor, dst_key, pp_src_idx, transpose_weights=True, weight_type=None):
 
         have_tensor = False
         if torch.distributed.get_rank() == pp_src_idx:
@@ -494,14 +490,12 @@ def convert_nemo_model(
             get_layer_name("final_layernorm.weight", transformer_layer_prefix), 
             "ln_f.weight", 
             pp_last_rank, 
-            transpose_weights=True,
             weight_type='layernorm_weight'
         )
         save_pp_weight(
             get_layer_name("final_layernorm.bias", transformer_layer_prefix), 
             "ln_f.bias", 
             pp_last_rank, 
-            transpose_weights=True,
         )
 
     # ----------------Convert Embeddings----------------  
@@ -525,7 +519,6 @@ def convert_nemo_model(
             world_embed, 
             "vocab_embedding.weight", 
             pp_first_rank, 
-            transpose_weights=True, 
         )
 
     if pp_is_last or reshard_model:
@@ -540,7 +533,6 @@ def convert_nemo_model(
             lm_head, 
             "lm_head.weight", 
             pp_last_rank,
-            transpose_weights=True, 
         )
     
     tic = time.time()

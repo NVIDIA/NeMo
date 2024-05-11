@@ -316,7 +316,7 @@ class TensorRTLLM(ITritonDeployable):
         # So we manipulate TRTLLM to emulate a TP->PP single node setup
         tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
         device_ids = [
-            (i+torch.cuda.current_device()-mp_rank) 
+            ((i+mp_rank-torch.cuda.current_device())+mp_size)%mp_size
             for i in range(mp_size)]
 
         mapping = tensorrt_llm.Mapping(
