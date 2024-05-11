@@ -1159,7 +1159,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
-            batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
+            batch = {
+                key: val.cuda(non_blocking=True) if key in required_keys and isinstance(val, torch.Tensor) else None
+                for key, val in batch.items()
+            }
 
             # slice batch along sequence dimension for context parallelism
             batch = self.get_batch_on_this_context_parallel_rank(batch)
