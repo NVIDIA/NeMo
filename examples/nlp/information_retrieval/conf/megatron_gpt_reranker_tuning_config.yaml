@@ -85,7 +85,7 @@ model:
   precision: bf16
 
   peft:
-    peft_scheme: "mlp_head"  # can be either adapter,ia3, or ptuning
+    peft_scheme: "mlp_head,lora"  # can be either adapter,ia3, or ptuning
     restore_from_path: null
 
     # Used for adapter peft training
