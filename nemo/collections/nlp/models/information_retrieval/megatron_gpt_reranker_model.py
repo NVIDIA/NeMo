@@ -162,6 +162,7 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
                 special_tokens=self.cfg.data.get(
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+                data_type= "train" if is_train else "validation",
             )
             datasets.append(dataset)
         if is_train:
@@ -191,7 +192,7 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
     
 
     def inference_loss_func(self, loss_mask, num_valid_tokens_in_ub, eos_tensors):
-        query_pos_doc_hs = eos_tensors[::2, :] 
+        query_pos_doc_hs = eos_tensors
         _blank = torch.zeros(1, device=query_pos_doc_hs.device, dtype=query_pos_doc_hs.dtype)[0]
         return {"loss": _blank, "query_pos_doc_logit": query_pos_doc_hs, "query_neg_doc_logit": _blank, "logit_diff": _blank}
 
