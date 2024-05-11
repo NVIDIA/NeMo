@@ -199,7 +199,10 @@ class TextProcessing:
                 sample_answer_ids = pre_pad + _text_to_ids(answer_text, self.sample_alpha, lang=lang)
                 # does not consider different length for now
                 masked_answer_ids, _ = self._random_mask_tokens(
-                    answer_ids, self.input_text_mask_ratio, self.tokenizer.unk_id, sample_tokens=sample_answer_ids,
+                    answer_ids,
+                    self.input_text_mask_ratio,
+                    self.tokenizer.unk_id,
+                    sample_tokens=sample_answer_ids,
                 )
             masked_input_ids = input_ids + masked_answer_ids
         input_ids = input_ids + answer_ids
@@ -478,7 +481,7 @@ def _identity(x):
 
 
 def _build_loss_mask(processed_example: dict, answer_only_loss: bool = True):
-    """ Pad input_ids in batch to max batch length while building loss mask """
+    """Pad input_ids in batch to max batch length while building loss mask"""
     # function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
     input_ids = processed_example['input_ids']
     answer_start_idx = processed_example['answer_start_idx']

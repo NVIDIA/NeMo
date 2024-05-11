@@ -89,7 +89,9 @@ def build_salm_dataset(model_instance, data_cfg, is_train):
             )
             # get the canary dataset as a processor to read canary prompt from data and convert_canary_prompt_to_text
             canary_processer = PromptedAudioToTextLhotseDataset(
-                tokenizer=perception_tokenizer, prompt_format_fn=get_prompt_format_fn('canary'), inference=True,
+                tokenizer=perception_tokenizer,
+                prompt_format_fn=get_prompt_format_fn('canary'),
+                inference=True,
             )
         else:
             canary_processer = None
