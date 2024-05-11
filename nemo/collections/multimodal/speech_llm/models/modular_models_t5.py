@@ -167,10 +167,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
 
-    # def configure_optimizers(self):
-    #     self.frozen_model.configure_optimizers()
-    #     super().configure_optimizers()
-
     def parameters(self):
         # override the same method in MegatronGPT model to include parameters ouside of LM
         all_names = []
@@ -189,13 +185,13 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        ModelPT override. Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         self.unfreeze()
         known_groups = []
@@ -363,11 +359,13 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return encoder_input, attention_mask, enc_mask
 
     def forward(
-        self, audio_batch, checkpoint_activations_all_layers,
+        self,
+        audio_batch,
+        checkpoint_activations_all_layers,
     ):
         """Forward pass of the model.
 
-        We prepend audio embeddings to the instruction and label text tokens 
+        We prepend audio embeddings to the instruction and label text tokens
         as the LLM input.
         """
         if 'audio_ratio' in audio_batch:
@@ -596,7 +594,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     @classmethod
     def restore_from_pretrained_models(
-        cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
+        cls,
+        cfg: Optional[Union[OmegaConf, str]] = None,
+        trainer: Optional[Trainer] = None,
     ):
         if not cfg.model.pretrained_audio_model:
             raise RuntimeError("PEFT training needs a pretrained audio model present.")
@@ -619,7 +619,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
         # load llm
         model = cls.restore_from(
-            restore_path=cfg.model.language_model_path, trainer=trainer, override_config_path=model_cfg, strict=False,
+            restore_path=cfg.model.language_model_path,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            strict=False,
         )
         # load am
         model.perception.tokenizer = audio_model.tokenizer
@@ -669,7 +672,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
-        Loads a state_dict expecting the state_dict to contain key,values 
+        Loads a state_dict expecting the state_dict to contain key,values
         only for the adapter parameters.
         """
         if self.setup_complete:
@@ -716,7 +719,9 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
             self._train_dl = self.build_data_loader(
-                dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
+                dataset=self._train_ds,
+                data_cfg=self.cfg.data.train_ds,
+                consumed_samples=consumed_samples,
             )
 
     def setup(self, stage=None):
@@ -840,10 +845,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         self, dataloader_iter, batch_idx, dataloader_idx=0, inference=False, result_mode='validation'
     ):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
+        Our dataloaders produce a micro-batch and then we fetch
+        a number of microbatches depending on the global batch size and model parallel size
+        from the dataloader to produce a list of microbatches.
+        The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
         # # Initialize userbuffer communicators.
         # if self.initialize_ub:
@@ -1180,7 +1185,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         grad_sync_func = None
         param_sync_func = None
         if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+            no_sync_func = partial(
+                self._optimizer.no_sync,
+                greedy_grad_copy=self.megatron_amp_O2,
+            )
             grad_sync_func = self.reduce_overlap_gradients
             param_sync_func = self.sync_overlap_parameters
 
@@ -1260,7 +1268,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return super().training_step(itertools.chain([batch]), batch_idx=batch_idx)
 
     def setup_mcore_distributed_parallel(self):
-        """Set up mcore distributed data parallel called by configure_ddp in nlp_overrides. """
+        """Set up mcore distributed data parallel called by configure_ddp in nlp_overrides."""
         if self.with_distributed_adam and self.use_mcore_dist_optim:
             raise ValueError("T5 does not support both distributed adam and mcore distributed data parallel.")
 
@@ -1293,11 +1301,13 @@ class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
         return encoder_input, attention_mask, enc_mask
 
     def forward(
-        self, audio_batch, checkpoint_activations_all_layers,
+        self,
+        audio_batch,
+        checkpoint_activations_all_layers,
     ):
         """Forward pass of the model.
 
-        We prepend audio embeddings to the instruction and label text tokens 
+        We prepend audio embeddings to the instruction and label text tokens
         as the LLM input.
         """
         if 'audio_ratio' in audio_batch:
