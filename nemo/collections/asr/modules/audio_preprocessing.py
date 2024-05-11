@@ -463,6 +463,9 @@ class SpectrogramAugmentation(NeuralModule):
         rect_time (int): maximum size of cut rectangles along the time
             dimension
             Defaults to 25.
+        use_numba_spec_augment: use numba code for Spectrogram augmentation
+        use_vectorized_spec_augment: use vectorized code for Spectrogram augmentation
+
     """
 
     @property
@@ -491,7 +494,8 @@ class SpectrogramAugmentation(NeuralModule):
         rect_freq=20,
         rng=None,
         mask_value=0.0,
-        use_numba_spec_augment: bool = True,
+        use_vectorized_spec_augment: bool = True,
+        use_numba_spec_augment: bool = False,
     ):
         super().__init__()
 
@@ -508,10 +512,11 @@ class SpectrogramAugmentation(NeuralModule):
                 time_width=time_width,
                 rng=rng,
                 mask_value=mask_value,
+                use_vectorized_code=use_vectorized_spec_augment
             )
         else:
             self.spec_augment = lambda input_spec, length: input_spec
-
+        
         # Check if numba is supported, and use a Numba kernel if it is
         if use_numba_spec_augment and numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__):
             logging.info('Numba CUDA SpecAugment kernel is being used')
@@ -1015,7 +1020,8 @@ class SpectrogramAugmentationConfig:
     rect_freq: int = 0
     mask_value: float = 0
     rng: Optional[Any] = None  # random.Random() type
-    use_numba_spec_augment: bool = True
+    use_numba_spec_augment: bool = False
+    use_vectorized_spec_augment: bool = True
 
 
 @dataclass
