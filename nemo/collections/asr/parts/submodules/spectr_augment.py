@@ -43,6 +43,8 @@ class SpecAugment(nn.Module, Typing):
         Fast implementation is inspired by torchaudio:
         https://github.com/pytorch/audio/blob/ea437b31ce316ea3d66fe73768c0dcb94edb79ad/src/torchaudio/functional/functional.py#L816
     """
+    FREQ_AXIS = 1  # Frequency axis in the spectrogram tensor
+    TIME_AXIS = 2  # Time axis in the spectrogram tensor
 
     @property
     def input_types(self):
@@ -137,7 +139,7 @@ class SpecAugment(nn.Module, Typing):
             num_masks=self.time_masks,
             length=length,
             width=self.time_width,
-            axis=2,
+            axis=self.TIME_AXIS,
             mask_value=self.mask_value,
         )
         # freq masks
@@ -146,7 +148,7 @@ class SpecAugment(nn.Module, Typing):
             num_masks=self.freq_masks,
             length=length,
             width=self.freq_width,
-            axis=1,
+            axis=self.FREQ_AXIS,
             mask_value=self.mask_value,
         )
         return input_spec
@@ -158,25 +160,33 @@ class SpecAugment(nn.Module, Typing):
         length: torch.Tensor,
         width: int | float,
         mask_value: float,
-        axis: int,
-    ) -> torch.Tensor:
+        axis: int
+        ) -> torch.Tensor:
+
+        assert axis in (self.FREQ_AXIS, self.TIME_AXIS), f"Axis can be only be equal to frequency \
+            ({self.FREQ_AXIS}) or time ({self.TIME_AXIS}). Received: {axis=}"
+        assert not (isinstance(width, float) and axis == self.FREQ_AXIS), "Float width supported \
+            only with time axis."
 
         batch_size = input_spec.shape[0]
         axis_length = input_spec.shape[axis]
 
         # If width is float then it is transformed into a tensor
-        if isinstance(width, float):
+        if axis == self.TIME_AXIS and isinstance(width, float):
             width = torch.clamp(width * length, max=axis_length).unsqueeze(1)
 
         # Generate [0-1) random numbers and then scale the tensors.
         # Use float32 dtype for begin/end mask markers before they are quantized to long.
-        # Using x.dtype might cause us to encounter dtypes such as bf16 or smaller which
-        # wouldn't be able to represent every frame index leading to subtle bugs.
         mask_width = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * width
         mask_width = mask_width.long()
-        mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32) * (
-             length.unsqueeze(1) - mask_width
-        )
+        mask_start = torch.rand((batch_size, num_masks), device=input_spec.device, dtype=torch.float32)
+
+        if axis == self.TIME_AXIS:
+            # length can only be used for the time axis
+            mask_start = mask_start * (length.unsqueeze(1) - mask_width)
+        else:
+            mask_start = mask_start * (axis_length - mask_width)
+
         mask_start = mask_start.long()
         mask_end = mask_start + mask_width
 
@@ -185,22 +195,20 @@ class SpecAugment(nn.Module, Typing):
         # Create a mask_tensor with all the indices.
         # The mask_tensor shape is (batch_size, num_masks, axis_length).
         mask_tensor = (indices >= mask_start.unsqueeze(-1)) & (indices < mask_end.unsqueeze(-1))
+
         # Reduce masks to one mask
         mask_tensor = mask_tensor.any(dim=1)
 
         # Create a final mask that aligns with the full tensor
         mask = torch.zeros_like(input_spec, dtype=torch.bool)
-        if axis == 2:
+        if axis == self.TIME_AXIS:
             mask_ranges = mask_tensor[:, None, :]
-        elif axis == 1:
+        else: # axis == self.FREQ_AXIS
             mask_ranges = mask_tensor[:, :, None]
-        else:
-            raise Exception("axis can be either 1 or 2")
         mask[:, :, :] = mask_ranges
 
-        # Apply the mask value and return a new tensor
+        # Apply the mask value
         return input_spec.masked_fill(mask=mask, value=mask_value)
-
 
 class SpecCutout(nn.Module, Typing):
     """
