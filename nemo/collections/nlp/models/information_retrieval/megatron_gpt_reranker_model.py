@@ -69,8 +69,7 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
     def maybe_setup_test(self):
         if (
             hasattr(self.cfg.data, 'test_ds')
-            and self.cfg.data.test_ds.get('doc_file_names', None) is not None
-            and self.cfg.data.test_ds.get('query_file_names', None) is not None
+            and self.cfg.data.test_ds.get('file_names', None) is not None
         ):
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
         return
@@ -174,26 +173,27 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
             return dataset
         else:
             return datasets
+    def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
+        loss_mean, non_loss_tensors = self.fwd_bwd_step(dataloader_iter, forward_only)
+        logit_diff = non_loss_tensors['logit_diff'][0].item()
+        self.log("logit_diff", logit_diff, prog_bar=True, rank_zero_only=True, batch_size=1)
+        return loss_mean
 
-    def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, use_all_possible_negatives=False):
-        all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size
-        cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x (2bs)
-        pos_cs = cs[:, :bs].diag()
-        neg_cs = cs[:, bs:].diag()
-        if use_all_possible_negatives:
-            labels = torch.arange(bs, device=cs.device).long()
-        else:
-            labels = torch.zeros(bs, device=cs.device).long()
-            cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
-        pos_cs = pos_cs.clone().detach().mean()
-        neg_cs = neg_cs.clone().detach().mean()
-        return cs, pos_cs, neg_cs, labels
+    def inference_step_validation_call(self, batch, batch_idx, data_cfg, dataloader_idx=0):
+        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        loss, non_loss_tensors = self.local_validation_step(itertools.chain([dataloader_idx], [batch]))
+        outputs = {
+            'loss': loss,
+            'metadata': metadata,  # [dict]
+            'query_pos_doc_logit': non_loss_tensors['query_pos_doc_logit'],  # [batch_size, hidden_size]
+        }
+        return outputs
+    
 
     def inference_loss_func(self, loss_mask, num_valid_tokens_in_ub, eos_tensors):
-        hs = eos_tensors
-        hs = torch.nn.functional.normalize(hs, dim=1)
-        _blank = torch.zeros(1, device=hs.device, dtype=hs.dtype)[0]
-        return _blank, hs, hs, _blank, _blank, _blank
+        query_pos_doc_hs = eos_tensors[::2, :] 
+        _blank = torch.zeros(1, device=query_pos_doc_hs.device, dtype=query_pos_doc_hs.dtype)[0]
+        return {"loss": _blank, "query_pos_doc_logit": query_pos_doc_hs, "query_neg_doc_logit": _blank, "logit_diff": _blank}
 
     def _gather_global_inbatch_representations(self, local_eos_tensor):
         local_eos_tensor = local_eos_tensor.contiguous()
@@ -209,31 +209,95 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
-        eos_tensors = output_tensor[loss_mask, idx, :]
+        eos_tensors = output_tensor[loss_mask, idx, :] # (bs x 1)
         if self.global_inbatch_negatives and self.trainer.training:
             eos_tensors = self._gather_global_inbatch_representations(eos_tensors)
         if not self.trainer.training:
             return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
-        bs = eos_tensors.shape[0] // 3
-        query_hs = eos_tensors[::3, :]  # every third tensor is a query (bs x hidden_size)
-        pos_doc_hs = eos_tensors[1::3, :]  # every third tensor is a positive doc (bs x hidden_size)
-        neg_doc_hs = eos_tensors[2::3, :]  # every third tensor is a negative doc (bs x hidden_size)
+        bs = eos_tensors.shape[0] // 2
+        query_pos_doc_hs = eos_tensors[::2, :]  # every second tensor from idx 0 is a query w pos_doc (bs x 1)
+        query_neg_doc_hs = eos_tensors[1::2, :]  # every second tensor from idx 1 is a query w negative doc (bs x 1)
 
-        query_hs = torch.nn.functional.normalize(query_hs, dim=1)
-        pos_doc_hs = torch.nn.functional.normalize(pos_doc_hs, dim=1)
-        neg_doc_hs = torch.nn.functional.normalize(neg_doc_hs, dim=1)
-
-        cs, pos_cs, neg_cs, labels = self.constrastive_scores(
-            pos_doc_hs, neg_doc_hs, query_hs, bs, self.use_all_possible_negatives
-        )
-        cs = cs.clamp(-1.0, 1.0)
+        cs = torch.cat([query_pos_doc_hs, query_neg_doc_hs], dim=1)  # (bs x 2)
         cs = cs / self.temperature
+        labels = torch.zeros(bs, device=cs.device).long()
         loss = torch.nn.functional.cross_entropy(cs, labels)
 
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
             torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
-        query_hs = query_hs.clone().detach()
-        pos_doc_hs = pos_doc_hs.clone().detach()
-        diff_cs = pos_cs - neg_cs
-        return loss, query_hs, pos_doc_hs, pos_cs, neg_cs, diff_cs
+        query_pos_doc_hs = query_pos_doc_hs.clone().detach()
+        query_neg_doc_hs = query_neg_doc_hs.clone().detach()
+        logit_diffs = torch.mean(query_pos_doc_hs - query_neg_doc_hs)
+        return {"loss": loss, "query_pos_doc_logit": query_pos_doc_hs, "query_neg_doc_logit": query_neg_doc_hs, "logit_diff": logit_diffs}
+    
+    def gather_and_maybe_write_predictions(self, output, data_cfg, mode, averaged_metric, dataloader_idx=0):
+        if not data_cfg.get("write_embeddings_to_file", False):
+            return True
+        gathered_output_batches = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+        torch.distributed.all_gather_object(
+            gathered_output_batches,
+            [{'query_pos_doc_logit': batch['query_pos_doc_logit'], 'metadata': batch['metadata'],} for batch in output],
+            group=parallel_state.get_data_parallel_group(),
+        )
+
+        # Remove duplicate examples due to distributed sampler.
+        deduplicated_outputs = {
+            'query_pos_doc_logit': [],
+            'metadata': [],
+        }
+        total_size, skipped = 0, 0
+        for rank in range(0, parallel_state.get_data_parallel_world_size()):
+            for batch in gathered_output_batches[rank]:
+                l_q_hs = listify(batch['query_pos_doc_logit'])
+                l_m = batch['metadata']
+                assert len(l_m) == len(l_q_hs)
+                for q_hs, metadata in zip(l_q_hs, l_m,):
+                    total_size += 1
+                    if not metadata.get("__AUTOGENERATED__", False):
+                        deduplicated_outputs['query_pos_doc_logit'].append(q_hs)
+                        deduplicated_outputs['metadata'].append(metadata)
+                    else:
+                        skipped += 1
+
+        logging.info(
+            f"{total_size-skipped} deduplicated outputs in dataloader:{dataloader_idx}, (skipped {skipped} autogenerated examples)."
+        )
+        # Compute metric score
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        assert metric_name == "loss", "Only loss is supported for now."
+        # avg_pos_cs = torch.tensor(deduplicated_outputs['avg_pos_cs']).mean().item()
+        # avg_neg_cs = torch.tensor(deduplicated_outputs['avg_neg_cs']).mean().item()
+        # diff_cs = torch.tensor(deduplicated_outputs['diff_cs']).mean().item()
+        # self.log('val_avg_pos_cs', avg_pos_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
+        # self.log('val_avg_neg_cs', avg_neg_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
+        # self.log('val_diff_cs', diff_cs, prog_bar=True, rank_zero_only=True, batch_size=1)
+
+        # Write predictions to file
+        if self.global_rank == 0 and data_cfg.get("write_embeddings_to_file", False):
+            logging.info(
+                f"Total deduplicated inference data size: {total_size} to {len(deduplicated_outputs['metadata'])}"
+            )
+
+            # Check if the user provided a prefix path to the file(s) they want to write.
+            if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                raise ValueError(
+                    f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                )
+            # (@adithyare) We are not using the log key to write the embeddings to file
+            filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+            consumed_samples = self._compute_consumed_samples_after_training_step()
+            fldr_path = f"{data_cfg.output_file_path_prefix}/consumed_samples{consumed_samples}/{filename_log_key}"
+            self.write_embeddings_to_file(deduplicated_outputs, fldr_path, dataloader_idx)
+        return deduplicated_outputs, total_size
+
+    def write_embeddings_to_file(self, outputs, output_file_path, d_idx):
+        hs = torch.cat(outputs['query_pos_doc_logit'], dim=0)
+        hs_npy = hs.float().numpy()
+        emb_fldr = f"{output_file_path}"
+        os.makedirs(emb_fldr, exist_ok=True)
+        with open(f"{output_file_path}/logits.ids", "w") as f:
+            for m in outputs['metadata']:
+                f.write(f"{m['query_id'].strip()} {m['doc_id']}\n")
+        np.save(f"{emb_fldr}/logits.npy", hs_npy)
+        return True

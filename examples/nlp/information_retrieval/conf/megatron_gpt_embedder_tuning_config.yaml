@@ -125,7 +125,6 @@ model:
       tunable_base_param_names: ["self_attention", "word_embeddings"]  # TODO: regex support @adithyre
 
   data:
-    return_output_tensors: True
     train_ds:
       # Example of how to specify paths to multiple datasets
       # file_names:

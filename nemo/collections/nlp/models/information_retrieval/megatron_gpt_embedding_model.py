@@ -392,7 +392,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         hs = eos_tensors
         hs = torch.nn.functional.normalize(hs, dim=1)
         _blank = torch.zeros(1, device=hs.device, dtype=hs.dtype)[0]
-        return _blank, hs, hs, _blank, _blank, _blank
+        return {"loss": _blank, "query_hs" : hs, "pos_doc_hs": hs, "pos_cs": _blank, "neg_cs": _blank, "diff_cs": _blank}
 
     def _gather_global_inbatch_representations(self, local_eos_tensor):
         local_eos_tensor = local_eos_tensor.contiguous()
@@ -435,4 +435,4 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         query_hs = query_hs.clone().detach()
         pos_doc_hs = pos_doc_hs.clone().detach()
         diff_cs = pos_cs - neg_cs
-        return loss, query_hs, pos_doc_hs, pos_cs, neg_cs, diff_cs
+        return {"loss": loss, "query_hs" : query_hs, "pos_doc_hs": pos_doc_hs, "pos_cs": pos_cs, "neg_cs": neg_cs, "diff_cs": diff_cs}

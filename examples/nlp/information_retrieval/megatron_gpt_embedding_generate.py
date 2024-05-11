@@ -93,7 +93,6 @@ def main(cfg) -> None:
         model_cfg = MegatronGPTEmbeddingModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
 
     with open_dict(model_cfg):
-        model_cfg.data.return_output_tensors = True
         model_cfg.post_process = False
 
     model = MegatronGPTEmbeddingModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
