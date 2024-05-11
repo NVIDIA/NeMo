@@ -320,7 +320,13 @@ class ASRAudioText(AudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        ids, audio_files, durations, texts, offsets, = (
+        (
+            ids,
+            audio_files,
+            durations,
+            texts,
+            offsets,
+        ) = (
             [],
             [],
             [],
@@ -369,7 +375,13 @@ class ASRVideoText(VideoText):
             **kwargs: Kwargs to pass to `VideoText` constructor.
         """
 
-        ids, video_files, durations, texts, offsets, = (
+        (
+            ids,
+            video_files,
+            durations,
+            texts,
+            offsets,
+        ) = (
             [],
             [],
             [],
@@ -394,7 +406,7 @@ class ASRVideoText(VideoText):
 
 class SpeechLLMAudioText(object):
     """List of audio-transcript text correspondence with preprocessing.
-    
+
     All of the audio, duration, context, answer are optional.
     If answer is not present, text is treated as the answer.
     """
@@ -513,7 +525,7 @@ class SpeechLLMAudioText(object):
 
 class SpeechLLMAudioTextCollection(SpeechLLMAudioText):
     """`SpeechLLMAudioText` collector from SpeechLLM json files.
-    
+
     This collector also keeps backward compatibility with SpeechLLMAudioText.
     """
 
@@ -537,7 +549,14 @@ class SpeechLLMAudioTextCollection(SpeechLLMAudioText):
         self.context_key = context_key
         self.answer_key = answer_key
 
-        ids, audio_files, durations, context_list, answers, offsets, = (
+        (
+            ids,
+            audio_files,
+            durations,
+            context_list,
+            answers,
+            offsets,
+        ) = (
             [],
             [],
             [],
@@ -647,7 +666,10 @@ class SpeechLLMAudioTextCollection(SpeechLLMAudioText):
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label offset',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='SpeechLabelEntity',
+        field_names='audio_file duration label offset',
+    )
 
     def __init__(
         self,
@@ -797,7 +819,10 @@ class ASRSpeechLabel(SpeechLabel):
 class FeatureSequenceLabel(_Collection):
     """List of feature sequence of label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='FeatureSequenceLabelEntity', field_names='feature_file seq_label',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='FeatureSequenceLabelEntity',
+        field_names='feature_file seq_label',
+    )
 
     def __init__(
         self,
@@ -879,9 +904,11 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
     """`FeatureSequenceLabel` collector from asr structured json files."""
 
     def __init__(
-        self, manifests_files: Union[str, List[str]], max_number: Optional[int] = None, index_by_file_id: bool = False,
+        self,
+        manifests_files: Union[str, List[str]],
+        max_number: Optional[int] = None,
+        index_by_file_id: bool = False,
     ):
-
         """Parse lists of feature files and sequences of labels.
 
         Args:
@@ -920,7 +947,10 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper seq_label key."
             )
 
-        item = dict(feature_file=item['feature_file'], seq_label=item['seq_label'],)
+        item = dict(
+            feature_file=item['feature_file'],
+            seq_label=item['seq_label'],
+        )
 
         return item
 
@@ -1024,7 +1054,8 @@ class DiarizationLabel(_Collection):
                 data.sort(key=lambda entity: entity.duration)
 
         logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
+            "Filtered duration for loading collection is %f.",
+            duration_filtered,
         )
         logging.info(f"Total {len(data)} session files loaded accounting to # {len(audio_files)} audio clips")
 
@@ -1202,8 +1233,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
 
 
 class Audio(_Collection):
-    """Prepare a list of all audio items, filtered by duration.
-    """
+    """Prepare a list of all audio items, filtered by duration."""
 
     OUTPUT_TYPE = collections.namedtuple(typename='Audio', field_names='audio_files duration offset text')
 
@@ -1264,11 +1294,14 @@ class Audio(_Collection):
 
 
 class AudioCollection(Audio):
-    """List of audio files from a manifest file.
-    """
+    """List of audio files from a manifest file."""
 
     def __init__(
-        self, manifest_files: Union[str, List[str]], audio_to_manifest_key: Dict[str, str], *args, **kwargs,
+        self,
+        manifest_files: Union[str, List[str]],
+        audio_to_manifest_key: Dict[str, str],
+        *args,
+        **kwargs,
     ):
         """Instantiates a list of audio files loaded from a manifest file.
 
@@ -1310,6 +1343,7 @@ class AudioCollection(Audio):
         Returns:
             Dictionary with audio_files, duration, and offset.
         """
+
         # Local utility function
         def get_audio_file(item: Dict, manifest_key: Union[str, List[str]]):
             """Get item[key] if key is string, or a list
@@ -1382,7 +1416,10 @@ class AudioCollection(Audio):
 class FeatureLabel(_Collection):
     """List of feature sequence and their label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='FeatureLabelEntity', field_names='feature_file label duration',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='FeatureLabelEntity',
+        field_names='feature_file label duration',
+    )
 
     def __init__(
         self,
@@ -1459,7 +1496,6 @@ class ASRFeatureLabel(FeatureLabel):
         *args,
         **kwargs,
     ):
-
         """Parse lists of feature files and sequences of labels.
 
         Args:
@@ -1648,7 +1684,14 @@ class ASRFeatureText(FeatureText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        ids, feature_files, rttm_files, durations, texts, offsets, = (
+        (
+            ids,
+            feature_files,
+            rttm_files,
+            durations,
+            texts,
+            offsets,
+        ) = (
             [],
             [],
             [],

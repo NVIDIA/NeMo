@@ -312,9 +312,7 @@ def make_inference_attention_mask_3d(source_block, target_block, pad_id):
 def make_inference_history_mask_3d(block):
     batch, length = block.shape
     arange = torch.arange(length, device=block.device)
-    history_mask = (arange[None,] <= arange[:, None])[
-        None,
-    ]
+    history_mask = (arange[None,] <= arange[:, None])[None,]
     history_mask = history_mask.expand(batch, length, length)
     return history_mask
 
@@ -426,14 +424,17 @@ def split_list(inputs, num_chunks):
 
 def get_iterator_k_split(batch: Union[Dict, List[torch.Tensor]], num_microbatches: int) -> Iterator:
     """
-    Split a batch into k microbatches, where the batch size is divisible by k. Batch could be 
+    Split a batch into k microbatches, where the batch size is divisible by k. Batch could be
     a dictionary of tensors or a list of tensors. A dictionary batch could also have items of List type,
     as long as the length of that list is the same as the batch size.
     """
     if isinstance(batch, dict):
         discard_items = [k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))]
         if len(discard_items) > 0:
-            logging.warning(f"Discarding the following keys from the batch: {discard_items}", mode=logging_mode.ONCE)
+            logging.warning(
+                f"Only support splitting torch.Tensor and List[torch.Tensor]. Discarding the following keys from the batch: {discard_items}",
+                mode=logging_mode.ONCE,
+            )
 
         batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         tensor_items = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}

@@ -94,7 +94,11 @@ class AudioPerceptionModule(NeuralModule, Exportable):
             self.proj = nn.Identity()
 
     def maybe_preprocess_audio(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
@@ -106,14 +110,19 @@ class AudioPerceptionModule(NeuralModule, Exportable):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
         return processed_signal, processed_signal_length
 
     # disable type checks to avoid type-check errors when using Conformer as modality adapter
     @typecheck.disable_checks()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         processed_signal, processed_signal_length = self.maybe_preprocess_audio(
             input_signal, input_signal_length, processed_signal, processed_signal_length
@@ -152,7 +161,10 @@ class MultiFeatureAggregator(nn.Module):
         return True
 
     def forward(
-        self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor], ref_idx: Optional[int] = None,
+        self,
+        encoded: List[torch.Tensor],
+        encoded_len: List[torch.Tensor],
+        ref_idx: Optional[int] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if not self._have_same_length(encoded_len):
             """Align the length of encoded features if they are different."""
@@ -190,7 +202,7 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
     This module is experimental. An example perception cfg is:
     -------------------
     perception:
-        modality_adapter: 
+        modality_adapter:
             _target_: nemo.collections.multimodal.speechllm.modules.PoolingMLPConnectors
             hidden_dim: 512
             pooling: 'cat'
@@ -224,7 +236,7 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
                     mode: "cat"
                     pooling: "avg"
                     rounding: "floor"
-        
+
             speaker_model:
                 segment_length_in_secs: 0.4
                 freeze: True
@@ -319,7 +331,8 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
 
         if not has_processed_signal and preprocessor is not None:
             processed_signal, processed_signal_length = preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
         elif not has_processed_signal and preprocessor is None:
             processed_signal, processed_signal_length = input_signal, input_signal_length
@@ -337,7 +350,8 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
             )
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.speaker_model.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
@@ -376,7 +390,11 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
         return embeds, embeds_len
 
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         encoded_list = []
         encoded_len_list = []

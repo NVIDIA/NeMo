@@ -53,7 +53,10 @@ def llm_model_config():
     # Although most of the stuff in model is loaded from ckpt, we need configs
     # for e.g. cfg.model.optim
     config = OmegaConf.load(
-        os.path.join(this_test_dir, "../../../examples/multimodal/speech_llm/conf/modular_audio_gpt_config_peft.yaml",)
+        os.path.join(
+            this_test_dir,
+            "../../../examples/multimodal/speech_llm/conf/modular_audio_gpt_config_peft.yaml",
+        )
     )
     # TODO(zhehuai): move the following to Test /home/TestData
     config.model.restore_from_path = "/root/home/works/TestData/pretrained_models/megatron_gpt/gpt_pretrain_220m_len_4096_pos_alibi_step_595508_gbs256.nemo"
@@ -148,6 +151,7 @@ def test_batch():
     return batch
 
 
+@pytest.mark.skip(reason="nedd to move pretrained GPT model to /home/works/TestData first")
 class TestModularAudioGPTModel:
     @pytest.mark.unit
     def test_init_and_train(self, llm_model_config, perception_model_config, trainer_config):

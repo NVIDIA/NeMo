@@ -78,7 +78,7 @@ def move_to_device(batch, device):
     elif isinstance(batch, dict):
         return {k: move_to_device(v, device) for k, v in batch.items()}
     else:
-        raise TypeError(f"Unsupported type: {type(batch)}")
+        return batch  # do nothing if not supported type
 
 
 def get_value_from_transcription_config(trcfg, key, default):

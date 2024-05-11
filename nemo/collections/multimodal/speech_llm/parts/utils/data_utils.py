@@ -46,15 +46,15 @@ def shift_tokens_by_multi_audios(
     context_tokens, context_lengths, audio_feat_lens, context_start_idx, encoder_max_length
 ):
     """
-        split and shift the context tokens by the audio segments, then concatenate them back. This function assumes that the whole context 
-        starts and ends with text tokens, and the audio segments are in between the text tokens. The audio segments are not allowed to be adjacent to each other.
-        Args:
-            context_tokens: tensor of shape [batch, max_context_len]
-            context_lengths: tensor of shape [batch,]
-            audio_feat_lens: List[List[int]]
-            context_start_idx: List[List[int]]
-            encoder_max_length: int
-        """
+    split and shift the context tokens by the audio segments, then concatenate them back. This function assumes that the whole context
+    starts and ends with text tokens, and the audio segments are in between the text tokens. The audio segments are not allowed to be adjacent to each other.
+    Args:
+        context_tokens: tensor of shape [batch, max_context_len]
+        context_lengths: tensor of shape [batch,]
+        audio_feat_lens: List[List[int]]
+        context_start_idx: List[List[int]]
+        encoder_max_length: int
+    """
     new_context_tokens = []
     for i in range(context_tokens.shape[0]):
         start_idx_list_i = context_start_idx[i] + [context_lengths[i]]

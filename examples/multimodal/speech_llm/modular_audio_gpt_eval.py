@@ -76,7 +76,11 @@ def main(cfg) -> None:
             cfg.model.from_pretrained, trainer=trainer, return_model_file=True
         )
         model = ModularAudioGPTModel.restore_from(
-            restore_path=model_file, trainer=trainer, override_config_path=model_cfg, strict=False, map_location="cpu",
+            restore_path=model_file,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            strict=False,
+            map_location="cpu",
         )
         if "peft" in model_cfg and model_cfg.peft.get("peft_scheme", None):
             # need this due to the way that MegatronGPTSFTModel doesn't load adapters in model initialization

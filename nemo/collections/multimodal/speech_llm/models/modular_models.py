@@ -38,7 +38,13 @@ from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
     MultiAudioPerceptionModule,
 )
+from nemo.collections.multimodal.speech_llm.parts.mixins.adapter_mixin import SpeechLLMAdapterMixin
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import get_nested_dict_value
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -76,7 +82,7 @@ __all__ = ["ModularAudioGPTModel"]
 default_inference_config = {'tokens_to_generate': 30}
 
 
-class ModularAudioGPTModel(MegatronGPTSFTModel):
+class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
     """Modularized speech GPT model."""
 
     def setup_perception_modules(self, cfg):
@@ -360,7 +366,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         return encoder_input, attention_mask, labels, loss_mask, encoder_length
 
     def forward(
-        self, audio_batch, checkpoint_activations_all_layers,
+        self,
+        audio_batch,
+        checkpoint_activations_all_layers,
     ):
         """
         Forward pass of the model. We prepend audio embeddings to the instruction and label text tokens as the LLM input.
@@ -730,7 +738,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
 
     @classmethod
     def restore_from_pretrained_models(
-        cls, cfg: Optional[Union[OmegaConf, str]] = None, trainer: Optional[Trainer] = None,
+        cls,
+        cfg: Optional[Union[OmegaConf, str]] = None,
+        trainer: Optional[Trainer] = None,
     ):
         """
         load pretrained LLM and audio encoders, and maybe add adapters, used for training.
@@ -789,7 +799,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
     @classmethod
     def load_audio_encoder_for_inference(cls, cfg: DictConfig, model_cfg: DictConfig, model: ModelPT) -> ModelPT:
         """
-        load audio encoder for inference.
+        Maybe load audio encoders for inference, if they were not tunable during training.
         Args:
             cfg: inference config
             model_cfg: model config
@@ -811,7 +821,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         cls, cfg: DictConfig, trainer: Trainer, pretrained_model_cfg: DictConfig = None
     ) -> DictConfig:
         """
-        Merge the inference config with the model config, used for inference only. 
+        Merge the inference config with the model config, used for inference only.
         if no pretrained_model_cfg is given, it will be loaded from the checkpoint specified in cfg.
         Args:
             cfg: inference config
@@ -825,7 +835,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
         elif cfg.model.peft.restore_from_path:
             if cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
-                    restore_path=cfg.model.peft.restore_from_path, trainer=trainer, return_config=True,
+                    restore_path=cfg.model.peft.restore_from_path,
+                    trainer=trainer,
+                    return_config=True,
                 )
             elif cfg.model.peft.restore_from_hparams_path:  # not a .nemo model we expect a hparams.yaml file
                 model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.peft.restore_from_hparams_path).cfg)
@@ -838,7 +850,9 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
                 )
         else:
             model_cfg = MegatronGPTSFTModel.restore_from(
-                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True,
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                return_config=True,
             )
         # overwrite pretrained_audio_model if there
         if hasattr(cfg.model, "pretrained_audio_model"):
@@ -963,9 +977,7 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             return return_state_dict
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        if self.setup_complete:
-            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=False)
-        else:
+        if not self.setup_complete:
             if self.cfg.get('override_vocab_size', False):
                 exclude_list = [
                     "model.language_model.embedding.word_embeddings.weight",
@@ -974,12 +986,30 @@ class ModularAudioGPTModel(MegatronGPTSFTModel):
             else:
                 exclude_list = []
             state_dict = {k: v for k, v in state_dict.items() if k not in exclude_list}
-            super(MegatronGPTSFTModel, self).load_state_dict(state_dict, strict=strict)
+        else:
+            strict = False
+
+        if len(state_dict) == 0:
+            return  # checkpoint is loaded in on_load_checkpoint()
+        if self.use_peft and self.setup_complete:
+            # at this stage only adapter params will appear in the state_dict arg
+            # so we only update those while the rest of the model is frozen.
+            # setting strict=False will ignore the missing keys (which are not being updated anyway)
+            # explicitly check if state_dict.keys matches all the expected self.adapter_keys since we don't have the
+            # safety in strict=True anymore.
+            if not self.ptuning_only_and_non_first_stage:
+                if set(state_dict.keys()) != self.adapter_keys.union(self.tunable_base_param_keys):
+                    logging.warning(
+                        f"Unexpected keys found in state_dict: {set(state_dict.keys()) - self.adapter_keys.union(self.tunable_base_param_keys)}, missing keys in state_dict: {self.adapter_keys.union(self.tunable_base_param_keys) - set(state_dict.keys())}"
+                    )
+                super(MegatronGPTModel, self).load_state_dict(state_dict, strict=False)
+        else:
+            super(MegatronGPTModel, self).load_state_dict(state_dict, strict=strict)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
-         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
-         """
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
         checkpoint_state_dict = checkpoint['state_dict']
         self.load_state_dict(checkpoint_state_dict, strict=False)
 
@@ -1496,7 +1526,11 @@ class CrossAttendModularAudioGPTModel(ModularAudioGPTModel):
         if 'alpha_xattn' in extra_outputs:
             alpha_xattn = extra_outputs['alpha_xattn']
             self.log(
-                'alpha_xattn', alpha_xattn.mean(), prog_bar=True, batch_size=1, rank_zero_only=True,
+                'alpha_xattn',
+                alpha_xattn.mean(),
+                prog_bar=True,
+                batch_size=1,
+                rank_zero_only=True,
             )
         attention_mask = self._create_attention_mask(encoder_input)
 
