@@ -120,7 +120,7 @@ class MegatronLLMDeployable(ITritonDeployable):
             custom_config = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, return_config=True
             )
-            # transformer_engine should always be true according to EricH
+            # transformer_engine should always be true according to EricH, but GPT-2B model will fail if it is enabled
             custom_config.transformer_engine = True
             # using multi-gpu for tensor parallelism directly for now, could do pipeline parallel instead or a combination
             custom_config.tensor_model_parallel_size = num_devices
@@ -134,7 +134,7 @@ class MegatronLLMDeployable(ITritonDeployable):
 
     def _helper_thread_evaluation_loop(self):
         # only deploy the server on main thread, other threads enter this evaluation loop
-        if torch.distributed.get_rank() != 0:
+        if torch.distributed.is_initialized() and torch.distributed.get_rank() != 0:
             while True:
                 wait_value = ServerSync.WAIT.to_long_tensor()
                 torch.distributed.broadcast(wait_value, 0)
@@ -226,13 +226,14 @@ class MegatronLLMDeployable(ITritonDeployable):
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
         """Triton server inference function that actually runs the model"""
-        distributed_rank = torch.distributed.get_rank()
-        if distributed_rank != 0:
-            raise ValueError(
-                f"Triton inference function should not be called on a thread with torch.distributed rank != 0, but this thread is rank {distributed_rank}"
-            )
-        signal_value = ServerSync.SIGNAL.to_long_tensor()
-        torch.distributed.broadcast(signal_value, 0)
+        if torch.distributed.is_initialized():
+            distributed_rank = torch.distributed.get_rank()
+            if distributed_rank != 0:
+                raise ValueError(
+                    f"Triton inference function should not be called on a thread with torch.distributed rank != 0, but this thread is rank {distributed_rank}"
+                )
+            signal_value = ServerSync.SIGNAL.to_long_tensor()
+            torch.distributed.broadcast(signal_value, 0)
 
         input_strings = str_ndarray2list(inputs.pop("prompts"))
         sampling_params = self._sampling_params_from_triton_inputs(**inputs)
@@ -242,17 +243,49 @@ class MegatronLLMDeployable(ITritonDeployable):
             inputs=input_strings, length_params=length_params, sampling_params=sampling_params
         )
         '''
-            sentences will be a list of strings (one per prompts)
+            model_output['sentences'] will be a list of strings (one per prompt)
             other fields will either be a list of lists (tokens, for example)
             or a list of pytorch Tensor
-            we expect all lists to be the same length
-            TODO: add an error check for when they aren't, like if you feed in prompts of varying lengths to compute logprob
-            or figure out a way to pad data to make the outputs same length
         '''
 
-        num_prompts = len(input_strings)
         triton_output = {}
+        _OUTPUT_FILLER_VALUES = {
+            'tokens': "",
+            'logprob': 0.0,
+            'full_logprob': 0.0,
+            'token_ids': -1,
+            'offsets': -1,
+        }
         for model_output_field, value in model_output.items():
+
+            if (model_output_field is not 'sentences' and value is not None):
+                # find length of longest non-sentence output item
+                field_longest_output_item = 0
+                for item in value:
+                    field_longest_output_item = max(field_longest_output_item, len(item))
+                # then pad shorter items to match this length
+                for index, item in enumerate(value):
+                    num_pad_values = field_longest_output_item - len(item)
+                    if num_pad_values > 0:
+                        pad_value = _OUTPUT_FILLER_VALUES[model_output_field]
+                        if isinstance(item, torch.Tensor):
+                            pad_tensor = torch.full(
+                                (num_pad_values, item.size(1)) if item.dim() > 1 else (num_pad_values,),
+                                pad_value,
+                                dtype=item.dtype,
+                                device='cuda')
+                            print("catting two tensors")
+                            print(item.size())
+                            print(item)
+                            print(pad_tensor.size())
+                            print(pad_tensor)
+                            padded_item = torch.cat((item, pad_tensor))
+                            value[index] = padded_item
+                        else:
+                            pad_list = [pad_value] * num_pad_values
+                            padded_item = item + pad_list
+                            value[index] = padded_item
+
             field_dtype = GetNumpyDtype(MegatronLLMDeployable._BLANK_OUTPUTTYPE[model_output_field][0])
             if value is None:
                 # triton does not allow for optional output parameters, so need to populate them if they don't exist
