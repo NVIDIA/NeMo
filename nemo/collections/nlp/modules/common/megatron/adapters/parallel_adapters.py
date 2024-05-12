@@ -276,7 +276,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
         return init_fn
 
-    def adapter_unfreeze(self,):
+    def adapter_unfreeze(
+        self,
+    ):
         """
         Can be customized to allow for selective training of only some params in the PEFT.
         """
@@ -375,12 +377,14 @@ class ParallelLinearAdapterConfig(AdapterConfig):
 
 
 class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
-    def __init__(self, 
-                 in_features: int, 
-                 out_features: int, 
-                 input_is_parallel: bool = False,  
-                 model_parallel_config: Optional[ModelParallelConfig] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        input_is_parallel: bool = False,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
+    ):
         super().__init__()
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
@@ -404,16 +408,17 @@ class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
                 config=model_parallel_config,
                 bias=False,
                 gather_output=True,
-                init_method=init.xavier_normal_, 
+                init_method=init.xavier_normal_,
                 disable_grad_reduce=self._sequence_parallel,
             )
-            
+
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
 
     def forward(self, x):
         x, _ = self.linear(x)
         return x
+
 
 @dataclass
 class MLPHeadAdapterConfig(AdapterConfig):
@@ -451,7 +456,7 @@ class LoraQAdapter(ParallelLinearAdapter):
 
 class LoraDenseAttentionAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -460,7 +465,7 @@ class LoraDenseAttentionAdapter(ParallelLinearAdapter):
 
 class LoraHto4HAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -469,7 +474,7 @@ class LoraHto4HAdapter(ParallelLinearAdapter):
 
 class Lora4HtoHAdapter(ParallelLinearAdapter):
     """
-    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes 
+    Lora Adapters are the same arch as regular adapters but with potentially different input and output feature sizes
     and they do not use an bottleneck activation function
     """
 
@@ -737,14 +742,20 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         self.is_inference_ready = True
         return True
 
-    def clear_inference_table(self,):
+    def clear_inference_table(
+        self,
+    ):
         self.inference_table.fill_(0.0)
         self.is_inference_ready = False
 
-    def get_inference_table(self,):
+    def get_inference_table(
+        self,
+    ):
         return self.inference_table.data
 
-    def inner_forward(self,):
+    def inner_forward(
+        self,
+    ):
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         intermediate_parallel, bias_parallel = self.first(input_embeds)
         intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)

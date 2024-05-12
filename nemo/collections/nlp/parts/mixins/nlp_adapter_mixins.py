@@ -29,7 +29,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig, MLPHeadAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    MLPHeadAdapterConfig,
+    PromptEncoderAdapterConfig,
+)
 from nemo.collections.nlp.parts.peft_config import (
     PEFT_CONFIG_MAP,
     CanonicalAdaptersPEFTConfig,
@@ -56,7 +59,7 @@ def replace_prefix(name, old_prefix, new_prefix):
 
 
 class NLPAdapterModelMixin:
-    """ NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
+    """NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
     This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or an `enc_dec_model` submodule.
     This mixin class adds several utility methods to add, load and save adapters.
 
@@ -92,7 +95,9 @@ class NLPAdapterModelMixin:
         logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
         return False
 
-    def _get_all_keys(self,):
+    def _get_all_keys(
+        self,
+    ):
         """
         Returns all the keys in the model
         """
@@ -137,7 +142,11 @@ class NLPAdapterModelMixin:
 
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
             # self.mcore_gpt means is GPT and not T5
-            if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig) and not isinstance(adapter_cfg, MLPHeadAdapterConfig):
+            if (
+                hasattr(self, 'mcore_gpt')
+                and not isinstance(adapter_cfg, PromptEncoderAdapterConfig)
+                and not isinstance(adapter_cfg, MLPHeadAdapterConfig)
+            ):
                 if layer_selection is not None:
                     logging.info(
                         f"Layer selection {layer_selection} is enabled for the current model ("
@@ -271,7 +280,10 @@ class NLPAdapterModelMixin:
             super().setup_optimizer_param_groups()
 
     def load_adapters(
-        self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
+        self,
+        filepath: str,
+        peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None,
+        map_location: str = None,
     ):
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
@@ -307,7 +319,7 @@ class NLPAdapterModelMixin:
                 '.nemo'
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfg_cls_lst = [PEFT_CONFIG_MAP[s] for s in conf.peft.peft_scheme.split(",")]
-            peft_cfgs = [_peft_cfg(conf) for _peft_cfg  in peft_cfg_cls_lst]
+            peft_cfgs = [_peft_cfg(conf) for _peft_cfg in peft_cfg_cls_lst]
         if self.cfg.megatron_amp_O2:
             state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
         self.add_adapter(peft_cfgs)

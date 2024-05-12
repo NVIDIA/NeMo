@@ -68,7 +68,9 @@ def use_inference_server(cfg, model, trainer):
                 web_ui = get_demo
             loop = asyncio.new_event_loop()
             thread = threading.Thread(
-                target=web_ui, daemon=True, args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                target=web_ui,
+                daemon=True,
+                args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
             )
             thread.start()
         server = MegatronServer(model.cuda())
@@ -101,7 +103,7 @@ def main(cfg) -> None:
         model.load_adapters(cfg.model.peft.restore_from_path)
     elif cfg.model.peft.restore_from_ckpt.checkpoint_dir and cfg.model.peft.restore_from_ckpt.checkpoint_name:
         peft_cfg_cls_lst = [PEFT_CONFIG_MAP[s] for s in cfg.model.peft.peft_scheme.split(",")]
-        peft_cfg_cls = [_peft_cfg(model_cfg) for _peft_cfg  in peft_cfg_cls_lst]
+        peft_cfg_cls = [_peft_cfg(model_cfg) for _peft_cfg in peft_cfg_cls_lst]
 
         checkpoint_path = os.path.join(
             cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name

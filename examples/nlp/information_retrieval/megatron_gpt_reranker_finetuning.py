@@ -56,7 +56,7 @@ def main(cfg) -> None:
                 logger.experiment.config.update(fd)
     model = MegatronGPTRerankerModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
     peft_cfg_cls_lst = [PEFT_CONFIG_MAP[s] for s in cfg.model.peft.peft_scheme.split(",")]
-    peft_cfg_cls = [_peft_cfg(model_cfg) for _peft_cfg  in peft_cfg_cls_lst]
+    peft_cfg_cls = [_peft_cfg(model_cfg) for _peft_cfg in peft_cfg_cls_lst]
 
     if cfg.model.peft.restore_from_path is not None:
         # initialize peft weights from a checkpoint instead of randomly
@@ -65,7 +65,7 @@ def main(cfg) -> None:
         model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls)
     elif peft_cfg_cls is not None:
         logging.info("Adding adapter weights to the model for PEFT")
-        #model.add_adapter(peft_cfg_cls(model_cfg))
+        # model.add_adapter(peft_cfg_cls(model_cfg))
         model.add_adapter(peft_cfg_cls)
     else:
         logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")

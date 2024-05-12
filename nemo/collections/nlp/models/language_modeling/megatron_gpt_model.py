@@ -1239,8 +1239,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 cp_size = parallel_state.get_context_parallel_world_size()
                 if isinstance(loss_for_ub, dict):
                     # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
-                    
-                    if set(loss_for_ub.keys()) == set(["loss","query_hs","pos_doc_hs","pos_cs","neg_cs","diff_cs"]): # (adithyare) this check will be True for GPT Embedding models
+
+                    if set(loss_for_ub.keys()) == set(
+                        ["loss", "query_hs", "pos_doc_hs", "pos_cs", "neg_cs", "diff_cs"]
+                    ):  # (adithyare) this check will be True for GPT Embedding models
                         loss = loss_for_ub['loss']
                         reduced_loss = average_losses_across_data_parallel_group([loss])
                         pos_cs = average_losses_across_data_parallel_group([loss_for_ub['pos_cs']])
@@ -1252,12 +1254,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                 'avg': reduced_loss,
                                 'query_hs': loss_for_ub['query_hs'],
                                 'doc_hs': loss_for_ub['pos_doc_hs'],
-                                'avg_pos_cs': pos_cs, 
-                                'avg_neg_cs': neg_cs, 
-                                'diff_cs': diff_cs, 
-                            }
+                                'avg_pos_cs': pos_cs,
+                                'avg_neg_cs': neg_cs,
+                                'diff_cs': diff_cs,
+                            },
                         )
-                    elif set(loss_for_ub.keys()) == set(["loss", "query_pos_doc_logit", "query_neg_doc_logit","logit_diff"]): # (adithyare) this check will be True for GPT Reranker models
+                    elif set(loss_for_ub.keys()) == set(
+                        ["loss", "query_pos_doc_logit", "query_neg_doc_logit", "logit_diff"]
+                    ):  # (adithyare) this check will be True for GPT Reranker models
 
                         loss = loss_for_ub['loss']
                         reduced_loss = average_losses_across_data_parallel_group([loss])
@@ -1268,8 +1272,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                                 'avg': reduced_loss,
                                 'query_pos_doc_logit': loss_for_ub['query_pos_doc_logit'],
                                 'query_neg_doc_logit': loss_for_ub['query_neg_doc_logit'],
-                                'logit_diff': logit_diff
-                            }
+                                'logit_diff': logit_diff,
+                            },
                         )
                     else:
                         raise RuntimeError(f"Dict loss_for_ub has unknown key set {loss_for_ub.keys()}")

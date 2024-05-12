@@ -23,8 +23,8 @@ try:
         MCoreGPTEmbeddingMixin,
         MCoreMLPMixin,
         MCoreSelfAttentionMixin,
-        MCoreTransformerLayerMixin,
         MCoreTransformerBlockMixin,
+        MCoreTransformerLayerMixin,
     )
 except (ImportError, ModuleNotFoundError):
     MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = MCoreMLPMixin = None
@@ -39,8 +39,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterWeightTyingConfig,
     LoraUnfusedHto4HAdapterConfig,
     LoraUnfusedKQVAdapterConfig,
-    MLPInfusedAdapterConfig,
     MLPHeadAdapterConfig,
+    MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     ParallelLinearAdapterWeightTyingConfig,
     PromptEncoderAdapterConfig,
@@ -118,6 +118,7 @@ class SelectivePEFTConfig(PEFTConfig):
         super().__init__(selective_cfg, name_key_to_cfg={})
         self.tunable_base_param_names = selective_cfg.get("tunable_base_param_names", [])
 
+
 class MLPHeadPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         config_args = {"in_features": cfg.hidden_size, "out_features": cfg.peft.mlp_head_tuning.out_features}
@@ -131,6 +132,7 @@ class MLPHeadPEFTConfig(PEFTConfig):
         }
 
         super().__init__(cfg.peft.mlp_head_tuning, name_key_to_cfg)
+
 
 class LoraPEFTConfig(PEFTConfig):
     def __init__(self, cfg):

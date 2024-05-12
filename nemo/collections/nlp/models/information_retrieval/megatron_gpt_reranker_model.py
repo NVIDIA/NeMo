@@ -21,11 +21,11 @@ from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTRerankerDataset
-from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
 from nemo.utils import logging
 
 try:
@@ -67,18 +67,12 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
         return super().model_provider_func(pre_process, post_process=False)
 
     def maybe_setup_test(self):
-        if (
-            hasattr(self.cfg.data, 'test_ds')
-            and self.cfg.data.test_ds.get('file_names', None) is not None
-        ):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             self._test_dl = self.setup_eval_dataloader(self._test_ds, self.cfg.data.test_ds)
         return
 
     def maybe_build_test(self):
-        if (
-            hasattr(self.cfg.data, 'test_ds')
-            and self.cfg.data.test_ds.get('file_names', None) is not None
-        ):
+        if hasattr(self.cfg.data, 'test_ds') and self.cfg.data.test_ds.get('file_names', None) is not None:
             logging.info('Building GPT Reranker test datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
             self._test_ds = self._build_dataset(self.cfg.data.test_ds, is_train=False)
@@ -162,7 +156,7 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
                 special_tokens=self.cfg.data.get(
                     'chat_prompt_tokens', None
                 ),  # special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
-                data_type= "train" if is_train else "validation",
+                data_type="train" if is_train else "validation",
             )
             datasets.append(dataset)
         if is_train:
@@ -190,12 +184,16 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
             'query_pos_doc_logit': non_loss_tensors['query_pos_doc_logit'],  # [batch_size, hidden_size]
         }
         return outputs
-    
 
     def inference_loss_func(self, loss_mask, num_valid_tokens_in_ub, eos_tensors):
         query_pos_doc_hs = eos_tensors
         _blank = torch.zeros(1, device=query_pos_doc_hs.device, dtype=query_pos_doc_hs.dtype)[0]
-        return {"loss": _blank, "query_pos_doc_logit": query_pos_doc_hs, "query_neg_doc_logit": _blank, "logit_diff": _blank}
+        return {
+            "loss": _blank,
+            "query_pos_doc_logit": query_pos_doc_hs,
+            "query_neg_doc_logit": _blank,
+            "logit_diff": _blank,
+        }
 
     def _gather_global_inbatch_representations(self, local_eos_tensor):
         local_eos_tensor = local_eos_tensor.contiguous()
@@ -211,7 +209,7 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
-        eos_tensors = output_tensor[loss_mask, idx, :] # (bs x 1)
+        eos_tensors = output_tensor[loss_mask, idx, :]  # (bs x 1)
         if self.global_inbatch_negatives and self.trainer.training:
             eos_tensors = self._gather_global_inbatch_representations(eos_tensors)
         if not self.trainer.training:
@@ -231,15 +229,26 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
         query_pos_doc_hs = query_pos_doc_hs.clone().detach()
         query_neg_doc_hs = query_neg_doc_hs.clone().detach()
         logit_diffs = torch.mean(query_pos_doc_hs - query_neg_doc_hs)
-        return {"loss": loss, "query_pos_doc_logit": query_pos_doc_hs, "query_neg_doc_logit": query_neg_doc_hs, "logit_diff": logit_diffs}
-    
+        return {
+            "loss": loss,
+            "query_pos_doc_logit": query_pos_doc_hs,
+            "query_neg_doc_logit": query_neg_doc_hs,
+            "logit_diff": logit_diffs,
+        }
+
     def gather_and_maybe_write_predictions(self, output, data_cfg, mode, averaged_metric, dataloader_idx=0):
         if not data_cfg.get("write_embeddings_to_file", False):
             return True
         gathered_output_batches = [None for _ in range(parallel_state.get_data_parallel_world_size())]
         torch.distributed.all_gather_object(
             gathered_output_batches,
-            [{'query_pos_doc_logit': batch['query_pos_doc_logit'], 'metadata': batch['metadata'],} for batch in output],
+            [
+                {
+                    'query_pos_doc_logit': batch['query_pos_doc_logit'],
+                    'metadata': batch['metadata'],
+                }
+                for batch in output
+            ],
             group=parallel_state.get_data_parallel_group(),
         )
 
@@ -254,7 +263,10 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
                 l_q_hs = listify(batch['query_pos_doc_logit'])
                 l_m = batch['metadata']
                 assert len(l_m) == len(l_q_hs)
-                for q_hs, metadata in zip(l_q_hs, l_m,):
+                for q_hs, metadata in zip(
+                    l_q_hs,
+                    l_m,
+                ):
                     total_size += 1
                     if not metadata.get("__AUTOGENERATED__", False):
                         deduplicated_outputs['query_pos_doc_logit'].append(q_hs)

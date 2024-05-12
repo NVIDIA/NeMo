@@ -29,6 +29,7 @@ from nemo.utils import logging
 
 __all__ = ['GPTEmbeddingDataset', 'GPTRerankerDataset']
 
+
 class GPTEmbeddingDataset(Dataset):
     def __init__(
         self,
@@ -48,7 +49,7 @@ class GPTEmbeddingDataset(Dataset):
         data_type: str = 'train',  # train, query or doc
     ):
         """
-        file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
+        file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
@@ -279,6 +280,7 @@ class GPTEmbeddingDataset(Dataset):
 
         return processed_batch
 
+
 class GPTRerankerDataset(GPTEmbeddingDataset):
     def __init__(
         self,
@@ -298,7 +300,7 @@ class GPTRerankerDataset(GPTEmbeddingDataset):
         data_type: str = 'train',  # train, query or doc
     ):
         """
-        file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format. 
+        file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
@@ -310,7 +312,22 @@ class GPTRerankerDataset(GPTEmbeddingDataset):
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         """
-        super().__init__(file_path=file_path, tokenizer=tokenizer, max_seq_length=max_seq_length, min_seq_length=min_seq_length, add_bos=add_bos, add_eos=add_eos, max_num_samples=max_num_samples, seed=seed, index_mapping_dir=index_mapping_dir, virtual_tokens=virtual_tokens, memmap_workers=memmap_workers, truncation_method=truncation_method, special_tokens=special_tokens, data_type=data_type)
+        super().__init__(
+            file_path=file_path,
+            tokenizer=tokenizer,
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            add_bos=add_bos,
+            add_eos=add_eos,
+            max_num_samples=max_num_samples,
+            seed=seed,
+            index_mapping_dir=index_mapping_dir,
+            virtual_tokens=virtual_tokens,
+            memmap_workers=memmap_workers,
+            truncation_method=truncation_method,
+            special_tokens=special_tokens,
+            data_type=data_type,
+        )
 
     def _process_example(self, example):
         """
@@ -320,10 +337,16 @@ class GPTRerankerDataset(GPTEmbeddingDataset):
         """
         metadata = {k: v for k, v in example.items()}
         if self.data_type == 'train':
-            qd = self.tokenizer.text_to_ids("query: " + example['query'].strip() + " passage: " + example['pos_doc'].strip())
-            qnd = self.tokenizer.text_to_ids("query: " + example['query'].strip() + " passage: " + example['neg_doc'].strip())
+            qd = self.tokenizer.text_to_ids(
+                "query: " + example['query'].strip() + " passage: " + example['pos_doc'].strip()
+            )
+            qnd = self.tokenizer.text_to_ids(
+                "query: " + example['query'].strip() + " passage: " + example['neg_doc'].strip()
+            )
         else:
-            qd = self.tokenizer.text_to_ids("query: " + example['query'].strip() + " passage: " + example['pos_doc'].strip())
+            qd = self.tokenizer.text_to_ids(
+                "query: " + example['query'].strip() + " passage: " + example['pos_doc'].strip()
+            )
             qnd = []
 
         if self.virtual_tokens:
@@ -351,7 +374,7 @@ class GPTRerankerDataset(GPTEmbeddingDataset):
         }
 
         return processed_example
-    
+
     def collate_fn(self, batch):
         input_ids = []
         metadata = []

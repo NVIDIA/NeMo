@@ -14,27 +14,27 @@
 from contextlib import nullcontext
 
 import torch
-from torch import Tensor
 import torch.nn.functional as F
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
-from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention
-from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.custom_layers.transformer_engine import (
     SplitAlongDim,
     TEColumnParallelLinear,
+    TEDelayedScaling,
     TELayerNormColumnParallelLinear,
 )
 from megatron.core.transformer.mlp import MLP
+from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.utils import make_viewless_tensor
+from torch import Tensor
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
@@ -45,8 +45,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraKQVAdapterConfig,
     LoraUnfusedHto4HAdapterConfig,
     LoraUnfusedKQVAdapterConfig,
-    MLPInfusedAdapterConfig,
     MLPHeadAdapterConfig,
+    MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
 )
@@ -68,6 +68,7 @@ class MCoreAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         Must use self.set_accepted_adapter_types([<NeMo adapter config>_target_]) to register adapter.
         """
         raise NotImplementedError("Mcore mixins should implement setup_adapters on a subclass of MyBase")
+
 
 class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
@@ -109,7 +110,9 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
         #   already creates viewless tensors. That said, make_viewless_tensor()
         #   is called here to be future-proof and corner-case-proof.
         hidden_states = make_viewless_tensor(
-            inp=hidden_states, requires_grad=True, keep_graph=True,
+            inp=hidden_states,
+            requires_grad=True,
+            keep_graph=True,
         )
 
         if self.config.sequence_parallel:
@@ -166,11 +169,7 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
                                 packed_seq_params=packed_seq_params,
                             )
                             # CUDA graph doesn't output context and is expected to be None
-                            assert (
-                                (context is None)
-                                or (not self.config.enable_cuda_graph)
-                                or (not self.training)
-                            )
+                            assert (context is None) or (not self.config.enable_cuda_graph) or (not self.training)
                         else:
                             # CUDA graph replay for layer `l_no` and microbatch `self.current_microbatch`
                             # CUDA graph requires positional arguments with the exception of is_first_microbatch.
@@ -180,7 +179,8 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
                                 self.current_microbatch < len(self.cuda_graphs[l_no])
                             )
                             hidden_states = self.cuda_graphs[l_no][self.current_microbatch](
-                                hidden_states, is_first_microbatch=(self.current_microbatch == 0),
+                                hidden_states,
+                                is_first_microbatch=(self.current_microbatch == 0),
                             )
 
                     if (
@@ -193,14 +193,14 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
         # Final layer norm.
         if self.post_process and self.post_layer_norm:
             hidden_states = self.final_layernorm(hidden_states)
-        
+
         mlp_head_adapter = self.get_adapter_module(AdapterName.MLP_HEAD_ADAPTER)
         if mlp_head_adapter and self.adapter_cfg[AdapterName.MLP_HEAD_ADAPTER]['enabled']:
             hidden_states = mlp_head_adapter(hidden_states)
 
         return hidden_states
 
-    
+
 class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
     def mcore_register_adapters(self):
         """
@@ -280,11 +280,19 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         if SplitAlongDim is not None:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = SplitAlongDim(mixed_qkv, 3, split_arg_list,)
+            (query, key, value) = SplitAlongDim(
+                mixed_qkv,
+                3,
+                split_arg_list,
+            )
         else:
 
             # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3,)
+            (query, key, value) = torch.split(
+                mixed_qkv,
+                split_arg_list,
+                dim=3,
+            )
 
         # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
@@ -369,11 +377,21 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
 
         if self.checkpoint_core_attention:
             core_attn_out = self._checkpointed_attention_forward(
-                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
             )
         else:
             core_attn_out = self.core_attention(
-                query, key, value, attention_mask, attn_mask_type=attn_mask_type, packed_seq_params=packed_seq_params,
+                query,
+                key,
+                value,
+                attention_mask,
+                attn_mask_type=attn_mask_type,
+                packed_seq_params=packed_seq_params,
             )
 
         if packed_seq_params is not None:
@@ -454,7 +472,9 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
                     intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
             elif self.activation_func == F.silu and self.config.gated_linear_unit:
                 intermediate_parallel = bias_swiglu_impl(
-                    intermediate_parallel, bias_parallel, self.config.activation_func_fp8_input_store,
+                    intermediate_parallel,
+                    bias_parallel,
+                    self.config.activation_func_fp8_input_store,
                 )
 
             else:
