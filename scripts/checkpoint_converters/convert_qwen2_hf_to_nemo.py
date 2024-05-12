@@ -44,7 +44,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to Huggingface QWen2 checkpoints",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Huggingface QWen2 checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
@@ -117,7 +121,7 @@ def convert(args):
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )
@@ -209,7 +213,11 @@ def convert(args):
             qkv_bias = torch.cat((qkv_bias, q[i * heads_per_group : (i + 1) * heads_per_group, :]))
             qkv_bias = torch.cat((qkv_bias, k[i : i + 1, :]))
             qkv_bias = torch.cat((qkv_bias, v[i : i + 1, :]))
-        qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups),])
+        qkv_bias = qkv_bias.reshape(
+            [
+                head_size * (head_num + 2 * num_query_groups),
+            ]
+        )
         if mcore_gpt:
             qkv_bias_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.bias'
         else:

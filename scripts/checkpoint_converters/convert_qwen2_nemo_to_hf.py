@@ -52,7 +52,11 @@ This script can be used to 1) generate only the HF weights, or 2) generate an en
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file or extracted folder",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to HF .bin file")
     parser.add_argument(
@@ -186,9 +190,21 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         k_bias_base_name = f'model.layers.{l}.self_attn.k_proj.bias'
         v_bias_base_name = f'model.layers.{l}.self_attn.v_proj.bias'
 
-        checkpoint[q_bias_base_name] = param_to_weights(qkv_bias[q_slice].reshape(-1,))
-        checkpoint[k_bias_base_name] = param_to_weights(qkv_bias[k_slice].reshape(-1,))
-        checkpoint[v_bias_base_name] = param_to_weights(qkv_bias[v_slice].reshape(-1,))
+        checkpoint[q_bias_base_name] = param_to_weights(
+            qkv_bias[q_slice].reshape(
+                -1,
+            )
+        )
+        checkpoint[k_bias_base_name] = param_to_weights(
+            qkv_bias[k_slice].reshape(
+                -1,
+            )
+        )
+        checkpoint[v_bias_base_name] = param_to_weights(
+            qkv_bias[v_slice].reshape(
+                -1,
+            )
+        )
 
         # attention dense
         o_weight = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_proj.weight']
@@ -237,13 +253,26 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
 
 
 def replace_hf_weights_and_tokenizer(
-    weights_file, dtype, input_hf_path, output_hf_path, tokenizer_path, output_hf_tokenizer,
+    weights_file,
+    dtype,
+    input_hf_path,
+    output_hf_path,
+    tokenizer_path,
+    output_hf_tokenizer,
 ):
-    model = Qwen2ForCausalLM.from_pretrained(input_hf_path, local_files_only=True, torch_dtype=dtype,)
+    model = Qwen2ForCausalLM.from_pretrained(
+        input_hf_path,
+        local_files_only=True,
+        torch_dtype=dtype,
+    )
     nemo_exported = torch.load(weights_file)
 
     if tokenizer_path:
-        tokenizer = Qwen2Tokenizer.from_pretrained(tokenizer_path, local_files_only=True, legacy=False,)
+        tokenizer = Qwen2Tokenizer.from_pretrained(
+            tokenizer_path,
+            local_files_only=True,
+            legacy=False,
+        )
         tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
         fast_tokenizer = Qwen2TokenizerFast(tokenizer_object=tmp_tokenizer)
         tokenizer_length = len(fast_tokenizer)
