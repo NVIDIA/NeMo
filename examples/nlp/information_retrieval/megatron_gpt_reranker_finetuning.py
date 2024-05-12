@@ -62,7 +62,7 @@ def main(cfg) -> None:
         # initialize peft weights from a checkpoint instead of randomly
         # This is not the same as resume training because optimizer states are not restored.
         logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
-        model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+        model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls)
     elif peft_cfg_cls is not None:
         logging.info("Adding adapter weights to the model for PEFT")
         #model.add_adapter(peft_cfg_cls(model_cfg))

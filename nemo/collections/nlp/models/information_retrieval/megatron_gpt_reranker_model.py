@@ -174,6 +174,7 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
             return dataset
         else:
             return datasets
+
     def training_step_fwd_bwd_step_call(self, dataloader_iter, forward_only):
         loss_mean, non_loss_tensors = self.fwd_bwd_step(dataloader_iter, forward_only)
         logit_diff = non_loss_tensors['logit_diff'][0].item()

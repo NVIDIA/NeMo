@@ -306,7 +306,8 @@ class NLPAdapterModelMixin:
             assert filepath.endswith(
                 '.nemo'
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
-            peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
+            peft_cfg_cls_lst = [PEFT_CONFIG_MAP[s] for s in conf.peft.peft_scheme.split(",")]
+            peft_cfgs = [_peft_cfg(conf) for _peft_cfg  in peft_cfg_cls_lst]
         if self.cfg.megatron_amp_O2:
             state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
         self.add_adapter(peft_cfgs)
