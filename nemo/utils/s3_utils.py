@@ -21,8 +21,8 @@ try:
 except ImportError as e:
     crt_available = False
 
-MB = 1024 ** 2
-GB = 1024 ** 3
+MB = 1024**2
+GB = 1024**3
 
 SHARED_MEM_DIR = '/dev/shm'
 DEFAULT_CHUNK_SIZE_MB = 64
@@ -32,7 +32,7 @@ DEFAULT_MAX_WRITE_CONCURRENCY = 10
 
 class S3Utils:
     """
-    Utility class for interacting with S3. Handles downloading and uploading to S3, and parsing/formatting S3 urls. 
+    Utility class for interacting with S3. Handles downloading and uploading to S3, and parsing/formatting S3 urls.
     """
 
     '''
@@ -271,8 +271,8 @@ def _scan_objects_with_retry(s3_bucket, s3_prefix):
 
 def is_slow_down_error(exception):
     """
-    This function checks if the error is due to slowdown or is throttling related. 
-    If so, returns true to allow tenacity to retry the upload/download to S3. 
+    This function checks if the error is due to slowdown or is throttling related.
+    If so, returns true to allow tenacity to retry the upload/download to S3.
     """
     class_name = exception.__class__.__name__
     module_name = exception.__class__.__module__

@@ -104,7 +104,7 @@ class S3CheckpointIO(CheckpointIO):
     def _serialize_checkpoint_to_bytes(self, checkpoint: Dict, path: str) -> BytesIO:
         """
         Returns:
-            The bytestring of the checkpoint. 
+            The bytestring of the checkpoint.
         """
         ss = time.perf_counter()
         bytes = BytesIO()
@@ -119,8 +119,8 @@ class S3CheckpointIO(CheckpointIO):
     def _check_uploading_results_so_far(self):
         """
         self._future is a list of tuples of form (future, destination path, source path)
-        This function checks the result of all the futures, and updates the self._futures list appropriately. 
-        It also updates the list of self._temp_files, which is used to clean up leaked temporary files in SHARED_MEM during teardown. 
+        This function checks the result of all the futures, and updates the self._futures list appropriately.
+        It also updates the list of self._temp_files, which is used to clean up leaked temporary files in SHARED_MEM during teardown.
         """
         if not self._futures:
             return
