@@ -269,4 +269,4 @@ def _upload_bytes_to_s3(bytes, path, chunk_size_MB, max_write_concurrency):
 
 
 def dummy_func():
-    time.sleep(1)
+    time.sleep(0.01)
