@@ -260,15 +260,16 @@ class LazyNeMoTarredIterator:
             random.Random(seed).shuffle(shard_ids)
 
         for sid in shard_ids:
-            shard_manifest = self.shard_id_to_manifest[sid]
+            manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
+            shard_manifest = {data["audio_filepath"]: data for data in self.shard_id_to_manifest[sid]}
             tar_path = self.shard_id_to_tar_path[sid]
             with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
-                for data, tar_info in zip(shard_manifest, tar):
-                    manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
-                    assert data["audio_filepath"] == tar_info.name, (
+                for tar_info in tar:
+                    assert tar_info.name in shard_manifest, (
                         f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                        f"Conflicting audio file names are JSON='{data['audio_filepath']}' and TAR='{tar_info.name}'"
+                        f"Cannot locate manifest entry for TAR='{tar_info.name}'"
                     )
+                    data = shard_manifest[tar_info.name]
                     raw_audio = tar.extractfile(tar_info).read()
                     # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
                     #       the profiling indicated significant overhead in torchaudio ffmpeg integration
