@@ -17,12 +17,8 @@ from typing import List, Optional, Union
 import torch
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import replace_prefix, NLPAdapterModelMixin
-from nemo.collections.nlp.parts.peft_config import (
-    PEFT_CONFIG_MAP,
-    PEFTConfig,
-    PtuningPEFTConfig,
-)
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin, replace_prefix
+from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig, PtuningPEFTConfig
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, model_utils
 
@@ -39,7 +35,9 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _get_all_keys(self,):
+    def _get_all_keys(
+        self,
+    ):
         # TODO (yuya): p-tuning need additional handle, check peft models.
         """
         Returns all the keys in the model
@@ -90,7 +88,10 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
             self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
     def load_adapters(
-        self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
+        self,
+        filepath: str,
+        peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None,
+        map_location: str = None,
     ):
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
@@ -114,7 +115,6 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
                 map_location = 'cuda'
             else:
                 map_location = 'cpu'
-
 
         # TODO (yuya): this logic needs to change for dist ckpt because after
         # adding adapaters the checkpoint will change

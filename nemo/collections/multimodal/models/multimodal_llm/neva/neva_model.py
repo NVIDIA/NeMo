@@ -92,7 +92,11 @@ class FrozenCLIPVisionTransformer(CLIPVisionTransformer):
 
     def __init__(self, model_cfg, model_parallel_config, pre_process=True, post_process=True):
         super().__init__(
-            model_cfg, model_parallel_config, pre_process=pre_process, post_process=post_process, skip_head=True,
+            model_cfg,
+            model_parallel_config,
+            pre_process=pre_process,
+            post_process=post_process,
+            skip_head=True,
         )
         self.frozen = False
         self.dtype = self.config.params_dtype
@@ -246,7 +250,9 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
             tensor = state_dict[layer_name]
             layer_key = f'{prefix}{layer_name}'
             sharded_state_dict[layer_key] = make_sharded_tensor_for_checkpoint(
-                tensor, layer_key, prepend_offsets=sharded_offsets,
+                tensor,
+                layer_key,
+                prepend_offsets=sharded_offsets,
             )
         return sharded_state_dict
 
@@ -260,7 +266,12 @@ class NevaBaseModel:
     """
 
     def __init__(
-        self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
+        self,
+        mm_cfg,
+        media_start_id,
+        media_end_id,
+        mcore_gpt,
+        **kwargs,
     ):
         self.mm_cfg = mm_cfg
         self.media_start_id = media_start_id
@@ -279,7 +290,8 @@ class NevaBaseModel:
         # Initialize vision encoder and freeze it
         if mm_cfg.vision_encoder.from_hf:
             vision_encoder = CLIPVisionModel.from_pretrained(
-                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+                mm_cfg.vision_encoder.from_pretrained,
+                torch_dtype=torch.bfloat16,
             ).cuda()
             vision_encoder = vision_encoder.to(torch.bfloat16)
             if mm_cfg.vision_encoder.freeze:
@@ -400,7 +412,12 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
     """
 
     def __init__(
-        self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
+        self,
+        mm_cfg,
+        media_start_id,
+        media_end_id,
+        mcore_gpt,
+        **kwargs,
     ):
         MCoreGPTModel.__init__(self, **kwargs)
         NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
@@ -415,11 +432,17 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         else:
             output_layer_parameters = {}
 
-        for param in chain(embedding_parameters, self.decoder.parameters(), output_layer_parameters,):
+        for param in chain(
+            embedding_parameters,
+            self.decoder.parameters(),
+            output_layer_parameters,
+        ):
             param.requires_grad = False
 
     def forward(
-        self, *args, **kwargs,
+        self,
+        *args,
+        **kwargs,
     ):
         media = kwargs.pop('media', None)
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
@@ -436,7 +459,12 @@ class NevaModel(GPTModel, NevaBaseModel):
     """
 
     def __init__(
-        self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs,
+        self,
+        mm_cfg,
+        media_start_id,
+        media_end_id,
+        mcore_gpt,
+        **kwargs,
     ):
         GPTModel.__init__(self, **kwargs)
         NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
@@ -446,7 +474,9 @@ class NevaModel(GPTModel, NevaBaseModel):
             param.requires_grad = False
 
     def forward(
-        self, *args, **kwargs,
+        self,
+        *args,
+        **kwargs,
     ):
         media = kwargs.pop('media', None)
         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
@@ -664,7 +694,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             grad_sync_func = None
             param_sync_func = None
             if not forward_only and self.with_distributed_adam:
-                no_sync_func = partial(self._optimizer.no_sync, greedy_grad_copy=self.megatron_amp_O2,)
+                no_sync_func = partial(
+                    self._optimizer.no_sync,
+                    greedy_grad_copy=self.megatron_amp_O2,
+                )
                 grad_sync_func = self.reduce_overlap_gradients
                 param_sync_func = self.sync_overlap_parameters
 
@@ -722,9 +755,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
 
     def training_step(self, dataloader_iter):
         """
-            We pass the dataloader iterator function to the micro-batch scheduler.
-            The input batch to each micro-batch is fetched using the dataloader function
-            in the micro-batch fwd function.
+        We pass the dataloader iterator function to the micro-batch scheduler.
+        The input batch to each micro-batch is fetched using the dataloader function
+        in the micro-batch fwd function.
         """
         return MegatronGPTModel.training_step(self, dataloader_iter)
 
@@ -927,7 +960,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         return loss
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
+        """PTL hook that is executed after DDP spawns.
             We setup datasets here as megatron datasets require DDP to instantiate.
             See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
         Args:
@@ -1005,7 +1038,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             self._train_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
             self._validation_ds = NevaPackedSeqDatatset(self.cfg.data.data_prefix, self.cfg.data.get("crop_size"))
         else:
-            ds_dict = make_supervised_data_module(tokenizer=self.tokenizer, model_cfg=self.cfg,)
+            ds_dict = make_supervised_data_module(
+                tokenizer=self.tokenizer,
+                model_cfg=self.cfg,
+            )
             self._train_ds = ds_dict["train_dataset"]
             self._validation_ds = ds_dict["eval_dataset"]
 
@@ -1174,7 +1210,11 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 return generate(self, **inference_config)
 
     def generate(
-        self, input_prompts, inference_config, length_params: LengthParam, sampling_params: SamplingParam = None,
+        self,
+        input_prompts,
+        inference_config,
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
     ) -> OutputType:
 
         # check whether the DDP is initialized
