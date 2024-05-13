@@ -10,6 +10,7 @@ ruamel.yaml
 s3fs==0.4.2
 sphinx
 sphinxcontrib-bibtex
+tenacity
 wandb
 wget
 wrapt

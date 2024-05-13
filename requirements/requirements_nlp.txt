@@ -22,5 +22,6 @@ rouge_score
 s3fs==0.4.2
 sacrebleu  # manually install sacrebleu[ja] for Japanese support; MeCab is unsupported in Python 3.11+
 sentence_transformers
+tenacity
 tensorstore<0.1.46
 zarr
