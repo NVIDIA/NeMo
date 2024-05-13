@@ -87,7 +87,9 @@ class MCoreTransformerBlockMixin(TransformerBlock, MCoreAdapterModuleMixin):
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
     ):
-        hidden_states = super().forward(hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params)
+        hidden_states = super().forward(
+            hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params
+        )
 
         mlp_head_adapter = self.get_adapter_module(AdapterName.MLP_HEAD_ADAPTER)
         if mlp_head_adapter and self.adapter_cfg[AdapterName.MLP_HEAD_ADAPTER]['enabled']:

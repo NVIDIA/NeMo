@@ -46,17 +46,17 @@ def listify(tensor):
             l_tensor.append(r)
     return l_tensor
 
+
 def _gather_global_inbatch_representations(local_eos_tensor):
     local_eos_tensor = local_eos_tensor.contiguous()
     global_eos_tensors = [
         torch.zeros_like(local_eos_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
     ]
-    torch.distributed.all_gather(
-        global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group()
-    )
+    torch.distributed.all_gather(global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group())
     global_eos_tensors[parallel_state.get_data_parallel_rank()] = local_eos_tensor
     global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
     return global_eos_tensors
+
 
 class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -420,8 +420,6 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             "neg_cs": _blank,
             "diff_cs": _blank,
         }
-
-    
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
