@@ -36,11 +36,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-try:
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 
 def listify(tensor):
@@ -51,6 +46,17 @@ def listify(tensor):
             l_tensor.append(r)
     return l_tensor
 
+def _gather_global_inbatch_representations(local_eos_tensor):
+    local_eos_tensor = local_eos_tensor.contiguous()
+    global_eos_tensors = [
+        torch.zeros_like(local_eos_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
+    ]
+    torch.distributed.all_gather(
+        global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group()
+    )
+    global_eos_tensors[parallel_state.get_data_parallel_rank()] = local_eos_tensor
+    global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
+    return global_eos_tensors
 
 class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -415,23 +421,13 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             "diff_cs": _blank,
         }
 
-    def _gather_global_inbatch_representations(self, local_eos_tensor):
-        local_eos_tensor = local_eos_tensor.contiguous()
-        global_eos_tensors = [
-            torch.zeros_like(local_eos_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
-        ]
-        torch.distributed.all_gather(
-            global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group()
-        )
-        global_eos_tensors[parallel_state.get_data_parallel_rank()] = local_eos_tensor
-        global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
-        return global_eos_tensors
+    
 
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
         eos_tensors = output_tensor[loss_mask, idx, :]
         if self.global_inbatch_negatives and self.trainer.training:
-            eos_tensors = self._gather_global_inbatch_representations(eos_tensors)
+            eos_tensors = _gather_global_inbatch_representations(eos_tensors)
         if not self.trainer.training:
             return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
         bs = eos_tensors.shape[0] // 3

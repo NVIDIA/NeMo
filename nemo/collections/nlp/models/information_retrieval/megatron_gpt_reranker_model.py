@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTRerankerDataset
+from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import _gather_global_inbatch_representations
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
@@ -36,11 +37,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
-try:
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 
 def listify(tensor):
@@ -55,12 +51,6 @@ def listify(tensor):
 class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        self.temperature = self.cfg.get('temperature', 0.02)
-        self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", True)
-        self.global_inbatch_negatives = self.cfg.get("global_inbatch_negatives", True)
-        assert (
-            self.cfg.get("post_process", False) is False
-        ), "post_process must be False to get hidden states in the loss_func"
 
     def model_provider_func(self, pre_process, post_process):
         # (@adithyare) We need post_process to be False to get hidden states in the loss_func
@@ -195,23 +185,11 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
             "logit_diff": _blank,
         }
 
-    def _gather_global_inbatch_representations(self, local_eos_tensor):
-        local_eos_tensor = local_eos_tensor.contiguous()
-        global_eos_tensors = [
-            torch.zeros_like(local_eos_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
-        ]
-        torch.distributed.all_gather(
-            global_eos_tensors, local_eos_tensor, group=parallel_state.get_data_parallel_group()
-        )
-        global_eos_tensors[parallel_state.get_data_parallel_rank()] = local_eos_tensor
-        global_eos_tensors = torch.cat(global_eos_tensors, dim=0)
-        return global_eos_tensors
-
     def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
         idx = torch.arange(output_tensor.shape[1], device=output_tensor.device)
         eos_tensors = output_tensor[loss_mask, idx, :]  # (bs x 1)
         if self.global_inbatch_negatives and self.trainer.training:
-            eos_tensors = self._gather_global_inbatch_representations(eos_tensors)
+            eos_tensors = _gather_global_inbatch_representations(eos_tensors)
         if not self.trainer.training:
             return self.inference_loss_func(loss_mask, num_valid_tokens_in_ub, eos_tensors)
         bs = eos_tensors.shape[0] // 2
