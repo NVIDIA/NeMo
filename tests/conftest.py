@@ -25,8 +25,6 @@ from typing import Tuple
 
 import pytest
 
-from tests.fixtures.tts import *
-
 # Those variables probably should go to main NeMo configuration file (config.yaml).
 __TEST_DATA_FILENAME = "test_data.tar.gz"
 __TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v1.0.0rc1/"
