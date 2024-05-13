@@ -757,7 +757,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             else:
                 pred = class_labels.index(pred)
             if label not in class_labels:
-                raise ValueError(f"Ground truth labe; {label} is not in the class labels list : {class_labels}")
+                raise ValueError(f"Ground truth label; {label} is not in the class labels list : {class_labels}")
             label = class_labels.index(label)
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
