@@ -37,7 +37,7 @@ try:
         get_current_global_batch_size,
         get_micro_batch_size,
         get_num_microbatches,
-        reconfigure_microbatch_calculator,
+        reconfigure_num_microbatch_calculator,
     )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
@@ -170,7 +170,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     def on_validation_epoch_start(self):
         app_state = AppState()
-        reconfigure_microbatch_calculator(
+        reconfigure_num_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.validation_ds.global_batch_size,
@@ -181,7 +181,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     def on_test_epoch_start(self):
         app_state = AppState()
-        reconfigure_microbatch_calculator(
+        reconfigure_num_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=self.cfg.data.test_ds.global_batch_size,
@@ -264,7 +264,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
                 != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
-                reconfigure_microbatch_calculator(
+                reconfigure_num_microbatch_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
@@ -274,7 +274,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             # NOTE: need to explicitly handle resetting for multi-validation
             else:
                 app_state = AppState()
-                reconfigure_microbatch_calculator(
+                reconfigure_num_microbatch_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
                     global_batch_size=ds_config.global_batch_size,
@@ -556,7 +556,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
         app_state = AppState()
         if hasattr(self, "_train_ds"):
-            reconfigure_microbatch_calculator(
+            reconfigure_num_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -566,7 +566,7 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
         # When running `trainer.validate()`, the training dataset is not available.
         else:
             logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
-            reconfigure_microbatch_calculator(
+            reconfigure_num_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=data_cfg.global_batch_size,

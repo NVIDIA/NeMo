@@ -28,7 +28,7 @@ from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.num_microbatches_calculator import reconfigure_microbatch_calculator
+    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatch_calculator
 
     HAVE_MEGATRON_CORE = True
 
@@ -153,7 +153,7 @@ class MegatronT0Model(MegatronT5SFTModel):
         # This should happen only on the last batch of the validation/test dataset with drop_last=False.
         if global_batch_per_gpu != self.cfg.data.validation_ds.global_batch_size:
             app_state = AppState()
-            reconfigure_microbatch_calculator(
+            reconfigure_num_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
