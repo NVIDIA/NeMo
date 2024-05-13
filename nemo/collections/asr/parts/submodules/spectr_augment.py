@@ -43,13 +43,13 @@ class SpecAugment(nn.Module, Typing):
         Fast implementation is inspired by torchaudio:
         https://github.com/pytorch/audio/blob/ea437b31ce316ea3d66fe73768c0dcb94edb79ad/src/torchaudio/functional/functional.py#L816
     """
+
     FREQ_AXIS = 1  # Frequency axis in the spectrogram tensor
     TIME_AXIS = 2  # Time axis in the spectrogram tensor
 
     @property
     def input_types(self):
-        """Returns definitions of module input types
-        """
+        """Returns definitions of module input types"""
         return {
             "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
             "length": NeuralType(tuple('B'), LengthsType()),
@@ -57,8 +57,7 @@ class SpecAugment(nn.Module, Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output types
-        """
+        """Returns definitions of module output types"""
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(
@@ -160,12 +159,17 @@ class SpecAugment(nn.Module, Typing):
         length: torch.Tensor,
         width: int | float,
         mask_value: float,
-        axis: int
-        ) -> torch.Tensor:
+        axis: int,
+    ) -> torch.Tensor:
 
-        assert axis in (self.FREQ_AXIS, self.TIME_AXIS), f"Axis can be only be equal to frequency \
+        assert axis in (
+            self.FREQ_AXIS,
+            self.TIME_AXIS,
+        ), f"Axis can be only be equal to frequency \
             ({self.FREQ_AXIS}) or time ({self.TIME_AXIS}). Received: {axis=}"
-        assert not (isinstance(width, float) and axis == self.FREQ_AXIS), "Float width supported \
+        assert not (
+            isinstance(width, float) and axis == self.FREQ_AXIS
+        ), "Float width supported \
             only with time axis."
 
         batch_size = input_spec.shape[0]
@@ -203,12 +207,13 @@ class SpecAugment(nn.Module, Typing):
         mask = torch.zeros_like(input_spec, dtype=torch.bool)
         if axis == self.TIME_AXIS:
             mask_ranges = mask_tensor[:, None, :]
-        else: # axis == self.FREQ_AXIS
+        else:  # axis == self.FREQ_AXIS
             mask_ranges = mask_tensor[:, :, None]
         mask[:, :, :] = mask_ranges
 
         # Apply the mask value
         return input_spec.masked_fill(mask=mask, value=mask_value)
+
 
 class SpecCutout(nn.Module, Typing):
     """
@@ -223,14 +228,12 @@ class SpecCutout(nn.Module, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input types
-        """
+        """Returns definitions of module input types"""
         return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     @property
     def output_types(self):
-        """Returns definitions of module output types
-        """
+        """Returns definitions of module output types"""
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(self, rect_masks=0, rect_time=5, rect_freq=20, rng=None):
