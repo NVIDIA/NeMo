@@ -132,11 +132,8 @@ jobs:
                 apt-get update && apt-get install libsox-fmt-all -y && \
                 popd
 
-            # AMMO installation
-            pip install nvidia-ammo~=0.9.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
-
             # ModelOpt installation
-            pip install "nvidia-modelopt[all]~=0.11.0" --extra-index-url https://pypi.nvidia.com
+            pip install nvidia-modelopt[all]~=0.11.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
 
             # PyTorch Lightning version
             python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"

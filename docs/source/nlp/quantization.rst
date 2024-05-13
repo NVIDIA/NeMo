@@ -10,7 +10,7 @@ PTQ enables deploying a model in a low-precision format -- FP8, INT4, or INT8 --
 
 Model quantization has two primary benefits: reduced model memory requirements and increased inference throughput.
 
-In NeMo, quantization is enabled by the Nvidia AMMO library -- a unified algorithmic model optimization & deployment toolkit.
+In NeMo, quantization is enabled by the `NVIDIA TensorRT Model Optimizer (ModelOpt) <https://github.com/NVIDIA/TensorRT-Model-Optimizer>`_ library -- a library to quantize and compress deep learning models for optimized inference on GPUs.
 
 The quantization process consists of the following steps:
 
@@ -18,7 +18,7 @@ The quantization process consists of the following steps:
 2. Calibrating the model to obtain appropriate algorithm-specific scaling factors
 3. Producing an output directory or .qnemo tarball with model config (json), quantized weights (safetensors) and tokenizer config (yaml).
 
-Loading models requires using an AMMO spec defined in `megatron.core.inference.gpt.model_specs.py <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/inference/gpt/model_specs.py>`_ module. Typically the calibration step is lightweight and uses a small dataset to obtain appropriate statistics for scaling tensors. The output directory produced (or a .qnemo tarball) is ready to be used to build a serving engine with the Nvidia TensorRT-LLM library. The engine build step is also available in NeMo project in ``nemo.deploy`` and ``nemo.export`` modules.
+Loading models requires using an ModelOpt spec defined in `nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron/gpt_layer_modelopt_spec.py>`_ module. Typically the calibration step is lightweight and uses a small dataset to obtain appropriate statistics for scaling tensors. The output directory produced (or a .qnemo tarball) is ready to be used to build a serving engine with the Nvidia TensorRT-LLM library. The engine build step is also available in NeMo project in ``nemo.deploy`` and ``nemo.export`` modules.
 
 Quantization algorithm can also be conveniently set to ``"null"`` to perform only the weights export step using default precision for TensorRT-LLM deployment. This is useful to obtain baseline performance and accuracy results for comparison.
 
