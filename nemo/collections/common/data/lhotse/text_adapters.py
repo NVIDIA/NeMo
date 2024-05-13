@@ -16,12 +16,10 @@ import copy
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Literal, Union
+from typing import Iterator, Literal, Optional, Union
 
 import numpy as np
 import torch
-from lhotse.cut.text import TextExample as TextExample_
-from lhotse.cut.text import TextPairExample as TextPairExample_
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
 from lhotse.utils import Pathlike
@@ -31,17 +29,29 @@ from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateToke
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
+"""
+Basic text example, adequate for pretraining-style language modeling.
+"""
 
-class TextExample(TextExample_):
+
+@dataclass
+class TextExample:
+    """
+    Represents a single text example. Useful e.g. for language modeling.
+    """
+
+    text: str
+    language: str | None = None
+    tokens: Optional[np.ndarray] = None
+
+    @property
+    def num_tokens(self) -> Optional[int]:
+        if self.tokens is None:
+            return None
+        return len(self.tokens)
+
     def tokenize(self, tokenizer: TokenizerWrapper) -> "TextExample":
         self.tokens = np.asarray(tokenizer(self.text, self.language))
-        return self
-
-
-class TextPairExample(TextPairExample_):
-    def tokenize(self, tokenizer: TokenizerWrapper) -> "TextExample":
-        self.source.tokens = np.asarray(tokenizer(self.source.text, self.source.language))
-        self.target.tokens = np.asarray(tokenizer(self.source.text, self.target.language))
         return self
 
 
@@ -68,10 +78,57 @@ class LhotseTextAdapter:
         for path in paths:
             with open(path) as f:
                 for line in f:
-                    example = TextExample(line)
-                    if self.language is not None:
-                        example.language = self.language
-                    yield example
+                    yield TextExample(line, language=self.language)
+
+
+"""
+Source-target text examples (e.g., machine translation).
+"""
+
+
+@dataclass
+class SourceTargetTextExample:
+    """
+    Represents a pair of text examples. Useful e.g. for sequence-to-sequence tasks.
+    Supports a ``question`` field, used as the prompt for LLM.
+    """
+
+    source: TextExample
+    target: TextExample
+    question: TextExample | None = None
+    input_ids: np.ndarray | None = None
+    context_ids: np.ndarray | None = None
+    answer_ids: np.ndarray | None = None
+    mask: np.ndarray | None = None
+
+    @property
+    def num_tokens(self) -> Optional[int]:
+        if self.input_ids is not None:
+            return self.input_ids.shape[0]
+        return None
+
+    def tokenize(self, tokenizer: TokenizerWrapper) -> "TextExample":
+        input_ids = []
+        context_ids = []
+        if self.question:
+            ans = tokenizer(self.question.text, self.question.language)
+            input_ids.extend(ans)
+            context_ids.extend(ans)
+        ans = tokenizer(self.source.text, self.source.language)
+        input_ids.extend(ans)
+        context_ids.extend(ans)
+
+        answer_ids = tokenizer(self.target.text, self.target.language)
+        input_ids.extend(answer_ids)
+
+        self.input_ids = np.asarray(input_ids)
+        self.context_ids = np.asarray(context_ids)
+        self.answer_ids = np.asarray(answer_ids)
+        mask = np.zeros_like(self.input_ids, dtype=np.bool_)
+        mask[self.context_ids.shape[0] :] = True
+        self.mask = mask
+
+        return self
 
 
 @dataclass
@@ -81,12 +138,16 @@ class LhotseTextPairAdapter:
     (e.g., a pair of files with translations in different languages)
     and wrap them in a ``TextExample`` object to enable dataloading
     with Lhotse together with training examples in audio modality.
+
+    Provide ``questions_path`` to enable randomly sampling lines with questions.
     """
 
     source_paths: Union[Pathlike, list[Pathlike]]
     target_paths: Union[Pathlike, list[Pathlike]]
     source_language: str | None = None
     target_language: str | None = None
+    questions_path: Pathlike = None
+    questions_language: str = None
     shuffle_shards: bool = False
     shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
 
@@ -102,20 +163,26 @@ class LhotseTextPairAdapter:
         self.source_paths = expand_sharded_filepaths(self.source_paths)
         self.target_paths = expand_sharded_filepaths(self.target_paths)
 
-    def __iter__(self) -> Iterator[TextPairExample]:
+    def __iter__(self) -> Iterator[SourceTargetTextExample]:
+        seed = resolve_seed(self.shard_seed)
+        rng = random.Random(seed)
         paths = list(zip(self.source_paths, self.target_paths))
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
+            rng.shuffle(paths)
+        questions = None
+        if self.questions_path is not None:
+            with open(self.questions_path) as f:
+                questions = [q.strip() for q in f]
         for source_path, target_path in paths:
             with open(source_path) as fs, open(target_path) as ft:
                 for ls, lt in zip(fs, ft):
-                    example = TextPairExample(source=TextExample(ls.strip()), target=TextExample(lt.strip()))
-                    if self.source_language is not None:
-                        example.source.language = self.source_language
-                    if self.target_language is not None:
-                        example.target.language = self.target_language
-                    yield example
+                    yield SourceTargetTextExample(
+                        source=TextExample(ls.strip(), language=self.source_language),
+                        target=TextExample(lt.strip(), language=self.target_language),
+                        question=TextExample(rng.choice(questions), language=self.questions_language)
+                        if questions is not None
+                        else None,
+                    )
 
 
 @dataclass

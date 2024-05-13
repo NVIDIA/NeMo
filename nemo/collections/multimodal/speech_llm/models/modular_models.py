@@ -402,7 +402,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         output, loss_mask = None, None
 
         multimodal_output = {}
-        if audio_batch:
+        if 'audio_signal' in audio_batch:
             encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
             output = self._gpt_forward(
                 None, None, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
@@ -631,7 +631,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 loss_for_ub = 0
 
                 for key, (output, loss_mask) in multimodal_output.items():
-                    cur_loss = self.loss_func(loss_mask, loss_mask.sum(), output)
+                    cur_loss = self.loss_func(loss_mask.contiguous(), loss_mask.sum(), output.contiguous())
                     loss_for_ub += cur_loss
                     self.log(
                         f'{key}_loss', cur_loss.mean(), prog_bar=True, batch_size=1, rank_zero_only=False,

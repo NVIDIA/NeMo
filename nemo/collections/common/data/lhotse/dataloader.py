@@ -22,7 +22,6 @@ import numpy as np
 import torch
 from lhotse import CutSet, RecordingSet
 from lhotse.cut import Cut
-from lhotse.cut.text import TextExample, TextPairExample
 from lhotse.dataset import (
     CutConcatenate,
     DynamicBucketingSampler,
@@ -38,7 +37,7 @@ from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
-from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample
+from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample, TextExample
 from nemo.utils import logging
 
 
@@ -450,16 +449,16 @@ class MultimodalSamplingConstraint(SamplingConstraint):
     def measure_length(self, example: Any) -> float:
         if isinstance(example, Cut):
             return example.duration / self.token_equivalent_duration
-        if isinstance(example, (TextExample, TextPairExample, NeMoSFTExample)):
+        if isinstance(example, (TextExample, SourceTargetTextExample, NeMoSFTExample)):
             return example.num_tokens
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
 
 def is_text(example) -> bool:
-    return isinstance(example, (TextExample, TextPairExample, NeMoSFTExample))
+    return isinstance(example, (TextExample, SourceTargetTextExample, NeMoSFTExample))
 
 
-Example = TypeVar("Example", bound=Union[Cut, TextExample, TextPairExample, NeMoSFTExample])
+Example = TypeVar("Example", bound=Union[Cut, TextExample, SourceTargetTextExample, NeMoSFTExample])
 
 
 def tokenize(example: Example, tokenizer) -> Example:

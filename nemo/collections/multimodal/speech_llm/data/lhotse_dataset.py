@@ -5,7 +5,7 @@ from lhotse.cut import Cut, CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
-from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample
+from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
     build_loss_mask,
@@ -110,7 +110,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             ans.update(return_batch)
 
         # convert text examples to tensors
-        text_examples = all_cuts.filter(lambda c: isinstance(c, NeMoSFTExample))
+        text_examples = all_cuts.filter(lambda c: isinstance(c, (SourceTargetTextExample, NeMoSFTExample)))
         if text_examples:
             pad_id = self.text_processor.pad_id
             text_minibatch = dict(
