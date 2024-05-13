@@ -19,6 +19,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_model import GriffinModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
+
 class MegatronGriffinModel(MegatronGPTModel):
     """
     Megatron Griffin pretraining.
@@ -56,8 +57,9 @@ class MegatronGriffinModel(MegatronGPTModel):
         transformer_config.activations_checkpoint_recurrent = self.cfg.get('activations_checkpoint_recurrent', False)
         transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', True)
         transformer_config.layernorm_zero_centered_gamma = self.cfg.get('layernorm_zero_centered_gamma', True)
-        assert not transformer_config.activations_checkpoint_recurrent or not transformer_config.recompute_granularity, \
-            "Either the recurrent checkpoiting or the full/custom checkpointing should be set"
+        assert (
+            not transformer_config.activations_checkpoint_recurrent or not transformer_config.recompute_granularity
+        ), "Either the recurrent checkpoiting or the full/custom checkpointing should be set"
 
         return transformer_config
 

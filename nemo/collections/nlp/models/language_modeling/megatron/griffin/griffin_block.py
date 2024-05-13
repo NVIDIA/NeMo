@@ -32,6 +32,7 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
+
 def get_griffin_layers(num_layers):
     dict_spec = {
         "Recurrent_Layer": griffin_recurrent_layer_with_transformer_engine_spec,
@@ -191,7 +192,11 @@ class GriffinStack(LanguageModule):
 
     def forward(self, hidden_states, attention_mask, rotary_pos_emb):
 
-        if self.config.recompute_granularity == 'full' and self.training and not self.config.activations_checkpoint_recurrent:
+        if (
+            self.config.recompute_granularity == 'full'
+            and self.training
+            and not self.config.activations_checkpoint_recurrent
+        ):
             hidden_states = self._checkpointed_forward(
                 hidden_states=hidden_states,
                 attention_mask=attention_mask,

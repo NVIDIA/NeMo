@@ -24,11 +24,12 @@ try:
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import make_viewless_tensor
 
-    HAVE_MEGATRON_CORE=True
-        
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
+
 
 @dataclass
 class RecurrentBlockSubmodules:

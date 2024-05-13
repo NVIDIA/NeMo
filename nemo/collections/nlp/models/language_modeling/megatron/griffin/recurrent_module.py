@@ -15,12 +15,14 @@
 import math
 from dataclasses import dataclass
 from typing import Union
+
 import torch
-from torch import nn
 import torch._dynamo
 from accelerated_scan.triton import scan
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
+from torch import nn
+
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
@@ -32,8 +34,8 @@ try:
     from megatron.core.transformer.spec_utils import ModuleSpec, build_module
     from megatron.core.transformer.transformer_config import TransformerConfig
 
-    HAVE_MEGATRON_CORE=True
-        
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False

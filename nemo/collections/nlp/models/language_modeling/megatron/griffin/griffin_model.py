@@ -25,8 +25,8 @@ try:
     from megatron.core.transformer.transformer_config import TransformerConfig
     from torch import Tensor, nn
 
-    HAVE_MEGATRON_CORE=True
-        
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
@@ -150,7 +150,7 @@ class GriffinModel(LanguageModule):
         position_ids: Tensor = None,
         attention_mask: Tensor = None,
         labels: Tensor = None,
-        **extra_arg
+        **extra_arg,
     ):
         if input_ids is None:
             input_ids = self.input_tensor
