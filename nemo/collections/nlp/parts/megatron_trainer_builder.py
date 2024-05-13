@@ -61,6 +61,7 @@ class MegatronTrainerBuilder:
         if self.cfg.model.get('fsdp', False):
             assert (
                 not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+                and not self.cfg.model.optim.get('name') == 'mcore_distributed_optim'
             ), 'Distributed optimizer cannot be used with FSDP.'
             sharded_checkpoint = self.cfg.model.get('fsdp_sharded_checkpoint', False)
             if self.cfg.model.get('tensor_model_parallel_size', 1) > 1:
@@ -105,7 +106,12 @@ class MegatronTrainerBuilder:
         """
         megatron_amp_O2 = self.cfg.model.get('megatron_amp_O2', False)
         with_distributed_adam = (
-            self.cfg.model.optim.get('name') == 'distributed_fused_adam' if self.cfg.model.get('optim') else False
+            (
+                self.cfg.model.optim.get('name') == 'distributed_fused_adam'
+                or self.cfg.model.optim.get('name') == 'mcore_distributed_optim'
+            )
+            if self.cfg.model.get('optim')
+            else False
         )
 
         plugins = []
@@ -138,7 +144,7 @@ class MegatronTrainerBuilder:
         )
         async_save = self.cfg.exp_manager.checkpoint_callback_params.get('async_save', False)
         if use_dist_ckpt:
-            checkpoint_io = DistributedCheckpointIO(self.cfg.model.get('dist_ckpt_format', 'zarr'), async_save)
+            checkpoint_io = DistributedCheckpointIO.from_config(self.cfg.model, async_save)
             if async_save:
                 checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
             plugins.append(checkpoint_io)

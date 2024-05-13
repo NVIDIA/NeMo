@@ -169,18 +169,40 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
     Args:
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving.
+        load_directly_on_device (bool, optional): if True, loads the weights directly
+            on GPU. Has effect only for `zarr` based checkpoints (PyT Distributed
+            always loads on device). Defaults to True.
+        async_save (bool): whether to save asynchronously. Should be set to True if
+            this class will be wrapped with AsyncFinalizableCheckpointIO.
     """
 
     def __init__(
-        self, save_ckpt_format: str, async_save: bool = False,
+        self, save_ckpt_format: str, load_directly_on_device: bool = True, async_save: bool = False,
     ):
         super().__init__()
         if not HAVE_MEGATRON_CORE:
             raise ImportError(IMPORT_ERROR) from IMPORT_ERROR_EXC
 
         self.save_ckpt_format = save_ckpt_format
+        self.load_directly_on_device = load_directly_on_device
         self.async_save = async_save
         self.save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
+
+    @classmethod
+    def from_config(cls, model_cfg: dict, async_save: bool = False):
+        """ Instantiates a DistributedCheckpointIO from a config dict.
+
+        Args:
+            model_cfg (dict): model config dict. Most of the configuration
+                is extracted from this config.
+            async_save (bool, optional): async_save flag is not part of the model config,
+                it should be provided separately. Defaults to False.
+        """
+        return cls(
+            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'zarr'),
+            load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
+            async_save=async_save,
+        )
 
     @_debug_time('DistributedCheckpointIO.save_checkpoint')
     def save_checkpoint(
@@ -229,7 +251,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         if map_location is not None:
             raise ValueError('DistributedCheckpointIO doesnt handle map_location argument')
 
-        if self.save_ckpt_format == 'zarr':
+        if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
             sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
         else:
             sharded_strategy = None
