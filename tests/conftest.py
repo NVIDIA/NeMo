@@ -66,7 +66,7 @@ def pytest_addoption(parser):
 
 @pytest.fixture
 def device(request):
-    """ Simple fixture returning string denoting the device [CPU | GPU] """
+    """Simple fixture returning string denoting the device [CPU | GPU]"""
     if request.config.getoption("--cpu"):
         return "CPU"
     else:
@@ -191,13 +191,16 @@ def pytest_configure(config):
     If file absent or sizes not equal, function downloads the archive from github and unpacks it.
     """
     config.addinivalue_line(
-        "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
+        "markers",
+        "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )
     config.addinivalue_line(
-        "markers", "with_downloads: runs the test using data present in tests/.data",
+        "markers",
+        "with_downloads: runs the test using data present in tests/.data",
     )
     config.addinivalue_line(
-        "markers", "nightly: runs the nightly test for QA.",
+        "markers",
+        "nightly: runs the nightly test for QA.",
     )
     # Test dir and archive filepath.
     test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
