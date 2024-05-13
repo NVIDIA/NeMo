@@ -13,6 +13,7 @@ Sequence packing is a training technique wherein multiple training sequences (ex
 For Sequence Packing in SFT / PEFT for LLMs, NeVA considers the following design:
 
 1. Original Datasets to Sequence Lengths Files
+
    1.1. **PyTorch Loaders for Dataset Processing Efficiency**
         To efficiently manage large datasets (~700K sequences), the system utilizes PyTorch's DataLoader with multi-worker capabilities, significantly speeding up the data processing phase by parallelizing the loading and pre-processing steps.
    1.2. **Handling Large Datasets**
@@ -21,6 +22,7 @@ For Sequence Packing in SFT / PEFT for LLMs, NeVA considers the following design
         To facilitate efficient I/O operations necessary for parallelized data loading, the system employs IndexedDataset from Megatron-Core, chosen for its ability to dynamically build binary tensor files.
 
 2. Packing Sequences into Bins
+
    2.1. **Algorithm Choices and Performance**
         The first_fit_decreasing and first_fit_shuffle algorithms initially used for packing sequences into bins showed performance issues due to their O(n^2) complexity, making the processing of NeVA samples time-consuming.
    2.2. **Introduction of shuffle_and_pack**
@@ -39,19 +41,19 @@ A 40% speed increase was achieved with optimized sequence packing for sequence l
 
 Fine-tuning Performance Table:
 +--------------+---------------------------+---------------+----+----+-----------+-----------------+-----------------+-------------------+---------------+------------------+
-| Stage        | Vision Encoder            | LLM Model     | TP | PP | Precision | Sequence Packing | Step Timing (s) | Global Batch Size | Samples / Sec | Perf Improvement |
+| Stage        | Vision Encoder            | LLM Model     | TP | PP | Precision | Sequence Packing | Step Timing (s) | Global Batch Size | Samples / Sec | Perf Improvement|
 +==============+===========================+===============+====+====+===========+=================+=================+===================+===============+==================+
-| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 8  | 1  | BF16      | No              | 2.008           | 128                | 63.745        | 0%               |
-|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                  |
+| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 8  | 1  | BF16      | No              | 2.008           | 128                | 63.745        | 0%              |
+|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                 |
 +--------------+---------------------------+---------------+----+----+-----------+-----------------+-----------------+-------------------+---------------+------------------+
-| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 4  | 2  | BF16      | No              | 1.889           | 128                | 67.761        | 6%               |
-|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                  |
+| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 4  | 2  | BF16      | No              | 1.889           | 128                | 67.761        | 6%              |
+|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                 |
 +--------------+---------------------------+---------------+----+----+-----------+-----------------+-----------------+-------------------+---------------+------------------+
-| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 8  | 1  | BF16      | Yes             | 1.302           | 116.08             | 89.155        | 40%              |
-|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                  |
+| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 8  | 1  | BF16      | Yes             | 1.302           | 116.08             | 89.155        | 40%             |
+|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                 |
 +--------------+---------------------------+---------------+----+----+-----------+-----------------+-----------------+-------------------+---------------+------------------+
-| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 4  | 2  | BF16      | Yes             | 1.237           | 116.08             | 93.840        | 47%              |
-|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                  |
+| Fine-tuning  | openai/clip-vit-large-    | Vicuna-1.5 13B| 4  | 2  | BF16      | Yes             | 1.237           | 116.08             | 93.840        | 47%             |
+|              | patch14-336               |               |    |    |           |                 |                 |                    |               |                 |
 +--------------+---------------------------+---------------+----+----+-----------+-----------------+-----------------+-------------------+---------------+------------------+
 
 How to Run NeVA with Packed Sequence
@@ -60,7 +62,6 @@ Prepare Dataset
 ^^^^^^^^^^^^^^^
 We provide an easy-to-use script for preprocessing a dataset for the NeMo Multimodal Learning framework. It requires specifying paths for data, images, and the tokenizer model, among other parameters.
 
-Command:
 .. code-block:: bash
 
     python examples/multimodal/multimodal_llm/neva/sequence_packing/preprocess_dataset.py \
