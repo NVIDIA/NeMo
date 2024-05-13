@@ -34,8 +34,8 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
-    """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
-    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based 
+    """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
+    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based
     on the best checkpoint saved (according to the monitor value).
     Also contains func to save the EMA copy of the model.
     """
@@ -272,7 +272,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             pl_module.save_to(save_path=self._format_nemo_checkpoint_name())
 
     def _backup_existing_nemo_ckpt(self, trainer) -> str:
-        """ Search for an available name with version infix and rename existing checkpoint.
+        """Search for an available name with version infix and rename existing checkpoint.
 
         NOTE: this behavior is slightly different from regular checkpoints.
         PTL creates new regular checkpoint with the first available name.
@@ -340,15 +340,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
-        """ Format the path to the unfinished checkpoint marker file.
-        
+        """Format the path to the unfinished checkpoint marker file.
+
         If the marker file exists, corresponding checkpoint is considered unfinished/incomplete.
         NOTE: Marker path for the EMA checkpoint part is the same as for the original checkpoint.
-        
+
         Args:
             checkpoint_path: Path to the checkpoint file or dir.
               Does not need to exist.
-            
+
         Returns:
             Path to the unfinished checkpoint marker file.
         """
@@ -360,7 +360,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def is_checkpoint_unfinished(checkpoint_path: Union[Path, str]) -> bool:
-        """ Check if the checkpoint is unfinished.
+        """Check if the checkpoint is unfinished.
 
         Args:
             checkpoint_path: Path to the checkpoint file or dir.
@@ -373,7 +373,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def set_checkpoint_unfinished_marker(checkpoint_path: Union[Path, str], barrier_after=False) -> None:
-        """ Marks given checkpoint as unfinished.
+        """Marks given checkpoint as unfinished.
 
         Args:
             checkpoint_filepath: Path to the checkpoint file or dir.
@@ -452,7 +452,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
-        """ Creates a callback that can be used to finalize async ckpt saves. """
+        """Creates a callback that can be used to finalize async ckpt saves."""
 
         def _cb():
             logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
@@ -481,7 +481,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return _cb
 
     def _remove_checkpoint(self, trainer: "pytorch_lightning.Trainer", filepath: str, override_async=False) -> None:
-        """ Performs checkpoint removal or deferred removal.
+        """Performs checkpoint removal or deferred removal.
 
         With async save, `self._remove_checkpoint` is called before the checkpoint
         is actually finished so we can't remove it. Instead we add it to
@@ -565,7 +565,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         A checkpoint won't be deleted if any of the cases apply:
         - The previous checkpoint is the same as the current checkpoint (means the old was already overwritten by new)
         - The previous checkpoint is not in the current checkpoint directory and the filesystem is local
-        - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local 
+        - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local
             and the resumed from checkpoint is not the last checkpoint
         """
         if previous == current:

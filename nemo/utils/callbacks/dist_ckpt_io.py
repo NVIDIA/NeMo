@@ -43,7 +43,7 @@ except (ImportError, ModuleNotFoundError) as IMPORT_ERROR_EXC:
 
 @contextmanager
 def _debug_time(name: str):
-    """ Simple context manager for timing functions/code blocks. """
+    """Simple context manager for timing functions/code blocks."""
     start = time()
     try:
         yield
@@ -52,7 +52,7 @@ def _debug_time(name: str):
 
 
 class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
-    """ CheckpointIO that can be used together with async saving.
+    """CheckpointIO that can be used together with async saving.
 
     Differs from the regular CheckpointIO only by the `save_checkpoint`
     return type. The `save_checkpoint` method itself is synchronous, but returns
@@ -67,7 +67,7 @@ class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
 
 
 class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
-    """ CheckpointIO wrapper for async checkpoint saving and synchronous finalization.
+    """CheckpointIO wrapper for async checkpoint saving and synchronous finalization.
 
     Runs main part of the checkpoint save in a separate process (not thread as the PTL
     AsyncCheckpointIO does). Allows to perform a (synchronous) finalization
@@ -92,7 +92,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         self.async_calls_queue = AsyncCallsQueue()
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """ Executes async request returned from the underlying checkpoint_io asynchronously.
+        """Executes async request returned from the underlying checkpoint_io asynchronously.
 
         Requires the underlying checkpoint_io.save_checkpoint to return an AsyncRequest.
         It is then applied with `self.async_calls_queue` asynchronously.
@@ -118,7 +118,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
     @_debug_time('AsyncFinalizableCheckpointIO.maybe_finalize_save_checkpoint')
     def maybe_finalize_save_checkpoint(self, blocking: bool = False):
-        """ Performs checkpoint finalization (if possible).
+        """Performs checkpoint finalization (if possible).
 
         Args:
             blocking (bool, optional): if True, waits until all async saves are
@@ -131,7 +131,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         return len(call_idx_finalized) > 0
 
     def teardown(self) -> None:
-        """ Warns if there are any pending checkpoint saves. """
+        """Warns if there are any pending checkpoint saves."""
         super().teardown()
         if self.async_calls_queue.get_num_unfinalized_calls() > 0:
             # Can't do finalization now because some ranks might be lost
@@ -139,7 +139,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
 
 class AsyncFinalizerCallback(Callback):
-    """ Callback which finalizes async saves initiated by the AsyncFinalizableCheckpointIO.
+    """Callback which finalizes async saves initiated by the AsyncFinalizableCheckpointIO.
 
     Tries to perform non-blocking finalization on train_batch_end and train_epoch_end.
     On train_end performs a blocking finalization of all pending checkpoints.
@@ -165,7 +165,7 @@ class AsyncFinalizerCallback(Callback):
 
 
 class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
-    """ CheckpointIO for a distributed checkpoint format.
+    """CheckpointIO for a distributed checkpoint format.
 
     Args:
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving.
@@ -177,7 +177,10 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
     """
 
     def __init__(
-        self, save_ckpt_format: str, load_directly_on_device: bool = True, async_save: bool = False,
+        self,
+        save_ckpt_format: str,
+        load_directly_on_device: bool = True,
+        async_save: bool = False,
     ):
         super().__init__()
         if not HAVE_MEGATRON_CORE:
@@ -190,7 +193,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
     @classmethod
     def from_config(cls, model_cfg: dict, async_save: bool = False):
-        """ Instantiates a DistributedCheckpointIO from a config dict.
+        """Instantiates a DistributedCheckpointIO from a config dict.
 
         Args:
             model_cfg (dict): model config dict. Most of the configuration
@@ -208,7 +211,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
     ) -> Optional['AsyncRequest']:
-        """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
+        """Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
         Args:
             checkpoint (Dict[str, Any]): sharded state dict to save
@@ -233,7 +236,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
     def load_checkpoint(
         self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: Dict[str, Any] = None
     ) -> Dict[str, Any]:
-        """ Loads a distributed checkpoint.
+        """Loads a distributed checkpoint.
 
         Args:
             path (_PATH): checkpoint directory
@@ -262,14 +265,14 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
     @_debug_time('DistributedCheckpointIO.remove_checkpoint')
     def remove_checkpoint(self, path: _PATH) -> None:
-        """ Remove a distributed checkpoint.
+        """Remove a distributed checkpoint.
 
         Due to potentially large number of files, the implementation remove the whole directory at once.
         """
         shutil.rmtree(path, ignore_errors=True)
 
     def _determine_dist_ckpt_save_strategy(self):
-        """ Determine the saving strategy based on constructor args.
+        """Determine the saving strategy based on constructor args.
 
         If self.async_save is True instantiates an async PyT Dist strategy,
         otherwise relies on MCore to create a proper strategy based on ckpt format.

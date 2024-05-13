@@ -56,7 +56,10 @@ class MegatronTrainerBuilder:
         _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
         if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
             logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
-            return NLPDDPStrategyNotebook(no_ddp_communication_hook=True, find_unused_parameters=False,)
+            return NLPDDPStrategyNotebook(
+                no_ddp_communication_hook=True,
+                find_unused_parameters=False,
+            )
 
         if self.cfg.model.get('fsdp', False):
             assert (
@@ -94,7 +97,7 @@ class MegatronTrainerBuilder:
         Returns a scaler for precision plugins.
         """
         return GradScaler(
-            init_scale=self.cfg.model.get('native_amp_init_scale', 2 ** 32),
+            init_scale=self.cfg.model.get('native_amp_init_scale', 2**32),
             growth_interval=self.cfg.model.get('native_amp_growth_interval', 1000),
             hysteresis=self.cfg.model.get('hysteresis', 2),
         )
@@ -188,7 +191,7 @@ class MegatronBertTrainerBuilder(MegatronTrainerBuilder):
 
     def _grad_scaler(self) -> GradScaler:
         return GradScaler(
-            init_scale=self.cfg.model.get('native_amp_init_scale', 2 ** 32),
+            init_scale=self.cfg.model.get('native_amp_init_scale', 2**32),
             growth_interval=self.cfg.model.get('native_amp_growth_interval', 1000),
         )
 
@@ -236,7 +239,7 @@ class MegatronLMPPTrainerBuilder(MegatronTrainerBuilder):
 
     def _grad_scaler(self) -> GradScaler:
         return GradScaler(
-            init_scale=self.cfg.model.get("native_amp_init_scale", 2 ** 32),
+            init_scale=self.cfg.model.get("native_amp_init_scale", 2**32),
             growth_interval=self.cfg.model.get("native_amp_growth_interval", 1000),
             hysteresis=self.cfg.model.get("hysteresis", 2),
             enabled=False if self.cfg.model.pipeline_model_parallel_size > 1 else True,

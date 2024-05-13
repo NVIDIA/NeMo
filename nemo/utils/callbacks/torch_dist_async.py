@@ -46,7 +46,7 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
         self.async_request = None
 
     def save(self, sharded_state_dict: ShardedStateDict, checkpoint_dir: Path):
-        """ Translates MCore ShardedTensors to PyT ShardedTensors and saves in PyT Distributed format.
+        """Translates MCore ShardedTensors to PyT ShardedTensors and saves in PyT Distributed format.
 
         Args:
             sharded_state_dict (ShardedStateDict): sharded state dict to save
@@ -55,14 +55,21 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
         Returns: None
         """
         # Translate the state dict
-        (sharded_state_dict, flat_mapping, rename_mapping,) = _replace_state_dict_keys_with_sharded_keys(
-            sharded_state_dict, self.keep_only_main_replica
-        )
+        (
+            sharded_state_dict,
+            flat_mapping,
+            rename_mapping,
+        ) = _replace_state_dict_keys_with_sharded_keys(sharded_state_dict, self.keep_only_main_replica)
         pyt_state_dict = mcore_to_pyt_state_dict(sharded_state_dict, False)
         # Use PyT saving mechanism
         writer = FileSystemWriterAsync(checkpoint_dir, thread_count=self.thread_count)
 
-        save_state_dict_ret = save_state_dict_async_plan(pyt_state_dict, writer, None, planner=MCoreSavePlanner(),)
+        save_state_dict_ret = save_state_dict_async_plan(
+            pyt_state_dict,
+            writer,
+            None,
+            planner=MCoreSavePlanner(),
+        )
         self.async_request = self._get_save_and_finalize_callbacks(writer, save_state_dict_ret)
         return self.async_request
 
@@ -80,7 +87,7 @@ class TorchDistAsyncSaveShardedStrategy(TorchDistSaveShardedStrategy):
 
 
 class AsyncRequest(NamedTuple):
-    """ Represents an async request that needs to be scheduled for execution.
+    """Represents an async request that needs to be scheduled for execution.
 
     NOTE: this class will be removed and replaced with an MCore version
 
@@ -98,7 +105,7 @@ class AsyncRequest(NamedTuple):
     is_frozen: bool = False
 
     def add_finalize_fn(self, fn: Callable) -> None:
-        """ Adds a new finalize function to the request.
+        """Adds a new finalize function to the request.
 
         Args:
             fn (Callable): function to add to the async request. This function
@@ -112,7 +119,7 @@ class AsyncRequest(NamedTuple):
         self.finalize_fns.append(fn)
 
     def execute_sync(self) -> None:
-        """ Helper to synchronously execute the request.
+        """Helper to synchronously execute the request.
 
         This logic is equivalent to what should happen in case of the async call.
         """
@@ -123,7 +130,7 @@ class AsyncRequest(NamedTuple):
             finalize_fn()
 
     def freeze(self) -> 'AsyncRequest':
-        """ Freezes the async request, disallowing adding new finalization functions.
+        """Freezes the async request, disallowing adding new finalization functions.
 
         Returns:
             AsyncRequest: new async request with all same fields except for the
@@ -133,7 +140,7 @@ class AsyncRequest(NamedTuple):
 
 
 class DistributedAsyncCaller:
-    """ Wrapper around mp.Process that ensures correct semantic of distributed finalization.
+    """Wrapper around mp.Process that ensures correct semantic of distributed finalization.
 
     NOTE: this class will be removed and replaced with an MCore version
 
@@ -144,8 +151,12 @@ class DistributedAsyncCaller:
         self.process: Optional[mp.Process] = None
         self.start_time: Optional[float] = None
 
-    def schedule_async_call(self, async_fn: Optional[Callable], save_args: Tuple,) -> None:
-        """ Spawn a process with `async_fn` as the target.
+    def schedule_async_call(
+        self,
+        async_fn: Optional[Callable],
+        save_args: Tuple,
+    ) -> None:
+        """Spawn a process with `async_fn` as the target.
 
         This method must be called on all ranks.
 
@@ -159,11 +170,14 @@ class DistributedAsyncCaller:
         torch.cuda.synchronize()
         ctx = mp.get_context('fork')
         self.start_time = time()
-        self.process = ctx.Process(target=async_fn, args=save_args,)
+        self.process = ctx.Process(
+            target=async_fn,
+            args=save_args,
+        )
         self.process.start()
 
     def is_current_async_call_done(self, blocking=False) -> bool:
-        """ Check if async save is finished on all ranks.
+        """Check if async save is finished on all ranks.
 
         For semantic correctness, requires rank synchronization in each check.
         This method must be called on all ranks.
@@ -198,7 +212,7 @@ class DistributedAsyncCaller:
 
 
 class _ActiveAsyncRequest(NamedTuple):
-    """ Helper to represent an active async call.
+    """Helper to represent an active async call.
 
     NOTE: this class will be removed and replaced with an MCore version
 
@@ -215,7 +229,7 @@ class _ActiveAsyncRequest(NamedTuple):
 
 
 class AsyncCallsQueue:
-    """ Manages a queue of async calls.
+    """Manages a queue of async calls.
 
     NOTE: this class will be removed and replaced with an MCore version
 
@@ -228,7 +242,7 @@ class AsyncCallsQueue:
         self.call_idx: int = -1
 
     def schedule_async_request(self, async_request: AsyncRequest) -> int:
-        """ Start a new async call and add it to a queue of active async calls.
+        """Start a new async call and add it to a queue of active async calls.
 
         This method must be called on all ranks.
 
@@ -247,7 +261,7 @@ class AsyncCallsQueue:
         return self.call_idx
 
     def maybe_finalize_async_calls(self, blocking=False) -> List[int]:
-        """ Finalizes all available calls.
+        """Finalizes all available calls.
 
         This method must be called on all ranks.
 
@@ -276,9 +290,9 @@ class AsyncCallsQueue:
         return call_idx_finalized
 
     def get_num_unfinalized_calls(self):
-        """ Get the number of active async calls. """
+        """Get the number of active async calls."""
         return len(self.async_calls)
 
     def close(self):
-        """ Finalize all calls upon closing. """
+        """Finalize all calls upon closing."""
         self.maybe_finalize_async_calls(blocking=True)
