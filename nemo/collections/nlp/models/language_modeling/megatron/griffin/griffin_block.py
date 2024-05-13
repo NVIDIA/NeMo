@@ -11,20 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from megatron.core import parallel_state, tensor_parallel
-from megatron.core.models.common.language_module.language_module import LanguageModule
-from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.transformer.custom_layers.transformer_engine import TENorm, te_checkpoint
-from megatron.core.transformer.spec_utils import build_module
-from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
-
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_layer_spec import (
     griffin_mqa_layer_with_transformer_engine_spec,
     griffin_recurrent_layer_with_transformer_engine_spec,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
+try:
+    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core.models.common.language_module.language_module import LanguageModule
+    from megatron.core.packed_seq_params import PackedSeqParams
+    from megatron.core.transformer.custom_layers.transformer_engine import TENorm, te_checkpoint
+    from megatron.core.transformer.spec_utils import build_module
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+    TransformerConfig = ApexGuardDefaults
+    HAVE_MEGATRON_CORE = False
 
 def get_griffin_layers(num_layers):
     dict_spec = {
@@ -185,7 +191,7 @@ class GriffinStack(LanguageModule):
 
     def forward(self, hidden_states, attention_mask, rotary_pos_emb):
 
-        if self.config.recompute_granularity == 'full' and self.training:
+        if self.config.recompute_granularity == 'full' and self.training and not self.config.activations_checkpoint_recurrent:
             hidden_states = self._checkpointed_forward(
                 hidden_states=hidden_states,
                 attention_mask=attention_mask,

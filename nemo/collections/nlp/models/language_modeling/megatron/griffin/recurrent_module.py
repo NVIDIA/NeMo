@@ -15,20 +15,28 @@
 import math
 from dataclasses import dataclass
 from typing import Union
-
 import torch
+from torch import nn
 import torch._dynamo
 from accelerated_scan.triton import scan
 from causal_conv1d import causal_conv1d_fn
 from einops import rearrange
-from megatron.core import tensor_parallel
-from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
-from megatron.core.jit import jit_fuser
-from megatron.core.transformer.identity_op import IdentityOp
-from megatron.core.transformer.module import MegatronModule
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
+try:
+    from megatron.core import tensor_parallel
+    from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
+    from megatron.core.jit import jit_fuser
+    from megatron.core.transformer.identity_op import IdentityOp
+    from megatron.core.transformer.module import MegatronModule
+    from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
+    HAVE_MEGATRON_CORE=True
+        
+except (ImportError, ModuleNotFoundError):
+    TransformerConfig = ApexGuardDefaults
+    HAVE_MEGATRON_CORE = False
 
 torch._dynamo.config.suppress_errors = True
 
@@ -388,7 +396,7 @@ class RecurrentLayer(MegatronModule):
 
         x = _fused_permute_add_(x_intermidiate_parallel, x_bias_parallel)
 
-        if self.config.recompute_granularity == 'recurrent' and self.training:
+        if self.config.activations_checkpoint_recurrent and self.training:
             x, _ = self.checkpoint_handler(self.conv_1d, x=x, segment_pos=segment_pos, prev_x=None)
             x, _ = self.checkpoint_handler(self.rg_lru, x=x, segment_pos=segment_pos, prev_x=None)
 
