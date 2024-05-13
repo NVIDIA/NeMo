@@ -242,6 +242,8 @@ class Quantizer:
                 export_dir=export_dir,
                 inference_tensor_parallel=self.export_config.inference_tensor_parallel,
                 inference_pipeline_parallel=self.export_config.inference_pipeline_parallel,
+                use_nfs_workspace=self.export_config.inference_pipeline_parallel == 1
+                and model.cfg.pipeline_model_parallel_size > 1,
             )
             dist.barrier()  # Wait until all ranks complete export_model_config step
             if dist.get_rank() == 0:
