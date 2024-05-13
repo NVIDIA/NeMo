@@ -172,9 +172,9 @@ class Quantizer:
                 model_cfg.pipeline_model_parallel_size = pipeline_model_parallel_size
             # Only custom ModelOpt spec is supported for PTQ: this custom spec is largely based on local Megatron-LM
             # layer definitions to avoid Transformer Engine implementations that are currently not supported.
-            # This layer spec also requires RoPE fusion to be disabled (otherwise
+            # This layer spec also requires RoPE fusion to be disabled for tensor view operations in attention
+            # layer implementation from megatron/core/transformer/dot_product_attention.py to be functional.
             model_cfg.name = "modelopt"
-            # Disable rope fusion in order
             model_cfg.apply_rope_fusion = False
 
         return model_cfg
