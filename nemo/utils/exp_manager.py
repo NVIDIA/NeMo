@@ -613,11 +613,9 @@ def check_resume(
         attach valid checkpoint path to trainer if current rank is rank zero of any data parallel groups
         this limit to only global rank 0 process calling s3, instead of all processes calling s3
         '''
-        local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        rank = trainer.node_rank * trainer.num_devices + local_rank
-
+        
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank to avoid throttling S3.
-        if rank == 0 or not S3Utils.is_s3_url(dirpath):
+        if is_global_rank_zero() or not S3Utils.is_s3_url(dirpath):
             checkpoint_dir_exists = False
             if S3Utils.is_s3_url(dirpath):
                 checkpoint_dir = dirpath
