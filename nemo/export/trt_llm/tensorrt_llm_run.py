@@ -313,7 +313,7 @@ def load_refit(engine_dir, device_ids):
     It also supports running the TRT LLM model on multi-GPU.
     """
 
-    config_path = Path(engine_dir) / "config.json"
+    config_path = Path(engine_dir) / f"config_{torch.distributed.get_rank()}.json"
     json_config = GptJsonConfig.parse_file(config_path)
     model_config = json_config.model_config
 

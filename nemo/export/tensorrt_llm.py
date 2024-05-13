@@ -307,7 +307,6 @@ class TensorRTLLM(ITritonDeployable):
             mp_group = parallel_state.get_model_parallel_group()
         mp_size = tp_size*pp_size
         mp_rank = tp_size*pp_rank + tp_rank
-
         if dp_size > 1:
             self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
 
@@ -316,9 +315,9 @@ class TensorRTLLM(ITritonDeployable):
         # So we manipulate TRTLLM to emulate a TP->PP single node setup
         tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
         device_ids = [
-            ((i+mp_rank-torch.cuda.current_device())+mp_size)%mp_size
+            ((i+torch.cuda.current_device()-mp_rank)+mp_size)%mp_size
             for i in range(mp_size)]
-
+        
         mapping = tensorrt_llm.Mapping(
             world_size = mp_size,
             rank = mp_rank,
@@ -327,7 +326,7 @@ class TensorRTLLM(ITritonDeployable):
             pp_size = pp_size)
 
         LOGGER.info(
-            f'''TRT-LLM rank mapping: Rank {torch.distributed.get_rank()} -> {mp_rank}:
+            f'''TRT-LLM rank mapping: Rank {torch.distributed.get_rank()}, mp_rank {mp_rank}:
             tp_rank  {parallel_state.get_tensor_model_parallel_rank()} -> {mapping.tp_rank}, 
             pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {mapping.pp_rank}'''
         )
@@ -354,13 +353,14 @@ class TensorRTLLM(ITritonDeployable):
             model_dir=self.model_dir,
         )
         torch.distributed.barrier()
-        print(f"engine saved to {self.model_dir}")
 
-        if torch.cuda.current_device() == 0:
-            cfg_path = Path(os.path.join(self.model_dir, 'config.json'))
-            if not cfg_path.exists():
-                with open(cfg_path, "w", encoding="utf-8") as f:
-                    json.dump(engine.config.to_dict(), f, indent=4)
+        myrank = torch.distributed.get_rank()
+        cfg_path = Path(os.path.join(self.model_dir, f'config_{myrank}.json'))
+        print(f"engine saved to {self.model_dir}")
+        print(self.model_dir, f'config_{myrank}.json')
+        if not cfg_path.exists():
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(engine.config.to_dict(), f, indent=4)
 
         print_mem("post build_and_save_engine")
         
