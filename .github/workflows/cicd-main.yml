@@ -403,7 +403,7 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
-   L2_PTQ_Llama2_FP8:
+  L2_PTQ_Llama2_FP8:
      needs: [cicd-test-container-setup]
      runs-on: self-hosted-azure
      timeout-minutes: 10
@@ -436,7 +436,7 @@ jobs:
          - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
            if: "failure()"
 
-   L2_PTQ_Llama2_INT8_SQ:
+  L2_PTQ_Llama2_INT8_SQ:
      needs: [cicd-test-container-setup]
      runs-on: self-hosted-azure
      timeout-minutes: 10
