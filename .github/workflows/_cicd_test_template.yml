@@ -1,0 +1,40 @@
+name: ~CICD test template
+
+on:
+  workflow_call:
+    inputs:
+      NAME:
+        type: string
+        description: Name of test
+        required: true
+      RUNNER:
+        type: string
+        description: Runner for test
+        required: true
+      SCRIPT:
+        type: string
+        description: Shell script containing the test code
+        required: true
+
+
+jobs:
+  main:
+    name: ${{ inputs.NAME }}
+    runs-on: ${{ inputs.RUNNER }}
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options:
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: ${{ inputs.NAME }}
+      run: ${{ inputs.SCRIPT }}
+    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+      if: "failure()"
