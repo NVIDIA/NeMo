@@ -25,7 +25,11 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_path", type=str, default=None, required=True, help="Path to NeMo legacy checkpoints",
+        "--input_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to NeMo legacy checkpoints",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--gpus_per_node", type=int, required=False, default=8)
@@ -52,7 +56,7 @@ def main() -> None:
             'precision': args.precision,
         },
         'model': {
-            'native_amp_init_scale': 2 ** 32,
+            'native_amp_init_scale': 2**32,
             'native_amp_growth_interval': 1000,
             'hysteresis': 2,
             'gradient_as_bucket_view': True,
