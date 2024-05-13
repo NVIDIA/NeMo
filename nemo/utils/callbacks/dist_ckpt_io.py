@@ -1,3 +1,4 @@
+import os
 import shutil
 from typing import Any, Dict, Optional
 
@@ -11,7 +12,7 @@ from nemo.utils import logging
 
 
 class DistributedCheckpointIO(CheckpointIO):
-    """ CheckpointIO for a distributed checkpoint format.
+    """CheckpointIO for a distributed checkpoint format.
 
     Args:
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving.
@@ -35,7 +36,7 @@ class DistributedCheckpointIO(CheckpointIO):
         )
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """ Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
+        """Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
         Args:
             checkpoint (Dict[str, Any]): sharded state dict to save
@@ -50,9 +51,13 @@ class DistributedCheckpointIO(CheckpointIO):
         )
 
     def load_checkpoint(
-        self, path: _PATH, map_location: Optional[Any] = None, sharded_state_dict: Dict[str, Any] = None
+        self,
+        path: _PATH,
+        map_location: Optional[Any] = None,
+        sharded_state_dict: Dict[str, Any] = None,
+        strict: Optional[bool] = True,
     ) -> Dict[str, Any]:
-        """ Loads a distributed checkpoint.
+        """Loads a distributed checkpoint.
 
         Args:
             path (_PATH): checkpoint directory
@@ -75,19 +80,24 @@ class DistributedCheckpointIO(CheckpointIO):
         else:
             sharded_strategy = None
 
+        if not strict:
+            for key in list(sharded_state_dict['state_dict'].keys()):
+                if not os.path.isdir(f"{path}/{key}"):
+                    sharded_state_dict['state_dict'].pop(key)
+
         return dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy
         )
 
     def remove_checkpoint(self, path: _PATH) -> None:
-        """ Remove a distributed checkpoint.
+        """Remove a distributed checkpoint.
 
         Due to potentially large number of files, the implementation remove the whole directory at once.
         """
         shutil.rmtree(path, ignore_errors=True)
 
     def determine_dist_ckpt_save_strategy(self):
-        """ Determine the saving strategy based on storage config.
+        """Determine the saving strategy based on storage config.
 
         For now only decides the checkpoint format.
         """
