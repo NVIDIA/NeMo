@@ -11,7 +11,8 @@ dev_manifests="[${vox1_dir}/vox1_train_manifest_val_chunk30s.json,${vox2_dir}/vo
 noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json,/media/data3/datasets/noise_data/freesound/freesound_noise_manifest_filtered.json]"
 rir_manifest="/media/data2/simulated_data/rir_noise_data/real_rirs_isotropic_noises_1ch.json"
 
-EXP_NAME="titanet_small"
+EXP_NAME="titanet_large_ssl"
+FREEZE_SSL=false
 POSTFIXc=debug2
 
 SSL_CKPT="/home/heh/codes/nemo-ssl/workspace/nemo_experiments/pretrained_checkpoints/oci_ll_unlab-60k_bs2048_adamwlr0.004_wd1e-3_warmup25000_epoch1000_mask0.01x40pre_conv_wavLM0.2x0.1_n16_r5--val_loss5.0808-epoch43-last.ckpt"
@@ -23,8 +24,10 @@ num_workers=8
 
 CUDA_VISIBLE_DEVICES="0" python speaker_id_train.py \
     --config-path="configs" \
-    --config-name="titanet_small_ssl" \
+    --config-name="titanet_large_ssl" \
     ++init_from_ptl_ckpt=$SSL_CKPT \
+    trainer.strategy=ddp_find_unused_parameters_true \
+    model.preprocessor.freeze_encoder=$FREEZE_SSL \
     trainer.log_every_n_steps=10 \
     model.train_ds.manifest_filepath=$train_manifests \
     model.train_ds.augmentor.noise.manifest_path=$noise_manifest \
@@ -38,6 +41,6 @@ CUDA_VISIBLE_DEVICES="0" python speaker_id_train.py \
     trainer.val_check_interval=1.0 \
     ++exp_manager.checkpoint_callback_params.save_top_k=1 \
     exp_manager.name="$EXP_NAME-${POSTFIX}" \
-    ++exp_manager.create_wandb_logger=True \
+    ++exp_manager.create_wandb_logger=false \
     ++exp_manager.wandb_logger_kwargs.name="$EXP_NAME-${POSTFIX}" \
     ++exp_manager.wandb_logger_kwargs.project="ssl_WavLM_spk_id"

@@ -54,6 +54,7 @@ CUDA_VISIBLE_DEVICES="0" python $SCRIPT \
     model.validation_ds.batch_size=4 \
     ++model.train_ds.num_workers=$num_workers \
     ++model.validation_ds.num_workers=$num_workers \
+    ++model.validation_ds.names=[val1,val2] \
     trainer.val_check_interval=1.0 \
     ++exp_manager.checkpoint_callback_params.save_top_k=1 \
     exp_manager.name="$EXP_NAME-${POSTFIX}" \

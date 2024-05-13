@@ -26,6 +26,10 @@ model:
         min_speed_rate: 0.95
         max_speed_rate: 1.05
 
+      impulse:
+        prob: 0.5
+        manifest_path: null
+
   validation_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
@@ -44,7 +48,7 @@ model:
     
   preprocessor:
     _target_: nemo.collections.asr.modules.ssl_modules.multi_layer_feat.ConformerMultiLayerFeaturePreprocessor
-    layer_idx_list: [0,1,2,3,4,5,6,7]
+    layer_idx_list: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
     freeze_encoder: True
     aggregator:
       _target_: nemo.collections.asr.modules.ssl_modules.multi_layer_feat.Aggregator

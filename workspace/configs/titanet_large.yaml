@@ -26,6 +26,10 @@ model:
         min_speed_rate: 0.95
         max_speed_rate: 1.05
 
+      impulse:
+        prob: 0.5
+        manifest_path: null
+
   validation_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}

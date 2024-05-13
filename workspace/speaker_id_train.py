@@ -87,7 +87,7 @@ def main(cfg):
 
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
 
-    if cfg.model.preprocessor.get("feature_extractor", None) is not None:
+    if cfg.model.preprocessor.get("encoder", None) is not None:
         speaker_model = load_ssl_encoder(speaker_model, cfg)
 
     # save labels to file
