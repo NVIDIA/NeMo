@@ -57,7 +57,11 @@ def test_triton_deployable(args):
 
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
         result_dict = client.infer_batch(
-            prompts=prompts, max_length=max_output_token, top_k=top_k, top_p=top_p, temperature=temperature,
+            prompts=prompts,
+            max_length=max_output_token,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
         )
         print("ModelClient result:")
         print(result_dict)
@@ -75,7 +79,7 @@ def test_triton_deployable(args):
             top_p=top_p,
             temperature=temperature,
             all_probs=all_probs,
-            compute_logprob=compute_logprob
+            compute_logprob=compute_logprob,
         )
         print("Logprob results:")
         print(logprob_results)
@@ -90,7 +94,9 @@ def get_args():
     )
 
     parser.add_argument(
-        "--model_name", type=str, required=True,
+        "--model_name",
+        type=str,
+        required=True,
     )
     # parser.add_argument(
     #     "--existing_test_models", default=False, action='store_true',
@@ -105,25 +111,33 @@ def get_args():
     #     "--max_gpus", type=int,
     # )
     parser.add_argument(
-        "--num_gpus", type=int, default=1,
+        "--num_gpus",
+        type=int,
+        default=1,
     )
     # parser.add_argument(
     #     "--checkpoint_dir", type=str, default="/tmp/nemo_checkpoint/", required=False,
     # )
     parser.add_argument(
-        "--nemo_checkpoint", type=str, required=True,
+        "--nemo_checkpoint",
+        type=str,
+        required=True,
     )
     # parser.add_argument(
     #     "--trt_llm_model_dir", type=str,
     # )
     parser.add_argument(
-        "--max_batch_size", type=int, default=8,
+        "--max_batch_size",
+        type=int,
+        default=8,
     )
     # parser.add_argument(
     #     "--max_input_token", type=int, default=256,
     # )
     parser.add_argument(
-        "--max_output_token", type=int, default=128,
+        "--max_output_token",
+        type=int,
+        default=128,
     )
     # parser.add_argument(
     #     "--p_tuning_checkpoint", type=str,
@@ -144,13 +158,19 @@ def get_args():
     #     "--pp_size", type=int,
     # )
     parser.add_argument(
-        "--top_k", type=int, default=1,
+        "--top_k",
+        type=int,
+        default=1,
     )
     parser.add_argument(
-        "--top_p", type=float, default=0.0,
+        "--top_p",
+        type=float,
+        default=0.0,
     )
     parser.add_argument(
-        "--temperature", type=float, default=1.0,
+        "--temperature",
+        type=float,
+        default=1.0,
     )
     # parser.add_argument(
     #     "--run_accuracy", default=False, action='store_true',

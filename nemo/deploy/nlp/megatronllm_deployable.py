@@ -40,6 +40,7 @@ def noop_decorator(func):
 
     return wrapper
 
+
 use_pytriton = True
 batch = noop_decorator
 try:
@@ -58,6 +59,7 @@ def GetTensorShape(pyvalue):
     """
     return (-1 if type(pyvalue) == list else 1,)
 
+
 def GetNumpyDtype(pyvalue):
     """
     utility function to get numpy dtype of a python value
@@ -75,6 +77,7 @@ def GetNumpyDtype(pyvalue):
     numpy_type = py_to_numpy_mapping[python_type]
     return numpy_type
 
+
 class ServerSync(IntEnum):
     """Enum for synchronization messages using torch.distributed"""
 
@@ -83,6 +86,7 @@ class ServerSync(IntEnum):
 
     def to_long_tensor(self):
         return torch.tensor([self], dtype=torch.long, device='cuda')
+
 
 class MegatronLLMDeployable(ITritonDeployable):
     """Triton inference server compatible deploy class for a .nemo model file"""
@@ -115,7 +119,11 @@ class MegatronLLMDeployable(ITritonDeployable):
 
     def _load_from_nemo_checkpoint(self, nemo_checkpoint_filepath: str, num_devices: int, num_nodes: int):
         if Path(nemo_checkpoint_filepath).exists():
-            trainer = Trainer(strategy=NLPDDPStrategy(), devices=num_devices, num_nodes=num_nodes,)
+            trainer = Trainer(
+                strategy=NLPDDPStrategy(),
+                devices=num_devices,
+                num_nodes=num_nodes,
+            )
 
             custom_config = MegatronGPTModel.restore_from(
                 nemo_checkpoint_filepath, trainer=trainer, return_config=True
@@ -199,7 +207,9 @@ class MegatronLLMDeployable(ITritonDeployable):
         # outputs are defined by the fields of OutputType
         outputs = [
             Tensor(
-                name=parameter_name, shape=GetTensorShape(parameter_value), dtype=GetNumpyDtype(parameter_value[0]),
+                name=parameter_name,
+                shape=GetTensorShape(parameter_value),
+                dtype=GetNumpyDtype(parameter_value[0]),
             )
             for parameter_name, parameter_value in MegatronLLMDeployable._BLANK_OUTPUTTYPE.items()
         ]
@@ -258,7 +268,7 @@ class MegatronLLMDeployable(ITritonDeployable):
         }
         for model_output_field, value in model_output.items():
 
-            if (model_output_field is not 'sentences' and value is not None):
+            if model_output_field is not 'sentences' and value is not None:
                 # find length of longest non-sentence output item
                 field_longest_output_item = 0
                 for item in value:
@@ -273,7 +283,8 @@ class MegatronLLMDeployable(ITritonDeployable):
                                 (num_pad_values, item.size(1)) if item.dim() > 1 else (num_pad_values,),
                                 pad_value,
                                 dtype=item.dtype,
-                                device='cuda')
+                                device='cuda',
+                            )
                             print("catting two tensors")
                             print(item.size())
                             print(item)

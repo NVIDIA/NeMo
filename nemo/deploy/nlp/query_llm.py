@@ -52,7 +52,8 @@ class NemoTritonQueryLLMBase(ABC):
 class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
     def __init__(self, url, model_name):
         super().__init__(
-            url=url, model_name=model_name,
+            url=url,
+            model_name=model_name,
         )
 
     # these arguments are explicitly defined in order to make it clear to user what they can pass
@@ -127,7 +128,8 @@ class NemoTritonQueryLLMTensorRT(NemoTritonQueryLLMBase):
 
     def __init__(self, url, model_name):
         super().__init__(
-            url=url, model_name=model_name,
+            url=url,
+            model_name=model_name,
         )
 
     def query_llm(
