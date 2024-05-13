@@ -32,14 +32,14 @@ from nemo.utils.distributed import temporary_directory
 from nemo.utils.model_utils import load_config, save_artifacts, unwrap_model
 
 try:
-    import ammo.torch.quantization as atq
-    from ammo.torch.export import export_tensorrt_llm_checkpoint
+    import modelopt.torch.quantization as mtq
+    from modelopt.torch.export import export_tensorrt_llm_checkpoint
 
-    HAVE_AMMO = True
+    HAVE_MODELOPT = True
 
 except (ImportError, ModuleNotFoundError) as e:
-    HAVE_AMMO = False
-    HAVE_AMMO_ERROR = e
+    HAVE_MODELOPT = False
+    HAVE_MODELOPT_ERROR = e
 
 
 class Quantizer:
@@ -63,9 +63,9 @@ class Quantizer:
     model families is experimental and might not be fully supported.
 
     Available quantization methods are listed in QUANT_CFG_CHOICES dictionary below.
-    Please consult AMMO documentation for details. You can also inspect different choices in
-    examples/nlp/language_modeling/conf/megatron_llama_quantization.yaml for quantization algorithms and
-    calibration data as well as recommended settings.
+    Please consult Model Optimizer documentation https://nvidia.github.io/TensorRT-Model-Optimizer/ for details.
+    You can also inspect different choices in examples/nlp/language_modeling/conf/megatron_llama_quantization.yaml
+    for quantization algorithms and calibration data as well as recommended settings.
 
     Quantization algorithm can also be conveniently set to 'null' to perform only weights export step
     for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
@@ -78,14 +78,14 @@ class Quantizer:
         export_config: DictConfig,
         trainer_config: DictConfig,
     ):
-        if not HAVE_AMMO:
-            raise RuntimeError("nvidia-ammo is needed to use Quantizer") from HAVE_AMMO_ERROR
+        if not HAVE_MODELOPT:
+            raise RuntimeError("nvidia-modelopt is needed to use Quantizer") from HAVE_MODELOPT_ERROR
         QUANT_CFG_CHOICES = {
-            "int8": atq.INT8_DEFAULT_CFG,
-            "int8_sq": atq.INT8_SMOOTHQUANT_CFG,
-            "fp8": atq.FP8_DEFAULT_CFG,
-            "int4_awq": atq.INT4_AWQ_CFG,
-            "w4a8_awq": atq.W4A8_AWQ_BETA_CFG,
+            "int8": mtq.INT8_DEFAULT_CFG,
+            "int8_sq": mtq.INT8_SMOOTHQUANT_CFG,
+            "fp8": mtq.FP8_DEFAULT_CFG,
+            "int4_awq": mtq.INT4_AWQ_CFG,
+            "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
         }
         SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
         assert export_config.dtype in SUPPORTED_DTYPE
@@ -95,25 +95,25 @@ class Quantizer:
         self.export_config = export_config
         self.trainer_config = trainer_config
         if quantization_config.algorithm is not None:
-            atq_config = QUANT_CFG_CHOICES[quantization_config.algorithm]
+            quant_cfg = QUANT_CFG_CHOICES[quantization_config.algorithm]
 
             if "awq" in quantization_config.algorithm:
-                weight_quantizer = atq_config["quant_cfg"]["*weight_quantizer"]
+                weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
                 if isinstance(weight_quantizer, list):
                     weight_quantizer = weight_quantizer[0]
                 weight_quantizer["block_sizes"][-1] = quantization_config.awq_block_size
 
             # Always turn on FP8 kv cache to save memory footprint.
             # For int8_sq, we use int8 kv cache.
-            atq_config["quant_cfg"]["*output_quantizer"] = {
+            quant_cfg["quant_cfg"]["*output_quantizer"] = {
                 "num_bits": 8 if quantization_config.algorithm == "int8_sq" else (4, 3),
                 "axis": None,
                 "enable": export_config.decoder_type != "gptnext",
             }
 
-            self.atq_config = atq_config
+            self.quant_cfg = quant_cfg
         else:
-            self.atq_config = None
+            self.quant_cfg = None
 
     def _load_model(
         self,
@@ -121,7 +121,7 @@ class Quantizer:
         tensor_model_parallel_size: Optional[int] = None,
         pipeline_model_parallel_size: Optional[int] = None,
     ):
-        """Load model using AMMO layer spec for quantization."""
+        """Load model using ModelOpt layer spec for quantization."""
         model_cfg = self._load_and_modify_config(model_file, tensor_model_parallel_size, pipeline_model_parallel_size)
 
         trainer = Trainer(strategy=NLPDDPStrategy(), **self.trainer_config)
@@ -170,9 +170,12 @@ class Quantizer:
                 model_cfg.tensor_model_parallel_size = tensor_model_parallel_size
             if pipeline_model_parallel_size is not None:
                 model_cfg.pipeline_model_parallel_size = pipeline_model_parallel_size
-            # Only custom AMMO spec is supported for PTQ: this custom spec is largely based on local Megatron-LM
+            # Only custom ModelOpt spec is supported for PTQ: this custom spec is largely based on local Megatron-LM
             # layer definitions to avoid Transformer Engine implementations that are currently not supported.
-            model_cfg.name = "ammo"
+            # This layer spec also requires RoPE fusion to be disabled (otherwise
+            model_cfg.name = "modelopt"
+            # Disable rope fusion in order
+            model_cfg.apply_rope_fusion = False
 
         return model_cfg
 
@@ -197,7 +200,7 @@ class Quantizer:
                     print(f"Calibrating batch {i}")
                 model.predict_step(batch, i)
 
-        model = atq.quantize(model, self.atq_config, forward_loop)
+        model = mtq.quantize(model, self.quant_cfg, forward_loop)
 
         if self.export_config == "gptnext":
             # We found squared_relu may have an under-calibration problem.
@@ -207,12 +210,12 @@ class Quantizer:
                 maxbound = 448
             elif self.quantization_config.quantization.algorithm == "int8_sq":
                 maxbound = 127
-            model = atq.postprocess_amax(
+            model = mtq.postprocess_amax(
                 model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
             )
 
         if dist.get_rank() == 0:
-            atq.print_quant_summary(model)
+            mtq.print_quant_summary(model)
 
         return model
 

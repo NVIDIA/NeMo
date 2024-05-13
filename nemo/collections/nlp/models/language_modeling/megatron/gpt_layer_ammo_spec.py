@@ -36,8 +36,8 @@ except (ImportError, ModuleNotFoundError) as e:
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
 
-# Use this spec for AMMO PTQ and TensorRT-LLM export
-def get_gpt_layer_ammo_spec() -> ModuleSpec:
+# Use this spec for Model Optimizer PTQ and TensorRT-LLM export
+def get_gpt_layer_modelopt_spec() -> ModuleSpec:
     """Mix the native spec with TENorm.
 
     This is essentially the native local spec except for the layernorm implementation
