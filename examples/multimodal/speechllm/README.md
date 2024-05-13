@@ -1,5 +1,7 @@
 # Modular SpeechLLM
 
+**NOTE: This branch is deprecated, please refer to https://github.com/NVIDIA/NeMo/tree/main/examples/multimodal/speech_llm**
+
 This directory contains example scripts to train and evaluate modular SpeechLLM[1]. 
 
 ## Requirements
