@@ -81,7 +81,7 @@ class DistributedCheckpointIO(CheckpointIO):
             sharded_strategy = None
 
         if not strict:
-            for key in list(sharded_state_dict.keys()):
+            for key in list(sharded_state_dict['state_dict'].keys()):
                 if not os.path.isdir(f"{path}/{key}"):
                     sharded_state_dict['state_dict'].pop(key)
 
