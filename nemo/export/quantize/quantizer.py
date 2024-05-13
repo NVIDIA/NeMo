@@ -43,7 +43,6 @@ except (ImportError, ModuleNotFoundError) as e:
 
 
 class Quantizer:
-
     """
     Post-training quantization of Nemo checkpoints.
 
@@ -128,7 +127,10 @@ class Quantizer:
         connector = NLPSaveRestoreConnector()
 
         model = MegatronGPTModel.restore_from(
-            restore_path=model_file, trainer=trainer, override_config_path=model_cfg, save_restore_connector=connector,
+            restore_path=model_file,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            save_restore_connector=connector,
         )
         model.freeze()
 
