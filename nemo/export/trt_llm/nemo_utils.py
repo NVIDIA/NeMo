@@ -201,7 +201,9 @@ def nemo_llm_to_model_config(
 
 
 def to_word_list_format(
-    word_dict: List[List[str]], tokenizer=None, ref_str="<extra_id_1>",
+    word_dict: List[List[str]],
+    tokenizer=None,
+    ref_str="<extra_id_1>",
 ):
     '''
     format of word_dict
@@ -257,7 +259,10 @@ def to_word_list_format(
 
 
 def nemo_llm_model_to_model_config(
-    nemo_model: str, decoder_type: str, nemo_model_config: str, dtype_str: str = "float32",
+    nemo_model: str,
+    decoder_type: str,
+    nemo_model_config: str,
+    dtype_str: str = "float32",
 ) -> Tuple[List[ModelConfig], PreTrainedTokenizer]:
     """Converts the NEMO model object and construct the `ModelConfig` before tensorrt_llm deployment."""
     from megatron.core import parallel_state
@@ -382,15 +387,18 @@ def nemo_to_trtllm_config(
         'intermediate_size': nemo_model_config.get('ffn_hidden_size'),
         'norm_epsilon': nemo_model_config.get('layernorm_epsilon'),
         'vocab_size': vocab_size_padded,
-        'position_embedding_type': "rope_gpt_neox"
-        if nemo_model_config.get('position_embedding_type') == "rope"
-        else "learned_absolute",
+        'position_embedding_type': (
+            "rope_gpt_neox" if nemo_model_config.get('position_embedding_type') == "rope" else "learned_absolute"
+        ),
         'max_position_embeddings': nemo_model_config.get('max_position_embeddings'),
         'hidden_act': hidden_act,
         'use_parallel_embedding': use_parallel_embedding,
         'embedding_sharding_dim': 0,
         'share_embedding_table': False,
-        'quantization': {'quant_algo': None, 'kv_cache_quant_algo': None,},
+        'quantization': {
+            'quant_algo': None,
+            'kv_cache_quant_algo': None,
+        },
         'bias': nemo_model_config.get('bias'),
         'apply_query_key_layer_scaling': False,
         'rotary_pct': nemo_model_config.get('rotary_percentage', 1.0),

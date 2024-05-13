@@ -286,7 +286,9 @@ class TensorRTLLM(ITritonDeployable):
 
         # Build or refit TRT-LLM engine from a nemo model.
         model_configs = nemo_llm_model_to_model_config(
-            nemo_model=nemo_model, decoder_type=model_type, nemo_model_config=nemo_model_config,
+            nemo_model=nemo_model,
+            decoder_type=model_type,
+            nemo_model_config=nemo_model_config,
         )
 
         model_config_to_tensorrt_llm(
@@ -305,7 +307,9 @@ class TensorRTLLM(ITritonDeployable):
         )
 
     def refit(
-        self, nemo_model, nemo_model_config,
+        self,
+        nemo_model,
+        nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
 
@@ -336,7 +340,6 @@ class TensorRTLLM(ITritonDeployable):
         output_log_probs: bool = False,
         **sampling_kwargs,
     ):
-
         """
         Exports nemo checkpoints to TensorRT-LLM.
 
@@ -672,7 +675,9 @@ class TensorRTLLM(ITritonDeployable):
             return weights.cpu().detach()
 
     def _get_prompt_embedding_table(
-        self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,
+        self,
+        prompt_embeddings_table=None,
+        prompt_embeddings_checkpoint_path=None,
     ):
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
             LOGGER.warning(

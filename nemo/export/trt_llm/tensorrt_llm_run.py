@@ -330,7 +330,10 @@ def load_refit(
     # Manipulate the tensorrt_llm mapping to make it compatible with the multiprocessed env.
     assert tensorrt_llm.mpi_world_size() == torch.distributed.get_world_size(), "MPI world size mismatch"
     runtime_mapping = tensorrt_llm.Mapping(
-        world_size=tensorrt_llm.mpi_world_size(), rank=runtime_rank, tp_size=tensorrt_llm.mpi_world_size(), pp_size=1,
+        world_size=tensorrt_llm.mpi_world_size(),
+        rank=runtime_rank,
+        tp_size=tensorrt_llm.mpi_world_size(),
+        pp_size=1,
     )
 
     engine_name = get_engine_name(
@@ -361,7 +364,9 @@ def load_refit(
         lora_manager = LoraManager()
         if lora_ckpt_list is not None:
             lora_manager.load_from_nemo(
-                model_files=lora_ckpt_list, model_config=model_config, runtime_mapping=runtime_mapping,
+                model_files=lora_ckpt_list,
+                model_config=model_config,
+                runtime_mapping=runtime_mapping,
             )
     else:
         lora_manager = None

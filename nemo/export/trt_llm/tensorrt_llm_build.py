@@ -60,11 +60,11 @@ def serialize_engine(engine, path):
 
 def refit_runtime_engine(params, cuda_engine):
     '''
-        @brief: Inplace refit one TensorRT cuda engine using weights from the network,
-            user should guarantee that the engine is built with REFIT flag, and the network has the same structure with the engine.
-        @param engine_buffer: A serialized TensorRT engine.
-        @param network: Network object.
-        @return: A serialized TRT engine if refit successfully, None otherwise
+    @brief: Inplace refit one TensorRT cuda engine using weights from the network,
+        user should guarantee that the engine is built with REFIT flag, and the network has the same structure with the engine.
+    @param engine_buffer: A serialized TensorRT engine.
+    @param network: Network object.
+    @return: A serialized TRT engine if refit successfully, None otherwise
     '''
     logger.info(f'Refit runtime engine')
     tik = time.time()
@@ -91,7 +91,11 @@ def refit_runtime_engine(params, cuda_engine):
 
 
 def build_rank_engine(
-    tensorrt_llm_gpt, builder: Builder, builder_config: tensorrt_llm.builder.BuilderConfig, engine_name, args,
+    tensorrt_llm_gpt,
+    builder: Builder,
+    builder_config: tensorrt_llm.builder.BuilderConfig,
+    engine_name,
+    args,
 ):
 
     str_dtype_to_trt(args.dtype)
