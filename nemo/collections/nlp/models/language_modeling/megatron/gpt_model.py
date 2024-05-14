@@ -254,7 +254,9 @@ class GPTModel(MegatronModule):
 
         if self.share_embeddings_and_output_weights:
             self.initialize_word_embeddings(
-                init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size,
+                init_method=init_method_normal(init_method_std),
+                vocab_size=vocab_size,
+                hidden_size=hidden_size,
             )
 
     def set_input_tensor(self, input_tensor):
@@ -303,9 +305,11 @@ class GPTModel(MegatronModule):
             post_process_result = post_language_model_processing(
                 loss_lm_output,
                 loss_labels,
-                self.language_model.output_layer.weight
-                if not self.share_embeddings_and_output_weights
-                else self.word_embeddings_weight(),
+                (
+                    self.language_model.output_layer.weight
+                    if not self.share_embeddings_and_output_weights
+                    else self.word_embeddings_weight()
+                ),
                 get_key_value,
                 self.parallel_output,
                 forward_method_parallel_output,
