@@ -17,7 +17,7 @@ from nemo.llm.gpt.model import (
 
 __all__ = [
     "DollyDataModule",
-    "FineTuningDataModule",    
+    "FineTuningDataModule",
     "GPTModel",
     "GPTConfig",
     "gpt_data_step",
@@ -27,5 +27,5 @@ __all__ = [
     "Mistral7BModel",
     "MockDataModule",
     "PreTrainingDataModule",
-    "SquadDataModule"
+    "SquadDataModule",
 ]
