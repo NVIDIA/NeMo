@@ -22,6 +22,48 @@ Loading models requires using an ModelOpt spec defined in `nemo.collections.nlp.
 
 Quantization algorithm can also be conveniently set to ``"null"`` to perform only the weights export step using default precision for TensorRT-LLM deployment. This is useful to obtain baseline performance and accuracy results for comparison.
 
+Support Matrix
+^^^^^^^^^^^^^^
+
+Table below presents verified model support matrix for popular LLM architectures. Each model entry also optionally provides a download link to a corresponding Nemo checkpoint for testing purposes. Support for other model families is experimental.
+
+.. list-table:: Model Support Matrix
+   :widths: 15 15 15 15
+   :header-rows: 1
+
+   * - **Model Family**
+     - **FP8**
+     - **INT8_SQ**
+     - **INT4_AWQ**
+   * - Llama (1, 2, 3)
+     - ✅
+     - ✅
+     - ✅
+   * - Mistral
+     - ✅
+     - ✅
+     - ✅
+   * - `GPT-3 <https://huggingface.co/nvidia/GPT-2B-001>`_
+     - ✅
+     - ✅
+     - ✅
+   * - `Nemotron-3 8b <https://huggingface.co/nvidia/nemotron-3-8b-base-4k>`_
+     - ✅
+     - ✅
+     - ✅
+   * - Nemotron-4 15b
+     - ✅
+     - ✅
+     - ✅
+   * - StarCoder 2
+     - ✅
+     - ✅
+     - ✅
+   * - Gemma
+     - ✅
+     - ✅
+     - ✅
+
 
 Example
 ^^^^^^^
