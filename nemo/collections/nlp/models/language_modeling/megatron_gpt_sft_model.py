@@ -354,7 +354,7 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
             token_count_avg = sum(batch['token_count']) / len(batch['token_count'])
 
         # Pass only torch.Tensor to prevent errors when process get_iterator_k_split()
-        batch = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         _, seq_length = batch['tokens'].shape
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
