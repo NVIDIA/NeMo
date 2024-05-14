@@ -64,8 +64,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 cfg.ipl.num_all_files, cfg.ipl.num_cache_files = count_files_for_pseudo_labeling(
                     cfg.ipl.manifest_filepath, cfg.ipl.get('dataset_weights', None)
                 )
-                if not cfg.ipl.get("cache_manifest", None):
-                    cfg.ipl.cache_manifest = str(Path.cwd() / "manifest_pseudo_labeled.json")
+                if not cfg.train_ds.get("is_tarred", False):
+                    if not cfg.ipl.get("cache_manifest", None):
+                        cfg.ipl.cache_manifest =  formulate_cache_manifest_names(cfg.ipl.manifest_filepath, cfg.ipl.cache_prefix, is_tarred = False) 
+                else:
+                    cfg.ipl.cache_manifest = []
+                    cfg.ipl.all_cache_manifests = formulate_cache_manifest_names(cfg.ipl.manifest_filepath, cfg.ipl.cache_prefix, is_tarred = True)
+    
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
@@ -130,7 +135,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
     
     def on_fit_start(self):
         """
-            Cache datastore manifests for non tarred unlabeled data 
+        Cache datastore manifests for non tarred unlabeled data for pseudo labeling. 
+        This function prevents caching audio files at the end of every epoch.
         """
         if self.cfg.get("ipl"):
             if not self.cfg.ipl.get("is_tarred", False):
@@ -154,13 +160,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         needs_update = True
 
         if self.cfg.ipl.m_epochs == 0:
-            if self.cfg.train_ds.get("is_tarred", False):
-                if (isinstance(self.cfg.ipl.manifest_filepath, list) and len(self.cfg.ipl.manifest_filepath) == 1) or (isinstance(self.cfg.ipl.tarred_audio_filepaths , list) and len(self.cfg.ipl.tarred_audio_filepaths ) == 1):
-                    raise NotImplementedError(
-                        "For one tarr dataset please provide paths with string"
-                    )
-            
-            self.build_cache(self.cfg.ipl.manifest_filepath, self.cfg.ipl.get("tarred_audio_filepaths", None), update_whole_cache=True)
+            self.build_cache(update_whole_cache=True)
 
             self.encoder.set_dropout(self.cfg.ipl.dropout)            
             self.cfg.ipl.m_epochs -= 1
@@ -170,64 +170,66 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             self.cfg.ipl.n_l_epochs -= 1
         else: 
             if needs_update:
+                self.build_cache(update_whole_cache=False)
 
-                self.build_cache(self.cfg.ipl.manifest_filepath, self.cfg.ipl.get("tarred_audio_filepaths", None), update_whole_cache=False)
-                final_cache_manifests = self.combine_cache_hypotheses()    
-
-            else:
-                final_cache_manifests = self.combine_cache_hypotheses()  
-                if self.cfg.ipl.n_l_epochs == 0:
-                    if self.cfg.train_ds.get("is_tarred", False):
-                        if not self.cfg.train_ds.get("use_lhotse", False):
-                            if isinstance(self.cfg.ipl.tarred_audio_filepaths, str):
-                                if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
-                                    self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths],[self.cfg.ipl.tarred_audio_filepaths] ]
-                                else:
-                                    self.cfg.train_ds.tarred_audio_filepaths.append([self.cfg.ipl.tarred_audio_filepaths])
-                            else:
-                                if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
-                                    self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths]]
-                                self.cfg.train_ds.tarred_audio_filepaths += self.cfg.ipl.tarred_audio_filepaths
+            if  self.cfg.train_ds.get("is_tarred", False):
+                final_cache_manifests = self.combine_cache_hypotheses()
             
-                            if isinstance(self.cfg.train_ds.manifest_filepath, str):
-                                self.cfg.train_ds.manifest_filepath = [[self.cfg.train_ds.manifest_filepath]]
-       
-                            self.cfg.train_ds.manifest_filepath += final_cache_manifests
-
-                    else:
-                        if isinstance(self.cfg.train_ds.manifest_filepath, str):
-                            self.cfg.train_ds.manifest_filepath = [self.cfg.train_ds.manifest_filepath]
-                            self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
+            if self.cfg.ipl.n_l_epochs == 0:
+                if self.cfg.train_ds.get("is_tarred", False):
+                    if isinstance(self.cfg.ipl.tarred_audio_filepaths, str):
+                        if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
+                            self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths],[self.cfg.ipl.tarred_audio_filepaths]]
                         else:
-                            self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
-
-            
-                    self.cfg.ipl.n_l_epochs -= 1
-                    self.trainer.reload_dataloaders_every_n_epochs = 1
+                            self.cfg.train_ds.tarred_audio_filepaths.append([self.cfg.ipl.tarred_audio_filepaths])
+                    else:
+                        if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
+                            self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths]]
+                        self.cfg.train_ds.tarred_audio_filepaths += self.cfg.ipl.tarred_audio_filepaths
     
+                    if isinstance(self.cfg.train_ds.manifest_filepath, str):
+                        self.cfg.train_ds.manifest_filepath = [[self.cfg.train_ds.manifest_filepath]]
+
+                    self.cfg.train_ds.manifest_filepath += final_cache_manifests
+            
+                else:
+                    if isinstance(self.cfg.train_ds.manifest_filepath, str):
+                        self.cfg.train_ds.manifest_filepath = [self.cfg.train_ds.manifest_filepath]
+                        self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
+                    else:
+                        self.cfg.train_ds.manifest_filepath.append(self.cfg.ipl.cache_manifest)
+
+                self.cfg.ipl.n_l_epochs = -1
+                self.trainer.reload_dataloaders_every_n_epochs = 1
+                if self.cfg.ipl.get("limit_train_batches", None):
+                    self.trainer.limit_train_batches = self.cfg.ipl["limit_train_batches"]
+
             torch.distributed.barrier()
+            
+            if self.cfg.train_ds.get("use_lhotse", False):
+                self.setup_training_data(self.cfg.train_ds, do_caching = False, update_limit_train_batches=False)
+            else:
+                self.setup_training_data(self.cfg.train_ds, do_caching = False, update_limit_train_batches=True)
+    
 
-            self.setup_training_data(self.cfg.train_ds, do_caching = False, update_limit_train_batches=True)
-
-
-    def build_cache(self, manifests: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str] = None, update_whole_cache = True):
+    def build_cache(self, update_whole_cache: bool):
         """
-        Function to build cache file for maintaining pseudo labels
+        Function to build cache file for maintaining pseudo labels.
         Args:
             update_whole_cache: (bool) Indicates whether to update the entire cache or only a portion of it based on sampling.
-            manifests:  Manifest file(s) from which pseudo labels will be generated
-            tarred_audio_filepaths: Tar file paths for tarred datasets
-            
         """
         if self.cfg.train_ds.get("is_tarred", False):
-            if isinstance(manifests, str):
-                manifests = [[manifests]]
-            if isinstance(tarred_audio_filepaths, str):
-                tarred_audio_filepaths = [[tarred_audio_filepaths]]
+
+            if isinstance(self.cfg.ipl.tarred_audio_filepaths, str):
+                tarred_audio_filepaths = [[self.cfg.ipl.tarred_audio_filepaths]]
             if update_whole_cache:
-                self.create_tar_cache_hypotheses(manifests, tarred_audio_filepaths)
+                if isinstance(self.cfg.ipl.manifest_filepath, str):
+                    manifests = [[self.cfg.ipl.manifest_filepath]]
+                self.create_tar_cache_hypotheses(self.cfg.ipl.manifest_filepath, self.cfg.ipl.tarred_audio_filepaths)
             else:
-                self.update_tarr_cache_hyppotheses(tarred_audio_filepaths)
+                if isinstance(self.cfg.ipl.all_cache_manifests, str):
+                    manifests = [[self.cfg.ipl.all_cache_manifests]]
+                self.update_tar_cache_hypotheses(self.cfg.ipl.all_cache_manifests, self.cfg.ipl.tarred_audio_filepaths)
         else:
             self.create_cache_hypotheses(manifests, update_whole_cache)
     
@@ -266,6 +268,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             hypotheses = self.generate_pseudo_labels(temporary_manifest,
                                                     target_transcripts=transcriptions, 
                                                     restore_pc=self.cfg.ipl.restore_pc,
+                                                    batch_size=self.cfg.ipl.batch_size,
                                                     )
         torch.distributed.barrier()
         gathered_hypotheses = [None]  * torch.distributed.get_world_size()
@@ -284,10 +287,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             manifests:  Manifest file(s) from which pseudo labels will be generated
             tarred_audio_filepaths: Tar file paths for tarred datasets
         """
+        if isinstance(manifests, str):
+            manifests = [[manifests]]
+
+        if isinstance(tarred_audio_filepaths, str):
+            tarred_audio_filepaths = [[tarred_audio_filepaths]]
 
         self.cfg.ipl.cache_manifest = []
         for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
             with tempfile.TemporaryDirectory() as tmpdir:
+                torch.distributed.barrier()
                 
                 expanded_audio = expand_sharded_filepaths(tarred_audio_filepath[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
                 expand_manifests = expand_sharded_filepaths(manifest[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
@@ -328,41 +337,52 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                                                         tarred_audio_filepaths=expanded_audio, 
                                                         target_transcripts=None,
                                                         restore_pc=self.cfg.ipl.restore_pc,
+                                                        batch_size=self.cfg.ipl.batch_size,
                                                         )
                 
                 else:
                     hypotheses = self.generate_pseudo_labels(manifest,
                                                             target_transcripts=None,
-                                                                restore_pc=self.cfg.ipl.restore_pc,
-                                                                    )
+                                                            restore_pc=self.cfg.ipl.restore_pc,
+                                                            batch_size=self.cfg.ipl.batch_size,
+                                                            )
             
-            
-                write_tarr_cache_manifest(cache_manifest, update_data=shard_manifest_data, hypotheses=hypotheses)
+                write_tarr_cache_manifest(cache_manifest, update_data=shard_manifest_data, hypotheses=hypotheses, use_lhotse=self.cfg.train_ds.get('use_lhotse', False))
+                torch.distributed.barrier()
                 self.cfg.ipl.cache_manifest.append(cache_manifest)
 
-    def update_tarr_cache_hyppotheses(self, tarred_audio_filepaths: Union[List[List[str]], str]):
-        """
-            With given probability randomly chooses part of the cache hypotheses, generates new pseudo labels for them and updates the cache.
-            Args:
-                tarred_audio_filepaths: Path to tarred audio files.
 
+    def update_tar_cache_hypotheses(self, manifests: Union[List[List[str]], str],  tarred_audio_filepaths: Union[List[List[str]], str]):
         """
-        for manifest, tarred_audio_filepath in zip(self.cfg.ipl.cache_manifest, tarred_audio_filepaths):
+        With given probability randomly chooses part of the cache hypotheses, generates new pseudo labels for them and updates the cache.
+        Args:
+            manifests: Cache manifest files where pseudo labels are kept.
+            tarred_audio_filepaths: Path to tarred audio files.
+        """
+        if isinstance(manifests, str):
+            manifests = [[manifests]]
 
+        if isinstance(tarred_audio_filepaths, str):
+            tarred_audio_filepaths = [[tarred_audio_filepaths]]
+
+        torch.distributed.barrier()
+        for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
             with tempfile.TemporaryDirectory() as tmpdir:
                 expanded_audio = expand_sharded_filepaths(tarred_audio_filepath[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
+                manifest = expand_sharded_filepaths(manifest[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
                 shard_manifest_data = []
                 number_of_manifests = len(manifest)
-                for idx, manifest_path in enumerate(manifest): 
+                all_indices = []
+                for _, manifest_path in enumerate(manifest): 
                 
                     manifest_data = process_manifest(manifest_path)  
-                    
-                    random.shuffle(manifest_data)
+                    update_size = int(len(manifest_data) * self.cfg.ipl.p_cache)
+                    random.seed()
+                    indices = random.sample(range(len(manifest_data)), update_size)
+                    update_data = [manifest_data[index] for index in indices]
                     shard_manifest_data.append(manifest_data)  
             
-                    update_size = int(len(manifest_data) * self.cfg.ipl.p_cache)
-                    update_data = manifest_data[:update_size]
-
+                    all_indices.append(indices)
                     _, filename = os.path.split(manifest_path)
                     temporary_manifest = os.path.join(tmpdir, f'temp_{filename}')
             
@@ -372,71 +392,76 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                             transcriptions.append(data_entry.get('text', ""))
                             json.dump(data_entry, temp_manifest, ensure_ascii=False)
                             temp_manifest.write('\n')
-
                 if number_of_manifests > 1:
-
                     temporary_manifest, expanded_audio = handle_multiple_tarr_filepaths(filename, tmpdir, number_of_manifests, expanded_audio[0])
                 else:
                     expanded_audio = expanded_audio[0]
-    
 
                 if self.cfg.train_ds.get("is_tarred", False):
                     hypotheses = self.generate_pseudo_labels(temporary_manifest,
                                                         tarred_audio_filepaths=expanded_audio, 
                                                         target_transcripts=transcriptions,
                                                         restore_pc=self.cfg.ipl.restore_pc,
+                                                        batch_size=self.cfg.ipl.batch_size,
                                                         )
                 
                 else:
                     hypotheses = self.generate_pseudo_labels(temporary_manifest,
                                                             target_transcripts=transcriptions,
                                                             restore_pc=self.cfg.ipl.restore_pc,
+                                                            batch_size=self.cfg.ipl.batch_size,
                                                             )
-                torch.distributed.barrier()
-    
-            write_tarr_cache_manifest(manifest, update_data=shard_manifest_data, hypotheses=hypotheses, update_size=update_size)   
+            
+            write_tarr_cache_manifest(manifest, update_data=shard_manifest_data, hypotheses=hypotheses, indices=all_indices, update_size=update_size, use_lhotse=self.cfg.train_ds.get('use_lhotse', False))
+            torch.distributed.barrier()
 
 
     def combine_cache_hypotheses(self):
         """
-        For each dataset combines cache hypotheses from manifests into one final cache manifest
+        For each dataset combines cache hypotheses from manifests into one final cache manifest.
         Returns:
-            final_cache_manifests: List of final cache manifests
+            final_cache_manifests: List of final cache manifests.
         """
+        final_cache_manifests = []
         if self.cfg.train_ds.get("is_tarred", False):
-            torch.distributed.barrier()
-            all_cache_gathered = [None]  * torch.distributed.get_world_size()
-            torch.distributed.all_gather_object(all_cache_gathered, self.cfg.ipl.cache_manifest) 
-            result = [[item for sublist in group for item in sublist] for group in zip(*all_cache_gathered)]
 
-            final_cache_manifests = []
             if not self.cfg.train_ds.get("use_lhotse", False):
-                for manifests in result:
+                for manifests in self.cfg.ipl.all_cache_manifests:
                     base_path, _ = os.path.split(manifests[0])
                     final_cache = os.path.join(base_path, f'{self.cfg.ipl.cache_prefix}_cache_tarred_audio_manifest.json')
                     if torch.distributed.get_rank() == 0:
                         create_final_cache_manifest(final_cache, manifests)
-
+                    torch.distributed.barrier() 
                     final_cache_manifests.append([final_cache])
-            torch.distributed.barrier() 
-            return final_cache_manifests
+            else:
+                for i_dataset in self.cfg.ipl.all_cache_manifests:
+                    i_dataset = expand_braces(i_dataset)
+                    num_manifests = len(i_dataset)
+                    base_path, file_name = os.path.split(i_dataset[0])
+                    base_file_name = file_name.rsplit('_', 1)[0]
+                    dataset_manifests = os.path.join(base_path, f"{base_file_name}_{{{0}..{num_manifests-1}}}.json")
+                    final_cache_manifests.append([dataset_manifests])
+                  
+        return final_cache_manifests
+        
 
     def generate_pseudo_labels(
         self,
         cache_manifest: Union[List[List[str]], str],
         tarred_audio_filepaths: Union[List[List[str]], str] = None,
         restore_pc: bool = True,
-        target_transcripts: List[str] = None):
+        target_transcripts: List[str] = None,
+        batch_size: int = 64):
         """
         Generates pseudo labels for unlabeled data.
         Args:
             cache_manifest: Temprorary cache file with sampled data.
-            batch_size: Batch size used for during inference.
-            num_workers: (int) number of workers for DataLoader
+            tarred_audio_filepaths: Path to tar audio files.
             restore_pc: Whether to restore PC for transcriptions that do not have any.
-            target_transcripts: Already existing transcriptions that can be used for restoring PC
+            target_transcripts: Already existing transcriptions that can be used for restoring PC.c
+            batch_size: Batch size used for during inference.
         Returns:
-            target_transcripts: List of generated labels.
+            hypotheses: List of generated labels.
         """
         device = next(self.parameters()).device
         dither_value = self.preprocessor.featurizer.dither
@@ -448,7 +473,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         hypotheses = []
 
         
-        dataloader = self._setup_pseudo_label_dataloader(cache_manifest, tarred_audio_filepaths, self.cfg.ipl.batch_size)
+        dataloader = self._setup_pseudo_label_dataloader(cache_manifest, tarred_audio_filepaths, batch_size)
 
         self.preprocessor.featurizer.dither = 0.0
         self.preprocessor.featurizer.pad_to = 0

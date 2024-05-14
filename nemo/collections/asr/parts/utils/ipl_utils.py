@@ -23,7 +23,6 @@ from omegaconf import ListConfig
 import braceexpand
 
 def expand_braces(filepaths):
-    
     if isinstance(filepaths, ListConfig):
         filepaths = filepaths[0]
     
@@ -47,19 +46,25 @@ def expand_braces(filepaths):
     return filepaths
 
 
+def formulate_cache_manifest_names(manifests: Union[str, ListConfig[str]], cache_prefix, is_tarred: bool):
+    if is_tarred:
+        cache_manifests = []
+        if isinstance(manifests, str):
+            manifests = [[manifests]]
+        for sharded_manifests in manifests:
+            base_path, file_name = os.path.split(sharded_manifests[0])
+            cache_name = os.path.join(base_path, f'{cache_prefix}_cache_{file_name}')
+            cache_manifests.append([cache_name])
+        return cache_manifests
+    else:
+        return str(Path.cwd() / f"{cache_prefix}_pseudo_labeled.json")
+        
+
 def count_files_for_pseudo_labeling(
     input_manifest_files: Union[str, ListConfig[str]],
     is_tarred: bool,
     dataset_weights: Optional[Union[float, ListConfig[float]]] = None,
 ) -> Tuple[List[int], List[int]]:
-    """
-    Counts how many audio files are going to be used for pseudo labeling.
-    Args:
-        input_manifest_files: Path(s) to manifest file(s) containing unlabeled data 
-        dataset_weights: Optional. What part of the dataset to use. Default is 1.0
-    Returns:
-        A tuple of two lists containing number of all audio files and number of audio files used for generating pseudo labels.
-    """
 
     def get_num_lines(file_path: str) -> int:
         if os.path.exists(file_path):
@@ -96,6 +101,7 @@ def count_files_for_pseudo_labeling(
     
 
 def create_final_cache_manifest(final_cache_manifest: str, manifests: List[str]):
+    manifests = expand_braces(manifests)
     with open(final_cache_manifest, 'w',  encoding='utf-8') as cache_f:
         for manifest in manifests:
             with open(manifest, 'r') as m:
@@ -123,10 +129,8 @@ def handle_multiple_tarr_filepaths(mmanifest_file: str, tmpdir: str, number_of_m
 
 
 def write_tarr_cache_manifest(
-    cache_manifests: str, update_data: List[Dict], hypotheses: List, update_size: int = 0, is_tarred: bool = False,
+    cache_manifests: str, update_data: List[Dict], hypotheses: List,  update_size: int = 0, indices: Optional[List] = None, use_lhotse: bool = False
 ):
-    coutn_update = 0
-    non = 0
     if update_size == 0:
         for i, chache_file in enumerate(cache_manifests):
             with open(chache_file, 'w', encoding='utf-8') as cache_f:
@@ -134,21 +138,22 @@ def write_tarr_cache_manifest(
                     data_entry['text'] = hypotheses[i*len(update_data[0]) + j]
                     json.dump(data_entry, cache_f, ensure_ascii=False)
                     cache_f.write('\n')
-
     else:
+        j = 0
+        for i in range(len(update_data)):
+            for idx in indices[i]:
+                update_data[i][idx]['text'] = hypotheses[j]
+                j += 1
+        if not use_lhotse:
+            for i in range(len(update_data)):
+                random.shuffle(update_data[i])
         for i, chache_file in enumerate(cache_manifests):
             with open(chache_file, 'w', encoding='utf-8') as cache_f:
                 for j, data_entry in enumerate(update_data[i]):
-                    if j < update_size:
-                        coutn_update +=1
-                        data_entry['text'] = hypotheses[i * update_size + j]
-                        json.dump(data_entry, cache_f, ensure_ascii=False)
-                        cache_f.write('\n')
-                    else:
-                        non +=1
-                        json.dump(data_entry, cache_f, ensure_ascii=False)
-                        cache_f.write('\n')
+                    json.dump(data_entry, cache_f, ensure_ascii=False)
+                    cache_f.write('\n')
             
+        
 def write_cache_manifest(
     cache_manifest: str, hypotheses: List[str], data: List[Dict], update_whole_cache: bool = True,
 ):
