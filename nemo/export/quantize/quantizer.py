@@ -23,8 +23,10 @@ from megatron.core.transformer.module import Float16Module
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import DictConfig, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from tqdm import tqdm
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
@@ -105,10 +107,15 @@ class Quantizer:
 
             # Always turn on FP8 kv cache to save memory footprint.
             # For int8_sq, we use int8 kv cache.
+            # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
+            enable_quant_kv_cache = (
+                    "int8" not in quantization_config.algorithm and export_config.decoder_type != "gptnext"
+            )
+            print(f'{"Enable" if enable_quant_kv_cache else "Disable"} KV cache quantization')
             quant_cfg["quant_cfg"]["*output_quantizer"] = {
                 "num_bits": 8 if quantization_config.algorithm == "int8_sq" else (4, 3),
                 "axis": None,
-                "enable": export_config.decoder_type != "gptnext",
+                "enable": enable_quant_kv_cache,
             }
 
             self.quant_cfg = quant_cfg
@@ -147,7 +154,8 @@ class Quantizer:
 
         return model
 
-    def _check_ddp_initialized(self, model):
+    @staticmethod
+    def _check_ddp_initialized(model):
         if not parallel_state.is_initialized():
 
             def dummy():
@@ -160,8 +168,8 @@ class Quantizer:
         set_data_parallel_group(mpu.get_data_parallel_group())
         set_tensor_parallel_group(mpu.get_tensor_model_parallel_group())
 
+    @staticmethod
     def _load_and_modify_config(
-        self,
         model_file: str,
         tensor_model_parallel_size: Optional[int] = None,
         pipeline_model_parallel_size: Optional[int] = None,
@@ -185,6 +193,26 @@ class Quantizer:
 
         return model_cfg
 
+    @staticmethod
+    def _sample_output(model):
+        """Generate sample output for a model instance."""
+        if torch.distributed.get_rank() == 0:
+            print("Generating sample output for a model...")
+
+        response = model.generate(
+            inputs=[
+                "Born in north-east France, Soyer trained as a",
+                "Born in California, Soyer trained as a",
+            ],
+            length_params={
+                "max_length": 100,
+                "min_length": 100,
+            },
+        )
+
+        if torch.distributed.get_rank() == 0:
+            print(f'Example NeMo output after PTQ: {response["sentences"]}"')
+
     def quantize(
         self,
         model_file: str,
@@ -200,10 +228,9 @@ class Quantizer:
 
         model.set_inference_config(OmegaConf.to_container(self.inference_config))
 
-        def forward_loop():
-            for i, batch in enumerate(dataloader):
-                if dist.get_rank() == 0:
-                    print(f"Calibrating batch {i}")
+        def forward_loop(model):
+            print("Calibrating the model...")
+            for i, batch in enumerate(tqdm(dataloader)):
                 model.predict_step(batch, i)
 
         model = mtq.quantize(model, self.quant_cfg, forward_loop)
@@ -228,6 +255,8 @@ class Quantizer:
     def export(self, model, model_save: str):
         """Export model to '.qnemo' format for TensorRT-LLM engine build."""
         torch_dtype = torch_dtype_from_precision(self.export_config.dtype)
+
+        self._sample_output(model)
 
         if model.cfg.megatron_amp_O2:
             model.model = unwrap_model(model.model, Float16Module)
