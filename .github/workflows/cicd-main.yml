@@ -133,7 +133,7 @@ jobs:
                 popd
 
             # ModelOpt installation
-            pip install nvidia-modelopt[all]~=0.11.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
+            pip install nvidia-modelopt[torch]~=0.11.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
 
             # PyTorch Lightning version
             python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
