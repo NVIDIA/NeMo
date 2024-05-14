@@ -18,7 +18,7 @@ from typing import List, Optional
 
 import torch
 import torch.distributed as dist
-from megatron.core import parallel_state
+from megatron.core import mpu, parallel_state
 from megatron.core.transformer.module import Float16Module
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import DictConfig, open_dict
@@ -34,6 +34,7 @@ from nemo.utils.model_utils import load_config, save_artifacts, unwrap_model
 try:
     import modelopt.torch.quantization as mtq
     from modelopt.torch.export import export_tensorrt_llm_checkpoint
+    from modelopt.torch.utils.distributed import set_data_parallel_group, set_tensor_parallel_group
 
     HAVE_MODELOPT = True
 
@@ -155,6 +156,9 @@ class Quantizer:
             if model.trainer.strategy.launcher is not None:
                 model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
             model.trainer.strategy.setup_environment()
+
+        set_data_parallel_group(mpu.get_data_parallel_group())
+        set_tensor_parallel_group(mpu.get_tensor_model_parallel_group())
 
     def _load_and_modify_config(
         self,
