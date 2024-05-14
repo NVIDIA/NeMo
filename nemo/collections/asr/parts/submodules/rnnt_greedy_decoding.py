@@ -578,6 +578,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
             to prediction network (with maximum possible batch size),
             which makes it especially useful for scaling the prediction network.
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
     """
 
     def __init__(
@@ -590,7 +591,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
-        use_cuda_graph_decoder: bool = True,
+        use_cuda_graph_decoder: bool = False,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2358,7 +2359,7 @@ class GreedyBatchedRNNTInferConfig:
     tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = True
-    use_cuda_graph_decoder: bool = True
+    use_cuda_graph_decoder: bool = False
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
@@ -2695,6 +2696,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 Supported values:
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
+
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
     """
 
     def __init__(
@@ -2708,7 +2711,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         preserve_frame_confidence: bool = False,
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
-        use_cuda_graph_decoder: bool = True,
+        use_cuda_graph_decoder: bool = False,
     ):
         super().__init__(
             decoder_model=decoder_model,

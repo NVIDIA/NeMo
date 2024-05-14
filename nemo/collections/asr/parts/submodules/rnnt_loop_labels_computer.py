@@ -602,6 +602,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         """Compile decoding by parts"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
+        stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
         self.separate_graphs = SeparateGraphsLoopLabels()
         with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
             self.separate_graphs.before_outer_loop, stream=stream_for_graph
@@ -628,6 +629,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         """Compile full graph for decoding"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
+        stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
         self.full_graph = torch.cuda.CUDAGraph()
         with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
             self.full_graph, stream=stream_for_graph

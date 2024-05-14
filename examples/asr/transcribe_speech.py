@@ -29,6 +29,7 @@ from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
@@ -161,7 +162,8 @@ class TranscriptionConfig:
     ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
 
     # Decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+    # enable CUDA graphs for transcription
+    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1, greedy=GreedyBatchedRNNTInferConfig(use_cuda_graph_decoder=True))
 
     # Decoding strategy for AED models
     multitask_decoding: MultiTaskDecodingConfig = MultiTaskDecodingConfig()
