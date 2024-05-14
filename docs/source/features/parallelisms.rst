@@ -148,7 +148,7 @@ Visit our source code for more insights into the implementation:
 
 Expert Parallelism
 ^^^^^^^^^^^^^^^^^^
-**Expert Paralellim (EP)** is a type of model parallelism that distributes experts of an MoE across GPUs.
+**Expert Parallelism (EP)** is a type of model parallelism that distributes experts of an MoE across GPUs.
 
 .. image:: ../nlp/nemo_megatron/images/ep.png
     :align: center
