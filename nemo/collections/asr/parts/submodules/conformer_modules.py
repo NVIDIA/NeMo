@@ -376,8 +376,8 @@ class ConformerConvolution(nn.Module):
             return x, cache
 
     def reset_parameters_conv(self):
-        pw1_max = pw2_max = self.d_model ** -0.5
-        dw_max = self.kernel_size ** -0.5
+        pw1_max = pw2_max = self.d_model**-0.5
+        dw_max = self.kernel_size**-0.5
 
         with torch.no_grad():
             nn.init.uniform_(self.pointwise_conv1.weight, -pw1_max, pw1_max)
@@ -413,8 +413,8 @@ class ConformerFeedForward(nn.Module):
         return x
 
     def reset_parameters_ff(self):
-        ffn1_max = self.d_model ** -0.5
-        ffn2_max = self.d_ff ** -0.5
+        ffn1_max = self.d_model**-0.5
+        ffn2_max = self.d_ff**-0.5
         with torch.no_grad():
             nn.init.uniform_(self.linear1.weight, -ffn1_max, ffn1_max)
             nn.init.uniform_(self.linear1.bias, -ffn1_max, ffn1_max)

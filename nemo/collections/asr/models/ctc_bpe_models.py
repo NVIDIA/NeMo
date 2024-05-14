@@ -170,7 +170,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             manifest_filepaths: Manifests containing information of unlabeled dataset. For tarred dataset manifests should be sharded
             tarred_audio_filepaths: Tarr audio files which should correspond to manifest files.
             batch_size: batch size to use during inference.
-                
+
         Returns:
             A DataLoader for the given audio file(s).
         """
@@ -199,7 +199,9 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 dl_config,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                dataset=LhotseSpeechToTextBpeDataset(tokenizer=self.tokenizer,),
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=self.tokenizer,
+                ),
                 pseudo_label_gen=True,
             )
         else:
@@ -405,7 +407,10 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer,)
+        self.decoding = CTCBPEDecoding(
+            decoding_cfg=decoding_cfg,
+            tokenizer=self.tokenizer,
+        )
 
         self.wer = WER(
             decoding=self.decoding,

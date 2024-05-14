@@ -259,7 +259,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
     """Multi-Head Attention layer of Transformer-XL with sliding window local+global attention from Longformer.
     Partially adapted from allenai (https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py)
-    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py) 
+    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py)
     Paper: https://arxiv.org/abs/1901.02860 (Transformer-XL),
            https://arxiv.org/abs/2004.05150 (Longformer)
     Args:
@@ -659,7 +659,8 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_attn_scores = global_attn_scores.transpose(1, 2)
 
         global_attn_scores = global_attn_scores.masked_fill(
-            is_index_masked.transpose(2, 3), torch.finfo(global_attn_scores.dtype).min,
+            is_index_masked.transpose(2, 3),
+            torch.finfo(global_attn_scores.dtype).min,
         )
 
         global_attn_scores = global_attn_scores.view(batch_size * self.h, max_num_global_attn_indices, seq_len)
@@ -756,7 +757,9 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         return mask.bool().to(device), ending_mask
 
     def mask_invalid_locations(
-        self, input_tensor: torch.Tensor, w: int,
+        self,
+        input_tensor: torch.Tensor,
+        w: int,
     ):
         """
         Mask locations invalid for the sliding window attention

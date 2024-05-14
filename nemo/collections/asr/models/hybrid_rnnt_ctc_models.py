@@ -119,7 +119,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
     def on_fit_start(self):
         """
-        Cache datastore manifests for non tarred unlabeled data for pseudo labeling. 
+        Cache datastore manifests for non tarred unlabeled data for pseudo labeling.
         This function prevents caching audio files at the end of every epoch.
         """
         if self.cfg.get("ipl"):
@@ -128,7 +128,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         super().on_fit_start()
 
     def on_train_epoch_end(self):
-
         """
         This function is mainly used for iterative pseudo labeling algorithm.
         To make it work in config file 'ipl' parameters should be provided.
@@ -508,7 +507,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             if self.cfg.aux_ctc.decoding.strategy == "beam":
 
                 best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-                    logits, encoded_len, return_hypotheses=True,
+                    logits,
+                    encoded_len,
+                    return_hypotheses=True,
                 )
                 if all_hyp:
                     for beams_idx, beams in enumerate(all_hyp):
@@ -538,7 +539,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                     hypotheses += [hyp.text for hyp in best_hyp]
             else:
                 best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-                    logits, encoded_len, return_hypotheses=False,
+                    logits,
+                    encoded_len,
+                    return_hypotheses=False,
                 )
                 hypotheses += best_hyp
 
@@ -563,7 +566,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         tarred_audio_filepaths: Union[List[List[str]], str] = None,
         batch_size: int = 64,
     ):
-
         """
         Setup function for a data loader for unlabeled dataset
 
@@ -571,7 +573,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             manifest_filepaths: Manifests containing information of unlabeled dataset. For tarred dataset manifests should be sharded
             tarred_audio_filepaths: Tar audio files which should correspond to manifest files.
             batch_size: batch size to use during inference.
-                
+
         Returns:
             A DataLoader for the given audio file(s).
         """
@@ -730,7 +732,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         encoded_len = outputs.pop('encoded_len')
 
         best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-            logits, encoded_len, return_hypotheses=trcfg.return_hypotheses,
+            logits,
+            encoded_len,
+            return_hypotheses=trcfg.return_hypotheses,
         )
         logits = logits.cpu()
 
@@ -1102,7 +1106,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             loss_value = (1 - self.ctc_loss_weight) * loss_value + self.ctc_loss_weight * ctc_loss
             tensorboard_logs['val_loss'] = loss_value
         self.ctc_wer.update(
-            predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len,
+            predictions=log_probs,
+            targets=transcript,
+            targets_lengths=transcript_len,
+            predictions_lengths=encoded_len,
         )
         ctc_wer, ctc_wer_num, ctc_wer_denom = self.ctc_wer.compute()
         self.ctc_wer.reset()

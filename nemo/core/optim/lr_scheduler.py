@@ -114,7 +114,7 @@ class SquareRootConstantPolicy(_LRScheduler):
         else:
             self.constant_steps = 0
 
-        self.constant_lr = 1 / (constant_steps ** 0.5)
+        self.constant_lr = 1 / (constant_steps**0.5)
         self.min_lr = min_lr
         super().__init__(optimizer, last_epoch)
 
@@ -364,7 +364,7 @@ def _poly_decay(initial_lr, step, decay_steps, power, min_lr, cycle):
 
 def _noam_hold_annealing(initial_lr, step, warmup_steps, hold_steps, decay_rate, min_lr):
     # hold_steps = total number of steps to hold the LR, not the warmup + hold steps.
-    T_warmup_decay = max(1, warmup_steps ** decay_rate)
+    T_warmup_decay = max(1, warmup_steps**decay_rate)
     T_hold_decay = max(1, (step - hold_steps) ** decay_rate)
     lr = (initial_lr * T_warmup_decay) / T_hold_decay
     lr = max(lr, min_lr)
@@ -682,7 +682,7 @@ class T5InverseSquareRootAnnealing(SquareRootConstantPolicy):
         super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
 
     def _get_lr(self, step):
-        return [1 / (step ** 0.5) for _ in self.base_lrs]
+        return [1 / (step**0.5) for _ in self.base_lrs]
 
 
 class PolynomialDecayAnnealing(WarmupPolicy):

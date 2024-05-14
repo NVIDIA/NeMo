@@ -159,7 +159,10 @@ def write_tarr_cache_manifest(
 
 
 def write_cache_manifest(
-    cache_manifest: str, hypotheses: List[str], data: List[Dict], update_whole_cache: bool = True,
+    cache_manifest: str,
+    hypotheses: List[str],
+    data: List[Dict],
+    update_whole_cache: bool = True,
 ):
     if update_whole_cache:
         with open(cache_manifest, 'w', encoding='utf-8') as cache_file:

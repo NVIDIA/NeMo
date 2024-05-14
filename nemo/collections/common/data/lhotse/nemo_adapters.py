@@ -104,7 +104,12 @@ class LazyNeMoIterator:
     def __add__(self, other):
         return LazyIteratorChain(self, other)
 
-    def _create_recording(self, audio_path: str, duration: float, sampling_rate: int | None = None,) -> Recording:
+    def _create_recording(
+        self,
+        audio_path: str,
+        duration: float,
+        sampling_rate: int | None = None,
+    ) -> Recording:
         if sampling_rate is not None:
             # TODO(pzelasko): It will only work with single-channel audio in the current shape.
             return Recording(
@@ -184,7 +189,7 @@ class LazyNeMoTarredIterator:
         random_access: bool = False,
     ) -> None:
 
-        self.random_access = random_access  
+        self.random_access = random_access
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:

@@ -31,7 +31,6 @@ from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
 def read_cutset_from_config(config: DictConfig, pseudo_label_gen: bool = False) -> Tuple[CutSet, bool]:
-
     """
     Reads NeMo configuration and creates a CutSet either from Lhotse or NeMo manifests.
 
@@ -165,7 +164,10 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
         is_tarred = True
         cuts = read_txt_pair_paths(grp_cfg)
     elif grp_cfg.type == "group":
-        cuts, is_tarred = parse_and_combine_datasets(grp_cfg.input_cfg, propagate_attrs=propagate_attrs,)
+        cuts, is_tarred = parse_and_combine_datasets(
+            grp_cfg.input_cfg,
+            propagate_attrs=propagate_attrs,
+        )
     else:
         raise ValueError(f"Unrecognized group: {grp_cfg.type}")
     # Attach extra tags to every utterance dynamically, if provided.
@@ -177,7 +179,10 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
 def read_txt_paths(config: DictConfig) -> CutSet:
     return CutSet(
         LhotseTextAdapter(
-            paths=config.paths, language=config.language, shuffle_shards=config.shuffle, shard_seed=config.shard_seed,
+            paths=config.paths,
+            language=config.language,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
         )
     ).repeat()
 
