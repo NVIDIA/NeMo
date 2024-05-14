@@ -72,7 +72,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
+        repository: ${{ github.event.pull_request.head.repo.full_name }}
+      with:
         path: ${{ github.run_id }}
+        repository: ${{ github.event.pull_request.head.repo.full_name }}
 
     - name: Container setup
       run: |
@@ -194,6 +197,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        repository: ${{ github.event.pull_request.head.repo.full_name }}
     - name: "L0: Unit Tests GPU"
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
@@ -217,6 +222,10 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        repository: ${{ github.event.pull_request.head.repo.full_name }}
+      with:
+        repository: ${{ github.event.pull_request.head.repo.full_name }}
     - name: "L0: Unit Tests CPU"
       run: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -239,6 +248,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python -m tests.setup --save_dir /home/TestData/nlp
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -263,6 +274,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
             --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf-tiny \
@@ -287,6 +300,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python scripts/checkpoint_converters/convert_starcoder_hf_to_nemo.py \
             --input_name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
@@ -311,6 +326,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
             --input_name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
@@ -362,6 +379,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -388,6 +407,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -420,6 +441,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -449,6 +472,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_llama_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
@@ -481,6 +506,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -509,6 +536,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/citrinet/" --config-name="config_bpe" \
@@ -540,6 +569,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/speech_pretraining/speech_pre_training.py \
             --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
@@ -569,6 +600,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_finetune" \
@@ -600,6 +633,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/speech_to_text_finetune.py \
             --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
@@ -647,6 +682,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
@@ -681,6 +718,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
             --config-path="../conf/squeezeformer" --config-name="squeezeformer_ctc_bpe" \
@@ -715,6 +754,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -794,6 +835,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/speaker_tasks/recognition/speaker_reco.py \
             model.train_ds.batch_size=10 \
@@ -826,6 +869,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
             model.diarizer.speaker_embeddings.model_path=titanet_large \
@@ -859,6 +904,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/speech_classification/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
@@ -895,6 +942,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -926,6 +975,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |  
             python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -957,6 +1008,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
             diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -984,6 +1037,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python tools/speech_data_simulator/multispeaker_simulator.py \
             --config-path=conf --config-name=data_simulator.yaml \
@@ -1014,6 +1069,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_ctc/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -1044,6 +1101,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/speech_classification/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
@@ -1083,6 +1142,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_adapters/train_asr_adapter.py \
             model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -1115,6 +1176,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/asr_adapters/train_asr_adapter.py \
             model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -1150,6 +1213,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/asr/transcribe_speech.py \
             pretrained_name="QuartzNet15x5Base-En" \
@@ -1177,6 +1242,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             pytest tests/collections/asr/decoding/rnnt_alignments_check.py --durations=-1
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
@@ -1199,6 +1266,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1231,6 +1300,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1265,6 +1336,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/tts/g2p && \
                 TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_CONFORMER=output_ctc_${TIME} && \
@@ -1331,6 +1404,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/tts/g2p && \
                 TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
@@ -1414,6 +1489,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1453,6 +1530,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1491,6 +1570,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1532,6 +1613,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1574,6 +1657,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1609,6 +1694,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1644,6 +1731,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1685,6 +1774,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1763,6 +1854,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/dialogue && \
             python dialogue.py \
@@ -1799,6 +1892,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/duplex_text_normalization && \
             python duplex_text_normalization_train.py \
@@ -1869,6 +1964,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
@@ -1903,6 +2000,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
             cd examples/nlp/question_answering && \
@@ -1944,6 +2043,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             # Cannot do fast_dev_run because squad needs whole dev dataset
             cd examples/nlp/question_answering && \
@@ -1983,6 +2084,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -2024,6 +2127,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -2063,6 +2168,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -2104,6 +2211,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/question_answering && \
             python question_answering.py \
@@ -2143,6 +2252,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/intent_slot_classification && \
             python intent_slot_classification.py \
@@ -2173,6 +2284,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/intent_slot_classification && \
             python multi_label_intent_slot_classification.py \
@@ -2309,6 +2422,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/token_classification && \
             python token_classification_train.py \
@@ -2340,6 +2455,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/token_classification && \
             data_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2376,6 +2493,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/token_classification && \
             python token_classification_train.py \
@@ -2405,6 +2524,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
@@ -2429,6 +2550,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
@@ -2460,6 +2583,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/token_classification && \
             output_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2520,6 +2645,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp -r /home/TestData/nlp/token_classification_punctuation/*.txt \
@@ -2585,6 +2712,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/token_classification && \
             work_dir="$(mktemp -d -p "$(pwd)")" && \
@@ -2711,6 +2840,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             output_dir="$(mktemp -d -p "$(pwd)")" && \
             python examples/nlp/token_classification/punctuate_capitalize_infer.py \
@@ -2742,6 +2873,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/language_modeling && \
               python bert_pretraining.py \
@@ -2784,6 +2917,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/language_modeling && \
               python bert_pretraining.py \
@@ -2826,6 +2961,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/entity_linking && \
             python self_alignment_pretraining.py \
@@ -2860,6 +2997,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/machine_translation/enc_dec_nmt.py \
               --config-path=conf \
@@ -2938,6 +3077,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
               cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -2978,6 +3119,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
               cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -3017,6 +3160,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/machine_translation && \
             python nmt_transformer_infer.py \
@@ -3045,6 +3190,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/machine_translation && \
             python enc_dec_nmt_finetune.py \
@@ -3088,6 +3235,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/machine_translation && \
             python enc_dec_nmt.py \
@@ -3129,6 +3278,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             cd examples/nlp/machine_translation && \
             python create_tarred_parallel_dataset.py \
@@ -3160,6 +3311,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/machine_translation/megatron_nmt_training.py \
             trainer.devices=2 \
@@ -3269,6 +3422,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -3587,6 +3742,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3668,6 +3825,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3750,6 +3909,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
@@ -3834,6 +3995,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_retro_pretraining.py \
             trainer.num_nodes=1 \
@@ -3903,6 +4066,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_retro_pretraining_legacy.py \
             trainer.devices=2 \
@@ -4080,6 +4245,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/token_classification/token_classification_train.py \
             exp_manager.exp_dir=examples/nlp/language_modeling/token_classification_results \
@@ -4107,6 +4274,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4200,6 +4369,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
            python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
            trainer.devices=2 \
@@ -4390,6 +4561,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4486,6 +4659,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4582,6 +4757,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
             trainer.devices=2 \
@@ -4682,6 +4859,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
             trainer.devices=2 \
@@ -4763,6 +4942,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_sft.py \
             trainer.devices=1 \
@@ -4807,6 +4988,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             rm -rf /home/TestData/nlp/megatron_ir/working_dir
 
@@ -4861,6 +5044,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             rm -rf examples/nlp/language_modeling/gpt_peft_lora_results_pp2
 
@@ -4907,6 +5092,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             rm -rf /home/TestData/nlp/lora_tuning_tp2
 
@@ -4969,6 +5156,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_eval.py \
                 gpt_model_file=/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
@@ -4995,6 +5184,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_eval.py \
                 gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
@@ -5023,6 +5214,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
                 model.restore_from_path=/home/TestData/nlp/megatron_gpt_sft/megatron_gpt_rope_sft.nemo \
@@ -5086,6 +5279,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
@@ -5115,6 +5310,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_change_num_partitions.py \
                 --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
@@ -5144,6 +5341,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5251,6 +5450,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5358,6 +5559,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5465,6 +5668,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5546,6 +5751,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.devices=2 \
@@ -5600,6 +5807,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py -cn megatron_ul2_config \
             trainer.devices=2 \
@@ -5691,6 +5900,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_eval.py \
                 --model_file /home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo \
@@ -5715,6 +5926,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -5795,6 +6008,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_bart_pretraining.py \
             trainer.devices=2 \
@@ -5881,6 +6096,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             trainer.devices=1 \
@@ -5925,6 +6142,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             -cn megatron_t5_config_finetune_glue_xnli \
@@ -5974,6 +6193,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             rm -rf /home/TestData/nlp/t5_lora_tuning_tp2
 
@@ -6039,6 +6260,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
                 trainer.max_steps=10 \
@@ -6066,6 +6289,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/nlp/language_modeling/megatron_t5_pretraining.py \
             trainer.max_steps=10 \
@@ -6096,6 +6321,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/tts/tacotron2.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6134,6 +6361,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/tts/waveglow.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6168,6 +6397,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/tts/fastpitch.py \
             --config-name fastpitch_align_v1.05 \
@@ -6212,6 +6443,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/tts/radtts.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6253,6 +6486,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/tts/mixer_tts.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6291,6 +6526,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             python examples/tts/hifigan.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -6355,6 +6592,8 @@ jobs:
     steps:
         - name: Checkout repository
           uses: actions/checkout@v4
+          with:
+            repository: ${{ github.event.pull_request.head.repo.full_name }}
         - run: |
             CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
                 pretrained_name=QuartzNet15x5Base-En  \
