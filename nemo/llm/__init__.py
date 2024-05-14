@@ -1,4 +1,10 @@
-from nemo.llm.gpt.data import MockDataModule
+from nemo_ext.llm.gpt.data import (
+    DollyDataModule,
+    FineTuningDataModule,
+    MockDataModule,
+    PreTrainingDataModule,
+    SquadDataModule,
+)
 from nemo.llm.gpt.model import (
     GPTConfig,
     GPTModel,
@@ -10,7 +16,8 @@ from nemo.llm.gpt.model import (
 )
 
 __all__ = [
-    "MockDataModule",
+    "DollyDataModule",
+    "FineTuningDataModule",    
     "GPTModel",
     "GPTConfig",
     "gpt_data_step",
@@ -18,4 +25,7 @@ __all__ = [
     "MaskedTokenLossReduction",
     "Mistral7BConfig",
     "Mistral7BModel",
+    "MockDataModule",
+    "PreTrainingDataModule",
+    "SquadDataModule"
 ]
