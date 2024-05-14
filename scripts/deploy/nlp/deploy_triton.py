@@ -158,28 +158,24 @@ def get_trtllm_deployable(args):
         trt_llm_path = args.triton_model_repository
 
     if args.nemo_checkpoint is None and args.triton_model_repository is None:
-        LOGGER.error(
+        raise ValueError(
             "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
         )
-        return
 
     if args.nemo_checkpoint is None and not os.path.isdir(args.triton_model_repository):
-        LOGGER.error(
+        raise ValueError(
             "The provided model repository is not a valid TensorRT-LLM model "
             "directory. Please provide a --nemo_checkpoint."
         )
-        return
 
     if args.nemo_checkpoint is not None and args.model_type is None:
-        LOGGER.error("Model type is required to be defined if a nemo checkpoint is provided.")
-        return
+        raise ValueError("Model type is required to be defined if a nemo checkpoint is provided.")
 
     ptuning_tables_files = []
     if not args.ptuning_nemo_checkpoint is None:
         if args.max_prompt_embedding_table_size is None:
-            LOGGER.error("max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s).")
-            return
+            raise ValueError("max_prompt_embedding_table_size parameter is needed for the prompt tuning table(s).")
 
         for pt_checkpoint in args.ptuning_nemo_checkpoint:
             ptuning_nemo_checkpoint_path = Path(pt_checkpoint)
@@ -187,19 +183,16 @@ def get_trtllm_deployable(args):
                 if ptuning_nemo_checkpoint_path.is_file():
                     ptuning_tables_files.append(pt_checkpoint)
                 else:
-                    LOGGER.error("Could not read the prompt tuning tables from {0}".format(pt_checkpoint))
-                    return
+                    raise IsADirectoryError("Could not read the prompt tuning tables from {0}".format(pt_checkpoint))
             else:
-                LOGGER.error("File or directory {0} does not exist.".format(pt_checkpoint))
-                return
+                raise FileNotFoundError("File or directory {0} does not exist.".format(pt_checkpoint))
 
         if args.task_ids is not None:
             if len(ptuning_tables_files) != len(args.task_ids):
-                LOGGER.error(
+                raise RuntimeError(
                     "Number of task ids and prompt embedding tables have to match. "
                     "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
                 )
-                return
 
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path, lora_ckpt_list=args.lora_ckpt)
 
@@ -226,8 +219,7 @@ def get_trtllm_deployable(args):
                 save_nemo_model_config=True,
             )
         except Exception as error:
-            LOGGER.error("An error has occurred during the model export. Error message: " + str(error))
-            return
+            raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
 
     try:
         for i, prompt_embeddings_checkpoint_path in enumerate(ptuning_tables_files):
@@ -246,15 +238,13 @@ def get_trtllm_deployable(args):
                 prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
-        LOGGER.error("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
-        return
+        raise RuntimeError("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
     return trt_llm_exporter
 
 
 def get_nemo_deployable(args):
     if args.nemo_checkpoint is None:
-        LOGGER.error("Direct serve requires a .nemo checkpoint")
-        return
+        raise ValueError("Direct serve requires a .nemo checkpoint")
     return MegatronLLMDeployable(args.nemo_checkpoint, args.num_gpus)
 
 

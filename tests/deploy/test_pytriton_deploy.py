@@ -1,11 +1,9 @@
 import argparse
 
 import numpy as np
-import torch
 from pytriton.client import ModelClient
 
 from nemo.deploy.deploy_pytriton import DeployPyTriton
-from nemo.deploy.nlp import NemoTritonQueryLLMTensorRT
 from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 from nemo.deploy.nlp.query_llm import NemoTritonQueryLLMPyTorch
 
@@ -51,9 +49,6 @@ def test_triton_deployable(args):
     top_k = np.full(prompts.shape, args.top_k, dtype=np.int_)
     top_p = np.full(prompts.shape, args.top_p, dtype=np.single)
     temperature = np.full(prompts.shape, args.temperature, dtype=np.single)
-
-    max_output_token = np.full(prompts.shape, 1, dtype=np.int_)
-    min_length = np.full(prompts.shape, 0, dtype=np.int_)
 
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
         result_dict = client.infer_batch(

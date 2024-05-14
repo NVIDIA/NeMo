@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
 
@@ -268,7 +268,7 @@ class MegatronLLMDeployable(ITritonDeployable):
         }
         for model_output_field, value in model_output.items():
 
-            if model_output_field is not 'sentences' and value is not None:
+            if model_output_field != 'sentences' and value is not None:
                 # find length of longest non-sentence output item
                 field_longest_output_item = 0
                 for item in value:
