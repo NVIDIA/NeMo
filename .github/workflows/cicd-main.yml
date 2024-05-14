@@ -394,7 +394,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v4
         - run: |
-            python examples/nlp/language_modeling/megatron_llama_quantization.py \
+            python examples/nlp/language_modeling/megatron_quantization.py \
             model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
             quantization.algorithm=null \
             model_save=/home/TestData/nlp/megatron_llama/ci_baseline
@@ -421,7 +421,7 @@ jobs:
          - name: Checkout repository
            uses: actions/checkout@v4
          - run: |
-             python examples/nlp/language_modeling/megatron_llama_quantization.py \
+             python examples/nlp/language_modeling/megatron_quantization.py \
              model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
              tensor_model_parallel_size=2 \
              trainer.devices=2 \
@@ -454,7 +454,7 @@ jobs:
          - name: Checkout repository
            uses: actions/checkout@v4
          - run: |
-             python examples/nlp/language_modeling/megatron_llama_quantization.py \
+             python examples/nlp/language_modeling/megatron_quantization.py \
              model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
              quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
              quantization.algorithm=int8_sq \
@@ -485,7 +485,7 @@ jobs:
   #      - name: Checkout repository
   #        uses: actions/checkout@v4
   #      - run: |
-  #          python examples/nlp/language_modeling/megatron_llama_quantization.py \
+  #          python examples/nlp/language_modeling/megatron_quantization.py \
   #          model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
   #          tensor_model_parallel_size=1 \
   #          trainer.devices=1 \
