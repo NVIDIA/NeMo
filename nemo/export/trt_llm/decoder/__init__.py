@@ -23,14 +23,14 @@ from nemo.export.trt_llm.decoder.gpt import GPTDecoderLayerBuilder, GPTDecoderLa
 from nemo.export.trt_llm.decoder.gptj import GPTJDecoderLayerBuilder, GPTJDecoderLayerConfigBuilder
 from nemo.export.trt_llm.decoder.llama import LLAMADecoderLayerBuilder, LLAMADecoderLayerConfigBuilder
 from nemo.export.trt_llm.model_config import (
+    DECODER_BAICHUAN,
+    DECODER_CHATGLM,
     DECODER_FALCON,
     DECODER_GEMMA,
     DECODER_GPT2,
     DECODER_GPTJ,
     DECODER_GPTNEXT,
     DECODER_LLAMA,
-    DECODER_BAICHUAN,
-    DECODER_CHATGLM,
     QUANTIZATION_NONE,
 )
 
@@ -49,7 +49,7 @@ DECODER_MODEL_TYPE = {
     DECODER_GEMMA: 'GemmaForCausalLM',
     DECODER_FALCON: 'FalconForCausalLM',
     DECODER_BAICHUAN: 'BaichuanForCausalLM',
-    DECODER_CHATGLM: 'ChatGLMForCausalLM'
+    DECODER_CHATGLM: 'ChatGLMForCausalLM',
 }
 
 

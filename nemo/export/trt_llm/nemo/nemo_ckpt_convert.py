@@ -297,7 +297,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         tokenizer = AutoTokenizer.from_pretrained(
             nemo_model_config["tokenizer"]["type"],
             use_fast=nemo_model_config["tokenizer"].get("use_fast", False),
-            trust_remote_code=True
+            trust_remote_code=True,
         )
     else:
         tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)

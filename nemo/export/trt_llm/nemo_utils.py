@@ -116,7 +116,9 @@ def _nemo_llm_decode(
 def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     """Loads the tokenizer from the decoded NEMO weights dir."""
     if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
-        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"), trust_remote_code=True)
+        return AutoTokenizer.from_pretrained(
+            os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"), trust_remote_code=True
+        )
 
     model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
     tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}

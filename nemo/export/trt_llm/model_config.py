@@ -124,7 +124,11 @@ class LinearConfig:
         if hasattr(module, "bias") and module.bias is not None:
             if linear_type == LINEAR_COLUMN:
                 config.bias = np.ascontiguousarray(
-                    split(torch_to_numpy_with_dtype(module.bias, dtype), tensor_parallel, rank,)
+                    split(
+                        torch_to_numpy_with_dtype(module.bias, dtype),
+                        tensor_parallel,
+                        rank,
+                    )
                 )
             else:
                 config.bias = torch_to_numpy_with_dtype(module.bias, dtype)
@@ -236,7 +240,9 @@ class AttentionConfig:
 
     @staticmethod
     def from_nemo(
-        weights_dict: Dict[str, np.ndarray], layer_id: int, rank: int = 0,
+        weights_dict: Dict[str, np.ndarray],
+        layer_id: int,
+        rank: int = 0,
     ):
         """Converts the nemo weights and config to `AttentionConfig`."""
         attention = AttentionConfig()
@@ -245,12 +251,16 @@ class AttentionConfig:
             weights_dict, f"layers.{layer_id}.attention.query_key_value.weight.{rank}"
         )
         attention.qkv.bias = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.attention.query_key_value.bias.{rank}",
+            weights_dict,
+            f"layers.{layer_id}.attention.query_key_value.bias.{rank}",
         )
 
         attention.dense = LinearConfig(linear_type=LINEAR_ROW)
         attention.dense.weight = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.attention.dense.weight.{rank}")
-        attention.dense.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.attention.dense.bias",)
+        attention.dense.bias = get_tensor_from_dict(
+            weights_dict,
+            f"layers.{layer_id}.attention.dense.bias",
+        )
         return attention
 
 
@@ -278,7 +288,10 @@ class MLPConfig:
 
         # print("********** mlp.fc.weight : ", mlp.fc.weight )
 
-        mlp.fc.bias = get_tensor_from_dict(weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}",)
+        mlp.fc.bias = get_tensor_from_dict(
+            weights_dict,
+            f"layers.{layer_id}.mlp.dense_h_to_4h.bias.{rank}",
+        )
 
         gated = is_gated_activation(mlp.hidden_act)
         is_fast_glu = mlp.hidden_act in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
@@ -289,9 +302,13 @@ class MLPConfig:
                 if isinstance(llm_config, LlamaConfig) and not is_mcore and not is_fast_glu
                 else f"layers.{layer_id}.mlp.dense_h_to_4h.gate.weight.{rank}"
             )
-            mlp.gate.weight = get_tensor_from_dict(weights_dict, layer_name,)
+            mlp.gate.weight = get_tensor_from_dict(
+                weights_dict,
+                layer_name,
+            )
             mlp.gate.bias = get_tensor_from_dict(
-                weights_dict, f"layers.{layer_id}.mlp.dense_h_to_4h.gate.bias.{rank}",
+                weights_dict,
+                f"layers.{layer_id}.mlp.dense_h_to_4h.gate.bias.{rank}",
             )
 
         mlp.proj = LinearConfig(linear_type=LINEAR_ROW)
@@ -384,19 +401,23 @@ class DecoderLayerConfig:
             LAYERNORM_RMS if isinstance(llm_config, LlamaConfig) else LAYERNORM_DEFAULT
         )
         layer_config.input_layernorm.weight = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.input_layernorm.weight",
+            weights_dict,
+            f"layers.{layer_id}.input_layernorm.weight",
         )
         layer_config.input_layernorm.bias = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.input_layernorm.bias",
+            weights_dict,
+            f"layers.{layer_id}.input_layernorm.bias",
         )
 
         layer_config.mlp_layernorm = LayernormConfig()
         layer_config.mlp_layernorm.layernorm_type = LAYERNORM_DEFAULT  # Falcon uses default layernorm
         layer_config.mlp_layernorm.weight = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.pre_mlp_layernorm.weight",
+            weights_dict,
+            f"layers.{layer_id}.pre_mlp_layernorm.weight",
         )
         layer_config.mlp_layernorm.bias = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.pre_mlp_layernorm.bias",
+            weights_dict,
+            f"layers.{layer_id}.pre_mlp_layernorm.bias",
         )
 
         layer_config.post_layernorm = LayernormConfig()
@@ -405,10 +426,12 @@ class DecoderLayerConfig:
         )
 
         layer_config.post_layernorm.weight = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.post_attention_layernorm.weight",
+            weights_dict,
+            f"layers.{layer_id}.post_attention_layernorm.weight",
         )
         layer_config.post_layernorm.bias = get_tensor_from_dict(
-            weights_dict, f"layers.{layer_id}.post_attention_layernorm.bias",
+            weights_dict,
+            f"layers.{layer_id}.post_attention_layernorm.bias",
         )
 
         if layer_config.post_layernorm.weight is None:  # Falcon doesn't have post layernorm
@@ -417,7 +440,11 @@ class DecoderLayerConfig:
         if layer_config.mlp_layernorm.weight is None:
             layer_config.mlp_layernorm = None
 
-        layer_config.attention = AttentionConfig.from_nemo(weights_dict, layer_id, rank,)
+        layer_config.attention = AttentionConfig.from_nemo(
+            weights_dict,
+            layer_id,
+            rank,
+        )
 
         moe = False
         if llm_config.moe_num_experts is not None:
