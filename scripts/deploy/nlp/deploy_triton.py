@@ -238,7 +238,9 @@ def get_trtllm_deployable(args):
                 prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
-        raise RuntimeError("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))
+        raise RuntimeError(
+            "An error has occurred during adding the prompt embedding table(s). Error message: " + str(error)
+        )
     return trt_llm_exporter
 
 
