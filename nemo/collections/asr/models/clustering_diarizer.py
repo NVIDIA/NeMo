@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from tqdm import tqdm
 import json
 import os
 import pickle as pkl
@@ -137,7 +137,10 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         Initialize speaker embedding model with model name or path passed through config
         """
         if speaker_model is not None:
-            self._speaker_model = speaker_model
+            if self._cfg.device is None and torch.cuda.is_available():
+                self._speaker_model = speaker_model.to(torch.device('cuda'))
+            else:
+                self._speaker_model = speaker_model
         else:
             model_path = self._cfg.diarizer.speaker_embeddings.model_path
             if model_path is not None and model_path.endswith('.nemo'):
@@ -158,7 +161,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(
                     model_name=model_path, map_location=self._cfg.device
                 )
-
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
@@ -346,7 +348,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         self._speaker_model.eval()
         self.time_stamps = {}
 
-        all_embs = torch.empty([0])
+        all_embs_list = []
         for test_batch in tqdm(
             self._speaker_model.test_dataloader(),
             desc=f'[{scale_idx+1}/{num_scales}] extract embeddings',
@@ -359,23 +361,28 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
                 embs = embs.view(-1, emb_shape)
-                all_embs = torch.cat((all_embs, embs.cpu().detach()), dim=0)
+                all_embs_list.append(embs.cpu().detach().clone())
             del test_batch
+        all_embs = torch.cat(all_embs_list, dim=0)
 
         with open(manifest_file, 'r', encoding='utf-8') as manifest:
-            for i, line in enumerate(manifest.readlines()):
+            json_lines = manifest.readlines()
+            for i, line in tqdm(enumerate(json_lines), total=len(json_lines), desc='Reading Segments', leave=False):
                 line = line.strip()
                 dic = json.loads(line)
                 uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
                 if uniq_name in self.embeddings:
-                    self.embeddings[uniq_name] = torch.cat((self.embeddings[uniq_name], all_embs[i].view(1, -1)))
+                    self.embeddings[uniq_name].append(all_embs[i].view(1, -1))
                 else:
-                    self.embeddings[uniq_name] = all_embs[i].view(1, -1)
+                    self.embeddings[uniq_name] = [all_embs[i].view(1, -1)]
                 if uniq_name not in self.time_stamps:
                     self.time_stamps[uniq_name] = []
                 start = dic['offset']
                 end = start + dic['duration']
                 self.time_stamps[uniq_name].append([start, end])
+
+            for uniq_name in self.time_stamps:
+                self.embeddings[uniq_name] = torch.cat(self.embeddings[uniq_name])
 
         if self._speaker_params.save_embeddings:
             embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
