@@ -138,7 +138,6 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
     ):
         self.vision_encoder = vision_encoder
         self.from_hf = isinstance(vision_encoder, CLIPVisionModel) or isinstance(vision_encoder, SiglipVisionModel)
-        self.from_open_clip = "open_clip" in str(vision_encoder.__module__)
         self.media_start_id = media_start_id
         self.media_end_id = media_end_id
         self.class_token_length = class_token_length
@@ -306,20 +305,6 @@ class NevaBaseModel:
                 )
             else:
                 raise(ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
-        elif mm_cfg.vision_encoder.get("from_open_clip", False):
-            assert mm_cfg.vision_encoder.get("open_clip_model_name") is not None, \
-                f"`open_clip_model_name` needs to be set."
-            model, _, image_processor = open_clip.create_model_and_transforms(
-                mm_cfg.vision_encoder.open_clip_model_name,
-                pretrained=mm_cfg.vision_encoder.from_pretrained, precision=torch.bfloat16,
-            )
-            vision_encoder = model.visual.cuda()
-            del model
-            vision_encoder = vision_encoder.to(torch.bfloat16)
-            if mm_cfg.vision_encoder.freeze:
-                for param in vision_encoder.parameters():
-                    param.requires_grad = False
-                vision_encoder = vision_encoder.eval()
         else:
             vision_cfg = MegatronCLIPModel.restore_from(
                 mm_cfg.vision_encoder.from_pretrained, return_config=True
