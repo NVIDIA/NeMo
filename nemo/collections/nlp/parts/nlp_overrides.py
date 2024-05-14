@@ -97,6 +97,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject
     from megatron.core.dist_checkpointing.optimizer import (
         get_param_id_to_sharded_param_map,
         make_sharded_optimizer_tensor,
@@ -439,7 +440,31 @@ class NLPDDPStrategy(DDPStrategy):
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
-            return self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+            
+            common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
+            checkpoint_param_groups = common_state_dict['optimizer_states'][0]['param_groups']
+            model_param_groups = checkpoint['optimizer_states'][0]['param_groups']
+            expert_index = None
+            if len(checkpoint_param_groups) != len(model_param_groups):
+                # In 24.03, all checkpoints store EP param regardless of using EP or not
+                # This code snippet make sure all checkpoints are compatible for loading
+                model_has_expert_param = any(param.get('is_expert', False) for param in model_param_groups)
+                checkpoint_has_expert_param = any(param.get('is_expert', False) for param in checkpoint_param_groups)
+                if checkpoint_has_expert_param and not model_has_expert_param:
+                    logging.warning('Currently training the model without expert parallelism while restored checkpoint has EP params. Ignoring the EP params for restoring.')
+                    expert_index = next((index for index, entry in enumerate(checkpoint_param_groups) if entry.get('is_expert', False)), None)
+                    if expert_index:
+                        # Temporary empty params so that loading doesn't fail
+                        model_param_groups.insert(expert_index, {'params': LocalNonpersitentObject([]), 'is_expert': True})
+                        checkpoint['optimizer_states'][0]['param_groups'] = model_param_groups
+                    else:
+                        raise ValueError('Cannot find expert param in the checkpoint.')
+                    
+            loaded_state_dict = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+            if expert_index is not None:
+                # Remove the temporary empty params added above
+                loaded_state_dict['optimizer_states'][0]['param_groups'].pop(expert_index)
+            return loaded_state_dict
 
         # Legacy model parallel checkpointing logic, does not use megatron core
         else:
