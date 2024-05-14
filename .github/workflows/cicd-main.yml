@@ -224,8 +224,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name }}
-      with:
-        repository: ${{ github.event.pull_request.head.repo.full_name }}
     - name: "L0: Unit Tests CPU"
       run: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
