@@ -21,7 +21,9 @@ You can learn more about aspects of the NeMo "core" by following the links below
    export
    adapters/intro
    api
-
+   ../common/intro
+   ../multimodal/api
+   ../nlp/api
 
 
 Alternatively, you can jump straight to the documentation for the individual collections:
