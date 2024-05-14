@@ -6,15 +6,15 @@ from torch import nn
 
 @runtime_checkable
 class HasBool(Protocol):
-    def __bool__(self) -> bool:
-        ...
+    def __bool__(self) -> bool: ...
+
 
 _TModule = TypeVar("_TModule", bound=nn.Module)
 ModuleFunc = Callable[[nn.Module], nn.Module]
 ModulePredicate = Callable[[nn.Module], Union[bool, HasBool]]
 
 
-def map(    # noqa: A001
+def map(  # noqa: A001
     module: _TModule,
     func: ModuleFunc,
     leaf_only: bool = False,
@@ -38,7 +38,7 @@ def map(    # noqa: A001
     Returns
     -------
         The transformed module or collection of modules.
-    
+
     Examples
     --------
         >>> import torch
@@ -53,22 +53,22 @@ def map(    # noqa: A001
             return m
         model = fn.map(model, double_weights)
         print(model)
-    
+
     """
     if not kwargs.pop("_skip_map", False) and hasattr(module, "map"):
         return module.map(func, leaf_only=leaf_only, **kwargs)
-    
+
     elif isinstance(module, Iterable):
         if all(hasattr(module, key) for key in ["items", "values", "keys"]):
             return _map_module_dict(module, func, leaf_only=leaf_only, **kwargs)
-            
+
         return _map_module_list(module, func, leaf_only=leaf_only, **kwargs)
     else:
         return _map_module(module, func, leaf_only=leaf_only, **kwargs)
 
 
 def walk(
-    module: _TModule, 
+    module: _TModule,
     func: ModuleFunc,
     leaf_only: bool = False,
     **kwargs,
@@ -81,14 +81,14 @@ def walk(
 
     Args:
         module: The module or collection to recursively apply to.
-        func: The function to apply. 
+        func: The function to apply.
         leaf_only: If True, only apply to modules without parameters. Defaults to False.
         **kwargs: Additional kwargs to pass to the function.
 
     Returns
     -------
         The transformed module or collection.
-    
+
     Examples
     --------
         >>> import torch
@@ -105,14 +105,14 @@ def walk(
         print(model)
     """
     return map(
-        module, 
-        func, 
+        module,
+        func,
         recurse=True,
         leaf_only=leaf_only,
         **kwargs,
     )
-    
-    
+
+
 def forall(module: nn.Module, func: ModulePredicate, recurse: bool = False) -> bool:
     """
     Checks if a predicate holds for all modules in a given module or its children, optionally
@@ -143,6 +143,7 @@ def forall(module: nn.Module, func: ModulePredicate, recurse: bool = False) -> b
         >>> print(forall(model, predicate, recurse=True))
         True
     """
+
     def apply_predicate(m):
         result = func(m)
         # Convert result to bool if it's not already a boolean (e.g., if it's an instance of HasBool)
@@ -159,12 +160,7 @@ def forall(module: nn.Module, func: ModulePredicate, recurse: bool = False) -> b
 
 
 def _map_module(
-    module: _TModule, 
-    func: ModuleFunc, 
-    recurse=False, 
-    leaf_only=False, 
-    transformed_modules=None,
-    **kwargs
+    module: _TModule, func: ModuleFunc, recurse=False, leaf_only=False, transformed_modules=None, **kwargs
 ) -> _TModule:
     """
     Applies a transformation function to a module and optionally to its child modules.
@@ -194,10 +190,10 @@ def _map_module(
 
     if id(module) in transformed_modules:
         return module
-    
+
     new_module = module
     f_kwargs = _get_func_kwargs(func, **kwargs)
-    
+
     if not leaf_only or list(module.parameters(recurse=False)):
         new_module = func(new_module, **f_kwargs)
 
@@ -216,32 +212,27 @@ def _map_module(
                 **kwargs,
             ),
         )
-            
+
     transformed_modules.add(id(new_module))
 
     return new_module
 
 
 def _map_module_list(
-    module_list: _TModule, 
-    func: ModuleFunc, 
-    recurse=False, 
-    leaf_only=False, 
-    transformed_modules=None,
-    **kwargs
+    module_list: _TModule, func: ModuleFunc, recurse=False, leaf_only=False, transformed_modules=None, **kwargs
 ) -> _TModule:
     if transformed_modules is None:
         transformed_modules = set()
-    
+
     f_kwargs = _get_func_kwargs(func, **kwargs)
     if not leaf_only:
         module_list = func(module_list, **f_kwargs)
-    
+
     mapped_modules = []
     for i, module in enumerate(module_list):
         kwargs["i"] = i
         kwargs["name"] = str(i)
-        
+
         new_module = map(
             module,
             func,
@@ -295,7 +286,7 @@ def _map_module_dict(
     for i, (name, module) in enumerate(module_dict.items()):
         kwargs["i"] = i
         kwargs["name"] = name
-        
+
         mapped_modules[name] = map(
             module,
             func,
@@ -319,8 +310,4 @@ def _create_list_wrapper(module_list, to_add):
 
 def _get_func_kwargs(func, **kwargs):
     sig = inspect.signature(func)
-    return {
-        kwarg: value 
-        for kwarg, value in kwargs.items() 
-        if kwarg in sig.parameters
-    }
+    return {kwarg: value for kwarg, value in kwargs.items() if kwarg in sig.parameters}

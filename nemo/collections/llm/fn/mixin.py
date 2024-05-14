@@ -34,7 +34,7 @@ class FNMixin:
         >>> model.forall(lambda module: not module.parameters().requires_grad, recurse=True)
         True
     """
-    
+
     def forall(self, func: fn.ModulePredicate, recurse: bool = False) -> bool:
         """
         Evaluates a predicate for all modules in the container, optionally recursively.
@@ -56,7 +56,7 @@ class FNMixin:
             True
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
-        
+
         return fn.forall(self, func, recurse=recurse)
 
     def map(self, func: fn.ModuleFunc, leaf_only: bool = False) -> Self:
@@ -113,7 +113,7 @@ class FNMixin:
         by setting `requires_grad` to False.
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
-        
+
         for param in self.parameters():
             param.requires_grad = False
 
@@ -123,7 +123,7 @@ class FNMixin:
         by setting `requires_grad` to True.
         """
         assert isinstance(self, nn.Module), "self is not a nn.Module"
-        
+
         for param in self.parameters():
             param.requires_grad = True
 
@@ -210,7 +210,7 @@ class FNMixin:
 #             raise TypeError("Function did not return an iterable object") from e
 
 #         return output
-    
+
 #     def choose(self, func: ModuleMapFunc, recurse: bool = False) -> Self:
 #         """
 #         Returns a new container with modules that are selected by the given function.
@@ -235,7 +235,7 @@ class FNMixin:
 
 #         to_add = []
 #         _to_call = _recurse(func, "choose") if recurse else func
-        
+
 #         assert isinstance(self, Iterable), "self is not an iterable"
 
 #         for module in self:
@@ -244,7 +244,7 @@ class FNMixin:
 #                 to_add.append(f_out)
 
 #         return self.__class__(*to_add)
-    
+
 #     def zip(self, other: Iterable[_TModule]) -> Iterable[Tuple[_TModule, _TModule]]:
 #         """
 #         Zips the modules of the container with the modules from another iterable into pairs.
@@ -266,7 +266,7 @@ class FNMixin:
 #         """
 
 #         return builtins.zip(cast(Iterable, self), other)
-    
+
 #     def __add__(self, module) -> Self:
 #         if hasattr(module, "__iter__"):
 #             return self.__class__(*self, *module)

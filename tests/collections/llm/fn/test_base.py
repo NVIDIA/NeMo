@@ -12,8 +12,8 @@ class CustomMLP(nn.Module):
 
     def forward(self, x):
         return x + self.linear2(self.linear1(x))
-    
-    
+
+
 class SharedMLP(nn.Module):
     def __init__(self, shared: nn.Module):
         super().__init__()
@@ -22,8 +22,8 @@ class SharedMLP(nn.Module):
 
     def forward(self, x):
         return x + self.linear2(self.linear1(x))
-    
-    
+
+
 def add_relu(x):
     if isinstance(x, nn.Linear):
         return nn.Sequential(x, nn.ReLU())
@@ -40,8 +40,8 @@ def add_relu_first(x, i=None):
     if i == 0 and isinstance(x, nn.Linear):
         return nn.Sequential(x, nn.ReLU())
     return x
-    
-    
+
+
 class TestWalkModule:
     def test_map_identity(self):
         # Test mapping an identity function
@@ -66,7 +66,7 @@ class TestWalkModule:
             with_relu_first = fn.walk(CustomMLP(), walk_fn)
             assert isinstance(with_relu_first.linear1, nn.Sequential)
             assert isinstance(with_relu_first.linear2, nn.Linear)
-            
+
     def test_walk_shared_module(self):
         def double_linear(module: nn.Module):
             if isinstance(module, nn.Linear):
@@ -90,13 +90,13 @@ class TestWalkModule:
         assert torch.allclose(transformed_mlp.linear2.weight.data, initial_weight * 2)
         assert torch.allclose(transformed_mlp.linear2.bias.data, initial_bias * 2)
         assert transformed_mlp.linear1 is transformed_mlp.linear2
-        
+
     def test_leaf_only(self):
         def is_linear(module: nn.Module):
             assert isinstance(module, nn.Linear)
-            
+
             return module
-        
+
         fn.walk(CustomMLP(), is_linear, leaf_only=True)
 
 
@@ -166,10 +166,7 @@ class TestWalkDictModule:
         essentially testing the identity operation.
         """
         # Setup
-        modules = nn.ModuleDict({
-            "linear": nn.Linear(10, 10),
-            "conv": nn.Conv2d(1, 20, 5)
-        })
+        modules = nn.ModuleDict({"linear": nn.Linear(10, 10), "conv": nn.Conv2d(1, 20, 5)})
         identity = lambda x: x
 
         # Exercise
@@ -185,17 +182,14 @@ class TestWalkDictModule:
         Test walking through an nn.ModuleDict and applying a transformation to each module.
         In this case, we'll add a ReLU activation after each module.
         """
-        modules = nn.ModuleDict({
-            "linear": nn.Linear(10, 10),
-            "conv": nn.Conv2d(1, 20, 5)
-        })
-        
+        modules = nn.ModuleDict({"linear": nn.Linear(10, 10), "conv": nn.Conv2d(1, 20, 5)})
+
         def add_relu(module: nn.Module, name=None):
             if name in ["linear", "conv"]:
                 return nn.Sequential(module, nn.ReLU())
-            
+
             return module
-        
+
         walked_modules = fn.walk(modules, add_relu)
         assert isinstance(walked_modules, nn.ModuleDict)
         for module in walked_modules.values():

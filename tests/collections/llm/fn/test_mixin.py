@@ -1,5 +1,10 @@
+<<<<<<< HEAD:tests/collections/llm/fn/test_mixin.py
 from nemo.collections.llm import fn
+=======
+>>>>>>> bcc6ab06f (Apply isort and black reformatting):tests/fn/test_mixin.py
 from torch import nn
+
+from nemo import fn
 
 
 class MockModule(nn.Module, fn.FNMixin):
@@ -32,12 +37,13 @@ class TestFNMixin:
         """
         Test `map` method applies a function to each module.
         """
+
         def walk_fn(mod):
             if isinstance(mod, nn.Linear):
                 mod.weight.data.fill_(1.0)
-            
+
             return mod
-        
+
         model = self.model.map(walk_fn, leaf_only=True)
         for layer in [model.layer1, model.layer2]:
             assert (layer.weight.data == 1).all(), "Expected all weights to be set to 1."
@@ -47,14 +53,13 @@ class TestFNMixin:
         Test `walk` method traverses each module without modifying them.
         """
         call_count = 0
-        
+
         def walk_fn(mod):
             nonlocal call_count
             call_count += 1
-            
+
             return mod
-        
-        
+
         self.model.walk(walk_fn, leaf_only=True)
         assert call_count == 2, "Expected the function to be called on each leaf module."
 
