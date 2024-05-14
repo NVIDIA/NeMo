@@ -142,7 +142,13 @@ class BertLMHead(MegatronModule):
 
 
 def post_language_model_processing(
-    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy,
+    lm_output,
+    pooled_output,
+    lm_head,
+    binary_head,
+    lm_labels,
+    logit_weights,
+    fp16_lm_cross_entropy,
 ):
     # lm_logits: [s, b, vocab_size]
     lm_logits = lm_head(lm_output, logit_weights)
@@ -348,7 +354,10 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         if self.post_process:
             # TODO: Make sure you are passing in the mpu_vocab_size properly
 
-            self.lm_head = MCoreBertLMHead(self.config.hidden_size, self.config,)
+            self.lm_head = MCoreBertLMHead(
+                self.config.hidden_size,
+                self.config,
+            )
 
             self.output_layer = tensor_parallel.ColumnParallelLinear(
                 self.config.hidden_size,
