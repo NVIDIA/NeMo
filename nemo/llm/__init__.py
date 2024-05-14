@@ -1,4 +1,4 @@
-from nemo_ext.llm.gpt.data import (
+from nemo.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
     MockDataModule,
