@@ -18,38 +18,38 @@ Distributed Data Parallelism (DDP) creates idential copies of the model across m
 Tensor Parallelism
 ^^^^^^^^^^^^^^^^^^
 
-**Tensor Model Parallelism (TP)** is a method for distributing a model's computation across multiple GPUs by splitting tensors into non-overlapping pieces. This allows different parts of the tensor to be processed simultaneously on separate GPUs, enhancing performance and enabling the training of larger models.
+**Tensor Parallelism (TP)** is a method for distributing a model's computation across multiple GPUs by splitting tensors into non-overlapping pieces. This allows different parts of the tensor to be processed simultaneously on separate GPUs, enhancing performance and enabling the training of larger models.
 
 .. image:: ../nlp/nemo_megatron/images/tp.gif
     :align: center
     :width: 800px
     :alt: Tensor Parallel
 
-Enabling Tensor Model Parallelism in NeMo
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enable Tensor Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To enable TP in the NeMo framework, configure the ``tensor_model_parallel_size`` parameter in the model configuration. This parameter determines the number of GPUs among which the model's tensors are partitioned.
 
-**For Tensor Model Parallelism**:
+**For Tensor Parallelism**:
    - Set ``tensor_model_parallel_size`` to greater than ``1`` to enable intra-layer model parallelism.
 
    .. code-block:: yaml
 
-       tensor_model_parallel_size: 1  # Example to enable Tensor Model Parallelism
+       tensor_model_parallel_size: 1  # Example to enable Tensor Parallelism
 
 The configuration file can be adjusted here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L65>`_.
 
-Implementation
-~~~~~~~~~~~~~~
+Implement Tensor Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-NeMo integrates Tensor Model Parallelism through the implementation from Megatron Core. To understand how TP is activated within transformer blocks, refer to the code in the following repository: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
+NeMo integrates Tensor Parallelism through the implementation from Megatron Core. To understand how TP is activated within transformer blocks, refer to the code in the following repository: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
 
 For detailed API usage and additional configurations, consult the `Megatron Core Developer Guide <https://docs.nvidia.com/Megatron Core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
 
 Pipeline Parallelism
 ^^^^^^^^^^^^^^^^^^^^
 
-**Pipeline Model Parallelism (PP)** is a technique that assigns consecutive layers or segments of a neural network to different GPUs. This division allows each GPU to process different stages of the network sequentially.
+**Pipeline Parallelism (PP)** is a technique that assigns consecutive layers or segments of a neural network to different GPUs. This division allows each GPU to process different stages of the network sequentially.
 
 .. image:: ../nlp/nemo_megatron/images/pp.gif
     :align: center
@@ -57,17 +57,17 @@ Pipeline Parallelism
     :alt: Pipeline Parallel
 
 
-Enabling Pipeline Model Parallelism in NeMo
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enable Pipeline Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To utilize PP in the NeMo framework, you need to set the ``pipeline_model_parallel_size`` parameter in the model's configuration. This parameter specifies the number of GPUs among which the model's layers are distributed.
 
-**For Pipeline Model Parallelism**:
+**For Pipeline Parallelism**:
    - Set ``pipeline_model_parallel_size`` to a value greater than ``1`` to enable inter-layer model parallelism.
 
    .. code-block:: yaml
 
-       pipeline_model_parallel_size: 1  # Example to enable Pipeline Model Parallelism
+       pipeline_model_parallel_size: 1  # Example to enable Pipeline Parallelism
 
 Adjust the configuration accordingly here: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L66>`_.
 
@@ -82,8 +82,8 @@ To minimize the pipeline bubble, the computation on each GPU can be divided into
 
 For more insights into this approach, see our detailed blog: `Scaling Language Model Training <https://developer.nvidia.com/blog/scaling-language-model-training-to-a-trillion-parameters-using-megatron/#pipeline_parallelism>`_.
 
-Implementation
-~~~~~~~~~~~~~~
+Implement Pipeline Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 NeMo's implementation of PP leverages functionalities from Megatron Core. For a practical example of how PP is implemented within transformer blocks in NeMo, you can inspect the following codebase: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
 
@@ -99,8 +99,8 @@ Sequence Parallelism
     :width: 800px
     :alt: Sequence Parallel
 
-Enabling Sequence Parallelism in NeMo
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enable Sequence Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To utilize Sequence Parallelism in NeMo, set the ``sequence_parallel`` parameter to ``True`` in the model's configuration. Note that this feature is effective only when the tensor parallel size (``tensor_model_parallel_size``) is greater than ``1``.
 
@@ -110,18 +110,18 @@ To utilize Sequence Parallelism in NeMo, set the ``sequence_parallel`` parameter
 
 For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L66>`_.
 
-Implementation
-~~~~~~~~~~~~~~
+Implement Sequence Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 NeMo's implementation of Sequence Parallelism utilizes functionality from Megatron Core. For an in-depth look at how Sequence Parallelism is integrated into the Megatron Core architecture, you can examine the source code here: `Megatron-LM Sequence Parallel Source Code <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/tensor_parallel/layers.py>`_.
 
 Context Parallelism
 ^^^^^^^^^^^^^^^^^^^
 
-**Context Model Parallelism (CP)** is a method for parallelizing the processing of neural network activations across multiple GPUs, focusing on the sequence dimension of the input data. Unlike Sequence Parallelism (SP) that only partitions specific types of activations, CP divides all network activations along the sequence dimension.
+**Context Parallelism (CP)** is a method for parallelizing the processing of neural network activations across multiple GPUs, focusing on the sequence dimension of the input data. Unlike Sequence Parallelism (SP) that only partitions specific types of activations, CP divides all network activations along the sequence dimension.
 
-Enabling Context Parallelism in NeMo
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enable Context Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To activate CP in the NeMo framework, set the ``context_parallel_size`` parameter in the model configuration. This parameter specifies the number of GPUs among which the model's sequence activations are distributed.
 
@@ -134,12 +134,12 @@ To activate CP in the NeMo framework, set the ``context_parallel_size`` paramete
 
 The configuration can be found and modified here: `NeMo Megatron Core Context Config <https://docs.nvidia.com/Megatron Core/developer-guide/latest/api-guide/context_parallel.html>`_.
 
-Implementation
-~~~~~~~~~~~~~~
+Implement Context Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 NeMo leverages functionalities from both Megatron Core and transformer-engine to implement CP efficiently. During forward propagation, each GPU handles a segment of the sequence, storing only the necessary Key and Value (KV) pairs. In the backward pass, these KV pairs are reassembled across GPUs using advanced communication schemes like all-gather and reduce-scatter transformed into point-to-point communications in a ring topology. This method reduces the memory footprint significantly while maintaining computational efficiency.
 
-Additionally, NeMo's CP supports integration with various forms of model parallelism such as TP (Tensor Model Parallelism), PP (Pipeline Model Parallelism), and DP (Data Parallelism), ensuring broad usability and flexibility in large-scale model training environments.
+Additionally, NeMo's CP supports integration with various forms of model parallelism such as TP (Tensor Parallelism), PP (Pipeline Parallelism), and DP (Data Parallelism), ensuring broad usability and flexibility in large-scale model training environments.
 
 Visit our source code for more insights into the implementation:
 - Megatron Core transformer engine: `Megatron Core <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/custom_layers/transformer_engine.py>`_
@@ -155,8 +155,8 @@ Expert Parallelism
     :width: 800px
     :alt: Expert Parallelism
 
-Enabling Expert Parallelism in NeMo
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enable Expert Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To enable it users can pass ``model.expert_model_parallel_size=k``, where k is an integer with the desired
 expert parallelism level, for example if the model has three experts (i.e. ``model.num_moe_experts=3``), we can specify
@@ -169,8 +169,8 @@ k=3 (i.e. via CLI using ``model.expert_model_parallel_size=3``). The number of e
 For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68>`_.
 
 
-Implementation
-~~~~~~~~~~~~~
+Implement Expert Parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 NeMo's expert parallelism functionality is provided by Megatron-LM repository, please consult the corresponding `Moe-layer <https://github.com/NVIDIA/Megatron-LM/blob/e2ec14ab5690fead7e33760b0f8fb20c83b4fd1f/megatron/core/transformer/moe/moe_layer.py#L29>`_ for more moe implementation details.
 
