@@ -149,7 +149,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             world_size=self.world_size,
             tokenizer=self.tokenizer,
             preprocessor_cfg=self.cfg.get("preprocessor", None),
-            do_caching = do_caching
+            do_caching=do_caching,
         )
 
         if dataset is None:
@@ -197,7 +197,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             pin_memory=config.get('pin_memory', False),
         )
 
-    def _setup_pseudo_label_dataloader(self, manifest_filepaths: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str] = None, batch_size: int = 64):
+    def _setup_pseudo_label_dataloader(
+        self,
+        manifest_filepaths: Union[List[List[str]], str],
+        tarred_audio_filepaths: Union[List[List[str]], str] = None,
+        batch_size: int = 64,
+    ):
         """
         Setup function for a data loader for unlabeled dataset
 
@@ -210,14 +215,14 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             A DataLoader for the given audio file(s).
         """
 
-        if self.cfg.train_ds.get('is_tarred', False) :
+        if self.cfg.train_ds.get('is_tarred', False):
             dl_config = {
                 'manifest_filepath': manifest_filepaths,
                 'tarred_audio_filepaths': tarred_audio_filepaths,
                 'sample_rate': self.preprocessor._sample_rate,
                 'labels': self.joint.vocabulary,
                 'is_tarred': True,
-                'use_lhotse' : True,
+                'use_lhotse': True,
                 'shard_manifests': False,
                 'tarred_shard_strategy': 'replicate',
                 'batch_size': batch_size,
@@ -228,8 +233,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
                 'random_access': True,
-                }
-            
+            }
+
             dl_config = OmegaConf.create(dl_config)
             return get_lhotse_dataloader_from_config(
                 dl_config,
@@ -250,8 +255,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
             }
-            
-            dataset = audio_to_text_dataset.get_bpe_dataset(config=dl_config, tokenizer=self.tokenizer, augmentor=None, do_caching=False)
+
+            dataset = audio_to_text_dataset.get_bpe_dataset(
+                config=dl_config, tokenizer=self.tokenizer, augmentor=None, do_caching=False
+            )
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
         elif hasattr(dataset.datasets[0], 'collate_fn'):
@@ -260,7 +267,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         else:
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
-        
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=dl_config['batch_size'],

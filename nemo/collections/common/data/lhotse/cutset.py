@@ -246,7 +246,6 @@ def parse_and_combine_datasets(
 
 def read_lhotse_manifest(config, is_tarred: bool) -> CutSet:
 
-
     if is_tarred:
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
         # The combination of shuffle_shards, and repeat causes this to

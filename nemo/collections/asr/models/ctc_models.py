@@ -18,15 +18,19 @@ import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
+import editdistance
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
-import editdistance
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
+from nemo.collections.asr.data.audio_to_text import (
+    _AudioTextDataset,
+    cache_datastore_manifests,
+    expand_sharded_filepaths,
+)
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -37,14 +41,13 @@ from nemo.collections.asr.parts.mixins.transcription import GenericTranscription
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.utils.ipl_utils import *
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.collections.asr.parts.utils.ipl_utils import *
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
 
 __all__ = ['EncDecCTCModel']
 
@@ -66,11 +69,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 )
                 if not cfg.train_ds.get("is_tarred", False):
                     if not cfg.ipl.get("cache_manifest", None):
-                        cfg.ipl.cache_manifest =  formulate_cache_manifest_names(cfg.ipl.manifest_filepath, cfg.ipl.cache_prefix, is_tarred = False) 
+                        cfg.ipl.cache_manifest = formulate_cache_manifest_names(
+                            cfg.ipl.manifest_filepath, cfg.ipl.cache_prefix, is_tarred=False
+                        )
                 else:
                     cfg.ipl.cache_manifest = []
-                    cfg.ipl.all_cache_manifests = formulate_cache_manifest_names(cfg.ipl.manifest_filepath, cfg.ipl.cache_prefix, is_tarred = True)
-    
+                    cfg.ipl.all_cache_manifests = formulate_cache_manifest_names(
+                        cfg.ipl.manifest_filepath, cfg.ipl.cache_prefix, is_tarred=True
+                    )
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
@@ -131,8 +138,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
-    
-    
+
     def on_fit_start(self):
         """
         Cache datastore manifests for non tarred unlabeled data for pseudo labeling. 
@@ -143,9 +149,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 cache_datastore_manifests(self.cfg.ipl.get("manifest_filepath"), cache_audio=True)
         super().on_fit_start()
 
-    
     def on_train_epoch_end(self):
-        
+
         """
         This function is mainly used for iterative pseudo labeling algorithm.
         To make it work in config file 'ipl' parameters should be provided.
@@ -162,36 +167,39 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         if self.cfg.ipl.m_epochs == 0:
             self.build_cache(update_whole_cache=True)
 
-            self.encoder.set_dropout(self.cfg.ipl.dropout)            
+            self.encoder.set_dropout(self.cfg.ipl.dropout)
             self.cfg.ipl.m_epochs -= 1
             needs_update = False
 
         if self.cfg.ipl.m_epochs == -1 and self.cfg.ipl.n_l_epochs > 0:
             self.cfg.ipl.n_l_epochs -= 1
-        else: 
+        else:
             if needs_update:
                 self.build_cache(update_whole_cache=False)
 
-            if  self.cfg.train_ds.get("is_tarred", False):
+            if self.cfg.train_ds.get("is_tarred", False):
                 final_cache_manifests = self.combine_cache_hypotheses()
-            
+
             if self.cfg.ipl.n_l_epochs == 0:
                 if self.cfg.train_ds.get("is_tarred", False):
                     if isinstance(self.cfg.ipl.tarred_audio_filepaths, str):
                         if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
-                            self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths],[self.cfg.ipl.tarred_audio_filepaths]]
+                            self.cfg.train_ds.tarred_audio_filepaths = [
+                                [self.cfg.train_ds.tarred_audio_filepaths],
+                                [self.cfg.ipl.tarred_audio_filepaths],
+                            ]
                         else:
                             self.cfg.train_ds.tarred_audio_filepaths.append([self.cfg.ipl.tarred_audio_filepaths])
                     else:
                         if isinstance(self.cfg.train_ds.tarred_audio_filepaths, str):
                             self.cfg.train_ds.tarred_audio_filepaths = [[self.cfg.train_ds.tarred_audio_filepaths]]
                         self.cfg.train_ds.tarred_audio_filepaths += self.cfg.ipl.tarred_audio_filepaths
-    
+
                     if isinstance(self.cfg.train_ds.manifest_filepath, str):
                         self.cfg.train_ds.manifest_filepath = [[self.cfg.train_ds.manifest_filepath]]
 
                     self.cfg.train_ds.manifest_filepath += final_cache_manifests
-            
+
                 else:
                     if isinstance(self.cfg.train_ds.manifest_filepath, str):
                         self.cfg.train_ds.manifest_filepath = [self.cfg.train_ds.manifest_filepath]
@@ -205,12 +213,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                     self.trainer.limit_train_batches = self.cfg.ipl["limit_train_batches"]
 
             torch.distributed.barrier()
-            
+
             if self.cfg.train_ds.get("use_lhotse", False):
-                self.setup_training_data(self.cfg.train_ds, do_caching = False, update_limit_train_batches=False)
+                self.setup_training_data(self.cfg.train_ds, do_caching=False, update_limit_train_batches=False)
             else:
-                self.setup_training_data(self.cfg.train_ds, do_caching = False, update_limit_train_batches=True)
-    
+                self.setup_training_data(self.cfg.train_ds, do_caching=False, update_limit_train_batches=True)
 
     def build_cache(self, update_whole_cache: bool):
         """
@@ -232,7 +239,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 self.update_tar_cache_hypotheses(self.cfg.ipl.all_cache_manifests, self.cfg.ipl.tarred_audio_filepaths)
         else:
             self.create_cache_hypotheses(manifests, update_whole_cache)
-    
 
     def create_cache_hypotheses(self, manifests: Union[List[List[str]], str], update_whole_cache: bool = True):
         """
@@ -245,10 +251,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         whole_pseudo_data = []
         update_data = []
 
-        manifest_paths =  [manifests] if isinstance(manifests, str) else manifests
+        manifest_paths = [manifests] if isinstance(manifests, str) else manifests
         dataset_weights = self.cfg.ipl.get("dataset_weights", [1] * len(manifest_paths))
 
-        if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List) :
+        if not isinstance(dataset_weights, ListConfig) and not isinstance(dataset_weights, List):
             dataset_weights = [float(dataset_weights)]
 
         for idx, manifest_path in enumerate(manifest_paths):
@@ -265,22 +271,24 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                     json.dump(data_entry, temp_manifest, ensure_ascii=False)
                     temp_manifest.write('\n')
 
-            hypotheses = self.generate_pseudo_labels(temporary_manifest,
-                                                    target_transcripts=transcriptions, 
-                                                    restore_pc=self.cfg.ipl.restore_pc,
-                                                    batch_size=self.cfg.ipl.batch_size,
-                                                    )
+            hypotheses = self.generate_pseudo_labels(
+                temporary_manifest,
+                target_transcripts=transcriptions,
+                restore_pc=self.cfg.ipl.restore_pc,
+                batch_size=self.cfg.ipl.batch_size,
+            )
         torch.distributed.barrier()
-        gathered_hypotheses = [None]  * torch.distributed.get_world_size()
-        gathered_data = [None]  * torch.distributed.get_world_size()
+        gathered_hypotheses = [None] * torch.distributed.get_world_size()
+        gathered_data = [None] * torch.distributed.get_world_size()
         torch.distributed.all_gather_object(gathered_data, update_data)
         torch.distributed.all_gather_object(gathered_hypotheses, hypotheses)
         if torch.distributed.get_rank() == 0:
             write_cache_manifest(self.cfg.ipl.cache_manifest, gathered_hypotheses, gathered_data, update_whole_cache)
         torch.distributed.barrier()
 
-
-    def create_tar_cache_hypotheses(self, manifests: Union[List[List[str]], str],  tarred_audio_filepaths: Union[List[List[str]], str]):
+    def create_tar_cache_hypotheses(
+        self, manifests: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str]
+    ):
         """
         Function to create cache file for tarred unlabeled dataset for the first time
         Args:
@@ -297,62 +305,79 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
             with tempfile.TemporaryDirectory() as tmpdir:
                 torch.distributed.barrier()
-                
-                expanded_audio = expand_sharded_filepaths(tarred_audio_filepath[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
-                expand_manifests = expand_sharded_filepaths(manifest[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
+
+                expanded_audio = expand_sharded_filepaths(
+                    tarred_audio_filepath[0],
+                    shard_strategy='scatter',
+                    world_size=self.world_size,
+                    global_rank=self.global_rank,
+                )
+                expand_manifests = expand_sharded_filepaths(
+                    manifest[0], shard_strategy='scatter', world_size=self.world_size, global_rank=self.global_rank
+                )
                 number_of_manifests = len(expand_manifests)
-            
+
                 shard_manifest_data = []
                 cache_manifest = []
                 transcriptions = []
-                for idx, manifest_path in enumerate(expand_manifests): 
-                
-                    manifest_data = process_manifest(manifest_path)      
+                for idx, manifest_path in enumerate(expand_manifests):
+
+                    manifest_data = process_manifest(manifest_path)
                     shard_manifest_data.append(manifest_data)
 
                     base_path, filename = os.path.split(manifest_path)
                     cache_file = os.path.join(base_path, f'{self.cfg.ipl.cache_prefix}_cache_{filename}')
                     cache_manifest.append(cache_file)
-                    
-                    temporary_manifest=os.path.join(tmpdir, f'temp_{filename}')
-                    
+
+                    temporary_manifest = os.path.join(tmpdir, f'temp_{filename}')
+
                     with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
-                        
+
                         for data_entry in manifest_data:
-                            
+
                             if not data_entry.get("text", None):
                                 data_entry['text'] = ""
                             transcriptions.append(data_entry.get('text', ""))
                             json.dump(data_entry, temp_manifest, ensure_ascii=False)
                             temp_manifest.write('\n')
-                
+
                 if number_of_manifests > 1:
 
-                    temporary_manifest, expanded_audio = handle_multiple_tarr_filepaths(filename, tmpdir, number_of_manifests, expanded_audio[0])
+                    temporary_manifest, expanded_audio = handle_multiple_tarr_filepaths(
+                        filename, tmpdir, number_of_manifests, expanded_audio[0]
+                    )
                 else:
                     expanded_audio = expanded_audio[0]
 
                 if self.cfg.train_ds.get("is_tarred", False):
-                    hypotheses = self.generate_pseudo_labels(cache_manifest = temporary_manifest,
-                                                        tarred_audio_filepaths=expanded_audio, 
-                                                        target_transcripts=None,
-                                                        restore_pc=self.cfg.ipl.restore_pc,
-                                                        batch_size=self.cfg.ipl.batch_size,
-                                                        )
-                
+                    hypotheses = self.generate_pseudo_labels(
+                        cache_manifest=temporary_manifest,
+                        tarred_audio_filepaths=expanded_audio,
+                        target_transcripts=None,
+                        restore_pc=self.cfg.ipl.restore_pc,
+                        batch_size=self.cfg.ipl.batch_size,
+                    )
+
                 else:
-                    hypotheses = self.generate_pseudo_labels(manifest,
-                                                            target_transcripts=None,
-                                                            restore_pc=self.cfg.ipl.restore_pc,
-                                                            batch_size=self.cfg.ipl.batch_size,
-                                                            )
-            
-                write_tarr_cache_manifest(cache_manifest, update_data=shard_manifest_data, hypotheses=hypotheses, use_lhotse=self.cfg.train_ds.get('use_lhotse', False))
+                    hypotheses = self.generate_pseudo_labels(
+                        manifest,
+                        target_transcripts=None,
+                        restore_pc=self.cfg.ipl.restore_pc,
+                        batch_size=self.cfg.ipl.batch_size,
+                    )
+
+                write_tarr_cache_manifest(
+                    cache_manifest,
+                    update_data=shard_manifest_data,
+                    hypotheses=hypotheses,
+                    use_lhotse=self.cfg.train_ds.get('use_lhotse', False),
+                )
                 torch.distributed.barrier()
                 self.cfg.ipl.cache_manifest.append(cache_manifest)
 
-
-    def update_tar_cache_hypotheses(self, manifests: Union[List[List[str]], str],  tarred_audio_filepaths: Union[List[List[str]], str]):
+    def update_tar_cache_hypotheses(
+        self, manifests: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str]
+    ):
         """
         With given probability randomly chooses part of the cache hypotheses, generates new pseudo labels for them and updates the cache.
         Args:
@@ -368,24 +393,31 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         torch.distributed.barrier()
         for manifest, tarred_audio_filepath in zip(manifests, tarred_audio_filepaths):
             with tempfile.TemporaryDirectory() as tmpdir:
-                expanded_audio = expand_sharded_filepaths(tarred_audio_filepath[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
-                manifest = expand_sharded_filepaths(manifest[0], shard_strategy = 'scatter', world_size=self.world_size, global_rank=self.global_rank)
+                expanded_audio = expand_sharded_filepaths(
+                    tarred_audio_filepath[0],
+                    shard_strategy='scatter',
+                    world_size=self.world_size,
+                    global_rank=self.global_rank,
+                )
+                manifest = expand_sharded_filepaths(
+                    manifest[0], shard_strategy='scatter', world_size=self.world_size, global_rank=self.global_rank
+                )
                 shard_manifest_data = []
                 number_of_manifests = len(manifest)
                 all_indices = []
-                for _, manifest_path in enumerate(manifest): 
-                
-                    manifest_data = process_manifest(manifest_path)  
+                for _, manifest_path in enumerate(manifest):
+
+                    manifest_data = process_manifest(manifest_path)
                     update_size = int(len(manifest_data) * self.cfg.ipl.p_cache)
                     random.seed()
                     indices = random.sample(range(len(manifest_data)), update_size)
                     update_data = [manifest_data[index] for index in indices]
-                    shard_manifest_data.append(manifest_data)  
-            
+                    shard_manifest_data.append(manifest_data)
+
                     all_indices.append(indices)
                     _, filename = os.path.split(manifest_path)
                     temporary_manifest = os.path.join(tmpdir, f'temp_{filename}')
-            
+
                     with open(temporary_manifest, 'w', encoding='utf-8') as temp_manifest:
                         transcriptions = []
                         for data_entry in update_data:
@@ -393,28 +425,38 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                             json.dump(data_entry, temp_manifest, ensure_ascii=False)
                             temp_manifest.write('\n')
                 if number_of_manifests > 1:
-                    temporary_manifest, expanded_audio = handle_multiple_tarr_filepaths(filename, tmpdir, number_of_manifests, expanded_audio[0])
+                    temporary_manifest, expanded_audio = handle_multiple_tarr_filepaths(
+                        filename, tmpdir, number_of_manifests, expanded_audio[0]
+                    )
                 else:
                     expanded_audio = expanded_audio[0]
 
                 if self.cfg.train_ds.get("is_tarred", False):
-                    hypotheses = self.generate_pseudo_labels(temporary_manifest,
-                                                        tarred_audio_filepaths=expanded_audio, 
-                                                        target_transcripts=transcriptions,
-                                                        restore_pc=self.cfg.ipl.restore_pc,
-                                                        batch_size=self.cfg.ipl.batch_size,
-                                                        )
-                
-                else:
-                    hypotheses = self.generate_pseudo_labels(temporary_manifest,
-                                                            target_transcripts=transcriptions,
-                                                            restore_pc=self.cfg.ipl.restore_pc,
-                                                            batch_size=self.cfg.ipl.batch_size,
-                                                            )
-            
-            write_tarr_cache_manifest(manifest, update_data=shard_manifest_data, hypotheses=hypotheses, indices=all_indices, update_size=update_size, use_lhotse=self.cfg.train_ds.get('use_lhotse', False))
-            torch.distributed.barrier()
+                    hypotheses = self.generate_pseudo_labels(
+                        temporary_manifest,
+                        tarred_audio_filepaths=expanded_audio,
+                        target_transcripts=transcriptions,
+                        restore_pc=self.cfg.ipl.restore_pc,
+                        batch_size=self.cfg.ipl.batch_size,
+                    )
 
+                else:
+                    hypotheses = self.generate_pseudo_labels(
+                        temporary_manifest,
+                        target_transcripts=transcriptions,
+                        restore_pc=self.cfg.ipl.restore_pc,
+                        batch_size=self.cfg.ipl.batch_size,
+                    )
+
+            write_tarr_cache_manifest(
+                manifest,
+                update_data=shard_manifest_data,
+                hypotheses=hypotheses,
+                indices=all_indices,
+                update_size=update_size,
+                use_lhotse=self.cfg.train_ds.get('use_lhotse', False),
+            )
+            torch.distributed.barrier()
 
     def combine_cache_hypotheses(self):
         """
@@ -428,10 +470,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             if not self.cfg.train_ds.get("use_lhotse", False):
                 for manifests in self.cfg.ipl.all_cache_manifests:
                     base_path, _ = os.path.split(manifests[0])
-                    final_cache = os.path.join(base_path, f'{self.cfg.ipl.cache_prefix}_cache_tarred_audio_manifest.json')
+                    final_cache = os.path.join(
+                        base_path, f'{self.cfg.ipl.cache_prefix}_cache_tarred_audio_manifest.json'
+                    )
                     if torch.distributed.get_rank() == 0:
                         create_final_cache_manifest(final_cache, manifests)
-                    torch.distributed.barrier() 
+                    torch.distributed.barrier()
                     final_cache_manifests.append([final_cache])
             else:
                 for i_dataset in self.cfg.ipl.all_cache_manifests:
@@ -441,9 +485,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                     base_file_name = file_name.rsplit('_', 1)[0]
                     dataset_manifests = os.path.join(base_path, f"{base_file_name}_{{{0}..{num_manifests-1}}}.json")
                     final_cache_manifests.append([dataset_manifests])
-                  
+
         return final_cache_manifests
-        
 
     def generate_pseudo_labels(
         self,
@@ -451,7 +494,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         tarred_audio_filepaths: Union[List[List[str]], str] = None,
         restore_pc: bool = True,
         target_transcripts: List[str] = None,
-        batch_size: int = 64):
+        batch_size: int = 64,
+    ):
         """
         Generates pseudo labels for unlabeled data.
         Args:
@@ -472,31 +516,30 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         self.decoder.freeze()
         hypotheses = []
 
-        
         dataloader = self._setup_pseudo_label_dataloader(cache_manifest, tarred_audio_filepaths, batch_size)
 
         self.preprocessor.featurizer.dither = 0.0
         self.preprocessor.featurizer.pad_to = 0
         sample_idx = 0
-        
+
         for test_batch in tqdm(dataloader, desc="Transcribing"):
             logits, logits_len, _ = self.forward(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
-            
+
             logits = logits.cpu()
             if self.cfg.decoding.strategy == "beam":
                 best_hyp, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-                logits, logits_len, return_hypotheses=True,
+                    logits, logits_len, return_hypotheses=True,
                 )
                 if all_hyp:
                     for beams_idx, beams in enumerate(all_hyp):
-                        target = target_transcripts[sample_idx + beams_idx ]
+                        target = target_transcripts[sample_idx + beams_idx]
                         if target and restore_pc:
                             target_split_w = target.split()
                             wer_dist_min = 1000
                             min_pred_text = ""
-                            for _, candidate in enumerate(beams): 
+                            for _, candidate in enumerate(beams):
                                 pred_text = candidate.text
                                 compare_text = pred_text
                                 compare_text = compare_text.lower()
@@ -505,17 +548,18 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                                 if wer_dist < wer_dist_min:
                                     min_pred_text = pred_text
-                                    wer_dist_min =  wer_dist
+                                    wer_dist_min = wer_dist
                             hypotheses.append(min_pred_text)
                         else:
-                            
+
                             hypotheses.append(best_hyp[beams_idx].text)
                     sample_idx += logits.shape[0]
                 else:
                     hypotheses += [hyp.text for hyp in best_hyp]
             else:
                 best_hyp, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-                logits, logits_len, return_hypotheses=False,)
+                    logits, logits_len, return_hypotheses=False,
+                )
                 hypotheses += best_hyp
             del logits
             del logits_len
@@ -711,7 +755,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             global_rank=self.global_rank,
             world_size=self.world_size,
             preprocessor_cfg=self._cfg.get("preprocessor", None),
-            do_caching=do_caching
+            do_caching=do_caching,
         )
 
         if dataset is None:
@@ -759,7 +803,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             pin_memory=config.get('pin_memory', False),
         )
 
-    def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]], do_caching: bool = True, update_limit_train_batches: bool  = False):
+    def setup_training_data(
+        self,
+        train_data_config: Optional[Union[DictConfig, Dict]],
+        do_caching: bool = True,
+        update_limit_train_batches: bool = False,
+    ):
         """
         Sets up the training data loader via a Dict-like object.
 
@@ -1069,9 +1118,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         if self._test_dl is not None:
             return self._test_dl
 
-    def _setup_pseudo_label_dataloader(self, cache_manifest: str , audio_tar: str = None, batch_size: int = 64):
+    def _setup_pseudo_label_dataloader(self, cache_manifest: str, audio_tar: str = None, batch_size: int = 64):
 
-    
         if self.cfg.train_ds.get("is_tarred", False):
 
             dl_config = {
@@ -1080,7 +1128,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 'sample_rate': self.preprocessor._sample_rate,
                 'labels': OmegaConf.to_container(self.decoder.vocabulary),
                 'is_tarred': True,
-                'use_lhotse' : True,
+                'use_lhotse': True,
                 'shard_manifests': False,
                 'tarred_shard_strategy': 'replicate',
                 'batch_size': batch_size,
@@ -1091,17 +1139,17 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
                 'random_access': True,
-                }
-            
+            }
+
             dl_config = OmegaConf.create(dl_config)
 
             return get_lhotse_dataloader_from_config(
                 dl_config,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                dataset=LhotseSpeechToTextBpeDataset(tokenizer=make_parser(
-                        labels=self.decoder.vocabulary,
-                        do_normalize=False)),
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=make_parser(labels=self.decoder.vocabulary, do_normalize=False)
+                ),
                 pseudo_label_gen=True,
             )
         else:
@@ -1136,7 +1184,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             num_workers=self.cfg.train_ds.num_workers,
             pin_memory=True,
         )
-    
+
     """ Transcription related methods """
 
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):

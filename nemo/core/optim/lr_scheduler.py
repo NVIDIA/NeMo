@@ -399,23 +399,24 @@ class SquareRootAnnealing(WarmupPolicy):
         ]
         return new_lrs
 
+
 class DoubleCosineAnnealing(_LRScheduler):
     def __init__(
-        self, 
+        self,
         optimizer,
-        max_steps, 
+        max_steps,
         milestone,
-        max_lr1=None, 
-        max_lr2=None, 
+        max_lr1=None,
+        max_lr2=None,
         min_lr1=0.0,
         min_lr2=0.0,
-        warmup_steps1=None, 
-        warmup_steps2=None, 
-        warmup_ratio1=None, 
-        warmup_ratio2=None, 
-        last_epoch=-1
-    ): 
-       
+        warmup_steps1=None,
+        warmup_steps2=None,
+        warmup_ratio1=None,
+        warmup_ratio2=None,
+        last_epoch=-1,
+    ):
+
         assert not (
             warmup_steps1 is not None and warmup_ratio1 is not None
         ), "Either use particular number of step or ratio"
@@ -427,9 +428,7 @@ class DoubleCosineAnnealing(_LRScheduler):
         assert warmup_ratio2 is None or max_steps is not None, "If there is a ratio, there should be a total steps"
 
         if milestone < 0:
-            raise ValueError(
-                    f"{self} received a negative milestone value."
-                )
+            raise ValueError(f"{self} received a negative milestone value.")
         self.max_lr1 = max_lr1 or max(group['lr'] for group in optimizer.param_groups)
         self.max_lr2 = max_lr2 or self.max_lr1
 
@@ -439,7 +438,7 @@ class DoubleCosineAnnealing(_LRScheduler):
             self.warmup_steps1 = int(warmup_ratio1 * max_steps)
         else:
             self.warmup_steps1 = 0
-        
+
         if warmup_steps2 is not None:
             self.warmup_steps2 = warmup_steps2
         elif warmup_ratio2 is not None:
@@ -449,23 +448,25 @@ class DoubleCosineAnnealing(_LRScheduler):
 
         self.max_steps1 = milestone
         self.max_steps2 = max_steps - milestone
-        
-        assert self.max_lr1  is not None and self.max_lr1  > min_lr1, "max_lr1 must be defined and greater than min_lr1"
-        assert self.max_lr2 is not None and self.max_lr2  > min_lr2, "max_lr2 must be defined and greater than min_lr2"
+
+        assert self.max_lr1 is not None and self.max_lr1 > min_lr1, "max_lr1 must be defined and greater than min_lr1"
+        assert self.max_lr2 is not None and self.max_lr2 > min_lr2, "max_lr2 must be defined and greater than min_lr2"
 
         self.warmup_steps1 = int(warmup_ratio1 * self.max_steps1) if warmup_ratio1 is not None else warmup_steps1
-        self.warmup_steps2 = int(warmup_ratio2 * self.max_steps2 ) if warmup_ratio2 is not None else warmup_steps2
-       
+        self.warmup_steps2 = int(warmup_ratio2 * self.max_steps2) if warmup_ratio2 is not None else warmup_steps2
+
         self.min_lr1 = min_lr1
         self.min_lr2 = min_lr2
 
-        self.milestone =  milestone
-      
+        self.milestone = milestone
+
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
         if not self._get_lr_called_within_step:
-            warnings.warn("To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning)
+            warnings.warn(
+                "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
+            )
 
         step = self.last_epoch
         if step <= self.milestone:
@@ -481,15 +482,12 @@ class DoubleCosineAnnealing(_LRScheduler):
             decay_steps = self.max_steps2 - self.warmup_steps2
         new_lrs = [
             _linear_warmup_with_cosine_annealing(
-                max_lr=max_lr, 
-                warmup_steps=warmup_steps, 
-                step=step, 
-                decay_steps=decay_steps, 
-                min_lr=min_lr
+                max_lr=max_lr, warmup_steps=warmup_steps, step=step, decay_steps=decay_steps, min_lr=min_lr
             )
             for _ in self.base_lrs
         ]
         return new_lrs
+
 
 class CosineAnnealing(WarmupAnnealHoldPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
@@ -990,10 +988,10 @@ def prepare_lr_scheduler(
                 num_samples=num_samples,
                 batch_size=batch_size,
                 drop_last=drop_last,
-                ipl_config=ipl_config
+                ipl_config=ipl_config,
             )
             no_ipl_steps = compute_max_steps(
-                max_epochs=ipl_config.get('m_epochs', 0) + ipl_config.get('n_l_epochs', 0) + 1 ,
+                max_epochs=ipl_config.get('m_epochs', 0) + ipl_config.get('n_l_epochs', 0) + 1,
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
                 num_workers=num_workers,
@@ -1004,8 +1002,8 @@ def prepare_lr_scheduler(
             if scheduler_name == 'DoubleCosineAnnealing' and scheduler_args['milestone'] == -1:
                 scheduler_args['milestone'] = no_ipl_steps
             max_steps = ipl_steps + no_ipl_steps
-           
-        else:    
+
+        else:
             max_steps = compute_max_steps(
                 max_epochs=max_epochs,
                 accumulate_grad_batches=accumulate_grad_batches,
@@ -1062,17 +1060,24 @@ def prepare_lr_scheduler(
 
 
 def compute_max_steps(
-    max_epochs, accumulate_grad_batches, limit_train_batches, num_workers, num_samples, batch_size, drop_last, ipl_config = None
+    max_epochs,
+    accumulate_grad_batches,
+    limit_train_batches,
+    num_workers,
+    num_samples,
+    batch_size,
+    drop_last,
+    ipl_config=None,
 ):
     _round = math.floor if drop_last else math.ceil
     if ipl_config:
         all_num_samples = num_samples + sum(ipl_config.num_cache_files)
-        max_epochs = max_epochs - ipl_config.m_epochs - ipl_config.n_l_epochs - 1 
+        max_epochs = max_epochs - ipl_config.m_epochs - ipl_config.n_l_epochs - 1
     else:
         all_num_samples = num_samples
 
     sampler_num_samples = math.ceil(all_num_samples / max(1, num_workers))
-    
+
     if drop_last and num_workers > 1:
         logging.warning(
             "Please note that drop_last is broken in pytorch 1.6.0. We will fix when pytorch 1.7.0 is released"
@@ -1084,7 +1089,7 @@ def compute_max_steps(
     if ipl_config and ipl_config.is_tarred:
         steps_per_epoch = int(steps_per_epoch)
     elif isinstance(limit_train_batches, int) or limit_train_batches == 0.0:
-        
+
         steps_per_epoch = min(steps_per_epoch, int(limit_train_batches))
     elif steps_per_epoch != float('inf'):
         # limit_train_batches is a percentage of batches per epoch

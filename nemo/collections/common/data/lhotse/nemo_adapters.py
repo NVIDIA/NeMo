@@ -173,14 +173,16 @@ class LazyNeMoTarredIterator:
         lang_field: str = "lang",
         random_access: bool = False,
     ) -> None:
-        
+
         print("in init lazy nemo tarred")
+
         def strip_pipe(p):
             if isinstance(p, str):
                 if p.startswith("pipe:"):
                     p = p[5:]
                 return Path(p)
             return p
+
         self.random_access = random_access
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
@@ -237,13 +239,13 @@ class LazyNeMoTarredIterator:
         return sorted(self.shard_id_to_manifest.keys())
 
     def __iter__(self) -> Generator[Cut, None, None]:
-        
+
         shard_ids = self.shard_ids
 
         if self.shuffle_shards:
             seed = resolve_seed(self.shard_seed)
             random.Random(seed).shuffle(shard_ids)
-     
+
         for sid in shard_ids:
             shard_manifest = self.shard_id_to_manifest[sid]
             tar_path = self.shard_id_to_tar_path[sid]
@@ -260,7 +262,9 @@ class LazyNeMoTarredIterator:
                         tar_info = tar.getmember(data["audio_filepath"])
                     else:
                         tar_info = next(iterable_tar)
-                        assert data["audio_filepath"] == tar_info.name, f"Mismatched JSON manifest and tar file. {data['audio_filepath']=} != {tar_info.name=}"
+                        assert (
+                            data["audio_filepath"] == tar_info.name
+                        ), f"Mismatched JSON manifest and tar file. {data['audio_filepath']=} != {tar_info.name=}"
 
                     # Extract and process audio data
                     raw_audio = tar.extractfile(tar_info).read()

@@ -60,7 +60,6 @@ def is_datastore_path(path) -> bool:
     return False
 
 
-
 def is_tarred_path(path) -> bool:
     """Check if a path is for a tarred file.
     """

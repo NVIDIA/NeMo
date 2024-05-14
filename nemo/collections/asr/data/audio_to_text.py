@@ -580,7 +580,7 @@ class AudioToCharDataset(_AudioTextDataset):
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
-        do_caching: bool =  True,
+        do_caching: bool = True,
     ):
         self.labels = labels
 

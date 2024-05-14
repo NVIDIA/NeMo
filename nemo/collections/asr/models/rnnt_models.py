@@ -495,7 +495,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             pin_memory=config.get('pin_memory', False),
         )
 
-    def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]], do_caching: bool = True, update_limit_train_batches=False):
+    def setup_training_data(
+        self,
+        train_data_config: Optional[Union[DictConfig, Dict]],
+        do_caching: bool = True,
+        update_limit_train_batches=False,
+    ):
         """
         Sets up the training data loader via a Dict-like object.
 
@@ -516,7 +521,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         # preserve config
         self._update_dataset_config(dataset_name='train', config=train_data_config)
 
-        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, do_caching = do_caching)
+        self._train_dl = self._setup_dataloader_from_config(config=train_data_config, do_caching=do_caching)
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
