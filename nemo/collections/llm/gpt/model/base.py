@@ -7,6 +7,7 @@ import torch.distributed
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.optim import Optimizer
 
+from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.base import ModelConfig
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
@@ -64,7 +65,7 @@ class GPTConfig(TransformerConfig, ModelConfig):
         )
 
 
-class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
+class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
         config: GPTConfig,
