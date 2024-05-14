@@ -1783,6 +1783,133 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
+  # Punctuation_Capitalization_Different_ways_of_passing_labels_to_model
+  Punctuation_Capitalization_Using_model-common_datasets_parameters-label_vocab_dir:
+    needs: [cicd-test-container-setup]
+    runs-on: self-hosted-azure
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - run: |
+            cd examples/nlp/token_classification && \
+            work_dir="$(mktemp -d -p "$(pwd)")" && \
+            label_vocab_dir="${work_dir}/labels" && \
+            mkdir -p ${label_vocab_dir} && \
+            data_dir="${work_dir}/data" && \
+            mkdir -p "${data_dir}" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
+            output_dir="${work_dir}/output" && \
+            mkdir -p "${output_dir}" && \
+            punct_label_vocab="${label_vocab_dir}/punct_label_vocab.csv" && \
+            capit_label_vocab="${label_vocab_dir}/capit_label_vocab.csv" && \
+            printf "O\n,\n.\n?\n" > "${punct_label_vocab}" && \
+            printf "O\nU\n" > "${capit_label_vocab}" && \
+            python punctuation_capitalization_train_evaluate.py \
+              model.train_ds.use_tarred_dataset=false \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
+              model.language_model.pretrained_model_name=distilbert-base-uncased \
+              model.common_dataset_parameters.label_vocab_dir="${label_vocab_dir}" \
+              model.class_labels.punct_labels_file="$(basename "${punct_label_vocab}")" \
+              model.class_labels.capit_labels_file="$(basename "${capit_label_vocab}")" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir="${output_dir}" \
+              +do_testing=false && \
+            python punctuation_capitalization_train_evaluate.py \
+              +do_training=false \
+              +do_testing=true \
+              ~model.train_ds \
+              ~model.validation_ds \
+              model.test_ds.ds_item="${data_dir}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              exp_manager=null && \
+            rm -rf "${work_dir}"
+  # TODO: pleasefixme
+  # Punctuation_Capitalization_Using_model-common_datasets_parameters-punct-capit-_label_ids:
+  #   needs: [cicd-test-container-setup]
+  #   runs-on: self-hosted-azure
+  #   container:
+  #     image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+  #     options: 
+  #       # --user 0:128
+  #       --device=/dev/nvidia0
+  #       --gpus all
+  #       --shm-size=8g 
+  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env HYDRA_FULL_ERROR=1
+  #       --volume /mnt/datadrive/TestData:/home/TestData
+  #   steps:
+  #       - name: Checkout repository
+  #         uses: actions/checkout@v4
+  #       - run: |
+  #           cd examples/nlp/token_classification && \
+  #           work_dir="$(mktemp -d -p "$(pwd)")" && \
+  #           output_dir="${work_dir}/output" && \
+  #           mkdir -p "${output_dir}" && \
+  #           data_dir="${work_dir}/data" && \
+  #           mkdir -p "${data_dir}" && \
+  #           cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
+  #           conf_name=punctuation_capitalization_config_with_ids && \
+  #           cp conf/punctuation_capitalization_config.yaml "${work_dir}/${conf_name}.yaml" && \
+  #           sed -i $\'s/punct_label_ids: null/punct_label_ids: {O: 0, \\\',\\\': 1, .: 2, \\\'?\\\': 3}/\' \
+  #             "${work_dir}/${conf_name}.yaml" && \
+  #           sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
+  #             "${work_dir}/${conf_name}.yaml" && \
+  #           python punctuation_capitalization_train_evaluate.py \
+  #             --config-path "${work_dir}" \
+  #             --config-name "${conf_name}" \
+  #             model.train_ds.use_tarred_dataset=false \
+  #             model.train_ds.ds_item="${data_dir}" \
+  #             model.validation_ds.ds_item="${data_dir}" \
+  #             model.test_ds.ds_item="${data_dir}" \
+  #             model.language_model.pretrained_model_name=distilbert-base-uncased \
+  #             +model.train_ds.use_cache=false \
+  #             +model.validation_ds.use_cache=false \
+  #             +model.test_ds.use_cache=false \
+  #             trainer.devices=[0,1] \
+  #             trainer.strategy=ddp \
+  #             trainer.max_epochs=1 \
+  #             +exp_manager.explicit_log_dir="${output_dir}" \
+  #             +do_testing=false && \
+  #           python punctuation_capitalization_train_evaluate.py \
+  #             +do_training=false \
+  #             +do_testing=true \
+  #             ~model.train_ds \
+  #             ~model.validation_ds \
+  #             model.test_ds.ds_item="${data_dir}" \
+  #             pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
+  #             +model.train_ds.use_cache=false \
+  #             +model.validation_ds.use_cache=false \
+  #             +model.test_ds.use_cache=false \
+  #             trainer.devices=[0,1] \
+  #             trainer.strategy=ddp \
+  #             trainer.max_epochs=1 \
+  #             exp_manager=null && \
+  #           rm -rf "${work_dir}"
+
   # Punctuation & Capitalization inference      
   Punctuation_Capitalization_inference_Restore_punctuation_and_capitalization_in_long_text:
     needs: [cicd-test-container-setup]
@@ -5425,6 +5552,7 @@ jobs:
       - L2_Parallel_NLP_Examples2_NER_with_TurkuNLP__bert-base-finnish-cased-v1
       - L2_Parallel_NLP_Examples2_Evaluation_script_for_Token_Classification
       - L2_Parallel_NLP_Examples2_Evaluation_script_for_Punctuation
+      - Punctuation_Capitalization_Using_model-common_datasets_parameters-label_vocab_dir
       - Punctuation_Capitalization_inference_Restore_punctuation_and_capitalization_in_long_text
       - L2_Pretraining_BERT_pretraining_from_Text
       - L2_Pretraining_BERT_from_Preprocessed
