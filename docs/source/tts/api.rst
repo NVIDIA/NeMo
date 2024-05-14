@@ -1,4 +1,4 @@
-NeMo TTS Collection API
+TTS API
 =======================
 
 Model Classes

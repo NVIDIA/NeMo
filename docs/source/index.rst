@@ -70,7 +70,7 @@ For more information, browse the developer docs for your area of interest in the
    :name: APIs
    :titlesonly:
 
-   core/core_index
+   apis
 
 .. toctree::
    :maxdepth: 1
