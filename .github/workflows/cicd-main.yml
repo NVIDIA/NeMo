@@ -2268,8 +2268,8 @@ jobs:
     # stage('L2: Model Parallel Size 2 Megatron Text Classification') {
     #   when {
     #     anyOf{
-    #       branch 'main'
-    #       changeRequest target: 'main'
+    #       branch 'r2.0.0rc0'
+    #       changeRequest target: 'r2.0.0rc0'
     #     }
     #   }
     #   failFast true
@@ -2297,8 +2297,8 @@ jobs:
     # stage('L2: Model Parallel Size 2 Megatron Autoresume') {
     #   when {
     #     anyOf{
-    #       branch 'main'
-    #       changeRequest target: 'main'
+    #       branch 'r2.0.0rc0'
+    #       changeRequest target: 'r2.0.0rc0'
     #     }
     #   }
     #   failFast true
@@ -2328,8 +2328,8 @@ jobs:
     # stage('L2: Model Parallel Size 2 Megatron Evaluation from .nemo') {
     #   when {
     #     anyOf{
-    #       branch 'main'
-    #       changeRequest target: 'main'
+    #       branch 'r2.0.0rc0'
+    #       changeRequest target: 'r2.0.0rc0'
     #     }
     #   }
     #   failFast true
@@ -2349,8 +2349,8 @@ jobs:
     # stage('L2: Model Parallel Size 2 Megatron Train from .nemo') {
     #   when {
     #     anyOf{
-    #       branch 'main'
-    #       changeRequest target: 'main'
+    #       branch 'r2.0.0rc0'
+    #       changeRequest target: 'r2.0.0rc0'
     #     }
     #   }
     #   failFast true
@@ -3464,8 +3464,8 @@ jobs:
     # stage('L2: NMT Bottleneck Fallback') {
     #   when {
     #     anyOf {
-    #       branch 'main'
-    #       changeRequest target: 'main'
+    #       branch 'r2.0.0rc0'
+    #       changeRequest target: 'r2.0.0rc0'
     #     }
     #   }
     #   failFast true
@@ -3510,8 +3510,8 @@ jobs:
     # stage('L2: NMT Bottleneck Architecture') {
     #   when {
     #     anyOf {
-    #       branch 'main'
-    #       changeRequest target: 'main'
+    #       branch 'r2.0.0rc0'
+    #       changeRequest target: 'r2.0.0rc0'
     #     }
     #   }
     #   failFast true
@@ -3591,8 +3591,8 @@ jobs:
     # stage('L2: NMT Bottleneck LVM') {
     #   when {
     #     anyOf {
-    #       branch 'main'
-    #       changeRequest target: 'main'
+    #       branch 'r2.0.0rc0'
+    #       changeRequest target: 'r2.0.0rc0'
     #     }
     #   }
     #   failFast true
