@@ -226,15 +226,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         """
         if self.cfg.train_ds.get("is_tarred", False):
 
-            if isinstance(self.cfg.ipl.tarred_audio_filepaths, str):
-                tarred_audio_filepaths = [[self.cfg.ipl.tarred_audio_filepaths]]
             if update_whole_cache:
-                if isinstance(self.cfg.ipl.manifest_filepath, str):
-                    manifests = [[self.cfg.ipl.manifest_filepath]]
                 self.create_tar_cache_hypotheses(self.cfg.ipl.manifest_filepath, self.cfg.ipl.tarred_audio_filepaths)
             else:
-                if isinstance(self.cfg.ipl.all_cache_manifests, str):
-                    manifests = [[self.cfg.ipl.all_cache_manifests]]
                 self.update_tar_cache_hypotheses(self.cfg.ipl.all_cache_manifests, self.cfg.ipl.tarred_audio_filepaths)
         else:
             self.create_cache_hypotheses(self.cfg.ipl.manifest_filepath, update_whole_cache)
