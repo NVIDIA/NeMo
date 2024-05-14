@@ -109,7 +109,7 @@ class Quantizer:
             # For int8_sq, we use int8 kv cache.
             # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
             enable_quant_kv_cache = (
-                    "int8" not in quantization_config.algorithm and export_config.decoder_type != "gptnext"
+                "int8" not in quantization_config.algorithm and export_config.decoder_type != "gptnext"
             )
             print(f'{"Enable" if enable_quant_kv_cache else "Disable"} KV cache quantization')
             quant_cfg["quant_cfg"]["*output_quantizer"] = {
