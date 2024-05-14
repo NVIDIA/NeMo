@@ -11,12 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from contextlib import nullcontext
 
 import torch
 import torch.nn.functional as F
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core import InferenceParams
 from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
 from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
@@ -26,9 +24,6 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention
 from megatron.core.transformer.custom_layers.transformer_engine import (
     SplitAlongDim,
-    TEColumnParallelLinear,
-    TEDelayedScaling,
-    TELayerNormColumnParallelLinear,
 )
 from megatron.core.transformer.mlp import MLP
 from megatron.core.transformer.transformer_block import TransformerBlock
