@@ -11,7 +11,7 @@ Flash Attention
 Overview
 ^^^^^^^^
 
-Flash Attention is a method designed to enhance the efficiency of Transformer models, which are widely utilized in applications such as Natural Language Processing (NLP). Traditional Transformers are slow and consume a lot of memory, especially with long sequences, due to the quadratic time and memory complexity of self-attention. FlashAttention, an IO-aware exact attention algorithm that leverages tiling to minimize the number of memory reads/writes between the GPU's high bandwidth memory (HBM) and on-chip SRAM. This approach is designed to be more efficient in terms of IO complexity compared to standard attention mechanisms.
+Flash Attention is a method designed to enhance the efficiency of Transformer models, which are widely utilized in applications such as Natural Language Processing (NLP). Traditional Transformers are slow and consume a lot of memory, especially with long sequences, due to the quadratic time and memory complexity of self-attention. Flash Attention is an IO-aware exact attention algorithm that leverages tiling to minimize the number of memory reads/writes between the GPU's high-bandwidth memory (HBM) and on-chip SRAM. This approach is designed to be more efficient in terms of IO complexity compared to standard attention mechanisms.
 
 Turn Flash Attention On and Off
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -38,7 +38,7 @@ Selective Activation Recomputation
 """"""""""""""""""""""""""""""""""
 This method reduces memory footprint of activations significantly via smart activation checkpointing. This approach involves selectively storing only crucial activations and recomputing the others as needed. It is particularly useful in large models to minimize memory usage while controlling the computational cost.
 
-Refer to "Reducing Activation Recomputation in Large Transformer Models" for more details: https://arxiv.org/abs/2205.05198
+Refer to "Reducing Activation Recomputation in Large Transformer Models" for more details: https://arxiv.org/abs/2205.05198 .
 
 Multi-query Attention (MQA) and Grouped-query Attention (GQA)
 -------------------------------------------------------------
@@ -90,6 +90,6 @@ Adjust the ``num_query_groups`` to explore different attention mechanisms and op
 Implementation
 ^^^^^^^^^^^^^^
 
-NeMo's support for GQA and MQA is enabled through the integration of Megatron-Core's Attention mechanism. The underlying implementation details can be explored within the Attention class of Megatron-Core, which provides the functional backbone for these advanced attention methods. To understand the specific modifications and implementations of MQA and GQA, refer to the source code in the Attention class:
+NeMo's support for GQA and MQA is enabled through the integration of Megatron Core's Attention mechanism. The underlying implementation details can be explored within the Attention class of Megatron Core, which provides the functional backbone for these advanced attention methods. To understand the specific modifications and implementations of MQA and GQA, refer to the source code in the Attention class:
 
-Check implementation details from Attention Class in Megatron-Core Repo: https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L49
+Check implementation details from Attention Class in Megatron Core Repo: https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L49

@@ -42,9 +42,9 @@ The configuration file can be adjusted here: `NeMo Megatron GPT Config <https://
 Implementation
 ~~~~~~~~~~~~~~
 
-NeMo integrates Tensor Model Parallelism through the implementation from Megatron-core. To understand how TP is activated within transformer blocks, refer to the code in the following repository: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
+NeMo integrates Tensor Model Parallelism through the implementation from Megatron Core. To understand how TP is activated within transformer blocks, refer to the code in the following repository: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
 
-For detailed API usage and additional configurations, consult the `Megatron-core Developer Guide <https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
+For detailed API usage and additional configurations, consult the `Megatron Core Developer Guide <https://docs.nvidia.com/Megatron Core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
 
 Pipeline Parallelism
 ^^^^^^^^^^^^^^^^^^^^
@@ -85,9 +85,9 @@ For more insights into this approach, see our detailed blog: `Scaling Language M
 Implementation
 ~~~~~~~~~~~~~~
 
-NeMo's implementation of PP leverages functionalities from Megatron-core. For a practical example of how PP is implemented within transformer blocks in NeMo, you can inspect the following codebase: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
+NeMo's implementation of PP leverages functionalities from Megatron Core. For a practical example of how PP is implemented within transformer blocks in NeMo, you can inspect the following codebase: `Megatron-LM Transformer Block <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_block.py>`_.
 
-For more detailed API usage and configurations related to PP, visit the `Megatron-core Developer Guide <https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
+For more detailed API usage and configurations related to PP, visit the `Megatron Core Developer Guide <https://docs.nvidia.com/Megatron Core/developer-guide/latest/api-guide/tensor_parallel.html>`_.
 
 Sequence Parallelism
 ^^^^^^^^^^^^^^^^^^^^
@@ -113,7 +113,7 @@ For further information on configuration, refer to the following documentation: 
 Implementation
 ~~~~~~~~~~~~~~
 
-NeMo's implementation of Sequence Parallelism utilizes functionality from Megatron-core. For an in-depth look at how Sequence Parallelism is integrated into the Megatron Core architecture, you can examine the source code here: `Megatron-LM Sequence Parallel Source Code <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/tensor_parallel/layers.py>`_.
+NeMo's implementation of Sequence Parallelism utilizes functionality from Megatron Core. For an in-depth look at how Sequence Parallelism is integrated into the Megatron Core architecture, you can examine the source code here: `Megatron-LM Sequence Parallel Source Code <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/tensor_parallel/layers.py>`_.
 
 Context Parallelism
 ^^^^^^^^^^^^^^^^^^^
@@ -132,17 +132,17 @@ To activate CP in the NeMo framework, set the ``context_parallel_size`` paramete
 
        context_parallel_size: 1  # Example to enable Context Parallelism
 
-The configuration can be found and modified here: `NeMo Megatron Core Context Config <https://docs.nvidia.com/megatron-core/developer-guide/latest/api-guide/context_parallel.html>`_.
+The configuration can be found and modified here: `NeMo Megatron Core Context Config <https://docs.nvidia.com/Megatron Core/developer-guide/latest/api-guide/context_parallel.html>`_.
 
 Implementation
 ~~~~~~~~~~~~~~
 
-NeMo leverages functionalities from both Megatron-core and transformer-engine to implement CP efficiently. During forward propagation, each GPU handles a segment of the sequence, storing only the necessary Key and Value (KV) pairs. In the backward pass, these KV pairs are reassembled across GPUs using advanced communication schemes like all-gather and reduce-scatter transformed into point-to-point communications in a ring topology. This method reduces the memory footprint significantly while maintaining computational efficiency.
+NeMo leverages functionalities from both Megatron Core and transformer-engine to implement CP efficiently. During forward propagation, each GPU handles a segment of the sequence, storing only the necessary Key and Value (KV) pairs. In the backward pass, these KV pairs are reassembled across GPUs using advanced communication schemes like all-gather and reduce-scatter transformed into point-to-point communications in a ring topology. This method reduces the memory footprint significantly while maintaining computational efficiency.
 
 Additionally, NeMo's CP supports integration with various forms of model parallelism such as TP (Tensor Model Parallelism), PP (Pipeline Model Parallelism), and DP (Data Parallelism), ensuring broad usability and flexibility in large-scale model training environments.
 
 Visit our source code for more insights into the implementation:
-- Megatron-core transformer engine: `Megatron-Core <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/custom_layers/transformer_engine.py>`_
+- Megatron Core transformer engine: `Megatron Core <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/custom_layers/transformer_engine.py>`_
 - Transformer Engine repository: `Transformer Engine Code <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention.py>`_
 
 
