@@ -440,9 +440,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
                     raise ValueError('Async save requires async compatible CheckpointIO')
                 storage_options = dict(finalize_fn=finalize_fn)
+                # Each upcoming ckpt removal request will be executed as part of this save finalization
+                self.deferred_ckpts_to_remove.append([])
             else:
                 storage_options = None
-            self.deferred_ckpts_to_remove.append([])
             trainer.save_checkpoint(filepath, self.save_weights_only, storage_options=storage_options)
             if self.async_save:
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
@@ -452,7 +453,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'pytorch_lightning.Trainer', filepath: str, global_step: int
     ):
-        """Creates a callback that can be used to finalize async ckpt saves."""
+        """Creates a callback that can be used to finalize async (and sync) ckpt saves."""
 
         def _cb():
             logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
@@ -467,6 +468,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
             # we don't want to remove the marker until all checkpointing is done.
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+
+            if not self.async_save:
+                return
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
 
