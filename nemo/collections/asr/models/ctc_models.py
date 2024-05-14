@@ -237,7 +237,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                     manifests = [[self.cfg.ipl.all_cache_manifests]]
                 self.update_tar_cache_hypotheses(self.cfg.ipl.all_cache_manifests, self.cfg.ipl.tarred_audio_filepaths)
         else:
-            self.create_cache_hypotheses(manifests, update_whole_cache)
+            self.create_cache_hypotheses(self.cfg.ipl.manifest_filepath, update_whole_cache)
 
     def create_cache_hypotheses(self, manifests: Union[List[List[str]], str], update_whole_cache: bool = True):
         """
