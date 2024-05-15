@@ -364,7 +364,8 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
 
         Args:
-            audio: (a single or list) of paths to audio files or a np.ndarray audio sample. \
+            audio: (a single or list) of paths to audio files or a np.ndarray audio array.
+                Can also be a dataloader object that provides values that can be consumed by the model.
                 Recommended length per file is approximately 1 second.
             batch_size: (int) batch size to use during inference. \
                 Bigger will result in better throughput performance but would use more memory.
