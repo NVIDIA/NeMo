@@ -4,6 +4,9 @@ from nemo.collections.common.prompts.formatter import PromptFormatter
 
 
 class Llama2PromptFormatter(PromptFormatter):
+
+    REGISTER_NAME = "canary"
+
     def get_context_template(self) -> str:
         return "<<SYS>>\n|SYSTEM|\n<</SYS>>\n[INST]\nUser:|USER|\n[/INST]\n\nAssistant:"
 

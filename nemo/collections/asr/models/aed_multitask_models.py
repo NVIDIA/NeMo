@@ -44,6 +44,8 @@ from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+from nemo.collections.common.prompts.canary import map_manifest_values_to_special_tokens
+from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -716,6 +718,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         # Switch model to evaluation mode
         self.transf_decoder.freeze()
 
+        self.prompt_formatter = PromptFormatter.resolve(self.prompt_format)(self.tokenizer)
+
         if isinstance(audio, list):
             logging.debug(f"Found 'audio' to be a list of {len(audio)} items.")
             logging.debug(f"Assuming each item in 'audio' is a path to audio file.")
@@ -735,9 +739,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             if audio.endswith('.json') or audio.endswith('.jsonl'):
                 if hasattr(trcfg, '_internal') and hasattr(trcfg._internal, 'manifest_path'):
                     trcfg._internal.manifest_filepath = manifest_path
-
-        elif isinstance(audio, (np.ndarray, torch.Tensor)):
-            raise NotImplementedError("Transcribing from numpy or torch tensors is not supported yet.")
 
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: MultiTaskTranscriptionConfig
@@ -790,8 +791,24 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch[0], input_signal_length=batch[1]
         )
-        # TODO: Create decoder decoder_input_ids dynamically using PromptFormat here
-        decoder_input_ids = batch[-2].to(trcfg._internal.device)
+        slots = self.prompt_formatter.get_context_slots()
+        # TODO: have 'slots' dict/dataclass in trcfg instead of getattr()
+        #       for now to get a POC working, I'm manually mapping the specific existing canary's format
+        slots = map_manifest_values_to_special_tokens(
+            {
+                "|TASKNAME|": trcfg.task,
+                "|SOURCE_LANG|": trcfg.source_lang,
+                "|TARGET_LANG|": trcfg.target_lang,
+                "|PNC|": trcfg.pnc,
+            }
+        )
+        slots["|PROMPT_LANGUAGE|"] = "spl_tokens"
+        decoder_input_ids = (
+            self.prompt_formatter.encode_for_inference(slot_values=slots)["context_ids"]
+            .unsqueeze(0)
+            .repeat(batch[0].shape[0], 1)
+            .to(trcfg._internal.device)
+        )
         output = dict(
             log_probs=log_probs,
             encoded_lengths=encoded_len,

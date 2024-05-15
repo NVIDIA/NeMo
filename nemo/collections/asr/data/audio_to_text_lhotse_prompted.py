@@ -157,7 +157,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
                     "|TASKNAME|": cut.custom['taskname'],
                     "|PNC|": cut.custom['pnc'],
                     "|TEXT|": ' '.join(s.text for s in cut.supervisions),
-                    "|PROMPT_LANGUAGE|": cut.custom['target_lang'],
+                    "|PROMPT_LANGUAGE|": "spl_tokens",
                 }
             )
         )

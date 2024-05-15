@@ -35,6 +35,8 @@ from nemo.collections.common.prompts.formatter import PromptFormatter
 
 class CanaryPromptFormatter(PromptFormatter):
 
+    REGISTER_NAME = "canary"
+
     def get_context_template(self) -> str:
         return "<|startoftranscript|>|SOURCE_LANG||TASKNAME||TARGET_LANG||PNC|"
 

@@ -53,13 +53,18 @@ class PromptFormatter(ABC):
 
     def __init_subclass__(cls, **kwargs) -> None:
         if cls.__name__ not in cls._REGISTERED_FORMATTERS:
-            cls._REGISTERED_FORMATTERS[cls.__name__] = cls
+            assert hasattr(
+                cls, "REGISTER_NAME"
+            ), f"Programmer's error: PromptFormatter subclass {cls} did not define a class attribute NAME"
+            cls._REGISTERED_FORMATTERS[cls.REGISTER_NAME] = cls
         super().__init_subclass__(**kwargs)
 
     @classmethod
     def resolve(cls, name: str) -> Type["PromptFormatter"]:
         if name not in cls._REGISTERED_FORMATTERS:
-            raise RuntimeError(f"Unknown prompt formatter: '{name}'")
+            raise RuntimeError(
+                f"Unknown prompt formatter: '{name}' (known formats: {', '.join(cls._REGISTERED_FORMATTERS.keys())})"
+            )
         return cls._REGISTERED_FORMATTERS[name]
 
     def __init__(self, tokenizer: TokenizerSpec) -> None:

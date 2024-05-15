@@ -1619,7 +1619,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                         "|TARGET_LANG|": sample["target_lang"],
                         "|PNC|": sample["pnc"],
                         "|TASKNAME|": sample["taskname"],
-                        "|PROMPT_LANGUAGE|": sample["target_lang"],
+                        "|PROMPT_LANGUAGE|": "spl_tokens",
                     }
                 )
             )["context_ids"]
