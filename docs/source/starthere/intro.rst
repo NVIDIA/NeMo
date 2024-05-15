@@ -102,7 +102,7 @@ This final step involves installing the Model Optimizer package.
 
 .. code-block:: bash
 
-    pip install nvidia-modelopt[all]~=0.11.0 --extra-index-url https://pypi.nvidia.com
+    pip install nvidia-modelopt[torch]~=0.11.0 --extra-index-url https://pypi.nvidia.com
 
 
 .. code-block:: bash
