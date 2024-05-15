@@ -101,7 +101,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         self.cfg.decoding = self.set_decoding_type_according_to_loss(self.cfg.decoding)
         # Setup decoding objects
         self.decoding = RNNTDecoding(
-            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+            decoding_cfg=self.cfg.decoding,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.joint.vocabulary,
         )
         # Setup WER calculation
         self.wer = WER(
@@ -339,7 +342,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             decoding_cfg = self.set_decoding_type_according_to_loss(decoding_cfg)
 
             self.decoding = RNNTDecoding(
-                decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+                decoding_cfg=decoding_cfg,
+                decoder=self.decoder,
+                joint=self.joint,
+                vocabulary=self.joint.vocabulary,
             )
 
             self.wer = WER(
@@ -395,7 +401,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         decoding_cfg = self.set_decoding_type_according_to_loss(decoding_cfg)
 
         self.decoding = RNNTDecoding(
-            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+            decoding_cfg=decoding_cfg,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.joint.vocabulary,
         )
 
         self.wer = WER(
@@ -650,7 +659,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         # Spec augment is not applied during evaluation/testing

@@ -169,7 +169,8 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
         # Crop or pad is always applied
         if self.crop_or_pad is not None:
@@ -953,7 +954,10 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
             dataset = audio_to_label_dataset.get_tarred_audio_multi_label_dataset(
-                cfg=config, shuffle_n=shuffle_n, global_rank=self.global_rank, world_size=self.world_size,
+                cfg=config,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
             )
             shuffle = False
             if hasattr(dataset, 'collate_fn'):
@@ -1023,7 +1027,8 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         # Crop or pad is always applied
@@ -1125,7 +1130,7 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
     def reshape_labels(self, logits, labels, logits_len, labels_len):
         """
         Reshape labels to match logits shape. For example, each label is expected to cover a 40ms frame, while each frme prediction from the
-        model covers 20ms. If labels are shorter than logits, labels are repeated, otherwise labels are folded and argmax is applied to obtain 
+        model covers 20ms. If labels are shorter than logits, labels are repeated, otherwise labels are folded and argmax is applied to obtain
         the label of each frame. When lengths of labels and logits are not factors of each other, labels are truncated or padded with zeros.
         The ratio_threshold=0.2 is used to determine whether to pad or truncate labels, where the value 0.2 is not important as in real cases the ratio
         is very close to either ceil(ratio) or floor(ratio). We use 0.2 here for easier unit-testing. This implementation does not allow frame length

@@ -141,7 +141,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             num_layers=self.cfg.head.num_layers,
         )
         self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
-        std_init_range = 1 / self.transf_decoder.hidden_size ** 0.5
+        std_init_range = 1 / self.transf_decoder.hidden_size**0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
@@ -226,7 +226,9 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 config,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                dataset=LhotseSpeechToTextBpeDataset(tokenizer=self.tokenizer,),
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=self.tokenizer,
+                ),
             )
 
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(

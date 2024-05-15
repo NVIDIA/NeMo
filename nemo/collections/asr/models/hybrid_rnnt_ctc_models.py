@@ -183,7 +183,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         encoded_len = outputs.pop('encoded_len')
 
         best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
-            logits, encoded_len, return_hypotheses=trcfg.return_hypotheses,
+            logits,
+            encoded_len,
+            return_hypotheses=trcfg.return_hypotheses,
         )
         logits = logits.cpu()
 
@@ -555,7 +557,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
             loss_value = (1 - self.ctc_loss_weight) * loss_value + self.ctc_loss_weight * ctc_loss
             tensorboard_logs['val_loss'] = loss_value
         self.ctc_wer.update(
-            predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len,
+            predictions=log_probs,
+            targets=transcript,
+            targets_lengths=transcript_len,
+            predictions_lengths=encoded_len,
         )
         ctc_wer, ctc_wer_num, ctc_wer_denom = self.ctc_wer.compute()
         self.ctc_wer.reset()

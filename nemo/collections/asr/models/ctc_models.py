@@ -494,7 +494,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         if self.spec_augmentation is not None and self.training:
@@ -580,7 +581,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         transcribed_texts, _ = self.wer.decoding.ctc_decoder_predictions_tensor(
-            decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+            decoder_outputs=log_probs,
+            decoder_lengths=encoded_len,
+            return_hypotheses=False,
         )
 
         sample_id = sample_id.cpu().detach().numpy()
@@ -602,11 +605,19 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         loss_value, metrics = self.add_interctc_losses(
-            loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
+            loss_value,
+            transcript,
+            transcript_len,
+            compute_wer=True,
+            log_wer_num_denom=True,
+            log_prefix="val_",
         )
 
         self.wer.update(
-            predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len,
+            predictions=log_probs,
+            targets=transcript,
+            targets_lengths=transcript_len,
+            predictions_lengths=encoded_len,
         )
         wer, wer_num, wer_denom = self.wer.compute()
         self.wer.reset()
@@ -678,7 +689,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         logits_len = outputs.pop('logits_len')
 
         current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-            logits, decoder_lengths=logits_len, return_hypotheses=trcfg.return_hypotheses,
+            logits,
+            decoder_lengths=logits_len,
+            return_hypotheses=trcfg.return_hypotheses,
         )
         if trcfg.return_hypotheses:
             if logits.is_cuda:

@@ -156,7 +156,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.transf_encoder = EncDecMultiTaskModel.from_config_dict(transf_encoder_cfg_dict)
 
             # Initialize weights
-            std_init_range = 1 / self.cfg.model_defaults.lm_enc_hidden ** 0.5
+            std_init_range = 1 / self.cfg.model_defaults.lm_enc_hidden**0.5
             self.transf_encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         transf_decoder_cfg_dict = cfg.transf_decoder
@@ -182,7 +182,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
 
         # Initialize weights
-        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden ** 0.5
+        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
@@ -347,7 +347,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
 
         # Initialize weights of token classifier
-        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden ** 0.5
+        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # Setup Decoding class
