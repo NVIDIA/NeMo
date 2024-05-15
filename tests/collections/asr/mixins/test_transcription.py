@@ -351,7 +351,7 @@ class TestTranscriptionMixin:
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
-    def test_transcribe_tensor(self, test_data_dir):
+    def test_transcribe_dataloader(self, test_data_dir):
         model = ASRModel.from_pretrained("stt_en_conformer_ctc_small")
 
         # Load audio file
