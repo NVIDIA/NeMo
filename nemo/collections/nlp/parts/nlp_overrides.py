@@ -454,6 +454,7 @@ class NLPDDPStrategy(DDPStrategy):
         model_has_expert_param = any(param.get('is_expert', False) for param in model_param_groups)
         checkpoint_has_expert_param = any(param.get('is_expert', False) for param in checkpoint_param_groups)
 
+        expert_index = None
         if checkpoint_has_expert_param and not model_has_expert_param:
             logging.warning(
                 'Currently training the model without expert parallelism while restored checkpoint has EP params. Ignoring the EP params for restoring.'
