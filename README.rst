@@ -403,7 +403,7 @@ Transformer Engine requires PyTorch to be built with at least CUDA 11.8.
 Megatron Core
 ~~~~~~~~~~~~~
 
-Megatron Core is required for LLM and MM domains. Although Megatron Core is pre-installed in the NVIDIA PyTorch container, you may need to update it to a newer version.
+Megatron Core is required for LLM and MM domains.
 
 Megatron Core is a library for scaling large Transformer-based models. NeMo LLMs and MMs leverage Megatron Core for model parallelism, 
 transformer architectures, and optimized PyTorch datasets.
