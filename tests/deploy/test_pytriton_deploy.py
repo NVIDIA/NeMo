@@ -68,7 +68,6 @@ def test_triton_deployable(args):
     with ModelClient(url, model_name, init_timeout_s=init_timeout) as client:
         logprob_results = client.infer_batch(
             prompts=prompts,
-            min_length=min_length,
             max_length=max_output_token,
             top_k=top_k,
             top_p=top_p,
