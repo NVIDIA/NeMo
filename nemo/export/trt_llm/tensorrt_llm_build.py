@@ -371,6 +371,10 @@ def build_and_save_engine(
     lora_target_modules=None,
     max_prompt_embedding_table_size=0,
     enable_multi_block_mode: bool = False,
+    paged_kv_cache: bool = False,
+    max_num_tokens: int = None,
+    opt_num_tokens: int = None,
+    max_beam_width: int = 1,
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -383,20 +387,21 @@ def build_and_save_engine(
     plugin_config.set_gpt_attention_plugin(dtype=str_dtype)
     plugin_config.set_gemm_plugin(dtype=str_dtype)
     plugin_config.set_plugin("multi_block_mode", enable_multi_block_mode)
-    max_num_tokens = max_batch_size * max_input_len
+    max_num_tokens = max_batch_size * max_input_len if max_num_tokens is None else max_num_tokens
 
     build_dict = {
         'max_input_len': max_input_len,
         'max_output_len': max_output_len,
         'max_batch_size': max_batch_size,
-        'max_beam_width': 1,
+        'max_beam_width': max_beam_width,
         'max_num_tokens': max_num_tokens,
-        'opt_num_tokens': None,
+        'opt_num_tokens': opt_num_tokens,
         'max_prompt_embedding_table_size': max_prompt_embedding_table_size,
         'gather_context_logits': False,
         'gather_generation_logits': False,
         'strongly_typed': False,
         'builder_opt': None,
+        'paged_kv_cache': paged_kv_cache,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 

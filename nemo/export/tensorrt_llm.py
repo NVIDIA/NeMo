@@ -117,7 +117,6 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
         use_parallel_embedding: bool = False,
-        use_inflight_batching: bool = False,
         enable_context_fmha: bool = True,
         paged_kv_cache: bool = False,
         dtype: str = "bfloat16",
@@ -126,6 +125,7 @@ class TensorRTLLM(ITritonDeployable):
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
+        max_num_tokens: int = None,
         save_nemo_model_config: bool = False,
     ):
         """
@@ -238,6 +238,8 @@ class TensorRTLLM(ITritonDeployable):
                         lora_target_modules=lora_target_modules,
                         max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                         enable_multi_block_mode=enable_multi_block_mode,
+                        paged_kv_cache=paged_kv_cache,
+                        max_num_tokens=max_num_tokens,
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
