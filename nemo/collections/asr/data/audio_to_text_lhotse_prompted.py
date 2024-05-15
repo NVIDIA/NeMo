@@ -161,8 +161,8 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
                 }
             )
         )
-        tokens.append(encoded["context_ids"])
-        prompts.append(encoded["answer_ids"])
+        tokens.append(encoded["input_ids"])
+        prompts.append(encoded["context_ids"])
 
     return tokens, prompts
 
