@@ -267,7 +267,7 @@ class LazyNeMoTarredIterator:
                 for tar_info in tar:
                     assert tar_info.name in shard_manifest, (
                         f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                        f"Cannot locate manifest entry for TAR='{tar_info.name}'"
+                        f"Cannot locate JSON audio path '{data['audio_filepath']}' in tar file '{tar_info.name}'"
                     )
                     data = shard_manifest[tar_info.name]
                     raw_audio = tar.extractfile(tar_info).read()
