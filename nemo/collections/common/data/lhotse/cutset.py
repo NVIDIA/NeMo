@@ -403,7 +403,8 @@ def read_nemo_manifest(config, is_tarred: bool, pseudo_label_gen: bool = False) 
                         tar_paths=config.tarred_audio_filepaths,
                         random_access=config.random_access,
                         **common_kwargs,
-                    ))
+                    )
+                )
             else:
                 cuts = CutSet(
                     LazyNeMoTarredIterator(
@@ -412,7 +413,7 @@ def read_nemo_manifest(config, is_tarred: bool, pseudo_label_gen: bool = False) 
                         **common_kwargs,
                     )
                 ).repeat()
-                  
+
         else:
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
     else:
