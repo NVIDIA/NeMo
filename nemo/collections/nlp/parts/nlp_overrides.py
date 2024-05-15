@@ -442,8 +442,16 @@ class NLPDDPStrategy(DDPStrategy):
             checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
 
             common_state_dict = dist_checkpointing.load_common_state_dict(checkpoint_path)
-            checkpoint_param_groups = common_state_dict['optimizer_states'][0]['param_groups'] if 'optimizer' not in common_state_dict['optimizer_states'][0] else common_state_dict['optimizer_states'][0]['optimizer']['param_groups']
-            model_param_groups = checkpoint['optimizer_states'][0]['param_groups'] if 'optimizer' not in checkpoint['optimizer_states'][0] else checkpoint['optimizer_states'][0]['optimizer']['param_groups']
+            checkpoint_param_groups = (
+                common_state_dict['optimizer_states'][0]['param_groups']
+                if 'optimizer' not in common_state_dict['optimizer_states'][0]
+                else common_state_dict['optimizer_states'][0]['optimizer']['param_groups']
+            )
+            model_param_groups = (
+                checkpoint['optimizer_states'][0]['param_groups']
+                if 'optimizer' not in checkpoint['optimizer_states'][0]
+                else checkpoint['optimizer_states'][0]['optimizer']['param_groups']
+            )
             expert_index = None
             if len(checkpoint_param_groups) != len(model_param_groups):
                 # In 24.03, all checkpoints store EP param regardless of using EP or not
