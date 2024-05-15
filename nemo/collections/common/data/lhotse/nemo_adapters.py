@@ -198,10 +198,12 @@ class LazyNeMoTarredIterator:
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
-            logging.warning(f"""You are using Lhotse dataloading for tarred audio with a non-sharded manifest.
+            logging.warning(
+                f"""You are using Lhotse dataloading for tarred audio with a non-sharded manifest.
                             This will incur significant memory overhead and slow-down training. To prevent this error message
                             please shard file '{self.paths[0]}' using 'scripts/speech_recognition/convert_to_tarred_audio_dataset.py'
-                            WITHOUT '--no_shard_manifest'""")
+                            WITHOUT '--no_shard_manifest'"""
+            )
             self.source = LazyJsonlIterator(self.paths[0])
             self.shard_id_to_manifest = groupby("shard_id", self.source)
         else:
