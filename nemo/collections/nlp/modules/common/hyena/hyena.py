@@ -306,12 +306,8 @@ class HyenaOperator(nn.Module):
             order=2,
             filter_order=64,
             num_heads=1,
-            inner_factor=1,
-            num_blocks=1,
-            outer_mixing=False,
             dropout=0.0,
             filter_dropout=0.0,
-            post_order_ffn=False,
             jit_filter=False,
             short_filter_order=3,
             activation="identity",
@@ -326,11 +322,8 @@ class HyenaOperator(nn.Module):
             order: (int): Depth of the Hyena recurrence. Defaults to 2
             filter_order: (int): Width of the FFN parametrizing the implicit filter. Defaults to 64
             num_heads: (int): Number of heads. Defaults to 1
-            inner_factor: (int): Width multiplier. Defaults to 1
-            num_blocks: (int): Number of blocks in sequence length. Defaults to 1
             dropout: (float): Dropout probability. Defaults to 0.0
             filter_dropout: (float): Dropout probability for the filter. Defaults to 0.0
-            post_order_ffn: (bool): Apply a dense layer between steps of the recurrence. Defaults to False
             jit_filter: (bool): Whether JIT the implicit filter function. Defaults to False
             short_filter_order: (int): Length of the explicit input convolutional filter. Defaults to 3
             activation: (str): type of act between kernel output and FF (default identity)
@@ -349,27 +342,22 @@ class HyenaOperator(nn.Module):
             raise ValueError(f'Model dimension {d_model} must be divisible by num heads {num_heads}')
         head_dim = d_model // num_heads
 
-        # TODO: Possibly remove blocks support
-        if l_max % num_blocks != 0:
-            raise ValueError(f'Maximum signal length {l_max} must be divisible by block dimension {num_blocks}')
-        block_dim = l_max // num_blocks
-
         auto_assign_attrs(
-            self, d_model=d_model, order=order, l_max=l_max, num_heads=num_heads, inner_factor=inner_factor,
-            block_dim=block_dim, head_dim=head_dim, filter_order=filter_order, post_order_ffn=post_order_ffn,
-            short_filter_order=short_filter_order, num_blocks=num_blocks, filter_dropout=filter_dropout,
-            jit_filter=jit_filter, outer_mixing=outer_mixing, activation=activation, mcore_config=config
+            self, d_model=d_model, order=order, l_max=l_max, num_heads=num_heads,
+            head_dim=head_dim, filter_order=filter_order,
+            short_filter_order=short_filter_order, filter_dropout=filter_dropout,
+            jit_filter=jit_filter, activation=activation, mcore_config=config
         )
         self.activation = activation_registry[activation]()
         self.dropout = nn.Dropout(dropout)
-        self.setup_projections(submodules, inner_factor)
+        self.setup_projections(submodules)
         self.setup_filters(submodules, filter_args)
 
-    def setup_projections(self, submodules: HyenaOperatorSubmodules, inner_factor):
+    def setup_projections(self, submodules: HyenaOperatorSubmodules):
         "Initializes input and output projections (over the width dimension)"
         self.out_proj = build_module(
             submodules.out_proj,
-            self.d_model * inner_factor,
+            self.d_model,
             self.d_model,
             config=self.mcore_config,
             init_method=self.mcore_config.output_layer_init_method,
@@ -393,10 +381,6 @@ class HyenaOperator(nn.Module):
             tp_comm_buffer_name='in_proj',
         )
 
-        if self.post_order_ffn:
-            self.ord_proj_w = nn.Parameter(
-                torch.randn(self.order, self.num_heads, self.num_heads) / math.sqrt(self.head_dim))
-
     def setup_filters(self, submodules: HyenaOperatorSubmodules, filter_args):
         "Initializes the explicit and implicit filters"
         if self.order < 2:
@@ -404,7 +388,7 @@ class HyenaOperator(nn.Module):
         if self.num_heads > 1 and self.order > 2:
             raise ValueError(f'Multi-head supported only with order == 2 '
                              f'(got num_heads {self.num_heads} and order {self.order})')
-        total_width = self.d_model * self.inner_factor * (self.order + 1)
+        total_width = self.d_model * (self.order + 1)
 
         # TODO: Replace with causal_conv1d
         self.short_filter = build_module(
@@ -424,7 +408,7 @@ class HyenaOperator(nn.Module):
             # else:
             #     fftconv_type = 'flash'
             fftconv_type = 'flash'
-            filter_channels = self.head_dim * self.inner_factor * (self.order - 1)
+            filter_channels = self.head_dim * (self.order - 1)
 
         if fftconv_type == 'safari' and not HAVE_FFTCONV:
             raise ImportError('fftconv library not found. Please see README at <tbd> for instructions.')
@@ -480,40 +464,13 @@ class HyenaOperator(nn.Module):
     def conv_single_head(self, uc, k):
         k = rearrange(k, '(o v) l -> o v l', v=self.head_dim, o=self.order - 1)
 
-        # Workaround for shape error in fftconv, based on:
-        # https://github.com/HazyResearch/safari/issues/26#issuecomment-1589018138
-        # uc = rearrange(uc, 'b (ho v) (z l) -> b ho v z l',
-        #                z=self.num_blocks,
-        #                ho=self.num_heads,
-        #                v=self.head_dim * (self.order + 1)
-        #                )
-        # *x, v = uc.split(self.d_model, dim=2)
         *x, v = uc.split(self.d_model, dim=1)
         bias = rearrange(self.filter_fn.bias, '(v o) -> o v', v=self.head_dim, o=self.order - 1)
         for o, x_i in enumerate(reversed(x[1:])):
-            # TODO: Possibly remove outer_mixing
-            # if self.outer_mixing:
-            #     v = rearrange(v, 'b h v z l -> b h 1 v z l')
-            #     v = self.dropout(
-            #         v * rearrange(x_i, 'b h v z l -> b h v 1 z l')
-            #     )
-            #     v = v.sum(dim=2)
-            # else:
-            #     v = self.dropout(v * x_i)
             v = self.dropout(v * x_i)
-
-            # the bias term is broadcasted. Last dimension (l) is handled by fftconv
-            # v = self.filter_fn(v, k=k[o], bias=bias[o, None, :, None])
             v = self.filter_fn(v, k=k[o], bias=bias[o])
 
-            # TODO: Possibly remove post_order_ffn
-            # if self.post_order_ffn:
-            #     w = self.ord_proj_w[o]
-            #     v = mul_sum(
-            #         rearrange(w, 'h1 h2 -> 1 h1 h2 1 1 1'), rearrange(v, 'b h v z l -> b h 1 v z l')
-            #     )
         y = v * x[0]
-        # y = rearrange(y, 'b h v z l -> b (z l) (h v)', z=self.num_blocks, h=self.num_heads)
         y = rearrange(y, 'b d l -> b l d')
         return y
 
