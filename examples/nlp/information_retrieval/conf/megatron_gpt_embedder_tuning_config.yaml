@@ -79,12 +79,12 @@ model:
   num_soft_negatives: 0 # Number of soft negatives to use for contrastive loss,it should be max(batch_size - 1), 0 means use hard negatives only
   use_all_possible_negatives: False # If True, use all possible negatives for contrastive loss, otherwise use num_soft_negatives, if num_soft_negatives is 0, use hard negatives only
   post_process: False # should be False.
-  apply_rope_fusion: False
   transformer_engine: True # required to be True for newer versions of Megatron-LM based models
   mcore_gpt: True # required to be True for newer versions of Megatron-LM based models
   use_flash_attention: True
   precision: bf16
   apply_rope_fusion: False
+  reward_model_loss: False  # Set this to true to perform RLHF style reward model loss -log(sigmoid(accept_logit - reject_logit))
 
   peft:
     peft_scheme: "lora"  # can be either adapter,ia3, or ptuning

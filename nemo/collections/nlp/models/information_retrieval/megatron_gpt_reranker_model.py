@@ -52,6 +52,7 @@ def listify(tensor):
 
 class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        self.reward_model_loss = cfg.get("reward_model_loss", False)
         super().__init__(cfg, trainer=trainer)
 
     def model_provider_func(self, pre_process, post_process):
@@ -198,10 +199,13 @@ class MegatronGPTRerankerModel(MegatronGPTEmbeddingModel):
         query_pos_doc_hs = eos_tensors[::2, :]  # every second tensor from idx 0 is a query w pos_doc (bs x 1)
         query_neg_doc_hs = eos_tensors[1::2, :]  # every second tensor from idx 1 is a query w negative doc (bs x 1)
 
-        cs = torch.cat([query_pos_doc_hs, query_neg_doc_hs], dim=1)  # (bs x 2)
-        cs = cs / self.temperature
-        labels = torch.zeros(bs, device=cs.device).long()
-        loss = torch.nn.functional.cross_entropy(cs, labels)
+        if self.reward_model_loss:
+            loss = -torch.nn.functional.logsigmoid(query_pos_doc_hs - query_neg_doc_hs).mean()
+        else:
+            cs = torch.cat([query_pos_doc_hs, query_neg_doc_hs], dim=1)  # (bs x 2)
+            cs = cs / self.temperature
+            labels = torch.zeros(bs, device=cs.device).long()
+            loss = torch.nn.functional.cross_entropy(cs, labels)
 
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
