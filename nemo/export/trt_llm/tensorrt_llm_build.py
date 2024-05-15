@@ -372,6 +372,7 @@ def build_and_save_engine(
     max_prompt_embedding_table_size=0,
     enable_multi_block_mode: bool = False,
     paged_kv_cache: bool = False,
+    remove_input_padding: bool = False,
     max_num_tokens: int = None,
     opt_num_tokens: int = None,
     max_beam_width: int = 1,
@@ -402,6 +403,7 @@ def build_and_save_engine(
         'strongly_typed': False,
         'builder_opt': None,
         'paged_kv_cache': paged_kv_cache,
+        'remove_input_padding': remove_input_padding,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 

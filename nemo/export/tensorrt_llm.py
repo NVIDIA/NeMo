@@ -117,8 +117,8 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
         use_parallel_embedding: bool = False,
-        enable_context_fmha: bool = True,
         paged_kv_cache: bool = False,
+        remove_input_padding: bool = False,
         dtype: str = "bfloat16",
         load_model: bool = True,
         enable_multi_block_mode: bool = False,
@@ -126,6 +126,7 @@ class TensorRTLLM(ITritonDeployable):
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
         max_num_tokens: int = None,
+        opt_num_tokens: int = None,
         save_nemo_model_config: bool = False,
     ):
         """
@@ -142,8 +143,7 @@ class TensorRTLLM(ITritonDeployable):
             max_output_token (int): max output length.
             max_batch_size (int): max batch size.
             max_prompt_embedding_table_size (int): max prompt embedding size.
-            use_inflight_batching (bool): if True, enables inflight batching for TensorRT-LLM Triton backend.
-            enable_context_fmha (bool): if True, use fused Context MultiHeadedAttention.
+            use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
@@ -239,7 +239,9 @@ class TensorRTLLM(ITritonDeployable):
                         max_prompt_embedding_table_size=max_prompt_embedding_table_size,
                         enable_multi_block_mode=enable_multi_block_mode,
                         paged_kv_cache=paged_kv_cache,
+                        remove_input_padding=remove_input_padding,
                         max_num_tokens=max_num_tokens,
+                        opt_num_tokens=opt_num_tokens,
                     )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
