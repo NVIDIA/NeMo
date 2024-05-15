@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import random
 import re
 import tarfile
@@ -197,6 +198,10 @@ class LazyNeMoTarredIterator:
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
+            logging.warning(f"""You are using Lhotse dataloading for tarred audio with a non-sharded manifest.
+                            This will incur significant memory overhead and slow-down training. To prevent this error message
+                            please shard file '{self.paths[0]}' using 'scripts/speech_recognition/convert_to_tarred_audio_dataset.py'
+                            WITHOUT '--no_shard_manifest'""")
             self.source = LazyJsonlIterator(self.paths[0])
             self.shard_id_to_manifest = groupby("shard_id", self.source)
         else:
@@ -279,7 +284,7 @@ class LazyNeMoTarredIterator:
                 for tar_info in tar:
                     assert tar_info.name in shard_manifest, (
                         f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                        f"Cannot locate JSON audio path '{data['audio_filepath']}' in tar file '{tar_info.name}'"
+                        f"Cannot locate JSON entry for tar file '{tar_info.name}'"
                     )
                     data = shard_manifest[tar_info.name]
                     raw_audio = tar.extractfile(tar_info).read()
