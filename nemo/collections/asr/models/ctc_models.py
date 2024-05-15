@@ -20,9 +20,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset

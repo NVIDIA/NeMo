@@ -18,8 +18,8 @@ from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf, open_dict
+from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
