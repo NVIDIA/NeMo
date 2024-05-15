@@ -167,8 +167,6 @@ model:
     ranks: [0] # Global rank IDs to profile
     gen_shape: False # Generate model and kernel details including input shapes
 
-  spec_overrides: null
-
   hyena:
     # HyenaOperator parameters
     d_model: ${model.hidden_size}
@@ -188,6 +186,7 @@ model:
     activation: "identity"
 
     # HyenaFilter parameters
+    precision: ${trainer.precision}
     emb_dim: 3 # dim of input to MLP, augments with positional encoding
     fused_fft_conv: false
     learn_pos_emb_z: true

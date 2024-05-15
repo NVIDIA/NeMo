@@ -18,13 +18,7 @@ model:
       constant_steps: 0
       min_lr: ${multiply:0.1, ${model.optim.lr}}
 
-  spec_overrides:
-    # Uncomment layer norm override if not using fused TE classes in HyenaOperator
-    # - submodule: 'submodules.input_layernorm'
-    #   class: 'megatron.core.transformer.custom_layers.transformer_engine.TENorm'
-    - submodule: 'submodules.self_attention'
-      class: 'nemo.collections.nlp.modules.common.hyena.HyenaOperator'
-      config_key: 'hyena'
+  name: te_gpt_hyena
 
   hyena:  # Full defaults are in the parent 126m_pile.yaml
     emb_dim: 33 # dim of input to MLP, augments with positional encoding

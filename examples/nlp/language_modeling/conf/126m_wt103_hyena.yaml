@@ -42,13 +42,7 @@ model:
   attention_dropout: 0.1 # Dropout probability for attention
   ffn_dropout: 0.0 # Dropout probability in the feed-forward layer.
 
-  spec_overrides:
-    # Uncomment layer norm override if not using fused TE classes in HyenaOperator
-    # - submodule: 'submodules.input_layernorm'
-    #   class: 'megatron.core.transformer.custom_layers.transformer_engine.TENorm'
-    - submodule: 'submodules.self_attention'
-      class: 'nemo.collections.nlp.modules.common.hyena.HyenaOperator'
-      config_key: 'hyena'
+  name: te_gpt_hyena
 
   hyena:
     # HyenaOperator parameters

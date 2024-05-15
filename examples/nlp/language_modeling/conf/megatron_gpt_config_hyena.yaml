@@ -94,15 +94,7 @@ model:
   seq_len_interpolation_factor: null # RoPE Interpolation factor for sequence length. This is used to build long-context models with RoPE ex: https://arxiv.org/abs/2306.15595.
   num_query_groups: null # Number of query groups for group query attention. If None, normal attention is used.
 
-  spec_overrides:
-    - submodule: 'submodules.input_layernorm'
-      class: 'megatron.core.transformer.custom_layers.transformer_engine.TENorm'
-    - submodule: 'submodules.self_attention'
-      class: 'nemo.collections.nlp.modules.common.hyena.HyenaOperator'
-      config_key: 'hyena'
-#    - submodule: 'submodules.mlp.submodules.linear_fc1'
-#      params:
-#        stride: 3
+  name: te_gpt_hyena
 
   hyena:
     # HyenaOperator parameters
