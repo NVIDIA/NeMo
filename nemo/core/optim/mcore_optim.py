@@ -59,7 +59,8 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
 
     def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None):
         return self.mcore_optimizer.sharded_state_dict(
-            model_sharded_state_dict, is_loading=False, sharding_type='dp_zero_gather_scatter')
+            model_sharded_state_dict, is_loading=False, sharding_type='dp_zero_gather_scatter'
+        )
 
     def step(self, closure):
         """Clip gradients (if needed) and step the base optimizer.

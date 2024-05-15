@@ -79,6 +79,7 @@ try:
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
     from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
