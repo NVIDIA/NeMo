@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
@@ -119,7 +120,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
     def transcribe(
         self,
-        audio: Union[str, List[str], torch.Tensor, np.ndarray],
+        audio: Union[str, List[str], torch.Tensor, np.ndarray, DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         num_workers: int = 0,

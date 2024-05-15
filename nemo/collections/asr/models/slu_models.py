@@ -13,15 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf, open_dict
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
@@ -562,7 +560,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
     @torch.no_grad()
     def transcribe(
         self,
-        audio: List[str],
+        audio: Union[List[str], DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         num_workers: int = 0,

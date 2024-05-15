@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Union
 import editdistance
 import torch
 import torch.distributed as dist
+from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torchmetrics.text import SacreBLEUScore
@@ -174,7 +175,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
     @torch.no_grad()
     def transcribe(
         self,
-        audio: List[str],
+        audio: Union[List[str], DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         num_workers: int = 0,
@@ -185,7 +186,7 @@ class EncDecTransfModelBPE(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
         Args:
-            audio: (a single or list) of paths to audio files or a np.ndarray audio array.
+            audio: (a list) of paths to audio files.
                 Can also be a dataloader object that provides values that can be consumed by the model.
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.

@@ -186,7 +186,7 @@ class TranscriptionMixin(ABC):
     @torch.no_grad()
     def transcribe(
         self,
-        audio: Union[str, List[str], np.ndarray],
+        audio: Union[str, List[str], np.ndarray, DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         num_workers: int = 0,

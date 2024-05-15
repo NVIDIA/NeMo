@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
@@ -387,7 +388,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
     @torch.no_grad()
     def transcribe(
         self,
-        audio: Union[List[str], str],
+        audio: Union[str, List[str], np.ndarray, DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         task: Optional[str] = None,

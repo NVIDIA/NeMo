@@ -13,16 +13,15 @@
 # limitations under the License.
 
 import copy
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
+from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
@@ -239,7 +238,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
     @torch.no_grad()
     def transcribe(
         self,
-        audio: List[str],
+        audio: Union[str, List[str], np.ndarray, DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,

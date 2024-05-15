@@ -15,13 +15,13 @@
 import copy
 import json
 import os
-import tempfile
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from math import ceil, floor
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+from torch.utils.data import DataLoader
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torchmetrics import Accuracy
@@ -356,7 +356,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
     @torch.no_grad()
     def transcribe(
         self,
-        audio: List[str],
+        audio: Union[List[str], DataLoader],
         batch_size: int = 4,
         logprobs=None,
         override_config: Optional[ClassificationInferConfig] | Optional[RegressionInferConfig] = None,
