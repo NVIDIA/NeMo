@@ -15,7 +15,9 @@
 import torch
 import torch.nn.functional as F
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
+from megatron.core.fusions.fused_bias_geglu import bias_geglu_impl
 from megatron.core.fusions.fused_bias_gelu import bias_gelu_impl
+from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.transformer.attention import SelfAttention
@@ -35,6 +37,8 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
+    LoraUnfusedHto4HAdapterConfig,
+    LoraUnfusedKQVAdapterConfig,
     MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
     PromptEncoderAdapterConfig,
@@ -65,7 +69,12 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         Setup NeMo LoRA or IA3 adapter to this MCore layer.
         """
         self.set_accepted_adapter_types(
-            [LoraKQVAdapterConfig._target_, LoraDenseAttentionAdapterConfig._target_, InfusedAdapterConfig._target_]
+            [
+                LoraUnfusedKQVAdapterConfig._target_,
+                LoraKQVAdapterConfig._target_,
+                LoraDenseAttentionAdapterConfig._target_,
+                InfusedAdapterConfig._target_,
+            ]
         )
         self.linear_qkv.return_layernorm_output = True  # need layernorm output for lora mlp
         if (
@@ -86,29 +95,27 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         linear_qkv_output, _ = self.linear_qkv(hidden_states)
         layernorm_output = None
 
-        # In megatron/core/models/gpt/gpt_layer_specs.py TELayerNormColumnParallelLinear is used for linear_qkv.
-        # TELayerNormColumnParallelLinear fused LN and linear, both will be returned.
-        # In nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py TEColumnParallelLinear is used for linear_qkv,
+        # In megatron/core/models/gpt/gpt_layer_specs.py when fused module is used(e.g. TELayerNormColumnParallelLinear)
+        # both LN and qkv will be returned.
+        # In nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py TEColumnParallelLinear(non-fused) is used for linear_qkv,
         # which only returns linear.
-        if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
-            mixed_qkv, layernorm_output = linear_qkv_output
-        elif isinstance(self.linear_qkv, TEColumnParallelLinear):  # only mixed_qkv
+        if isinstance(linear_qkv_output, tuple):
+            if len(linear_qkv_output) == 2:  # fused module, qkv&LN
+                mixed_qkv, layernorm_output = linear_qkv_output
+            else:
+                raise ValueError(f"Unexpected number of outputs from linear_qkv output: {len(linear_qkv_output)}")
+        else:  # for qkv&LN not fused only mixed_qkv
             mixed_qkv = linear_qkv_output
-        else:
-            raise ValueError(
-                f"Unrecognized module type '{type(self.linear_qkv)}' when getting query, key, value tensors for mcore mixins. "
-            )
 
         # LoRA logic
         if self.is_adapter_available():
             lora_kqv_adapter = self.get_adapter_module(AdapterName.LORA_KQV_ADAPTER)
             if lora_kqv_adapter and self.adapter_cfg[AdapterName.LORA_KQV_ADAPTER]['enabled']:
-                if isinstance(self.linear_qkv, TELayerNormColumnParallelLinear):
+                if layernorm_output is not None:
                     lora_mixed_qkv = lora_kqv_adapter(layernorm_output)
-                elif isinstance(self.linear_qkv, TEColumnParallelLinear):
-                    lora_mixed_qkv = lora_kqv_adapter(hidden_states)
                 else:
-                    raise ValueError(f"Unrecognized module type '{type(self.linear_qkv)}' when applying lora.")
+                    lora_mixed_qkv = lora_kqv_adapter(hidden_states)
+
                 mixed_qkv = mixed_qkv + lora_mixed_qkv
 
         # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
@@ -156,6 +163,14 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                 vls = value.shape
                 value = value_infused_adapter(value.reshape(vls[0], vls[1], -1)).reshape(vls).to(query.dtype)
 
+            lora_unfused_kqv_adapter = self.get_adapter_module(AdapterName.LORA_UNFUSED_KQV_ADAPTER)
+            if lora_unfused_kqv_adapter and self.adapter_cfg[AdapterName.LORA_UNFUSED_KQV_ADAPTER]['enabled']:
+                assert lora_kqv_adapter is None
+                if layernorm_output is not None:
+                    lq, lk, lv = lora_unfused_kqv_adapter(layernorm_output)
+                else:
+                    lq, lk, lv = lora_unfused_kqv_adapter(hidden_states)
+                query, key, value = query + lq, key + lk, value + lv
         return query, key, value
 
     def forward(
@@ -251,7 +266,12 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
         Setup NeMo IA3 adapter to this MCore layer.
         """
         self.set_accepted_adapter_types(
-            [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
+            [
+                LoraUnfusedHto4HAdapterConfig._target_,
+                LoraHto4HAdapterConfig._target_,
+                Lora4HtoHAdapterConfig._target_,
+                MLPInfusedAdapterConfig._target_,
+            ]
         )  # only self attn (packed qkv) for now
         self.linear_fc1.return_layernorm_output = True  # need layernorm output for lora mlp
         if (
@@ -274,17 +294,31 @@ class MCoreMLPMixin(MLP, MCoreAdapterModuleMixin):
 
         # LoRA logic
         if self.is_adapter_available():
-            lora_linear_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
-            if lora_linear_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
-                lora_output = lora_linear_fc1_adapter(layernorm_output)
+            lora_adapter = None
+            lora_fc1_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
+            lora_unfused_fc1_adapter = self.get_adapter_module(AdapterName.LORA_UNFUSED_Hto4H_ADAPTER)
+            if lora_fc1_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
+                lora_adapter = lora_fc1_adapter
+            if lora_unfused_fc1_adapter and self.adapter_cfg[AdapterName.LORA_UNFUSED_Hto4H_ADAPTER]['enabled']:
+                assert lora_adapter is None, "Expected only one of LORA_Hto4H_ADAPTER or LORA_UNFUSED_Hto4H_ADAPTER"
+                lora_adapter = lora_unfused_fc1_adapter
+
+            if lora_adapter:
+                lora_output = lora_adapter(layernorm_output)
                 intermediate_parallel = intermediate_parallel + lora_output
 
         if self.config.bias_activation_fusion:
             if self.activation_func == F.gelu:
-                assert self.config.add_bias_linear is True
-                intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+                if self.config.gated_linear_unit:
+                    intermediate_parallel = bias_geglu_impl(intermediate_parallel, bias_parallel)
+                else:
+                    assert self.config.add_bias_linear is True
+                    intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
             elif self.activation_func == F.silu and self.config.gated_linear_unit:
-                intermediate_parallel = bias_swiglu_impl(intermediate_parallel, bias_parallel)
+                intermediate_parallel = bias_swiglu_impl(
+                    intermediate_parallel, bias_parallel, self.config.activation_func_fp8_input_store,
+                )
+
             else:
                 raise ValueError("Only support fusion of gelu and swiglu")
         else:

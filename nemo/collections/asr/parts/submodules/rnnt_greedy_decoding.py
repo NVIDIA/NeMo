@@ -38,13 +38,17 @@ from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import Gree
 from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import GreedyBatchedTDTLoopLabelsComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
-def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
+def pack_hypotheses(
+    hypotheses: List[rnnt_utils.Hypothesis],
+    logitlen: torch.Tensor,
+) -> List[rnnt_utils.Hypothesis]:
 
     if hasattr(logitlen, 'cpu'):
         logitlen_cpu = logitlen.to('cpu')
@@ -138,8 +142,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -148,8 +151,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -508,7 +510,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         return hypothesis
 
 
-class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
+class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
     """A batch level greedy transducer decoder.
 
     Batch level greedy decoding, performed auto-regressively.
@@ -577,6 +579,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
             to prediction network (with maximum possible batch size),
             which makes it especially useful for scaling the prediction network.
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
     """
 
     def __init__(
@@ -602,13 +605,14 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         )
 
         self.use_cuda_graph_decoder = use_cuda_graph_decoder
+        self.loop_labels = loop_labels
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         self._decoding_computer = None
         if self.decoder.blank_as_pad:
-            if loop_labels:
-                # default (faster) algo: loop over labels
+            if self.loop_labels:
+                # Label-Looping algorithm (default, faster)
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
                 self._decoding_computer = GreedyBatchedRNNTLoopLabelsComputer(
                     decoder=self.decoder,
@@ -618,19 +622,73 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     preserve_alignments=preserve_alignments,
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
-                    allow_cuda_graphs=use_cuda_graph_decoder,
+                    allow_cuda_graphs=self.use_cuda_graph_decoder,
                 )
-            elif use_cuda_graph_decoder:
-                from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import (
-                    RNNTGreedyDecodeCudaGraph,
-                )
-
-                self._greedy_decode = RNNTGreedyDecodeCudaGraph(max_symbols_per_step, self)
             else:
-                # previous algo: loop over frames
-                self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+                # Frame-Looping algorithm
+                if not self.use_cuda_graph_decoder:
+                    self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+                else:
+                    if self.preserve_alignments:
+                        logging.warning("`preserve_alignments` is not implemented for Frame-Looping + CUDA graphs")
+                        self.use_cuda_graph_decoder = False
+                    if self.preserve_frame_confidence:
+                        logging.warning(
+                            "`preserve_frame_confidence` is not implemented for Frame-Looping + CUDA graphs"
+                        )
+                        self.use_cuda_graph_decoder = False
+                    if not torch.cuda.is_available():
+                        self.use_cuda_graph_decoder = False
+
+                    if self.use_cuda_graph_decoder:
+                        try:
+                            from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import (
+                                RNNTGreedyDecodeCudaGraph,
+                            )
+
+                            self._greedy_decode = RNNTGreedyDecodeCudaGraph(max_symbols_per_step, self)
+                        except (ImportError, ModuleNotFoundError, ValueError) as e:
+                            self.use_cuda_graph_decoder = False
+                            logging.warning(f"Cannot use decoder with CUDA graphs, reason: {e.msg}")
+                            self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+                    else:
+                        self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
             self._greedy_decode = self._greedy_decode_masked
+
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if not self.use_cuda_graph_decoder:
+            # CUDA graphs not allowed, nothing to do
+            return
+
+        if not self.decoder.blank_as_pad:
+            # blank as pad uses decoding without CUDA graphs
+            return
+
+        if self.loop_labels:
+            # Label-Looping implementation
+            self._decoding_computer.disable_cuda_graphs()
+        else:
+            self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+
+    def maybe_enable_cuda_graphs(self):
+        """Enable CUDA graphs (if allowed)"""
+        if not self.use_cuda_graph_decoder:
+            # CUDA graphs not allowed, nothing to do
+            return
+
+        if not self.decoder.blank_as_pad:
+            # blank as pad uses decoding without CUDA graphs
+            return
+
+        if self.loop_labels:
+            # Label-Looping implementation
+            self._decoding_computer.maybe_enable_cuda_graphs()
+        else:
+            from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import RNNTGreedyDecodeCudaGraph
+
+            self._greedy_decode = RNNTGreedyDecodeCudaGraph(self.max_symbols, self)
 
     @typecheck()
     def forward(
@@ -2282,6 +2340,7 @@ class GreedyRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
+    tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
 
     def __post_init__(self):
@@ -2298,6 +2357,7 @@ class GreedyBatchedRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
+    tdt_include_duration_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
     loop_labels: bool = True
     use_cuda_graph_decoder: bool = False
@@ -2337,6 +2397,9 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
+            attached to the regular frame confidence,
+            making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
 
@@ -2380,6 +2443,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
+        include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
@@ -2392,6 +2456,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
         self.durations = durations
+        self.include_duration_confidence = include_duration_confidence
 
     @typecheck()
     def forward(
@@ -2517,7 +2582,11 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
 
                 if self.preserve_frame_confidence:
                     # insert confidence into last timestep
-                    hypothesis.frame_confidence[-1].append(self._get_confidence(logp))
+                    hypothesis.frame_confidence[-1].append(
+                        (self._get_confidence_tensor(logp), self._get_confidence_tensor(duration_logp))
+                        if self.include_duration_confidence
+                        else self._get_confidence_tensor(logp)
+                    )
 
                 del logp
 
@@ -2569,7 +2638,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         return hypothesis
 
 
-class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
+class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
     """A batch level greedy TDT decoder.
     Batch level greedy decoding, performed auto-regressively.
     Args:
@@ -2593,6 +2662,9 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
+            attached to the regular frame confidence,
+            making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
 
@@ -2625,6 +2697,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                 Supported values:
                     - 'lin' for using the linear mapping.
                     - 'exp' for using exponential mapping with linear shift.
+
+        use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding (currently recommended only for inference)
     """
 
     def __init__(
@@ -2636,6 +2710,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
+        include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         use_cuda_graph_decoder: bool = False,
     ):
@@ -2649,6 +2724,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
         self.durations = durations
+        self.include_duration_confidence = include_duration_confidence
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
@@ -2663,6 +2739,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
                 max_symbols_per_step=self.max_symbols,
                 preserve_alignments=preserve_alignments,
                 preserve_frame_confidence=preserve_frame_confidence,
+                include_duration_confidence=include_duration_confidence,
                 confidence_method_cfg=confidence_method_cfg,
                 allow_cuda_graphs=use_cuda_graph_decoder,
             )
@@ -2742,3 +2819,13 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer):
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
+
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if self._decoding_computer is not None:
+            self._decoding_computer.disable_cuda_graphs()
+
+    def maybe_enable_cuda_graphs(self):
+        """Enable CUDA graphs (if allowed)"""
+        if self._decoding_computer is not None:
+            self._decoding_computer.maybe_enable_cuda_graphs()
