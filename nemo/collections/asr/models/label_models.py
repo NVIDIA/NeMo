@@ -341,7 +341,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
 
         if self.spec_augmentation is not None and self.training:
@@ -501,17 +502,21 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return emb, logits
 
     def get_label(
-        self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1, random_seed: int = None,
+        self,
+        path2audio_file: str,
+        segment_duration: float = np.inf,
+        num_segments: int = 1,
+        random_seed: int = None,
     ):
         """
         Returns label of the audio file specified by path2audio_file, based on the classes the model was trained on.
-    
+
         Args:
             path2audio_file (str): Path to the audio WAV file.
             segment_duration (float): Maximum duration of the randomly sampled segment in seconds.
             num_segments (int): Maximum number of segments of the file to use for majority voting.
             random_seed (int): Seed for generating the starting position of the segment.
-    
+
         Returns:
             label: Label corresponding to the trained model. If the labels are not saved in the model configuration,
             returns the index of the label.
@@ -649,7 +654,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         dataset = AudioToSpeechLabelDataset(manifest_filepath=manifest_filepath, labels=None, featurizer=featurizer)
 
         dataloader = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=batch_size, collate_fn=dataset.fixed_seq_collate_fn,
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=dataset.fixed_seq_collate_fn,
         )
 
         logits = []
