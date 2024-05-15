@@ -59,3 +59,12 @@ class CanaryPromptFormatter(PromptFormatter):
             "|TASKNAME|": "<|transcribe|>",
             "|PNC|": "<|pnc|>",
         }
+
+
+def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[str, str]:
+    slot_values = slot_values.copy()
+    slot_values["|SOURCE_LANG|"] = "<|" + slot_values["|SOURCE_LANG|"] + "|>"
+    slot_values["|TARGET_LANG|"] = "<|" + slot_values["|TARGET_LANG|"] + "|>"
+    slot_values["|PNC|"] = "<|pnc|>" if slot_values["|PNC|"] in ("yes", "1", "True", "true") else "<|nopnc|>"
+    slot_values["|TASKNAME|"] = "<|transcribe|>" if slot_values["|TASKNAME|"] == "asr" else "<|translate|>"
+    return slot_values

@@ -25,7 +25,7 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
-from nemo.collections.common.prompts.canary import CanaryPromptFormatter
+from nemo.collections.common.prompts.canary import CanaryPromptFormatter, map_manifest_values_to_special_tokens
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 
@@ -1613,12 +1613,15 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                 )
             formatter = CanaryPromptFormatter(self.asr_model.tokenizer)
             tokens = formatter.encode_for_inference(
-                {
-                    "|SOURCE_LANG|": sample["source_lang"],
-                    "|TARGET_LANG|": sample["target_lang"],
-                    "|PNC|": sample["pnc"],
-                    "|TASKNAME|": sample["taskname"],
-                }
+                map_manifest_values_to_special_tokens(
+                    {
+                        "|SOURCE_LANG|": sample["source_lang"],
+                        "|TARGET_LANG|": sample["target_lang"],
+                        "|PNC|": sample["pnc"],
+                        "|TASKNAME|": sample["taskname"],
+                        "|PROMPT_LANGUAGE|": sample["target_lang"],
+                    }
+                )
             )["context_ids"]
         else:
             raise ValueError(f"Unknown prompt format: {self.asr_model.prompt_format}")
