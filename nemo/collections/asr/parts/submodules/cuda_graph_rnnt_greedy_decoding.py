@@ -34,20 +34,6 @@ from nemo.core.utils.cuda_python_utils import (
 
 _CUDA_PROGRAM_NAME = b"while_loop_conditional.cu"
 
-# Meant to mimic https://pytorch.org/docs/stable/generated/torch.cond.html
-
-# torch.cond does not support conditional nodes in cuda graphs at the
-# time of writing. However, I would like to begin to understand what
-# that might look like by writing this one
-def my_torch_cond(pred: torch.tensor, true_fn, false_fn, operands):
-    if not torch.cuda.is_available() or torch.cuda.is_current_stream_capturing():
-        if pred:
-            return true_fn(*operands)
-        else:
-            return false_fn(*operands)
-    else:
-        return if_else_node(pred, true_fn, false_fn)
-
 def create_outer_for_loop_kernel():
     """
     Creates a kernel that evaluates whether or not to enter the for loop body.
@@ -201,7 +187,7 @@ class RNNTGreedyDecodeCudaGraph:
                 my_torch_cond(
                     lambda: torch.cat([partial_hypotheses[i].last_label for i in range(len(partial_hypotheses))],
                     lambda: self.caller._SOS,
-                    ())
+                    ()))
             torch.full(
                 [self.batch_size], fill_value=self.caller._SOS, dtype=torch.long, device=encoder_output.device
             )

@@ -21,11 +21,58 @@ from packaging.version import Version
 __CUDA_PYTHON_MINIMUM_VERSION_CUDA_GRAPH_CONDITIONAL_NODES_SUPPORTED__ = (12, 3)  # 12030
 
 
+# Meant to mimic https://github.com/pytorch/pytorch/blob/af9acc416852cfadc1274a715039b7a5ea501e93/torch/_higher_order_ops/while_loop.py#L146-L175
+def while_loop_dense(cond_fn, body_fn, carried_inputs, additional_inputs):
+    carried_vals = carried_inputs
+
+    def _is_boolean_scalar_tensor(pred):
+        return (
+            isinstance(pred, torch.Tensor)
+            and pred.size() == torch.Size([])
+            and pred.dtype == torch.bool
+        )
+
+    if not isinstance(carried_inputs, tuple):
+        raise RuntimeError(
+            f"carried_inputs must be a tuple but got {type(carried_inputs)}"
+        )
+
+    while pred := cond_fn(*carried_vals, *additional_inputs):
+        if not _is_boolean_scalar_tensor(pred):
+            raise RuntimeError(
+                f"cond_fn must return a boolean scalar tensor but got {pred}"
+            )
+        out = body_fn(*carried_vals, *additional_inputs)
+        assert isinstance(
+            out, tuple
+        ), f"body_fn should return a tuple but got {type(out)}"
+        assert len(out) == len(
+            carried_inputs
+        ), "body_fn should return the same number of elements as carried_inputs"
+        carried_vals = out
+    return carried_vals
+
+
+# Meant to mimic https://pytorch.org/docs/stable/generated/torch.cond.html
+
+# torch.cond does not support conditional nodes in cuda graphs at the
+# time of writing. However, I would like to begin to understand what
+# that might look like by writing this one
+def my_torch_cond(pred: torch.tensor, true_fn, false_fn, operands):
+    # if not torch.cuda.is_available() and not torch.cuda.is_current_stream_capturing():
+    if not torch.cuda.is_current_stream_capturing():
+        if pred:
+            return true_fn(*operands)
+        else:
+            return false_fn(*operands)
+    else:
+        return if_else_node(pred, true_fn, false_fn, operands)
+
 def check_cuda_python_cuda_graphs_conditional_nodes_supported():
     try:
         from cuda import cuda
     except ImportError:
-        raise ModuleNotFoundError("No `cuda-python` module. Please do `pip install cuda-python>=12.3`")
+        raise ModuleNotFoundError("No `cuda-python` module. Please do `pip install 'cuda-python>=12.3'`")
 
     from cuda import __version__ as cuda_python_version
 
@@ -101,7 +148,7 @@ def nvrtc_compile_handle_setter():
     extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
 
     extern "C" __global__
-    void while_loop_conditional(cudaGraphConditionalHandle handle, const bool *pred)
+    void conditional_handle_setter(cudaGraphConditionalHandle handle, const bool *pred)
     {
      cudaGraphSetConditional(handle, *pred);
     }
@@ -118,14 +165,17 @@ def if_else_node(pred: torch.Tensor, true_fn, false_fn, operands):
     outs = []
 
     # We use a lambda with no arguments to do "lazy" evaluation.
-    for lazy_pred, fn in [(lambda: pred, true_fn), (lambda: not pred, false_fn)]:
+    # torch.logical_not(pred, out=pred); return pred 
+    # for lazy_pred, fn in [(lambda: pred, true_fn), (lambda: not pred, false_fn)]:
+    # for lazy_pred, fn in [(lambda: pred, true_fn), (lambda: torch.bitwise_not(pred), false_fn)]:
+    for lazy_pred, fn in [(lambda: pred, true_fn), (lambda: torch.logical_not(pred), false_fn)]:
         capture_status, _, graph, _, _ = cu_call(
             cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=pred.device).cuda_stream)
         )
         assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
         conditional_handle, = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
 
-        pred_ptr = np.array([pred.data_ptr()], dtype=np.uint64)
+        pred_ptr = np.array([lazy_pred().data_ptr()], dtype=np.uint64)
         handle_setter_args = np.array(
             [conditional_handle.getPtr(), pred_ptr.ctypes.data],
             dtype=np.uint64,
@@ -186,7 +236,7 @@ def if_else_node(pred: torch.Tensor, true_fn, false_fn, operands):
         cu_call(cudart.cudaStreamEndCapture(body_stream.cuda_stream))
     assert len(outs) == 2
     assert outs[0].shape == outs[1].shape
-    outs[0].copy_(outs[1])
+    # outs[0].copy_(outs[1])
     return outs[0]
 
 @contextlib.contextmanager
@@ -293,6 +343,8 @@ def run_nvrtc(kernel_string: str, kernel_name: bytes, program_name: bytes):
     assert_drv(err)
     buf = b" " * size
     (err,) = nvrtc.nvrtcGetProgramLog(prog, buf)
+    print("GALVEZ:output buffer")
+    print(buf)
     assert_drv(err)
 
     # Get PTX from compilation
