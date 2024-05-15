@@ -22,7 +22,6 @@ from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils.metaclasses import Singleton
 from nemo.utils import logging
 
-from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
@@ -31,7 +30,7 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
 )
 
 try:
-    from .fftconv_wrapper import fftconv_ref, fftconv_func
+    from .fftconv_wrapper import fftconv_func
     HAVE_FFTCONV = True
 except ImportError:
     HAVE_FFTCONV = False
@@ -75,12 +74,6 @@ class HyenaFilterSubmodules:
 def auto_assign_attrs(cls, **kwargs):
     for k, v in kwargs.items():
         setattr(cls, k, v)
-
-
-# TODO: Possibly remove
-# @torch.jit.script
-# def mul_sum(q, y):
-#     return (q * y).sum(dim=1)
 
 
 def register(module: nn.Module, name: str, tensor: torch.Tensor, learnable: bool):
@@ -290,9 +283,6 @@ class HyenaFilter(nn.Module):
                 x, k, bias, dropout_mask=None, gelu=False,
                 output_hbl_layout=output_hbl_layout, head_dim=self.num_heads, v=v, q=q
             )
-        # TODO: Possibly remove
-        # else:
-        #     y = fftconv_ref(x, k, bias, dropout_mask=None, gelu=False)
 
         return y
 
