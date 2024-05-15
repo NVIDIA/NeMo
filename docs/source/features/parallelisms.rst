@@ -74,7 +74,7 @@ Adjust the configuration accordingly here: `NeMo Megatron GPT Config <https://gi
 Interleaved Pipeline Parallel Schedule
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To minimize the pipeline bubble, the computation on each GPU can be divided into multiple subsets of layers (referred to as model chunks), rather than a single contiguous block. For instance, instead of each GPU processing a continuous set of four layers, it might handle two model chunks with two layers each. This method ensures that each GPU in the pipeline manages multiple stages.
+To minimize the pipeline bubble, the computation on each GPU can be divided into multiple subsets of layers (referred to as model chunks), rather than a single contiguous block. For instance, instead of each GPU processing a continuous set of four layers, it might handle two model chunks with two layers each. This method ensures that each GPU in the pipeline manages multiple stages rather than on a single contiguous block.
 
    .. code-block:: yaml
 

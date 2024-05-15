@@ -60,8 +60,8 @@ These attention variants offer:
 - **Increased processing speed**: Simplifying attention leads to faster training and inference.
 - **Flexibility and adaptability**: Adjustments can be made based on task needs or hardware constraints.
 
-Enabling MQA and GQA in NeMo
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Enable MQA and GQA
+^^^^^^^^^^^^^^^^^^
 
 To use MQA or GQA in the NeMo Framework, adjust the ``num_query_groups`` parameter in the model configuration:
 
@@ -87,8 +87,8 @@ To use MQA or GQA in the NeMo Framework, adjust the ``num_query_groups`` paramet
 
 Adjust the ``num_query_groups`` to explore different attention mechanisms and optimize your model's performance based on specific needs.
 
-Implementation
-^^^^^^^^^^^^^^
+Implement MQA or GQA
+^^^^^^^^^^^^^^^^^^^^
 
 NeMo's support for GQA and MQA is enabled through the integration of Megatron Core's Attention mechanism. The underlying implementation details can be explored within the Attention class of Megatron Core, which provides the functional backbone for these advanced attention methods. To understand the specific modifications and implementations of MQA and GQA, refer to the source code in the Attention class:
 
