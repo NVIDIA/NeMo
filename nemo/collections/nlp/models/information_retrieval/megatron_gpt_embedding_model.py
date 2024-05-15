@@ -64,6 +64,13 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         self.temperature = self.cfg.get('temperature', 0.02)
         self.use_all_possible_negatives = self.cfg.get("use_all_possible_negatives", True)
         self.global_inbatch_negatives = self.cfg.get("global_inbatch_negatives", True)
+        if self.cfg.get("do_mrl", False):
+            min_mrl = self.cfg.get("min_mrl_dim", int(np.log2(32))) - 1
+            max_mrl = int(np.log2(self.cfg.hidden_size // 2))
+            self.mrl_dims = [2**i for i in range(max_mrl, min_mrl, -1)]
+        else:
+            self.mrl_dims = []
+
         assert (
             self.cfg.get("post_process", False) is False
         ), "post_process must be False to get hidden states in the loss_func"
@@ -394,7 +401,7 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
 
         return loss, non_loss_tensors
 
-    def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, use_all_possible_negatives=False):
+    def constrastive_scores(self, pos_doc_hs, neg_doc_hs, query_hs, bs, temperature, use_all_possible_negatives=False):
         all_doc_hs = torch.cat([pos_doc_hs, neg_doc_hs], dim=0)  # (2bs) x hidden_size
         cs = torch.mm(query_hs, all_doc_hs.transpose(0, 1))  # (bs) x (2bs)
         pos_cs = cs[:, :bs].diag()
@@ -406,6 +413,8 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
             cs = torch.cat([pos_cs.unsqueeze(1), neg_cs.unsqueeze(1)], dim=1)
         pos_cs = pos_cs.clone().detach().mean()
         neg_cs = neg_cs.clone().detach().mean()
+        cs = cs.clamp(-1.0, 1.0)
+        cs = cs / temperature
         return cs, pos_cs, neg_cs, labels
 
     def inference_loss_func(self, loss_mask, num_valid_tokens_in_ub, eos_tensors):
@@ -438,11 +447,20 @@ class MegatronGPTEmbeddingModel(MegatronGPTSFTModel):
         neg_doc_hs = torch.nn.functional.normalize(neg_doc_hs, dim=1)
 
         cs, pos_cs, neg_cs, labels = self.constrastive_scores(
-            pos_doc_hs, neg_doc_hs, query_hs, bs, self.use_all_possible_negatives
+            pos_doc_hs, neg_doc_hs, query_hs, bs, self.temperature, self.use_all_possible_negatives
         )
-        cs = cs.clamp(-1.0, 1.0)
-        cs = cs / self.temperature
         loss = torch.nn.functional.cross_entropy(cs, labels)
+        if self.mrl_dims:
+            for dim in self.mrl_dims:
+                cs_dim, _, _, _ = self.constrastive_scores(
+                    pos_doc_hs[:, :dim],
+                    neg_doc_hs[:, :dim],
+                    query_hs[:, :dim],
+                    bs,
+                    self.temperature,
+                    self.use_all_possible_negatives,
+                )
+                loss += torch.nn.functional.cross_entropy(cs_dim, labels)
 
         cp_size = self.cfg.get('context_parallel_size', 1)
         if cp_size > 1:
