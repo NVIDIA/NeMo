@@ -33,7 +33,7 @@ WORKDIR /workspace
 
 # Install NeMo requirements
 ARG TE_TAG=bfe21c3d68b0a9951e5716fb520045db53419c5e
-ARG AMMO_VERSION=0.9.0
+ARG MODELOPT_VERSION=0.11.0
 ARG MCORE_TAG=c90aa1671fc0b97f80fa6c3bb892ce6f8e88e7c9
 ARG APEX_TAG=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 RUN \
@@ -45,7 +45,7 @@ RUN \
 pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.nvidia.com \
 "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
 "megatron_core @ git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}" \
-"nvidia-ammo~=${AMMO_VERSION}" \
+"nvidia-modelopt[torch]~=${MODELOPT_VERSION}" \
 "apex @ git+https://github.com/NVIDIA/apex.git@${APEX_TAG}" \
 -r requirements/requirements_test.txt \
 -r requirements/requirements_lightning.txt \
