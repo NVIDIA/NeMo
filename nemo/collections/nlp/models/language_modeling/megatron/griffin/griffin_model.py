@@ -13,14 +13,23 @@
 # limitations under the License.
 
 import math
-
 import torch
-from megatron.core.jit import jit_fuser
-from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
-from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
-from megatron.core.models.common.language_module.language_module import LanguageModule
-from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import Tensor, nn
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
+try:
+    from megatron.core import tensor_parallel
+    from megatron.core.jit import jit_fuser
+    from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+    from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
+    from megatron.core.models.common.language_module.language_module import LanguageModule
+    from megatron.core.transformer.transformer_config import TransformerConfig
+    from torch import Tensor, nn
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+    TransformerConfig = ApexGuardDefaults
+    HAVE_MEGATRON_CORE = False
 
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_block import GriffinStack
 
@@ -35,7 +44,9 @@ class GriffinModel(LanguageModule):
         max_sequence_length: int = 1024,
         rotary_percent: float = 0.5,
         rotary_base: int = 10000,
-        pre_process=True,
+        pre_process: bool = True,
+        post_process: bool = True,
+        share_embeddings_and_output_weights: bool = True,
     ):
 
         super().__init__(config)
@@ -44,8 +55,8 @@ class GriffinModel(LanguageModule):
         self.logits_soft_cap = logits_soft_cap
         self.position_embedding_type = position_embedding_type
         self.pre_process = pre_process
-        self.post_process = False
-        self.share_embeddings_and_output_weights = True
+        self.post_process = post_process
+        self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
 
         if pre_process:
             self.embedding = LanguageModelEmbedding(
@@ -65,6 +76,22 @@ class GriffinModel(LanguageModule):
             )
 
         self.decoder = GriffinStack(self.config)
+
+        if self.post_process:
+            self.output_layer = tensor_parallel.ColumnParallelLinear(
+                config.hidden_size,
+                self.vocab_size,
+                config=config,
+                init_method=config.init_method,
+                bias=False,
+                skip_bias_add=False,
+                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
+                embedding_activation_buffer=None,
+                grad_output_buffer=None,
+            )
+
+        if self.pre_process or self.post_process:
+            self.setup_embeddings_and_output_layer()
 
     def shared_embedding_or_output_weight(self) -> Tensor:
         """Gets the emedding weight or output logit weights when share embedding and output weights set to True.
@@ -117,20 +144,13 @@ class GriffinModel(LanguageModule):
             logits = logits.transpose(0, 1)
         return logits.contiguous()
 
-    def embedding_decode(self, x, transpose):
-        x = x.permute(1, 0, 2)
-        logits = x @ self.embedding.word_embeddings.state_dict()['weight'].T
-        logits = self._embedding_decode_(logits, transpose)
-
-        return logits
-
     def forward(
         self,
         input_ids: Tensor,
         position_ids: Tensor = None,
         attention_mask: Tensor = None,
         labels: Tensor = None,
-        **extra_arg
+        **extra_arg,
     ):
         if input_ids is None:
             input_ids = self.input_tensor
@@ -145,7 +165,15 @@ class GriffinModel(LanguageModule):
 
         hidden_states = self.decoder(hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb)
 
-        logits = self.embedding_decode(hidden_states, labels is not None)
+        if not self.post_process:
+            return hidden_states
+
+        # logits and loss
+        output_weight = None
+        if self.share_embeddings_and_output_weights:
+            output_weight = self.shared_embedding_or_output_weight()
+        logits, _ = self.output_layer(hidden_states, weight=output_weight)
+        logits = self._embedding_decode_(logits, labels is None)
 
         if labels is None:
             # [b s h]

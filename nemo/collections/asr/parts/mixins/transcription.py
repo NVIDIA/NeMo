@@ -67,25 +67,18 @@ class TranscribeConfig:
     _internal: Optional[InternalTranscribeConfig] = None
 
 
-def move_to_device(batch, device):
+def move_to_device(batch, device, non_blocking=False):
     """
     Recursively move all tensors in `batch` to `device`.
     """
     if isinstance(batch, torch.Tensor):
-        return batch.to(device)
-    elif batch is None:
-        return batch
+        return batch.to(device, non_blocking=non_blocking)
     elif isinstance(batch, (list, tuple)):
-        return [move_to_device(x, device) for x in batch]
+        return [move_to_device(x, device, non_blocking) for x in batch]
     elif isinstance(batch, dict):
-        return {k: move_to_device(v, device) for k, v in batch.items()}
-    elif is_dataclass(batch):
-        for field in batch.__dataclass_fields__:
-            value = getattr(batch, field)
-            setattr(batch, field, move_to_device(value, device))
-        return batch
+        return {k: move_to_device(v, device, non_blocking) for k, v in batch.items()}
     else:
-        raise TypeError(f"Unsupported type: {type(batch)}")
+        return batch  # do nothing if not supported type
 
 
 def get_value_from_transcription_config(trcfg, key, default):
