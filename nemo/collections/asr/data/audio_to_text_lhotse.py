@@ -46,9 +46,10 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
     def _tokenize_supervision(self, supervision):
         if isinstance(supervision.text, str):
             return torch.as_tensor(self.tokenizer(supervision.text, supervision.language))
-        return torch.cat([torch.as_tensor(self.tokenizer(text["str"], text["lang"])) for text in supervision.text], dim=0)
-        
-    
+        return torch.cat(
+            [torch.as_tensor(self.tokenizer(text["str"], text["lang"])) for text in supervision.text], dim=0
+        )
+
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
         audio, audio_lens, cuts = self.load_audio(cuts)
         tokens = [self._tokenize_supervision(c.supervisions[0]) for c in cuts]
