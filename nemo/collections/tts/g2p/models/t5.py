@@ -97,7 +97,11 @@ class T5G2PModel(G2PModel, Exportable):
     # ===== Training Functions ===== #
     def training_step(self, batch, batch_idx):
         input_ids, attention_mask, labels = batch
-        train_loss = self.forward(input_ids=input_ids, attention_mask=attention_mask, labels=labels,)
+        train_loss = self.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+        )
 
         self.log('train_loss', train_loss)
         return train_loss
@@ -132,7 +136,10 @@ class T5G2PModel(G2PModel, Exportable):
 
     # Functions for inference
     @torch.no_grad()
-    def _infer(self, config: DictConfig,) -> List[int]:
+    def _infer(
+        self,
+        config: DictConfig,
+    ) -> List[int]:
         """
         Runs model inference.
 
@@ -167,7 +174,11 @@ class T5G2PModel(G2PModel, Exportable):
         input_ids, attention_mask, labels = batch
 
         # Get loss from forward step
-        val_loss = self.forward(input_ids=input_ids, attention_mask=attention_mask, labels=labels,)
+        val_loss = self.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+        )
 
         # Get preds from generate function and calculate PER
         labels_str = self._tokenizer.batch_decode(
@@ -306,7 +317,11 @@ class T5G2PModel(G2PModel, Exportable):
         sentence = "Kupil sem si bicikel in mu zamenjal stol."
         input_ids = [sentence]
         input_encoding = self._tokenizer(
-            input_ids, padding='longest', max_length=self.max_source_len, truncation=True, return_tensors='pt',
+            input_ids,
+            padding='longest',
+            max_length=self.max_source_len,
+            truncation=True,
+            return_tensors='pt',
         )
         return (input_encoding.input_ids,)
 
