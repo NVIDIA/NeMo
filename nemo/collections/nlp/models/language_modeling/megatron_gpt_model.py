@@ -817,72 +817,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.cfg.get('fp8', False):
             self.prev_step_training = self.training
 
-        # Optimization: Defer the embedding GEMM Wgrads of the last PP stage to pipeline flush waiting time
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
-            if (
-                self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
-            ):  # Silently ignore the optimization if MCORE is not used
-                module_list = self.get_model_module_list()
-                if len(module_list) > 1:
-                    embedding_module = module_list[-1]
-                else:
-                    embedding_module = module_list[0]
-
-                embedding_activation_buffer = embedding_module.embedding_activation_buffer
-                grad_output_buffer = embedding_module.grad_output_buffer
-                if self.cfg.get('share_embeddings_and_output_weights', True):
-                    weight = embedding_module.shared_embedding_or_output_weight()
-                else:
-                    weight = embedding_module.output_layer.weight
-
-                drain_embedding_wgrad_compute(
-                    embedding_module.config, embedding_activation_buffer, grad_output_buffer, weight
-                )
-
-        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
-        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
-            self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
-            self.allreduce_sequence_parallel_gradients()
-            self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
-
-        self.megatron_timer_start('gradient_allreduce', log_level=1)
-        if self.use_fsdp:
-            # Reduce the gradients omitted from FSDP-sharding
-            self.allreduce_fsdp_sharding_omitted_gradients()
-        elif self.with_distributed_adam:
-            if not self.use_mcore_dist_optim:
-                # synchronize asynchronous grad reductions
-                # note: not necessary, but reduces performance degradation
-                # from multiple simultaneous NCCL calls
-                self._optimizer._finish_bucket_grad_sync()
-            # else: Mcore distributed optim calls finalize_model_grads to finish grad sync
-        elif self.megatron_amp_O2:
-            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
-            if (
-                self.cfg.get('pipeline_model_parallel_size', 1) > 1
-                or self.cfg.get('sequence_parallel', False)
-                or not self.cfg.get('async_grad_allreduce', True)
-            ):
-                # main grads are stored in the MainParamsOptimizer wrapper
-                self._optimizer.allreduce_main_grads()
-        else:
-            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
-            # so we all-reduce gradients after the pipeline
-            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
-        self.megatron_timer_stop('gradient_allreduce')
-
-        if (
-            not self.use_mcore_dist_optim
-            and self.cfg.get('pipeline_model_parallel_size', 1) > 1
-            and self.cfg.get('share_embeddings_and_output_weights', True)
-        ):
-            self.megatron_timer_start('allreduce_first_last_embeddings', log_level=1)
-            # when using pipeline parallelism the first and last stage must keep embeddings in sync
-            self.allreduce_first_last_embeddings()
-            self.megatron_timer_stop('allreduce_first_last_embeddings')
-
         if self.log_memory_usage:
             mem_reserved = torch.cuda.max_memory_reserved()
             self.log(
@@ -943,6 +877,64 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_first_step = 1
 
         return loss_mean
+
+    def finalize_model_grads(self, model: List[torch.nn.Module], num_tokens: Optional[torch.Tensor] = None):
+        # Optimization: Defer the embedding GEMM Wgrads of the last PP stage to pipeline flush waiting time
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=True
+        ):
+            if (
+                self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
+            ):  # Silently ignore the optimization if MCORE is not used
+                module_list = self.get_model_module_list()
+                if len(module_list) > 1:
+                    embedding_module = module_list[-1]
+                else:
+                    embedding_module = module_list[0]
+
+                embedding_activation_buffer = embedding_module.embedding_activation_buffer
+                grad_output_buffer = embedding_module.grad_output_buffer
+                if self.cfg.get('share_embeddings_and_output_weights', True):
+                    weight = embedding_module.shared_embedding_or_output_weight()
+                else:
+                    weight = embedding_module.output_layer.weight
+
+                drain_embedding_wgrad_compute(
+                    embedding_module.config, embedding_activation_buffer, grad_output_buffer, weight
+                )
+
+        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
+        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+            self.megatron_timer_start('allreduce_sequence_parallel_gradients', log_level=1)
+            self.allreduce_sequence_parallel_gradients()
+            self.megatron_timer_stop('allreduce_sequence_parallel_gradients')
+
+        self.megatron_timer_start('gradient_allreduce', log_level=1)
+        if self.use_fsdp:
+            # Reduce the gradients omitted from FSDP-sharding
+            self.allreduce_fsdp_sharding_omitted_gradients()
+        elif self.with_distributed_adam:
+            if not self.use_mcore_dist_optim:
+                # synchronize asynchronous grad reductions
+                # note: not necessary, but reduces performance degradation
+                # from multiple simultaneous NCCL calls
+                self._optimizer._finish_bucket_grad_sync()
+            # else: Mcore distributed optim calls finalize_model_grads to finish grad sync
+        elif self.megatron_amp_O2:
+            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            if (
+                self.cfg.get('pipeline_model_parallel_size', 1) > 1
+                or self.cfg.get('sequence_parallel', False)
+                or not self.cfg.get('async_grad_allreduce', True)
+            ):
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()
+        else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we all-reduce gradients after the pipeline
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+        self.megatron_timer_stop('gradient_allreduce')
+
 
     def backward(self, *args, **kwargs):
         """LightningModule hook to do backward.

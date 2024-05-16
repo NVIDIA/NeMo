@@ -490,6 +490,8 @@ class MegatronBaseModel(NLPModel):
 
         rotary_interleaved = self.cfg.get('rotary_interleaved', False)
 
+        calculate_per_token_loss = self.cfg.get('calculate_per_token_loss', False)
+
         fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
         if apply_query_key_layer_scaling:
             if fp16_enabled:
@@ -535,6 +537,8 @@ class MegatronBaseModel(NLPModel):
             'recompute_granularity': recompute_granularity,
             'recompute_method': recompute_method,
             'recompute_num_layers': recompute_num_layers,
+            'calculate_per_token_loss': calculate_per_token_loss,
+            'finalize_model_grads_func': self.finalize_model_grads,
             'distribute_saved_activations': False,  # not currently used in NeMo
             'fp8': None,
             'rotary_interleaved': rotary_interleaved,
