@@ -56,6 +56,8 @@ def qnemo_to_tensorrt_llm(
         str(max_prompt_embedding_table_size),
         "--gemm_plugin",
         model_config["dtype"],
+        "--gpt_attention_plugin",
+        model_config["dtype"],
         "--strongly_typed",
         "--use_custom_all_reduce",
         "disable",
