@@ -26,8 +26,14 @@ from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import ModelConfig, ModelRunnerCpp, SamplingConfig
+from tensorrt_llm.runtime import ModelConfig, SamplingConfig
+from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
 from transformers import PreTrainedTokenizer
+
+from tensorrt_llm.bindings import (DataType, GenerationInput, GenerationOutput,
+                        GptJsonConfig, GptSession, GptSessionConfig,
+                        KvCacheConfig, PromptTuningParams, WorldConfig)
+from tensorrt_llm.bindings import SamplingConfig as GptSamplingConfig
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
 from nemo.export.trt_llm.tensorrt_llm_model import LMHeadModelBuilder
@@ -55,7 +61,7 @@ class TensorrtLLMHostContext:
 class TensorrtLLMWorkerContext:
     """The MPI worker side context for TRT LLM inference."""
 
-    decoder: ModelRunnerCpp = None
+    decoder: ModelRunnerCppGptSession = None
     sampling_config: SamplingConfig = None
     lora_manager: LoraManager = None
     max_batch_size: int = 0
@@ -147,7 +153,7 @@ def _load(tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_b
 
         runtime_rank = tensorrt_llm.mpi_rank()
 
-        decoder = ModelRunnerCpp.from_dir(
+        decoder = ModelRunnerCppGptSession.from_dir(
             engine_dir=engine_dir,
             lora_dir=lora_ckpt_list,
             lora_ckpt_source="nemo",
@@ -367,7 +373,7 @@ def load_refit(engine_dir):
     )
     session = create_gpt_session(session_params, engine_data)
     
-    model_runner = ModelRunnerCpp(session,
+    model_runner = ModelRunnerCppGptSession(session,
                 lora_manager=None,
                 max_batch_size=max_batch_size,
                 max_input_len=max_input_len,

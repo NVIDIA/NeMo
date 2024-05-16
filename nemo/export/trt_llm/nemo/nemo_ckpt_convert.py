@@ -32,6 +32,7 @@ from tensorrt_llm._utils import np_bfloat16, pad_vocab_size, str_dtype_to_torch,
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.trt_llm.nemo.convert import save_weight_torch, split_and_save_weight
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
@@ -356,7 +357,8 @@ def convert_nemo_model(
         state_dict = nemo_model[0].state_dict()
     else:
         state_dict = nemo_model.state_dict()
-    storage_type = next(iter(state_dict.values())).dtype
+
+    storage_type = torch_dtype_from_precision(nemo_model_config.precision)
     prefix, transformer_layer_prefix = get_layer_prefix(state_dict, is_mcore)
 
     if num_kv_heads == 0:
@@ -369,7 +371,7 @@ def convert_nemo_model(
     export_config = {
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": tp_size,
-        "split_gated_activation": "swiglu" in nemo_model_config.get("activation", "gelu"),
+        "split_gated_activation": "glu" in nemo_model_config.get("activation", "gelu"),
         "num_attention_heads": nemo_model_config["num_attention_heads"],
         "num_kv_heads": num_kv_heads,
         "transpose_weights": True,

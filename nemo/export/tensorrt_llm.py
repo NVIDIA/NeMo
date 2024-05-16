@@ -269,6 +269,7 @@ class TensorRTLLM(ITritonDeployable):
         self,
         nemo_model,
         nemo_model_config,
+        trt_model_type,
         tokenizer,
         max_input_len: int = 1024,
         max_input_tokens: int = 4096,
@@ -352,11 +353,11 @@ class TensorRTLLM(ITritonDeployable):
 
         myrank = torch.distributed.get_rank()
         cfg_path = Path(os.path.join(self.model_dir, f'config_{myrank}.json'))
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(engine.config.to_dict(), f, indent=4)
+
         print(f"engine saved to {self.model_dir}")
-        print(self.model_dir, f'config_{myrank}.json')
-        if not cfg_path.exists():
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                json.dump(engine.config.to_dict(), f, indent=4)
+
 
         print_mem("post build_and_save_engine")
         
