@@ -46,17 +46,23 @@ class T5G2PModel(G2PModel, Exportable):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "input_ids": NeuralType(('B', 'T'), TokenIndex()),
-            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "labels": NeuralType(('B', 'T'), LabelsType()),
-        }
+        if self._input_types is None:
+            return {
+                "input_ids": NeuralType(('B', 'T'), TokenIndex()),
+                "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+                "labels": NeuralType(('B', 'T'), LabelsType()),
+            }
+        return self._input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"loss": NeuralType((), LossType())}
+        if self._output_types is None:
+            return {"loss": NeuralType((), LossType())}
+        return self._output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        self._input_types = None
+        self._output_types = None
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
@@ -287,15 +293,8 @@ class T5G2PModel(G2PModel, Exportable):
         }
 
     def _export_teardown(self):
-        self._input_types = self._output_types = None
-
-    @property
-    def input_types(self):
-        return self._input_types
-
-    @property
-    def output_types(self):
-        return self._output_types
+        self._input_types = None
+        self._output_types = None
 
     def input_example(self, max_batch=1, max_dim=44):
         """
