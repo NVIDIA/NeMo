@@ -18,7 +18,7 @@ model:
       constant_steps: 0
       min_lr: ${multiply:0.1, ${model.optim.lr}}
 
-  name: te_gpt_hyena
+  +name: te_gpt_hyena
 
   hyena:  # Full defaults are in the parent 126m_pile.yaml
     emb_dim: 33 # dim of input to MLP, augments with positional encoding

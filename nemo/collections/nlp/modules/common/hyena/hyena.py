@@ -20,7 +20,6 @@ from einops import rearrange
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils.metaclasses import Singleton
-from nemo.utils import logging
 
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
@@ -29,8 +28,10 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
     TELayerNormColumnParallelLinear, TERowParallelLinear
 )
 
+from nemo.collections.nlp.modules.common.hyena.hyena_filter import HyenaFilter, HyenaFilterSubmodules
+
 try:
-    from .fftconv_wrapper import fftconv_func
+    from nemo.collections.nlp.modules.common.hyena.fftconv_wrapper import fftconv_func as safari_fftconv_fn
     HAVE_FFTCONV = True
 except ImportError:
     HAVE_FFTCONV = False
@@ -63,33 +64,9 @@ class HyenaOperatorSubmodules:
     out_proj: Union[ModuleSpec, type] = IdentityOp
 
 
-@dataclass
-class HyenaFilterSubmodules:
-    positional_embedding: Union[ModuleSpec, type] = IdentityOp
-    linear: Union[ModuleSpec, type] = IdentityOp
-    activation: Union[ModuleSpec, type] = IdentityOp
-    modulation: Union[ModuleSpec, type] = IdentityOp
-
-
 def auto_assign_attrs(cls, **kwargs):
     for k, v in kwargs.items():
         setattr(cls, k, v)
-
-
-def register(module: nn.Module, name: str, tensor: torch.Tensor, learnable: bool):
-    if learnable:
-        module.register_parameter(name, nn.Parameter(tensor))
-    else:
-        module.register_buffer(name, tensor)
-
-
-class Sin(nn.Module):
-    def __init__(self, dim, w=10, train_freq=True):
-        super().__init__()
-        self.freq = nn.Parameter(w * torch.ones(1, dim)) if train_freq else w * torch.ones(1, dim)
-
-    def forward(self, x):
-        return torch.sin(self.freq * x)
 
 
 class CausalDepthWiseConv1d(nn.Module):
@@ -113,208 +90,151 @@ class CausalDepthWiseConv1d(nn.Module):
         return causal_conv1d_fn(x, self._conv_1d.weight.squeeze(1), self._conv_1d.bias)
 
 
-class PositionalEmbedding(nn.Module):
+class HyenaConv(nn.Module):
     def __init__(
             self,
-            emb_dim: int,
-            seq_len: int,
-            learn_z: bool = True,
-            **kwargs):
-        """Complex exponential positional embeddings for Hyena filters."""
-        super().__init__()
-
-        self.seq_len = seq_len
-        # The time embedding fed to the filteres is normalized so that t_f = 1
-        t = torch.linspace(0, 1, self.seq_len)[None, :, None]  # 1, L, 1
-
-        if emb_dim > 1:
-            bands = (emb_dim - 1) // 2
-            # To compute the right embeddings we use the "proper" linspace
-        t_rescaled = torch.linspace(0, seq_len - 1, seq_len)[None, :, None]
-        w = 2 * math.pi * t_rescaled / seq_len  # 1, L, 1
-
-        f = torch.linspace(1e-4, bands - 1, bands)[None, None]
-        z = torch.exp(-1j * f * w)
-        z = torch.cat([t, z.real, z.imag], dim=-1)
-        register(self, "z", z, learnable=learn_z)
-        register(self, "t", t, learnable=False)
-
-    def forward(self, L):
-        return self.z[:, :L], self.t[:, :L]
-
-
-class ExponentialModulation(nn.Module):
-    def __init__(
-            self,
-            d_model,
-            fast_decay_pct=0.3,
-            slow_decay_pct=1.5,
-            target=1e-2,
-            learn_modulation: bool = False,
-            modulate: bool = True,
-            shift: float = 0.0,
-            **kwargs
+            d_model: int,
+            l_max: int,
+            order: int,
+            filter_order: int,
+            bias: bool = True,
+            filter_cls: Union[ModuleSpec, type] = HyenaFilter,
+            filter_submodules: HyenaFilterSubmodules = None,
+            **filter_kwargs
     ):
         super().__init__()
-        self.modulate = modulate
-        self.shift = shift
-        max_decay = math.log(target) / fast_decay_pct
-        min_decay = math.log(target) / slow_decay_pct
-        deltas = torch.linspace(min_decay, max_decay, d_model)[None, None]
-        register(self, "deltas", deltas, learnable=learn_modulation)
-
-    def forward(self, t, x):
-        if self.modulate:
-            decay = torch.exp(-t * self.deltas.abs())
-            x = x * (decay + self.shift)
-        return x
-
-
-class HyenaFilter(nn.Module):
-    def __init__(
-            self,
-            d_model,
-            submodules: HyenaFilterSubmodules = None,
-            fftconv_type='safari',
-            precision='bf16',
-            emb_dim=3,  # dim of input to MLP, augments with positional encoding
-            order=16,  # width of the implicit MLP
-            seq_len=1024,
-            num_heads=1,
-            learn_pos_emb_z=True,
-            dropout=0.0,
-            w=1,  # frequency of periodic activations
-            bias=True,
-            num_inner_mlps=2,
-            normalized=False,
-            **modulation_args
-    ):
-        """
-        Implicit long filter with modulation.
-
-        Args:
-            d_model: number of channels in the input
-            emb_dim: dimension of the positional encoding (`emb_dim` - 1) // 2 is the number of bands
-            order: width of the FFN
-            num_inner_mlps: number of inner linear layers inside filter MLP
-
-        Note:
-            filter_dropout is not implemented
-        """
-        super().__init__()
-
-        if submodules is None:
-            submodules = HyenaFilterSubmodules(
-                positional_embedding=PositionalEmbedding,
-                linear=nn.Linear,
-                activation=Sin,
-                modulation=ExponentialModulation
-            )
-
         self.d_model = d_model
+        self.order = order
+        self.l_max = l_max
         self.use_bias = bias
-        self.fftconv_type = fftconv_type
-        self.bias = nn.Parameter(torch.randn(self.d_model))
-        self.dropout = nn.Dropout(dropout)
+        self.bias = nn.Parameter(torch.randn(self.d_model * (self.order - 1))) if self.use_bias else None
 
-        act = build_module(submodules.activation, dim=order, w=w)
-        self.emb_dim = emb_dim
-        if emb_dim % 2 == 0 or emb_dim < 3:
-            raise ValueError("emb_dim must be odd and greater or equal to 3 (time, sine and cosine)")
-        self.seq_len = seq_len
+        self.filter = build_module(
+            filter_cls,
+            self.d_model * (self.order - 1),
+            submodules=filter_submodules,
+            order=filter_order,
+            seq_len=l_max,
+            **filter_kwargs
+        )
+
+
+class SingleHeadHyenaConv(HyenaConv):
+    def __init__(
+            self,
+            d_model: int,
+            l_max: int,
+            order: int,
+            filter_order: int,
+            bias: bool = True,
+            filter_cls: Union[ModuleSpec, type] = HyenaFilter,
+            filter_submodules: HyenaFilterSubmodules = None,
+            fftconv_type: str = None,
+            precision: str = 'bf16',
+            **filter_kwargs
+    ):
+        super().__init__(
+            d_model, l_max, order, filter_order, bias=bias,
+            filter_cls=filter_cls, filter_submodules=filter_submodules, **filter_kwargs
+        )
+
+        if fftconv_type is None:
+            if l_max <= 8192 and HAVE_FFTCONV:
+                # safari-fftconv supports seq-len <= 8192 and is a bit faster vs. flashfftconv
+                fftconv_type = 'safari'
+            else:
+                fftconv_type = 'flash'
+
+        if fftconv_type not in ['safari', 'flash']:
+            raise ValueError("fftconv_type must be one of ['safari', 'flash']")
+        if fftconv_type == 'safari' and not HAVE_FFTCONV:
+            raise ImportError('fftconv library not found. Please see README at <tbd> for instructions.')
+        if fftconv_type == 'flash' and not HAVE_FLASHFFTCONV:
+            raise ImportError('flashfftconv library not found. Please see README at <tbd> for instructions.')
+
+        if fftconv_type == 'safari':
+            self.fftconv_fn = self._safari_fft
+        else:  # fftconv_type == 'flash'
+            self.flashfftconv = FlashFFTConv(2 * self.seq_len, torch_dtype_from_precision(precision)).flashfftconv
+            self.fftconv_fn = self._flash_fft
+
+    def _safari_fft(self, x, k, bias):
+        bias = bias.to(dtype=torch.float32)
+        return safari_fftconv_fn(x, k, bias, gelu=False)
+
+    def _flash_fft(self, x, k, bias):
+        x = x.contiguous()
+        y = self.flashfftconv(x, k) + x * bias.unsqueeze(dim=1)
+        return y
+
+    def forward(self, x, k, recurrence_idx):
+        bias = self.bias if self.use_bias else 0 * self.bias
+        bias = rearrange(bias, '(v o) -> o v', v=self.d_model, o=self.order - 1)[recurrence_idx]
+
+        y = self.fftconv_fn(x, k, bias)
+        return y
+
+
+class MultiHeadHyenaConv(HyenaConv):
+    def __init__(
+            self,
+            d_model: int,
+            l_max: int,
+            order: int,
+            filter_order: int,
+            num_heads: int,
+            bias: bool = True,
+            filter_cls: Union[ModuleSpec, type] = HyenaFilter,
+            filter_submodules: HyenaFilterSubmodules = None,
+            **filter_kwargs
+    ):
+        if num_heads == 1:
+            raise ValueError('Expecting num_heads > 1')
+        if order != 2:
+            raise ValueError(f'Multi-head supported only with order == 2 (got order {self.order})')
+        if not HAVE_FFTCONV:
+            raise ImportError('fftconv library not found. Please see README at <tbd> for instructions.')
+
+        super().__init__(
+            d_model, l_max, order, filter_order, bias=bias,
+            filter_cls=filter_cls, filter_submodules=filter_submodules, **filter_kwargs
+        )
         self.num_heads = num_heads
 
-        self.pos_emb = build_module(
-            submodules.positional_embedding, emb_dim, seq_len, learn_pos_emb_z
-        )
+    def forward(self, v, k, x1, x2):
+        bias = self.bias if self.use_bias else 0 * self.bias
+        bias = bias.to(dtype=torch.float32)
 
-        # uses a variable number of inner linear layers
-        self.implicit_filter = nn.Sequential(
-            build_module(submodules.linear, emb_dim, order),
-            act,
-        )
-        for i in range(num_inner_mlps):
-            self.implicit_filter.append(build_module(submodules.linear, order, order))
-            self.implicit_filter.append(act)
-        # final linear layer
-        self.implicit_filter.append(build_module(submodules.linear, order, d_model, bias=False))
-
-        self.modulation = build_module(submodules.modulation, d_model, **modulation_args)
-
-        self.normalized = normalized
-
-        if self.fftconv_type == 'flash':
-            self.flashfftconv = FlashFFTConv(2 * self.seq_len, torch_dtype_from_precision(precision)).flashfftconv
-        else:
-            self.flashfftconv = None
-
-    def filter(self, L):
-        z, t = self.pos_emb(L)
-        h = self.implicit_filter(z)
-
-        h = self.modulation(t, h)
-
-        if self.normalized:
-            h = h / torch.norm(h, dim=-1, p=1, keepdim=True)
-
-        return h
-
-    def forward(self, x, k=None, L=None, bias=None, output_hbl_layout=False, v=None, q=None):
-        if k is None:
-            if L is None:
-                raise ValueError('Must pass filter length L if kernel k is None')
-            k = self.filter(L)
-            # Ensure compatibility with filters that return a tuple
-            k = k[0] if type(k) is tuple else k
-
-        if bias is None:
-            bias = self.bias
-        bias = bias if self.use_bias else 0 * bias
-
-        k = k.to(dtype=torch.float32)
-
-        if self.fftconv_type == 'flash':
-            x = x.contiguous()
-            y = self.flashfftconv(x, k) + x * bias.unsqueeze(dim=1)
-        else:  # fftconv_type == 'safari'
-            bias = bias.to(dtype=torch.float32)
-
-            y = fftconv_func(
-                x, k, bias, dropout_mask=None, gelu=False,
-                output_hbl_layout=output_hbl_layout, head_dim=self.num_heads, v=v, q=q
-            )
-
+        y = safari_fftconv_fn(v, k, bias, gelu=False, output_hbl_layout=True, v=x2, head_dim=self.num_heads, q=x1)
         return y
+
 
 class HyenaOperator(nn.Module):
     def __init__(
             self,
             config: TransformerConfig,
-            d_model,
-            l_max,
+            d_model: int,
+            l_max: int,
+            order: int = 2,
+            filter_order: int = 64,
+            num_heads: int = 1,
+            dropout: float = 0.0,
+            short_filter_order: int = 3,
+            activation: str = "identity",
             submodules: HyenaOperatorSubmodules = None,
-            order=2,
-            filter_order=64,
-            num_heads=1,
-            dropout=0.0,
-            filter_dropout=0.0,
-            jit_filter=False,
-            short_filter_order=3,
-            activation="identity",
-            **filter_args,
+            layer_idx=None,
+            **long_conv_kwargs,
     ):
         r"""
         Hyena operator described in the paper https://arxiv.org/pdf/2302.10866.pdf
 
         Args:
             d_model (int): Dimension of the input and output embeddings (width of the layer)
-            l_max: (int): Maximum input sequence length. Defaults to None
+            l_max: (int): Maximum input sequence length.
             order: (int): Depth of the Hyena recurrence. Defaults to 2
             filter_order: (int): Width of the FFN parametrizing the implicit filter. Defaults to 64
             num_heads: (int): Number of heads. Defaults to 1
             dropout: (float): Dropout probability. Defaults to 0.0
-            filter_dropout: (float): Dropout probability for the filter. Defaults to 0.0
-            jit_filter: (bool): Whether JIT the implicit filter function. Defaults to False
             short_filter_order: (int): Length of the explicit input convolutional filter. Defaults to 3
             activation: (str): type of act between kernel output and FF (default identity)
         """
@@ -328,6 +248,9 @@ class HyenaOperator(nn.Module):
                 out_proj=TERowParallelLinear
             )
 
+        if order < 2:
+            raise ValueError(f'Order must be at least 2, (got {self.order})')
+
         if d_model % num_heads != 0:
             raise ValueError(f'Model dimension {d_model} must be divisible by num heads {num_heads}')
         head_dim = d_model // num_heads
@@ -335,29 +258,13 @@ class HyenaOperator(nn.Module):
         auto_assign_attrs(
             self, d_model=d_model, order=order, l_max=l_max, num_heads=num_heads,
             head_dim=head_dim, filter_order=filter_order,
-            short_filter_order=short_filter_order, filter_dropout=filter_dropout,
-            jit_filter=jit_filter, activation=activation, mcore_config=config
+            short_filter_order=short_filter_order,
+            activation=activation, mcore_config=config
         )
         self.activation = activation_registry[activation]()
         self.dropout = nn.Dropout(dropout)
-        self.setup_projections(submodules)
-        self.setup_filters(submodules, filter_args)
 
-    def setup_projections(self, submodules: HyenaOperatorSubmodules):
-        "Initializes input and output projections (over the width dimension)"
-        self.out_proj = build_module(
-            submodules.out_proj,
-            self.d_model,
-            self.d_model,
-            config=self.mcore_config,
-            init_method=self.mcore_config.output_layer_init_method,
-            bias=True,
-            input_is_parallel=True,
-            skip_bias_add=True,
-            is_expert=False,
-            tp_comm_buffer_name='out_proj',
-        )
-
+        # Setup input and output projections (over the width dimension)
         self.in_proj = build_module(
             submodules.in_proj,
             self.d_model,
@@ -371,54 +278,40 @@ class HyenaOperator(nn.Module):
             tp_comm_buffer_name='in_proj',
         )
 
-    def setup_filters(self, submodules: HyenaOperatorSubmodules, filter_args):
-        "Initializes the explicit and implicit filters"
-        if self.order < 2:
-            raise ValueError(f'Order must be at least 2, (got {self.order})')
-        if self.num_heads > 1 and self.order > 2:
-            raise ValueError(f'Multi-head supported only with order == 2 '
-                             f'(got num_heads {self.num_heads} and order {self.order})')
-        total_width = self.d_model * (self.order + 1)
+        self.out_proj = build_module(
+            submodules.out_proj,
+            self.d_model,
+            self.d_model,
+            config=self.mcore_config,
+            init_method=self.mcore_config.output_layer_init_method,
+            bias=True,
+            input_is_parallel=True,
+            skip_bias_add=True,
+            is_expert=False,
+            tp_comm_buffer_name='out_proj',
+        )
 
-        # TODO: Replace with causal_conv1d
+        # Setup short filter
+        total_width = self.d_model * (self.order + 1)
         self.short_filter = build_module(
             submodules.short_filter,
             total_width,
             self.short_filter_order
         )
 
-        if self.num_heads > 1:
-            fftconv_type = 'safari'
-            filter_channels = self.head_dim
+        # Setup long convolution with implicit filter
+        long_conv_args = [
+            self.head_dim, self.l_max, self.order, self.filter_order
+        ]
+        long_conv_kwargs['filter_cls'] = submodules.implicit_filter
+        long_conv_kwargs['filter_submodules'] = submodules.implicit_filter.submodules
+        if self.num_heads == 1:
+            self.long_conv = SingleHeadHyenaConv(*long_conv_args, **long_conv_kwargs)
+            self.conv_fwd_fn = self.conv_single_head
         else:
-            # TODO: Verify safari-fftconv vs flashfftconv for L <= 8192
-            # if self.l_max <= 8192 and HAVE_FFTCONV:
-            #     # safari-fftconv supports seq-len <= 8192 and is a bit faster vs. flashfftconv
-            #     fftconv_type = 'safari'
-            # else:
-            #     fftconv_type = 'flash'
-            fftconv_type = 'flash'
-            filter_channels = self.head_dim * (self.order - 1)
-
-        if fftconv_type == 'safari' and not HAVE_FFTCONV:
-            raise ImportError('fftconv library not found. Please see README at <tbd> for instructions.')
-        if fftconv_type == 'flash' and not HAVE_FLASHFFTCONV:
-            raise ImportError('flashfftconv library not found. Please see README at <tbd> for instructions.')
-
-        logging.info(f'Hyena fftconv_type: {fftconv_type}')
-
-        self.filter_fn = build_module(
-            submodules.implicit_filter,
-            filter_channels,
-            fftconv_type=fftconv_type,
-            order=self.filter_order,
-            seq_len=self.l_max,
-            num_heads=self.num_heads,
-            channels=1,
-            dropout=self.filter_dropout,
-            **filter_args
-        )
-        if self.jit_filter: self.filter_fn = torch.jit.script(self.filter_fn, self.L)
+            long_conv_args.append(self.num_heads)
+            self.long_conv = MultiHeadHyenaConv(*long_conv_args, **long_conv_kwargs)
+            self.conv_fwd_fn = self.conv_multi_head
 
     def forward(self, u, *args, **kwargs):
         l = u.size(0)
@@ -427,17 +320,16 @@ class HyenaOperator(nn.Module):
         u = u[0] if isinstance(u, tuple) else u
         u = rearrange(u, 'l b d -> b d l')  # In MCore the leading dimension is the sequence dimension
 
-        k = self.filter_fn.filter(l_filter)
+        k = self.long_conv.filter(l_filter)
         # `c` is always 1 by default
         k = rearrange(k, 'c l v -> c v l', v=self.head_dim)[0]
 
         uc = self.short_filter(u)[..., :l_filter]
 
-        if self.num_heads == 1:
-            y = self.conv_single_head(uc, k)
-        else:
-            y = self.conv_multi_head(uc, k)
+        k = k.to(dtype=torch.float32)
+        y = self.conv_fwd_fn(uc, k)
 
+        y = rearrange(y, 'b d l -> b l d')
         y = self.activation(y)
         y = self.out_proj(y)
         if isinstance(y, tuple):
@@ -446,7 +338,7 @@ class HyenaOperator(nn.Module):
             bias = None
 
         # Convert back to sequence-first for MCore
-        y = rearrange(y, 'b l h -> l b h')
+        y = rearrange(y, 'b l d -> l b d')
 
         # MCore TransformerLayer expects tuple where 2nd element represents the bias, it can be None
         return y, bias
@@ -455,13 +347,11 @@ class HyenaOperator(nn.Module):
         k = rearrange(k, '(o v) l -> o v l', v=self.head_dim, o=self.order - 1)
 
         *x, v = uc.split(self.d_model, dim=1)
-        bias = rearrange(self.filter_fn.bias, '(v o) -> o v', v=self.head_dim, o=self.order - 1)
         for o, x_i in enumerate(reversed(x[1:])):
             v = self.dropout(v * x_i)
-            v = self.filter_fn(v, k=k[o], bias=bias[o])
+            v = self.long_conv(v, k=k[o], recurrence_idx=o)
 
         y = v * x[0]
-        y = rearrange(y, 'b d l -> b l d')
         return y
 
     def conv_multi_head(self, uc, k):
@@ -469,13 +359,6 @@ class HyenaOperator(nn.Module):
         x1 = x1.contiguous()
         x2 = x2.contiguous()
         v = v.contiguous()
-        bias = self.filter_fn.bias
 
-        y = self.filter_fn(v, k, bias=bias, output_hbl_layout=True, v=x2, q=x1)
-        y = rearrange(y, 'b d l -> b l d')
+        y = self.long_conv(v, k, x1, x2)
         return y
-
-
-    @property
-    def d_output(self):
-        return self.d_model

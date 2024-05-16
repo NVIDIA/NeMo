@@ -8,8 +8,10 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
 
 from nemo.collections.nlp.modules.common.hyena.hyena import (
-    HyenaOperator, HyenaFilter, ExponentialModulation, Sin, PositionalEmbedding, CausalDepthWiseConv1d,
-    HyenaOperatorSubmodules, HyenaFilterSubmodules,
+    HyenaOperator, CausalDepthWiseConv1d, HyenaOperatorSubmodules
+)
+from nemo.collections.nlp.modules.common.hyena.hyena_filter import (
+    HyenaFilter, ExponentialModulation, Sin, PositionalEmbedding, HyenaFilterSubmodules
 )
 
 

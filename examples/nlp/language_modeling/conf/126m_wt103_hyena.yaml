@@ -45,6 +45,9 @@ model:
   name: te_gpt_hyena
 
   hyena:
+    # WT103 hyper-parameters based on:
+    # https://github.com/lindermanlab/S5/blob/development/configs/hyena/wikitext_hyena.yaml
+
     # HyenaOperator parameters
     d_model: ${model.hidden_size}
     l_max: ${model.encoder_seq_length}
@@ -56,7 +59,6 @@ model:
 
     # HyenaFilter parameters
     emb_dim: 5 # dim of input to MLP, augments with positional encoding
-    fused_fft_conv: True
     learn_pos_emb_z: False
     w: 10 # frequency of periodic activations
 
