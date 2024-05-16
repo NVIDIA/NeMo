@@ -43,6 +43,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
+    def __init__(self, tokenizer):
+        super().__init__()
+        self.tokenizer = TokenizerWrapper(tokenizer)
+        self.load_audio = AudioSamples(fault_tolerant=True)
+
     def _tokenize_supervision(self, supervision):
         if isinstance(supervision.text, str):
             return torch.as_tensor(self.tokenizer(supervision.text, supervision.language))
