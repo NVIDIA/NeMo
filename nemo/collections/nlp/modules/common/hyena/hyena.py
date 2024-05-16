@@ -1,14 +1,22 @@
 # Implementation of Hyena operator
 #
-# Poli, Michael and Massaroli, Stefano and Nguyen, Eric and Fu, Daniel Y and Dao, Tri and Baccus, Stephen and
-# Bengio, Yoshua and Ermon, Stefano and Re, Christopher,
+# Michael Poli and Stefano Massaroli and Eric Nguyen and Daniel Y Fu and Tri Dao and Stephen Baccus and
+# Yoshua Bengio and Stefano Ermon and Christopher Re,
 # Hyena Hierarchy: Towards Larger Convolutional Language Models
 # 2023, https://arxiv.org/abs/2302.10866
 #
-# Based on the reference implementation from:
-# https://github.com/HazyResearch/safari/blob/main/src/models/sequence/hyena.py
+# Multi-head variant introduced in:
+#
+# Stefano Massaroli and Michael Poli and Daniel Y Fu and Hermann Kumbong and Rom Nishijima Parnichkun and
+# David W. Romero and Aman Timalsina and Quinn McIntyre and Beidi Chen and Atri Rudra and Ce Zhang and
+# Christopher Re and Stefano Ermon and Yoshua Bengio,
+# Laughing Hyena Distillery: Extracting Compact Recurrences From Convolutions
+# NeurIPS 2023, https://arxiv.org/abs/2310.18780
+#
+# Code is heavily based on the reference implementations from:
+# https://github.com/HazyResearch/safari/blob/flashfftconv/src/models/sequence/hyena.py
+# https://github.com/athms/mad-lab/blob/main/mad/model/layers/hyena.py
 
-import math
 from dataclasses import dataclass
 from typing import Union
 

@@ -8,6 +8,8 @@ import torch.nn as nn
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 
+# Code mostly taken from:
+# https://github.com/HazyResearch/safari/blob/flashfftconv/src/models/sequence/hyena.py
 
 @dataclass
 class HyenaFilterSubmodules:
@@ -49,7 +51,7 @@ class PositionalEmbedding(nn.Module):
 
         if emb_dim > 1:
             bands = (emb_dim - 1) // 2
-            # To compute the right embeddings we use the "proper" linspace
+        # To compute the right embeddings we use the "proper" linspace
         t_rescaled = torch.linspace(0, seq_len - 1, seq_len)[None, :, None]
         w = 2 * math.pi * t_rescaled / seq_len  # 1, L, 1
 

@@ -4,6 +4,8 @@ from einops import rearrange
 
 from fftconv import fftconv_fwd, fftconv_bwd
 
+# Code taken from:
+# https://github.com/HazyResearch/safari/blob/main/src/ops/fftconv.py
 
 class FFTConvFunc(torch.autograd.Function):
 
