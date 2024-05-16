@@ -30,9 +30,10 @@ from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
-from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_llm_to_model_config
+from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_to_trtllm_config
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
+from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file
 
@@ -97,6 +98,7 @@ class TensorRTLLM(ITritonDeployable):
         self.ptuning_tables = []
         self.p_table = None
         self.task_vocab_size = 0
+        self.task_vtoken_counts = []
         self.task_ids = {}
 
         if load_model:
@@ -114,6 +116,7 @@ class TensorRTLLM(ITritonDeployable):
         max_output_token: int = 256,
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
+        use_parallel_embedding: bool = False,
         use_inflight_batching: bool = False,
         enable_context_fmha: bool = True,
         paged_kv_cache: bool = False,
@@ -187,65 +190,70 @@ class TensorRTLLM(ITritonDeployable):
 
         self.model = None
 
-        tmp_dir = tempfile.TemporaryDirectory()
-        nemo_export_dir = Path(tmp_dir.name)
+        if tensorrt_llm.mpi_rank() == 0:
+            tmp_dir = tempfile.TemporaryDirectory()
+            nemo_export_dir = Path(tmp_dir.name)
 
-        if nemo_checkpoint_path.endswith("qnemo"):
-            if os.path.isdir(nemo_checkpoint_path):
-                nemo_export_dir = nemo_checkpoint_path
+            if nemo_checkpoint_path.endswith("qnemo"):
+                if os.path.isdir(nemo_checkpoint_path):
+                    nemo_export_dir = nemo_checkpoint_path
+                else:
+                    unpack_tarball(nemo_checkpoint_path, tmp_dir.name)
+                    nemo_checkpoint_path = tmp_dir.name
+                self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
+
+                qnemo_to_tensorrt_llm(
+                    nemo_checkpoint_path=nemo_checkpoint_path,
+                    engine_dir=self.model_dir,
+                    max_input_len=max_input_token,
+                    max_output_len=max_output_token,
+                    max_batch_size=max_batch_size,
+                    max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                    lora_target_modules=lora_target_modules,
+                )
             else:
-                unpack_tarball(nemo_checkpoint_path, tmp_dir.name)
-                nemo_checkpoint_path = tmp_dir.name
-            self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
+                weights_dicts, model_configs, self.tokenizer = nemo_to_trtllm_config(
+                    in_file=nemo_checkpoint_path,
+                    decoder_type=model_type,
+                    dtype=dtype,
+                    tensor_parallel_size=tensor_parallel_size,
+                    pipeline_parallel_size=pipeline_parallel_size,
+                    use_parallel_embedding=use_parallel_embedding,
+                    nemo_export_dir=nemo_export_dir,
+                    save_nemo_model_config=save_nemo_model_config,
+                )
 
-            qnemo_to_tensorrt_llm(
-                nemo_checkpoint_path=nemo_checkpoint_path,
-                engine_dir=self.model_dir,
-                max_input_len=max_input_token,
-                max_output_len=max_output_token,
-                max_batch_size=max_batch_size,
-                max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                lora_target_modules=lora_target_modules,
-            )
-        else:
-            model_configs, self.tokenizer = nemo_llm_to_model_config(
-                in_file=nemo_checkpoint_path,
-                decoder_type=model_type,
-                dtype=dtype,
-                tensor_parallel_size=tensor_parallel_size,
-                pipeline_parallel_size=pipeline_parallel_size,
-                nemo_export_dir=nemo_export_dir,
-                save_nemo_model_config=save_nemo_model_config,
-            )
+                for weight_dict, model_config in zip(weights_dicts, model_configs):
+                    build_and_save_engine(
+                        max_input_len=max_input_token,
+                        max_output_len=max_output_token,
+                        max_batch_size=max_batch_size,
+                        model_config=model_config,
+                        model_weights=weight_dict,
+                        model_dir=self.model_dir,
+                        model_type=model_type,
+                        lora_ckpt_list=self.lora_ckpt_list,
+                        use_lora_plugin=use_lora_plugin,
+                        max_lora_rank=max_lora_rank,
+                        lora_target_modules=lora_target_modules,
+                        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                        enable_multi_block_mode=enable_multi_block_mode,
+                    )
 
-            model_config_to_tensorrt_llm(
-                model_configs,
-                self.model_dir,
-                world_size=tensor_parallel_size * pipeline_parallel_size,
-                max_input_len=max_input_token,
-                max_output_len=max_output_token,
-                max_batch_size=max_batch_size,
-                max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                use_inflight_batching=use_inflight_batching,
-                paged_kv_cache=paged_kv_cache,
-                enable_context_fmha=enable_context_fmha,
-                enable_multi_block_mode=enable_multi_block_mode,
-                use_lora_plugin=use_lora_plugin,
-                lora_target_modules=lora_target_modules,
-                max_lora_rank=max_lora_rank,
-            )
+            tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
+            if os.path.exists(tokenizer_path):
+                shutil.copy(tokenizer_path, self.model_dir)
+            else:
+                self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
 
-        tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
-        if os.path.exists(tokenizer_path):
-            shutil.copy(tokenizer_path, self.model_dir)
-        else:
-            self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+            nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
+            if os.path.exists(nemo_model_config):
+                shutil.copy(nemo_model_config, self.model_dir)
 
-        nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
-        if os.path.exists(nemo_model_config):
-            shutil.copy(nemo_model_config, self.model_dir)
+            tmp_dir.cleanup()
 
-        tmp_dir.cleanup()
+        if tensorrt_llm.mpi_world_size() > 1:
+            tensorrt_llm.mpi_barrier()
 
         if load_model:
             self._load()
@@ -278,7 +286,9 @@ class TensorRTLLM(ITritonDeployable):
 
         # Build or refit TRT-LLM engine from a nemo model.
         model_configs = nemo_llm_model_to_model_config(
-            nemo_model=nemo_model, decoder_type=model_type, nemo_model_config=nemo_model_config,
+            nemo_model=nemo_model,
+            decoder_type=model_type,
+            nemo_model_config=nemo_model_config,
         )
 
         model_config_to_tensorrt_llm(
@@ -297,7 +307,9 @@ class TensorRTLLM(ITritonDeployable):
         )
 
     def refit(
-        self, nemo_model, nemo_model_config,
+        self,
+        nemo_model,
+        nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
 
@@ -328,7 +340,6 @@ class TensorRTLLM(ITritonDeployable):
         output_log_probs: bool = False,
         **sampling_kwargs,
     ):
-
         """
         Exports nemo checkpoints to TensorRT-LLM.
 
@@ -358,12 +369,15 @@ class TensorRTLLM(ITritonDeployable):
                     prompt_embeddings_table, prompt_embeddings_checkpoint_path
                 )
                 tv_size = prompt_table.size(dim=0)
+                task_vtoken_counts = [tv_size]
             elif len(self.ptuning_tables) > 0:
                 prompt_table = self.p_table
                 tv_size = self.task_vocab_size
+                task_vtoken_counts = self.task_vtoken_counts
             else:
                 prompt_table = None
                 tv_size = None
+                task_vtoken_counts = None
 
             if task_ids is None:
                 assert prompt_table is None, "There is a prompt embedding table and task_ids cannot be None"
@@ -390,7 +404,7 @@ class TensorRTLLM(ITritonDeployable):
                             ), "Task: {0} doesn't exist in the task list.".format(task_ids[i])
                             input_task_ids.append(self.task_ids[task_ids[i]])
             if not streaming:
-                if torch.distributed.is_initialized():
+                if torch.distributed.is_initialized() or tensorrt_llm.mpi_world_size() > 1:
                     multiprocessed_env = True
                 else:
                     multiprocessed_env = False
@@ -404,6 +418,7 @@ class TensorRTLLM(ITritonDeployable):
                     temperature=temperature,
                     prompt_table=prompt_table,
                     task_vocab_size=tv_size,
+                    task_vtoken_counts=task_vtoken_counts,
                     task_ids=input_task_ids,
                     lora_uids=lora_uids,
                     stop_words_list=stop_words_list,
@@ -423,6 +438,7 @@ class TensorRTLLM(ITritonDeployable):
                     temperature=temperature,
                     prompt_table=prompt_table,
                     task_vocab_size=tv_size,
+                    task_vtoken_counts=task_vtoken_counts,
                     task_ids=input_task_ids,
                     lora_uids=lora_uids,
                     stop_words_list=stop_words_list,
@@ -472,7 +488,7 @@ class TensorRTLLM(ITritonDeployable):
         if self.config is None:
             return None
         else:
-            return self.config["builder_config"]["hidden_size"]
+            return self.config["pretrained_config"]["hidden_size"]
 
     @property
     def get_triton_input(self):
@@ -578,19 +594,31 @@ class TensorRTLLM(ITritonDeployable):
             if self.task_vocab_size < pt["table"].size(dim=0):
                 self.task_vocab_size = pt["table"].size(dim=0)
 
-        # pad tasks to longest task embedding table
+        # pad tasks to longest task embedding table, remember the original task vtoken counts
         vtokens_embeddings = []
+        self.task_vtoken_counts = []
         self.task_ids = {}
         tid = 0
         for i, ptuning_table in enumerate(self.ptuning_tables):
-            padded_table = torch.zeros((self.task_vocab_size, self.get_hidden_size))
-            padded_table[: ptuning_table["table"].size(dim=0), :] = ptuning_table["table"]
+            original_table = ptuning_table["table"]
+            vtoken_count = original_table.size(dim=0)
+            padded_table = torch.zeros((self.task_vocab_size, self.get_hidden_size), dtype=original_table.dtype)
+            padded_table[:vtoken_count, :] = original_table
             vtokens_embeddings.append(padded_table)
             self.task_ids[ptuning_table["task_name"]] = tid
+            self.task_vtoken_counts.append(vtoken_count)
             tid = tid + 1
 
         if len(vtokens_embeddings) > 0:
             self.p_table = torch.stack(vtokens_embeddings, dim=0).view(-1, self.get_hidden_size)
+
+            max_prompt_embedding_table_size = self.config['builder_config']['max_prompt_embedding_table_size']
+            actual_prompt_table_size = self.p_table.shape[0]
+
+            if actual_prompt_table_size > max_prompt_embedding_table_size:
+                raise Exception(
+                    f"The size of the combined prompt embedding table ({actual_prompt_table_size}) is greater than max_prompt_embedding_table_size ({max_prompt_embedding_table_size})."
+                )
         else:
             self.p_table = None
 
@@ -647,7 +675,9 @@ class TensorRTLLM(ITritonDeployable):
             return weights.cpu().detach()
 
     def _get_prompt_embedding_table(
-        self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,
+        self,
+        prompt_embeddings_table=None,
+        prompt_embeddings_checkpoint_path=None,
     ):
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
             LOGGER.warning(
@@ -676,15 +706,15 @@ class TensorRTLLM(ITritonDeployable):
                 raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
             prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
 
-        dtype = self.config['builder_config']['precision']
+        dtype = self.config['pretrained_config']['dtype']
         prompt_embeddings_table = prompt_embeddings_table.to(
             dtype=tensorrt_llm._utils.str_dtype_to_torch(dtype)
         ).cuda()
 
-        if prompt_embeddings_table.size(dim=1) != self.config["builder_config"]["hidden_size"]:
+        if prompt_embeddings_table.size(dim=1) != self.config["pretrained_config"]["hidden_size"]:
             raise Exception(
                 "Hidden dimension of the model is {0} and does not match with the dimension of the prompt table.".format(
-                    self.config["builder_config"]["hidden_size"]
+                    self.config["pretrained_config"]["hidden_size"]
                 )
             )
 
