@@ -31,6 +31,7 @@ CUDA_VISIBLE_DEVICES="0" python speaker_id_train.py \
     trainer.log_every_n_steps=10 \
     model.train_ds.manifest_filepath=$train_manifests \
     model.train_ds.augmentor.noise.manifest_path=$noise_manifest \
+    model.train_ds.augmentor.impulse.manifest_path=$rir_manifest \
     ++model.train_ds.min_duration=0.3 \
     ++model.validation_ds.min_duration=0.3 \
     model.validation_ds.manifest_filepath=$dev_manifests \

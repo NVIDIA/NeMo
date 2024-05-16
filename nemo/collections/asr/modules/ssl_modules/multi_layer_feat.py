@@ -89,8 +89,8 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
     def forward(
         self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        self.encoder.update_access_cfg(self.access_cfg, guid=self.model_guid)
-        self.encoder.set_access_enabled(access_enabled=True, guid=self.model_guid)
+        self.encoder.update_access_cfg(self.access_cfg, guid=getattr(self, "model_guid", None))
+        self.encoder.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
 
         _ = self.encoder(
             audio_signal=audio_signal,
