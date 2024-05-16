@@ -37,8 +37,6 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         self.mcore_optimizer = optim
         self.param_groups = self.mcore_optimizer.param_groups
         self.state = self.mcore_optimizer.state
-        self.sharding_type = 'dp_zero_gather_scatter'
-        # 'fully_sharded_bucket_space' if args.ckpt_fully_parallel_save else 'dp_zero_gather_scatter'
 
     def zero_grad(self, set_to_none: bool = True):
         """We only need to zero the model related parameters, i.e.,
@@ -57,9 +55,10 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
     def load_state_dict(self, state_dict):
         self.mcore_optimizer.load_state_dict(state_dict)
 
-    def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None):
+    def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None, is_loading=False, **kwargs):
+        sharding_type = 'fully_sharded_bucket_space' if kwargs.get('dist_ckpt_parallel_save', False) else 'dp_zero_gather_scatter'
         return self.mcore_optimizer.sharded_state_dict(
-            model_sharded_state_dict, is_loading=False, sharding_type='dp_zero_gather_scatter'
+            model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
         )
 
     def step(self, closure):
