@@ -91,7 +91,7 @@ import pathlib
 import sys
 import time
 
-# import ftfy
+import ftfy
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
