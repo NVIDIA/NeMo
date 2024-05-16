@@ -103,8 +103,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         # Input can be of dimention -
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
@@ -117,8 +116,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -222,10 +220,10 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
     def format_hypotheses(self, packed_result: List[Hypothesis], decoder_input_ids: torch.Tensor | None) -> None:
         """
-        For each hypothesis in the mini-batch: 
+        For each hypothesis in the mini-batch:
         * Remove the decoder input ids (prompt) from the predictions
         * Remove BOS, EOS, and PAD ids from the predictions.
-         
+
         Modifies results in-place.
         """
         if decoder_input_ids is not None:

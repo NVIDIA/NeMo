@@ -158,7 +158,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.transf_encoder = EncDecMultiTaskModel.from_config_dict(transf_encoder_cfg_dict)
 
             # Initialize weights
-            std_init_range = 1 / self.cfg.model_defaults.lm_enc_hidden ** 0.5
+            std_init_range = 1 / self.cfg.model_defaults.lm_enc_hidden**0.5
             self.transf_encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         transf_decoder_cfg_dict = cfg.transf_decoder
@@ -184,7 +184,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
 
         # Initialize weights
-        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden ** 0.5
+        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5
         self.transf_decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
@@ -349,7 +349,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
 
         # Initialize weights of token classifier
-        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden ** 0.5
+        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # Setup Decoding class
@@ -897,9 +897,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 entry = {
                     'audio_filepath': item,
                     'duration': 100000,
-                    'prompt': 'Transcribe the recording in English with punctuation and capitalization'
-                    if trcfg.prompt is None
-                    else trcfg.prompt,
+                    'prompt': (
+                        'Transcribe the recording in English with punctuation and capitalization'
+                        if trcfg.prompt is None
+                        else trcfg.prompt
+                    ),
                     'source_lang': 'en' if trcfg.source_lang is None else trcfg.source_lang,
                     'taskname': 'asr' if trcfg.task is None else trcfg.task,
                     'target_lang': 'en' if trcfg.target_lang is None else trcfg.target_lang,

@@ -146,7 +146,7 @@ def canary_natural(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = 
 
         assert hasattr(cut, "prompt"), f"Error: missing 'prompt' field in {cut=}"
         prompt = cut.prompt
-        if (keys := list_placeholders(prompt)) :
+        if keys := list_placeholders(prompt):
             kvs = {}
             for k in keys:
                 assert hasattr(cut, k), f"Error: missing field '{k}' required by prompt '{prompt}' in {cut=}"
