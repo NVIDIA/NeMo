@@ -313,11 +313,7 @@ class TensorRTLLM(ITritonDeployable):
         # TRTLLM asserts that rank equals the device num however this
         # is not true for the megatron core mapping TP->DP->PP.
         # So we manipulate TRTLLM to emulate a TP->PP single node setup
-        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
-        device_ids = [
-            ((i+torch.cuda.current_device()-mp_rank)+mp_size)%mp_size
-            for i in range(mp_size)]
-        
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
         mapping = tensorrt_llm.Mapping(
             world_size = mp_size,
             rank = mp_rank,
@@ -331,7 +327,7 @@ class TensorRTLLM(ITritonDeployable):
             pp_rank  {parallel_state.get_pipeline_model_parallel_rank()} -> {mapping.pp_rank}'''
         )
         mp_group_ranks = torch.distributed.distributed_c10d.get_process_group_ranks(mp_group)
-        print(f"{torch.distributed.get_rank()} color {dp_rank} mp_rank {mp_rank} mp_group_ranks {mp_group_ranks} device_ids {device_ids}")
+        print(f"{torch.distributed.get_rank()} color {dp_rank} mp_rank {mp_rank} mp_group_ranks {mp_group_ranks}")
         print(f"trtllm mpi : {tensorrt_llm.bindings.MpiComm.getRank()} {tensorrt_llm.bindings.MpiComm.getSize()}")
         
         model_config, weights = nemo_llm_model_to_model_config(
@@ -364,9 +360,7 @@ class TensorRTLLM(ITritonDeployable):
 
         print_mem("post build_and_save_engine")
         
-        self.model_runner, self.session_params = load_refit(
-            engine_dir=self.model_dir,
-            device_ids=device_ids)
+        self.model_runner, self.session_params = load_refit(engine_dir=self.model_dir)
 
         print(f"device: {origdev} {torch.cuda.current_device()}")
 

@@ -413,7 +413,7 @@ def build_and_save_engine(
     model = model_cls.from_config(model_config)
     model = optimize_model(
         model,
-        use_parallel_embedding=model_config.use_parallel_embedding,
+        use_parallel_embedding=True,
         share_embedding_table=model_config.share_embedding_table,
     )
     preprocess_weights(model_weights, model_config)

@@ -307,7 +307,7 @@ def create_gpt_session(
                             session_params.world_config,
                             engine_data)
 
-def load_refit(engine_dir, device_ids):
+def load_refit(engine_dir):
     """Loaded the compiled LLM model and run it.
 
     It also supports running the TRT LLM model on multi-GPU.
@@ -320,7 +320,16 @@ def load_refit(engine_dir, device_ids):
     tp_size = json_config.tensor_parallelism
     pp_size = json_config.pipeline_parallelism
     mp_size = tp_size*pp_size
-    world_config = WorldConfig.mpi(gpus_per_node=999, #Unused so just choose a big number to avoid asserts
+
+    # TRTLLM assumes rank < gpus_per_node but this is not true for multinode setups
+    # So hack around this using an arbitrarily big gpus_per_node to avoid asserts
+    gpus_per_node = 9999
+    mp_rank = tensorrt_llm.bindings.MpiComm.getRank()        
+    device_ids = [
+        (i+torch.cuda.current_device()-mp_rank) for i in range(mp_size)]
+    print(f"{torch.cuda.current_device()} device_ids {device_ids}")
+
+    world_config = WorldConfig.mpi(gpus_per_node=gpus_per_node, 
                                     tensor_parallelism=tp_size,
                                     pipeline_parallelism=pp_size,
                                     device_ids=device_ids)
@@ -339,6 +348,8 @@ def load_refit(engine_dir, device_ids):
     session_config = GptSessionConfig(max_batch_size=max_batch_size,
                                         max_beam_width=max_beam_width,
                                         max_sequence_length=max_seq_len)
+    session_config.gen_micro_batch_size = max_batch_size
+    session_config.ctx_micro_batch_size = max_batch_size
     session_config.kv_cache_config = KvCacheConfig(
         max_tokens=max_seq_len*max_batch_size,
         max_attention_window=max_seq_len

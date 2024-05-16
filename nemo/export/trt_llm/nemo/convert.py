@@ -415,7 +415,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
 #Similar to split_save_weight but done on GPU for performance
 @torch.no_grad()
-def save_weight_torch(key, val, config, weight_type):
+def save_weight_torch(key, val, config):
     num_layers = config["num_layers"]
     storage_type = config["storage_type"]
     split_gated_activation = config["split_gated_activation"]
@@ -454,32 +454,32 @@ def save_weight_torch(key, val, config, weight_type):
 
     if "self_attention" in key:
         key = key.replace("self_attention", "attention")
-    if "attention.linear_qkv.layer_norm_weight" in key:
-        key = key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
-    if "mlp.linear_fc1.layer_norm_weight" in key:
-        key = key.replace("mlp.linear_fc1.layer_norm_weight", "post_attention_layernorm.weight")
 
-    if weight_type == 'layernorm_weight':
+    if ('layer_norm_weight' in key
+        or 'layernorm.weight' in key
+        or "final_layernorm.weight" in key
+        or "ln_f.weight" in key
+    ):
+        if "attention.linear_qkv.layer_norm_weight" in key:
+            key = key.replace("attention.linear_qkv.layer_norm_weight", "input_layernorm.weight")
+        elif "mlp.linear_fc1.layer_norm_weight" in key:
+            key = key.replace("mlp.linear_fc1.layer_norm_weight", "post_layernorm.weight")
+        elif "pre_mlp_layernorm.weight" in key:
+            key = key.replace("pre_mlp_layernorm.weight", "post_layernorm.weight")
+
         if config.get("apply_layernorm_1p", False):
             val = val.float() + 1.0
         save(key, val)
     elif (
-        "input_layernorm.bias" in key
-        or "pre_mlp_layernorm.bias" in key
-        or "attention.dense.bias" in key
-        or "attention.linear_proj.bias" in key
-        or "post_attention_layernorm.bias" in key
-        or "mlp.dense_4h_to_h.bias" in key
-        or "mlp.linear_fc2.bias" in key
+        "input_layernorm.bias" in key 
+        or "pre_mlp_layernorm.bias" in key 
         or "ln_f.bias" in key
         or "vocab_embedding" in key
     ):
-        if "mlp.linear_fc2.bias" in key:
-            key =  key.replace("mlp.linear_fc2.bias", "mlp.dense_4h_to_h.bias")
-        elif "attention.linear_proj.bias" in key:
-            key = key.replace("attention.linear_proj.bias", "attention.dense.bias")
-        save(key, val)
+        if "pre_mlp_layernorm.bias" in key:
+            key = key.replace("pre_mlp_layernorm.bias", "post_layernorm.bias")
 
+        save(key, val)
     elif (
         "attention.dense.weight" in key
         or "mlp.dense_4h_to_h.weight" in key

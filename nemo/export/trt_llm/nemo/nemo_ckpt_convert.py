@@ -432,12 +432,12 @@ def convert_nemo_model(
     layer_params = {
         k: v for k, v in layer_params.items() if k.startswith("layers.")
     }
+
     for key, val in layer_params.items():
         starmap_args.append({
                 "key": key,
                 "val": val,
                 "config": export_config,
-                "weight_type" : 'layernorm_weight' if 'layernorm.weight' in key else None
             })
 
     def broadcast_item(item, group, src_rank):
@@ -447,7 +447,7 @@ def convert_nemo_model(
 
     #broadcast a tensor across PP group and save it
     def save_pp_weight(
-        src_key_or_tensor, dst_key, pp_src_idx, transpose_weights=True, weight_type=None):
+        src_key_or_tensor, dst_key, pp_src_idx, transpose_weights=True):
 
         have_tensor = False
         if torch.distributed.get_rank() == pp_src_idx:
@@ -477,12 +477,10 @@ def convert_nemo_model(
 
         temp_config = dict(export_config)
         temp_config['transpose_weights'] = transpose_weights
-        temp_config['weight_type'] = weight_type
         starmap_args.append({
                     "key": dst_key,
                     "val": tensor,
                     "config": temp_config,
-                    "weight_type": weight_type
                 })
     # ----------------Convert Final Layernorm----------------  
     if pp_is_last or reshard_model:
@@ -490,7 +488,6 @@ def convert_nemo_model(
             get_layer_name("final_layernorm.weight", transformer_layer_prefix), 
             "ln_f.weight", 
             pp_last_rank, 
-            weight_type='layernorm_weight'
         )
         save_pp_weight(
             get_layer_name("final_layernorm.bias", transformer_layer_prefix), 
@@ -540,17 +537,8 @@ def convert_nemo_model(
         save_weight_torch(**starmap_arg)
     toc = time.time()
     print(f"     weight save took {toc-tic}")
-
-    renamed_weight_dict = {}
-    if trt_model_type == 'GPTForCausalLM':
-        for key, val in weights_dict.items():
-            if 'layernorm' in key:
-                new_key = key.replace("pre_mlp_layernorm", "post_layernorm")
-            else:
-                new_key = key
-            renamed_weight_dict[new_key] = val
-
-    return  renamed_weight_dict
+    print(f"{torch.cuda.current_device()} {pp_is_first} {pp_is_last}")
+    return  weights_dict
 
 
 
