@@ -361,6 +361,7 @@ class TensorRTLLM(ITritonDeployable):
         print_mem("post build_and_save_engine")
         
         self.model_runner, self.session_params = load_refit(engine_dir=self.model_dir)
+        print_mem("post load_refit")
 
         print(f"device: {origdev} {torch.cuda.current_device()}")
 

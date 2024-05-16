@@ -323,10 +323,11 @@ def load_refit(engine_dir):
 
     # TRTLLM assumes rank < gpus_per_node but this is not true for multinode setups
     # So hack around this using an arbitrarily big gpus_per_node to avoid asserts
-    gpus_per_node = 9999
+    gpus_per_node = 64
     mp_rank = tensorrt_llm.bindings.MpiComm.getRank()        
     device_ids = [
-        (i+torch.cuda.current_device()-mp_rank) for i in range(mp_size)]
+        (i+torch.cuda.current_device()-mp_rank+gpus_per_node)%gpus_per_node
+        for i in range(mp_size)]
     print(f"{torch.cuda.current_device()} device_ids {device_ids}")
 
     world_config = WorldConfig.mpi(gpus_per_node=gpus_per_node, 
