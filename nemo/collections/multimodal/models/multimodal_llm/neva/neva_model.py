@@ -78,7 +78,7 @@ try:
     from megatron.core import InferenceParams, dist_checkpointing, parallel_state
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.utils import make_sharded_tensor_for_checkpoint
+    from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
     HAVE_MEGATRON_CORE = True
 
@@ -246,14 +246,7 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
         state_dict = self.state_dict(prefix='', keep_vars=True)
         state_dict.pop('weight')
         # duplicate everything else
-        for layer_name in state_dict.keys():
-            tensor = state_dict[layer_name]
-            layer_key = f'{prefix}{layer_name}'
-            sharded_state_dict[layer_key] = make_sharded_tensor_for_checkpoint(
-                tensor,
-                layer_key,
-                prepend_offsets=sharded_offsets,
-            )
+        sharded_state_dict.update(make_sharded_tensors_for_checkpoint(state_dict, prefix=prefix))
         return sharded_state_dict
 
 
