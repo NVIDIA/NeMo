@@ -14,18 +14,20 @@
 from abc import ABC
 from typing import Dict, List, Optional, Union
 
+import onnx
 import torch
 from pytorch_lightning.core.module import _jit_is_scripting
 
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import NeuralType
 from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
-from nemo.utils import logging
+from nemo.utils import logging, monkeypatched
 from nemo.utils.export_utils import (
     ExportFormat,
     augment_filename,
     get_export_format,
     parse_input_example,
+    rename_onnx_io,
     replace_for_export,
     verify_runtime,
     verify_torchscript,
@@ -177,7 +179,7 @@ class Exportable(ABC):
             with torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
 
                 if input_example is None:
-                    input_example = self.input_module.input_example()
+                    input_example = self.input_module.input_example(max_batch=2)
 
                 # Remove i/o examples from args we propagate to enclosed Exportables
                 my_args.pop('output')
@@ -191,7 +193,9 @@ class Exportable(ABC):
                 input_list, input_dict = parse_input_example(input_example)
                 input_names = self.input_names
                 output_names = self.output_names
-                output_example = tuple(self.forward(*input_list, **input_dict))
+                output_example = self.forward(*input_list, **input_dict)
+                if not isinstance(output_example, tuple):
+                    output_example = (output_example,)
 
                 if check_trace:
                     if isinstance(check_trace, bool):
@@ -219,16 +223,49 @@ class Exportable(ABC):
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None:
                         dynamic_axes = get_dynamic_axes(self.input_module.input_types_for_export, input_names)
-                        dynamic_axes.update(get_dynamic_axes(self.output_module.output_types_for_export, output_names))
+                        if use_dynamo:
+                            dynamic_shapes = {}
+                            batch = torch.export.Dim("batch", max=128)
+                            for name, dims in dynamic_axes.items():
+                                ds = {}
+                                for d in dims:
+                                    if d == 0:
+                                        ds[d] = batch
+                                    # this currently fails, https://github.com/pytorch/pytorch/issues/126127
+                                    # else:
+                                    #     ds[d] = torch.export.Dim(name + '__' + str(d))
+                                dynamic_shapes[name] = ds
+                    else:
+                        dynamic_shapes = dynamic_axes
                     if use_dynamo:
-                        options = torch.onnx.ExportOptions(dynamic_shapes=dynamic_axes)
-                        ex_model = torch.export.export(
-                            jitted_model, tuple(input_list), kwargs=input_dict, strict=False
-                        )
-                        ex_model = ex_model.run_decompositions()
-                        ex = torch.onnx.dynamo_export(ex_model, *input_list, **input_dict, export_options=options)
-                        ex.save(output, model_state=jitted_model.state_dict())
-                        input_names = None
+                        import onnxscript
+
+                        # https://github.com/microsoft/onnxscript/issues/1544
+                        onnxscript.optimizer.constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = 1024 * 1024 * 64
+
+                        # https://github.com/pytorch/pytorch/issues/126339
+                        with monkeypatched(torch.nn.RNNBase, "flatten_parameters", lambda *args: None):
+                            print("Running export.export, dynamic shapes:\n", dynamic_shapes)
+
+                            ex_model = torch.export.export(
+                                jitted_model,
+                                tuple(input_list),
+                                kwargs=input_dict,
+                                dynamic_shapes=dynamic_shapes,
+                                strict=False,
+                            )
+                            ex_model = ex_model.run_decompositions()
+
+                            print("Running torch.onnx.dynamo_export ...")
+
+                            options = torch.onnx.ExportOptions(dynamic_shapes=True, op_level_debug=True)
+                            ex_module = ex_model.module()
+                            ex = torch.onnx.dynamo_export(ex_module, *input_list, **input_dict, export_options=options)
+                            ex.save(output)  # , model_state=ex_module.state_dict())
+                            del ex
+                            # Rename I/O after save - don't want to risk modifying ex._model_proto
+                            rename_onnx_io(output, input_names, output_names)
+                            # input_names=None
                     else:
                         torch.onnx.export(
                             jitted_model,

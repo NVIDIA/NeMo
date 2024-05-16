@@ -177,6 +177,8 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
         output_example = model.forward(*input_list, **input_dict)
+        if not isinstance(output_example, tuple):
+            output_example = (output_example,)
         ort_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
         all_good = all_good and run_ort_and_compare(sess, ort_input, output_example, check_tolerance)
     status = "SUCCESS" if all_good else "FAIL"
@@ -221,10 +223,12 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
             try:
                 if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
                     this_good = False
-            except Exception:  # there may ne size mismatch and it may be OK
+            except Exception:  # there may be size mismatch and it may be OK
                 this_good = False
             if not this_good:
-                logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
+                logging.info(
+                    f"onnxruntime results mismatch! PyTorch(expected, {expected.shape}):\n{expected}\nONNXruntime, {tout.shape}:\n{tout}"
+                )
                 all_good = False
     return all_good
 
@@ -479,3 +483,25 @@ def add_casts_around_norms(model: nn.Module):
         "MaskedInstanceNorm1d": wrap_module(MaskedInstanceNorm1d, CastToFloatAll),
     }
     replace_modules(model, default_cast_replacements)
+
+
+def rename_onnx_io(output, input_names, output_names):
+    onnx_model = onnx.load(output)
+    rename_map = {}
+    for inp, name in zip(onnx_model.graph.input, input_names):
+        rename_map[inp.name] = name
+    for out, name in zip(onnx_model.graph.output, output_names):
+        rename_map[out.name] = name
+    for n in onnx_model.graph.node:
+        for inp in range(len(n.input)):
+            if n.input[inp] in rename_map:
+                n.input[inp] = rename_map[n.input[inp]]
+        for out in range(len(n.output)):
+            if n.output[out] in rename_map:
+                n.output[out] = rename_map[n.output[out]]
+
+    for i in range(len(onnx_model.graph.input)):
+        onnx_model.graph.input[i].name = input_names[i]
+    for i in range(len(onnx_model.graph.output)):
+        onnx_model.graph.output[i].name = output_names[i]
+    onnx.save(onnx_model, output)

@@ -30,10 +30,6 @@ from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
-# from nemo.core.classes import typecheck
-# typecheck.enable_wrapping(enabled=False)
-
-
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
@@ -56,6 +52,8 @@ class TestExportable:
             )
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'logprobs'
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -68,6 +66,8 @@ class TestExportable:
             )
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'logits'
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -78,6 +78,8 @@ class TestExportable:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'logits'
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -88,6 +90,9 @@ class TestExportable:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.input[1].name == 'length'
+            assert onnx_model.graph.output[0].name == 'logprobs'
 
     @pytest.mark.pleasefixme
     @pytest.mark.run_only_on('GPU')
@@ -127,6 +132,9 @@ class TestExportable:
             )
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.input[1].name == 'length'
+            assert onnx_model.graph.output[0].name == 'logprobs'
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -136,7 +144,7 @@ class TestExportable:
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
-            files, descr = model.export(output=filename, verbose=False)
+            files, descr = model.export(output=filename, dynamic_axes={}, verbose=False)
 
             encoder_filename = os.path.join(tmpdir, 'encoder-' + fn)
             assert files[0] == encoder_filename
@@ -145,6 +153,10 @@ class TestExportable:
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert len(onnx_model.graph.input) == 2
             assert len(onnx_model.graph.output) == 2
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.input[1].name == 'length'
+            assert onnx_model.graph.output[0].name == 'outputs'
+            assert onnx_model.graph.output[1].name == 'encoded_lengths'
 
             decoder_joint_filename = os.path.join(tmpdir, 'decoder_joint-' + fn)
             assert files[1] == decoder_joint_filename
@@ -159,12 +171,21 @@ class TestExportable:
 
             # enc_logits + (all decoder inputs - state tuple) + flattened state list
             assert len(onnx_model.graph.input) == (1 + (len(input_examples) - 1) + num_states)
+            assert onnx_model.graph.input[0].name == 'encoder_outputs'
+            assert onnx_model.graph.input[1].name == 'targets'
+            assert onnx_model.graph.input[2].name == 'target_length'
 
             if num_states > 0:
                 for idx, ip in enumerate(onnx_model.graph.input[3:]):
                     assert ip.name == "input_" + state_name + '_' + str(idx + 1)
 
             assert len(onnx_model.graph.output) == (len(input_examples) - 1) + num_states
+            assert onnx_model.graph.output[0].name == 'outputs'
+            assert onnx_model.graph.output[1].name == 'prednet_lengths'
+
+            if num_states > 0:
+                for idx, op in enumerate(onnx_model.graph.output[2:]):
+                    assert op.name == "output_" + state_name + '_' + str(idx + 1)
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -185,6 +206,8 @@ class TestExportable:
             assert ts_encoder is not None
 
             arguments = ts_encoder.forward.schema.arguments[1:]  # First value is `self`
+            assert arguments[0].name == 'audio_signal'
+            assert arguments[1].name == 'length'
 
             decoder_joint_filename = os.path.join(tmpdir, 'decoder_joint-' + fn)
             assert files[1] == decoder_joint_filename
@@ -202,6 +225,13 @@ class TestExportable:
 
             # enc_logits + (all decoder inputs - state tuple) + flattened state list
             assert len(ts_decoder_joint_args) == (1 + (len(input_examples) - 1) + num_states)
+            assert ts_decoder_joint_args[0].name == 'encoder_outputs'
+            assert ts_decoder_joint_args[1].name == 'targets'
+            assert ts_decoder_joint_args[2].name == 'target_length'
+
+            if num_states > 0:
+                for idx, ip in enumerate(ts_decoder_joint_args[3:]):
+                    assert ip.name == "input_" + state_name + '_' + str(idx + 1)
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -235,6 +265,8 @@ class TestExportable:
             )
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'logprobs'
 
     def setup_method(self):
         self.preprocessor = {
@@ -638,8 +670,3 @@ def squeezeformer_model():
     )
     conformer_model = EncDecCTCModel(cfg=modelConfig)
     return conformer_model
-
-
-if __name__ == "__main__":
-    t = TestExportable()
-    t.test_EncDecClassificationModel_export_to_onnx(speech_classification_model())

@@ -20,9 +20,6 @@ import pytorch_lightning as pl
 import torch
 import wget
 from omegaconf import DictConfig, OmegaConf
-from nemo.core.classes import typecheck
-
-typecheck.enable_wrapping(enabled=False)
 
 from nemo.collections import nlp as nemo_nlp
 from nemo.collections.nlp.models import IntentSlotClassificationModel
