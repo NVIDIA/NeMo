@@ -117,8 +117,8 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 8,
         max_prompt_embedding_table_size=None,
         use_parallel_embedding: bool = False,
-        paged_kv_cache: bool = False,
-        remove_input_padding: bool = False,
+        paged_kv_cache: bool = True,
+        remove_input_padding: bool = True,
         dtype: str = "bfloat16",
         load_model: bool = True,
         enable_multi_block_mode: bool = False,
@@ -145,9 +145,16 @@ class TensorRTLLM(ITritonDeployable):
             max_prompt_embedding_table_size (int): max prompt embedding size.
             use_parallel_embedding (bool): whether to use parallel embedding feature of TRT-LLM or not
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
+            remove_input_padding (bool): enables removing input padding or not.
             dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
             load_model (bool): load TensorRT-LLM model after the export.
             enable_multi_block_mode (bool): enable faster decoding in multihead attention. Required for long context.
+            use_lora_plugin (str): use dynamic lora or not.
+            lora_target_modules (List[str]): list of the target lora modules.
+            max_lora_rank (int): maximum lora rank.
+            max_num_tokens (int):
+            opt_num_tokens (int):
+            save_nemo_model_config (bool):
         """
 
         if model_type not in self.get_supported_models_list:
@@ -290,9 +297,7 @@ class TensorRTLLM(ITritonDeployable):
 
         # Build or refit TRT-LLM engine from a nemo model.
         model_configs = nemo_llm_model_to_model_config(
-            nemo_model=nemo_model,
-            decoder_type=model_type,
-            nemo_model_config=nemo_model_config,
+            nemo_model=nemo_model, decoder_type=model_type, nemo_model_config=nemo_model_config,
         )
 
         model_config_to_tensorrt_llm(
@@ -311,9 +316,7 @@ class TensorRTLLM(ITritonDeployable):
         )
 
     def refit(
-        self,
-        nemo_model,
-        nemo_model_config,
+        self, nemo_model, nemo_model_config,
     ):
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
 
@@ -679,9 +682,7 @@ class TensorRTLLM(ITritonDeployable):
             return weights.cpu().detach()
 
     def _get_prompt_embedding_table(
-        self,
-        prompt_embeddings_table=None,
-        prompt_embeddings_checkpoint_path=None,
+        self, prompt_embeddings_table=None, prompt_embeddings_checkpoint_path=None,
     ):
         if prompt_embeddings_table is not None and prompt_embeddings_checkpoint_path is not None:
             LOGGER.warning(
