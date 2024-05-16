@@ -6,9 +6,9 @@ from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.cloud_io import get_filesystem
 from lightning_fabric.utilities.types import _PATH
 from megatron.core import dist_checkpointing
-from megatron.core.dist_checkpointing.strategies import tensorstore
 from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
 from megatron.core.dist_checkpointing.mapping import ShardedBase
+from megatron.core.dist_checkpointing.strategies import tensorstore
 
 from nemo.utils import logging
 
