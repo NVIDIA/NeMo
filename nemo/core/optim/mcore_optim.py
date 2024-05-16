@@ -56,7 +56,9 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         self.mcore_optimizer.load_state_dict(state_dict)
 
     def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None, is_loading=False, **kwargs):
-        sharding_type = 'fully_sharded_bucket_space' if kwargs.get('dist_ckpt_parallel_save', False) else 'dp_zero_gather_scatter'
+        sharding_type = (
+            'fully_sharded_bucket_space' if kwargs.get('dist_ckpt_parallel_save', False) else 'dp_zero_gather_scatter'
+        )
         return self.mcore_optimizer.sharded_state_dict(
             model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
         )
