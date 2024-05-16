@@ -83,7 +83,7 @@ class DistributedCheckpointIO(CheckpointIO):
             sharded_strategy = None
 
         if not strict:
-            self.adjust_non_strict_load(path, sharded_state_dict)
+            sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
 
         return dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict, checkpoint_dir=path, sharded_strategy=sharded_strategy
