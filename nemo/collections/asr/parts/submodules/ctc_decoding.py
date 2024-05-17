@@ -215,6 +215,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         possible_strategies = [
             'greedy',
+            'greedy_batched',
             'beam',
             'pyctcdecode',
             'flashlight',
@@ -224,14 +225,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # Update preserve alignments
         if self.preserve_alignments is None:
-            if self.cfg.strategy in ['greedy']:
+            if self.cfg.strategy in ['greedy', 'greedy_batched']:
                 self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
             else:
                 self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
         # Update compute timestamps
         if self.compute_timestamps is None:
-            if self.cfg.strategy in ['greedy']:
+            if self.cfg.strategy in ['greedy', 'greedy_batched']:
                 self.compute_timestamps = self.cfg.greedy.get('compute_timestamps', False)
             elif self.cfg.strategy in ['beam']:
                 self.compute_timestamps = self.cfg.beam.get('compute_timestamps', False)
@@ -239,10 +240,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
-        # Confidence estimation is not implemented for strategies other than `greedy`
+        # Confidence estimation is not implemented for strategies other than `greedy` and `greedy_batched`
         if (
             not self.preserve_frame_confidence
-            and self.cfg.strategy != 'greedy'
+            and self.cfg.strategy not in ('greedy', 'greedy_batched')
             and self.cfg.beam.get('preserve_frame_confidence', False)
         ):
             raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
@@ -254,7 +255,21 @@ class AbstractCTCDecoding(ConfidenceMixin):
         if self.cfg.strategy == 'greedy':
             if self.cfg.get('beam', None):
                 logging.warning('beam in not None, but greedy decoding is used')
+            logging.warning(
+                "CTC decoding strategy 'greedy' is slower than 'greedy_batched', which implements the same exact interface. Consider changing your strategy to 'greedy_batched' for a free performance improvement.",
+                mode=logging_mode.ONCE,
+            )
+
             self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
+                blank_id=self.blank_id,
+                preserve_alignments=self.preserve_alignments,
+                compute_timestamps=self.compute_timestamps,
+                preserve_frame_confidence=self.preserve_frame_confidence,
+                confidence_method_cfg=self.confidence_method_cfg,
+            )
+
+        elif self.cfg.strategy == "greedy_batched":
+            self.decoding = ctc_greedy_decoding.GreedyBatchedCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
@@ -981,7 +996,9 @@ class CTCDecoding(AbstractCTCDecoding):
     """
 
     def __init__(
-        self, decoding_cfg, vocabulary,
+        self,
+        decoding_cfg,
+        vocabulary,
     ):
         blank_id = len(vocabulary)
         self.vocabulary = vocabulary
@@ -1258,7 +1275,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
 @dataclass
 class CTCDecodingConfig:
-    strategy: str = "greedy"  # greedy, pyctcdecode, beam = pyctcdecode, flashlight
+    strategy: str = "greedy_batched"  # greedy_batched, greedy, pyctcdecode, beam = pyctcdecode, flashlight
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
