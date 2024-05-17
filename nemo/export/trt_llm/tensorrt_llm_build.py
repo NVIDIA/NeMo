@@ -28,6 +28,7 @@ from tensorrt_llm._utils import np_dtype_to_trt
 from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.logger import logger
+
 # from tensorrt_llm.lora_manager import LoraBuildConfig
 from tensorrt_llm.models.modeling_utils import add_lora, optimize_model, preprocess_weights
 from tensorrt_llm.network import net_guard
@@ -355,6 +356,7 @@ def build(
     tok = time.time()
     t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
     logger.info(f"Total time of building all {args.mapping.world_size} engines: {t}")
+
 
 def build_and_save_engine(
     max_input_len=1024,

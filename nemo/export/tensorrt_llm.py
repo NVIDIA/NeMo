@@ -43,12 +43,12 @@ try:
 except Exception:
     use_deploy = False
 
-def print_mem(prefix):
-        torch.cuda.empty_cache()
-        pyt = torch.cuda.memory_allocated() / (1024**3)
-        el = (torch.cuda.mem_get_info()[1] - torch.cuda.mem_get_info()[0]) / (1024**3)
-        print(f"Mem Usage | {prefix} | {pyt} {el} | {el-pyt}")
 
+def print_mem(prefix):
+    torch.cuda.empty_cache()
+    pyt = torch.cuda.memory_allocated() / (1024**3)
+    el = (torch.cuda.mem_get_info()[1] - torch.cuda.mem_get_info()[0]) / (1024**3)
+    print(f"Mem Usage | {prefix} | {pyt} {el} | {el-pyt}")
 
 
 @wrapt.decorator
@@ -277,10 +277,11 @@ class TensorRTLLM(ITritonDeployable):
         max_batch_size: int = 4,
         use_refit: bool = True,
         reshard_model: bool = False,
-    ):  
+    ):
         origdev = torch.cuda.current_device()
 
         from megatron.core import parallel_state
+
         assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
 
         gpus_per_node = 8
@@ -298,7 +299,7 @@ class TensorRTLLM(ITritonDeployable):
 
         if reshard_model and pp_size > 1:
             self.reshard_model = True
-            dp_size = dp_size*pp_size
+            dp_size = dp_size * pp_size
             dp_rank = torch.distributed.get_rank() // tp_size
             pp_rank = 0
             pp_size = 1
@@ -306,21 +307,18 @@ class TensorRTLLM(ITritonDeployable):
         else:
             self.reshard_model = False
             mp_group = parallel_state.get_model_parallel_group()
-        mp_size = tp_size*pp_size
-        mp_rank = tp_size*pp_rank + tp_rank
+        mp_size = tp_size * pp_size
+        mp_rank = tp_size * pp_rank + tp_rank
         if dp_size > 1:
             self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
 
         # TRTLLM asserts that rank equals the device num however this
         # is not true for the megatron core mapping TP->DP->PP.
         # So we manipulate TRTLLM to emulate a TP->PP single node setup
-        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
         mapping = tensorrt_llm.Mapping(
-            world_size = mp_size,
-            rank = mp_rank,
-            gpus_per_node = mp_size, 
-            tp_size = tp_size,
-            pp_size = pp_size)
+            world_size=mp_size, rank=mp_rank, gpus_per_node=mp_size, tp_size=tp_size, pp_size=pp_size
+        )
 
         LOGGER.info(
             f'''TRT-LLM rank mapping: Rank {torch.distributed.get_rank()}, mp_rank {mp_rank}:
@@ -330,20 +328,21 @@ class TensorRTLLM(ITritonDeployable):
         mp_group_ranks = torch.distributed.distributed_c10d.get_process_group_ranks(mp_group)
         print(f"{torch.distributed.get_rank()} color {dp_rank} mp_rank {mp_rank} mp_group_ranks {mp_group_ranks}")
         print(f"trtllm mpi : {tensorrt_llm.bindings.MpiComm.getRank()} {tensorrt_llm.bindings.MpiComm.getSize()}")
-        
+
         model_config, weights = nemo_llm_model_to_model_config(
             nemo_model=nemo_model,
             tokenizer=self.tokenizer,
             nemo_model_config=nemo_model_config,
             reshard_model=self.reshard_model,
             mapping=mapping,
-            trt_model_type=trt_model_type)
+            trt_model_type=trt_model_type,
+        )
 
         print_mem("pre build_and_save_engine")
         engine = build_and_save_engine(
             max_input_len=max_input_len,
             max_output_len=max_output_len,
-            max_input_tokens=max_input_tokens,  
+            max_input_tokens=max_input_tokens,
             max_batch_size=max_batch_size,
             model_config=model_config,
             model_weights=weights,
@@ -370,13 +369,15 @@ class TensorRTLLM(ITritonDeployable):
     ):
         from .trt_llm.nemo.nemo_ckpt_convert import convert_nemo_model
         from .trt_llm.tensorrt_llm_run import create_gpt_session
+
         assert self.use_refit, "TRT-LLM model must be built() with refit=True"
-    
+
         print_mem("pre refit")
         import time
+
         tic = time.time()
-        
-        # Build or refit TRT-LLM engine from a nemo model. 
+
+        # Build or refit TRT-LLM engine from a nemo model.
         weights = convert_nemo_model(
             nemo_model=nemo_model,
             nemo_model_config=nemo_model_config,
@@ -396,7 +397,7 @@ class TensorRTLLM(ITritonDeployable):
 
         tic = time.time()
         session = self.model_runner.session
-        session.refit_engine(weights, self.session_params.model_config.data_type) 
+        session.refit_engine(weights, self.session_params.model_config.data_type)
         toc = time.time()
         print(f"refit_runtime_engine took {toc-tic}")
 

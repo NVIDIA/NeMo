@@ -23,17 +23,24 @@ from typing import List, Optional
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
+from tensorrt_llm.bindings import (
+    DataType,
+    GenerationInput,
+    GenerationOutput,
+    GptJsonConfig,
+    GptSession,
+    GptSessionConfig,
+    KvCacheConfig,
+    PromptTuningParams,
+)
+from tensorrt_llm.bindings import SamplingConfig as GptSamplingConfig
+from tensorrt_llm.bindings import WorldConfig
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, SamplingConfig
 from tensorrt_llm.runtime.model_runner_cpp import ModelRunnerCppGptSession
 from transformers import PreTrainedTokenizer
-
-from tensorrt_llm.bindings import (DataType, GenerationInput, GenerationOutput,
-                        GptJsonConfig, GptSession, GptSessionConfig,
-                        KvCacheConfig, PromptTuningParams, WorldConfig)
-from tensorrt_llm.bindings import SamplingConfig as GptSamplingConfig
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
 from nemo.export.trt_llm.tensorrt_llm_model import LMHeadModelBuilder
@@ -297,21 +304,22 @@ def load(
         add_bos=add_bos,
     )
 
-@dataclass 
+
+@dataclass
 class GptSession_params:
     session_config: GptSessionConfig
     model_config: ModelConfig
     world_config: WorldConfig
     engine_data: bytearray
 
-def create_gpt_session(
-    session_params: GptSession_params, engine_data: bytearray = None):
+
+def create_gpt_session(session_params: GptSession_params, engine_data: bytearray = None):
     if engine_data is None:
         engine_data = session_params.engine_data
-    return GptSession(session_params.session_config,
-                            session_params.model_config,
-                            session_params.world_config,
-                            engine_data)
+    return GptSession(
+        session_params.session_config, session_params.model_config, session_params.world_config, engine_data
+    )
+
 
 def load_refit(engine_dir):
     """Loaded the compiled LLM model and run it.
@@ -325,22 +333,18 @@ def load_refit(engine_dir):
 
     tp_size = json_config.tensor_parallelism
     pp_size = json_config.pipeline_parallelism
-    mp_size = tp_size*pp_size
+    mp_size = tp_size * pp_size
 
     # TRTLLM assumes rank < gpus_per_node but this is not true for multinode setups
     # So hack around this using an arbitrarily big gpus_per_node to avoid asserts
     gpus_per_node = 64
-    mp_rank = tensorrt_llm.bindings.MpiComm.getRank()        
-    device_ids = [
-        (i+torch.cuda.current_device()-mp_rank+gpus_per_node)%gpus_per_node
-        for i in range(mp_size)]
+    mp_rank = tensorrt_llm.bindings.MpiComm.getRank()
+    device_ids = [(i + torch.cuda.current_device() - mp_rank + gpus_per_node) % gpus_per_node for i in range(mp_size)]
     print(f"{torch.cuda.current_device()} device_ids {device_ids}")
 
-    world_config = WorldConfig.mpi(gpus_per_node=gpus_per_node, 
-                                    tensor_parallelism=tp_size,
-                                    pipeline_parallelism=pp_size,
-                                    device_ids=device_ids)
-
+    world_config = WorldConfig.mpi(
+        gpus_per_node=gpus_per_node, tensor_parallelism=tp_size, pipeline_parallelism=pp_size, device_ids=device_ids
+    )
 
     assert torch.cuda.current_device() == world_config.device
     engine_filename = json_config.engine_filename(world_config)
@@ -352,36 +356,33 @@ def load_refit(engine_dir):
     max_input_len = model_config.max_input_len
     max_seq_len = model_config.max_seq_len
 
-    session_config = GptSessionConfig(max_batch_size=max_batch_size,
-                                        max_beam_width=max_beam_width,
-                                        max_sequence_length=max_seq_len)
+    session_config = GptSessionConfig(
+        max_batch_size=max_batch_size, max_beam_width=max_beam_width, max_sequence_length=max_seq_len
+    )
     session_config.gen_micro_batch_size = max_batch_size
     session_config.ctx_micro_batch_size = max_batch_size
     session_config.kv_cache_config = KvCacheConfig(
-        max_tokens=max_seq_len*max_batch_size,
-        max_attention_window=max_seq_len
+        max_tokens=max_seq_len * max_batch_size, max_attention_window=max_seq_len
     )
 
     with open(serialize_path, "rb") as f:
         engine_data = bytearray(f.read())
 
     session_params = GptSession_params(
-        session_config=session_config,
-        model_config=model_config,
-        world_config=world_config,
-        engine_data=engine_data
+        session_config=session_config, model_config=model_config, world_config=world_config, engine_data=engine_data
     )
     session = create_gpt_session(session_params, engine_data)
-    
-    model_runner = ModelRunnerCppGptSession(session,
-                lora_manager=None,
-                max_batch_size=max_batch_size,
-                max_input_len=max_input_len,
-                max_seq_len=max_seq_len,
-                max_beam_width=max_beam_width)
+
+    model_runner = ModelRunnerCppGptSession(
+        session,
+        lora_manager=None,
+        max_batch_size=max_batch_size,
+        max_input_len=max_input_len,
+        max_seq_len=max_seq_len,
+        max_beam_width=max_beam_width,
+    )
 
     return model_runner, session_params
-
 
 
 def forward(

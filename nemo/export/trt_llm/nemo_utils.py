@@ -28,13 +28,13 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 import tensorrt_llm
 from tensorrt_llm import str_dtype_to_trt
-from tensorrt_llm._utils import pad_vocab_size
+from tensorrt_llm._utils import np_dtype_to_trt, pad_vocab_size, torch_dtype_to_np, trt_dtype_to_str
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
-from tensorrt_llm._utils import torch_dtype_to_np, np_dtype_to_trt, trt_dtype_to_str
 
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.decoder import DECODER_MODEL_TYPE
 from nemo.export.trt_llm.model_config import (
@@ -47,8 +47,6 @@ from nemo.export.trt_llm.model_config import (
     LinearConfig,
     ModelConfig,
 )
-
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint, convert_nemo_model
 from nemo.export.trt_llm.tensor_utils import get_tensor_from_dict, get_tensor_parallel_group, split
@@ -262,9 +260,9 @@ def to_word_list_format(
 
 
 def nemo_llm_model_to_model_config(
-    nemo_model, 
+    nemo_model,
     tokenizer,
-    nemo_model_config, 
+    nemo_model_config,
     reshard_model,
     mapping,
     trt_model_type,
@@ -272,11 +270,12 @@ def nemo_llm_model_to_model_config(
     """Converts the NEMO model object and construct the `ModelConfig` before tensorrt_llm deployment."""
 
     weights_dict = convert_nemo_model(
-        nemo_model=nemo_model, 
+        nemo_model=nemo_model,
         nemo_model_config=nemo_model_config,
         tokenizer_vocab_size=tokenizer.vocab_size,
         trt_model_type=trt_model_type,
-        reshard_model=reshard_model)
+        reshard_model=reshard_model,
+    )
 
     activation = None
     if nemo_model_config['activation'] == 'fast-swiglu':
@@ -303,29 +302,31 @@ def nemo_llm_model_to_model_config(
         world_size=mapping.world_size,
         tp_size=mapping.tp_size,
         pp_size=mapping.pp_size,
-        use_parallel_embedding = True,
-        quantization = {
-            'quant_algo': None, 
+        use_parallel_embedding=True,
+        quantization={
+            'quant_algo': None,
             'kv_cache_quant_algo': None,
-            'group_size': 128, 
-            'has_zero_point': False, 
-            'pre_quant_scale': False, 
-            'exclude_modules': None}, 
-        kv_dtype=str_dtype, 
-        moe_normalization_mode=None, 
+            'group_size': 128,
+            'has_zero_point': False,
+            'pre_quant_scale': False,
+            'exclude_modules': None,
+        },
+        kv_dtype=str_dtype,
+        moe_normalization_mode=None,
         rotary_pct=nemo_model_config.get('rotary_percentage', 1.0),
         rotary_base=nemo_model_config.get('rotary_base', 10000),
-        moe_num_experts=0, 
-        moe_top_k=0, 
-        moe_tp_mode=2, 
-        disable_weight_only_quant_plugin=False, 
-        attn_bias=False, 
+        moe_num_experts=0,
+        moe_top_k=0,
+        moe_tp_mode=2,
+        disable_weight_only_quant_plugin=False,
+        attn_bias=False,
         mlp_bias=False,
         bias=False,
         gpus_per_node=8,
     )
     model_config.mapping = mapping
     return model_config, weights_dict
+
 
 def nemo_to_trtllm_config(
     in_file: str,
