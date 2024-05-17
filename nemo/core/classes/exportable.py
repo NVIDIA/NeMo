@@ -202,7 +202,7 @@ class Exportable(ABC):
                         check_trace_input = [input_example]
                     else:
                         check_trace_input = check_trace
-                jitted_model = self
+
                 if format == ExportFormat.TORCHSCRIPT:
                     jitted_model = torch.jit.trace_module(
                         self,
@@ -245,10 +245,10 @@ class Exportable(ABC):
 
                         # https://github.com/pytorch/pytorch/issues/126339
                         with monkeypatched(torch.nn.RNNBase, "flatten_parameters", lambda *args: None):
-                            print("Running export.export, dynamic shapes:\n", dynamic_shapes)
+                            logging.info("Running export.export, dynamic shapes:{dynamo_export}\n")
 
                             ex_model = torch.export.export(
-                                jitted_model,
+                                self,
                                 tuple(input_list),
                                 kwargs=input_dict,
                                 dynamic_shapes=dynamic_shapes,
@@ -256,19 +256,31 @@ class Exportable(ABC):
                             )
                             ex_model = ex_model.run_decompositions()
 
-                            print("Running torch.onnx.dynamo_export ...")
-
                             options = torch.onnx.ExportOptions(dynamic_shapes=True, op_level_debug=True)
-                            ex_module = ex_model.module()
-                            ex = torch.onnx.dynamo_export(ex_module, *input_list, **input_dict, export_options=options)
-                            ex.save(output)  # , model_state=ex_module.state_dict())
+                            # We have to use different types of arguments for dynamo_export to achieve
+                            # same external weights behaviour as onnx.export :
+                            # https://github.com/pytorch/pytorch/issues/126479
+                            # https://github.com/pytorch/pytorch/issues/126269
+                            mem_params = sum([param.nelement() * param.element_size() for param in self.parameters()])
+                            mem_bufs = sum([buf.nelement() * buf.element_size() for buf in self.buffers()])
+                            mem = mem_params + mem_bufs
+
+                            if mem > 2 * 1000 * 1000 * 1000:
+                                model_state = ex_model.state_dict
+                            else:
+                                model_state = None
+                                ex_model = ex_model.module()
+                            ex = torch.onnx.dynamo_export(ex_model, *input_list, **input_dict, export_options=options)
+                            ex.save(output, model_state=model_state)
+
                             del ex
+                            del ex_model
                             # Rename I/O after save - don't want to risk modifying ex._model_proto
                             rename_onnx_io(output, input_names, output_names)
                             # input_names=None
                     else:
                         torch.onnx.export(
-                            jitted_model,
+                            self,
                             input_example,
                             output,
                             input_names=input_names,
