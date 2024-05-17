@@ -2017,6 +2017,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'gated_linear_unit': gated_linear_unit,
             'fp8': fp8,
             'tp_comm_overlap': ub_tp_comm_overlap,
+            # Bias related
+            'add_bias_linear': self.cfg.get('bias', True),
+            'bias_activation_fusion': self.cfg.get('bias_activation_fusion', True),
+            'bias_dropout_fusion': self.cfg.get('bias_dropout_add_fusion', True),
             # MoE related
             'num_moe_experts': self.cfg.get('num_moe_experts', None),
             'moe_router_load_balancing_type': self.cfg.get('moe_router_load_balancing_type', 'aux_loss'),
