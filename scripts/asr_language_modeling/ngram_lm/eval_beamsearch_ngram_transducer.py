@@ -177,7 +177,9 @@ def decoding_step(
                     probs_batch[prob_index].unsqueeze(0), device=packed_batch.device, dtype=packed_batch.dtype
                 )
             best_hyp_batch, beams_batch = model.decoding.rnnt_decoder_predictions_tensor(
-                packed_batch, probs_lens, return_hypotheses=True,
+                packed_batch,
+                probs_lens,
+                return_hypotheses=True,
             )
         if cfg.decoding_strategy == "greedy_batch":
             beams_batch = [[x] for x in best_hyp_batch]

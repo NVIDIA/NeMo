@@ -100,7 +100,10 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
     scores_per_sample: bool = False
 
     text_processing: Optional[TextProcessingConfig] = TextProcessingConfig(
-        punctuation_marks=".,?", separate_punctuation=False, do_lowercase=False, rm_punctuation=False,
+        punctuation_marks=".,?",
+        separate_punctuation=False,
+        do_lowercase=False,
+        rm_punctuation=False,
     )
 
 
