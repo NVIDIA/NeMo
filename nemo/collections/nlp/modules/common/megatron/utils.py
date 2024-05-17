@@ -160,7 +160,7 @@ def attention_mask_func(attention_scores, attention_mask):
 
 def get_te_activation(activation: str) -> str:
     """Return the string for the desired activation converted for usage
-    with TransformerEngine and/or Megatron-LM core.
+    with TransformerEngine.
 
     Log an error if it cannot be converted.
     """
