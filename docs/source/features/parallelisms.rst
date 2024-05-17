@@ -3,7 +3,7 @@
 Parallelisms
 ------------
 
-NeMo Megatron supports 5 types of parallelisms (which can be mixed together arbitrarily):
+NeMo Megatron supports five types of parallelisms (which can be mixed together arbitrarily):
 
 Data Parallelism
 ^^^^^^^^^^^^^^^^
@@ -19,7 +19,7 @@ Distributed Data Parallelism
 
 Distributed Data Parallelism (DDP) keeps model copies consistent by
 synchronizing parameter gradients before each optimization step. More
-specifically it sums gradients over all model copies using an
+specifically, it sums gradients over all model copies using an
 all-reduce communication collective.
 
 .. image:: ../nlp/nemo_megatron/images/ddp.gif
@@ -47,10 +47,10 @@ Enable Data Parallelism
 
 DDP is the default parallelism scheme when NeMo is run on multiple
 GPUs. Enabling other parallelism schemes in the model configuration
-will decrease the size of the DP group, i.e. the number of identical
-model copies.
+will decrease the size of the DP group, that is the number of
+identical model copies.
 
-In order to enable the distributed optimizer, set
+To enable the distributed optimizer, set
 ``model.optim.name=distributed_fused_adam`` in the model
 configuration. It can be configured with the following options:
 
@@ -71,12 +71,12 @@ See the keyword arguments in `Apex DistributedFusedAdam <https://github.com/NVID
 Implement Data Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-NeMo's DDP either uses PyTorch
+DDP in NeMo either uses PyTorch
 `DistributedDataParallel <https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html>`_
 (default) or a custom implementation (if custom multi-precision
 training is enabled with ``megatron_amp_O2``).
 
-NeMo's distributed optimizer is built on top of
+The distributed optimizer in NeMo is built on top of
 `DistributedFusedAdam <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_
 from Apex.
 
