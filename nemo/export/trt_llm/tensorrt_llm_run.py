@@ -321,7 +321,7 @@ def create_gpt_session(session_params: GptSession_params, engine_data: bytearray
     )
 
 
-def load_refit(engine_dir):
+def load_refit(engine_dir, device_ids, gpus_per_node):
     """Loaded the compiled LLM model and run it.
 
     It also supports running the TRT LLM model on multi-GPU.
@@ -334,13 +334,6 @@ def load_refit(engine_dir):
     tp_size = json_config.tensor_parallelism
     pp_size = json_config.pipeline_parallelism
     mp_size = tp_size * pp_size
-
-    # TRTLLM assumes rank < gpus_per_node but this is not true for multinode setups
-    # So hack around this using an arbitrarily big gpus_per_node to avoid asserts
-    gpus_per_node = 64
-    mp_rank = tensorrt_llm.bindings.MpiComm.getRank()
-    device_ids = [(i + torch.cuda.current_device() - mp_rank + gpus_per_node) % gpus_per_node for i in range(mp_size)]
-    print(f"{torch.cuda.current_device()} device_ids {device_ids}")
 
     world_config = WorldConfig.mpi(
         gpus_per_node=gpus_per_node, tensor_parallelism=tp_size, pipeline_parallelism=pp_size, device_ids=device_ids

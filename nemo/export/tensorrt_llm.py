@@ -315,10 +315,24 @@ class TensorRTLLM(ITritonDeployable):
         # TRTLLM asserts that rank equals the device num however this
         # is not true for the megatron core mapping TP->DP->PP.
         # So we manipulate TRTLLM to emulate a TP->PP single node setup
-        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
+        global_devices = [None for _ in range(torch.distributed.get_world_size())]
+        torch.distributed.all_gather_object(global_devices, torch.cuda.current_device())
+        gpus_per_node = max(global_devices) + 1
+        roll_amt = (torch.cuda.current_device()-mp_rank%gpus_per_node+gpus_per_node) % gpus_per_node
+        device_ids = [i for i in range(gpus_per_node)]
+        for _ in range(roll_amt):        
+            device_ids.append(device_ids.pop(0))
+
+        print(f"{torch.cuda.current_device()} mp_rank {mp_rank}: device_ids {device_ids} roll_amt {roll_amt}")
+
+        
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
         mapping = tensorrt_llm.Mapping(
-            world_size=mp_size, rank=mp_rank, gpus_per_node=mp_size, tp_size=tp_size, pp_size=pp_size
-        )
+            world_size = mp_size,
+            rank = mp_rank,
+            gpus_per_node = gpus_per_node, 
+            tp_size = tp_size,
+            pp_size = pp_size)
 
         LOGGER.info(
             f'''TRT-LLM rank mapping: Rank {torch.distributed.get_rank()}, mp_rank {mp_rank}:
@@ -357,7 +371,8 @@ class TensorRTLLM(ITritonDeployable):
             json.dump(engine.config.to_dict(), f, indent=4)
 
         print_mem("post build_and_save_engine")
-        self.model_runner, self.session_params = load_refit(engine_dir=self.model_dir)
+        self.model_runner, self.session_params = load_refit(
+            engine_dir=self.model_dir, device_ids=device_ids, gpus_per_node=gpus_per_node)
         print_mem("post load_refit")
 
         print(f"engine saved to {self.model_dir} device: {origdev} {torch.cuda.current_device()}")
