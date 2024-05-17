@@ -652,4 +652,18 @@ class AudioCodecModel(ModelPT):
         )
         models.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="mel_codec_22khz_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mel_codec_22khz_medium/versions/v1/files/mel_codec_22khz_medium.nemo",
+            description="For details about this model please refer to the model card: https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/mel_codec_22khz_medium",
+        )
+        models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mel_codec_44khz_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mel_codec_44khz_medium/versions/v1/files/mel_codec_44khz_medium.nemo",
+            description="For details about this model please refer to the model card: https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/mel_codec_44khz_medium",
+        )
+        models.append(model)
+
         return models
