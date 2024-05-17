@@ -487,7 +487,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         for param in params:
             if is_float8tensor(param):
                 param._reset_caches()
-                param.transpose(update_cache=True)
+                param.transpose_2d(cache=True)
                 param._lazy_transpose_cache = True
 
     @torch.no_grad()
