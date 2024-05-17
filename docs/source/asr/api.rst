@@ -1,5 +1,5 @@
-NeMo ASR Collection API
-=======================
+ASR API
+=======
 
 
 Model Classes
