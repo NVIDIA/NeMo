@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import random
 import re
-import secrets
 import tarfile
 from io import BytesIO
 from pathlib import Path
@@ -50,7 +50,7 @@ class LazyNeMoIterator:
 
     .. caution:: We will perform some I/O (as much as required by soundfile.info) to discover the sampling rate
         of the audio file. If this is not acceptable, convert the manifest to Lhotse format which contains
-        sampling rate info. For pure metadata iteration purposes we also provide a ``missing_sampling_rate_ok`` flag that
+        sampling rate info. For pure metadata iteration purposes we also provide a ``metadata_only`` flag that
         will create only partially valid Lhotse objects (with metadata related to sampling rate / num samples missing).
 
     Example::
@@ -63,16 +63,23 @@ class LazyNeMoIterator:
         path: str | Path,
         text_field: str = "text",
         lang_field: str = "lang",
-        missing_sampling_rate_ok: bool = False,
+        metadata_only: bool = False,
+        shuffle_shards: bool = False,
+        shard_seed: int | Literal["randomized", "trng"] = "trng",
     ) -> None:
-        self.source = LazyJsonlIterator(path)
+        self.path = path
+        self.shuffle_shards = shuffle_shards
+        self.shard_seed = shard_seed
+        paths = expand_sharded_filepaths(path)
+        if len(paths) == 1:
+            self.source = LazyJsonlIterator(paths[0])
+        else:
+            self.source = LazyIteratorChain(
+                *(LazyJsonlIterator(p) for p in paths), shuffle_iters=self.shuffle_shards, seed=self.shard_seed
+            )
         self.text_field = text_field
         self.lang_field = lang_field
-        self.missing_sampling_rate_ok = missing_sampling_rate_ok
-
-    @property
-    def path(self) -> str | Path:
-        return self.source.path
+        self.metadata_only = metadata_only
 
     def __iter__(self) -> Generator[Cut, None, None]:
         for data in self.source:
@@ -105,7 +112,12 @@ class LazyNeMoIterator:
     def __add__(self, other):
         return LazyIteratorChain(self, other)
 
-    def _create_recording(self, audio_path: str, duration: float, sampling_rate: int | None = None,) -> Recording:
+    def _create_recording(
+        self,
+        audio_path: str,
+        duration: float,
+        sampling_rate: int | None = None,
+    ) -> Recording:
         if sampling_rate is not None:
             # TODO(pzelasko): It will only work with single-channel audio in the current shape.
             return Recording(
@@ -116,7 +128,7 @@ class LazyNeMoIterator:
                 duration=duration,
                 channel_ids=[0],
             )
-        elif self.missing_sampling_rate_ok:
+        elif self.metadata_only:
             return Recording(
                 id=audio_path,
                 sources=[AudioSource(type="file", channels=[0], source=audio_path)],
@@ -147,9 +159,20 @@ class LazyNeMoTarredIterator:
 
     Args ``manifest_path`` and ``tar_paths`` can be either a path/string to a single file, or a string in NeMo format
     that indicates multiple paths (e.g. "[[data/bucket0/tarred_audio_paths.json],[data/bucket1/...]]").
+    We discover shard ids from sharded tar and json files by parsing the input specifier/path and
+    searching for the following pattern: ``(manifest|audio)[^/]*_(\d+)[^/]*\.(json|tar)``.
+    It allows filenames such as ``manifest_0.json``, ``manifest_0_normalized.json``, ``manifest_normalized_0.json``,
+    ``manifest_0.jsonl.gz``, etc. (anologusly the same applies to tar files).
+
+    We also support generalized input specifiers that imitate webdataset's pipes (also very similar to Kaldi's pipes).
+    These are arbitrary shell commands to be lazily executed which yield manifest or tar audio contents.
+    For example, ``tar_paths`` can be set to ``pipe:ais get ais://my-bucket/audio_{0..127}.tar -``
+    to indicate that we want to read tarred audio data from shards on an AIStore bucket.
+    This can be used for other cloud storage APIs such as S3, GCS, etc.
+    The same mechanism applies to ``manifest_path``.
 
     The ``shard_seed`` argument is used to seed the RNG shuffling the shards.
-    By default it's ``trng`` which samples a seed number from OS-provided TRNG (see Python ``secrets`` module).
+    By default, it's ``trng`` which samples a seed number from OS-provided TRNG (see Python ``secrets`` module).
     Seed is resolved lazily so that every dataloading worker may sample a different one.
     Override with an integer value for deterministic behaviour and consult Lhotse documentation for details:
     https://lhotse.readthedocs.io/en/latest/datasets.html#handling-random-seeds
@@ -172,30 +195,42 @@ class LazyNeMoTarredIterator:
         text_field: str = "text",
         lang_field: str = "lang",
     ) -> None:
-        def strip_pipe(p):
-            if isinstance(p, str):
-                if p.startswith("pipe:"):
-                    p = p[5:]
-                return Path(p)
-            return p
-
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
         self.paths = expand_sharded_filepaths(manifest_path)
         if len(self.paths) == 1:
+            logging.warning(
+                f"""You are using Lhotse dataloading for tarred audio with a non-sharded manifest.
+                            This will incur significant memory overhead and slow-down training. To prevent this error message
+                            please shard file '{self.paths[0]}' using 'scripts/speech_recognition/convert_to_tarred_audio_dataset.py'
+                            WITHOUT '--no_shard_manifest'"""
+            )
             self.source = LazyJsonlIterator(self.paths[0])
             self.shard_id_to_manifest = groupby("shard_id", self.source)
         else:
-            pattern = re.compile(r".+_(\d+)\.jsonl?(?:.gz)?")
+            json_pattern = re.compile(r"manifest[^/]*_(\d+)[^/]*\.json")
             shard_ids = []
             for p in self.paths:
-                m = pattern.match(p)
-                assert m is not None, f"Cannot determine shard_id from manifest path: {p}"
+                m = json_pattern.search(p)
+                assert m is not None, (
+                    f"Cannot determine shard_id from manifest input specified: "
+                    f"we searched with regex '{json_pattern.pattern}' in input '{p}'"
+                )
                 shard_ids.append(int(m.group(1)))
             self.shard_id_to_manifest = {sid: LazyJsonlIterator(p) for sid, p in zip(shard_ids, self.paths)}
             self.source = LazyIteratorChain(*self.shard_id_to_manifest.values())
 
-        tar_paths = expand_sharded_filepaths(tar_paths)
-        self.shard_id_to_tar_path: dict[int, str] = {int(strip_pipe(p).stem.split("_")[1]): p for p in tar_paths}
+        self.tar_paths = expand_sharded_filepaths(tar_paths)
+        tar_pattern = re.compile(r"audio[^/]*_(\d+)[^/]*\.tar")
+        shard_ids = []
+        for p in self.tar_paths:
+            m = tar_pattern.search(p)
+            assert m is not None, (
+                f"Cannot determine shard_id from tar input specifier: "
+                f"we searched with regex '{tar_pattern.pattern}' in input '{p}'"
+            )
+            shard_ids.append(int(m.group(1)))
+        self.shard_id_to_tar_path = dict(zip(shard_ids, self.tar_paths))
+
         self.shuffle_shards = shuffle_shards
         self.shard_seed = shard_seed
         self.text_field = text_field
@@ -225,8 +260,11 @@ class LazyNeMoTarredIterator:
         shard_ids_tars = set(self.shard_id_to_tar_path)
         shard_ids_manifest = set(self.shard_id_to_manifest)
         assert shard_ids_tars == shard_ids_manifest, (
-            f"Mismatch between shard IDs discovered from tar files ({len(shard_ids_tars)=}) and "
-            f"JSON manifest ({len(shard_ids_manifest)=}): {shard_ids_tars - shard_ids_manifest=}"
+            f"Mismatch between shard IDs. Details:\n"
+            f"* JSON manifest(s) {self.paths}\n"
+            f"* Tar files: {self.tar_paths}\n"
+            f"* JSON manifest(s) indicate(s) IDs: {sorted(shard_ids_manifest)}\n"
+            f"* Tar path(s) indicate(s) IDs: {sorted(shard_ids_tars)}\n"
         )
 
     @property
@@ -241,13 +279,16 @@ class LazyNeMoTarredIterator:
             random.Random(seed).shuffle(shard_ids)
 
         for sid in shard_ids:
-            shard_manifest = self.shard_id_to_manifest[sid]
+            manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
+            shard_manifest = {data["audio_filepath"]: data for data in self.shard_id_to_manifest[sid]}
             tar_path = self.shard_id_to_tar_path[sid]
             with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
-                for data, tar_info in zip(shard_manifest, tar):
-                    assert (
-                        data["audio_filepath"] == tar_info.name
-                    ), f"Mismatched JSON manifest and tar file. {data['audio_filepath']=} != {tar_info.name=}"
+                for tar_info in tar:
+                    assert tar_info.name in shard_manifest, (
+                        f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
+                        f"Cannot locate JSON entry for tar file '{tar_info.name}'"
+                    )
+                    data = shard_manifest[tar_info.name]
                     raw_audio = tar.extractfile(tar_info).read()
                     # Note: Lhotse has a Recording.from_bytes() utility that we won't use here because
                     #       the profiling indicated significant overhead in torchaudio ffmpeg integration
