@@ -145,7 +145,7 @@ class MegatronTrainerBuilder:
         use_dist_ckpt = not self.cfg.model.get('fsdp', False) and (
             self.cfg.model.get('mcore_gpt', False) or self.cfg.model.get('mcore_bert', False)
         )
-        async_save = self.cfg.exp_manager.checkpoint_callback_params.get('async_save', False)
+        async_save = self.cfg.exp_manager.checkpoint_callback_params.get('async_save', False) if self.cfg.exp_manager.get('checkpoint_callback_params', None) is not None else False
         if use_dist_ckpt:
             checkpoint_io = DistributedCheckpointIO.from_config(self.cfg.model, async_save)
             if async_save:
