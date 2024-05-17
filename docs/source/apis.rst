@@ -32,6 +32,7 @@ You can learn more about aspects of the NeMo APIs by following the links below:
    common/intro
    nlp/api
    multimodal/api
+   asr/api
    tts/api
 
 
