@@ -497,6 +497,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             context_length=self.cfg.encoder_seq_length,
             media_type=getattr(self.data_cfg, 'media_type', 'image'),
             num_frames=getattr(self.data_cfg, 'num_frames', 1),
+            mm_mlp_adapter_type=getattr(self.cfg.mm_cfg, 'mm_mlp_adapter_type', 'linear'),
         )
 
     def clip_max_len(self, maxlen: int) -> int:
