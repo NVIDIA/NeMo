@@ -378,7 +378,6 @@ def build_and_save_engine(
     opt_num_tokens: int = None,
     max_beam_width: int = 1,
     tokens_per_block: int = 128,
-    enable_context_fmha: bool = True,
 ):
     try:
         model_cls = getattr(tensorrt_llm.models, model_config.architecture)
@@ -395,6 +394,7 @@ def build_and_save_engine(
         plugin_config.enable_paged_kv_cache(tokens_per_block=tokens_per_block)
     else:
         plugin_config.paged_kv_cache = False
+    plugin_config.remove_input_padding = remove_input_padding
 
     max_num_tokens, opt_num_tokens = check_max_num_tokens(
         max_num_tokens=max_num_tokens,
@@ -403,7 +403,7 @@ def build_and_save_engine(
         max_input_len=max_input_len,
         max_beam_width=max_beam_width,
         remove_input_padding=remove_input_padding,
-        enable_context_fmha=enable_context_fmha,
+        enable_context_fmha=plugin_config.context_fmha,
         tokens_per_block=tokens_per_block,
     )
 
