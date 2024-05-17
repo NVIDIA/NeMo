@@ -22,7 +22,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 
 
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
@@ -158,6 +158,12 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         Returns:
             packed list containing batch number of sentences (Hypotheses).
         """
+
+        logging.warning(
+            "CTC decoding strategy 'greedy' is slower than 'greedy_batch', which implements the same exact interface. Consider changing your strategy to 'greedy_batch' for a free performance improvement.",
+            mode=logging_mode.ONCE,
+        )
+
         with torch.inference_mode():
             hypotheses = []
             # Process each sequence independently
