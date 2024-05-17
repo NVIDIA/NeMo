@@ -18,7 +18,7 @@ from typing import Any, Callable, Optional
 import torch
 from pkg_resources import packaging
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, get_te_normalization
 from nemo.collections.nlp.parts import utils_funcs
 
 try:
@@ -83,12 +83,15 @@ class AutocastTransformerLayer(TransformerLayer):
         ub_bulk_dgrad: bool = True,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
+        normalization: str = 'layernorm',
+        bias: bool = True,
         device: str = 'cuda',
         **kwargs,
     ) -> None:
         if not HAVE_MEGATRON_CORE or not HAVE_TE:
             raise ImportError(IMPORT_ERROR)
 
+        normalization = get_te_normalization(normalization)
         transformer_layer_args = {
             "hidden_size": hidden_size,
             "ffn_hidden_size": ffn_hidden_size,
@@ -116,6 +119,8 @@ class AutocastTransformerLayer(TransformerLayer):
             "set_parallel_mode": tp_size > 1,
             "fuse_qkv_params": True,
             "zero_centered_gamma": zero_centered_gamma,
+            "normalization": normalization,
+            "bias": bias,
             "ub_tp_comm_overlap": ub_tp_comm_overlap,
             "ub_bulk_wgrad": ub_bulk_wgrad,
             "ub_bulk_dgrad": ub_bulk_dgrad,

@@ -158,6 +158,33 @@ def attention_mask_func(attention_scores, attention_mask):
     return attention_scores
 
 
+def get_te_normalization(normalization: str) -> str:
+    """Return the string for the desired normalization converted for
+    usage with TransformerEngine and/or Megatron-LM core.
+
+    Log an error if it cannot be converted. Note that other options,
+    such as `zero_centered_gamma=True` or
+    `layernorm_zero_centered_gamma=True` (for TransformerEngine and
+    Megatron-LM core respectively) for "layernorm1p" need to be adjusted
+    separately.
+    """
+    normalizations = {
+        'layernorm': 'LayerNorm',
+        'layernorm1p': 'LayerNorm',
+        'rmsnorm': 'RMSNorm',
+    }
+    if normalization in normalizations:
+        normalization = normalizations[normalization]
+    else:
+        logging.warning(
+            f"The normalization type: {normalization} might not be supported "
+            f"in Megatron-LM core or TransformerEngine. "
+            f"Supported types are {list(sorted(set(normalizations.values())))} "
+            f"(converted from {list(normalizations.keys())})."
+        )
+    return normalization
+
+
 def get_linear_layer(rows, columns, init_method):
     """Simple linear layer with weight initialization."""
     layer = torch.nn.Linear(rows, columns)

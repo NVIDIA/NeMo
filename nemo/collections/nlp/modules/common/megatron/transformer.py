@@ -41,7 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, get_te_normalization
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
@@ -802,9 +802,12 @@ class AutocastTransformerLayer(TransformerLayer):
         ub_bulk_dgrad: bool = True,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
+        normalization: str = 'layernorm',
+        bias: bool = True,
         device: str = 'cuda',
         **kwargs,
     ) -> None:
+        normalization = get_te_normalization(normalization)
         transformer_layer_args = {
             "hidden_size": hidden_size,
             "ffn_hidden_size": ffn_hidden_size,
@@ -832,6 +835,8 @@ class AutocastTransformerLayer(TransformerLayer):
             "set_parallel_mode": tp_size > 1,
             "fuse_qkv_params": True,
             "zero_centered_gamma": zero_centered_gamma,
+            "normalization": normalization,
+            "bias": bias,
             "ub_tp_comm_overlap": ub_tp_comm_overlap,
             "ub_bulk_wgrad": ub_bulk_wgrad,
             "ub_bulk_dgrad": ub_bulk_dgrad,
@@ -1106,6 +1111,8 @@ class ParallelTransformer(MegatronModule):
                     "ub_bulk_wgrad": config.tp_comm_bulk_wgrad,
                     "ub_bulk_dgrad": config.tp_comm_bulk_dgrad,
                     "zero_centered_gamma": normalization == 'layernorm1p',
+                    "normalization": normalization,
+                    "bias": bias,
                     "device": 'cpu' if config.use_cpu_initialization else 'cuda',
                 }
                 te_version = packaging.version.Version(version("transformer-engine"))
