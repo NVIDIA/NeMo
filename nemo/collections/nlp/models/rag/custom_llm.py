@@ -24,7 +24,7 @@ class NeMoLLM(CustomLLM):
     dummy_response: str = "My response"
 
     length_params: LengthParam = {
-        "max_length": 30,
+        "max_length": 500,
         "min_length": 0,
     }
 

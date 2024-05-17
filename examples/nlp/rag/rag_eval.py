@@ -8,7 +8,7 @@ import json
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path="conf", config_name="rasg")
+@hydra_runner(config_path="conf", config_name="rag")
 def main(cfg) -> None:
 
     # load LLM
