@@ -291,9 +291,9 @@ def load_from_checkpoint(
     **kwargs,
 ):
     """
-        Loads Megatron_LM checkpoints, convert it, with some maintenance of restoration.
-        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
-        """
+    Loads Megatron_LM checkpoints, convert it, with some maintenance of restoration.
+    For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+    """
     checkpoint = None
     try:
         cls._set_model_restore_state(is_being_restored=True)
