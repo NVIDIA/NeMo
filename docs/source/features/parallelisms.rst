@@ -54,15 +54,17 @@ In order to enable the distributed optimizer, set
 ``model.optim.name=distributed_fused_adam`` in the model
 configuration. It can be configured with the following options:
 
-| Option                      | Default   | Description                                  |
-|-----------------------------|-----------|----------------------------------------------|
-| ``dtype``                   | fp32      | Optimizer state datatype                     |
-| ``grad_sync_dtype``         | ``dtype`` | Gradient reduce-scatter datatype             |
-| ``overlap_grad_sync``       | True      | Overlap gradient reduce-scatter with compute |
-| ``overlap_param_sync``      | False     | Overlap parameter all-gather with compute    |
-| ``bucket_cap_mb``           | 100       | Buffer size (in MiB) for internal state and workspaces. Larger buckets have lower runtime overheads but may increase memory usage. |
-| ``contiguous_param_buffer`` | False     | Allocate parameters as views into a large buffer. Helps avoid some data copies. |
-| ``contiguous_grad_buffer``  | True      | Allocate parameter gradients as views into a large buffer. Helps avoid some data copies. |
+===========================  =========  ==================================================================================================================================
+Option                       Default    Description
+===========================  =========  ==================================================================================================================================
+``dtype``                    fp32       Optimizer state datatype
+``grad_sync_dtype``          ``dtype``  Gradient reduce-scatter datatype
+``overlap_grad_sync``        True       Overlap gradient reduce-scatter with compute
+``overlap_param_sync``       False      Overlap parameter all-gather with compute
+``bucket_cap_mb``            100        Buffer size (in MiB) for internal state and workspaces. Larger buckets have lower runtime overheads but may increase memory usage.
+``contiguous_param_buffer``  False      Allocate parameters as views into a large buffer. Helps avoid some data copies.
+``contiguous_grad_buffer``   True       Allocate parameter gradients as views into a large buffer. Helps avoid some data copies.
+===========================  =========  ==================================================================================================================================
 
 See the keyword arguments in `Apex DistributedFusedAdam <https://github.com/NVIDIA/apex/blob/master/apex/contrib/optimizers/distributed_fused_adam.py>`_ and `NeMo MegatronDistributedFusedAdam <https://github.com/NVIDIA/NeMo/blob/main/nemo/core/optim/distributed_adam.py>`_ for a full list of distributed optimizer options.
 
