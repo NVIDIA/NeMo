@@ -298,9 +298,7 @@ class NLPDDPStrategy(DDPStrategy):
         }
         if isinstance(optimizer, McoreDistributedOptimizer):
             return optimizer.sharded_state_dict(
-                model_sharded_state_dict,
-                unsharded_optim_state,
-                dist_ckpt_parallel_save=self._dist_ckpt_parallel_save
+                model_sharded_state_dict, unsharded_optim_state, dist_ckpt_parallel_save=self._dist_ckpt_parallel_save
             )
         elif isinstance(optimizer, MegatronDistributedFusedAdam):
             return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
