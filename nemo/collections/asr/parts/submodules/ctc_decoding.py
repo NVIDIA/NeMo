@@ -1018,7 +1018,9 @@ class CTCDecoding(AbstractCTCDecoding):
     """
 
     def __init__(
-        self, decoding_cfg, vocabulary,
+        self,
+        decoding_cfg,
+        vocabulary,
     ):
         blank_id = len(vocabulary)
         self.vocabulary = vocabulary

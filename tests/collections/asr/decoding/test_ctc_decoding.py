@@ -90,7 +90,9 @@ class TestCTCDecoding:
         assert decoding is not None
 
     @pytest.mark.unit
-    def test_char_decoding_greedy_forward(self,):
+    def test_char_decoding_greedy_forward(
+        self,
+    ):
         cfg = CTCDecodingConfig(strategy='greedy')
         vocab = char_vocabulary()
         decoding = CTCDecoding(decoding_cfg=cfg, vocabulary=vocab)
