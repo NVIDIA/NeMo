@@ -38,7 +38,7 @@ Selective Activation Recomputation
 """"""""""""""""""""""""""""""""""
 This method reduces memory footprint of activations significantly via smart activation checkpointing. This approach involves selectively storing only crucial activations and recomputing the others as needed. It is particularly useful in large models to minimize memory usage while controlling the computational cost.
 
-Refer to "Reducing Activation Recomputation in Large Transformer Models" for more details: https://arxiv.org/abs/2205.05198 .
+Refer to "Reducing Activation Recomputation in Large Transformer Models" for more details: https://arxiv.org/abs/2205.05198.
 
 Multi-query Attention (MQA) and Grouped-query Attention (GQA)
 -------------------------------------------------------------
