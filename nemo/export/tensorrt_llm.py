@@ -348,6 +348,7 @@ class TensorRTLLM(ITritonDeployable):
             model_config=model_config,
             model_weights=weights,
             model_dir=self.model_dir,
+            use_refit=use_refit,
         )
         torch.distributed.barrier()
 
@@ -356,28 +357,22 @@ class TensorRTLLM(ITritonDeployable):
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump(engine.config.to_dict(), f, indent=4)
 
-        print(f"engine saved to {self.model_dir}")
-
-
         print_mem("post build_and_save_engine")
-        
         self.model_runner, self.session_params = load_refit(engine_dir=self.model_dir)
         print_mem("post load_refit")
 
-        print(f"device: {origdev} {torch.cuda.current_device()}")
+        print(f"engine saved to {self.model_dir} device: {origdev} {torch.cuda.current_device()}")
 
     def refit(
         self,
         nemo_model,
         nemo_model_config,
     ):
-        assert self.use_refit, "TRT-LLM model must be built() with refit=True"
-        assert self.engine, "TRT-LLM model must be loaded with build() prior to refitting"
-        
         from .trt_llm.nemo.nemo_ckpt_convert import convert_nemo_model
-
+        from .trt_llm.tensorrt_llm_run import create_gpt_session
+        assert self.use_refit, "TRT-LLM model must be built() with refit=True"
+    
         print_mem("pre refit")
-
         import time
         tic = time.time()
         
@@ -389,7 +384,6 @@ class TensorRTLLM(ITritonDeployable):
             tokenizer_vocab_size=self.tokenizer.vocab_size,
             reshard_model=self.reshard_model,
         )
-
         toc = time.time()
         print_mem("post nemo_model_to_model_config")
         print(f"    nemo_model_to_model_config took {toc-tic}")
@@ -398,13 +392,13 @@ class TensorRTLLM(ITritonDeployable):
             tic = time.time()
             self.model_runner.session = create_gpt_session(self.session_params)
             toc = time.time()
-            print(f"    session load took f{toc-tic}")
+            print(f"    session load took {toc-tic}")
 
         tic = time.time()
         session = self.model_runner.session
         session.refit_engine(weights, self.session_params.model_config.data_type) 
         toc = time.time()
-        print(f"refit_runtime_engine took f{toc-tic}")
+        print(f"refit_runtime_engine took {toc-tic}")
 
         print_mem("post refit")
 

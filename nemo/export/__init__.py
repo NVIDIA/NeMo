@@ -19,6 +19,7 @@ LOGGER = logging.getLogger("NeMo")
 
 
 use_TensorRTLLM = True
+try:
     from nemo.export.tensorrt_llm import TensorRTLLM
 except Exception as e:
     LOGGER.warning("TensorRTLLM could not be imported.")
