@@ -514,6 +514,10 @@ def convert_nemo_model(
         world_embed = model_level_params.get(get_layer_name("word_embedding", prefix), None)
         if tp_size > 1 and pp_is_first:
             world_embed = remove_vocab_padding(world_embed)
+            vocab_start_index, vocab_end_index = VocabUtility.vocab_range_from_global_vocab_size(
+                tokenizer_vocab_size, tp_rank, tp_size)
+            world_embed = world_embed[vocab_start_index:vocab_end_index]
+
         save_pp_weight(
             world_embed, 
             "vocab_embedding.weight", 

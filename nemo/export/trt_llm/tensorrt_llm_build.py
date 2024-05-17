@@ -413,10 +413,9 @@ def build_and_save_engine(
     #     build_config.lora_config = lora_config
 
     model = model_cls.from_config(model_config)
-        # use_parallel_embedding=True,
-
     model = optimize_model(
         model,
+        use_parallel_embedding=model_config.use_parallel_embedding,
         share_embedding_table=model_config.share_embedding_table,
     )
     preprocess_weights(model_weights, model_config)

@@ -303,6 +303,7 @@ def nemo_llm_model_to_model_config(
         world_size=mapping.world_size,
         tp_size=mapping.tp_size,
         pp_size=mapping.pp_size,
+        use_parallel_embedding = True,
         quantization = {
             'quant_algo': None, 
             'kv_cache_quant_algo': None,
