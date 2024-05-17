@@ -118,8 +118,10 @@ class GradBucket(object):
         """Reset the buffer to zero."""
         self.data.zero_()
 
-    def allreduce_buffer(self):
+    def allreduce_buffer(self, scaling_factor: float = None):
         """Synchronous buffer data allreduce """
+        if scaling_factor is not None:
+            self.data.mul_(scaling_factor)
         self.data.div_(get_data_parallel_world_size())
         torch.distributed.all_reduce(self.data, group=self._data_group)
 
@@ -483,9 +485,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             for current_param, saved_param in zip(current_group, saved_group):
                 current_param.data.copy_(saved_param.data)
 
-    def allreduce_main_grads(self):
+    def allreduce_main_grads(self, scaling_factor: float = None):
         for i in self._main_grad_buffers:
-            self._main_grad_buffers[i].allreduce_buffer()
+            self._main_grad_buffers[i].allreduce_buffer(scaling_factor)
 
     @contextmanager
     def no_sync(self):

@@ -635,7 +635,7 @@ class MegatronBaseModel(NLPModel):
 
         self.log('grad_norm', grad_norm, rank_zero_only=True, batch_size=1)
 
-    def allreduce_gradients(self):
+    def allreduce_gradients(self, scaling_factor: float = None):
         """Reduce gradients across data parallel ranks.
            Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
         """
@@ -655,6 +655,8 @@ class MegatronBaseModel(NLPModel):
             grads = [param.grad.data for param in bucket]
             coalesced = torch._utils._flatten_dense_tensors(grads)
             coalesced /= parallel_state.get_data_parallel_world_size(with_context_parallel=True)
+            if scaling_factor is not None:
+                coalesced *= scaling_factor
             torch.distributed.all_reduce(
                 coalesced, group=parallel_state.get_data_parallel_group(with_context_parallel=True)
             )

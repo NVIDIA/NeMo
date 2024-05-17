@@ -699,6 +699,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
                 loss_mean = loss_tensor.mean()
+                if self.cfg.get('calculate_per_token_loss', False):
+                    num_tokens_list = [loss_reduced['num_tokens'] for loss_reduced in losses_reduced_per_micro_batch]
+                    num_tokens_mean = torch.concat(num_tokens_list).mean()
+                    loss_mean = loss_mean / num_tokens_mean
             else:
                 # Get the total loss since micro batches sizes are not uniform
                 loss_sum_tensors_list = [
@@ -879,6 +883,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def finalize_model_grads(self, model: List[torch.nn.Module], num_tokens: Optional[torch.Tensor] = None):
+        # normalize gradients for per-token loss normalization.
+        # if we are using by the number of tokens, then we use that as a divisor. this number
+        # will be the total number of non-padded tokens in the global batch.
+        if num_tokens is not None:
+            # the number of tokens is only present on the last stage, so broadcast it
+            # to the other ranks in the pipeline parallel group.
+            torch.distributed.broadcast(
+                num_tokens,
+                src=parallel_state.get_pipeline_model_parallel_last_rank(),
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )
+            # all-reduce across DP ranks.
+            torch.distributed.all_reduce(num_tokens, group=parallel_state.get_data_parallel_group())
+            scaling = 1.0 * parallel_state.get_data_parallel_world_size() / num_tokens
+            # print(num_tokens, scaling)
+        else:
+            scaling = None
+
         # Optimization: Defer the embedding GEMM Wgrads of the last PP stage to pipeline flush waiting time
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
             ignore_virtual=True
@@ -928,11 +950,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 or not self.cfg.get('async_grad_allreduce', True)
             ):
                 # main grads are stored in the MainParamsOptimizer wrapper
-                self._optimizer.allreduce_main_grads()
+                self._optimizer.allreduce_main_grads(scaling_factor=scaling)
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
-            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+            self.allreduce_gradients(scaling_factor=scaling)  # @sangkug we think this is causing memory to blow up (hurts perf)
         self.megatron_timer_stop('gradient_allreduce')
 
 

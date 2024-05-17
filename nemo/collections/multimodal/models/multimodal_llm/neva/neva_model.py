@@ -724,6 +724,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
                     loss_tensor = torch.concat(loss_tensors_list)
                     loss_mean = loss_tensor.mean()
+                    if self.cfg.get('calculate_per_token_loss', False):
+                        num_tokens_list = [loss_reduced['num_tokens'] for loss_reduced in losses_reduced_per_micro_batch]
+                        num_tokens_mean = torch.concat(num_tokens_list).mean()
+                        loss_mean = loss_mean / num_tokens_mean
                 else:
                     # Get the total loss since micro batches sizes are not uniform
                     loss_sum_tensors_list = [
@@ -753,6 +757,15 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         in the micro-batch fwd function.
         """
         return MegatronGPTModel.training_step(self, dataloader_iter)
+
+    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor):
+        losses = output_tensor.float()
+        loss_mask = loss_mask.view(-1).float()
+        # TODO: add nemo version here
+        loss = torch.sum(losses.view(-1) * loss_mask)  # no longer do any averaging her
+        if parallel_state.get_context_parallel_world_size() > 1:
+            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+        return loss
 
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
 
@@ -813,7 +826,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 'input_ids': batch['tokens'],
                 'position_ids': batch['position_ids'],
                 'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
-                'labels': batch['labels'] if 'labels' in batch else None,
+                'labels': batch.get('labels', None),
                 'media': batch.get('media', None),
             }
 
@@ -851,18 +864,24 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 # Loss for a micro-batch (ub)
                 loss_for_ub = self.loss_func(batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor)
                 cp_size = parallel_state.get_context_parallel_world_size()
+                num_tokens = batch['num_valid_tokens_in_ub'].to(torch.int32)
+
                 if self.return_output_tensors:
                     # TODO: need a better way to check if loss_func is returning more stuff than just loss... (@adithyare)
                     loss_for_ub, q_hs, d_hs, pos_cs, neg_cs, diff_cs = loss_for_ub
-                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
+                    if self.cfg.get('calculate_per_token_loss', False):
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group([loss_for_ub, num_tokens])
+                    else:
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group([loss_for_ub / num_tokens, num_tokens])
                     pos_cs = average_losses_across_data_parallel_group([pos_cs])
                     neg_cs = average_losses_across_data_parallel_group([neg_cs])
                     diff_cs = average_losses_across_data_parallel_group([diff_cs])
                     return (
                         loss_for_ub * cp_size,
-                        batch['num_valid_tokens_in_ub'],
+                        num_tokens,
                         {
-                            'avg': reduced_loss,
+                            'avg': reduced_loss.unsqueeze(0),
+                            'num_tokens': reduced_num_tokens.unsqueeze(0),
                             'query_hs': q_hs,
                             'doc_hs': d_hs,
                             'avg_pos_cs': pos_cs,
@@ -891,10 +910,25 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     torch.distributed.all_reduce(
                         loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
                     )
-                    return loss_for_ub * cp_size, batch['num_valid_tokens_in_ub'], {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return (
+                        loss_for_ub * cp_size,
+                        num_tokens,
+                        {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu, 'num_tokens': num_tokens,}
+                    )
                 else:
-                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub * cp_size, batch['num_valid_tokens_in_ub'].to(torch.int32), {'avg': reduced_loss}
+                    if self.cfg.get('calculate_per_token_loss', False):
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group([loss_for_ub, num_tokens])
+                    else:
+                        reduced_loss, reduced_num_tokens = average_losses_across_data_parallel_group([loss_for_ub / num_tokens, num_tokens])
+                    # total_num_tokens = average_losses_across_data_parallel_group([num_tokens]) * parallel_state.get_data_parallel_world_size()
+                    return (
+                        loss_for_ub * cp_size,
+                        num_tokens,
+                        {
+                            'avg': reduced_loss.unsqueeze(0),
+                            'num_tokens': reduced_num_tokens.unsqueeze(0),
+                        },
+                    )
 
             return output_tensor, loss_func
 

@@ -940,7 +940,6 @@ class TransformerLanguageModel(MegatronModule, adapter_mixins.AdapterModuleMixin
                 assert 'pooler' in state_dict, 'could not find data for pooler in the checkpoint'
                 self.pooler.load_state_dict(state_dict[self._pooler_key], strict=strict)
             if not self.share_embeddings_and_output_weights:
-                # import pdb; pdb.set_trace()
                 assert (
                     self._output_layer_key in state_dict
                 ), 'could not find data for output embedding layer in the checkpoint'
