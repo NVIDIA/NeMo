@@ -25,7 +25,10 @@ from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, Ne
 from nemo.utils import logging, logging_mode
 
 
-def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
+def pack_hypotheses(
+    hypotheses: List[rnnt_utils.Hypothesis],
+    logitlen: torch.Tensor,
+) -> List[rnnt_utils.Hypothesis]:
 
     if logitlen is not None:
         if hasattr(logitlen, 'cpu'):
@@ -108,8 +111,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         # Input can be of dimension -
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
@@ -120,8 +122,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -145,7 +146,9 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
     @typecheck()
     def forward(
-        self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
+        self,
+        decoder_output: torch.Tensor,
+        decoder_lengths: torch.Tensor,
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
@@ -330,8 +333,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         # Input can be of dimension -
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
@@ -342,8 +344,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -367,7 +368,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     @typecheck()
     def forward(
-        self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
+        self,
+        decoder_output: torch.Tensor,
+        decoder_lengths: torch.Tensor,
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
