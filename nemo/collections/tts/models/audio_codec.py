@@ -118,7 +118,10 @@ class AudioCodecModel(ModelPT):
         # STFT loss setup
         stft_loss_log_guard = cfg.get("stft_loss_log_guard", 1.0)
         self.stft_loss_scale = cfg.get("stft_loss_scale", 0.0)
-        self.stft_loss_fn = MultiResolutionSTFTLoss(resolutions=loss_resolutions, log_guard=stft_loss_log_guard,)
+        self.stft_loss_fn = MultiResolutionSTFTLoss(
+            resolutions=loss_resolutions,
+            log_guard=stft_loss_log_guard,
+        )
 
         # Time domain loss setup
         self.time_domain_loss_scale = cfg.get("time_domain_loss_scale", 1.0)
@@ -237,7 +240,9 @@ class AudioCodecModel(ModelPT):
             "tokens": NeuralType(('B', 'C', 'T_encoded'), TokenIndex()),
             "tokens_len": NeuralType(tuple('B'), LengthsType()),
         },
-        output_types={"dequantized": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),},
+        output_types={
+            "dequantized": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),
+        },
     )
     def dequantize(self, tokens: torch.Tensor, tokens_len: torch.Tensor) -> torch.Tensor:
         """Convert the discrete tokens into a continuous encoded representation.
@@ -392,8 +397,7 @@ class AudioCodecModel(ModelPT):
 
     @property
     def disc_update_prob(self) -> float:
-        """Probability of updating the discriminator.
-        """
+        """Probability of updating the discriminator."""
         return self.disc_updates_per_period / self.disc_update_period
 
     def should_update_disc(self, batch_idx) -> bool:
