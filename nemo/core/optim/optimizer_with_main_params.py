@@ -119,7 +119,7 @@ class GradBucket(object):
         self.data.zero_()
 
     def allreduce_buffer(self, scaling_factor: float = None):
-        """Synchronous buffer data allreduce """
+        """Synchronous buffer data allreduce"""
         if scaling_factor is not None:
             self.data.mul_(scaling_factor)
         self.data.div_(get_data_parallel_world_size())
@@ -177,7 +177,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     Arguments:
         optimizer: base optimizer such as Adam or SGD.
         fp32_grad_accum: to enable the use of fp32 in gradient accumulation and allreduce.
-        contiguous_grad_bucket: to enable allocating the master gradients in the 
+        contiguous_grad_bucket: to enable allocating the master gradients in the
             contiguous memory space to reduce memory fragmentation.
         async_grad_allreduce: enable asynchronous gradient allreduce that is executed
             along with the training step backprop.
@@ -341,6 +341,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     def _make_param_hook(self, param, main_param, i, grad_chunk_info, is_expert_group):
         """Create the grad accumulation and all-reduce hook for backprop."""
+
         # Hook used for back-prop.
         def param_hook(*unused):
             # Accumulates gradients on main gradients
@@ -363,7 +364,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                 else:
                     tensor.div_(grad_mult)
                     torch.distributed.all_reduce(
-                        tensor, group=data_group, async_op=True,
+                        tensor,
+                        group=data_group,
+                        async_op=True,
                     )
 
             # Asynchronous gradients allreduce accross data_parallel ranks
@@ -491,7 +494,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     @contextmanager
     def no_sync(self):
-        """ A context manager to disable gradient synchronizations across
+        """A context manager to disable gradient synchronizations across
         data-parallel ranks."""
         old_require_backward_grad_sync = self._require_backward_grad_sync
         self._require_backward_grad_sync = False

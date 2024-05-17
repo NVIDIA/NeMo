@@ -954,9 +954,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
-            self.allreduce_gradients(scaling_factor=scaling)  # @sangkug we think this is causing memory to blow up (hurts perf)
+            self.allreduce_gradients(
+                scaling_factor=scaling
+            )  # @sangkug we think this is causing memory to blow up (hurts perf)
         self.megatron_timer_stop('gradient_allreduce')
-
 
     def backward(self, *args, **kwargs):
         """LightningModule hook to do backward.
