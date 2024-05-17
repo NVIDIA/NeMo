@@ -413,6 +413,7 @@ def nemo_to_trtllm_config(
         'world_size': world_size,
         'tp_size': tensor_parallel_size,
         'pp_size': pipeline_parallel_size,
+        'gpus_per_node': 8,
     }
 
     model_configs = []
