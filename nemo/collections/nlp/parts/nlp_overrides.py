@@ -183,6 +183,7 @@ class NLPDDPStrategy(DDPStrategy):
         no_ddp_communication_hook: bool = False,
         nccl_communicator_config_path: Optional[str] = None,
         sharp: bool = False,
+        dist_ckpt_parallel_save: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         if not HAVE_APEX:
@@ -199,6 +200,7 @@ class NLPDDPStrategy(DDPStrategy):
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.nccl_communicator_config_path = nccl_communicator_config_path
         self.sharp = sharp
+        self._dist_ckpt_parallel_save = dist_ckpt_parallel_save
 
     def setup(self, trainer: "pl.Trainer") -> None:
         """
@@ -294,8 +296,13 @@ class NLPDDPStrategy(DDPStrategy):
         model_sharded_state_dict = {
             key: value for key, value in model_sharded_state_dict.items() if not key.endswith('_extra_state')
         }
-
-        if isinstance(optimizer, MegatronDistributedFusedAdam) or isinstance(optimizer, McoreDistributedOptimizer):
+        if isinstance(optimizer, McoreDistributedOptimizer):
+            return optimizer.sharded_state_dict(
+                model_sharded_state_dict,
+                unsharded_optim_state,
+                dist_ckpt_parallel_save=self._dist_ckpt_parallel_save
+            )
+        elif isinstance(optimizer, MegatronDistributedFusedAdam):
             return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
         elif not isinstance(optimizer, MainParamsOptimizerWrapper):
             # Regular optimizer, e.g. Adam or FusedAdam
