@@ -183,7 +183,7 @@ def build_video_neva_engine(cfg):
         mp0_weights[f"{key_prefix}.bias"].to(dtype),
     })
 
-    engine_dir = os.path.join(cfg.infer.output_dir, "visual_engines")
+    engine_dir = os.path.join(cfg.infer.output_dir, "visual_engine")
 
     # export the whole wrapper
     wrapper = VisionEncoderWrapper(vision_encoder,
