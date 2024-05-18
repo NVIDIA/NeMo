@@ -200,7 +200,9 @@ class TestCTCDecoding:
     @pytest.mark.parametrize('timestamps', [False, True])
     @pytest.mark.parametrize('preserve_frame_confidence', [False, True])
     @pytest.mark.parametrize('length_is_none', [False, True])
-    def test_batched_decoding_logprobs(self, tmp_tokenizer, alignments, timestamps, preserve_frame_confidence, length_is_none):
+    def test_batched_decoding_logprobs(
+        self, tmp_tokenizer, alignments, timestamps, preserve_frame_confidence, length_is_none
+    ):
         cfg = CTCBPEDecodingConfig(
             strategy='greedy',
             preserve_alignments=alignments,

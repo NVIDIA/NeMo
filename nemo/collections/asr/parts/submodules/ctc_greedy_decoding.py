@@ -57,6 +57,7 @@ def _states_to_device(dec_state, device='cpu'):
 
     return dec_state
 
+
 _DECODER_LENGTHS_NONE_WARNING = "Passing in decoder_lengths=None for CTC decoding is likely to be an error, since it is unlikely that each element of your batch has exactly the same length. decoder_lengths will default to decoder_output.shape[0]."
 
 
