@@ -163,7 +163,7 @@ class SingleHeadHyenaConv(HyenaConv):
         if fftconv_type == 'safari':
             self.fftconv_fn = self._safari_fft
         else:  # fftconv_type == 'flash'
-            self.flashfftconv = FlashFFTConv(2 * self.seq_len, torch_dtype_from_precision(precision)).flashfftconv
+            self.flashfftconv = FlashFFTConv(2 * self.l_max, torch_dtype_from_precision(precision)).flashfftconv
             self.fftconv_fn = self._flash_fft
 
     def _safari_fft(self, x, k, bias):
@@ -194,6 +194,8 @@ class MultiHeadHyenaConv(HyenaConv):
             bias: bool = True,
             filter_cls: Union[ModuleSpec, type] = HyenaFilter,
             filter_submodules: HyenaFilterSubmodules = None,
+            fftconv_type: str = None,
+            precision: str = 'bf16',
             **filter_kwargs
     ):
         if num_heads == 1:
@@ -230,7 +232,7 @@ class HyenaOperator(nn.Module):
             short_filter_order: int = 3,
             activation: str = "identity",
             submodules: HyenaOperatorSubmodules = None,
-            layer_idx=None,
+            layer_number=None,
             **long_conv_kwargs,
     ):
         r"""
