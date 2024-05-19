@@ -101,22 +101,15 @@ model:
     l_max: ${model.encoder_seq_length}
     order: 2
     filter_order: 64
-    num_heads: ${model.num_attention_heads}
-    inner_factor: 1
-    num_blocks: 1
-    fused_bias_fc: False
-    outer_mixing: False
+    num_heads: 1
     dropout: 0.0
-    filter_dropout: 0.0
-    post_order_ffn: False
-    jit_filter: False
     short_filter_order: 3
     activation: "identity"
 
     # HyenaFilter parameters
+    precision: ${trainer.precision}
     emb_dim: 3 # dim of input to MLP, augments with positional encoding
-    fused_fft_conv: false
-    learn_pos_emb_z: 1e-5
+    learn_pos_emb_z: true
     w: 1 # frequency of periodic activations
     bias: true
     normalized: False
