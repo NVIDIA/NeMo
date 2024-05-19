@@ -295,7 +295,7 @@ class Conv1D(MegatronModule):
         prev_x=None,
     ):
         seqlen = x.shape[1]
-        
+
         x = x.permute(0, 2, 1)
         output = self.conv_1d(x)[..., :seqlen].permute(0, 2, 1)
 
