@@ -51,9 +51,10 @@ class DataProcessor:
     def __init__(self, model: VoiceboxModel):
         self.model = model
 
-    def prepare_val_dl(self, corpus_dir="/datasets/LibriLight/", manifest_filepath="data/parsed/LibriHeavy/libriheavy_cuts_dev.jsonl.gz",
-                       min_duration=-1, max_duration=float("inf"), load_audio=True, filter_ids=None):
+    def prepare_val_dl(self, ds_name="libriheavy", corpus_dir="/datasets/LibriLight/", manifest_filepath="data/parsed/LibriHeavy/libriheavy_cuts_dev.jsonl.gz",
+                       old_prefix="download/librilight", min_duration=-1, max_duration=float("inf"), load_audio=True, filter_ids=None):
         # load from val set
+        self.model.cfg.ds_name = ds_name
         self.model.cfg.corpus_dir = corpus_dir
         self.model.cfg.validation_ds.manifest_filepath = manifest_filepath
         self.model.cfg.validation_ds.lhotse.cuts_path = self.model.cfg.validation_ds.manifest_filepath
@@ -63,6 +64,8 @@ class DataProcessor:
             self.model.cfg.validation_ds.ds_kwargs.load_audio = load_audio
             self.model.cfg.validation_ds.filter_ids = filter_ids
             self.model.cfg.validation_ds.num_workers = 8
+        with open_dict(self.model.cfg):
+            self.model.cfg["old_prefix"] = old_prefix
         self.model.setup_validation_data(self.model.cfg.validation_ds)
 
     def get_val_batch(self, from_tb=False, mix=False, batch_idx=0):
@@ -73,8 +76,8 @@ class DataProcessor:
             if i == batch_idx:
                 break
 
-        audio = batch["audio_24k"].to(self.model.device)
-        audio_lens = batch["audio_lens_24k"].to(self.model.device)
+        audio = batch["audio"].to(self.model.device)
+        audio_lens = batch["audio_lens"].to(self.model.device)
         audio_mask = get_mask_from_lengths(audio_lens)
         tokens = batch["tokens"].to(self.model.device)
         token_lens = batch["token_lens"].to(self.model.device)
@@ -123,7 +126,7 @@ class DataProcessor:
 
             return {
                 "texts": batch["texts"],
-                # "cuts": batch["cuts"],
+                "cuts": batch["cuts"],
                 "alignments": [cut.supervisions[0].alignment for cut in batch["cuts"]],
                 # "audio_paths": batch["audio_paths"],
                 "ori_audio": audio,
@@ -263,37 +266,144 @@ class DataProcessor:
         batch["cond"] = cond
         return batch
 
-    def get_internal_demo_data(self):
-        os.makedirs("nemo_experiments/internal_demo_gen", exist_ok=True)
+    def get_internal_demo_data(self, output_dir="nemo_experiments/internal_demo_gen"):
+        os.makedirs(output_dir, exist_ok=True)
         datas = [
-            # {
-            #     "audio_path": "nemo_experiments/internal_demo/Oh, I love that song/Oh, I love that song.wav",
-            #     "text": "Oh, I love that song.",
-            #     "textgrid_path": "nemo_experiments/internal_demo_mfa/Oh, I love that song/Oh, I love that song.TextGrid",
-            #     "from": "love",
-            #     "to": "hate",
-            #     "out_ori_path": "nemo_experiments/internal_demo_gen/Oh, I love that song_ori.wav",
-            #     "out_gen_path": "nemo_experiments/internal_demo_gen/Oh, I hate that song_gen.wav"
-            # },
-            # {
-            #     "audio_path": "nemo_experiments/internal_demo/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.wav",
-            #     "text": "you know the lady gaga song at the end of Maverick",
-            #     "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
-            #     "from": "end",
-            #     "to": "beginning",
-            #     "out_ori_path": "nemo_experiments/internal_demo_gen/you know the lady gaga song at the end of Maverick_ori.wav",
-            #     "out_gen_path": "nemo_experiments/internal_demo_gen/you know the lady gaga song at the beginning of Maverick_gen.wav"
-            # },
+            {
+                "audio_path": "nemo_experiments/internal_demo/Oh, I love that song/Oh, I love that song.wav",
+                "text": "Oh, I love that song.",
+                "textgrid_path": "nemo_experiments/internal_demo_mfa/Oh, I love that song/Oh, I love that song.TextGrid",
+                "from": "love",
+                "to": "hate",
+                "out_ori_path": f"{output_dir}/Oh, I love that song_ori.wav",
+                "out_gen_path": f"{output_dir}/Oh, I hate that song_gen.wav",
+                "out_tts_path": f"{output_dir}/Oh, I hate that song_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/internal_demo/SEMamba_you know the lady gaga song at the end of Maverick_ori.wav",
+                "text": "you know the lady gaga song at the end of Maverick",
+                # "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
+                "from": "end",
+                "to": "beginning",
+                "out_ori_path": f"{output_dir}/SE_you know the lady gaga song at the end of Maverick_ori.wav",
+                "out_gen_path": f"{output_dir}/SE_you know the lady gaga song at the beginning of Maverick_gen.wav",
+                "out_tts_path": f"{output_dir}/SE_you know the lady gaga song at the beginning of Maverick_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/internal_demo/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.wav",
+                "text": "you know the lady gaga song at the end of Maverick",
+                "textgrid_path": "nemo_experiments/internal_demo_mfa/yoy know the lage gaga song at the end of Maverick/yoy know the lage gaga song at the end of Maverick.TextGrid",
+                "from": "end",
+                "to": "beginning",
+                "out_ori_path": f"{output_dir}/you know the lady gaga song at the end of Maverick_ori.wav",
+                "out_gen_path": f"{output_dir}/you know the lady gaga song at the beginning of Maverick_gen.wav",
+                "out_tts_path": f"{output_dir}/you know the lady gaga song at the beginning of Maverick_tts.wav",
+            },
             {
                 "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
                 # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
                 "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
                 "from": "information",
                 "to": "money",
-                "out_ori_path": "nemo_experiments/internal_demo_gen/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
-                "out_gen_path": "nemo_experiments/internal_demo_gen/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen.wav"
+                "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+                "out_gen_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen.wav",
+                "out_tts_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it.wav",
+                # "audio_path": "nemo_experiments/internal_demo/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much money to go fill it_gen_SE.wav",
+                "text": "by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+                "from": "months",
+                "to": "milliseconds",
+                "out_ori_path": f"{output_dir}/by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it_ori.wav",
+                "out_gen_path": f"{output_dir}/by doubling every six milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_gen.wav",
+                "out_tts_path": f"{output_dir}/by doubling every six milliseconds if you double the size of the model you double the size of your brain you need twice as much information to go fill it_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/REAL/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11.wav",
+                "text": "here the noise and hubbub that went on constantly in the guardroom would effectually drown a whispered conversation",
+                "from": "noise",
+                "to": "silence",
+                "out_ori_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_ori.wav",
+                "out_gen_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_gen.wav",
+                "out_tts_path": f"{output_dir}/dev_real_medium-103-eldorado_krs_librivox_64kb_mp3-eldorado_37_orczy_64kb_11_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/REAL/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16.wav",
+                "text": "following his birthday dinner mark twain had become once more the Belle of new york and in a larger way than ever before",
+                "from": "more",
+                "to": "again",
+                "out_ori_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_ori.wav",
+                "out_gen_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_gen.wav",
+                "out_tts_path": f"{output_dir}/dev_real_medium-107-boys_life_of_twain_jg_0810_librivox_64kb_mp3-twain_61_paine_64kb_16_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/REAL/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31.wav",
+                "text": "the men removed their hats the witness was sworn what is your name the coroner asked",
+                "from": "name",
+                "to": "nickname",
+                "out_ori_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_ori.wav",
+                "out_gen_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_gen.wav",
+                "out_tts_path": f"{output_dir}/dev_real_medium-803-stories_006_librivox_64kb_mp3-damned_thing_bierce_ge_64kb_31_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/REAL/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26.wav",
+                "text": "on our way out a neighbor intercepted us and said that we should sleep at her house that night and see our sisters in the morning",
+                "from": "see",
+                "to": "seeing",
+                "out_ori_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_ori.wav",
+                "out_gen_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_gen.wav",
+                "out_tts_path": f"{output_dir}/dev_real_medium-2691-expedition_donner_party_0907_librivox_64kb_mp3-expeditiondonner_17_houghton_64kb_26_tts.wav",
+            },
+            {
+                "audio_path": "nemo_experiments/REAL/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8.wav",
+                "text": "It has its moods both grave and gay and is as fickle as a schoolgirl",
+                "from": "schoolgirl",
+                "to": "teenager",
+                "out_ori_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_ori.wav",
+                "out_gen_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_gen.wav",
+                "out_tts_path": f"{output_dir}/dev_real_medium-26-byways_around_san_francisco_bay_librivox_64kb_mp3-bywaysaroundsf_19_hutchinson_64kb_8_tts.wav",
             },
         ]
+        return datas
+
+    def get_word_edit_data(self):
+        datas = {
+            "libriheavy": [
+                {
+                    "sample_id": 4,
+                    "edit_from": "last",
+                    "edit_to": "first",
+                },
+                {
+                    "sample_id": 6,
+                    "edit_from": "private",
+                    "edit_to": "public",
+                },
+            ],
+            "gigaspeech": [
+                {
+                    "sample_id": 0,
+                    "edit_from": "biggest",
+                    "edit_to": "smallest",
+                },
+                {
+                    "sample_id": 1,
+                    "edit_from": "include",
+                    "edit_to": "exclude",
+                },
+                {
+                    "sample_id": 2,
+                    "edit_from": "address",
+                    "edit_to": "password",
+                },
+                {
+                    "sample_id": 5,
+                    "edit_from": "percentage",
+                    "edit_to": "amount",
+                },
+            ],
+        }
         return datas
 
 class Inference:
@@ -365,30 +475,36 @@ class Inference:
         #     sf.write(f"{out_dir}/{spk}_1_pred.wav", output_audio, sampling_rate, format='WAV')
         #     sf.write(f"{out_dir}/{spk}_0_masked.wav", masked_audio, sampling_rate, format='WAV')
 
-    def word_edit(self, dataprocessor: DataProcessor):
+    def word_edit(self, dataprocessor: DataProcessor, output_dir="nemo_experiments/edit_gen/"):
         val_batch = dataprocessor.get_val_batch(batch_idx=0)
+        datas = dataprocessor.get_word_edit_data()[self.model.cfg.ds_name]
+        os.makedirs(output_dir, exist_ok=True)
 
-        audio_len = val_batch["ori_audio_lens"][-1]
-        audio = val_batch["ori_audio"][-1, :audio_len].unsqueeze(0)
-        edit_pred = self.model.forward(
-            audio=audio,
-            texts=[val_batch["texts"][-1]],
-            alignments=[val_batch["alignments"][-1]],
-            edit_from="last",
-            edit_to="first",
-            # edit_from="private",
-            # edit_to="public",
-            steps=16,
-        )
-        sample_id = 4
-        sf.write(f"nemo_experiments/edit_gen/val_{sample_id:02d}_ori.wav", audio[0].cpu().numpy(), samplerate=24000, format='WAV')
-        sf.write(f"nemo_experiments/edit_gen/val_{sample_id:02d}_gen.wav", edit_pred[0].cpu().numpy(), samplerate=24000, format='WAV')
+        for data in datas:
+            sample_id = data["sample_id"]
+            audio_len = val_batch["ori_audio_lens"][sample_id].unsqueeze(0)
+            audio = val_batch["ori_audio"][sample_id, :audio_len].unsqueeze(0)
+            audio_id = val_batch["cuts"][sample_id].id
+            edit_pred = self.model.forward(
+                audio=audio,
+                audio_lens=audio_len,
+                texts=[val_batch["texts"][sample_id]],
+                alignments=[val_batch["alignments"][sample_id]],
+                edit_from=[data["edit_from"]],
+                edit_to=[data["edit_to"]],
+                steps=16,
+            )
+            edit_audio = edit_pred["edit_audio"]
+            ztts_audio = edit_pred["ztts_audio"]
+            sf.write(f"{output_dir}/val_{audio_id}_ori.wav", audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+            sf.write(f"{output_dir}/val_{audio_id}_gen.wav", edit_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+            sf.write(f"{output_dir}/val_{audio_id}_tts.wav", ztts_audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
 
     def internal_demo(self, data):
         # shape: (1, L), (1,), scalar
         # audio, audio_len, orig_sr = get_audio_data(data["audio_path"], self.model.device)
         # _, orig_sr = librosa.load(data["audio_path"], sr=None)
-        audio_data, _sr = librosa.load(data["audio_path"], sr=24000)
+        audio_data, _sr = librosa.load(data["audio_path"], sr=self.model.voicebox.audio_enc_dec.sampling_rate)
         audio = torch.tensor(audio_data, dtype=torch.float, device=self.model.device).unsqueeze(0)
         audio_len = torch.tensor(audio.shape[1], device=self.model.device).unsqueeze(0)
         # audio = audio / 2
@@ -401,12 +517,16 @@ class Inference:
             edit_from=[data["from"],],
             edit_to=[data["to"],],
             steps=64,
-            cond_scale=1.3,
+            cond_scale=1.0,
+            sample_std=1.0,
+            dp_scale=1.2,
         )
         edit_audio = edit_pred["edit_audio"][0].cpu().numpy()
-        edit_audio = edit_audio / max(np.abs(edit_audio))
-        sf.write(data["out_ori_path"], audio[0].cpu().numpy(), samplerate=24000, format='WAV')
-        sf.write(data["out_gen_path"], edit_audio, samplerate=24000, format='WAV')
+        ztts_audio = edit_pred["ztts_audio"][0].cpu().numpy()
+        # edit_audio = edit_audio / max(np.abs(edit_audio))
+        sf.write(data["out_ori_path"], audio[0].cpu().numpy(), samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+        sf.write(data["out_gen_path"], edit_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
+        sf.write(data["out_tts_path"], ztts_audio, samplerate=self.model.voicebox.audio_enc_dec.sampling_rate, format='WAV')
         return edit_pred["ori_mel"], edit_pred["edit_mel"]
 
 class DataGen:
@@ -424,7 +544,7 @@ class DataGen:
             batch = self.model.parse_val_vb_input(batch)
 
             cuts = batch["cuts"]
-            ori_audio = batch["audio_24k"]
+            ori_audio = batch["audio"]
             ori_mel = batch["mel"]
             ori_mel_lens = batch['mel_lens']
             cond = batch["cond"]    # same as ori_mel
@@ -450,7 +570,7 @@ class DataGen:
             except:
                 print("X")
                 continue
-            ori_audio_lens = batch["audio_lens_24k"]
+            ori_audio_lens = batch["audio_lens"]
             gen_audio_lens = torch.clamp(ori_audio_lens, max=gen_audio.shape[-1])
             ori_ls = ori_audio_lens / 24000
             gen_ls = gen_audio_lens / 24000
@@ -655,8 +775,8 @@ class DataGen:
                     edit_tos.append(to)
             indexes = torch.tensor(indexes, device=self.model.device)
 
-            ori_audio = torch.index_select(batch["audio_24k"], 0, indexes)
-            ori_audio_lens = torch.index_select(batch["audio_lens_24k"], 0, indexes)
+            ori_audio = torch.index_select(batch["audio"], 0, indexes)
+            ori_audio_lens = torch.index_select(batch["audio_lens"], 0, indexes)
             ori_texts = [t for i, t in enumerate(batch["texts"]) if i in indexes]
 
             try:
@@ -674,7 +794,7 @@ class DataGen:
                 print("X")
                 continue
             edit_audio = pred["edit_audio"]
-            ztts_audio = pred["ztts_audio"]
+            cap_audio = pred["cap_audio"]
             resyn_audio = pred["resyn_audio"]
             gen_audio_lens = pred["new_audio_lens"]
             ori_ls = ori_audio_lens / 24000
@@ -707,7 +827,7 @@ class DataGen:
                 sf.write(f"{out_dir}/combine/dev_resyn_{new_id}.wav", _resyn_audio, sampling_rate, format='WAV')
                 _edit_audio = edit_audio[i, :gen_audio_lens[i]].cpu().numpy()
                 sf.write(f"{out_dir}/combine/dev_edit_{new_id}.wav", _edit_audio, sampling_rate, format='WAV')
-                _cut_paste_audio = ztts_audio[i, :gen_audio_lens[i]].cpu().numpy()
+                _cut_paste_audio = cap_audio[i, :gen_audio_lens[i]].cpu().numpy()
                 sf.write(f"{out_dir}/combine/dev_cut_paste_{new_id}.wav", _cut_paste_audio, sampling_rate, format='WAV')
 
                 f_real.write(label["real"][-1] + '\n')
@@ -870,9 +990,17 @@ class Eval:
 
 class MainExc:
     def __init__(self):
+        # Mel + LibriLight
         # self.vb_ckpt_path = "nemo_experiments/vb=0.2669-epoch=15-last.ckpt"
         self.vb_ckpt_path = "nemo_experiments/vb=0.2573-epoch=42-last.ckpt"
         self.dp_ckpt_path = "nemo_experiments/1b_oci_voicebox--val_loss_total=3.2725-epoch=61.ckpt"
+
+        # DAC + GS
+        # self.vb_ckpt_path = "nemo_experiments/vb=0.7689-epoch=0-step=75932-last-001.ckpt"
+        self.vb_ckpt_path = "nemo_experiments/vb=0.7526-epoch=0-step=130000.ckpt"
+        # self.vb_ckpt_path = "nemo_experiments/vb=0.7406-epoch=0-step=163461-last.ckpt"
+        self.dp_ckpt_path = "nemo_experiments/a100-GS_XL-DAC_12-full/checkpoints/a100-GS_XL-DAC_12-full--val_loss/dp_no_sil_spn=1.4410-epoch=8.ckpt"
+
         self.gen_data_dir = "data/gen_dataset"
 
     def load_model(self,):
@@ -957,11 +1085,12 @@ class MainExc:
         self.eval.gen_val_frame_spk_sim(data_dir=f"{self.gen_data_dir}/medium-v3/split-{split_id}", subset="medium", audio_type="cut_paste")
         # exit()
 
-    def _word_edit(self):
-        self.infer.word_edit(dataprocessor=self.dataprocessor)
+    def v4_gs_val_word_edit(self, ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz", output_dir="nemo_experiments/edit_gen/"):
+        self.dataprocessor.prepare_val_dl(ds_name=ds_name, corpus_dir=corpus_dir, manifest_filepath=manifest_filepath, old_prefix="/home/sungfengh/.cache/huggingface/datasets")
+        self.infer.word_edit(dataprocessor=self.dataprocessor, output_dir=output_dir)
 
-    def _internal_demo(self):
-        datas = self.dataprocessor.get_internal_demo_data()
+    def _internal_demo(self, output_dir="nemo_experiments/internal_demo_gen"):
+        datas = self.dataprocessor.get_internal_demo_data(output_dir)
         for data in datas:
             ori_mel, edit_mel = self.infer.internal_demo(data)
             self.eval.plot_spectrogram(ori_mel)
@@ -978,7 +1107,9 @@ main_exc = MainExc()
 #%%
 if task == "gendata":
     # main_exc.gen_val_v1()
-    main_exc._internal_demo()
+    main_exc._internal_demo(output_dir="nemo_experiments/internal_demo_gen_gs_163k")
+    main_exc.v4_gs_val_word_edit(ds_name="gigaspeech", corpus_dir="data/download/GigaSpeech", manifest_filepath="data/parsed/GigaSpeech/gigaspeech_cuts_DEV.speech.jsonl.gz",
+                                    output_dir="nemo_experiments/edit_gen_163k/")
     exit()
 #%%
     

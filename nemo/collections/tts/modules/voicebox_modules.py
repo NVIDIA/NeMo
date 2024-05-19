@@ -179,7 +179,11 @@ class DACVoco(AudioEncoderDecoder, LightningModule):
             model_path = dac.utils.download(model_type=pretrained_path)
         else:
             model_path = pretrained_path
-        self.model = dac.DAC.load(model_path)
+        try:
+            self.model = dac.DAC.load(model_path)
+        except:
+            model_path = dac.utils.download(model_type="16khz")
+            self.model = dac.DAC.load(model_path)
         self.sampling_rate = sampling_rate
         assert self.sampling_rate == self.model.sample_rate
 
@@ -1335,6 +1339,9 @@ class VoiceBox(_VB, LightningModule):
                     self.null_cond,
                     cond
                 )
+                
+                p_drop_mask = prob_mask_like(cond.shape[:1], self.p_drop_prob, self.device)
+                times = times * ~p_drop_mask
 
         # phoneme or semantic conditioning embedding
 
@@ -1508,7 +1515,8 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
         decode_to_audio = True,
         max_semantic_token_ids = 2048,
         spec_decode = False,
-        spec_decode_gamma = 5 # could be higher, since speech is probably easier than text, needs to be tested
+        spec_decode_gamma = 5, # could be higher, since speech is probably easier than text, needs to be tested
+        sample_std = 1.,
     ):
         """
         Handle slf_attn_mask (cond_mask)
@@ -1604,7 +1612,7 @@ class ConditionalFlowMatcherWrapper(_CFMWrapper, LightningModule):
 
             return out
 
-        y0 = torch.randn_like(cond)
+        y0 = torch.randn_like(cond) * sample_std
         t = torch.linspace(0, 1, steps, device = self.device)
 
         if not self.use_torchode:

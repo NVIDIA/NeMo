@@ -177,6 +177,7 @@ class VoiceboxModel(TextToWaveform):
         self.waveform_loss = cfg.get("waveform_loss", False)
         self.cap_vocode = cfg.get("cap_vocode", False)
         self.ce_loss_lambda = 0.1
+        self.additional_log_batches = cfg.get("additional_log_batches", 0)
 
     def _download_libriheavy(self, target_dir, dataset_parts):
         """ Download LibriHeavy manifests. """
@@ -393,8 +394,6 @@ class VoiceboxModel(TextToWaveform):
                 if part.lower() in ["xs", "s", "m", "l", "xl"]: # dev/test will auto-downloaded w/ train set
                     _part = part.lower()
                     break
-            ds = load_dataset("esb/datasets", "gigaspeech", subconfig=_part, download_config=datasets.DownloadConfig(resume_download=True))
-            print(ds)
             # for split in ["train", "validation", "test"]:
             for split in ["train", "validation"]:
                 # if split == "train":
@@ -405,14 +404,31 @@ class VoiceboxModel(TextToWaveform):
                     part = "TEST"
                 _part = part.lower()
                 output_dir = Path(output_dir)
-                    
+
                 logging.info(f"Processing GigaSpeech subset: {part}")
                 if manifests_exist(
                     part=part, output_dir=output_dir, prefix="gigaspeech", suffix="speech.jsonl.gz"
                 ):
                     logging.info(f"GigaSpeech subset: {part} already prepared - skipping.")
+
+                    if self.additional_log_batches > 0:
+                        logging.info(f"Processing GigaSpeech subset: {part}_with_jensen")
+                        if manifests_exist(
+                            part=f"{part}_with_jensen", output_dir=output_dir, types=["cuts"], prefix="gigaspeech", suffix="speech.jsonl.gz"
+                        ):
+                            logging.info(f"GigaSpeech subset: {part}_with_jensen already prepared - skipping.")
+
+                        else:
+                            manifests = self._prepare_jensen(corpus_dir, output_dir)
+                            jensen_cuts = manifests["cuts"]
+                            gs_cuts = CutSet.from_jsonl_lazy(output_dir / f"gigaspeech_cuts_{part}.speech.jsonl.gz")
+                            cuts = jensen_cuts + gs_cuts
+                            cuts.to_file(output_dir / f"gigaspeech_cuts_{part}_with_jensen.speech.jsonl.gz")
+
                     continue
 
+                ds = load_dataset("esb/datasets", "gigaspeech", subconfig=_part, download_config=datasets.DownloadConfig(resume_download=True))
+                print(ds)
                 ds = ds.cast_column("audio", Audio(decode=False))
                 ds = ds.filter(has_valid_audio)
                 ds = ds.cast_column("audio", Audio(decode=True))
@@ -478,6 +494,155 @@ class VoiceboxModel(TextToWaveform):
                             sup_writer.write(s)
                         cut_writer.write(cuts[0])
 
+    def _prepare_jensen(self, corpus_dir, output_dir):
+        from lhotse import RecordingSet, Recording, AudioSource, SupervisionSegment, SupervisionSet, CutSet, fix_manifests, validate_recordings_and_supervisions
+        from lhotse.recipes.utils import manifests_exist
+
+        output_dir = Path(output_dir)
+
+        logging.info(f"Processing subset: Jensen's demo.")
+        if manifests_exist(
+            part="demo", output_dir=output_dir, prefix="jensen", suffix="speech.jsonl.gz"
+        ):
+            logging.info(f"Jensen's demo already prepared - skipping.")
+
+        else:
+            audio_path = f"{corpus_dir}/2024_GTC_jensen/2024_GTC_jensen.mp3"
+            recording = Recording.from_file(audio_path).resample(16000)
+            
+            tg_path = f"{corpus_dir}/2024_GTC_jensen/2024_GTC_jensen.TextGrid"
+            alignments = parse_mfa_textgrid(f_id=tg_path, seg=None)
+            
+            # durations = [[0, 8.35], [8.21, 16.72], [16.45, 31.2], [30.69, 53.6]]
+            segments = [
+                SupervisionSegment(
+                    id="2024_GTC_jensen-0",
+                    recording_id="2024_GTC_jensen",
+                    start=0,
+                    duration=8.35,
+                    channel=0,
+                    text="the Transformer was invented we were able to scale large language models at incredible rates effectively doubling every six months",
+                    language='English',
+                    alignment={
+                        "words": alignments["words"][0:26],
+                        "phones": alignments["phones"][0:105],
+                    }
+                ),
+                SupervisionSegment(
+                    id="2024_GTC_jensen-1",
+                    recording_id="2024_GTC_jensen",
+                    start=8.21,
+                    duration=8.51,
+                    channel=0,
+                    text="now how is it possible that by doubling every six months if you double the size of the model you double the size of your brain you need twice as much information to go fill it",
+                    language='English',
+                    alignment={
+                        "words": alignments["words"][25:65],
+                        "phones": alignments["phones"][104:224],
+                    },
+                ),
+                SupervisionSegment(
+                    id="2024_GTC_jensen-2",
+                    recording_id="2024_GTC_jensen",
+                    start=16.45,
+                    duration=14.75,
+                    channel=0,
+                    text="and so every time you double your parameter count you also have to appropriately increase your training token count the combination of those two numbers becomes the computation scale you have to support",
+                    language='English',
+                    alignment={
+                        "words": alignments["words"][64:108],
+                        "phones": alignments["phones"][223:367],
+                    },
+                ),
+                SupervisionSegment(
+                    id="2024_GTC_jensen-3",
+                    recording_id="2024_GTC_jensen",
+                    start=30.69,
+                    duration=10.78,
+                    channel=0,
+                    text="the latest the state-of-the-art open AI model is approximately one point eight trillion parameters one point eight trillion parameters required several trillion tokens to go train",
+                    language='English',
+                    alignment={
+                        "words": alignments["words"][107:143],
+                        "phones": alignments["phones"][366:486],
+                    },
+                ),
+                SupervisionSegment(
+                    id="2024_GTC_jensen-4",
+                    recording_id="2024_GTC_jensen",
+                    start=41.19,
+                    duration=12.41,
+                    channel=0,
+                    text="when you multiply the two of them together approximately thirty fourty fifty billion quadrillion floating Point operations per second so you have thirty billion quadrillion",
+                    language='English',
+                    alignment={
+                        "words": alignments["words"][142:179],
+                        "phones": alignments["phones"][485:621],
+                    },
+                ),
+                SupervisionSegment(
+                    id="2024_GTC_jensen-5",
+                    recording_id="2024_GTC_jensen",
+                    start=53.35,
+                    duration=14.34,
+                    channel=0,
+                    text="a quadrillion is like a peta and so if you had a peta-flop GPU you would need thirty billion seconds to go compute to go train that model thirty billion seconds is approximately one thousand years",
+                    language='English',
+                    alignment={
+                        "words": alignments["words"][178:226],
+                        "phones": alignments["phones"][620:769],
+                    },
+                ),
+                SupervisionSegment(
+                    id="2024_GTC_jensen-6",
+                    recording_id="2024_GTC_jensen",
+                    start=67.4,
+                    duration=15.773878,
+                    channel=0,
+                    text="what we need are bigger gpus we need much much bigger gpus we recognized this early on and we realized that the answer is to put a whole bunch of gpus together",
+                    language='English',
+                    alignment={
+                        "words": alignments["words"][225:],
+                        "phones": alignments["phones"][768:],
+                    },
+                ),
+            ]
+            recordings, segments = fix_manifests(
+                recordings=RecordingSet.from_recordings([recording]),
+                supervisions=SupervisionSet.from_segments(segments),
+            )
+            validate_recordings_and_supervisions(
+                recordings=recordings, supervisions=segments
+            )
+            # Create the cut since most users will need it anyway.
+            # There will be exactly one cut since there's exactly one recording.
+            cuts = CutSet.from_manifests(
+                recordings=recordings, supervisions=segments
+            )
+            cuts = cuts.trim_to_supervisions(keep_overlapping=False)
+
+            # Write the manifests
+            with RecordingSet.open_writer(
+                output_dir / f"jensen_recordings_demo.speech.jsonl.gz"
+            ) as rec_writer, SupervisionSet.open_writer(
+                output_dir / f"jensen_supervisions_demo.speech.jsonl.gz"
+            ) as sup_writer, CutSet.open_writer(
+                output_dir / f"jensen_cuts_demo.speech.jsonl.gz"
+            ) as cut_writer:
+                for r in recordings:
+                    rec_writer.write(r)
+                for s in segments:
+                    sup_writer.write(s)
+                for c in cuts:
+                    cut_writer.write(c)
+
+        manifests = {
+            "recordings": RecordingSet.from_jsonl_lazy(output_dir / f"jensen_recordings_demo.speech.jsonl.gz"),
+            "supervisions": SupervisionSet.from_jsonl_lazy(output_dir / f"jensen_supervisions_demo.speech.jsonl.gz"),
+            "cuts": CutSet.from_jsonl_lazy(output_dir / f"jensen_cuts_demo.speech.jsonl.gz"),
+        }
+        return manifests
+
     def prepare_data(self) -> None:
         """ Pytorch Lightning hook.
 
@@ -499,7 +664,7 @@ class VoiceboxModel(TextToWaveform):
                 self._prepare_libritts(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
             elif self._cfg.ds_name == "gigaspeech":
                 # self._download_gigaspeech(target_dir=self._cfg.corpus_dir, dataset_parts=dataset_parts)
-                # self._prepare_gigaspeech(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
+                self._prepare_gigaspeech(corpus_dir=self._cfg.corpus_dir, output_dir=self._cfg.manifests_dir, textgrid_dir=self._cfg.textgrid_dir, dataset_parts=dataset_parts)
                 pass
 
     def setup(self, stage: Optional[str] = None):
@@ -737,6 +902,8 @@ class VoiceboxModel(TextToWaveform):
         steps = 3,
         cond_scale = 1.,
         decode_to_audio = True,
+        sample_std = 1.0,
+        dp_scale = 1.0,
     ):
         """
         Args:
@@ -841,7 +1008,7 @@ class VoiceboxModel(TextToWaveform):
             return_aligned_phoneme_ids=False,
         )
         # cut-and-paste predicted durations and duplicate tokens
-        new_dur = torch.where(dp_cond_mask, dp_outputs["durations"].round(), dp_cond).int().clamp(min=0)
+        new_dur = torch.where(dp_cond_mask, (dp_outputs["durations"] * dp_scale).round(), dp_cond).int().clamp(min=0)
         new_mel_lens = new_dur.sum(-1)
 
         # construct new_cond
@@ -911,7 +1078,8 @@ class VoiceboxModel(TextToWaveform):
             self_attn_mask=args["self_attn_mask"],
             steps=steps,
             cond_scale=cond_scale,
-            decode_to_audio=False
+            decode_to_audio=False,
+            sample_std=sample_std,
         )
 
         edit_mel = torch.ones_like(new_cond) * -4.5252
@@ -933,13 +1101,17 @@ class VoiceboxModel(TextToWaveform):
         new_cond_ed_idx = torch.clamp(cond_ed_idx * hop_size, max=ztts_audio.shape[-1])
         ori_cond_st_idx = new_cond_st_idx
         ori_cond_ed_idx = audio_lens - (new_audio_lens - new_cond_ed_idx)
+
+        cap_audio = torch.zeros_like(ztts_audio)
         for i in range(len(batch)):
-            ztts_audio[i, :new_cond_st_idx[i]] = audio[i, :ori_cond_st_idx[i]]
-            ztts_audio[i, new_cond_ed_idx[i]:new_audio_lens[i]] = audio[i, ori_cond_ed_idx[i]:audio_lens[i]]
+            cap_audio[i, :new_cond_st_idx[i]] = audio[i, :ori_cond_st_idx[i]]
+            cap_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]] = ztts_audio[i, new_cond_st_idx[i]:new_cond_ed_idx[i]]
+            cap_audio[i, new_cond_ed_idx[i]:new_audio_lens[i]] = audio[i, ori_cond_ed_idx[i]:audio_lens[i]]
 
         return {
             "edit_audio": edit_audio,
             "ztts_audio": ztts_audio,
+            "cap_audio": cap_audio,
             "resyn_audio": resyn_audio,
             "edit_mel": edit_mel,
             "ztts_mel": ztts_mel,
@@ -1158,7 +1330,7 @@ class VoiceboxModel(TextToWaveform):
 
         return losses, outputs
     
-    def val_vb(self, audio, audio_mask, tokens, batch_idx):
+    def val_vb(self, audio, audio_mask, tokens, batch_idx, cuts=None):
         self.voicebox.train()
 
         vb_inputs = self.cfm_wrapper.parse_vb_input(
@@ -1189,7 +1361,7 @@ class VoiceboxModel(TextToWaveform):
             waveform_loss = self.cfm_wrapper.waveform_loss(outputs, audio, audio_mask)
             losses['waveform'] = waveform_loss
         
-        if batch_idx == 0:
+        if batch_idx <= self.additional_log_batches:
             # first batch of validation
             self.voicebox.eval()
             cond_mask = self.voicebox.create_cond_mask(
@@ -1216,7 +1388,8 @@ class VoiceboxModel(TextToWaveform):
                     aligned_phoneme_ids=tokens,
                     cond_mask=cond_mask,
                     steps=100,
-                    decode_to_audio=False
+                    decode_to_audio=False,
+                    sample_std=0.01,
                 )
             
             audio_len = audio_mask.sum(-1)
@@ -1229,19 +1402,20 @@ class VoiceboxModel(TextToWaveform):
                 pred_x1 = torch.where(cond_mask, pred_x1, x1)
 
             for plot_id in range(x1.shape[0]):
-                self.log_image(f"val_vb/{plot_id}/x1", plot_spectrogram_to_numpy(x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
-                self.log_image(f"val_vb/{plot_id}/cond", plot_spectrogram_to_numpy(cond[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
-                self.log_image(f"val_vb/{plot_id}/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
+                log_id = cuts[plot_id].id
+                self.log_image(f"val_vb/{log_id}/x1", plot_spectrogram_to_numpy(x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
+                self.log_image(f"val_vb/{log_id}/cond", plot_spectrogram_to_numpy(cond[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
+                self.log_image(f"val_vb/{log_id}/pred_x1", plot_spectrogram_to_numpy(pred_x1[plot_id, :mel_len[plot_id]].T.detach().cpu().numpy()), self.global_step)
 
                 with torch.no_grad():
                     _pred_audio = self.voicebox.audio_enc_dec.decode(pred_x1[None, plot_id, :mel_len[plot_id]])[0].detach().cpu().numpy()
                     _recon_audio = self.voicebox.audio_enc_dec.decode(x1[None, plot_id, :mel_len[plot_id]])[0].detach().cpu().numpy()
                 _orig_audio = audio[plot_id, :audio_len[plot_id]].detach().cpu().numpy()
-                self.log_audio(f"val_vb/{plot_id}/pred_audio", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
-                self.log_audio(f"val_vb/{plot_id}/recon_audio", _recon_audio / max(np.abs(_recon_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
-                self.log_audio(f"val_vb/{plot_id}/orig_audio", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
-                # self.log_audio(f"val_vb/{plot_id}/pred_audio", _pred_audio / np.sqrt(np.mean(_pred_audio ** 2)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
-                # self.log_audio(f"val_vb/{plot_id}/orig_audio", _orig_audio / np.sqrt(np.mean(_orig_audio ** 2)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                self.log_audio(f"val_vb/{log_id}/pred_audio", _pred_audio / max(np.abs(_pred_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                self.log_audio(f"val_vb/{log_id}/recon_audio", _recon_audio / max(np.abs(_recon_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                self.log_audio(f"val_vb/{log_id}/orig_audio", _orig_audio / max(np.abs(_orig_audio)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                # self.log_audio(f"val_vb/{log_id}/pred_audio", _pred_audio / np.sqrt(np.mean(_pred_audio ** 2)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
+                # self.log_audio(f"val_vb/{log_id}/orig_audio", _orig_audio / np.sqrt(np.mean(_orig_audio ** 2)), self.global_step, sample_rate=self.voicebox.audio_enc_dec.sampling_rate)
             self.log_commit(self.global_step)
 
         return losses, outputs
@@ -1390,6 +1564,7 @@ class VoiceboxModel(TextToWaveform):
             audio_mask=audio_mask,
             tokens=dp_outputs.get("aligned_phoneme_ids"),
             batch_idx=batch_idx,
+            cuts=batch["cuts"],
         )
         losses.update(dp_losses)
 

@@ -123,7 +123,8 @@ class LhotseTextToSpeechDataset(torch.utils.data.Dataset):
 
             phn_st = phn_alis[phn_id].start
             phn_ed = phn_st + phn_alis[phn_id].duration
-            while phn_st >= wrd_st and phn_ed <= wrd_ed:
+            # while phn_st >= wrd_st and phn_ed <= wrd_ed:
+            while phn_st + phn_ed >= 2 * wrd_st and phn_st + phn_ed <= 2 * wrd_ed:
                 w2pids[-1][-1].append(phn_id)
                 phn_id += 1
                 if phn_id < len(phn_alis):
