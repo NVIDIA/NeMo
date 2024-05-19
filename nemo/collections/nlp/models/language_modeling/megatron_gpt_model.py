@@ -105,7 +105,6 @@ try:
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import drain_embedding_wgrad_compute, init_method_normal, scaled_init_method_normal
-    from nemo.utils.mcore_spec_utils import override_spec
 
     HAVE_MEGATRON_CORE = True
 
@@ -393,18 +392,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
-        spec = get_specs(
-            self.spec_name,
-            self.transformer_config.num_moe_experts,
-            self.transformer_config.moe_grouped_gemm,
-            self.transformer_engine,
-            self.cfg.get('hyena', None)
-        )
-        spec = override_spec(spec, self.cfg)
         if self.mcore_gpt:
             model = MCoreGPTModel(
                 config=self.transformer_config,
-                transformer_layer_spec=spec,
+                transformer_layer_spec=get_specs(
+                    self.spec_name,
+                    self.transformer_config.num_moe_experts,
+                    self.transformer_config.moe_grouped_gemm,
+                    self.transformer_engine,
+                    self.cfg.get('hyena', None)
+                ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
                 pre_process=pre_process,
