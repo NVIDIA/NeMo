@@ -19,8 +19,6 @@ from typing import Union
 import torch
 import torch._dynamo
 from accelerated_scan.triton import scan
-from causal_conv1d import causal_conv1d_fn
-from einops import rearrange
 from torch import nn
 
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
@@ -296,13 +294,23 @@ class Conv1D(MegatronModule):
         segment_pos=None,
         prev_x=None,
     ):
+        seqlen = x.shape[1]
+        
         x = x.permute(0, 2, 1)
+        output = self.conv_1d(x)[..., :seqlen].permute(0, 2, 1)
+
+        # causal_conv1d_fn raises memory mapping error with CUDA 12.4
+        # Using native pytorch conv_1d for now
+        '''
+        from causal_conv1d import causal_conv1d_fn
+        from einops import rearrange
         output = causal_conv1d_fn(
             x=x,
             weight=rearrange(self.conv_1d.weight, "d 1 w -> d w"),
             bias=self.conv_1d.bias,
             activation=None,
         ).permute(0, 2, 1)
+        '''
         return output, None
 
 
