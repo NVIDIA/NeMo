@@ -139,7 +139,6 @@ model:
     name: sgd
     lr: .006 #(original titanet-large was trained with 0.08 lr)
     weight_decay: 0.0002
-    momentum: 0.9
 
     # scheduler setup
     sched:
