@@ -223,7 +223,6 @@ class HyenaOperator(nn.Module):
     def __init__(
             self,
             config: TransformerConfig,
-            d_model: int,
             l_max: int,
             order: int = 2,
             filter_order: int = 64,
@@ -239,7 +238,6 @@ class HyenaOperator(nn.Module):
         Hyena operator described in the paper https://arxiv.org/pdf/2302.10866.pdf
 
         Args:
-            d_model (int): Dimension of the input and output embeddings (width of the layer)
             l_max: (int): Maximum input sequence length.
             order: (int): Depth of the Hyena recurrence. Defaults to 2
             filter_order: (int): Width of the FFN parametrizing the implicit filter. Defaults to 64
@@ -261,6 +259,7 @@ class HyenaOperator(nn.Module):
         if order < 2:
             raise ValueError(f'Order must be at least 2, (got {self.order})')
 
+        d_model = config.hidden_size
         if d_model % num_heads != 0:
             raise ValueError(f'Model dimension {d_model} must be divisible by num heads {num_heads}')
         head_dim = d_model // num_heads

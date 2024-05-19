@@ -169,7 +169,6 @@ model:
 
   hyena:
     # HyenaOperator parameters
-    d_model: ${model.hidden_size}
     l_max: ${model.encoder_seq_length}
     order: 2
     filter_order: 64

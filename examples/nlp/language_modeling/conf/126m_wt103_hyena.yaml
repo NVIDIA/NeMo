@@ -49,7 +49,6 @@ model:
     # https://github.com/lindermanlab/S5/blob/development/configs/hyena/wikitext_hyena.yaml
 
     # HyenaOperator parameters
-    d_model: ${model.hidden_size}
     l_max: ${model.encoder_seq_length}
     order: 2
     filter_order: 128
