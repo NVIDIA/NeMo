@@ -448,7 +448,14 @@ class MultimodalSamplingConstraint(SamplingConstraint):
 
     def measure_length(self, example: Any) -> float:
         if isinstance(example, Cut):
-            return example.duration / self.token_equivalent_duration
+            # "length" of a Cut (audio+text example) is counted as the sum of:
+            # * num_tokens in each supervision segment ("utterance") in the Cut
+            # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
+            text_tokens = 0
+            for s in example.supervisions:
+                if s.has_custom("tokens"):
+                    text_tokens += len(s.tokens)
+            return example.duration / self.token_equivalent_duration + text_tokens
         if isinstance(example, (TextExample, SourceTargetTextExample, NeMoSFTExample)):
             return example.num_tokens
         raise RuntimeError(f"Unsupported example type: {type(example)}")
