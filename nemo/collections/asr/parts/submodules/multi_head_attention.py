@@ -55,21 +55,23 @@ class MultiHeadAttention(nn.Module):
         n_head (int): number of heads
         n_feat (int): size of the features
         dropout_rate (float): dropout rate
+        remove_bias (bool): whether to remove bias in linear and conv layers
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0):
+    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0, remove_bias=False):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
         self.cache_drop_size = None
+        self.remove_bias = remove_bias
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
         self.s_d_k = math.sqrt(self.d_k)
         self.h = n_head
-        self.linear_q = nn.Linear(n_feat, n_feat)
-        self.linear_k = nn.Linear(n_feat, n_feat)
-        self.linear_v = nn.Linear(n_feat, n_feat)
-        self.linear_out = nn.Linear(n_feat, n_feat)
+        self.linear_q = nn.Linear(n_feat, n_feat, bias=not remove_bias)
+        self.linear_k = nn.Linear(n_feat, n_feat, bias=not remove_bias)
+        self.linear_v = nn.Linear(n_feat, n_feat, bias=not remove_bias)
+        self.linear_out = nn.Linear(n_feat, n_feat, bias=not remove_bias)
         self.dropout = nn.Dropout(p=dropout_rate)
 
         self._max_cache_len = max_cache_len
@@ -161,11 +163,12 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         n_head (int): number of heads
         n_feat (int): size of the features
         dropout_rate (float): dropout rate
+        remove_bias (bool): whether to remove bias in linear and conv layers of MultiHeadAttention
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0):
+    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0, remove_bias=False):
         """Construct an RelPositionMultiHeadedAttention object."""
-        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=max_cache_len)
+        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=max_cache_len, remove_bias=remove_bias)
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable biases are used in matrix c and matrix d
@@ -267,6 +270,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_tokens (int): number of tokens to be used for global attention
         global_tokens_spacing (int): how far apart the global tokens are
         global_attn_separate (bool): whether the q, k, v layers used for global tokens should be separate
+        remove_bias (bool): whether to remove bias in linear and conv layers of MultiHeadAttention
     """
 
     def __init__(
@@ -281,6 +285,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_tokens=0,
         global_tokens_spacing=1,
         global_attn_separate=False,
+        remove_bias=False
     ):
         """Construct an RelPositionMultiHeadAttentionLongformer object."""
         super().__init__(
@@ -290,6 +295,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             pos_bias_u=pos_bias_u,
             pos_bias_v=pos_bias_v,
             max_cache_len=max_cache_len,
+            remove_bias=remove_bias
         )
         self.att_context_size = att_context_size
         self.global_tokens = global_tokens
@@ -297,9 +303,9 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         self.global_attn_separate = global_attn_separate
 
         if self.global_attn_separate:
-            self.global_q = nn.Linear(n_feat, n_feat)
-            self.global_k = nn.Linear(n_feat, n_feat)
-            self.global_v = nn.Linear(n_feat, n_feat)
+            self.global_q = nn.Linear(n_feat, n_feat, bias=not remove_bias)
+            self.global_k = nn.Linear(n_feat, n_feat, bias=not remove_bias)
+            self.global_v = nn.Linear(n_feat, n_feat, bias=not remove_bias)
 
     def forward(self, query, key, value, pad_mask, pos_emb, cache=None):
         """Compute Scaled Dot Product Local Attention with rel. positional encoding. using overlapping chunks

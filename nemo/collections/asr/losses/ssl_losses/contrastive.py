@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from math import ceil
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -147,13 +149,17 @@ class ContrastiveLoss(Loss):
 
     @typecheck()
     def forward(self, spectrograms, spec_masks, decoder_outputs, decoder_lengths=None):
-        spec_in = spectrograms.transpose(-2, -1)
+        targets = spectrograms.transpose(-2, -1)
         masks = spec_masks.transpose(-2, -1)
-        targets = spec_in
         # BxTxC
+        diff = int(ceil(targets.shape[1] / decoder_outputs.shape[1]) * decoder_outputs.shape[1]) - targets.shape[1]
 
-        targets = targets.reshape(targets.shape[0], targets.shape[1] // self.combine_time_steps, -1)
-        masks = masks.reshape(targets.shape[0], targets.shape[1], -1)
+        if diff > 0:
+            targets = F.pad(targets, (0, 0, 0, diff))
+            masks = F.pad(masks, (0, 0, 0, diff))
+
+        targets = targets.reshape(targets.shape[0], decoder_outputs.shape[1], -1)
+        masks = masks.reshape(targets.shape[0], decoder_outputs.shape[1], -1)
 
         if self.quantized_targets:
             if self.store_ids:
