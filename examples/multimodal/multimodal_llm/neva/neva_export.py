@@ -15,40 +15,36 @@ import os
 import shutil
 import tarfile
 from time import time
-import yaml
 
-import torch
 import tensorrt as trt
-from transformers import AutoModel
+import torch
+import yaml
 from tensorrt_llm.builder import Builder
+from transformers import AutoModel
 
 from nemo.core.config import hydra_runner
 from nemo.export import TensorRTLLM
 
 logger = trt.Logger(trt.Logger.INFO)
 
-def export_visual_wrapper_onnx(visual_wrapper,
-                               input,
-                               output_dir,
-                               input_names=['input'],
-                               dynamic_axes={'input': {
-                                   0: 'batch'
-                               }}):
+
+def export_visual_wrapper_onnx(
+    visual_wrapper, input, output_dir, input_names=['input'], dynamic_axes={'input': {0: 'batch'}}
+):
     logger.log(trt.Logger.INFO, "Exporting onnx")
     os.makedirs(f'{output_dir}/onnx', exist_ok=True)
-    torch.onnx.export(visual_wrapper,
-                      input,
-                      f'{output_dir}/onnx/visual_encoder.onnx',
-                      opset_version=17,
-                      input_names=input_names,
-                      output_names=['output'],
-                      dynamic_axes=dynamic_axes)
+    torch.onnx.export(
+        visual_wrapper,
+        input,
+        f'{output_dir}/onnx/visual_encoder.onnx',
+        opset_version=17,
+        input_names=input_names,
+        output_names=['output'],
+        dynamic_axes=dynamic_axes,
+    )
 
-def build_trt_engine(input_sizes,
-                     output_dir,
-                     max_batch_size,
-                     dtype=torch.bfloat16,
-                     num_frames=None):
+
+def build_trt_engine(input_sizes, output_dir, max_batch_size, dtype=torch.bfloat16, num_frames=None):
     part_name = 'visual_encoder'
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
@@ -56,14 +52,10 @@ def build_trt_engine(input_sizes,
     logger.log(trt.Logger.INFO, "Building TRT engine for %s" % part_name)
 
     builder = trt.Builder(logger)
-    network = builder.create_network(
-        1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+    network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
     profile = builder.create_optimization_profile()
 
-    config_args = {
-        "precision": str(dtype).split('.')[-1],
-        "model_type": "video-neva"
-    }
+    config_args = {"precision": str(dtype).split('.')[-1], "model_type": "video-neva"}
     if num_frames is not None:
         config_args["num_frames"] = num_frames
 
@@ -98,15 +90,11 @@ def build_trt_engine(input_sizes,
         min_size = opt_size = max_size = input_sizes
     elif len(input_sizes) == 3 and isinstance(input_sizes[0], list):
         min_size, opt_size, max_size = input_sizes
-        logger.log(
-            trt.Logger.INFO,
-            f"Processed min/opt/max input sizes {min_size}/{opt_size}/{max_size}"
-        )
+        logger.log(trt.Logger.INFO, f"Processed min/opt/max input sizes {min_size}/{opt_size}/{max_size}")
     else:
         raise ValueError(f"invalid input sizes: {input_sizes}")
 
-    profile.set_shape(inputT.name, [nMinBS, *min_size], [nOptBS, *opt_size],
-                      [nMaxBS, *max_size])
+    profile.set_shape(inputT.name, [nMinBS, *min_size], [nOptBS, *opt_size], [nMaxBS, *max_size])
     config.add_optimization_profile(profile)
 
     t0 = time()
@@ -115,28 +103,24 @@ def build_trt_engine(input_sizes,
     if engine_string is None:
         raise RuntimeError("Failed building %s" % (engine_file))
     else:
-        logger.log(trt.Logger.INFO,
-                   "Succeeded building %s in %d s" % (engine_file, t1 - t0))
+        logger.log(trt.Logger.INFO, "Succeeded building %s in %d s" % (engine_file, t1 - t0))
         with open(engine_file, 'wb') as f:
             f.write(engine_string)
 
     Builder.save_config(config_wrapper, config_file)
 
+
 def build_video_neva_engine(cfg):
-    device = torch.device(
-        "cuda") if torch.cuda.is_available() else "cpu"
+    device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
     with tarfile.open(cfg.model.visual_model_path) as tar:
         nemo_config = yaml.safe_load(tar.extractfile("./model_config.yaml"))
         try:
             # trained without TP
-            mp0_weights = torch.load(tar.extractfile("./model_weights.ckpt"),
-                                     map_location=device)
+            mp0_weights = torch.load(tar.extractfile("./model_weights.ckpt"), map_location=device)
         except KeyError:
             # trained with TP
-            mp0_weights = torch.load(
-                tar.extractfile("./mp_rank_00/model_weights.ckpt"),
-                map_location=device)
+            mp0_weights = torch.load(tar.extractfile("./mp_rank_00/model_weights.ckpt"), map_location=device)
 
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
@@ -150,9 +134,7 @@ def build_video_neva_engine(cfg):
         def forward(self, images):
             b, num_frames, c, h, w = images.shape
             images = images.view(b * num_frames, c, h, w)
-            vision_x = self.encoder(
-                pixel_values=images,  #[(B num_frames), C, H, W]
-                output_hidden_states=True)
+            vision_x = self.encoder(pixel_values=images, output_hidden_states=True)  # [(B num_frames), C, H, W]
             vision_x = vision_x.hidden_states[-2]
             vision_x = vision_x[:, 1:]
 
@@ -162,48 +144,40 @@ def build_video_neva_engine(cfg):
             vision_x = self.connector(vision_x)
             return vision_x
 
-    encoder = AutoModel.from_pretrained(vision_config["from_pretrained"],
-                                        torch_dtype=torch.bfloat16,
-                                        trust_remote_code=True)
+    encoder = AutoModel.from_pretrained(
+        vision_config["from_pretrained"], torch_dtype=torch.bfloat16, trust_remote_code=True
+    )
     vision_encoder = encoder.vision_model
     hf_config = encoder.config
     dtype = hf_config.torch_dtype
 
     # connector
     assert nemo_config["mm_cfg"]["mm_mlp_adapter_type"] == "linear"
-    vision_connector = torch.nn.Linear(vision_config["hidden_size"],
-                                       nemo_config["hidden_size"],
-                                       bias=True)
+    vision_connector = torch.nn.Linear(vision_config["hidden_size"], nemo_config["hidden_size"], bias=True)
 
     key_prefix = "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector"
-    vision_connector.load_state_dict({
-        'weight':
-        mp0_weights[f"{key_prefix}.weight"].to(dtype),
-        'bias':
-        mp0_weights[f"{key_prefix}.bias"].to(dtype),
-    })
+    vision_connector.load_state_dict(
+        {
+            'weight': mp0_weights[f"{key_prefix}.weight"].to(dtype),
+            'bias': mp0_weights[f"{key_prefix}.bias"].to(dtype),
+        }
+    )
 
     engine_dir = os.path.join(cfg.infer.output_dir, "visual_engine")
 
     # export the whole wrapper
-    wrapper = VisionEncoderWrapper(vision_encoder,
-                                   vision_connector).to(device, dtype)
+    wrapper = VisionEncoderWrapper(vision_encoder, vision_connector).to(device, dtype)
     image_size = hf_config.vision_config.image_size
     num_frames = nemo_config['data']['num_frames']
-    dummy_video = torch.empty(1,
-                              num_frames,
-                              3,
-                              image_size,
-                              image_size,
-                              dtype=dtype,
-                              device=device)  # dummy image
+    dummy_video = torch.empty(1, num_frames, 3, image_size, image_size, dtype=dtype, device=device)  # dummy image
     export_visual_wrapper_onnx(wrapper, dummy_video, engine_dir)
     build_trt_engine(
         [num_frames, 3, image_size, image_size],  # [num_frames, 3, H, W]
         engine_dir,
         cfg.infer.visual.max_batch_size,
         dtype,
-        num_frames=num_frames)
+        num_frames=num_frames,
+    )
 
 
 def build_trtllm_engines(cfg):
@@ -220,6 +194,7 @@ def build_trtllm_engines(cfg):
         dtype=cfg.model.precision,
         load_model=False,
     )
+
 
 @hydra_runner(config_path='conf', config_name='video_neva_export')
 def main(cfg):
