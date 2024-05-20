@@ -171,7 +171,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         )
 
         if decoder_lengths is None:
-            logging.warning(_DECODER_LENGTHS_NONE_WARNING)
+            logging.warning(_DECODER_LENGTHS_NONE_WARNING, mode=logging_mode.ONCE)
 
         with torch.inference_mode():
             hypotheses = []
@@ -393,7 +393,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         input_decoder_lengths = decoder_lengths
 
         if decoder_lengths is None:
-            logging.warning(_DECODER_LENGTHS_NONE_WARNING)
+            logging.warning(_DECODER_LENGTHS_NONE_WARNING, mode=logging_mode.ONCE)
             decoder_lengths = torch.tensor([decoder_output.shape[1]], dtype=torch.long).expand(decoder_output.shape[0])
 
         if decoder_output.ndim == 2:
