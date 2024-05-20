@@ -26,9 +26,9 @@ __all__ = ['DialogueMSMarcoDataProcessor']
 
 class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
     """Data Processor for MS Marco dialogues. (https://github.com/microsoft/MSMARCO-Question-Answering)
-       Please agree to the Terms of Use before downloading data at 
-       https://msmarco.blob.core.windows.net/msmarco/train_v2.1.json.gz
-       https://msmarco.blob.core.windows.net/msmarco/dev_v2.1.json.gz
+    Please agree to the Terms of Use before downloading data at
+    https://msmarco.blob.core.windows.net/msmarco/train_v2.1.json.gz
+    https://msmarco.blob.core.windows.net/msmarco/dev_v2.1.json.gz
     """
 
     def __init__(self, data_dir: str, tokenizer: object, cfg=None):
@@ -59,7 +59,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
     def get_dialog_examples(self, dataset_split: str):
         """
         Process raw files into DialogueInputExample
-        Args: 
+        Args:
             dataset_split: {train, dev, test}
         For the MS Marco dataset, there is no explicit dev set (instead uses the test set as the dev set)
         Therefore, this function creates a dev set and a new train set from the train set.

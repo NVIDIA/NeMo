@@ -23,12 +23,12 @@ from tqdm import trange
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import INFERENCE_MODE, TRAINING_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_example import GPTQAInputExample
-from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 
 class GPTQADataset(QADataset):
-    """ Creates a Dataset for GPT architecture based Generative QA """
+    """Creates a Dataset for GPT architecture based Generative QA"""
 
     def __init__(
         self,
@@ -44,7 +44,7 @@ class GPTQADataset(QADataset):
         num_samples: int = -1,
         mode: str = TRAINING_MODE,
         use_cache: bool = False,
-    ):  
+    ):
         # deprecation warning
         deprecated_warning("GPTQADataset")
 
@@ -80,7 +80,7 @@ class GPTQADataset(QADataset):
             self.features[i] = GPTQAInputExample(**self.features[i])
 
     def _set_cached_features_filename(self):
-        """ Creates cache filename using dataset config parameters """
+        """Creates cache filename using dataset config parameters"""
 
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
@@ -124,7 +124,11 @@ class GPTQADataset(QADataset):
             formatted_query, query_tokens_length = self._prep_query(query_prefix, example)
             formatted_answer, answer_tokens_length = self._prep_answer(example)
             context_tokens, context_spans = self._prep_context(
-                example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
+                example,
+                query_tokens_length,
+                answer_tokens_length,
+                context_prefix_tokens,
+                answer_prefix_tokens,
             )
 
             unique_id = self._encode_all_context_spans(
@@ -174,7 +178,12 @@ class GPTQADataset(QADataset):
         return self._get_truncated_sentence_and_len(target, self.max_answer_length)
 
     def _prep_context(
-        self, example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
+        self,
+        example,
+        query_tokens_length,
+        answer_tokens_length,
+        context_prefix_tokens,
+        answer_prefix_tokens,
     ):
         """
         Calculates the maximum possible length for a given context given a question

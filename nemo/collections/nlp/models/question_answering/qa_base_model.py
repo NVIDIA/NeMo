@@ -24,8 +24,8 @@ from nemo.collections.nlp.data.question_answering.data_processor.qa_processing i
     TRAINING_MODE,
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 
 class BaseQAModel(NLPModel):
@@ -86,10 +86,13 @@ class BaseQAModel(NLPModel):
 
     @torch.no_grad()
     def _get_per_sample_perplexity(self, logits, labels):
-        """ Returns average perplexity for each sample in the batch  """
+        """Returns average perplexity for each sample in the batch"""
 
         loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100, reduction='none')
-        unreduced_loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1),)
+        unreduced_loss = loss_fct(
+            logits.view(-1, logits.size(-1)),
+            labels.view(-1),
+        )
         unreduced_loss = unreduced_loss.reshape(labels.shape)
         mask_0 = unreduced_loss != 0
         per_sample_perplexity = torch.exp((unreduced_loss * mask_0).sum(axis=1) / mask_0.sum(axis=1))
