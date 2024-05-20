@@ -90,7 +90,9 @@ class TestCTCDecoding:
         assert decoding is not None
 
     @pytest.mark.unit
-    def test_char_decoding_greedy_forward(self,):
+    def test_char_decoding_greedy_forward(
+        self,
+    ):
         cfg = CTCDecodingConfig(strategy='greedy')
         vocab = char_vocabulary()
         decoding = CTCDecoding(decoding_cfg=cfg, vocabulary=vocab)
@@ -206,7 +208,7 @@ class TestCTCDecoding:
         )
         unbatched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
-        cfg.strategy = 'greedy_batched'
+        cfg.strategy = 'greedy_batch'
         batched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
         torch.manual_seed(1)
@@ -243,7 +245,7 @@ class TestCTCDecoding:
     def test_batched_decoding_labels(self, tmp_tokenizer, timestamps):
         cfg = CTCBPEDecodingConfig(strategy='greedy', compute_timestamps=timestamps)
         unbatched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
-        cfg.strategy = 'greedy_batched'
+        cfg.strategy = 'greedy_batch'
         batched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
         torch.manual_seed(1)
