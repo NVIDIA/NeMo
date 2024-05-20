@@ -9,6 +9,7 @@ trainer:
   
 indexing:
   embedder:
+    model_type: bert
     model_path: null
     embed_batch_size: 128
   data:
@@ -19,6 +20,7 @@ indexing:
 
 generating:
   llm:
+    model_type: gpt
     model_path: null
   query: null
   inference:
@@ -27,7 +29,7 @@ generating:
     top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
     temperature: 1.0 # sampling temperature
     add_BOS: True # add the bos token at the begining of the prompt
-    tokens_to_generate: 30 # The minimum length of the sequence to be generated.
+    tokens_to_generate: 500 # The minimum length of the sequence to be generated.
     all_probs: False  # whether return the log prob for all the tokens in vocab
     repetition_penalty: 1.2  # The parameter for repetition penalty. 1.0 means no penalty.
     min_tokens_to_generate: 0  # The minimum length of the sequence to be generated.

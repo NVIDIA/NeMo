@@ -17,7 +17,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
-class NeMoLLM(CustomLLM):
+class NeMoGPTLLM(CustomLLM):
     context_window: int = 2048
     num_output: int = 256
     model_name: str = "NeMo LLM"
@@ -85,6 +85,24 @@ class NeMoLLM(CustomLLM):
 
         # update LLM metadata
         self.context_window = self._model_cfg.encoder_seq_length
+
+        # update inference params
+        length_params: LengthParam = {
+            "max_length": cfg.generating.inference.tokens_to_generate,
+            "min_length": cfg.generating.inference.min_tokens_to_generate,
+        }
+
+        sampling_params: SamplingParam = {
+            "use_greedy": cfg.generating.inference.greedy,
+            "temperature": cfg.generating.inference.temperature,
+            "top_k": cfg.generating.inference.top_k,
+            "top_p": cfg.generating.inference.top_p,
+            "repetition_penalty": cfg.generating.inference.repetition_penalty,
+            "add_BOS": cfg.generating.inference.add_BOS,
+            "all_probs": cfg.generating.inference.all_probs,
+            "compute_logprob": cfg.generating.inference.compute_logprob,
+            "end_strings": cfg.generating.inference.end_strings,
+        }
 
     @property
     def metadata(self) -> LLMMetadata:

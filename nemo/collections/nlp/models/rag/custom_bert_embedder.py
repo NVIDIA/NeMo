@@ -9,7 +9,7 @@ from llama_index.core.embeddings import BaseEmbedding
 from omegaconf import OmegaConf, DictConfig
 import torch
 
-class NeMoEmbeddings(BaseEmbedding):
+class NeMoBertEmbeddings(BaseEmbedding):
     _model: MegatronBertEmbeddingModel = PrivateAttr()
     _model_cfg: DictConfig = PrivateAttr()
 
