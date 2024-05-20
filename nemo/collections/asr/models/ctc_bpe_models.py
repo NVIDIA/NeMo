@@ -191,7 +191,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 'shuffle_n': 0,
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
-                'random_access': True,
+                'tarred_random_access': True,
             }
 
             dl_config = OmegaConf.create(dl_config)
@@ -202,7 +202,6 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=self.tokenizer,
                 ),
-                pseudo_label_gen=True,
             )
         else:
 

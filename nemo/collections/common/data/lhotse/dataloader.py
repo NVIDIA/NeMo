@@ -57,7 +57,7 @@ class LhotseDataLoadingConfig:
     #   b. Lhotse CutSet manifest / Lhotse Shar tar dir paths.
     cuts_path: str | None = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
-    random_access: bool = False
+    tarred_random_access: bool = False
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
@@ -138,7 +138,6 @@ def get_lhotse_dataloader_from_config(
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
-    pseudo_label_gen: bool = False,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -172,7 +171,7 @@ def get_lhotse_dataloader_from_config(
     fix_random_seed(seed)
 
     # 1. Load a manifest as a Lhotse CutSet.
-    cuts, is_tarred = read_cutset_from_config(config, pseudo_label_gen)
+    cuts, is_tarred = read_cutset_from_config(config)
 
     # Apply channel selector
     if config.channel_selector is not None:
@@ -330,7 +329,7 @@ def get_lhotse_dataloader_from_config(
         # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
         # worker_id, etc. to set a different random seed for each (node, worker) combination.
         # This together with infinite datasets removes the need to split data across nodes/workers.
-        if pseudo_label_gen:
+        if config.tarred_random_access:
             dloader_kwargs = dict(dataset=dataset, sampler=sampler)
             dloader = torch.utils.data.DataLoader(
                 **dloader_kwargs,

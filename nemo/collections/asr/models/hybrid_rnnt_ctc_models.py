@@ -175,6 +175,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                         self.cfg.train_ds.manifest_filepath = [[self.cfg.train_ds.manifest_filepath]]
 
                     self.cfg.train_ds.manifest_filepath += final_cache_manifests
+                    if self.cfg.ipl.get("limit_train_batches", None):
+                        self.trainer.limit_train_batches = self.cfg.ipl["limit_train_batches"]
 
                 else:
                     if isinstance(self.cfg.train_ds.manifest_filepath, str):
@@ -185,8 +187,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
 
                 self.cfg.ipl.n_l_epochs = -1
                 self.trainer.reload_dataloaders_every_n_epochs = 1
-                if self.cfg.ipl.get("limit_train_batches", None):
-                    self.trainer.limit_train_batches = self.cfg.ipl["limit_train_batches"]
+                
 
             torch.distributed.barrier()
 
@@ -590,7 +591,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 'shuffle_n': 0,
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
-                'random_access': True,
+                'tarred_random_access': True,
             }
 
             dl_config = OmegaConf.create(dl_config)
@@ -602,7 +603,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=make_parser(labels=self.joint.vocabulary, do_normalize=False)
                 ),
-                pseudo_label_gen=True,
             )
         else:
 

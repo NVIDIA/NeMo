@@ -1146,7 +1146,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 'shuffle_n': 0,
                 'num_workers': self.cfg.train_ds.num_workers,
                 'pin_memory': True,
-                'random_access': True,
+                'tarred_random_access': True,
             }
 
             dl_config = OmegaConf.create(dl_config)
@@ -1158,7 +1158,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=make_parser(labels=self.decoder.vocabulary, do_normalize=False)
                 ),
-                pseudo_label_gen=True,
             )
         else:
 
