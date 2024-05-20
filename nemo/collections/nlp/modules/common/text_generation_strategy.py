@@ -488,7 +488,6 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             sep_image_conv_front=self.data_cfg.sep_image_conv_front,
             conv_template=self.data_cfg.get("conv_template", "nvgpt"),
             image_token_len=self.data_cfg.image_token_len,
-            image_folder=self.data_cfg.image_folder,
             image_folder=self.data_cfg.get('image_folder', None),
             video_folder=self.data_cfg.get('video_folder', None),
             image_aspect_ratio=self.data_cfg.image_aspect_ratio,
