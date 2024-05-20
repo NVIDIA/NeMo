@@ -27,7 +27,8 @@ LOGGER = logging.getLogger("NeMo")
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Deploy nemo models to Triton",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
     parser.add_argument(
@@ -86,7 +87,7 @@ def get_args(argv):
         "--disable_remove_input_padding",
         default=False,
         action='store_true',
-        help="Disables the remove input padding option."
+        help="Disables the remove input padding option.",
     )
     parser.add_argument(
         "-mbm",
@@ -110,7 +111,16 @@ def get_args(argv):
         '--lora_target_modules',
         nargs='+',
         default=None,
-        choices=["attn_qkv", "attn_q", "attn_k", "attn_v", "attn_dense", "mlp_h_to_4h", "mlp_gate", "mlp_4h_to_h",],
+        choices=[
+            "attn_qkv",
+            "attn_q",
+            "attn_k",
+            "attn_v",
+            "attn_dense",
+            "mlp_h_to_4h",
+            "mlp_gate",
+            "mlp_4h_to_h",
+        ],
         help="Add lora in which modules. Only be activated when use_lora_plugin is enabled.",
     )
     parser.add_argument(
@@ -262,7 +272,8 @@ def nemo_deploy(argv):
                 )
             )
             trt_llm_exporter.add_prompt_table(
-                task_name=str(task_id), prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
+                task_name=str(task_id),
+                prompt_embeddings_checkpoint_path=prompt_embeddings_checkpoint_path,
             )
     except Exception as error:
         LOGGER.error("An error has occurred during adding the prompt embedding table(s). Error message: " + str(error))

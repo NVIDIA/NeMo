@@ -66,7 +66,7 @@ def get_args(argv):
         "--disable_remove_input_padding",
         default=False,
         action='store_true',
-        help="Disables the remove input padding option."
+        help="Disables the remove input padding option.",
     )
     parser.add_argument(
         "-mbm",
