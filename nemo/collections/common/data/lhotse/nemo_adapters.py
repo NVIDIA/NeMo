@@ -21,7 +21,8 @@ from pathlib import Path
 from typing import Generator, Iterable, List, Literal
 
 import soundfile
-#import Sequence
+
+# import Sequence
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
 from lhotse.cut import Cut
@@ -313,25 +314,25 @@ class LazyNeMoTarredIterator:
         if self.shuffle_shards:
             seed = resolve_seed(self.shard_seed)
             random.Random(seed).shuffle(shard_ids)
-        
+
         if self.tarred_random_access:
             for data, raw_audio, tar_info in self._iter_random_read(shard_ids):
                 recording = self.create_recording(data, raw_audio, tar_info)
                 yield recording
         else:
-            for data, raw_audio,tar_info in self._iter_sequential(shard_ids):
+            for data, raw_audio, tar_info in self._iter_sequential(shard_ids):
                 recording = self.create_recording(data, raw_audio, tar_info)
                 yield recording
 
     def create_recording(self, data, raw_audio, tar_info):
         meta = soundfile.info(BytesIO(raw_audio))
         recording = Recording(
-                id=tar_info.path,
-                sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
-                sampling_rate=int(meta.samplerate),
-                num_samples=meta.frames,
-                duration=meta.duration,
-            )
+            id=tar_info.path,
+            sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
+            sampling_rate=int(meta.samplerate),
+            num_samples=meta.frames,
+            duration=meta.duration,
+        )
         cut = recording.to_cut()
         cut.supervisions.append(
             SupervisionSegment(
@@ -345,7 +346,7 @@ class LazyNeMoTarredIterator:
         )
         cut.custom = _to_custom_attr_dict(data)
         return cut
-       
+
     def __len__(self) -> int:
         return len(self.source)
 

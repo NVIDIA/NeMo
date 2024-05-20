@@ -323,7 +323,7 @@ def get_lhotse_dataloader_from_config(
         )
 
     # 4. Creating dataloader.
-    if is_tarred and not config.tarred_random_access :
+    if is_tarred and not config.tarred_random_access:
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
