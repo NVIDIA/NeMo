@@ -33,6 +33,7 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['DialogueNearestNeighbourModel']
@@ -42,6 +43,9 @@ class DialogueNearestNeighbourModel(NLPModel):
     """Dialogue Nearest Neighbour Model identifies the intent of an utterance using the cosine similarity between sentence embeddings of the utterance and various label descriptions """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("DialogueNearestNeighbourModel")
+
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
         if self.cfg.library == "huggingface":

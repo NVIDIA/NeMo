@@ -43,6 +43,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import AppState, logging
 
 try:
@@ -91,6 +92,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        # deprecation warning
+        deprecated_warning("MegatronGPTPromptLearningModel")
+
         super().__init__(cfg, trainer)
 
         self.inference_params = None

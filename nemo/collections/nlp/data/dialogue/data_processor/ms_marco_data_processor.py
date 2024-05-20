@@ -19,6 +19,7 @@ from ast import literal_eval
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
 from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['DialogueMSMarcoDataProcessor']
 
@@ -39,6 +40,9 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
             debug_mode: reduce number of samples to load in order to increase speed of processing
             cfg: cfg container for dataset
         """
+        # deprecation warning
+        deprecated_warning("DialogueMSMarcoDataProcessor")
+
         self.data_dir = data_dir
         self._tokenizer = tokenizer
         self.cfg = cfg

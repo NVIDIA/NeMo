@@ -34,6 +34,7 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['SGDQAModel']
@@ -55,6 +56,9 @@ class SGDQAModel(NLPModel):
         return self.decoder
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("SGDQAModel")
+
         self.data_prepared = False
         super().__init__(cfg=cfg, trainer=trainer)
         self.encoder = SGDEncoder(hidden_size=self.bert_model.config.hidden_size, dropout=self._cfg.encoder.dropout)

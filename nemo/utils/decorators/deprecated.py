@@ -85,7 +85,10 @@ def deprecated_warning(old_method=None, new_method=None, wait_seconds=2):
     """
 
     # Create a banner
-    msg = f"*****  {old_method} is deprecated. Please, use {new_method} instead.  *****"
+    if new_method is not None:
+        msg = f"*****  {old_method} is deprecated. Please, use {new_method} instead.  *****"
+    else:
+        msg = f"*****  {old_method} is deprecated and will be removed soon.  *****"
     banner = '\n'.join(['*' * len(msg)] * 2 + [msg] + ['*' * len(msg)] * 2)
 
     logging.warning(f"\n\n{banner}\n")

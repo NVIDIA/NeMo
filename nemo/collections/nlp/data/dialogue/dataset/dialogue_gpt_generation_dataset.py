@@ -18,6 +18,7 @@ import copy
 import torch
 
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
+from nemo.utils.decorators import deprecated_warning
 
 
 class DialogueGPTGenerationDataset(DialogueDataset):
@@ -31,6 +32,9 @@ class DialogueGPTGenerationDataset(DialogueDataset):
             tokenizer: tokenizer
             cfg: cfg container for dataset
         """
+        # deprecation warning
+        deprecated_warning("DialogueGPTGenerationDataset")
+
         self.cfg = cfg
         self.input_label_type = self.cfg.input_field
         self.output_label_type = self.cfg.output_field

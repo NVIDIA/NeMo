@@ -19,6 +19,7 @@ import pandas as pd
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
 from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['DialogueMellonQADataProcessor']
 
@@ -35,6 +36,9 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
             tokenizer: tokenizer object
             cfg: cfg container for dataset
         """
+        # deprecation warning
+        deprecated_warning("DialogueMellonQADataProcessor")
+
         self.data_dir = data_dir
         self._tokenizer = tokenizer
         self.cfg = cfg

@@ -44,6 +44,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['DialogueGPTClassificationModel']
@@ -53,6 +54,8 @@ class DialogueGPTClassificationModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
     ):
+        # deprecation warning
+        deprecated_warning("DialogueGPTClassificationModel")
 
         self.cfg = cfg
         self.eval_mode = cfg.dataset.eval_mode

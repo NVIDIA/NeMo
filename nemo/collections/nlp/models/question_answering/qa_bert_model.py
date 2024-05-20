@@ -30,6 +30,7 @@ from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAM
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 
@@ -37,6 +38,8 @@ class BERTQAModel(BaseQAModel):
     """ BERT model with a QA (token classification) head """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("BERTQAModel")
 
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=False)
         self.classifier = TokenClassifier(
