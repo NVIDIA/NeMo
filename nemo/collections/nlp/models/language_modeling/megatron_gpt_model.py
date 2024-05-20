@@ -322,12 +322,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     'Expert parallelism is currently not supporting Apex distributed optimizer, use Mcore distributed optimizer instead'
                 )
 
-        if self.cfg.get('num_layers', 12) % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
-            raise ValueError(
-                f"num_layers ({self.cfg.get('num_layers', 12)}) should be divisible by "
-                f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
-            )
-
         self.transformer_engine = cfg.get('transformer_engine', False)
         if self.megatron_amp_O2 and not self.transformer_engine:
             logging.warning('megatron_amp_O2 is enabled but transformer-engine is not.')
@@ -1989,6 +1983,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         as the megatron core TransformerConfig, we will use the value from the nemo model config.
         For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
+
+        if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+            raise ValueError(
+                f"num_layers ({self.cfg.num_layers}) should be divisible by "
+                f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
+            )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p'
