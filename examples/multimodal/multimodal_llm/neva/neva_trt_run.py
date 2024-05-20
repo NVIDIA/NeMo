@@ -231,7 +231,7 @@ class MultimodalModelRunner:
 
             stripped_text = [[
                 output_beams_list[batch_idx][beam_idx].strip()
-                for beam_idx in range(self.cfg.num_beams)
+                for beam_idx in range(self.cfg.infer.num_beams)
             ] for batch_idx in range(self.cfg.batch_size)]
             profiler.stop("Generate")
             return stripped_text
@@ -327,7 +327,6 @@ class MultimodalModelRunner:
         if self.model_config.remove_input_padding:
             tasks = torch.zeros([torch.sum(input_lengths)],
                                 dtype=torch.int32).cuda()
-            if self.decoder_llm: tasks = tasks.unsqueeze(0)
         else:
             tasks = torch.zeros(input_ids.shape, dtype=torch.int32).cuda()
 
@@ -393,7 +392,7 @@ class MultimodalModelRunner:
             logger.info(f"\n[Q] {input_text}")
         logger.info(f"\n[A] {output_text[0]}")
 
-        if self.cfg.num_beams == 1:
+        if self.cfg.infer.num_beams == 1:
             output_ids = self.tokenizer(output_text[0][0],
                                         add_special_tokens=False)['input_ids']
             logger.info(f"Generated {len(output_ids)} tokens")
@@ -424,7 +423,7 @@ def main(cfg):
 
     model = MultimodalModelRunner(cfg)
     raw_video = cfg.video_path
-    text_output = model.run(cfg.input_text, raw_video, cfg.max_new_tokens)
+    text_output = model.run(cfg.input_text, raw_video, cfg.infer.max_new_tokens)
 
 if __name__ == '__main__':
     main()

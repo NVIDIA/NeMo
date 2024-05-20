@@ -14,7 +14,7 @@
 import os
 import shutil
 import tarfile
-import time
+from time import time
 import yaml
 
 import torch
