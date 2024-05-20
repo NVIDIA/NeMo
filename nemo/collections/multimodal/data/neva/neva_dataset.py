@@ -981,7 +981,7 @@ class DataCollatorForSupervisedDataset(object):
 
         tokens = batch['tokens']
         labels = batch['labels']
-        media_type = model_cfg.data.get('media_type')
+        media_type = model_cfg.data.get('media_type','image')
         if media_type == 'image':
             media = batch.get('image')
         elif media_type == 'video':
