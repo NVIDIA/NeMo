@@ -56,7 +56,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         conv_kernel_size (int): kernel size for depthwise convolution in convolution module
         dropout (float): dropout probabilities for linear layers
         dropout_att (float): dropout probabilities for attention distributions
-        remove_bias (bool): Remove bias in all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models. 
+        remove_bias (bool): Remove bias in all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
             Defaults to False.
     """
 
@@ -77,7 +77,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         pos_bias_u=None,
         pos_bias_v=None,
         att_context_size=[-1, -1],
-        remove_bias=False
+        remove_bias=False,
     ):
         super(ConformerLayer, self).__init__()
 
@@ -96,7 +96,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             kernel_size=conv_kernel_size,
             norm_type=conv_norm_type,
             conv_context_size=conv_context_size,
-            remove_bias=remove_bias
+            remove_bias=remove_bias,
         )
 
         # multi-headed self-attention module
@@ -111,7 +111,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
                 max_cache_len=MHA_max_cache_len,
-                remove_bias=remove_bias
+                remove_bias=remove_bias,
             )
         elif self_attention_model == 'rel_pos_local_attn':
             self.self_attn = RelPositionMultiHeadAttentionLongformer(
@@ -125,11 +125,15 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 global_tokens=global_tokens,
                 global_tokens_spacing=global_tokens_spacing,
                 global_attn_separate=global_attn_separate,
-                remove_bias=remove_bias
+                remove_bias=remove_bias,
             )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len, remove_bias=remove_bias
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                max_cache_len=MHA_max_cache_len,
+                remove_bias=remove_bias,
             )
         else:
             raise ValueError(
@@ -290,7 +294,13 @@ class ConformerConvolution(nn.Module):
     """
 
     def __init__(
-        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_', remove_bias=False
+        self,
+        d_model,
+        kernel_size,
+        norm_type='batch_norm',
+        conv_context_size=None,
+        pointwise_activation='glu_',
+        remove_bias=False,
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
@@ -313,7 +323,12 @@ class ConformerConvolution(nn.Module):
             dw_conv_input_dim = d_model
 
         self.pointwise_conv1 = nn.Conv1d(
-            in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=not self.remove_bias
+            in_channels=d_model,
+            out_channels=d_model * 2,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=not self.remove_bias,
         )
 
         self.depthwise_conv = CausalConv1D(
@@ -342,7 +357,12 @@ class ConformerConvolution(nn.Module):
 
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
-            in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=not self.remove_bias
+            in_channels=dw_conv_input_dim,
+            out_channels=d_model,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=not self.remove_bias,
         )
 
     def forward(self, x, pad_mask=None, cache=None):
@@ -378,8 +398,8 @@ class ConformerConvolution(nn.Module):
             return x, cache
 
     def reset_parameters_conv(self):
-        pw1_max = pw2_max = self.d_model ** -0.5
-        dw_max = self.kernel_size ** -0.5
+        pw1_max = pw2_max = self.d_model**-0.5
+        dw_max = self.kernel_size**-0.5
 
         with torch.no_grad():
             nn.init.uniform_(self.pointwise_conv1.weight, -pw1_max, pw1_max)
@@ -401,7 +421,7 @@ class ConformerFeedForward(nn.Module):
         super(ConformerFeedForward, self).__init__()
         self.d_model = d_model
         self.d_ff = d_ff
-        self.remove_bias = remove_bias 
+        self.remove_bias = remove_bias
         self.linear1 = nn.Linear(d_model, d_ff, bias=not self.remove_bias)
         self.activation = activation
         self.dropout = nn.Dropout(p=dropout)
@@ -415,8 +435,8 @@ class ConformerFeedForward(nn.Module):
         return x
 
     def reset_parameters_ff(self):
-        ffn1_max = self.d_model ** -0.5
-        ffn2_max = self.d_ff ** -0.5
+        ffn1_max = self.d_model**-0.5
+        ffn2_max = self.d_ff**-0.5
         with torch.no_grad():
             nn.init.uniform_(self.linear1.weight, -ffn1_max, ffn1_max)
             nn.init.uniform_(self.linear2.weight, -ffn2_max, ffn2_max)

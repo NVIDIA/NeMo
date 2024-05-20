@@ -168,7 +168,13 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
     def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0, remove_bias=False):
         """Construct an RelPositionMultiHeadedAttention object."""
-        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=max_cache_len, remove_bias=remove_bias)
+        super().__init__(
+            n_head=n_head,
+            n_feat=n_feat,
+            dropout_rate=dropout_rate,
+            max_cache_len=max_cache_len,
+            remove_bias=remove_bias,
+        )
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable biases are used in matrix c and matrix d
@@ -256,7 +262,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
     """Multi-Head Attention layer of Transformer-XL with sliding window local+global attention from Longformer.
     Partially adapted from allenai (https://github.com/allenai/longformer/blob/master/longformer/sliding_chunks.py)
-    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py) 
+    and huggingface (https://github.com/huggingface/transformers/blob/main/src/transformers/models/longformer/modeling_longformer.py)
     Paper: https://arxiv.org/abs/1901.02860 (Transformer-XL),
            https://arxiv.org/abs/2004.05150 (Longformer)
     Args:
@@ -285,7 +291,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_tokens=0,
         global_tokens_spacing=1,
         global_attn_separate=False,
-        remove_bias=False
+        remove_bias=False,
     ):
         """Construct an RelPositionMultiHeadAttentionLongformer object."""
         super().__init__(
@@ -295,7 +301,7 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
             pos_bias_u=pos_bias_u,
             pos_bias_v=pos_bias_v,
             max_cache_len=max_cache_len,
-            remove_bias=remove_bias
+            remove_bias=remove_bias,
         )
         self.att_context_size = att_context_size
         self.global_tokens = global_tokens
@@ -656,7 +662,8 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         global_attn_scores = global_attn_scores.transpose(1, 2)
 
         global_attn_scores = global_attn_scores.masked_fill(
-            is_index_masked.transpose(2, 3), torch.finfo(global_attn_scores.dtype).min,
+            is_index_masked.transpose(2, 3),
+            torch.finfo(global_attn_scores.dtype).min,
         )
 
         global_attn_scores = global_attn_scores.view(batch_size * self.h, max_num_global_attn_indices, seq_len)
@@ -753,7 +760,9 @@ class RelPositionMultiHeadAttentionLongformer(RelPositionMultiHeadAttention):
         return mask.bool().to(device), ending_mask
 
     def mask_invalid_locations(
-        self, input_tensor: torch.Tensor, w: int,
+        self,
+        input_tensor: torch.Tensor,
+        w: int,
     ):
         """
         Mask locations invalid for the sliding window attention
