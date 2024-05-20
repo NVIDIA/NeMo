@@ -23,6 +23,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -572,7 +573,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
     def transcribe(
         self,
-        audio: Union[str, List[str], torch.Tensor, np.ndarray],
+        audio: Union[str, List[str], torch.Tensor, np.ndarray, DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         num_workers: int = 0,
@@ -588,7 +589,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
-            audio: (a single or list) of paths to audio files or a np.ndarray audio array. \
+            audio: (a single or list) of paths to audio files or a np.ndarray audio array.
+                Can also be a dataloader object that provides values that can be consumed by the model.
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference.

@@ -130,7 +130,7 @@ class LhotseDataLoadingConfig:
     lang_field: str = "lang"  # key to read the language tag from
     # Enables iteration of NeMo non-tarred manifests that don't have a "sampling_rate" key without performing any I/O.
     # Note that this will not allow actual dataloading; it's only for manifest iteration as Lhotse objects.
-    missing_sampling_rate_ok: bool = False
+    metadata_only: bool = False
 
 
 def get_lhotse_dataloader_from_config(
@@ -138,6 +138,8 @@ def get_lhotse_dataloader_from_config(
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
+    tokenizer=None,
+
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -260,6 +262,7 @@ def get_lhotse_dataloader_from_config(
             f"Creating a Lhotse DynamicBucketingSampler "
             f"(max_batch_duration={config.batch_duration} max_batch_size={config.batch_size})"
         )
+        # Determine the bucket duration bins
         sampler = DynamicBucketingSampler(
             cuts,
             constraint=constraint,
@@ -268,7 +271,7 @@ def get_lhotse_dataloader_from_config(
             shuffle_buffer_size=config.shuffle_buffer_size,
             seed=config.shard_seed,
             num_buckets=config.num_buckets,
-            duration_bins=config.bucket_duration_bins,
+            duration_bins=determine_bucket_duration_bins(config),
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
             rank=0 if is_tarred else global_rank,
@@ -321,7 +324,7 @@ def get_lhotse_dataloader_from_config(
         )
 
     # 4. Creating dataloader.
-    if is_tarred:
+    if is_tarred and not config.tarred_random_access :
         # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
         # because then I/O happens upon sampler iteration. Normally, the sampler resides
         # in the training loop process, but when we use iterable dataset, we can move it to
@@ -329,16 +332,6 @@ def get_lhotse_dataloader_from_config(
         # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
         # worker_id, etc. to set a different random seed for each (node, worker) combination.
         # This together with infinite datasets removes the need to split data across nodes/workers.
-        if config.tarred_random_access:
-            dloader_kwargs = dict(dataset=dataset, sampler=sampler)
-            dloader = torch.utils.data.DataLoader(
-                **dloader_kwargs,
-                batch_size=None,
-                num_workers=config.num_workers,
-                pin_memory=config.pin_memory,
-            )
-
-            return dloader
 
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
@@ -358,6 +351,29 @@ def get_lhotse_dataloader_from_config(
     )
 
     return dloader
+
+
+def determine_bucket_duration_bins(config):
+    if config.bucket_duration_bins is not None:
+        # Bucket duration bins are provided: just use them.
+        return config.bucket_duration_bins
+    # Bucket duration bins are not set.
+    if config.use_multimodal_sampling:
+        # For multimodal sampling it's currently impossible to define a linspace over durations
+        # because the buckets are counted in the number of tokens.
+        # The bins will be auto-estimated by lhotse at the cost of a slight lag in the training start.
+        return None
+    elif config.max_duration is not None and config.max_duration < float("inf"):
+        # If max duration is provided, we can use that to compute uniformly distant bucket bins.
+        # This is not optimal but should be close enough for users who didn't want to estimate these up-front.
+        begin = config.min_duration if config.min_duration is not None and config.min_duration > 0 else 0.0
+        end = config.max_duration
+        return np.linspace(begin, end, config.num_buckets + 1)[1:-1].tolist()
+    else:
+        # If we don't know max_duration, we can't guess a reasonable estimate of the upper bound of
+        # durations.
+        # The bins will be auto-estimated by lhotse at the cost of a slight lag in the training start.
+        return None
 
 
 def make_structured_with_schema_warnings(config: DictConfig) -> DictConfig:
