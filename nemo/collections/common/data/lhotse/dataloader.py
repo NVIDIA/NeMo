@@ -139,7 +139,6 @@ def get_lhotse_dataloader_from_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
-
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
