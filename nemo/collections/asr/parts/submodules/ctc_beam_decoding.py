@@ -405,7 +405,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         if self.flashlight_beam_scorer is None:
             # Check for filepath
             if self.kenlm_path == "":
-                raise NotImplementedError(f"Beamsearch without Kenlm is not implemented yet.")
+                pass  # Beamsearch without Kenlm (ZeroLM)
             elif self.kenlm_path is None or not os.path.exists(self.kenlm_path):
                 raise FileNotFoundError(
                     f"KenLM binary file not found at : {self.kenlm_path}. "
@@ -488,7 +488,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             if self.search_type == "flashlight":
                 if self.nemo_kenlm_path == "" or self.word_kenlm_path == "":
                     self.kenlm_path = ""
-                    raise NotImplementedError(f"Beamsearch without Kenlm is not implemented yet.")
+                    return  # Beamsearch without Kenlm (ZeroLM)
                 elif not self.flashlight_cfg.lexicon_path:  # ether nemo_kenlm or word_kenlm
                     raise NotImplementedError(
                         self.search_type

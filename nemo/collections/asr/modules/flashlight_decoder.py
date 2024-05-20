@@ -129,6 +129,7 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 KenLM,
                 LexiconDecoder,
                 LexiconDecoderOptions,
+                LMState,
                 SmearingMode,
                 Trie,
             )
@@ -138,6 +139,22 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 "FlashLightKenLMBeamSearchDecoder requires the installation of flashlight python bindings "
                 "from https://github.com/flashlight/text. Please follow the build instructions there."
             )
+
+        class ZeroLM(LM):
+            """ZeroLM is a fake LM which always returns 0 as score. It is served as a proxy to conduct beam-search on only AM scores without breaking API."""
+
+            def __init__(self):
+                LM.__init__(self)
+
+            def start(self, start_with_nothing):
+                state = LMState()
+                return state
+
+            def score(self, state: LMState, token_index: int):
+                return (state, 0.0)
+
+            def finish(self, state: LMState):
+                return (state, 0.0)
 
         super().__init__()
 
@@ -171,7 +188,12 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             # this gives a mapping between each entry in the kenlm binary and its mapping to whatever
             # numeraire is used by the AM, which is explicitly mapped via the lexicon
             # this information is ued to build a vocabulary trie for decoding
-            self.lm = KenLM(lm_path, self.word_dict)
+            if lm_path:
+                self.lm = KenLM(lm_path, self.word_dict)
+            elif lm_path == "":
+                self.lm = ZeroLM()
+            else:
+                raise ValueError(str(lm_path) + " value is not supported.")
             self.trie = Trie(self.vocab_size, self.silence)
 
             start_state = self.lm.start(False)
