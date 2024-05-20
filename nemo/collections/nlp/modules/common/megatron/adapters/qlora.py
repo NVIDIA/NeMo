@@ -1,78 +1,95 @@
-import inspect
-from typing import Callable
+import logging
+from typing import Optional
 
 import torch
 
-
 from torch import nn
 import torch.nn.functional as F
-from torchao.dtypes.nf4tensor import NF4Tensor
-from megatron.core.transformer import ModuleSpec, TransformerConfig
-from nemo.collections.nlp.parts.peft_config import get_target_modules
+
+from nemo.collections.nlp.parts.peft_config import get_target_modules, LORA_CONFIG_TO_MCORE_MAP
 
 
+class NF4Weight(nn.Parameter):
+    def __new__(cls, data: torch.Tensor, block_size=64, scale_block_size=256):
+        self = torch.Tensor._make_subclass(cls, data, require_grad=False)
+        self._nf4_quantizer = None
+        self.is_nf4_quantized = False
+        self.block_size = block_size
+        self.scale_block_size = scale_block_size
+        return self
 
-class LinearNF4(torch.autograd.Function):
+    def quantize(self) -> torch.Tensor:
+        from modelopt.torch.quantization.nn import TensorQuantizer
+        from modelopt.torch.quantization.tensor_quant import QuantDescriptor
+
+        nf4_desc = QuantDescriptor(
+            num_bits=4,
+            block_sizes={-1: self.block_size,
+                         "scale_bits": 8,
+                         "scale_block_sizes": {-1: self.scale_block_size}},
+            fake_quant=False,
+        )
+        self._nf4_quantizer = TensorQuantizer(nf4_desc)
+        nf4_tensor = self._nf4_quantizer(self.data)
+        self.quantized_data = nf4_tensor
+        self.is_nf4_quantized = True
+        return self
+
+    def dequantize(self):
+        assert self.is_nf4_quantized, "NF4 Tensor is not yet quantized, cannot dequantize."
+        return self._nf4_quantizer(self.quantized_data)
+
+    def cuda(self, device = None, non_blocking = False):
+        return self.to(device="cuda" if device is None else device, non_blocking=non_blocking)
+
+    def to(self, *args, **kwargs):
+        device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
+
+        if device is not None and device.type == "cuda" and not self.is_nf4_quantized:
+            logging.debug('quantizing...')
+            # Note: self.data remains on CPU. Only self.quantized_data is on GPU
+            return self.quantize()
+        else:
+            return NF4Weight(
+                super().to(device=device, dtype=dtype, non_blocking=non_blocking),
+                self.block_size,
+                self.scale_block_size,
+            )
+
+    def __repr__(self, *, tensor_contents=None):
+        if self.is_nf4_quantized:
+            return f"NF4Weight(is_nf4_quantized=True, quantized_data={self.quantized_data}"
+        else:
+            return f"NF4Weight(is_nf4_quantized=False, data={self.data}"
+
+class _LinearNF4(torch.autograd.Function):
     @staticmethod
-
-    #  inconsistently.
-
-    def forward(ctx, input: torch.Tensor, weight: NF4Tensor):
+    def forward(ctx, input: torch.Tensor, weight: NF4Weight):
         """Save the quantized nf4 weight for backward pass"""
         ctx.nf4_weight = weight
-        return F.linear(input, weight.to(input.dtype))
+        return F.linear(input, weight.dequantize().to(input.device))
 
     @staticmethod
-
-    #  inconsistently.
-
     def backward(ctx, grad_output):
         """The nf4 weight will never require grad so we can just return the grad_output @ weight.to(grad_output.dtype)"""
-        weight: NF4Tensor = ctx.nf4_weight
-        return grad_output @ weight.to(grad_output.dtype), None
+        weight: NF4Weight = ctx.nf4_weight
+        return grad_output @ weight.dequantize().to(grad_output.device), None
 
 
-def linear_nf4(input: torch.Tensor, weight: NF4Tensor) -> torch.Tensor:
-    """Apply a linear operation with the NF4Tensor weight
-
-    Args:
-        input: Input tensor
-        weight: NF4Tensor weight
-    """
-    return LinearNF4.apply(input, weight)
-
-
-def to_nf4(tensor, block_size: int = 64, scaler_block_size: int = 256):
-    tensor1 = tensor.to(torch.bfloat16)
-    return NF4Tensor.from_tensor(tensor1, block_size, scaler_block_size)
-
-
-class NF4Linear(nn.Module):
+class NF4LinearWrapper(nn.Module):
     """
     NF4 Linear Layer for QLoRA as introduced in `QLORA: Efficient Finetuning of Quantized LLMs <https://arxiv.org/abs/2305.14314>`_.
-    Serves as a replacement of megatron.core.transformer.custom_layers.transformer_engine.TERowParallelLinear
+    This wrapper module is instantiated in `on_load_checkpoint` and replaces TERowParallelLinear
+    Tensor Parallel is not supported.
 
-    Args: follow TERowParallelLinear
+    Args:
+        bf16_linear_weight: Weight tensor in BF16 to wrap with NF4Weight
     """
-    def __init__(
-        self,
-        input_size: int,
-        output_size: int,
-        *,
-        config: TransformerConfig,
-        init_method: Callable,
-        bias: bool,
-        input_is_parallel: bool,
-        skip_bias_add: bool,
-        is_expert: bool,
-        tp_comm_buffer_name: str = None,
-    ):
+    def __init__(self, bf16_linear_weight: torch.Tensor):
         super().__init__()
-        assert not bias, "NF4 linear layer does not support bias"
-        assert not is_expert, "NF4 linear layer does not support MoE"
-        weight = to_nf4(nn.Parameter(torch.empty((output_size, input_size), device=torch.cuda.current_device())))
-        # self.register_parameter("weight", UncastableParameter(weight))
-        self.register_parameter("weight", nn.Parameter(weight))
+
+        weight = NF4Weight(bf16_linear_weight)
+        self.register_parameter("weight", weight)
 
     def forward(self, x: torch.Tensor):
         """
@@ -83,69 +100,44 @@ class NF4Linear(nn.Module):
             Tensor: output tensor with shape ``(..., out_dim)``
 
         """
-        return linear_nf4(input=x, weight=self.weight), None
+        return _LinearNF4.apply(x, self.weight), None
 
-    def _apply(self, fn, recurse=True):
-        if 'bfloat16' in inspect.getsource(fn):
-            # don't cast weights in this layer to bf16
-            return self
-        else:
-            super()._apply(fn, recurse=recurse)
 
-    def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
-        """ Sharding along axis 1, bias not sharded """
-        state_dict = self.state_dict(prefix=prefix, keep_vars=True)
-        return state_dict
-class NF4LayernormLinear(nn.Module):
+class NF4LayerNormLinearWrapper(NF4LinearWrapper):
     """
-    Layernorm + NF4 Layer for QLoRA.
-    This class only combines the two layers for compatibility with TE's LayernormLinear layer, so that
+    Layernorm + NF4 Linear for QLoRA.
+    This class only combines the two modules for compatibility with TE's LayernormLinear layer, so that
     the implementation for LoRA and QLoRA can share the same code path.
     It does NOT fuse the two operations like TE does.
-    Serves as a replacement of megatron.core.transformer.custom_layers.transformer_engine.TELayerNormColumnParallelLinear
+    This wrapper module is instantiated in `on_load_checkpoint` and replaces TELayerNormColumnParallelLinear
+    Tensor Parallel is not supported.
 
-    Args: follow TELayerNormColumnParallelLinear
+    Args:
+        bf16_linear_weight: Weight tensor in BF16 to wrap with NF4Weight
+        layer_norm_weight: layernorm weight tensor
+        layer_norm_bias: layernorm bias tensor, only if normalization is LayerNorm
+        normalization: Same as TELayerNormColumnParallelLinear.config.normalization
+        zero_centered_gamma: Same as TELayerNormColumnParallelLinear.config.zero_centered_gamma
     """
     def __init__(
-        self,
-        input_size: int,
-        output_size: int,
-        *,
-        config: TransformerConfig,
-        init_method: Callable,
-        gather_output: bool,
-        bias: bool,
-        skip_bias_add: bool,
-        is_expert: bool,
-        skip_weight_param_allocation: bool = False,
-        tp_comm_buffer_name: str = None,
-    ):
-        super().__init__()
-        assert not bias, "NF4 linear layer does not support bias"
-        assert not is_expert, "NF4 linear layer does not support MoE"
-        assert not skip_weight_param_allocation, "NF4 linear layer does not support `skip_weight_param_allocation`"
+            self,
+            bf16_linear_weight: torch.Tensor,
+            layer_norm_weight: torch.Tensor,
+            layer_norm_bias: Optional[torch.Tensor],
+            normalization: str,
+            zero_centered_gamma: bool,
+        ):
+        super().__init__(bf16_linear_weight)
 
-        layer_norm_weight = torch.nn.Parameter(torch.empty(input_size))
         self.register_parameter("layer_norm_weight", nn.Parameter(layer_norm_weight))
-        if config.normalization != "RMSNorm":
-            layer_norm_bias = torch.nn.Parameter(torch.empty(input_size))
-            self.register_parameter('layer_norm_bias', layer_norm_bias)
-            nn.init.zeros_(self.layer_norm_bias)
+        if normalization != "RMSNorm":
+            self.register_parameter('layer_norm_bias', nn.Parameter(layer_norm_bias))
         else:
             self.layer_norm_bias = None
 
-        self.zero_centered_gamma = config.layernorm_zero_centered_gamma
-        self.normalization = config.normalization
+        self.zero_centered_gamma = zero_centered_gamma
+        self.normalization = normalization
         self.layer_norm_fn = self._create_layer_norm_fn()
-
-        weight = to_nf4(nn.Parameter(torch.empty((output_size, input_size), device=torch.cuda.current_device())))
-        # todo revert temporary change
-        # weight = nn.Parameter(torch.empty((input_size, output_size), device=torch.cuda.current_device()))
-        # import math
-        # torch.nn.init.kaiming_uniform_(weight, a=math.sqrt(5))
-        ### end temporary change
-        # self.register_parameter("weight", UncastableParameter(weight))
-        self.register_parameter("weight", nn.Parameter(weight))
         self.te_return_bias = False
 
     def _create_layer_norm_fn(self):
@@ -179,177 +171,30 @@ class NF4LayernormLinear(nn.Module):
         if self.normalization == "LayerNorm":
             layer_norm_args.insert(3, self.layer_norm_bias)
         layernorm_output = self.layer_norm_fn(*layer_norm_args)
-        linear_output = linear_nf4(input=layernorm_output, weight=self.weight)
+        linear_output = _LinearNF4.apply(layernorm_output, self.weight)
         return (linear_output, layernorm_output), None
 
-    def _apply(self, fn, recurse=True):
-        # don't cast model weight to bf16
-        if 'bfloat16' in inspect.getsource(fn):
-            return self
-        else:
-            super()._apply(fn, recurse=recurse)
 
-    def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
-        """ Sharding along axis 1, bias not sharded """
-        state_dict = self.state_dict(prefix=prefix, keep_vars=True)
-        return state_dict
+def qlora_swap_layer(instance, checkpoint):
+    # swap linear layer and cast weight to nf4
+    qlora_targets = [LORA_CONFIG_TO_MCORE_MAP[x] for x in
+                     get_target_modules(instance.cfg.peft.lora_tuning, default=('all',))]
 
-def get_gpt_layer_with_QLoRA_spec(cfg_peft) -> ModuleSpec:
-    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-    from megatron.core.transformer import TransformerLayer, TransformerLayerSubmodules
-    from megatron.core.transformer.attention import SelfAttentionSubmodules, SelfAttention
-    from megatron.core.transformer.custom_layers.transformer_engine import TELayerNormColumnParallelLinear, \
-        TEDotProductAttention, TERowParallelLinear
-    from megatron.core.transformer.enums import AttnMaskType
-    from megatron.core.transformer.identity_op import IdentityOp
-    from megatron.core.transformer.mlp import MLP, MLPSubmodules
+    def replace_linear(module: nn.Module, prefix=""):
+        for name, child in module.named_children():
+            if name in qlora_targets:
+                bf16_weight = checkpoint[f"{prefix}.{name}.weight"]
+                if name in ['linear_proj', 'linear_fc2']:
+                    setattr(module, name, NF4LinearWrapper(bf16_weight))
+                else:  # name in ['linear_qkv', 'linear_fc1']
+                    layer_norm_weight = checkpoint[f"{prefix}.{name}.layer_norm_weight"]
+                    layer_norm_bias = checkpoint.get(f"{prefix}.{name}.layer_norm_bias", None)
+                    normalization = module.config.normalization
+                    zero_centered_gamma = module.config.layernorm_zero_centered_gamma
+                    setattr(module, name, NF4LayerNormLinearWrapper(bf16_weight, layer_norm_weight, layer_norm_bias,
+                                                                    normalization, zero_centered_gamma))
+            else:
+                replace_linear(child, prefix=f"{prefix}.{name}")
 
-    qlora_targets = get_target_modules(cfg_peft.lora_tuning)
-
-    return ModuleSpec(
-        module=TransformerLayer,
-        submodules=TransformerLayerSubmodules(
-            self_attention=ModuleSpec(
-                module=SelfAttention,
-                params={"attn_mask_type": AttnMaskType.causal},
-                submodules=SelfAttentionSubmodules(
-                    linear_qkv=NF4LayernormLinear if 'attention_qkv' in qlora_targets else TELayerNormColumnParallelLinear,
-                    core_attention=TEDotProductAttention,
-                    linear_proj=NF4Linear if 'attention_dense' in qlora_targets else TERowParallelLinear,
-                ),
-            ),
-            self_attn_bda=get_bias_dropout_add,
-            pre_mlp_layernorm=IdentityOp,
-            mlp= ModuleSpec(
-                module=MLP,
-                submodules=MLPSubmodules(
-                    linear_fc1=NF4LayernormLinear if 'mlp_fc1' in qlora_targets else TELayerNormColumnParallelLinear,
-                    linear_fc2=NF4Linear if 'mlp_fc2' in qlora_targets else TERowParallelLinear,
-                ),
-        ),
-            mlp_bda=get_bias_dropout_add,
-        ),
-    )
-
-
-def cast_checkpoint_to_nf4(state_dict, cfg_peft):
-    import re
-    assert cfg_peft['peft_scheme'] == 'qlora'
-    qlora_targets = get_target_modules(cfg_peft.lora_tuning)
-    patterns = []
-    if 'attention_qkv' in qlora_targets:
-        patterns.append(r".*.layers.[0-9]*.self_attention.linear_qkv.weight")
-    if 'attention_dense' in qlora_targets:
-        patterns.append(r".*.layers.[0-9]*.self_attention.linear_proj.weight")
-    if 'mlp_fc1' in qlora_targets:
-        patterns.append(r".*.layers.[0-9]*.mlp.linear_fc1.weight")
-    if 'mlp_fc2' in qlora_targets:
-        patterns.append(r".*.layers.[0-9]*.mlp.linear_fc2.weight")
-    pattern = "|".join(patterns)
-    nf4_state_dict = {}
-    for key, val in state_dict.items():
-        if re.match(pattern, key):
-            nf4_state_dict[key] = to_nf4(val)
-
-    state_dict.update(nf4_state_dict)
-    return state_dict
-
-
-#
-# class QLorALinear(nn.Module, AdapterModuleUtil):
-#     """
-#     QLoRA linear layer
-
-#     Args:
-#         # TODO
-#     """
-#
-#     def __init__(
-#         self,
-#         in_features: int,
-#         out_features: int,
-#         dim: int,
-#         alpha: Optional[float] = None,
-#         dropout: float = 0.0,
-#         dropout_position: str = 'post',
-#         model_parallel_config: Optional[ModelParallelConfig] = None,
-#     ):
-#         super().__init__()
-#         self.in_features = in_features
-#         self.out_features = out_features
-#         self.dim = dim
-#         self.alpha = alpha
-#
-#         linear = nn.Linear(in_features, out_features, bias=False)
-#         weight = to_nf4(linear.weight)
-#
-#         self.register_parameter("weight", nn.Parameter(weight))
-#
-#         self.dropout = nn.Dropout(dropout) if dropout > 0.0 else None
-#         self.dropout_position = dropout_position
-#
-#         self.adapter_linear_in = nn.Linear(in_features, dim, bias=False)
-#         self.adapter_linear_out = nn.Linear(dim, out_features, bias=False)
-#         nn.init.kaiming_uniform_(self.adapter_linear_in.weight, a=math.sqrt(5))
-#         nn.init.zeros_(self.adapter_linear_out.weight)
-#
-#         # cast all parameters when using amp O2 training
-#         if model_parallel_config.bf16:
-#             self.bfloat16()
-#         elif model_parallel_config.fp16:
-#             self.half()
-#
-#         # Setup adapter strategy
-#         # TODO what does this line do?
-#         self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
-#
-#
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         """
-#         Args:
-#             x (Tensor): input tensor with shape ``(..., in_dim)``
-#
-#         Returns:
-#             Tensor: output tensor with shape ``(..., out_dim)``
-#
-#         """
-#         out = linear_nf4(input=x, weight=self.weight)
-#
-#         if self.dropout is not None and self.dropout_position == 'pre':
-#             x = self.dropout(x)
-#         x = self.adapter_linear_in(x)
-#         x = self.adapter_linear_out(x)
-#         if self.dropout is not None and self.dropout_position == 'post':
-#             x = self.dropout(x)
-#
-#         lora_out = x * (self.alpha / self.dim)
-#         return out + lora_out
-#
-#
-# class QLoraKQVAdapter(QLorALinear):
-#     pass
-#
-# class QLoraDenseAttentionAdapter(QLorALinear):
-#     pass
-#
-# class QLoraHto4HAdapter(QLorALinear):
-#     pass
-#
-# class QLora4HtoHAdapter(QLorALinear):
-#     pass
-#
-# @dataclass
-# class QLoraKQVAdapterConfig(ParallelLinearAdapterConfig):
-#     _target_: str = "{0}.{1}".format(QLoraKQVAdapter.__module__, QLoraKQVAdapter.__name__)
-#
-# @dataclass
-# class QLoraDenseAttentionAdapterConfig(ParallelLinearAdapterConfig):
-#     _target_: str = "{0}.{1}".format(QLoraDenseAttentionAdapter.__module__, QLoraDenseAttentionAdapter.__name__)
-#
-# @dataclass
-# class QLoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
-#     _target_: str = "{0}.{1}".format(QLoraHto4HAdapter.__module__, QLoraHto4HAdapter.__name__)
-#
-# @dataclass
-# class QLora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
-#     _target_: str = "{0}.{1}".format(QLora4HtoHAdapter.__module__, QLora4HtoHAdapter.__name__)
+    replace_linear(instance.model.module if instance.megatron_amp_O2 else instance.model,
+                   prefix="model")

@@ -19,7 +19,6 @@ from typing import List, Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.collections.nlp.modules.common.megatron.adapters.qlora import cast_checkpoint_to_nf4
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
@@ -410,10 +409,6 @@ class NLPAdapterModelMixin:
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
         """
-        cfg_peft = self.cfg.get('peft', None)
-        if cfg_peft and cfg_peft['peft_scheme'] == 'qlora':
-            new_state_dict = cast_checkpoint_to_nf4(checkpoint['state_dict'], cfg_peft)
-            checkpoint['state_dict'] = new_state_dict
         if self.use_peft and self.setup_complete:
             if not self.ptuning_only_and_non_first_stage:
                 # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
@@ -443,7 +438,13 @@ class NLPAdapterModelMixin:
                             self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
                         parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            super().on_load_checkpoint(checkpoint)
+            cfg_peft = self.cfg.get('peft', None)
+            if cfg_peft and cfg_peft['peft_scheme'] == 'qlora':
+                from nemo.collections.nlp.modules.common.megatron.adapters.qlora import qlora_swap_layer
+                qlora_swap_layer(self, checkpoint['state_dict'])
+            else:
+                super().on_load_checkpoint(checkpoint)
+
 
     @classmethod
     def merge_cfg_with(cls, path: str, cfg: DictConfig) -> DictConfig:

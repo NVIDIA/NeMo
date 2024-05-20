@@ -144,10 +144,6 @@ def mcore_supports_moe() -> bool:
 
 
 def get_specs(spec_name, num_experts=None, moe_grouped_gemm=False, use_te=True, cfg_peft=None):
-    if cfg_peft and cfg_peft['peft_scheme'] == 'qlora':
-        from nemo.collections.nlp.modules.common.megatron.adapters.qlora import get_gpt_layer_with_QLoRA_spec
-        return get_gpt_layer_with_QLoRA_spec(cfg_peft)
-
     if num_experts is not None:
         assert mcore_supports_moe(), "Megatron-core >= v0.5.0 is required for MoE"
 
