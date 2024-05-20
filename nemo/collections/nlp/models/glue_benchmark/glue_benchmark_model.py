@@ -30,8 +30,8 @@ from nemo.collections.nlp.modules.common import SequenceClassifier, SequenceRegr
 from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['GLUEModel']
 

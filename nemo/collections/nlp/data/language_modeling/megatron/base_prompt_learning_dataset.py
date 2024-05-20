@@ -16,8 +16,8 @@ import torch
 
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.core import Dataset
-from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['BasePromptLearningDataset']
 
@@ -76,7 +76,7 @@ class BasePromptLearningDataset(Dataset):
             raise ValueError("Datasets must be a list of dicts or a list of filepath strings")
 
     def _insert_virtual_token_placeholders(self, input_example, virtual_token_splits):
-        """ Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers """
+        """Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers"""
         total_inserted_tokens = 0
 
         for idx in range(len(virtual_token_splits)):
@@ -89,7 +89,7 @@ class BasePromptLearningDataset(Dataset):
         return input_example
 
     def _truncate_input(self, truncation_field, input_ids, taskname, doc, total_virtual_tokens=0):
-        """ Try to truncate input text to fit into the max sequence length """
+        """Try to truncate input text to fit into the max sequence length"""
         logging.info(
             f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'"
         )
@@ -119,7 +119,7 @@ class BasePromptLearningDataset(Dataset):
         return input_ids
 
     def _add_leading_space(self, taskname, field_name, field_text):
-        """ Add leading space to text if there is a space before it in the template """
+        """Add leading space to text if there is a space before it in the template"""
         prompt_template = self.task_templates[taskname]["prompt_template"]
         field_text_start = prompt_template.find("{" + field_name + "}")
         if field_text_start != 0 and prompt_template[field_text_start - 1] == " ":
@@ -191,11 +191,11 @@ class BasePromptLearningDataset(Dataset):
 
 
 def find_subsequence_location(sequence, subsequence):
-    """ Finds the start and end index of the first occurance 
-        of a given subsequence within a larger list. Returns 
-        the two indices corresponding to the postition of 
-        the first and last token of the subseqeunce.
-        Assumes subsequence is known to be in sequence. 
+    """Finds the start and end index of the first occurance
+    of a given subsequence within a larger list. Returns
+    the two indices corresponding to the postition of
+    the first and last token of the subseqeunce.
+    Assumes subsequence is known to be in sequence.
     """
     assert len(sequence) >= len(subsequence), "subsequence too long"
 

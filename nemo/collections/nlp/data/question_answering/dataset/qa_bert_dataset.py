@@ -21,12 +21,12 @@ from tqdm import trange
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import INFERENCE_MODE, TRAINING_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_bert_input_example import BERTQAInputExample
-from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 
 class BERTQADataset(QADataset):
-    """ Creates a Dataset for BERT architecture based Exractive QA """
+    """Creates a Dataset for BERT architecture based Exractive QA"""
 
     def __init__(
         self,
@@ -41,7 +41,7 @@ class BERTQADataset(QADataset):
         num_samples: int = -1,
         mode: str = TRAINING_MODE,
         use_cache: bool = False,
-    ):  
+    ):
         # deprecation warning
         deprecated_warning("BERTQADataset")
 
@@ -96,7 +96,7 @@ class BERTQADataset(QADataset):
             self.features[i] = BERTQAInputExample(**self.features[i])
 
     def _set_cached_features_filename(self):
-        """ Creates cache filename using dataset config parameters """
+        """Creates cache filename using dataset config parameters"""
 
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
@@ -114,7 +114,7 @@ class BERTQADataset(QADataset):
         )
 
     def _convert_examples_to_features(self):
-        """ Converts loaded examples to features """
+        """Converts loaded examples to features"""
 
         logging.info(f"Preprocessing data into features.")
 
@@ -165,7 +165,7 @@ class BERTQADataset(QADataset):
                 example.doc_tokens = doc_tokens
 
             # the text to tokens step is the slowest step
-            for (i, token) in enumerate(doc_tokens):
+            for i, token in enumerate(doc_tokens):
                 orig_to_tok_index.append(len(all_doc_tokens))
                 if token not in text_to_tokens_dict:
                     text_to_tokens_dict[token] = self.tokenizer.text_to_tokens(token)
@@ -203,7 +203,7 @@ class BERTQADataset(QADataset):
             # make compatible for hashing
             doc_spans = tuple(doc_spans)
 
-            for (doc_span_index, doc_span) in enumerate(doc_spans):
+            for doc_span_index, doc_span in enumerate(doc_spans):
 
                 tokens = [self.tokenizer.cls_token] + query_tokens + [self.tokenizer.sep_token]
                 segment_ids = [0 for i in range(len(tokens))]

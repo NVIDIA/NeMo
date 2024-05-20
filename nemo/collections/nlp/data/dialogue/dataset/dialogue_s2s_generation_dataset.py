@@ -21,8 +21,8 @@ from nemo.utils.decorators import deprecated_warning
 
 class DialogueS2SGenerationDataset(DialogueDataset):
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
-        """ Constructor
-        Designed for free form generation tasks such as Dialogue Response Generation 
+        """Constructor
+        Designed for free form generation tasks such as Dialogue Response Generation
 
         Args:
             dataset_split: dataset split
@@ -49,7 +49,7 @@ class DialogueS2SGenerationDataset(DialogueDataset):
     @staticmethod
     def format_actions(prompt_template, actions):
         """
-        Formats actions based on prompt_template 
+        Formats actions based on prompt_template
 
         Args:
             prompt_template: determines whether acts, slot-names, slot-values are necessary in formatted actions
@@ -122,7 +122,7 @@ class DialogueS2SGenerationDataset(DialogueDataset):
         '''
         Formats training prompt based on self.input_field_type
 
-        Training example: 
+        Training example:
             e.g. response: <response> # input_label_type = response
             e.g. utterance: <utterance> # input_label_type = utterance
             e.g. passage: <passage> utterance: <utterance> # input_label_type = passage+utterance
@@ -132,13 +132,12 @@ class DialogueS2SGenerationDataset(DialogueDataset):
         return input_sentence
 
     def __getitem__(self, idx: int):
-
         '''
         State how the input and output samples look like
 
         This template can be changed
 
-        Training example: 
+        Training example:
             e.g. INPUT - "response: <response>" OUTPUT - "<fluent_response>"  # input_label_type = response, output_label_type = fluent_response
             e.g. INPUT - "utterance: <utterance>" OUTPUT - "<response>" # input_label_type = utterance, output_label_type = response
             e.g. INPUT - "passage: <passage> utterance: <utterance>" OUTPUT - "<response>" # input_label_type = passage+utterance, output_label_type = response

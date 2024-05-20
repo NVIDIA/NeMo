@@ -54,7 +54,7 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
     def get_dialog_examples(self, dataset_split: str):
         """
         Process raw files into DialogueInputExample
-        Args: 
+        Args:
             dataset_split: {train, dev, test}
         Dev set contains self.cfg.dev_proportion % of samples with the rest going into the train set
         Test set contains the whole dataset (Dev + Train) as this dataset is small (~100) and primarily used in a zero shot setting
