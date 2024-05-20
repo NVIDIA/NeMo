@@ -95,7 +95,8 @@ def load_model(cls, checkpoint, strict, **kwargs):
     return model
 
 
-def load_config(mistral_config, tokenizer_path):
+def load_config(mistral_config, input_name_or_path):
+    tokenizer_path = os.path.join(input_name_or_path, 'tokenizer.model')
     nemo_config = OmegaConf.load(
         os.path.join(os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_llama_config.yaml')
     ).model
@@ -118,7 +119,15 @@ def load_config(mistral_config, tokenizer_path):
     # Mistral uses SiLU, but it is the same as swish with beta = 1.
     nemo_config.activation = 'fast-swiglu'
 
-    nemo_config.tokenizer.model = tokenizer_path
+    if 'instruct' in input_name_or_path.lower():
+        tokenizer_dict = {
+            'library': 'huggingface',
+            'type': args.input_name_or_path,
+            'use_fast': True,
+        }
+        nemo_config.tokenizer = tokenizer_dict
+    else:
+        nemo_config.tokenizer.model = tokenizer_path
     # TODO(@akoumparouli): rope_scaling.
     nemo_config['rotary_base'] = mistral_config['rope_theta']
 
@@ -148,7 +157,7 @@ def convert(args):
     logging.info(f"loading checkpoint {args.input_name_or_path}")
 
     model_args, ckpt, tokenizer = load_mistral_ckpt(args.input_name_or_path)
-    nemo_config = load_config(model_args, os.path.join(args.input_name_or_path, 'tokenizer.model'))
+    nemo_config = load_config(model_args, args.input_name_or_path)
     logging.info(f"loaded checkpoint {args.input_name_or_path}")
 
     if args.precision in ["32", "16"]:
