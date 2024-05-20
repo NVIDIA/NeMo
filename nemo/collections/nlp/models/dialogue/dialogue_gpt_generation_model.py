@@ -34,6 +34,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['DialogueGPTGenerationModel']
@@ -45,6 +46,8 @@ class DialogueGPTGenerationModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
     ):
+        # deprecation warning
+        deprecated_warning("DialogueGPTGenerationModel")
 
         self.cfg = cfg
         self.data_prepared = False

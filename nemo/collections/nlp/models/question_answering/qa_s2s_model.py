@@ -27,11 +27,14 @@ from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 
 class S2SQAModel(BaseQAModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("S2SQAModel")
 
         self.cfg = cfg
 

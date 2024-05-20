@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.question_answering.data_processor.qa_processing i
     TRAINING_MODE,
 )
 from nemo.core.classes import Dataset
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 
@@ -36,6 +37,9 @@ class QADataset(Dataset):
     def __init__(
         self, data_file: str, processor: object, tokenizer: object, mode: str, num_samples: int, **kwargs,
     ):
+        # deprecation warning
+        deprecated_warning("QADataset")
+
         self.mode = mode
         self.data_file = data_file
         self.processor = processor

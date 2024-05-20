@@ -34,6 +34,7 @@ from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 
@@ -41,6 +42,9 @@ class IntentSlotClassificationModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
         """
+        # deprecation warning
+        deprecated_warning("IntentSlotClassificationModel")
+
         self.max_seq_length = cfg.dataset.max_seq_length
         self.cfg = cfg
         # Check the presence of data_dir.

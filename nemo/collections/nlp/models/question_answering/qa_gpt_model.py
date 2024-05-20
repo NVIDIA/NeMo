@@ -26,11 +26,15 @@ from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 
 class GPTQAModel(BaseQAModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("GPTQAModel")
+
         self.cfg = cfg
 
         self.setup_tokenizer(cfg.tokenizer)

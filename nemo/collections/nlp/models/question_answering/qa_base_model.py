@@ -24,11 +24,15 @@ from nemo.collections.nlp.data.question_answering.data_processor.qa_processing i
     TRAINING_MODE,
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 
 class BaseQAModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None, no_lm_init=True):
+        # deprecation warning
+        deprecated_warning("BaseQAModel")
+
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=no_lm_init)
 

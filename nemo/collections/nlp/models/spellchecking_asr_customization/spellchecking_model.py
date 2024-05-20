@@ -35,6 +35,7 @@ from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils.decorators import experimental
 
 __all__ = ["SpellcheckingAsrCustomizationModel"]
@@ -67,6 +68,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         return self
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
+        # deprecation warning
+        deprecated_warning("SpellcheckingAsrCustomizationModel")
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Label map contains 11 labels: 0 for nothing, 1..10 for target candidate ids

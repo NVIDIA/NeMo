@@ -22,6 +22,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.glue_benchmark.data_processors import InputExample
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUEDataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['DialogueZeroShotIntentDataset']
@@ -55,6 +56,9 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
                 num_classes: number of classes in the data (should be either 2 or 3, corresponding to
                 labels ['entailment', 'not_entailment'] or ["contradiction", "entailment", "neutral"])
         """
+        # deprecation warning
+        deprecated_warning("DialogueZeroShotIntentDataset")
+
         self.cfg = cfg
         self.tokenizer = tokenizer
         if self.cfg.num_classes not in [2, 3]:

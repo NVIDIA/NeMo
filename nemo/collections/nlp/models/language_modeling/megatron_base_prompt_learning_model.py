@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common import (
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import AppState, logging
 
 try:
@@ -82,6 +83,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        # deprecation warning
+        deprecated_warning("MegatronBasePromptLearningModel")
+
         super().__init__(cfg, trainer)
 
         self.config: ModelParallelConfig = self.model_parallel_config

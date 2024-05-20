@@ -31,6 +31,7 @@ from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetr
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 try:
@@ -48,6 +49,8 @@ class DialogueS2SGenerationModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
     ):
+        # deprecation warning
+        deprecated_warning("DialogueS2SGenerationModel")
 
         self.cfg = cfg
         self.data_prepared = False

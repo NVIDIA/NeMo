@@ -16,6 +16,7 @@ import torch
 
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.core import Dataset
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['BasePromptLearningDataset']
@@ -41,6 +42,9 @@ class BasePromptLearningDataset(Dataset):
         add_eos: bool = True,
         for_train: bool = True,
     ):
+        # deprecation warning
+        deprecated_warning("BasePromptLearningDataset")
+
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
         self.task_templates = task_templates

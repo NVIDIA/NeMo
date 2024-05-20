@@ -22,6 +22,7 @@ from tqdm.auto import tqdm
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import AppState, logging
 
 __all__ = ['GPTPromptLearningDataset']
@@ -63,6 +64,9 @@ class GPTPromptLearningDataset(Dataset):
         cache_data_path: str = None,  # the cache file
         load_cache: bool = True,  # whether to load from the cache if it is available
     ):
+        # deprecation warning
+        deprecated_warning("GPTPromptLearningDataset")
+
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
         self.task_templates = task_templates

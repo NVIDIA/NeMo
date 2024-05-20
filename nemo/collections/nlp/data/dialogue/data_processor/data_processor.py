@@ -17,6 +17,7 @@
 import random
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['DialogueDataProcessor']
 
@@ -40,6 +41,9 @@ class DialogueDataProcessor(DataProcessor):
     """
 
     def __init__(self):
+        # deprecation warning
+        deprecated_warning("DialogueDataProcessor")
+        
         raise NotImplementedError()
 
     def get_train_examples(self):

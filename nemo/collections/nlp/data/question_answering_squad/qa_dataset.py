@@ -45,6 +45,7 @@ from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing impo
     normalize_answer,
 )
 from nemo.core.classes import Dataset
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['SquadDataset', 'InputFeatures', '_check_is_max_context']
@@ -165,6 +166,9 @@ class SquadDataset(Dataset):
         mode: str,
         use_cache: bool,
     ):
+        # deprecation warning
+        deprecated_warning("SquadDataset")
+
         self.tokenizer = tokenizer
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)

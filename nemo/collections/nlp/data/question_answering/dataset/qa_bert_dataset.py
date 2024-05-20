@@ -21,6 +21,7 @@ from tqdm import trange
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import INFERENCE_MODE, TRAINING_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_bert_input_example import BERTQAInputExample
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 
@@ -40,7 +41,10 @@ class BERTQADataset(QADataset):
         num_samples: int = -1,
         mode: str = TRAINING_MODE,
         use_cache: bool = False,
-    ):
+    ):  
+        # deprecation warning
+        deprecated_warning("BERTQADataset")
+
         super().__init__(
             data_file=data_file, processor=processor, tokenizer=tokenizer, mode=mode, num_samples=num_samples
         )

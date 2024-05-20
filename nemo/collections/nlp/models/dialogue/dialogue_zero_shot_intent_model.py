@@ -35,6 +35,7 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
 from nemo.collections.nlp.models import TextClassificationModel
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import logging
 
 __all__ = ['DialogueZeroShotIntentModel']
@@ -44,6 +45,9 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
     """TextClassificationModel to be trained on two- or three-class textual entailment data, to be used for zero shot intent recognition."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("DialogueZeroShotIntentModel")
+
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
 

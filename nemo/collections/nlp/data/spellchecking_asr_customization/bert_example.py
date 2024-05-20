@@ -20,6 +20,8 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizerBase
 
+from nemo.utils.decorators import deprecated_warning
+
 """Build BERT Examples from asr hypothesis, customization candidates, target labels, span info.
 """
 
@@ -68,6 +70,9 @@ class BertExample(object):
             spans: list of tuples (class_id, start_position, end_position), end is exclusive, class is always 1(CUSTOM)
             default_label: The default label
         """
+        # deprecation warning
+        deprecated_warning("BertExample")
+
         input_len = len(input_ids)
         if not (
             input_len == len(input_mask)
@@ -123,6 +128,9 @@ class BertExampleBuilder(object):
             tokenizer: Tokenizer object.
             max_seq_length: Maximum sequence length.
         """
+        # deprecation warning
+        deprecated_warning("BertExampleBuilder")
+
         self._label_map = label_map
         self._semiotic_classes = semiotic_classes
         self._tokenizer = tokenizer

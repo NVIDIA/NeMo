@@ -29,6 +29,7 @@ from nemo.collections.nlp.data.dialogue.input_example.input_example import Dialo
 from nemo.collections.nlp.data.dialogue.sgd.schema import Schema
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['DialogueSGDDataProcessor']
 
@@ -104,6 +105,9 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             tokenizer: tokenizer object
             cfg: cfg container for dataset
         """
+        # deprecation warning
+        deprecated_warning("DialogueSGDDataProcessor")
+
         self.data_dir = data_dir
         self.cfg = cfg
 
