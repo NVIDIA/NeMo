@@ -22,7 +22,7 @@ __CUDA_PYTHON_MINIMUM_VERSION_CUDA_GRAPH_CONDITIONAL_NODES_SUPPORTED__ = (12, 3)
 
 
 # Meant to mimic https://github.com/pytorch/pytorch/blob/af9acc416852cfadc1274a715039b7a5ea501e93/torch/_higher_order_ops/while_loop.py#L146-L175
-def while_loop_dense(cond_fn, body_fn, carried_inputs, additional_inputs):
+def my_torch_while_loop(cond_fn, body_fn, carried_inputs):
     carried_vals = carried_inputs
 
     def _is_boolean_scalar_tensor(pred):
@@ -37,12 +37,12 @@ def while_loop_dense(cond_fn, body_fn, carried_inputs, additional_inputs):
             f"carried_inputs must be a tuple but got {type(carried_inputs)}"
         )
 
-    while pred := cond_fn(*carried_vals, *additional_inputs):
+    while pred := cond_fn(*carried_vals):
         if not _is_boolean_scalar_tensor(pred):
             raise RuntimeError(
                 f"cond_fn must return a boolean scalar tensor but got {pred}"
             )
-        out = body_fn(*carried_vals, *additional_inputs)
+        out = body_fn(*carried_vals)
         assert isinstance(
             out, tuple
         ), f"body_fn should return a tuple but got {type(out)}"
