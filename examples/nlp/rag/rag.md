@@ -1,12 +1,12 @@
 RAG with NeMo
 ================
 
-Retrieval-augmented generation (RAG) is a technique for enhancing the accuracy and reliability of generative AI models with facts fetched from external sources. With NeMo, we can employ a text embedder and an LLM trained with NeMo Framework to setup a RAG pipeline.
+Retrieval-augmented generation (RAG) is a technique for enhancing the accuracy and reliability of generative AI models with facts fetched from external sources. With NeMo, we can employ a text embedder and an LLM trained with NeMo Framework to set up a RAG pipeline.
 This document illustrates how NeMo models can be used with LlamaIndex, a popular RAG library, for a retrieval-based text generation application.
 
 ## Quick Start
 
-In this example, we set up a pipeline that let us index a document file (e.g., a manual, repository documentation) then ask questions and details in the document.
+In this example, we set up a pipeline that lets us index a document file (e.g., a manual, repository documentation) then ask questions and details in the document.
 
 The only dependency in this example is LlamaIndex, which can be installed with:
 ```
@@ -46,7 +46,7 @@ print("Loading documents.")
 documents = SimpleDirectoryReader(cfg.indexing.data.data_path).load_data()
 ```
 
-We then set up how the corpus document(s) will be splitted into smaller chunks, by setting splitter type, chunk size, and chunk overlap values.
+We then set up how the corpus document(s) will be split into smaller chunks, by setting splitter type, chunk size, and chunk overlap values.
 
 ```
 print("Setting text transformation.")
@@ -65,7 +65,7 @@ embed_model = NeMoEmbeddings(model_path = model_path, cfg = cfg, embed_batch_siz
 Settings.embed_model = embed_model
 ```
 
-Next, we will index the corpus document(s), simply by using the LlamaIndex `VectorStoreIndex.from_documents()` method. Under the hood, this method will split the corpus document(s) into smaller chunks having a pre-defined chunk size, batch them and feed them to the embedder, then put the output embeddings into an index. In this example, we use the built-in LlamaIndex's in-memory vector store to save the index. We can also use external vector stores, such as Milvus, Qdrant, etc. Seeing more at [LlamaIndex Vector Stores](https://docs.llamaindex.ai/en/stable/module_guides/storing/vector_stores/).          
+Next, we will index the corpus document(s), simply by using the LlamaIndex `VectorStoreIndex.from_documents()` method. Under the hood, this method will split the corpus document(s) into smaller chunks having a pre-defined chunk size, batch them and feed them to the embedder, then put the output embeddings into an index. In this example, we use the built-in LlamaIndex's in-memory vector store to save the index. We can also use external vector stores, such as Milvus, Qdrant, etc. See more at [LlamaIndex Vector Stores](https://docs.llamaindex.ai/en/stable/module_guides/storing/vector_stores/).          
 
 
 ```
@@ -84,7 +84,7 @@ index.storage_context.persist(persist_dir=index_path)
 
 ###  Generation
 
-After processing and indexing the document, we can have a NeMo LLM model to interactive with the corpus document(s) through RAG, such as asking details within the documents. To do so, set the path to the LLM checkpoint, saved index, and a query to ask and run the following command. Below we explain in more details the steps run within the script.
+After processing and indexing the document, we can have a NeMo LLM model to interact with the corpus document(s) through RAG, such as asking details within the documents. To do so, set the path to the LLM checkpoint, save index, and a query to ask and run the following command. Below we explain in more details the steps run within the script.
 
 ```
 python examples/nlp/rag/rag_eval.py \

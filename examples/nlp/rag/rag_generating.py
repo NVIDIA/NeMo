@@ -1,10 +1,7 @@
-from llama_index.core import Settings
-from llama_index.core import StorageContext, load_index_from_storage
-from llama_index.llms.openai import OpenAI
+from llama_index.core import Settings, StorageContext, load_index_from_storage
+
 from nemo.collections.nlp.models.rag.custom_bert_embedder import NeMoBertEmbeddings
 from nemo.collections.nlp.models.rag.custom_gpt_llm import NeMoGPTLLM
-import os
-import json
 from nemo.core.config import hydra_runner
 
 
@@ -14,21 +11,19 @@ def main(cfg) -> None:
     # load LLM
     print("Loading LLM.")
     model_path = cfg.generating.llm.model_path
-    if cfg.generating.llm.model_type=="gpt":
-        Settings.llm = NeMoGPTLLM(model_path = model_path, cfg = cfg)
+    if cfg.generating.llm.model_type == "gpt":
+        Settings.llm = NeMoGPTLLM(model_path=model_path, cfg=cfg)
     else:
         assert cfg.generating.model_type in ["gpt"], "Currently RAG pipeline supports 'gpt' for LLM models."
-
 
     # load embedder
     print("Loading embedder.")
     model_path = cfg.indexing.embedder.model_path
-    if cfg.indexing.embedder.model_type=="bert":
-        embed_model = NeMoBertEmbeddings(model_path = model_path, cfg = cfg)
+    if cfg.indexing.embedder.model_type == "bert":
+        embed_model = NeMoBertEmbeddings(model_path=model_path, cfg=cfg)
     else:
         assert cfg.indexing.model_type in ["bert"], "Currently RAG pipeline supports 'bert' for embeddings models."
     Settings.embed_model = embed_model
-
 
     # load index from disk
     print("Loading index from disk.")
@@ -36,12 +31,10 @@ def main(cfg) -> None:
     storage_context = StorageContext.from_defaults(persist_dir=index_path)
     index = load_index_from_storage(storage_context)
 
-
     # set query
     print("Setting query.")
     query = cfg.generating.query
     print("Query: ", query)
-
 
     # query and print response
     print("Responding to query using relevant contexts.")
@@ -52,8 +45,3 @@ def main(cfg) -> None:
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
