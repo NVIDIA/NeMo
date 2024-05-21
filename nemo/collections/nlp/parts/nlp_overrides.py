@@ -1200,9 +1200,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             return loaded_params
         conf, instance, state_dict = loaded_params
 
-        # todo revert temp change
-        if not int(os.environ.get("NEMO_LOAD_CHECKPOINT", 1)):
-            return instance
         # if we're using dist checkpointing then state_dict will be None
         if state_dict is None:
             # dist checkpointing needs torch.distributed to load the checkpoint

@@ -1,24 +1,31 @@
-import logging
-from typing import Optional
-
+from typing import Optional, Dict, TYPE_CHECKING
 import torch
-
-from torch import nn
+from torch import nn, Tensor
 import torch.nn.functional as F
-
 from nemo.collections.nlp.parts.peft_config import get_target_modules, LORA_CONFIG_TO_MCORE_MAP
+from nemo.utils import logging
+
+if TYPE_CHECKING:
+    from megatron.core.models.gpt import MCoreGPTModel
+    from omegaconf import DictConfig
 
 
 class NF4Weight(nn.Parameter):
-    def __new__(cls, data: torch.Tensor, block_size=64, scale_block_size=256):
+    def __new__(
+            cls,
+            data: torch.Tensor,
+            is_nf4_quantized: bool = False,
+            block_size: int = 64,
+            scale_block_size: int = 256,
+    ):
         self = torch.Tensor._make_subclass(cls, data, require_grad=False)
         self._nf4_quantizer = None
-        self.is_nf4_quantized = False
+        self.is_nf4_quantized = is_nf4_quantized
         self.block_size = block_size
         self.scale_block_size = scale_block_size
         return self
 
-    def quantize(self) -> torch.Tensor:
+    def quantize(self, device='cuda') -> torch.Tensor:
         from modelopt.torch.quantization.nn import TensorQuantizer
         from modelopt.torch.quantization.tensor_quant import QuantDescriptor
 
@@ -31,6 +38,9 @@ class NF4Weight(nn.Parameter):
         )
         self._nf4_quantizer = TensorQuantizer(nf4_desc)
         nf4_tensor = self._nf4_quantizer(self.data)
+        nf4_tensor._quantized_data = nf4_tensor._quantized_data.to(device)
+        self._nf4_quantizer._scale =  self._nf4_quantizer._scale.to(device)
+        self._nf4_quantizer._double_scale =  self._nf4_quantizer._double_scale.to(device)
         self.quantized_data = nf4_tensor
         self.is_nf4_quantized = True
         return self
@@ -45,13 +55,13 @@ class NF4Weight(nn.Parameter):
     def to(self, *args, **kwargs):
         device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
 
-        if device is not None and device.type == "cuda" and not self.is_nf4_quantized:
-            logging.debug('quantizing...')
+        if device is not None and device.type == "cuda":
             # Note: self.data remains on CPU. Only self.quantized_data is on GPU
-            return self.quantize()
+            return self.quantize() if not self.is_nf4_quantized else self
         else:
             return NF4Weight(
                 super().to(device=device, dtype=dtype, non_blocking=non_blocking),
+                self.is_nf4_quantized,
                 self.block_size,
                 self.scale_block_size,
             )
@@ -88,7 +98,7 @@ class NF4LinearWrapper(nn.Module):
     def __init__(self, bf16_linear_weight: torch.Tensor):
         super().__init__()
 
-        weight = NF4Weight(bf16_linear_weight)
+        weight = NF4Weight(bf16_linear_weight).cuda()
         self.register_parameter("weight", weight)
 
     def forward(self, x: torch.Tensor):
@@ -175,15 +185,25 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
         return (linear_output, layernorm_output), None
 
 
-def qlora_swap_layer(instance, checkpoint):
+def qlora_load_model(model: 'MCoreGPTModel', model_cfg: 'DictConfig', checkpoint: Dict[str, Tensor]):
     # swap linear layer and cast weight to nf4
     qlora_targets = [LORA_CONFIG_TO_MCORE_MAP[x] for x in
-                     get_target_modules(instance.cfg.peft.lora_tuning, default=('all',))]
+                     get_target_modules(model_cfg.peft.lora_tuning, default=('all',))]
+
+    # if not load directly on device, need to load the rest of the model
+    # this block should only load word_embeddings, final_layernorm and output_layer weights.
+    if not model_cfg.get("dist_ckpt_load_on_device", True):
+        checkpoint_state_dict = {}
+        for key, value in checkpoint.items():
+            if not any(qlora_target in key for qlora_target in qlora_targets):
+                checkpoint_state_dict[key.replace('model.', '')] = value
+        model.load_state_dict(checkpoint_state_dict, strict=False)
 
     def replace_linear(module: nn.Module, prefix=""):
         for name, child in module.named_children():
             if name in qlora_targets:
                 bf16_weight = checkpoint[f"{prefix}.{name}.weight"]
+                logging.info(f'QLoRA: Quantizing linear layer: {prefix}.{name}')
                 if name in ['linear_proj', 'linear_fc2']:
                     setattr(module, name, NF4LinearWrapper(bf16_weight))
                 else:  # name in ['linear_qkv', 'linear_fc1']
@@ -196,5 +216,4 @@ def qlora_swap_layer(instance, checkpoint):
             else:
                 replace_linear(child, prefix=f"{prefix}.{name}")
 
-    replace_linear(instance.model.module if instance.megatron_amp_O2 else instance.model,
-                   prefix="model")
+    replace_linear(model, prefix="model")
