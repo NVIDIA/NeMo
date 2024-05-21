@@ -791,24 +791,34 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch[0], input_signal_length=batch[1]
         )
-        slots = self.prompt_formatter.get_context_slots()
-        # TODO: have 'slots' dict/dataclass in trcfg instead of getattr()
-        #       for now to get a POC working, I'm manually mapping the specific existing canary's format
-        slots = map_manifest_values_to_special_tokens(
-            {
-                "|TASKNAME|": trcfg.task,
-                "|SOURCE_LANG|": trcfg.source_lang,
-                "|TARGET_LANG|": trcfg.target_lang,
-                "|PNC|": trcfg.pnc,
-            }
-        )
-        slots["|PROMPT_LANGUAGE|"] = "spl_tokens"
-        decoder_input_ids = (
-            self.prompt_formatter.encode_for_inference(slot_values=slots)["context_ids"]
-            .unsqueeze(0)
-            .repeat(batch[0].shape[0], 1)
-            .to(trcfg._internal.device)
-        )
+        if len(batch) >= 4:
+            # Backward compatibility: the decoder_input_ids were provided by the dataloader.
+            decoder_input_ids = batch[-2].to(trcfg._internal.device)
+        else:
+            # The dataloader provided only audio + audio_lens, so we
+            # are constructing the prompt dynamically using TranscribeConfig.
+            # TODO: have 'slots' dict/dataclass in trcfg instead of getattr()
+            #       for now to get a POC working, I'm manually mapping the specific existing canary's format
+            turns = [
+                dict(
+                    role="user",
+                    slots=map_manifest_values_to_special_tokens(
+                        {
+                            "|TASKNAME|": trcfg.task,
+                            "|SOURCE_LANG|": trcfg.source_lang,
+                            "|TARGET_LANG|": trcfg.target_lang,
+                            "|PNC|": trcfg.pnc,
+                            "|PROMPT_LANGUAGE|": "spl_tokens",
+                        }
+                    ),
+                )
+            ]
+            decoder_input_ids = (
+                self.prompt_formatter.encode_dialog(turns=turns)["context_ids"]
+                .unsqueeze(0)
+                .repeat(batch[0].shape[0], 1)
+                .to(trcfg._internal.device)
+            )
         output = dict(
             log_probs=log_probs,
             encoded_lengths=encoded_len,

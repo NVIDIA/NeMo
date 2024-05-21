@@ -1612,16 +1612,21 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                     f"Please ensure that every utterance in the input manifests contains these keys. Sample: {sample}"
                 )
             formatter = CanaryPromptFormatter(self.asr_model.tokenizer)
-            tokens = formatter.encode_for_inference(
-                map_manifest_values_to_special_tokens(
+            tokens = formatter.encode_dialog(
+                turns=[
                     {
-                        "|SOURCE_LANG|": sample["source_lang"],
-                        "|TARGET_LANG|": sample["target_lang"],
-                        "|PNC|": sample["pnc"],
-                        "|TASKNAME|": sample["taskname"],
-                        "|PROMPT_LANGUAGE|": "spl_tokens",
+                        "role": "user",
+                        "slots": map_manifest_values_to_special_tokens(
+                            {
+                                "|SOURCE_LANG|": sample["source_lang"],
+                                "|TARGET_LANG|": sample["target_lang"],
+                                "|PNC|": sample["pnc"],
+                                "|TASKNAME|": sample["taskname"],
+                                "|PROMPT_LANGUAGE|": "spl_tokens",
+                            }
+                        ),
                     }
-                )
+                ]
             )["context_ids"]
         else:
             raise ValueError(f"Unknown prompt format: {self.asr_model.prompt_format}")
