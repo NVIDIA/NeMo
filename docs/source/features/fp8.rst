@@ -28,6 +28,8 @@ NVIDIA's H100 GPU introduced support for a new datatype, FP8 (8-bit floating poi
      - "max" or "most_recent". Specifies how to choose an amax from the given history.
    * - reduce_amax
      - Whether or not to perform an allreduce on the amax (absolute max) values for the FP8 tensors. Since the amax is directly used to compute the scaling factor for FP8 tensors, setting this ensures that the scaling factors for a tensor remain synchronized across devices in multi-GPU training configurations.
+   * - fp8_params
+     - Whether or not to store module level parameters in FP8. Setting this may result in a lower memory consumption since this eliminates the need to store a copy of weights in higher precision (> half) for cases in which these are maintained externally anyway, such as master parameters in the optimizer. For details, refer to the `fp8_model_init <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html#transformer_engine.pytorch.fp8_model_init>`_ API in TE.
 
 Resources
 ^^^^^^^^^
