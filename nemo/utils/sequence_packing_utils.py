@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import collections
-from typing import List, Dict
+from typing import Dict, List
 
 import numpy as np
 from tqdm import tqdm
@@ -132,7 +132,9 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
     return sequences, histogram
 
 
-def create_packing_strategy(histogram: List[int], pack_size: int, packing_algorithm: str = 'first_fit') -> List[List[int]]:
+def create_packing_strategy(
+    histogram: List[int], pack_size: int, packing_algorithm: str = 'first_fit'
+) -> List[List[int]]:
     """
     Packs sequences into bins using the specified packing algorithm.
 
@@ -228,5 +230,3 @@ def fill_packing_strategy(assignments: List[List[int]], sequences: Dict[int, Lis
     assert all(not seq[0] for seq in ifile_handles.values()), "Error: There are items left over from the assignment"
     assert all(not seq[1] for seq in ifile_handles.values()), "Error: There are items left over from the assignment"
     return output_data
-
-

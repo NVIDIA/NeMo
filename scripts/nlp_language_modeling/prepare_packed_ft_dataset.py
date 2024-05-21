@@ -14,7 +14,7 @@
 
 import os
 from dataclasses import dataclass
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
@@ -23,6 +23,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
+
 if TYPE_CHECKING:
     from omegaconf import DictConfig
 
@@ -53,6 +54,7 @@ Note:
 - pack_sizes can take in a list 
 - model.data.train_ds.max_seq_length is the length to truncate long sequences before packing, and is different from the packing sizes
 """
+
 
 def tokenize_dataset(cfg: 'DictConfig'):
     """
