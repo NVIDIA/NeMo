@@ -49,8 +49,7 @@ class TestAudioDatasets:
     @pytest.mark.parametrize('num_channels', [1, 2])
     @pytest.mark.parametrize('num_targets', [1, 3])
     def test_list_to_multichannel(self, num_channels, num_targets):
-        """Test conversion of a list of arrays into 
-        """
+        """Test conversion of a list of arrays into"""
         random_seed = 42
         num_samples = 1000
 
@@ -71,8 +70,7 @@ class TestAudioDatasets:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 2])
     def test_processor_process_audio(self, num_channels):
-        """Test signal normalization in process_audio.
-        """
+        """Test signal normalization in process_audio."""
         num_samples = 1000
         num_examples = 30
 
@@ -103,8 +101,7 @@ class TestAudioDatasets:
 
     @pytest.mark.unit
     def test_audio_collate_fn(self):
-        """Test `_audio_collate_fn`
-        """
+        """Test `_audio_collate_fn`"""
         batch_size = 16
         random_seed = 42
         atol = 1e-5

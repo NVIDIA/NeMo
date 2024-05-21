@@ -62,7 +62,10 @@ class ConfidenceSpec:
             exclude_blank=self.exclude_blank,
             aggregation=self.aggregation,
             method_cfg=ConfidenceMethodConfig(
-                name=name, entropy_type=entropy_type, alpha=self.alpha, entropy_norm=entropy_norm,
+                name=name,
+                entropy_type=entropy_type,
+                alpha=self.alpha,
+                entropy_norm=entropy_norm,
             ),
         )
 
@@ -159,7 +162,9 @@ class ConfidenceEnsembleModel(ModelPT):
     """
 
     def __init__(
-        self, cfg: DictConfig, trainer: 'Trainer' = None,
+        self,
+        cfg: DictConfig,
+        trainer: 'Trainer' = None,
     ):
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -180,7 +185,9 @@ class ConfidenceEnsembleModel(ModelPT):
                 model_cfg = self.cfg[cfg_field]
                 model_class = model_utils.import_class_by_path(model_cfg['target'])
                 self.register_nemo_submodule(
-                    name=cfg_field, config_field=cfg_field, model=model_class(model_cfg, trainer=trainer),
+                    name=cfg_field,
+                    config_field=cfg_field,
+                    model=model_class(model_cfg, trainer=trainer),
                 )
         else:
             self.num_models = len(cfg.load_models)
@@ -196,7 +203,9 @@ class ConfidenceEnsembleModel(ModelPT):
                     )
                 else:
                     self.register_nemo_submodule(
-                        cfg_field, config_field=cfg_field, model=ASRModel.from_pretrained(model, map_location="cpu"),
+                        cfg_field,
+                        config_field=cfg_field,
+                        model=ASRModel.from_pretrained(model, map_location="cpu"),
                     )
 
         # registering model selection block - this is expected to be a joblib-saved

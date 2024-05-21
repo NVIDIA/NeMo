@@ -49,8 +49,7 @@ class TestGenerateApproximateNoiseField:
     def test_theoretical_coherence_matrix(
         self, num_mics: int, mic_spacing: float, fft_length: int, sample_rate: float, field: str
     ):
-        """Test calculation of a theoretical coherence matrix.
-        """
+        """Test calculation of a theoretical coherence matrix."""
         # test setup
         max_diff_tol = 1e-9
 
@@ -99,8 +98,7 @@ class TestGenerateApproximateNoiseField:
         field: str,
         save_figures: bool = False,
     ):
-        """Test approximate noise field with white noise as the input noise.
-        """
+        """Test approximate noise field with white noise as the input noise."""
         duration_in_sec = 20
         relative_mse_tol_dB = -30
         relative_mse_tol = 10 ** (relative_mse_tol_dB / 10)
@@ -177,8 +175,7 @@ class TestGenerateApproximateNoiseField:
 class TestAudioUtilsElements:
     @pytest.mark.unit
     def test_rms(self):
-        """Test RMS calculation
-        """
+        """Test RMS calculation"""
         # setup
         A = np.random.rand()
         omega = 100
@@ -196,8 +193,7 @@ class TestAudioUtilsElements:
 
     @pytest.mark.unit
     def test_db_conversion(self):
-        """Test conversions to and from dB.
-        """
+        """Test conversions to and from dB."""
         num_examples = 10
         abs_threshold = 1e-6
 
@@ -206,7 +202,7 @@ class TestAudioUtilsElements:
 
         assert all(np.abs(mag - 10 ** (mag_db / 20)) < abs_threshold)
         assert all(np.abs(db2mag(mag_db) - 10 ** (mag_db / 20)) < abs_threshold)
-        assert all(np.abs(pow2db(mag ** 2) - mag_db) < abs_threshold)
+        assert all(np.abs(pow2db(mag**2) - mag_db) < abs_threshold)
 
     @pytest.mark.unit
     def test_get_segment_start(self):
@@ -342,8 +338,7 @@ class TestAudioUtilsElements:
     @pytest.mark.parametrize('filter_length', [10])
     @pytest.mark.parametrize('num_samples', [10, 100])
     def test_toeplitz(self, num_channels: int, filter_length: int, num_samples: int):
-        """Test construction of a Toeplitz matrix for a given signal.
-        """
+        """Test construction of a Toeplitz matrix for a given signal."""
         atol = 1e-6
         random_seed = 42
         num_batches = 10

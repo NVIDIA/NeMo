@@ -20,8 +20,7 @@ from nemo.collections.audio.metrics.audio import AudioMetricWrapper
 
 class TestAudioMetricWrapper:
     def test_metric_full_batch(self):
-        """Test metric on batches where all examples have equal length.
-        """
+        """Test metric on batches where all examples have equal length."""
         ref_metric = SignalNoiseRatio()
         wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
 
@@ -55,8 +54,7 @@ class TestAudioMetricWrapper:
             wrapped_metric.reset()
 
     def test_input_length(self):
-        """Test metric on batches where examples have different length.
-        """
+        """Test metric on batches where examples have different length."""
         ref_metric = SignalNoiseRatio()
         wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio())
 
@@ -99,8 +97,7 @@ class TestAudioMetricWrapper:
     @pytest.mark.unit
     @pytest.mark.parametrize('channel', [0, 1])
     def test_channel(self, channel):
-        """Test metric on a single channel from a batch.
-        """
+        """Test metric on a single channel from a batch."""
         ref_metric = SignalNoiseRatio()
         # select only a single channel
         wrapped_metric = AudioMetricWrapper(metric=SignalNoiseRatio(), channel=channel)

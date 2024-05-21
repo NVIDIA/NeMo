@@ -32,8 +32,8 @@ from nemo.utils import logging
 
 class HFTextProcessor:
     """
-    Text processor for huggingface datasets, mimicing the behavior of 
-    `nemo.collections.asr.data.audio_to_text.ASRManifestProcessor`. 
+    Text processor for huggingface datasets, mimicing the behavior of
+    `nemo.collections.asr.data.audio_to_text.ASRManifestProcessor`.
     Basic text cleaning is also supported.
     Args:
         parser: Str for a language specific preprocessor or a callable.
@@ -123,7 +123,7 @@ class _HFAudioTextDataset(Dataset):
         ref_channel: Reference channel for normalization.
         id_key: key to access sample id from the dataset
         normalize_text: If true, normalizes text in HFTextProcessor
-        symbols_to_keep: If not None, only keeps symbols in this list when normalizing text 
+        symbols_to_keep: If not None, only keeps symbols in this list when normalizing text
     """
 
     def __init__(
@@ -221,8 +221,7 @@ class HFAudioToCharDataset(_HFAudioTextDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -291,8 +290,7 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -377,7 +375,7 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
 
 class _HFIterableAudioTextDataset(IterableDataset):
     """
-    Wrapper class for loading HuggingFace IterableDataset and converts to NeMo compatible format. 
+    Wrapper class for loading HuggingFace IterableDataset and converts to NeMo compatible format.
     Args:
         audio_key: key to access audio data from the dataset
         text_key: key to access text data from the dataset
@@ -527,8 +525,7 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -605,8 +602,7 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),

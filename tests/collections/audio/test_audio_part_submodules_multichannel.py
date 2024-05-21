@@ -52,8 +52,7 @@ class TestTAC:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 2, 6])
     def test_average(self, num_channels):
-        """Test transform-average-concatenate.
-        """
+        """Test transform-average-concatenate."""
         num_examples = 10
         batch_size = 4
         in_features = 128
@@ -115,8 +114,7 @@ class TestChannelPool:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 2, 6])
     def test_average(self, num_channels):
-        """Test average channel pooling.
-        """
+        """Test average channel pooling."""
         num_examples = 10
         batch_size = 4
         in_features = 128
@@ -136,8 +134,7 @@ class TestChannelPool:
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [2, 6])
     def test_attention(self, num_channels):
-        """Test attention for channel pooling.
-        """
+        """Test attention for channel pooling."""
         num_examples = 10
         batch_size = 4
         in_features = 128

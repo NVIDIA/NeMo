@@ -46,8 +46,7 @@ class TestSpectrogramToMultichannelFeatures:
     @pytest.mark.parametrize('num_channels', [1, 4])
     @pytest.mark.parametrize('mag_reduction', [None, 'rms', 'abs_mean', 'mean_abs'])
     def test_magnitude(self, fft_length: int, num_channels: int, mag_reduction: Optional[str]):
-        """Test calculation of spatial features for multi-channel audio.
-        """
+        """Test calculation of spatial features for multi-channel audio."""
         atol = 1e-6
         batch_size = 8
         num_samples = fft_length * 50
@@ -60,7 +59,10 @@ class TestSpectrogramToMultichannelFeatures:
         audio2spec = AudioToSpectrogram(fft_length=fft_length, hop_length=hop_length)
 
         spec2feat = SpectrogramToMultichannelFeatures(
-            num_subbands=audio2spec.num_subbands, mag_reduction=mag_reduction, use_ipd=False, mag_normalization=None,
+            num_subbands=audio2spec.num_subbands,
+            mag_reduction=mag_reduction,
+            use_ipd=False,
+            mag_normalization=None,
         )
 
         for n in range(num_examples):
@@ -96,8 +98,7 @@ class TestSpectrogramToMultichannelFeatures:
     @pytest.mark.parametrize('fft_length', [256])
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_ipd(self, fft_length: int, num_channels: int):
-        """Test calculation of IPD spatial features for multi-channel audio.
-        """
+        """Test calculation of IPD spatial features for multi-channel audio."""
         atol = 1e-5
         batch_size = 8
         num_samples = fft_length * 50
@@ -147,8 +148,7 @@ class TestMaskBasedProcessor:
     @pytest.mark.parametrize('num_channels', [1, 4])
     @pytest.mark.parametrize('num_masks', [1, 2])
     def test_mask_reference_channel(self, fft_length: int, num_channels: int, num_masks: int):
-        """Test masking of the reference channel.
-        """
+        """Test masking of the reference channel."""
         if num_channels == 1:
             # Only one channel available
             ref_channels = [0]
@@ -245,8 +245,7 @@ class TestMaskBasedDereverb:
     @pytest.mark.parametrize('filter_length', [10])
     @pytest.mark.parametrize('delay', [0, 5])
     def test_wpe_filter(self, num_channels: int, filter_length: int, delay: int):
-        """Test estimation of correlation matrices, filter and filtering.
-        """
+        """Test estimation of correlation matrices, filter and filtering."""
         atol = 1e-6
         random_seed = 42
         num_examples = 10
@@ -323,8 +322,7 @@ class TestMaskBasedDereverb:
     @pytest.mark.parametrize('filter_length', [5])
     @pytest.mark.parametrize('delay', [0, 2])
     def test_mask_based_dereverb_init(self, num_channels: int, filter_length: int, delay: int):
-        """Test that dereverb can be initialized and can process audio.
-        """
+        """Test that dereverb can be initialized and can process audio."""
         num_examples = 10
         batch_size = 8
         num_subbands = 15
@@ -361,8 +359,7 @@ class TestMaskEstimator:
     def test_flex_channels(
         self, channel_reduction_position: int, channel_reduction_type: str, channel_block_type: str
     ):
-        """Test initialization of the mask estimator and make sure it can process input tensor.
-        """
+        """Test initialization of the mask estimator and make sure it can process input tensor."""
         # Model parameters
         num_subbands_tests = [32, 65]
         num_outputs_tests = [1, 2]

@@ -107,8 +107,7 @@ class AudioEvaluationConfig(process_audio.ProcessConfig):
 
 
 def get_evaluation_dataloader(config):
-    """Prepare a dataloader for evaluation.
-    """
+    """Prepare a dataloader for evaluation."""
     if config.get("use_lhotse", False):
         return get_lhotse_dataloader_from_config(
             config, global_rank=0, world_size=1, dataset=LhotseAudioToTargetDataset()
@@ -128,8 +127,7 @@ def get_evaluation_dataloader(config):
 
 
 def get_metrics(cfg: AudioEvaluationConfig):
-    """Prepare a dictionary with metrics.
-    """
+    """Prepare a dictionary with metrics."""
     available_metrics = ['sdr', 'sisdr', 'stoi', 'estoi', 'pesq']
 
     metrics = dict()
@@ -203,9 +201,10 @@ def main(cfg: AudioEvaluationConfig):
 
         num_files = 0
 
-        with open(process_cfg.output_filename, 'r') as f_processed, open(
-            temporary_manifest_filepath, 'w', encoding='utf-8'
-        ) as f_tmp:
+        with (
+            open(process_cfg.output_filename, 'r') as f_processed,
+            open(temporary_manifest_filepath, 'w', encoding='utf-8') as f_tmp,
+        ):
             for line_processed in f_processed:
                 data_processed = json.loads(line_processed)
 

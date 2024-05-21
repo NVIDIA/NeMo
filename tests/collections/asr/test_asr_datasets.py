@@ -132,7 +132,7 @@ class TestASRDatasets:
     @pytest.mark.unit
     def test_tarred_dataset_filter(self, test_data_dir):
         """
-        Checks for 
+        Checks for
             1. file count when manifest len is less than tarred dataset
             2. Ignoring files in manifest that are not in tarred balls
 
@@ -422,7 +422,9 @@ class TestASRDatasets:
                 world_size=1,
                 preprocessor_cfg=preprocessor_cfg,
             )
-            ref_dataset = audio_to_text_dataset.get_char_dataset(config=dataset_cfg,)
+            ref_dataset = audio_to_text_dataset.get_char_dataset(
+                config=dataset_cfg,
+            )
             ref_dataloader = DataLoader(
                 dataset=ref_dataset,
                 batch_size=batch_size,
@@ -780,8 +782,7 @@ class TestUtilityFunctions:
     @pytest.mark.unit
     @pytest.mark.parametrize('cache_audio', [False, True])
     def test_cache_datastore_manifests(self, cache_audio: bool):
-        """Test caching of manifest and audio files.
-        """
+        """Test caching of manifest and audio files."""
         # Data setup
         random_seed = 42
         sample_rate = 16000
@@ -843,9 +844,10 @@ class TestUtilityFunctions:
                 # Return path as in the original get
                 return self.local_path
 
-            with mock.patch(
-                'nemo.collections.asr.data.audio_to_text.is_datastore_path', lambda x: True
-            ), mock.patch.object(DataStoreObject, 'get', fake_get):
+            with (
+                mock.patch('nemo.collections.asr.data.audio_to_text.is_datastore_path', lambda x: True),
+                mock.patch.object(DataStoreObject, 'get', fake_get),
+            ):
                 # Use a single worker for this test to avoid failure with mock & multiprocessing (#5607)
                 cache_datastore_manifests(manifest_filepaths, cache_audio=cache_audio, num_workers=1)
 

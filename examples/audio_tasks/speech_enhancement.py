@@ -43,8 +43,7 @@ from nemo.utils.exp_manager import exp_manager
 
 
 class ModelType(str, Enum):
-    """Enumeration with the available model types.
-    """
+    """Enumeration with the available model types."""
 
     MaskBased = 'mask_based'
     Predictive = 'predictive'
@@ -52,8 +51,7 @@ class ModelType(str, Enum):
 
 
 def get_model_class(model_type: ModelType):
-    """Get model class for a given model type.
-    """
+    """Get model class for a given model type."""
     if model_type == ModelType.MaskBased:
         return EncMaskDecAudioToAudioModel
     elif model_type == ModelType.Predictive:

@@ -65,7 +65,7 @@ def select_channels(signal: npt.NDArray, channel_selector: Optional[ChannelSelec
     """
     Convert a multi-channel signal to a single-channel signal by averaging over channels or selecting a single channel,
     or pass-through multi-channel signal when channel_selector is `None`.
-    
+
     Args:
         signal: numpy array with shape (..., num_channels)
         channel selector: string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
@@ -434,7 +434,13 @@ class AudioSegment(object):
         sample_rate = target_sr
 
         return cls(
-            samples, sample_rate, target_sr=target_sr, trim=trim, channel_selector=channel_selector, *args, **kwargs,
+            samples,
+            sample_rate,
+            target_sr=target_sr,
+            trim=trim,
+            channel_selector=channel_selector,
+            *args,
+            **kwargs,
         )
 
     @classmethod
@@ -532,9 +538,8 @@ class AudioSegment(object):
 
     @property
     def rms_db(self):
-        """Return per-channel RMS value.
-        """
-        mean_square = np.mean(self._samples ** 2, axis=0)
+        """Return per-channel RMS value."""
+        mean_square = np.mean(self._samples**2, axis=0)
         return 10 * np.log10(mean_square)
 
     @property
@@ -545,7 +550,7 @@ class AudioSegment(object):
         self._samples *= 10.0 ** (gain / 20.0)
 
     def normalize_db(self, target_db=-20, ref_channel=None):
-        """Normalize the signal to a target RMS value in decibels. 
+        """Normalize the signal to a target RMS value in decibels.
         For multi-channel audio, the RMS value is determined by the reference channel (if not None),
         otherwise it will be the maximum RMS across all channels.
         """
@@ -573,7 +578,11 @@ class AudioSegment(object):
                 f"Padding not implemented for signals with more that 2 dimensions. Current samples dimension: {samples_ndim}."
             )
         # apply padding
-        self._samples = np.pad(self._samples, pad_width, mode='constant',)
+        self._samples = np.pad(
+            self._samples,
+            pad_width,
+            mode='constant',
+        )
 
     def subsegment(self, start_time=None, end_time=None):
         """Cut the AudioSegment between given boundaries.

@@ -126,7 +126,13 @@ class TestWordErrorRate:
             float("inf"),
             float("inf"),
         )
-        assert word_error_rate_detail(hypotheses=['cat', ''], references=['', 'gpu']) == (2.0, 1, 1.0, 1.0, 0.0,)
+        assert word_error_rate_detail(hypotheses=['cat', ''], references=['', 'gpu']) == (
+            2.0,
+            1,
+            1.0,
+            1.0,
+            0.0,
+        )
         assert word_error_rate_detail(hypotheses=['cat'], references=['cot']) == (1.0, 1, 0.0, 0.0, 1.0)
         assert word_error_rate_detail(hypotheses=['G P U'], references=['GPU']) == (3.0, 1, 2.0, 0.0, 1.0)
         assert word_error_rate_detail(hypotheses=[''], references=['ducuti motorcycle'], use_cer=True) == (

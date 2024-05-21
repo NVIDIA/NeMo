@@ -80,7 +80,7 @@ class _FeatureTextDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio feature files, transcripts,
     durations (in seconds) and optional RTTM files. Each new line is a different sample. Example below:
-    {"feature_filepath": "/path/to/audio_feature.pt", "text_filepath": "/path/to/audio.txt", 
+    {"feature_filepath": "/path/to/audio_feature.pt", "text_filepath": "/path/to/audio.txt",
     "rttm_filepath": "/path/to/audio_rttm.rttm", "duration": 23.147}
     ...
     {"feature_filepath": "/path/to/audio_feature.pt", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
@@ -115,8 +115,7 @@ class _FeatureTextDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'features': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             'feature_length': NeuralType(tuple('B'), LengthsType()),
@@ -264,7 +263,7 @@ class _FeatureTextDataset(Dataset):
     def normalize_feature(self, feat):
         """
         Args:
-            feat: feature tensor of shape [M, T]            
+            feat: feature tensor of shape [M, T]
         """
         feat = feat.unsqueeze(0)  # add batch dim
         feat, _, _ = normalize_batch(feat, torch.tensor([feat.size(-1)]), self.normalize_type)
@@ -369,7 +368,7 @@ class FeatureToCharDataset(_FeatureTextDataset):
 class FeatureToBPEDataset(_FeatureTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio feature
-    files, transcripts, durations (in seconds) and optional RTTM files. Each new line is a different sample. 
+    files, transcripts, durations (in seconds) and optional RTTM files. Each new line is a different sample.
     Example below:
     {"audio_filepath": "/path/to/audio.wav", "text_filepath":
     "/path/to/audio.txt", "duration": 23.147, "rttm_filepath": "/path/to/audio_rttm.rttm",}

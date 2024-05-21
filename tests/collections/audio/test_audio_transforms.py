@@ -160,8 +160,7 @@ class TestAudioSpectrogram:
     def test_audio_to_spectrogram_reconstruction(
         self, fft_length: int, num_channels: int, magnitude_power: float, scale: float
     ):
-        """Test analysis and synthesis transform result in a perfect reconstruction.
-        """
+        """Test analysis and synthesis transform result in a perfect reconstruction."""
         batch_size = 4
         num_samples = fft_length * 50
         num_examples = 25

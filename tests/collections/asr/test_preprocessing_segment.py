@@ -108,8 +108,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("num_channels", [1, 4])
     @pytest.mark.parametrize("channel_selector", [None, 'average', 0, 1, [0, 1]])
     def test_init_single_channel(self, num_channels: int, channel_selector: Type[Union[str, int, List[int]]]):
-        """Test the constructor directly.
-        """
+        """Test the constructor directly."""
         if num_channels == 1:
             # samples is a one-dimensional vector for single-channel signal
             samples = np.random.rand(self.num_samples)
@@ -163,8 +162,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("num_channels", [1, 4])
     @pytest.mark.parametrize("channel_selector", [None, 'average', 0])
     def test_from_file(self, num_channels, channel_selector):
-        """Test loading a signal from a file.
-        """
+        """Test loading a signal from a file."""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
             audio_file = os.path.join(test_dir, 'audio.wav')
@@ -195,8 +193,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("data_channels", [1, 4])
     @pytest.mark.parametrize("noise_channels", [1, 4])
     def test_noise_perturb_channels(self, data_channels, noise_channels):
-        """Test loading a signal from a file.
-        """
+        """Test loading a signal from a file."""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
             audio_file = os.path.join(test_dir, 'audio.wav')
@@ -247,8 +244,7 @@ class TestAudioSegment:
                     _ = perturber.perturb_with_foreground_noise(audio, noise)
 
     def test_silence_perturb(self):
-        """Test loading a signal from a file and apply silence perturbation
-        """
+        """Test loading a signal from a file and apply silence perturbation"""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
             audio_file = os.path.join(test_dir, 'audio.wav')
@@ -272,12 +268,15 @@ class TestAudioSegment:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "num_channels, channel_selectors", [(1, [None, 'average', 0]), (3, [None, 'average', 0, 1, [0, 1]]),]
+        "num_channels, channel_selectors",
+        [
+            (1, [None, 'average', 0]),
+            (3, [None, 'average', 0, 1, [0, 1]]),
+        ],
     )
     @pytest.mark.parametrize("sample_rate", [8000, 16000, 22500])
     def test_audio_segment_from_file(self, tmpdir, num_channels, channel_selectors, sample_rate):
-        """Test loading and audio signal from a file.
-        """
+        """Test loading and audio signal from a file."""
         signal_len_sec = 4
         num_samples = signal_len_sec * sample_rate
         num_examples = 10
@@ -372,13 +371,16 @@ class TestAudioSegment:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "num_channels, channel_selectors", [(1, [None, 'average', 0]), (3, [None, 'average', 0, 1, [0, 1]]),]
+        "num_channels, channel_selectors",
+        [
+            (1, [None, 'average', 0]),
+            (3, [None, 'average', 0, 1, [0, 1]]),
+        ],
     )
     @pytest.mark.parametrize("offset", [0, 1.5])
     @pytest.mark.parametrize("duration", [1, 2])
     def test_audio_segment_multichannel_with_list(self, tmpdir, num_channels, channel_selectors, offset, duration):
-        """Test loading an audio signal from a list of single-channel files.
-        """
+        """Test loading an audio signal from a list of single-channel files."""
         sample_rate = 16000
         signal_len_sec = 5
         num_samples = signal_len_sec * sample_rate

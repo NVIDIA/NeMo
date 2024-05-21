@@ -33,8 +33,7 @@ from nemo.collections.audio.data.data_simulation import (
 class TestDataSimulationUtils:
     @pytest.mark.unit
     def test_check_angle(self):
-        """Test angle checks.
-        """
+        """Test angle checks."""
         num_examples = 100
         random = default_rng()
 
@@ -61,8 +60,7 @@ class TestDataSimulationUtils:
 
     @pytest.mark.unit
     def test_wrap_to_180(self):
-        """Test wrap.
-        """
+        """Test wrap."""
         test_cases = []
         test_cases.append({'angle': 0, 'wrapped': 0})
         test_cases.append({'angle': 45, 'wrapped': 45})
@@ -81,8 +79,7 @@ class TestDataSimulationUtils:
 
     @pytest.mark.unit
     def test_placement_range(self):
-        """Test placement range conversion.
-        """
+        """Test placement range conversion."""
         # Setup 1:
         test_cases = []
         test_cases.append(
@@ -181,8 +178,7 @@ class TestDataSimulationUtils:
     @pytest.mark.parametrize("num_mics", [2, 4])
     @pytest.mark.parametrize("num_sources", [1, 3])
     def test_convert_rir_to_mc(self, num_mics: int, num_sources: int):
-        """Test conversion of a RIR from list of lists to multichannel array.
-        """
+        """Test conversion of a RIR from list of lists to multichannel array."""
         len_range = [50, 1000]
         random = default_rng()
 
@@ -335,8 +331,7 @@ class TestRoomSimulation:
 
     @pytest.mark.unit
     def test_simulate_room_mix(self, test_data_dir):
-        """Test room simulation for fixed parameters.
-        """
+        """Test room simulation for fixed parameters."""
         # Test setup
         data_dir = os.path.join(test_data_dir, 'asr', 'data_simulation')
 
