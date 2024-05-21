@@ -85,7 +85,7 @@ model:
 
   # LLM configs
   # use GPTModel from megatron.core
-  mcore_gpt: True
+  mcore_gpt: False
 
   # model architecture
   encoder_seq_length: 4096
@@ -148,7 +148,7 @@ model:
   bias_activation_fusion: False
   megatron_legacy: False
 
-  transformer_engine: True
+  transformer_engine: False
   fp8: False # enables fp8 in TransformerLayer forward
   fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
   fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
