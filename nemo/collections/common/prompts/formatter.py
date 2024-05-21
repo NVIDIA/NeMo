@@ -1,9 +1,10 @@
-from abc import ABC, abstractmethod
+import typing
+from abc import ABC
 from typing import Type
 
 import torch
 
-from nemo.collections.common.tokenizers import AggregateTokenizer, CanaryTokenizer, TokenizerSpec
+from nemo.collections.common.tokenizers import AggregateTokenizer, TokenizerSpec
 
 PROMPT_LANGUAGE_KEY = "|PROMPT_LANGUAGE|"
 
@@ -13,39 +14,59 @@ class PromptFormatter(ABC):
     :class:`~nemo.collections.common.prompts.formatter.PromptFormatter` is intended to simplify
     working with various prompt format templates and encoding them into token ID tensors.
 
+    It assumes a dialog-like structure, which is a list of turns, with each turn assigned to a role.
+    Sub-classes of PromptFormatter define turn templates for each role under TEMPLATE class attribute.
+    Each template may define some constant parts (e.g. begin-of-turn or end-of-turn tokens, whitespaces, etc.)
+    and variable parts which we call "slots", that will be provided by the user during training or inference.
+
+    A role is typically "user" and "assistant", and some popular models also use a "system" role.
+    Other roles may be defined as well. We expected the role corresponding to the model's responses
+    will be registered under class attribute called INFERENCE_ROLE.
+
+    A turn is a dict with keys "role" and "slots", where "slots" are a dict that maps slot names
+    to values that should be filled in the template.
+    For example, a user role template may be ``"Question: |MESSAGE| "`` and corresponding ``slots`` would then be
+    ``{"|MESSAGE|": "What time is it?"}``.
+
+    There is a special slot called ``|PROMPT_LANGUAGE|`` that's used to select the sub-tokenizer in
+    :class:`~nemo.collections.common.tokenizers.aggregate_tokenizer.AggregateTokenizer`.
+    It's only used when the tokenizer is aggregate; otherwise it's discarded.
+
     PromptFormatter supports constructing prompts for training (complete context and answers)
     and for inference (context-only).
+    Training/inference is determined automatically; if the last role in a dialog is the INFERENCE_ROLE,
+    that's an 'asked-and-answered' scenario, so we assume it's inteded for training.
+    We'll create a dict with tokenized results available under the following keys:
 
-    The key methods overview:
+    * ``context_ids`` (all turns minus last one),
+    * ``answer_ids`` (last turn)
+    * ``input_ids`` (previous two values concatenated)
+    * ``mask`` (boolean mask tensor of the same lenth as ``input_ids`` that's set to True on INFERENCE_ROLE turns)
 
-    * :meth:`PromptFormatter.get_training_prompt_template` and :meth:`PromptFormatter.get_inference_prompt_template` provide a string template of the prompt.
+    Typically, the user will use the ``encode_dialog`` method providing a list of turns to it.
+    Example showing how to construct model inputs/outputs for training::
 
-    * :meth:`PromptFormatter.get_training_prompt_slots` and :meth:`PromptFormatter.get_inference_prompt_slots` provide the fillable fields ("slots") available in the prompt.
-        TODO: describe the schema of the slot dict.
+        >>> formatter = PromptFormatter(tokenizer)
+        ... encoded_for_training = formatter.encode_dialog(
+        ...     turns=[
+        ...         {"role": "user", "slots": {"|MESSAGE|": "What time is it?"}},
+        ...         {"role": "assistant", "slots": {"|MESSAGE|": "Ten o'clock."}},
+        ...         {"role": "user", "slots": {"|MESSAGE|": "PM or AM?"}},
+        ...         {"role": "assistant", "slots": {"|MESSAGE|": "AM, naturally! It's bright outside"}},
+        ...     ]
+        ... )
 
-    * :meth:`PromptFormatter.encode_prompt` converts the provided template and provided slot values to token IDs.
-        TODO: describe the schema of the returned dict: context/answer/mask/etc.
+    Another example that shows how to use the same method to generate prompts for inference::
 
-    In order to support :class:`~nemo.collections.common.tokenizers.AggregateTokenizer`, provide
-    a special slot ``|PROMPT_LANGUAGE|`` with the value corresponding to the name of the sub-tokenizer to be selected.
 
-    Intended usage example for building training prompts::
-
-        >>> fmt = PromptFormatter(tokenizer)
-        ... template = fmt.get_training_prompt_template()
-        ... slots = fmt.get_training_prompt_slots()
-        ... for slot in slots:
-        ...     slots[slot] = ...  # user inserted value
-        ... encoded_tensors = fmt.encode_prompt(template, slots)
-
-    Intended usage example for building inference prompts::
-
-        >>> fmt = PromptFormatter(tokenizer)
-        ... template = fmt.get_inference_prompt_template()
-        ... slots = fmt.get_inference_prompt_slots()  # train/infer
-        ... for slot in slots:
-        ...     slots[slot] = ...  # user inserted value
-        ... encoded_tensors = fmt.encode_prompt(template, slots)
+        >>> formatter = PromptFormatter(tokenizer)
+        ... encoded_for_training = formatter.encode_dialog(
+        ...     turns=[
+        ...         {"role": "user", "slots": {"|MESSAGE|": "What time is it?"}},
+        ...         {"role": "assistant", "slots": {"|MESSAGE|": "Ten o'clock."}},
+        ...         {"role": "user", "slots": {"|MESSAGE|": "PM or AM?"}},
+        ...     ]
+        ... )
 
     """
 
@@ -60,7 +81,6 @@ class PromptFormatter(ABC):
     #       * values of slots are types:
     #           * 'str' indicates a required slot
     #           * 'str | None' indicates an optional slot
-    #           * 'list[str]' indicates a slot that may be filled one or more times with no separator
     # Template is intended to be defined by the child classes.
     TEMPLATE = None
 
@@ -114,8 +134,9 @@ class PromptFormatter(ABC):
         turn_token_counts = []
         turn_mask_values = []
         for turn in turns:
-            # TODO: assertion messages
-            assert all(k in turn for k in ("role", "slots"))
+            assert all(
+                k in turn for k in ("role", "slots")
+            ), f"A turn must have keys 'role' and 'slots'. We received {turn=}"
             role = turn["role"]
             assert role in roles, f"Found turn with {role=}, but availables roles are {roles}"
             expected_slots = self.get_slots(role)
@@ -155,6 +176,10 @@ class PromptFormatter(ABC):
         return self.tokenizer.text_to_ids(text)
 
     def _validate_slot_values(self, expected: dict, received: dict) -> None:
-        missing = set(expected) - set(received)
-        # TODO: more detailed info
-        assert not missing, f"The following slot values were not provided: {missing}"
+        missing = set(k for k, v in expected.items() if not is_optional(k)) - set(received)
+        assert not missing, f"The following non-optional slot values were not provided: {missing}"
+
+
+def is_optional(field: typing.Type) -> bool:
+    # Source: https://stackoverflow.com/a/58841311
+    return typing.get_origin(field) is typing.Union and type(None) in typing.get_args(field)
