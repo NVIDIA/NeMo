@@ -21,7 +21,6 @@ from nemo.export.trt_llm.decoder.falcon import FALCONDecoderLayerBuilder, FALCON
 from nemo.export.trt_llm.decoder.gemma import GemmaDecoderLayerBuilder, GemmaDecoderLayerConfigBuilder
 from nemo.export.trt_llm.decoder.gpt import GPTDecoderLayerBuilder, GPTDecoderLayerConfigBuilder
 from nemo.export.trt_llm.decoder.gptj import GPTJDecoderLayerBuilder, GPTJDecoderLayerConfigBuilder
-from nemo.export.trt_llm.decoder.llama import LLAMADecoderLayerBuilder, LLAMADecoderLayerConfigBuilder
 from nemo.export.trt_llm.model_config import (
     DECODER_FALCON,
     DECODER_GEMMA,
@@ -35,7 +34,6 @@ from nemo.export.trt_llm.model_config import (
 DECODER_CONFIG_REGISTRY: Dict[str, Type[DecoderLayerConfigBuilder]] = {
     DECODER_GPT2: GPTDecoderLayerConfigBuilder,
     DECODER_GPTJ: GPTJDecoderLayerConfigBuilder,
-    DECODER_LLAMA: LLAMADecoderLayerConfigBuilder,
     DECODER_FALCON: FALCONDecoderLayerConfigBuilder,
     DECODER_GEMMA: GemmaDecoderLayerConfigBuilder,
 }
@@ -58,25 +56,7 @@ def build_decoder_layer_config(layer, decoder: str, dtype=trt.float16, rank=0, t
 DECODER_REGISTRY: Dict[str, Type[DecoderLayerBuilder]] = {
     DECODER_GPT2: GPTDecoderLayerBuilder,
     DECODER_GPTJ: GPTJDecoderLayerBuilder,
-    DECODER_LLAMA: LLAMADecoderLayerBuilder,
     DECODER_GPTNEXT: GPTDecoderLayerBuilder,
     DECODER_FALCON: FALCONDecoderLayerBuilder,
     DECODER_GEMMA: GemmaDecoderLayerBuilder,
 }
-
-
-def build_decoder_layer(
-    layer,
-    layer_id: int,
-    num_layers: int,
-    dtype=trt.float16,
-    quantization=QUANTIZATION_NONE,
-    rank=0,
-    tensor_parallel=1,
-    tp_group=None,
-):
-    """Builds the tensorrt llm decoder layer module with the layer config as the input."""
-    assert layer.decoder_type in DECODER_REGISTRY, f"{layer.decoder_type} not supported"
-    builder = DECODER_REGISTRY[layer.decoder_type]
-    decoder_builder = builder(layer, layer_id, num_layers, dtype, quantization, rank, tensor_parallel, tp_group)
-    return decoder_builder.decoder
