@@ -3,11 +3,8 @@ from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_BOS, CANA
 
 
 class CanaryPromptFormatter(PromptFormatter):
-
     REGISTER_NAME = "canary"
-
     INFERENCE_ROLE = "assistant"
-
     TEMPLATE = {
         "user": {
             "template": f"{CANARY_BOS}|SOURCE_LANG||TASKNAME||TARGET_LANG||PNC|",
