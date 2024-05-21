@@ -1,7 +1,5 @@
 from llama_index.core import Settings, SimpleDirectoryReader, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.vector_stores.milvus import MilvusVectorStore
 
 from nemo.collections.nlp.models.rag.custom_bert_embedder import NeMoBertEmbeddings
 from nemo.core.config import hydra_runner
