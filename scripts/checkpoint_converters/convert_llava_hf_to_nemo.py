@@ -57,9 +57,18 @@ def create_rename_keys(num_hidden_layers):
                     f"model.decoder.layers.{i}.self_attention.linear_v.weight",
                 ),
                 # MLP and LayerNorm
-                (f"language_model.model.layers.{i}.mlp.gate_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_gate.weight"),
-                (f"language_model.model.layers.{i}.mlp.up_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_proj.weight"),
-                (f"language_model.model.layers.{i}.mlp.down_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc2.weight"),
+                (
+                    f"language_model.model.layers.{i}.mlp.gate_proj.weight",
+                    f"model.decoder.layers.{i}.mlp.linear_fc1_gate.weight",
+                ),
+                (
+                    f"language_model.model.layers.{i}.mlp.up_proj.weight",
+                    f"model.decoder.layers.{i}.mlp.linear_fc1_proj.weight",
+                ),
+                (
+                    f"language_model.model.layers.{i}.mlp.down_proj.weight",
+                    f"model.decoder.layers.{i}.mlp.linear_fc2.weight",
+                ),
                 (
                     f"language_model.model.layers.{i}.input_layernorm.weight",
                     f"model.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight",
@@ -71,19 +80,29 @@ def create_rename_keys(num_hidden_layers):
             ]
         )
 
-    rename_keys.extend([
-        ("multi_modal_projector.linear_1.weight",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.weight"),
-        ("multi_modal_projector.linear_1.bias",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.bias"),
-        ("multi_modal_projector.linear_2.weight",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.weight"),
-        ("multi_modal_projector.linear_2.bias",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias"),
-        ("language_model.model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
-        ("language_model.model.norm.weight", "model.decoder.final_layernorm.weight"),
-        ("language_model.lm_head.weight", "model.output_layer.weight")
-    ])
+    rename_keys.extend(
+        [
+            (
+                "multi_modal_projector.linear_1.weight",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.weight",
+            ),
+            (
+                "multi_modal_projector.linear_1.bias",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.bias",
+            ),
+            (
+                "multi_modal_projector.linear_2.weight",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.weight",
+            ),
+            (
+                "multi_modal_projector.linear_2.bias",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias",
+            ),
+            ("language_model.model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
+            ("language_model.model.norm.weight", "model.decoder.final_layernorm.weight"),
+            ("language_model.lm_head.weight", "model.output_layer.weight"),
+        ]
+    )
 
     return rename_keys
 
@@ -146,7 +165,7 @@ def adjust_tensor_shapes(model, nemo_state_dict):
             # padding
             loaded_weight = nemo_state_dict[key_]
             new_weight = model.state_dict()[key_]
-            new_weight[:loaded_weight.shape[0], :loaded_weight.shape[1]] = loaded_weight
+            new_weight[: loaded_weight.shape[0], : loaded_weight.shape[1]] = loaded_weight
             nemo_state_dict[key_] = new_weight
 
         if 'mlp.linear_fc1_gate.weight' in key_:
@@ -173,9 +192,9 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
             qkv_weight = torch.empty((0, head_size, hidden_size), device=q_weight.device)
             for i in range(num_query_groups):
-                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group: (i + 1) * heads_per_group, :, :]))
-                qkv_weight = torch.cat((qkv_weight, k_weight[i: i + 1, :, :]))
-                qkv_weight = torch.cat((qkv_weight, v_weight[i: i + 1, :, :]))
+                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+                qkv_weight = torch.cat((qkv_weight, k_weight[i : i + 1, :, :]))
+                qkv_weight = torch.cat((qkv_weight, v_weight[i : i + 1, :, :]))
             qkv_weight = qkv_weight.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
             nemo_state_dict[key_qkv] = qkv_weight
             del nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]
@@ -294,7 +313,7 @@ def convert(args):
     logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'.")
     logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'.")
     assert (
-            hf_next_token == next_token
+        hf_next_token == next_token
     ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
     logging.info(f'=' * 100)
 
