@@ -72,7 +72,7 @@ model:
     feat_in: 1536
     num_classes: 7205
     pool_mode: 'attention' #xvector,tap or attention
-    attention_channels: 3072
+    attention_channels: 128
     emb_sizes: 192
 
   loss:
