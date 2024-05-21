@@ -31,14 +31,14 @@ model:
     pin_memory: true
 
   encoder:
-    _target_: nemo.collections.audio.modules.transform.AudioToSpectrogram
+    _target_: nemo.collections.audio.modules.transforms.AudioToSpectrogram
     fft_length: 510 # Number of subbands in the STFT = fft_length // 2 + 1 = 256
     hop_length: 128
     magnitude_power: 0.5
     scale: 0.33
 
   decoder:
-    _target_: nemo.collections.audio.modules.transform.SpectrogramToAudio
+    _target_: nemo.collections.audio.modules.transforms.SpectrogramToAudio
     fft_length: ${model.encoder.fft_length} 
     hop_length: ${model.encoder.hop_length}
     magnitude_power: ${model.encoder.magnitude_power}

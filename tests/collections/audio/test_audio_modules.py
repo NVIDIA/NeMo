@@ -26,7 +26,7 @@ from nemo.collections.audio.modules.masking import (
     MaskEstimatorGSS,
     MaskReferenceChannel,
 )
-from nemo.collections.audio.modules.transform import AudioToSpectrogram
+from nemo.collections.audio.modules.transforms import AudioToSpectrogram
 from nemo.collections.audio.parts.submodules.multichannel import WPEFilter
 from nemo.collections.audio.parts.utils.audio import convmtx_mc_numpy
 from nemo.utils import logging

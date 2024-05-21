@@ -39,12 +39,12 @@ model:
     pin_memory: true
 
   encoder:
-    _target_: nemo.collections.audio.modules.transform.AudioToSpectrogram
+    _target_: nemo.collections.audio.modules.transforms.AudioToSpectrogram
     fft_length: 512 # Length of the window and FFT for calculating spectrogram
     hop_length: 256 # Hop length for calculating spectrogram
 
   decoder:
-    _target_: nemo.collections.audio.modules.transform.SpectrogramToAudio
+    _target_: nemo.collections.audio.modules.transforms.SpectrogramToAudio
     fft_length: 512 # Length of the window and FFT for calculating spectrogram
     hop_length: 256 # Hop length for calculating spectrogram
 

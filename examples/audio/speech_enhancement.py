@@ -16,7 +16,7 @@
 # Training the model
 
 Basic run (on CPU for 50 epochs):
-    python examples/audio_tasks/speech_enhancement.py \
+    python examples/audio/speech_enhancement.py \
         # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \

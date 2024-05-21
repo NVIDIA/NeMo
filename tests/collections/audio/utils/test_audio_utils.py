@@ -13,14 +13,12 @@
 # limitations under the License.
 
 import os
-from typing import List, Type, Union
 
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import scipy
-import soundfile as sf
 import torch
 
 from nemo.collections.audio.parts.utils.audio import SOUND_VELOCITY as sound_velocity

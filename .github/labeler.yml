@@ -36,8 +36,8 @@ TTS:
 
 Audio:
 - nemo/collections/audio/**/*
-- examples/audio_tasks/**/*
-- tutorials/audio_tasks/**/*
+- examples/audio/**/*
+- tutorials/audio/**/*
 - docs/source/audio/**/*
 - tests/collections/audio/**
 

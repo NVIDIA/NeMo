@@ -42,7 +42,7 @@ class TestSelectChannels:
             # Expect a failure if looking for a different channel when input is 1D
             with pytest.raises(ValueError):
                 # UUT
-                signal_out = select_channels(signal_in, channel_selector)
+                select_channels(signal_in, channel_selector)
         else:
             # UUT
             signal_out = select_channels(signal_in, channel_selector)
@@ -58,7 +58,6 @@ class TestSelectChannels:
         """Cover the case with multi-channel input signal and single-
         or multi-channel output.
         """
-        num_samples = 1000
         signal_in = np.random.rand(self.num_samples, num_channels)
 
         # calculate golden output
@@ -85,13 +84,12 @@ class TestSelectChannels:
         """This test is expecting the UUT to fail because we ask for more channels
         than available in the input signal.
         """
-        num_samples = 1000
         signal_in = np.random.rand(self.num_samples, num_channels)
 
         # expect failure since we ask for more channels than available
         with pytest.raises(ValueError):
             # UUT
-            signal_out = select_channels(signal_in, channel_selector)
+            select_channels(signal_in, channel_selector)
 
 
 class TestAudioSegment:
@@ -445,7 +443,6 @@ class TestAudioSegment:
         signal_len_sec = 2
         num_samples = signal_len_sec * sample_rate
         num_examples = 10
-        rtol, atol = 1e-5, 1e-6
 
         TrimSetup = namedtuple("TrimSetup", "ref top_db frame_length hop_length")
         trim_setups = []

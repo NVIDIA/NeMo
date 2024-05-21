@@ -11,20 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
-import filecmp
-import json
 import os
-import shutil
 import tempfile
-from unittest import mock
 
 import numpy as np
 import pytest
 import soundfile as sf
 import torch.cuda
-from omegaconf import DictConfig, OmegaConf
-from torch.utils.data import DataLoader
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.utils.manifest_utils import write_manifest
 from nemo.collections.audio.data import audio_to_audio_dataset
@@ -41,7 +35,6 @@ from nemo.collections.audio.data.audio_to_audio_lhotse import (
 )
 from nemo.collections.audio.parts.utils.audio import get_segment_start
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.utils import logging
 
 
 class TestAudioDatasets:
