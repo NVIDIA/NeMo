@@ -278,7 +278,7 @@ class NLPDDPStrategy(DDPStrategy):
             else:
                 super().configure_ddp()
 
-    def optimizer_sharded_state_dict(self, unsharded_optim_state=None):
+    def optimizer_sharded_state_dict(self, unsharded_optim_state=None, is_loading=False):
         """
         Sharded state dictionary for an MainParamsOptimizerWrapper.
         Used to save and load the optimizer state when training with distributed_checkpoint.
@@ -298,7 +298,8 @@ class NLPDDPStrategy(DDPStrategy):
         }
         if isinstance(optimizer, McoreDistributedOptimizer):
             return optimizer.sharded_state_dict(
-                model_sharded_state_dict, unsharded_optim_state, dist_ckpt_parallel_save=self._dist_ckpt_parallel_save
+                model_sharded_state_dict, unsharded_optim_state, is_loading=is_loading,
+                dist_ckpt_parallel_save=self._dist_ckpt_parallel_save
             )
         elif isinstance(optimizer, MegatronDistributedFusedAdam):
             return optimizer.sharded_state_dict(model_sharded_state_dict, unsharded_optim_state)
@@ -442,7 +443,7 @@ class NLPDDPStrategy(DDPStrategy):
 
             # after dist_checkpointing.load, sharded tensors will be replaced with tensors
             checkpoint['state_dict'] = sharded_state_dict
-            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict()]
+            checkpoint['optimizer_states'] = [self.optimizer_sharded_state_dict(is_loading=True)]
             return self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
 
         # Legacy model parallel checkpointing logic, does not use megatron core
