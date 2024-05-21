@@ -51,8 +51,18 @@ python scripts/nlp_language_modeling/prepare_packed_ft_dataset.py \
    +pack_sizes=[2048,4096,8192]
    
 Note: 
-- pack_sizes can take in a list 
-- model.data.train_ds.max_seq_length is the length to truncate long sequences before packing, and is different from the packing sizes
+  - If your model or dataset requires non-default configs for conventional SFT/PEFT training in NeMo, you will
+    need to pass in the same configs to ``model.data.train_ds`` as you would for training with unpacked dataset.
+
+  - ``model.data.train_ds.max_seq_length`` is the length to truncate each sequence before packing multiple sequences
+    to the size of packed sequence (``pack_size``). ``max_seq_length`` should be set to the same value as unpacked data,
+    and can be determined by examining the distribution of sequence lengths in the dataset.
+
+  - ``pack_sizes`` is a list of packed sequence lengths. In this example, there will be three output files, one for
+    each pack size. The output files are named ``<output_folder>/packed_{pack_size}_seed{seed}.npy``.
+    This argument is a list because you will likely want to experiment with a few ``pack_sizes`` to find out which length
+    can fill the GPU memory without exceeding it. Adjusting ``pack_size`` is analogous to adjusting the micro batch size in
+    the unpacked case.
 """
 
 
@@ -145,7 +155,9 @@ To train with packed sequences, you need to change three things in the SFT/PEFT 
    > +model.data.train_ds.packed_sequence=True
 2. Use the new dataset file instead of the original jsonl file
    > model.data.train_ds.file_names=/path/to/packed_dataset.npy
-3. Adjust the batch sizes. 
+3. Specify the packed sequence length. This should be one of the ``pack_sizes`` you specified during data preparation.
+   > model.data.train_ds.max_seq_length=<pack_size>
+4. Adjust the batch sizes. 
    Micro batch size has to be set to 1 as a nominal constraint. This is because batches are now concatenated 
    in the preprocessing step. You can increase the pack_size to achieve the same purpose of increasing micro batch size.
    Global batch size has to be reduced by the average number of sequences per pack `n`, 
