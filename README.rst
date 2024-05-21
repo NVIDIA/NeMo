@@ -110,6 +110,8 @@ Introduction
 
 NVIDIA NeMo Framework is a scalable and cloud-native generative AI framework built for researchers and PyTorch developers working on Large Language Models (LLMs), Multimodal Models (MMs), Automatic Speech Recognition (ASR), Text to Speech (TTS), and Computer Vision (CV) domains. It is designed to help you efficiently create, customize, and deploy new generative AI models by leveraging existing code and pre-trained model checkpoints.
 
+For technical documentation, please see the `NeMo Framework User Guide <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_.
+
 LLMs and MMs Training, Alignment, and Customization
 ###################################################
 
@@ -151,6 +153,15 @@ We have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-gui
 can be run on `Google Colab <https://colab.research.google.com>`_ or with our `NGC NeMo Framework Container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`_. We also have `playbooks <https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.html>`_ for users who want to train NeMo models with the NeMo Framework Launcher.
 
 For advanced users who want to train NeMo models from scratch or fine-tune existing NeMo models, we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ that support multi-GPU/multi-node training.
+
+Key Features
+------------
+
+* `Large Language Models <nemo/collections/nlp/README.md>`_
+* `Multimodal <nemo/collections/multimodal/README.md>`_
+* `Automatic Speech Recognition <nemo/collections/asr/README.md>`_
+* `Text to Speech <nemo/collections/tts/README.md>`_
+* `Computer Vision <nemo/collections/vision/README.md>`_
 
 Requirements
 ------------
@@ -479,27 +490,6 @@ If you choose to work with the main branch, we recommend using NVIDIA's PyTorch 
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:23.10-py3
 
-Collections
------------
-
-.. raw:: html
-
-  <details>
-    <summary><b>Large Language Models (LLMs)</b></summary>
-      The NeMo NLP/LLM Collection is designed to provide comprehensive support for on-demand large language community models as well as Nvidia's top LLM offerings. By harnessing the cutting-edge Megatron Core, our LLM collection is highly optimized, empowering NeMo users to undertake foundation model training across thousands of GPUs while facilitating fine-tuning of LLMs using techniques such as SFT and PEFT. Leveraging the Transformer Engine library, our collection ensures seamless support for FP8 workloads on Hopper H100 GPUs. Additionally, we prioritize supporting TRTLLM export for the released models, which can accelerate inference by 2-3x depending on the model size. Here's a detailed list of the models currently supported within the LLM collection:
-      <ul>
-       <li>Bert</li>
-       <li>GPT-style models</li>
-       <li>Falcon</li>
-       <li>code-llama 7B</li>
-       <li>Mistral</li>
-       <li>Mixtral</li>
-      </ul>
-
-  Our <a href="https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html">documentation</a> offers comprehensive insights into each supported model, facilitating seamless integration and utilization within your projects.
-      <br><br>
-    </details>
-
 
 Future Work
 -----------
@@ -518,7 +508,11 @@ We welcome community contributions! Please refer to `CONTRIBUTING.md <https://gi
 
 To contribute an article to the collection, please submit a pull request to the ``gh-pages-src`` branch of this repository. For detailed information, please consult the README located at the `gh-pages-src branch <https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme>`_.
 
-License
--------
+Licenses
+--------
 
-NVIDIA NeMo Framework is released under an `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/stable/LICENSE>`_.
+* `NeMo GitHub Apache 2.0 license <https://github.com/NVIDIA/NeMo?tab=Apache-2.0-1-ov-file#readme>`__
+
+* NeMo is licensed under the `NVIDIA AI PRODUCT AGREEMENT <https://www.nvidia.com/en-us/data-center/products/nvidia-ai-enterprise/eula/>`__. By pulling and using the container, you accept the terms and conditions of this license.
+
+* This container contains Llama materials governed by the `Meta Llama3 Community License Agreement <https://huggingface.co/meta-llama/Meta-Llama-3-8B/tree/main>`__, and is built with Meta Llama3.
