@@ -120,7 +120,6 @@ def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
     return build_tokenizer(tokenizer_config)
 
 
-
 def to_word_list_format(
     word_dict: List[List[str]],
     tokenizer=None,
@@ -177,8 +176,6 @@ def to_word_list_format(
         offsets[i] = np.pad(offs, (0, pad_to - len(offs)), constant_values=-1)
 
     return np.array([flat_ids, offsets], dtype="int32").transpose((1, 0, 2))
-
-
 
 
 def nemo_to_trtllm_config(
