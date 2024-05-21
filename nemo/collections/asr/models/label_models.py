@@ -24,10 +24,17 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from scipy.interpolate import interp1d
+from scipy.optimize import brentq
+from sklearn.metrics import roc_curve
 from torchmetrics import Accuracy
 from tqdm import tqdm
 
-from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset, cache_datastore_manifests
+from nemo.collections.asr.data.audio_to_label import (
+    AudioPairToLabelDataset,
+    AudioToSpeechLabelDataset,
+    cache_datastore_manifests,
+)
 from nemo.collections.asr.data.audio_to_label_dataset import (
     get_concat_tarred_speech_label_dataset,
     get_tarred_speech_label_dataset,
@@ -189,7 +196,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             )
             labels.update(collection.uniq_labels)
         labels = list(sorted(labels))
-        logging.warning(f"Total number of {len(labels)} found in all the manifest files.")
+        logging.warning(f"Total number of {len(labels)} labels found in all the manifest files.")
         return labels
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -235,7 +242,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
-            dataset = AudioToSpeechLabelDataset(
+            data_cls = AudioPairToLabelDataset if config.get("is_audio_pair", False) else AudioToSpeechLabelDataset
+
+            dataset = data_cls(
                 manifest_filepath=config['manifest_filepath'],
                 labels=config['labels'],
                 featurizer=featurizer,
@@ -300,12 +309,18 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 )
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        val_data_layer_config['labels'] = self.labels
+        if val_data_layer_config.get("is_audio_pair", False):
+            val_data_layer_config['labels'] = ["0", "1"]
+        else:
+            val_data_layer_config['labels'] = self.labels
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if hasattr(self, 'dataset'):
-            test_data_layer_params['labels'] = self.labels
+            if test_data_layer_params.get("is_audio_pair", False):
+                test_data_layer_params['labels'] = ["0", "1"]
+            else:
+                test_data_layer_params['labels'] = self.labels
 
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
@@ -378,6 +393,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return {'loss': loss}
 
     def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
+        if len(batch) > 4:
+            return self.pair_evaluation_step(batch, batch_idx, dataloader_idx, tag)
+
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.eval_loss(logits=logits, labels=labels)
@@ -410,6 +428,39 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         return output
 
+    def pair_evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
+        audio_signal_1, audio_signal_len_1, audio_signal_2, audio_signal_len_2, labels, _ = batch
+        _, audio_emb1 = self.forward(input_signal=audio_signal_1, input_signal_length=audio_signal_len_1)
+        _, audio_emb2 = self.forward(input_signal=audio_signal_2, input_signal_length=audio_signal_len_2)
+
+        loss_labels = (1 - labels) * -1 + labels
+        loss_value = torch.nn.functional.cosine_embedding_loss(audio_emb1, audio_emb2, loss_labels.long())
+        cosine_sim = torch.cosine_similarity(audio_emb1, audio_emb2)
+
+        output = {f"{tag}_loss": loss_value, f"{tag}_scores": cosine_sim, f"{tag}_labels": labels}
+
+        if tag == 'val':
+            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(output)
+            else:
+                self.validation_step_outputs.append(output)
+        else:
+            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(output)
+            else:
+                self.test_step_outputs.append(output)
+
+        return output
+
+    def pair_multi_eval_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
+        loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
+        scores = torch.cat([x[f'{tag}_scores'] for x in outputs]).cpu().numpy()
+        labels = torch.cat([x[f'{tag}_labels'] for x in outputs]).long().cpu().numpy()
+        fpr, tpr, thresholds = roc_curve(y_true=labels, y_score=scores, pos_label=1)
+        eer = brentq(lambda x: 1.0 - x - interp1d(fpr, tpr)(x), 0.0, 1.0) * 100
+        tensorboard_logs = {f"{tag}_eer": eer}
+        return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
+
     def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
         # Check if all outputs are non-empty
         if not outputs or not all([bool(x) for x in outputs]):
@@ -418,7 +469,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             )
             return {}
 
+        if f"{tag}_scores" in outputs[0]:
+            return self.pair_multi_eval_epoch_end(outputs, dataloader_idx, tag)
+
         loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
+
         correct_counts = torch.stack([x[f'{tag}_correct_counts'] for x in outputs]).sum(axis=0)
         total_counts = torch.stack([x[f'{tag}_total_counts'] for x in outputs]).sum(axis=0)
 

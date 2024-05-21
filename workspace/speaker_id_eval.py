@@ -78,33 +78,26 @@ def load_ssl_encoder(model, cfg):
     return model
 
 
-@hydra_runner(config_path="configs", config_name="ecapa_tdnn_ssl")
+@hydra_runner(config_path="configs", config_name="ecapa_tdnn_small")
 def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
-    speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
+    model_cfg = EncDecSpeakerLabelModel.restore_from(cfg.init_from_nemo_model, return_config=True)
+    model_cfg.test_ds = cfg.model.test_ds
+    model_cfg.test_ds.labels = model_cfg.train_ds.labels
 
-    if cfg.model.preprocessor.get("encoder", None) is not None:
-        speaker_model = load_ssl_encoder(speaker_model, cfg)
-
-    # save labels to file
-    if log_dir is not None:
-        with open(os.path.join(log_dir, 'labels.txt'), 'w') as f:
-            if speaker_model.labels is not None:
-                for label in speaker_model.labels:
-                    f.write(f'{label}\n')
-
-    trainer.fit(speaker_model)
-
-    torch.distributed.destroy_process_group()
+    speaker_model = EncDecSpeakerLabelModel.restore_from(
+        cfg.init_from_nemo_model, override_config_path=model_cfg, trainer=trainer
+    )
+    speaker_model.eval()
+    speaker_model.setup_test_data(model_cfg.test_ds)
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if trainer.is_global_zero:
-            trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator, strategy=cfg.trainer.strategy)
-            if speaker_model.prepare_test(trainer):
-                trainer.test(speaker_model)
+        if speaker_model.prepare_test(trainer):
+            logging.info("Test data prepared successfully.")
+            trainer.test(speaker_model)
 
 
 if __name__ == '__main__':

@@ -417,16 +417,17 @@ class SpeechLabel(_Collection):
         total_duration = 0.0
         for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
             # Duration filters.
-            if min_duration is not None and duration < min_duration:
+            if min_duration is not None and duration is not None and duration < min_duration:
                 duration_filtered += duration
                 continue
 
-            if max_duration is not None and duration > max_duration:
+            if max_duration is not None and duration is not None and duration > max_duration:
                 duration_filtered += duration
                 continue
 
             data.append(output_type(audio_file, duration, command, offset))
-            total_duration += duration
+            if duration is not None:
+                total_duration += duration
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
