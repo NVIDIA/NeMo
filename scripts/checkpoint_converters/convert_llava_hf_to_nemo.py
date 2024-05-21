@@ -25,9 +25,9 @@ from argparse import ArgumentParser
 
 import torch
 from omegaconf import OmegaConf
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import LlamaTokenizer, LlavaForConditionalGeneration
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
@@ -41,43 +41,49 @@ def create_rename_keys(num_hidden_layers):
         rename_keys.extend(
             [
                 (
-                    f"model.layers.{i}.self_attn.o_proj.weight",
+                    f"language_model.model.layers.{i}.self_attn.o_proj.weight",
                     f"model.decoder.layers.{i}.self_attention.linear_proj.weight",
                 ),
                 (
-                    f"model.layers.{i}.self_attn.q_proj.weight",
+                    f"language_model.model.layers.{i}.self_attn.q_proj.weight",
                     f"model.decoder.layers.{i}.self_attention.linear_q.weight",
                 ),
                 (
-                    f"model.layers.{i}.self_attn.k_proj.weight",
+                    f"language_model.model.layers.{i}.self_attn.k_proj.weight",
                     f"model.decoder.layers.{i}.self_attention.linear_k.weight",
                 ),
                 (
-                    f"model.layers.{i}.self_attn.v_proj.weight",
+                    f"language_model.model.layers.{i}.self_attn.v_proj.weight",
                     f"model.decoder.layers.{i}.self_attention.linear_v.weight",
                 ),
                 # MLP and LayerNorm
-                (f"model.layers.{i}.mlp.gate_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_gate.weight"),
-                (f"model.layers.{i}.mlp.up_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_proj.weight"),
-                (f"model.layers.{i}.mlp.down_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc2.weight"),
+                (f"language_model.model.layers.{i}.mlp.gate_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_gate.weight"),
+                (f"language_model.model.layers.{i}.mlp.up_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_proj.weight"),
+                (f"language_model.model.layers.{i}.mlp.down_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc2.weight"),
                 (
-                    f"model.layers.{i}.input_layernorm.weight",
+                    f"language_model.model.layers.{i}.input_layernorm.weight",
                     f"model.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight",
                 ),
                 (
-                    f"model.layers.{i}.post_attention_layernorm.weight",
+                    f"language_model.model.layers.{i}.post_attention_layernorm.weight",
                     f"model.decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight",
                 ),
             ]
         )
 
-    # Non layer dependent keys
-    rename_keys.extend(
-        [
-            ("model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
-            ("model.norm.weight", "model.decoder.final_layernorm.weight"),
-        ]
-    )
+    rename_keys.extend([
+        ("multi_modal_projector.linear_1.weight",
+         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.weight"),
+        ("multi_modal_projector.linear_1.bias",
+         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.bias"),
+        ("multi_modal_projector.linear_2.weight",
+         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.weight"),
+        ("multi_modal_projector.linear_2.bias",
+         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias"),
+        ("language_model.model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
+        ("language_model.model.norm.weight", "model.decoder.final_layernorm.weight"),
+        ("language_model.lm_head.weight", "model.output_layer.weight")
+    ])
 
     return rename_keys
 
@@ -133,6 +139,16 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
     # Note: For 'key' and 'value' weight and biases, NeMo uses a consolidated tensor 'query_key_value'.
     for key_ in list(nemo_state_dict.keys()):
+        if 'vision_towel' in key_:
+            del nemo_state_dict[key_]
+
+        if 'word_embeddings.weight' in key_ or 'output_layer.weight' in key_:
+            # padding
+            loaded_weight = nemo_state_dict[key_]
+            new_weight = model.state_dict()[key_]
+            new_weight[:loaded_weight.shape[0], :loaded_weight.shape[1]] = loaded_weight
+            nemo_state_dict[key_] = new_weight
+
         if 'mlp.linear_fc1_gate.weight' in key_:
             key_gate = key_
             key_proj = key_.replace('mlp.linear_fc1_gate.weight', 'mlp.linear_fc1_proj.weight')
@@ -140,8 +156,8 @@ def adjust_tensor_shapes(model, nemo_state_dict):
             gate_weight = nemo_state_dict[key_gate]
             proj_weight = nemo_state_dict[key_proj]
             nemo_state_dict[new_key] = torch.cat((gate_weight, proj_weight))
-        if 'layernorm.weight' in key_ or 'layer_norm_weight' in key_:
-            nemo_state_dict[key_] = nemo_state_dict[key_] + 1.0
+            del nemo_state_dict[key_gate], nemo_state_dict[key_proj]
+
         if 'self_attention.linear_q.weight' in key_:
             key_q = key_
             key_k = key_.replace('linear_q', 'linear_k')
@@ -157,9 +173,9 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
             qkv_weight = torch.empty((0, head_size, hidden_size), device=q_weight.device)
             for i in range(num_query_groups):
-                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
-                qkv_weight = torch.cat((qkv_weight, k_weight[i : i + 1, :, :]))
-                qkv_weight = torch.cat((qkv_weight, v_weight[i : i + 1, :, :]))
+                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group: (i + 1) * heads_per_group, :, :]))
+                qkv_weight = torch.cat((qkv_weight, k_weight[i: i + 1, :, :]))
+                qkv_weight = torch.cat((qkv_weight, v_weight[i: i + 1, :, :]))
             qkv_weight = qkv_weight.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
             nemo_state_dict[key_qkv] = qkv_weight
             del nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]
@@ -168,14 +184,33 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
 
 def adjust_nemo_config(model_config, ref_config):
+    model_config.mm_cfg.mm_mlp_adapter_type = "mlp2x_gelu"
+    if ref_config["vision_config"].image_size == 336:
+        model_config.mm_cfg.vision_encoder.from_pretrained = "openai/clip-vit-large-patch14-336"
+        model_config.data.image_token_len = 576
+    else:
+        model_config.mm_cfg.vision_encoder.from_pretrained = "openai/clip-vit-large-patch14"
+        model_config.data.image_token_len = 256
+
+    ref_config = ref_config['text_config'].__dict__
     model_config["encoder_seq_length"] = ref_config["max_position_embeddings"]
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
     model_config["hidden_size"] = ref_config["hidden_size"]
     model_config["num_attention_heads"] = ref_config["num_attention_heads"]
     model_config["num_query_groups"] = ref_config["num_key_value_heads"]
-    model_config["kv_channels"] = ref_config["head_dim"]
     model_config["layernorm_epsilon"] = ref_config["rms_norm_eps"]
+    model_config["init_method_std"] = ref_config["initializer_range"]
+    model_config["kv_channels"] = ref_config.get(
+        "head_dim", model_config["hidden_size"] // model_config["num_attention_heads"]
+    )
+    if ref_config.get("rope_scaling") is not None:
+        if ref_config["rope_scaling"]["type"] == "linear":
+            model_config["seq_len_interpolation_factor"] = ref_config["rope_scaling"]["factor"]
+        else:
+            raise ValueError("Only linear rope scaling type is supported now")
+    model_config["use_cpu_initialization"] = True
+
     return model_config
 
 
@@ -183,11 +218,12 @@ def get_args():
     parser = ArgumentParser()
     parser.add_argument("--input_name_or_path", type=str)
     parser.add_argument("--tokenizer_path", type=str)
+    parser.add_argument("--conv_template", default="v1", type=str)
     parser.add_argument(
         "--hparams_file",
         type=str,
         default=os.path.join(
-            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gemma_config.yaml'
+            os.path.dirname(__file__), '../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml'
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
@@ -202,18 +238,20 @@ def get_args():
 
 
 def convert(args):
-    logging.info(f"Loading checkpoint from HF Gemma: `{args.input_name_or_path}`")
-    hf_tokenizer = AutoTokenizer.from_pretrained(args.input_name_or_path)
-    hf_model = AutoModelForCausalLM.from_pretrained(args.input_name_or_path)
+    logging.info(f"Loading checkpoint from HF Llava: `{args.input_name_or_path}`")
+    hf_tokenizer = LlamaTokenizer.from_pretrained(args.input_name_or_path)
+    hf_model = LlavaForConditionalGeneration.from_pretrained(args.input_name_or_path)
     logging.info("HF Model loading done.")
 
     nemo_config = OmegaConf.load(args.hparams_file)
     nemo_config.model = adjust_nemo_config(nemo_config.model, hf_model.config.__dict__)
+    nemo_config.model.data["conv_template"] = args.conv_template
+    nemo_config.model.mm_cfg.llm["model_type"] = args.conv_template
     nemo_config.model.tokenizer["model"] = args.tokenizer_path
 
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
-    model = MegatronGPTModel(nemo_config.model, trainer)
+    model = MegatronNevaModel(nemo_config.model, trainer)
 
     rename_keys = create_rename_keys(nemo_config.model.num_layers)
     old_state_dict = hf_model.state_dict()
@@ -253,10 +291,10 @@ def convert(args):
     hf_next_token = hf_outputs.logits[0, -1].argmax()
     next_token = outputs.squeeze()[-1].argmax()
 
-    logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(hf_next_token)}'.")
-    logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(next_token)}'.")
+    logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'.")
+    logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'.")
     assert (
-        hf_next_token == next_token
+            hf_next_token == next_token
     ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
     logging.info(f'=' * 100)
 
