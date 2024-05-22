@@ -172,7 +172,7 @@ def create_packing_strategy(
     return assignments
 
 
-def fill_packing_strategy(assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int):
+def fill_packing_strategy(assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int) -> List[Dict]:
     """
     Fills the packing strategy with actual sequence data based on assignments and sequence information.
 
@@ -192,7 +192,7 @@ def fill_packing_strategy(assignments: List[List[int]], sequences: Dict[int, Lis
           output_data: A list of dictionaries, where each dictionary represents a packed sequence with its input IDs,
                         loss mask (if available), and starting indices.
     """
-    ifile_handles = {}
+    ifile_handles = dict()
     for seq_len in tqdm(range(pack_size + 1)):
         per_seq_data = sequences[seq_len]
         if len(per_seq_data) > 0:
@@ -205,8 +205,6 @@ def fill_packing_strategy(assignments: List[List[int]], sequences: Dict[int, Lis
             except KeyError:
                 loss_mask = None
             ifile_handles[seq_len] = (input_ids, loss_mask)
-        # else:
-        #     ifile_handles[seq_len] = [], []
 
     input_ids, loss_mask, seq_start_id = {}, {}, {}
 
