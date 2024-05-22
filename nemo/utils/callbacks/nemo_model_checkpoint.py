@@ -283,7 +283,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if self.file_exists(base_path, trainer, check_dist_ckpt=False):
             if trainer.is_global_zero:
                 logging.info(f'removing existing .nemo checkpoint {base_path}')
-                shutil.rmtree(base_path)
+                shutil.rmtree(base_path, ignore_errors=True)
             trainer.strategy.barrier()
 
     def _format_nemo_checkpoint_name(self, ver: Optional[int] = None) -> str:
