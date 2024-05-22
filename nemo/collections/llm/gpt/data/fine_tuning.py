@@ -74,7 +74,13 @@ class FineTuningDataModule(pl.LightningDataModule):
         return self._create_dataloader(self._create_dataset(str(self.validation_path)))
 
     def test_dataloader(self) -> DataLoader:
-        return self._create_dataloader(self._create_dataset(str(self.test_path), tokens_to_generate=32, is_test=True,))
+        return self._create_dataloader(
+            self._create_dataset(
+                str(self.test_path),
+                tokens_to_generate=32,
+                is_test=True,
+            )
+        )
 
     @lru_cache
     def _create_dataset(self, path, **kwargs):
@@ -89,7 +95,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
             collate_fn=dataset.collate_fn,
-            **kwargs
+            **kwargs,
         )
 
     @property

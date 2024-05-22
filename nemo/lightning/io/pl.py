@@ -53,11 +53,9 @@ class TrainerCheckpoint(IOMixin, Generic[LightningModuleT]):
 
 class TrainerCkptProtocol(Protocol):
     @classmethod
-    def from_strategy(cls, strategy: "MegatronStrategy") -> Self:
-        ...
+    def from_strategy(cls, strategy: "MegatronStrategy") -> Self: ...
 
-    def io_dump(self, output: Path):
-        ...
+    def io_dump(self, output: Path): ...
 
 
 class MegatronCheckpointIO(CheckpointIO):

@@ -46,7 +46,11 @@ class ModelConfig(Generic[ModelT], io.IOMixin):
         return model
 
 
-def get_vocab_size(config, vocab_size: int, make_vocab_size_divisible_by: int = 128,) -> int:
+def get_vocab_size(
+    config,
+    vocab_size: int,
+    make_vocab_size_divisible_by: int = 128,
+) -> int:
     from nemo.utils import logging
 
     after = vocab_size

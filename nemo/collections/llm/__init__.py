@@ -33,5 +33,5 @@ __all__ = [
     "PreTrainingDataModule",
     "FineTuningDataModule",
     "SquadDataModule",
-    "DollyDataModule"
+    "DollyDataModule",
 ]

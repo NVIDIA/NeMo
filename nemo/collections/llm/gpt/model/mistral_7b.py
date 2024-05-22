@@ -22,7 +22,7 @@ class Mistral7BConfig(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = False # TODO: Should this be True?
+    apply_query_key_layer_scaling: bool = False  # TODO: Should this be True?
 
     num_layers: int = 32
     hidden_size: int = 4096
@@ -56,10 +56,9 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
-        
+
         teardown(trainer, target)
         del trainer, target
-
 
         return output_path
 
@@ -85,6 +84,7 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
     @property
     def config(self) -> Mistral7BConfig:
         from transformers import MistralConfig
+
         source = MistralConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(mistral_vocab_size):
@@ -106,11 +106,10 @@ class HFMistral7BImporter(io.ModelConnector["MistralForCausalLM", Mistral7BModel
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            window_size=[source.sliding_window, 0]
+            window_size=[source.sliding_window, 0],
         )
 
         return output
-
 
 
 @io.model_exporter(Mistral7BModel, "hf")
