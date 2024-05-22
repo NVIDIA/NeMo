@@ -21,7 +21,7 @@ from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
-from nemo.collections.common.prompts.canary import CanaryPromptFormatter, map_manifest_values_to_special_tokens
+from nemo.collections.common.prompts.canary import CanaryPromptFormatter
 from nemo.collections.common.tokenizers import CanaryTokenizer, TokenizerSpec
 from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 
@@ -154,15 +154,13 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
             turns=[
                 dict(
                     role="user",
-                    slots=map_manifest_values_to_special_tokens(
-                        {
-                            "|SOURCE_LANG|": cut.custom['source_lang'],
-                            "|TARGET_LANG|": cut.custom['target_lang'],
-                            "|TASKNAME|": cut.custom['taskname'],
-                            "|PNC|": cut.custom['pnc'],
-                            "|PROMPT_LANGUAGE|": CANARY_SPECIAL_TOKENIZER,
-                        }
-                    ),
+                    slots={
+                        "|SOURCE_LANG|": cut.custom['source_lang'],
+                        "|TARGET_LANG|": cut.custom['target_lang'],
+                        "|TASK|": cut.custom['taskname'],
+                        "|PNC|": cut.custom['pnc'],
+                        "|PROMPT_LANGUAGE|": CANARY_SPECIAL_TOKENIZER,
+                    },
                 ),
                 dict(
                     role="assistant",

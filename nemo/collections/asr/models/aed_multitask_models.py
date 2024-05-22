@@ -44,7 +44,6 @@ from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.collections.common.prompts.canary import map_manifest_values_to_special_tokens
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 from nemo.core.classes.common import typecheck
@@ -115,7 +114,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
         if prompt_format == "canary":
             # First level of indirection: map trcfg field names to prompt formatter slot names.
             slot_to_trcfg_key = {
-                "|TASKNAME|": "task",
+                "|TASK|": "task",
                 "|PNC|": "pnc",
                 "|SOURCE_LANG|": "source_lang",
                 "|TARGET_LANG|": "target_lang",
@@ -127,11 +126,6 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
                 slots[slot] = getattr(self, slot_to_trcfg_key[slot])
             # Extra slot for aggregate tokenizer support.
             slots["|PROMPT_LANGUAGE|"] = CANARY_SPECIAL_TOKENIZER
-            # Second level of indirection: map values provided in trcfg to the actual special tokens
-            # expected to be present in canary prompt. It used to be done in Dataset class corresponding
-            # to Canary, but we are not using it here anymore.
-            # This maps things such as '|TASKNAME|: "asr"' to '|TASKNAME|: "<|transcribe|>"'.
-            slots = map_manifest_values_to_special_tokens(slots)
             return [{"role": "user", "slots": slots}]
         else:
             raise NotImplementedError(

@@ -55,6 +55,32 @@ def test_prompt_formatter_missing_slots(bpe_tokenizer):
         formatter.encode_dialog([{"role": "user", "slots": {}}])
 
 
+def test_prompt_formatter_aggregate_tokenizer(canary_tokenizer):
+    # Note the 'canary_tokenizer' arg which is an aggregate tokenizer fixture.
+    formatter = _DummyPromptFormatter(canary_tokenizer)
+    ans = formatter.encode_dialog(
+        [
+            {
+                "role": "user",
+                "slots": {
+                    "|TEXT|": "hi",
+                    "|PROMPT_LANGUAGE|": "en",
+                },
+            }
+        ]
+    )
+    recovered = canary_tokenizer.ids_to_text(ans["input_ids"])
+    assert recovered == " <s>hi</s>"
+
+
+def test_prompt_formatter_aggregate_tokenizer_missing_prompt_language(canary_tokenizer):
+    # Note the 'canary_tokenizer' arg which is an aggregate tokenizer fixture.
+    formatter = _DummyPromptFormatter(canary_tokenizer)
+
+    with pytest.raises(AssertionError, match="Missing key '|PROMPT_LANGUAGE|' in slot_values"):
+        formatter.encode_dialog([{"role": "user", "slots": {"|TEXT|": "hi"}}])
+
+
 class _DummyPreamblePromptFormatter(PromptFormatter):
     REGISTER_NAME = "_dummy_test_formatter"
     TEMPLATE = {

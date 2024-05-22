@@ -25,7 +25,7 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
-from nemo.collections.common.prompts.canary import CanaryPromptFormatter, map_manifest_values_to_special_tokens
+from nemo.collections.common.prompts.canary import CanaryPromptFormatter
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 
@@ -1616,15 +1616,13 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                 turns=[
                     {
                         "role": "user",
-                        "slots": map_manifest_values_to_special_tokens(
-                            {
-                                "|SOURCE_LANG|": sample["source_lang"],
-                                "|TARGET_LANG|": sample["target_lang"],
-                                "|PNC|": sample["pnc"],
-                                "|TASKNAME|": sample["taskname"],
-                                "|PROMPT_LANGUAGE|": "spl_tokens",
-                            }
-                        ),
+                        "slots": {
+                            "|SOURCE_LANG|": sample["source_lang"],
+                            "|TARGET_LANG|": sample["target_lang"],
+                            "|PNC|": sample["pnc"],
+                            "|TASK|": sample["taskname"],
+                            "|PROMPT_LANGUAGE|": "spl_tokens",
+                        },
                     }
                 ]
             )["context_ids"]

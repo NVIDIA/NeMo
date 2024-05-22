@@ -1,6 +1,6 @@
 import pytest
 
-from nemo.collections.common.tokenizers import SentencePieceTokenizer
+from nemo.collections.common.tokenizers import CanaryTokenizer, SentencePieceTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
 
 # Note: We don't really define special tokens for this test so every 'special token'
@@ -37,3 +37,15 @@ def bpe_tokenizer(tmp_path_factory):
     text_path.write_text(TOKENIZER_TRAIN_TEXT)
     create_spt_model(str(text_path), vocab_size=512, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
+
+
+@pytest.fixture(scope="session")
+def canary_tokenizer(bpe_tokenizer, tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("spl_tokens")
+    spl_tokens = CanaryTokenizer.build_special_tokenizer(["transcribe", "en"], tmpdir)
+    return CanaryTokenizer(
+        tokenizers={
+            "spl_tokens": spl_tokens,
+            "en": bpe_tokenizer,
+        }
+    )

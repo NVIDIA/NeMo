@@ -96,16 +96,21 @@ class PromptFormatter(ABC):
         self.defaults = defaults
 
     def __init_subclass__(cls, **kwargs) -> None:
+        ERR = "PromptFormatter subclass definition error:"
         if cls.__name__ not in cls._REGISTERED_FORMATTERS:
             for attr in ("REGISTER_NAME", "TEMPLATE", "INFERENCE_ROLE"):
                 assert (
                     getattr(cls, attr, None) is not None
-                ), f"Programmer's error: PromptFormatter subclass {cls} did not define a class attribute {attr}"
+                ), f"{ERR} PromptFormatter subclass {cls} did not define a class attribute {attr}"
             cls._REGISTERED_FORMATTERS[cls.REGISTER_NAME] = cls
         if "preamble" in cls.TEMPLATE:
             assert (
                 len(cls.TEMPLATE["preamble"].get("slots", [])) == 0
-            ), f"Slots are not allowed for preamble template, but we found: {cls.TEMPLATE['preamble']}"
+            ), f"{ERR} Slots are not allowed for preamble template, but we found: '{cls.TEMPLATE['preamble']}'"
+        for role in cls.get_roles():
+            template = cls.get_template(role)
+            for slot in cls.get_slots(role):
+                assert slot in template, f"{ERR} Slot '{slot}' not found in template '{template}' for role '{role}'"
         super().__init_subclass__(**kwargs)
 
     @classmethod
