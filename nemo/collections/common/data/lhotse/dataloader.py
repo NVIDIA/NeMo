@@ -57,6 +57,7 @@ class LhotseDataLoadingConfig:
     #   b. Lhotse CutSet manifest / Lhotse Shar tar dir paths.
     cuts_path: str | None = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
+    #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
     tarred_random_access: bool = False
     # 2. Batch size.
     #   a. Existing NeMo options.

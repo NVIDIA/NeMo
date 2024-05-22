@@ -397,15 +397,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
         logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
 
         if is_tarred and not metadata_only:
-            if not config.tarred_random_access:
-                cuts = CutSet(
-                    LazyNeMoTarredIterator(
-                        config.manifest_filepath,
-                        tar_paths=config.tarred_audio_filepaths,
-                        **common_kwargs,
-                    )
-                ).repeat()
-            else:
+            if config.tarred_random_access:
                 cuts = CutSet(
                     LazyNeMoTarredIterator(
                         config.manifest_filepath,
@@ -414,6 +406,14 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                         **common_kwargs,
                     )
                 )
+            else:
+                cuts = CutSet(
+                    LazyNeMoTarredIterator(
+                        config.manifest_filepath,
+                        tar_paths=config.tarred_audio_filepaths,
+                        **common_kwargs,
+                    )
+                ).repeat()      
         else:
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
     else:

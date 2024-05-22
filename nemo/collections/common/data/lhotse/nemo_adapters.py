@@ -19,10 +19,7 @@ import tarfile
 from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
-
 import soundfile
-
-# import Sequence
 from cytoolz import groupby
 from lhotse import AudioSource, Recording, SupervisionSegment
 from lhotse.cut import Cut
@@ -315,37 +312,30 @@ class LazyNeMoTarredIterator:
             seed = resolve_seed(self.shard_seed)
             random.Random(seed).shuffle(shard_ids)
 
-        if self.tarred_random_access:
-            for data, raw_audio, tar_info in self._iter_random_read(shard_ids):
-                recording = self.create_recording(data, raw_audio, tar_info)
-                yield recording
-        else:
-            for data, raw_audio, tar_info in self._iter_sequential(shard_ids):
-                recording = self.create_recording(data, raw_audio, tar_info)
-                yield recording
+        iter_fn = self._iter_random_read if self.tarred_random_access else self._iter_sequential
 
-    def create_recording(self, data, raw_audio, tar_info):
-        meta = soundfile.info(BytesIO(raw_audio))
-        recording = Recording(
-            id=tar_info.path,
-            sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
-            sampling_rate=int(meta.samplerate),
-            num_samples=meta.frames,
-            duration=meta.duration,
-        )
-        cut = recording.to_cut()
-        cut.supervisions.append(
-            SupervisionSegment(
-                id=cut.id,
-                recording_id=cut.recording_id,
-                start=0,
-                duration=cut.duration,
-                text=data.get(self.text_field),
-                language=data.get(self.lang_field),
+        for data, raw_audio, tar_info in iter_fn(shard_ids):
+            meta = soundfile.info(BytesIO(raw_audio))
+            recording = Recording(
+                id=tar_info.path,
+                sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
+                sampling_rate=int(meta.samplerate),
+                num_samples=meta.frames,
+                duration=meta.duration,
             )
-        )
-        cut.custom = _to_custom_attr_dict(data)
-        return cut
+            cut = recording.to_cut()
+            cut.supervisions.append(
+                SupervisionSegment(
+                    id=cut.id,
+                    recording_id=cut.recording_id,
+                    start=0,
+                    duration=cut.duration,
+                    text=data.get(self.text_field),
+                    language=data.get(self.lang_field),
+                )
+            )
+            cut.custom = _to_custom_attr_dict(data)
+            yield cut
 
     def __len__(self) -> int:
         return len(self.source)
