@@ -24,6 +24,7 @@ def main(cfg) -> None:
         embed_model = NeMoBertEmbeddings(model_path=model_path, cfg=cfg)
     else:
         assert cfg.indexing.model_type in ["bert"], "Currently RAG pipeline supports 'bert' for embeddings models."
+        embed_model = None
     Settings.embed_model = embed_model
 
     # load index from disk
