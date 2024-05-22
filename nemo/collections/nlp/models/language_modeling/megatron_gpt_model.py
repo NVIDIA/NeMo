@@ -884,13 +884,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.megatron_timer_stop('allreduce_first_last_embeddings')
 
         if self.log_memory_usage:
-            mem_reserved = torch.cuda.max_memory_reserved()
+            max_memory_reserved = torch.cuda.max_memory_reserved()
+            memory_allocated = torch.cuda.memory_allocated()
             self.log(
-                'peak_memory_usage',
-                mem_reserved,
-                prog_bar=True,
-                rank_zero_only=True,
-                batch_size=1,
+                'peak_memory_usage', max_memory_reserved, prog_bar=True, rank_zero_only=True, batch_size=1,
+            )
+            self.log(
+                'memory_allocated', memory_allocated, prog_bar=True, rank_zero_only=True, batch_size=1,
             )
 
         ## logging

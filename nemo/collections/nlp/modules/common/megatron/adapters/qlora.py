@@ -98,8 +98,8 @@ class NF4LinearWrapper(nn.Module):
     def __init__(self, bf16_linear_weight: torch.Tensor):
         super().__init__()
 
-        weight = NF4Weight(bf16_linear_weight).cuda()
-        self.register_parameter("weight", weight)
+        # quantize the weight upon initialization
+        self.weight = NF4Weight(bf16_linear_weight).cuda()
 
     def forward(self, x: torch.Tensor):
         """
