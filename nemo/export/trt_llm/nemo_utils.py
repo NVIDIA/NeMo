@@ -14,14 +14,11 @@
 
 
 import argparse
-import copy
 import csv
 import datetime
 import logging
 import os
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
@@ -36,7 +33,6 @@ from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
 from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint
-from nemo.export.trt_llm.tensor_utils import split
 
 
 DECODER_MODEL_TYPE = {
@@ -48,6 +44,64 @@ DECODER_MODEL_TYPE = {
 }
 
 LOGGER = logging.getLogger("NeMo")
+
+
+def prompt_convert(prompt_config, prompt_weights):
+    if "task_templates" in prompt_config:
+        prompt_templates = prompt_config["task_templates"]
+        actual_task_id = 0
+        vtokens_embeddings = []
+        vtokens_len = []
+        for task_name_id, prompt_task in enumerate(prompt_templates):
+            prompt_task_name = prompt_task["taskname"]
+            LOGGER.info(f"Task {actual_task_id}: {prompt_task['taskname']}")
+            prompt_task_weights = prompt_weights["prompt_table"].get(
+                f"prompt_table.{prompt_task_name}.prompt_embeddings.weight"
+            )
+            if prompt_task_weights is None:
+                continue
+            vtokens_embeddings.append(prompt_task_weights)
+            vtokens_len.append(prompt_task_weights.shape[0])
+            actual_task_id += 1
+
+        max_vtoken_len = max(vtokens_len)
+        embedding_dim = vtokens_embeddings[0].shape[1]
+
+        # pad tasks to longest task embedding table
+        for i, vtoken_emb_table in enumerate(vtokens_embeddings):
+            padded_table = torch.zeros((max_vtoken_len, embedding_dim))
+            padded_table[: vtoken_emb_table.shape[0], :] = vtoken_emb_table
+            vtokens_embeddings[i] = padded_table
+
+        vtokens_embeddings = torch.stack(vtokens_embeddings)
+    else:
+        vtokens_embeddings = prompt_weights["prompt_embeddings_weights"]
+
+    return vtokens_embeddings
+
+
+def is_nemo_file(path):
+    flag = False
+
+    if path is not None:
+        if len(path) > 5:
+            pc = pathlib.Path(path)
+            if pc.exists():
+                if pc.is_file():
+                    if path[-5 : len(path)] == ".nemo":
+                        flag = True
+
+    return flag
+
+
+def split(v, tp_size, idx, dim=0):
+    """Splits the np tensor v on dim and return the idx's slice."""
+    if tp_size == 1:
+        return v
+    if len(v.shape) == 1:
+        return np.ascontiguousarray(np.split(v, tp_size)[idx])
+    else:
+        return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
 
 
 def _nemo_llm_decode(

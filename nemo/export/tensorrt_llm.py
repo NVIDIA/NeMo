@@ -33,7 +33,7 @@ from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load
-from nemo.export.trt_llm.utils import is_nemo_file
+from nemo.export.trt_llm.nemo_utils import is_nemo_file
 
 use_deploy = True
 try:
