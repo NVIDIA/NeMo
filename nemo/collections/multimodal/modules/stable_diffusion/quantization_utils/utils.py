@@ -14,7 +14,7 @@
 
 import re
 import torch
-from ammo.torch.quantization.nn import QuantLinear, QuantLinearConvBase
+from modelopt.torch.quantization.nn import QuantLinear, QuantLinearConvBase
 
 from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
 from .plugin_calib import PercentileCalibrator
