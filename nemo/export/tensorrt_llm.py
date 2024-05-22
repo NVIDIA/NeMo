@@ -623,7 +623,7 @@ class TensorRTLLM(ITritonDeployable):
         if len(vtokens_embeddings) > 0:
             self.p_table = torch.stack(vtokens_embeddings, dim=0).view(-1, self.get_hidden_size)
 
-            max_prompt_embedding_table_size = self.config['builder_config']['max_prompt_embedding_table_size']
+            max_prompt_embedding_table_size = self.config['build_config']['max_prompt_embedding_table_size']
             actual_prompt_table_size = self.p_table.shape[0]
 
             if actual_prompt_table_size > max_prompt_embedding_table_size:
