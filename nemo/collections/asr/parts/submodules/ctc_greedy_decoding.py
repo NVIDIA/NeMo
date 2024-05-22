@@ -25,7 +25,10 @@ from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, Ne
 from nemo.utils import logging
 
 
-def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
+def pack_hypotheses(
+    hypotheses: List[rnnt_utils.Hypothesis],
+    logitlen: torch.Tensor,
+) -> List[rnnt_utils.Hypothesis]:
 
     if logitlen is not None:
         if hasattr(logitlen, 'cpu'):
@@ -111,8 +114,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         # Input can be of dimension -
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
@@ -123,8 +125,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -338,8 +339,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         # Input can be of dimension -
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
@@ -350,8 +350,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
