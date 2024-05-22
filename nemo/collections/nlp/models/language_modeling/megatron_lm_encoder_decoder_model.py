@@ -558,7 +558,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def _process_batch(self, global_batch: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
         # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
         # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
-        global_batch['dec_mask'][:, 0] = 1
+        for i, len in enumerate(global_batch["loss_mask"].sum(dim=1)):
+            global_batch['dec_mask'][i, :len, 0] = 1
 
         return [
             global_batch["text_enc"],
@@ -567,6 +568,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch["labels"],
             global_batch["enc_mask"],
             global_batch["dec_mask"],
+            global_batch["enc_dec_mask"],
             global_batch.get('data', None),
         ]
 
@@ -588,17 +590,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 lm_labels,
                 encoder_attn_mask,
                 decoder_attn_mask,
+                encoder_decoder_attn_mask,
                 batch_data,
             ) = batch
-
             output = model(
                 encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
                 decoder_input_ids,  # dec_input_ids
+                encoder_attn_mask,  # enc_attn_mask
                 decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
+                encoder_decoder_attn_mask,
                 lm_labels,  # labels
-                batch_data,  # batch_data
             )
 
             def loss_func(output_tensor):
