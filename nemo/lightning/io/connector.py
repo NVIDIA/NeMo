@@ -158,8 +158,8 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         -------
             Tuple[pl.LightningModule, pl.Trainer]: The loaded model and the trainer configured with the model.
         """
-        from nemo.lightning.io.api import load_ckpt
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
+        from nemo.lightning.io.api import load_ckpt
 
         model = load_ckpt(path).model
         _trainer = trainer or Trainer(devices=1, accelerator="cpu" if cpu else "gpu", strategy=MegatronStrategy())
