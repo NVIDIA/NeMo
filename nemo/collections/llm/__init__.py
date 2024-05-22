@@ -39,5 +39,5 @@ __all__ = [
     "import_ckpt",
     "export_ckpt",
     "pretrain",
-    "validate"
+    "validate",
 ]

@@ -79,9 +79,7 @@ def pretrain(
     source: Optional[str] = None,
     # export: Optional[str] = None
 ) -> Path:
-    return train(
-        model=model, data=data, trainer=trainer, tokenizer="data", source=source
-    )
+    return train(model=model, data=data, trainer=trainer, tokenizer="data", source=source)
 
 
 @task(namespace="llm")
@@ -122,9 +120,7 @@ def import_ckpt(
     output_path: Optional[Path] = None,
     overwrite: bool = False,
 ) -> Path:
-    return io.import_ckpt(
-        model=model, source=source, output_path=output_path, overwrite=overwrite
-    )
+    return io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite)
 
 
 def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnector:
@@ -137,16 +133,12 @@ def export_ckpt(
     target: str,
     output_path: Optional[Path] = None,
     overwrite: bool = False,
-    load_connector: Callable[
-        [Path, str], io.ModelConnector
-    ] = load_connector_from_trainer_ckpt,
+    load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
 ) -> Path:
     return io.export_ckpt(path, target, output_path, overwrite, load_connector)
 
 
-def _use_tokenizer(
-    model: L.LightningModule, data: L.LightningDataModule, tokenizer: str
-) -> None:
+def _use_tokenizer(model: L.LightningModule, data: L.LightningDataModule, tokenizer: str) -> None:
     if tokenizer == "data":
         model.tokenizer = data.tokenizer
     elif tokenizer == "model":
@@ -163,7 +155,7 @@ def _add_ckpt_path(source, model, kwargs) -> None:
 def _save_config_img(*args, **kwargs):
     try:
         from nemo_sdk.utils import save_config_img
-        
+
         save_config_img(*args, **kwargs)
     except ImportError:
         pass
