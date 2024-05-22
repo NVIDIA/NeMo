@@ -318,18 +318,18 @@ class GPTSFTDataset(Dataset):
             for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
                 if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
-                    if len(ids) < truncation_length:
-                        logging.warning(f'{key} is not long enough to truncate.')
-                        truncation_length = len(ids)
 
+                    # set the offset for truncation method
                     if self.truncation_method == 'left':
-                        window_offset = truncation_length
+                        window_offset = max([len(ids) - truncation_length, 0])
+                        window_length = len(ids)
                     elif self.truncation_method == 'right':
                         window_offset = 0
+                        window_length = min([truncation_length, len(ids)])
                     else:
                         raise ValueError(f'{self.truncation_method} is not supported')
 
-                    window_length = len(ids) - truncation_length
+                    # perform the truncation
                     template_ids[i] = ids[window_offset : window_offset + window_length]
 
         context_ids = [i for ids in template_ids[:-1] for i in ids]
