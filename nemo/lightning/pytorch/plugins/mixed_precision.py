@@ -27,7 +27,7 @@ AnyT = TypeVar("AnyT")
 
 
 class MegatronMixedPrecision(MixedPrecision):
-    def __init__(self, precision: Literal["16-mixed", "bf16-mixed"], amp_O2: bool = True, device="cuda",) -> None:
+    def __init__(self, precision: Literal["16-mixed", "bf16-mixed"], amp_O2: bool = False, device="cuda",) -> None:
         if precision == "bf16-mixed":
             scaler = None
         else:

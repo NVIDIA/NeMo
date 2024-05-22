@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 
 import torch
 import torch.nn.functional as F
+from nemo_ext.lightning import teardown
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import io
-from nemo_ext.lightning import teardown
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM
@@ -22,7 +22,7 @@ class Mistral7BConfig(GPTConfig):
     position_embedding_type: str = "rope"
     add_bias_linear: bool = False
     gated_linear_unit: bool = True
-    apply_query_key_layer_scaling: bool = True
+    apply_query_key_layer_scaling: bool = False # TODO: Should this be True?
 
     num_layers: int = 32
     hidden_size: int = 4096

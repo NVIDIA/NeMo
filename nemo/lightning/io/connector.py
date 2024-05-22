@@ -118,7 +118,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         """
         from nemo.lightning import MegatronStrategy, Trainer
 
-        _trainer = trainer or Trainer(devices=1, accelerator="cpu", strategy=MegatronStrategy())
+        _trainer = trainer or Trainer(devices=1, accelerator="cpu", strategy=MegatronStrategy(store_optimizer_states=False))
 
         _trainer.strategy.connect(model)
         _trainer.strategy.setup_environment()
@@ -177,3 +177,13 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         _trainer.strategy.load_checkpoint(path)
 
         return model, _trainer
+    
+    def local_path(self, base_path: Optional[Path] = None) -> Path:
+        if base_path:
+            _base = base_path
+        else:
+            from nemo.lightning.base import NEMO_MODELS_CACHE
+
+            _base = Path(NEMO_MODELS_CACHE)
+
+        return _base / str(self).replace("://", "/")

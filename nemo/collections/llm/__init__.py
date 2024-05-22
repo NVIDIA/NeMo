@@ -1,4 +1,16 @@
-from nemo.collections.llm.gpt.data import MockDataModule
+# This is here to import it once, which improves the speed of launch when in debug-mode
+try:
+    import transformer_engine  # noqa
+except ImportError:
+    pass
+
+from nemo.collections.llm.gpt.data import (
+    DollyDataModule,
+    FineTuningDataModule,
+    MockDataModule,
+    PreTrainingDataModule,
+    SquadDataModule,
+)
 from nemo.collections.llm.gpt.model import (
     GPTConfig,
     GPTModel,
@@ -18,4 +30,8 @@ __all__ = [
     "MaskedTokenLossReduction",
     "Mistral7BConfig",
     "Mistral7BModel",
+    "PreTrainingDataModule",
+    "FineTuningDataModule",
+    "SquadDataModule",
+    "DollyDataModule"
 ]
