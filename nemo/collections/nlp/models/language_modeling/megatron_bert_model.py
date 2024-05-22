@@ -1022,12 +1022,6 @@ class MegatronBertModel(MegatronBaseModel):
                     param._disable_greedy_grad_copy = not self.megatron_amp_O2
                     param._disable_overlap_grad_sync = True
 
-            # sequence parallelism is enabled
-            for param in self.parameters():
-                if getattr(param, 'sequence_parallel', False):
-                    param._disable_greedy_grad_copy = not self.megatron_amp_O2
-                    param._disable_overlap_grad_sync = True
-
             # Initialize parameter buckets for overlapped grad and param syncs
             # Note: Params with disabled overlapping are put in the
             # last param bucket
