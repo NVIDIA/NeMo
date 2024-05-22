@@ -44,6 +44,7 @@ def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
     model_config["layernorm_epsilon"] = ref_config["layer_norm_eps"]
     model_config["normalization"] = "layernorm"
     model_config["transformer_block_type"] = "post_ln"
+    model_config["post_process"] = False
     model_config["apply_query_key_layer_scaling"] = False
     model_config["megatron_legacy"] = False
     model_config["mcore_bert"] = mcore_bert
@@ -80,6 +81,9 @@ def convert(args):
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronBertModel(nemo_config.model, trainer)
+
+    if not nemo_config.model["post_process"]:
+        model.model.lm_head, model.model.encoder.final_layernorm, model.model.binary_head, model.model.output_layer = None, None, None, None
 
     nemo_state_dict = {}
     hf_config = hf_model.config.to_dict()
@@ -183,6 +187,11 @@ def convert(args):
             LayerNorm2_bias_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.bias'
         nemo_state_dict[LayerNorm2_weight_base_name] = param_to_weights(LayerNorm2_weight)
         nemo_state_dict[LayerNorm2_bias_base_name] = param_to_weights(LayerNorm2_bias)
+        
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state']
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state']
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state']
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state']
 
     # Non-layer dependent keys
     word_embeddings_weight = hf_model.state_dict()['embeddings.word_embeddings.weight']
