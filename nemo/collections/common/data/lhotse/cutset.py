@@ -413,7 +413,7 @@ def read_nemo_manifest(config, is_tarred: bool) -> CutSet:
                         tar_paths=config.tarred_audio_filepaths,
                         **common_kwargs,
                     )
-                ).repeat()      
+                ).repeat()
         else:
             cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
     else:
