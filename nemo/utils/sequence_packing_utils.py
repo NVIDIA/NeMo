@@ -172,7 +172,9 @@ def create_packing_strategy(
     return assignments
 
 
-def fill_packing_strategy(assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int) -> List[Dict]:
+def fill_packing_strategy(
+    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int
+) -> List[Dict]:
     """
     Fills the packing strategy with actual sequence data based on assignments and sequence information.
 
