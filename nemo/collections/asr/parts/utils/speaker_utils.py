@@ -24,7 +24,7 @@ import numpy as np
 import omegaconf
 import soundfile as sf
 import torch
-from pyannote.core import Annotation, Segment
+from pyannote.core import Annotation, Segment, Timeline
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
@@ -53,7 +53,10 @@ def get_uniq_id_from_manifest_line(line: str) -> str:
     Retrieve `uniq_id` from the `audio_filepath` in a manifest line.
     """
     dic = json.loads(line.strip())
-    uniq_id = get_uniqname_from_filepath(dic['audio_filepath'])
+    if 'uniq_id' in dic:
+        uniq_id = dic['uniq_id']
+    else:
+        uniq_id = get_uniqname_from_filepath(dic['audio_filepath'])
     return uniq_id
 
 
@@ -61,7 +64,6 @@ def get_uniq_id_with_dur(meta, decimals=3):
     """
     Return basename with offset and end time labels
     """
-    # bare_uniq_id = get_uniqname_from_filepath(meta['audio_filepath'])
     bare_uniq_id = get_uniqname_from_filepath(meta['rttm_filepath'])
     if meta['offset'] is None and meta['duration'] is None:
         return bare_uniq_id
@@ -90,7 +92,7 @@ def audio_rttm_map(manifest, attach_dur=False):
     AUDIO_RTTM_MAP = {}
     with open(manifest, 'r') as inp_file:
         lines = inp_file.readlines()
-        logging.info("Number of files to diarize: {}".format(len(lines)))
+        # logging.info("Number of files to diarize: {}".format(len(lines)))
         for line in lines:
             line = line.strip()
             dic = json.loads(line)
@@ -108,8 +110,11 @@ def audio_rttm_map(manifest, attach_dur=False):
             if attach_dur:
                 uniqname = get_uniq_id_with_dur(meta)
             else:
-                uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
-
+                if "uniq_id" in dic.keys():
+                    uniqname = dic['uniq_id']
+                else:
+                    uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
+            meta['uniq_id'] = uniqname
             if uniqname not in AUDIO_RTTM_MAP:
                 AUDIO_RTTM_MAP[uniqname] = meta
             else:
@@ -118,7 +123,6 @@ def audio_rttm_map(manifest, attach_dur=False):
                         meta['audio_filepath']
                     )
                 )
-
     return AUDIO_RTTM_MAP
 
 
@@ -429,6 +433,19 @@ def generate_cluster_labels(segment_ranges: List[str], cluster_labels: List[int]
     diar_hyp = merge_stamps(cont_lines)
     return diar_hyp, lines
 
+def uem_timeline_from_manifest(manifest_dic, uniq_name):
+    """
+    Generate pyannote timeline segments for uem file
+
+     <UEM> file format
+     UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
+    """
+    timeline = Timeline(uri=uniq_name)
+    start_time = float(manifest_dic['offset']) 
+    end_time = start_time + float(manifest_dic['duration'])
+    timeline.add(Segment(float(start_time), float(end_time)))
+    return timeline
+
 
 def perform_clustering(
     embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, device, verbose: bool = True
@@ -456,6 +473,7 @@ def perform_clustering(
     """
     all_hypothesis = []
     all_reference = []
+    all_uem = []
     no_references = False
     lines_cluster_labels = []
 
@@ -515,6 +533,10 @@ def perform_clustering(
         all_hypothesis.append([uniq_id, hypothesis])
 
         rttm_file = audio_rttm_values.get('rttm_filepath', None)
+
+        if audio_rttm_values['offset'] is not None and audio_rttm_values['duration'] is not None:
+            uem_obj = uem_timeline_from_manifest(audio_rttm_values, uniq_name=uniq_id)
+            all_uem.append(uem_obj)
         if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
             reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
@@ -525,8 +547,8 @@ def perform_clustering(
 
     if out_rttm_dir:
         write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
-
-    return all_reference, all_hypothesis
+    all_uem = None if len(all_uem) == 0 else all_uem
+    return all_reference, all_hypothesis, all_uem
 
 
 def get_vad_out_from_rttm_line(rttm_line):
@@ -834,7 +856,7 @@ def get_sub_range_list(target_range: List[float], source_range_list: List[List[f
 
 
 def write_rttm2manifest(
-    AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, decimals: int = 5
+    AUDIO_RTTM_MAP: str, manifest_file: str, is_system_vad: bool = False, decimals: int = 5
 ) -> str:
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
@@ -860,6 +882,9 @@ def write_rttm2manifest(
             vad_start_end_list_raw = []
             for line in rttm_lines:
                 start, dur = get_vad_out_from_rttm_line(line)
+                # If is_system_vad is True, rttm_file_path is a system vad output file, so add offset to the start time.
+                if is_system_vad:
+                    start = offset + start
                 vad_start_end_list_raw.append([start, start + dur])
             vad_start_end_list = merge_float_intervals(vad_start_end_list_raw, decimals)
             if len(vad_start_end_list) == 0:
@@ -880,7 +905,7 @@ def segments_manifest_to_subsegments_manifest(
     window: float = 1.5,
     shift: float = 0.75,
     min_subsegment_duration: float = 0.05,
-    include_uniq_id: bool = False,
+    include_uniq_id: bool = True,
 ):
     """
     Generate subsegments manifest from segments manifest file
@@ -924,7 +949,6 @@ def segments_manifest_to_subsegments_manifest(
 
                     json.dump(meta, subsegments_manifest)
                     subsegments_manifest.write("\n")
-
     return subsegments_manifest_file
 
 
@@ -1331,7 +1355,7 @@ def get_adaptive_threshold(estimated_num_of_spks: int, min_threshold: float, ove
 
 
 def generate_speaker_timestamps(
-    clus_labels: List[Union[float, int]], msdd_preds: List[torch.Tensor], **params
+    clus_labels: List[Union[float, int]], msdd_preds: List[torch.Tensor], offset: float, **params
 ) -> Tuple[List[str], List[str]]:
     '''
     Generate speaker timestamps from the segmentation information. If `use_clus_as_main=True`, use clustering result for main speaker
@@ -1364,6 +1388,8 @@ def generate_speaker_timestamps(
             Note that `ovl_labels` includes only overlapping speech that is not included in `maj_labels`.
             Example: [..., '152.495 152.745 speaker_1', '372.71 373.085 speaker_0', '554.97 555.885 speaker_1', ...]
     '''
+    if offset is not None and type(offset) not in [float, int]:
+        raise ValueError(f"Offset must be a float, but got {type(offset)}")
     msdd_preds.squeeze(0)
     estimated_num_of_spks = msdd_preds.shape[-1]
     overlap_speaker_list = [[] for _ in range(estimated_num_of_spks)]
@@ -1390,6 +1416,7 @@ def generate_speaker_timestamps(
             for ovl_spk_idx in idx_arr[: params['max_overlap_spks']].tolist():
                 if ovl_spk_idx != int(main_spk_idx):
                     overlap_speaker_list[ovl_spk_idx].append(seg_idx)
+
         main_speaker_lines.append(f"{cluster_label[0]} {cluster_label[1]} speaker_{main_spk_idx}")
     cont_stamps = get_contiguous_stamps(main_speaker_lines)
     maj_labels = merge_stamps(cont_stamps)
@@ -1405,7 +1432,10 @@ def get_uniq_id_list_from_manifest(manifest_file: str):
         for i, line in enumerate(manifest.readlines()):
             line = line.strip()
             dic = json.loads(line)
-            uniq_id = get_uniqname_from_filepath(dic['audio_filepath'])
+            if 'uniq_id' in dic:
+                uniq_id = dic['uniq_id']
+            else:
+                uniq_id = get_uniqname_from_filepath(dic['audio_filepath'])
             uniq_id_list.append(uniq_id)
     return uniq_id_list
 
@@ -1428,7 +1458,10 @@ def get_id_tup_dict(uniq_id_list: List[str], test_data_collection, preds_list: L
     """
     session_dict = {x: [] for x in uniq_id_list}
     for idx, line in enumerate(test_data_collection):
-        uniq_id = get_uniqname_from_filepath(line.audio_file)
+        if hasattr(line, 'uniq_id') and line.uniq_id is not None:
+            uniq_id = line.uniq_id
+        else:
+            uniq_id = get_uniqname_from_filepath(line.audio_file)
         session_dict[uniq_id].append([line.target_spks, preds_list[idx]])
     return session_dict
 
@@ -1551,7 +1584,7 @@ def make_rttm_with_overlap(
     """
     AUDIO_RTTM_MAP = audio_rttm_map(manifest_file_path)
     manifest_file_lengths_list = []
-    all_hypothesis, all_reference = [], []
+    all_hypothesis, all_reference, all_uem = [], [], []
     no_references = False
     with open(manifest_file_path, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):
@@ -1559,7 +1592,11 @@ def make_rttm_with_overlap(
             manifest_dic = AUDIO_RTTM_MAP[uniq_id]
             clus_labels = clus_label_dict[uniq_id]
             manifest_file_lengths_list.append(len(clus_labels))
-            maj_labels, ovl_labels = generate_speaker_timestamps(clus_labels, msdd_preds[i], **params)
+            if manifest_dic['offset'] is not None:
+                maj_labels, ovl_labels = generate_speaker_timestamps(clus_labels, msdd_preds[i], manifest_dic['offset'], **params)
+            else:
+                maj_labels, ovl_labels = generate_speaker_timestamps(clus_labels, msdd_preds[i], None, **params)
+
             if params['infer_overlap']:
                 hyp_labels = maj_labels + ovl_labels
             else:
@@ -1570,6 +1607,9 @@ def make_rttm_with_overlap(
                 labels_to_rttmfile(hyp_labels, uniq_id, params['out_rttm_dir'])
             all_hypothesis.append([uniq_id, hypothesis])
             rttm_file = manifest_dic.get('rttm_filepath', None)
+            if manifest_dic['offset'] is not None and manifest_dic['duration'] is not None:
+                uem_obj = uem_timeline_from_manifest(manifest_dic, uniq_name=uniq_id)
+                all_uem.append(uem_obj)
             if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
                 ref_labels = rttm_to_labels(rttm_file)
                 reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
@@ -1577,7 +1617,8 @@ def make_rttm_with_overlap(
             else:
                 no_references = True
                 all_reference = []
-    return all_reference, all_hypothesis
+    all_uem = None if len(all_uem) == 0 else all_uem
+    return all_reference, all_hypothesis, all_uem 
 
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):

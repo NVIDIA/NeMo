@@ -106,7 +106,7 @@ def prepare_manifest(config: dict) -> str:
     if os.path.exists(manifest_vad_input):
         logging.info("The prepared manifest file exists. Overwriting!")
         os.remove(manifest_vad_input)
-
+    
     with open(manifest_vad_input, 'a', encoding='utf-8') as fout:
         for res in results:
             for r in res:
@@ -143,6 +143,11 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
     filepath = file['audio_filepath']
     in_duration = file.get('duration', None)
     in_offset = file.get('offset', 0)
+
+    if file.get('uniq_id', None) is not None:
+        uniq_id = file['uniq_id']
+    else:
+        uniq_id = None
 
     # if filepath is not found, try to find it in the dir of manifest
     if not Path(filepath).is_file():
@@ -187,6 +192,7 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
 
             metadata = {
                 'audio_filepath': filepath,
+                'uniq_id': uniq_id,
                 'duration': write_duration,
                 'label': label,
                 'text': '_',
@@ -672,7 +678,6 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
 
     dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + UNIT_FRAME_LEN
     speech_segments = torch.column_stack((speech_segments, dur))
-
     return speech_segments
 
 
@@ -762,7 +767,6 @@ def generate_vad_segment_table(
     else:
         for vad_pred_filepath in tqdm(vad_pred_filepath_list, desc='creating speech segments', leave=True):
             generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
-
     return out_dir
 
 

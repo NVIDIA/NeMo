@@ -1217,7 +1217,10 @@ class NeuralDiarizer(LightningModule):
                 Length of the sequence determined by `self.diar_window_length` variable.
         """
         emb_vectors_split = torch.zeros_like(emb_vectors)
-        uniq_id = os.path.splitext(os.path.basename(test_data_collection.audio_file))[0]
+        if test_data_collection.uniq_id is not None:
+            uniq_id = test_data_collection.uniq_id
+        else:
+            uniq_id = os.path.splitext(os.path.basename(test_data_collection.audio_file))[0]
         clus_label_tensor = torch.tensor([x[-1] for x in self.msdd_model.clus_test_label_dict[uniq_id]])
         for spk_idx in range(len(test_data_collection.target_spks)):
             stt, end = (
@@ -1410,7 +1413,7 @@ class NeuralDiarizer(LightningModule):
         manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
         rttm_map = audio_rttm_map(manifest_filepath)
         for k, (collar, ignore_overlap) in enumerate(self.diar_eval_settings):
-            all_reference, all_hypothesis = make_rttm_with_overlap(
+            all_reference, all_hypothesis, all_uem = make_rttm_with_overlap(
                 manifest_filepath,
                 self.msdd_model.clus_test_label_dict,
                 preds_list,
@@ -1426,6 +1429,7 @@ class NeuralDiarizer(LightningModule):
                 rttm_map,
                 all_reference,
                 all_hypothesis,
+                all_uem=all_uem,
                 collar=collar,
                 ignore_overlap=ignore_overlap,
                 verbose=self._cfg.verbose,

@@ -214,8 +214,12 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         all_len = 0
         data = []
         for line in open(manifest_file, 'r', encoding='utf-8'):
-            file = json.loads(line)['audio_filepath']
-            data.append(get_uniqname_from_filepath(file))
+            manifest_dic = json.loads(line)
+            if manifest_dic.get('uniq_id', None) is not None:
+                uniq_id = manifest_dic['uniq_id']
+            else:
+                uniq_id = get_uniqname_from_filepath(manifest_dic['audio_filepath'])
+            data.append(uniq_id)
 
         status = get_vad_stream_status(data)
         for i, test_batch in enumerate(
@@ -272,7 +276,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             num_workers=self._cfg.num_workers,
             out_dir=self._vad_dir,
         )
-
         AUDIO_VAD_RTTM_MAP = {}
         for key in self.AUDIO_RTTM_MAP:
             if os.path.exists(os.path.join(table_out_dir, key + ".txt")):
@@ -280,8 +283,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
             else:
                 logging.warning(f"no vad file found for {key} due to zero or negative duration")
-
-        write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
+        write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file, is_system_vad=True)
         self._speaker_manifest_path = self._vad_out_file
 
     def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
@@ -365,13 +367,15 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 all_embs_list.append(embs.cpu().detach().clone())
             del test_batch
         all_embs = torch.cat(all_embs_list, dim=0)
-
         with open(manifest_file, 'r', encoding='utf-8') as manifest:
             json_lines = manifest.readlines()
             for i, line in tqdm(enumerate(json_lines), total=len(json_lines), desc='Reading Segments', leave=False):
                 line = line.strip()
                 dic = json.loads(line)
-                uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
+                if 'uniq_id' in dic:
+                    uniq_name = dic['uniq_id']
+                else:
+                    uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
                 if uniq_name in self.embeddings:
                     self.embeddings[uniq_name].append(all_embs[i].view(1, -1))
                 else:
@@ -381,7 +385,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 start = dic['offset']
                 end = start + dic['duration']
                 self.time_stamps[uniq_name].append([start, end])
-
             for uniq_name in self.time_stamps:
                 self.embeddings[uniq_name] = torch.cat(self.embeddings[uniq_name])
 
@@ -459,9 +462,8 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         embs_and_timestamps = get_embs_and_timestamps(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
-
         # Clustering
-        all_reference, all_hypothesis = perform_clustering(
+        all_reference, all_hypothesis, all_uem = perform_clustering(
             embs_and_timestamps=embs_and_timestamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
@@ -476,6 +478,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             self.AUDIO_RTTM_MAP,
             all_reference,
             all_hypothesis,
+            all_uem,
             collar=self._diarizer_params.collar,
             ignore_overlap=self._diarizer_params.ignore_overlap,
             verbose=self.verbose,
