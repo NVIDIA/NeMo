@@ -79,11 +79,6 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
         if self.megatron_amp_O2:
             self.adapter_keys = set(key.replace("model.module.", "model.", 1) for key in self.adapter_keys)
 
-        for cfg in peft_cfgs:
-            if cfg.weight_tying:
-                self.tie_weights(cfg)
-        self.use_peft = True
-
     def load_adapters(
         self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
     ):
