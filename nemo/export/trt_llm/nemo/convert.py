@@ -313,10 +313,16 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
         # Split the QKV to separate variables.
 
-        qkv = np.split(val, [q_num, q_num + 1], axis=1)
-        q_split = np.split(qkv[0], split_factor, axis=0)
-        k_split = np.split(qkv[1], split_factor, axis=0)
-        v_split = np.split(qkv[2], split_factor, axis=0)
+        q_param, k_param, v_param = np.split(val, [q_num, q_num + 1], axis=1)
+        if num_kv_heads < split_factor:
+            assert split_factor % num_kv_heads == 0
+            num_dups = split_factor // num_kv_heads
+            k_param = k_param.repeat(num_dups, axis=0)
+            v_param = v_param.repeat(num_dups, axis=0)
+
+        q_split = np.split(q_param, split_factor, axis=0)
+        k_split = np.split(k_param, split_factor, axis=0)
+        v_split = np.split(v_param, split_factor, axis=0)
 
         # Concatenate Q, K, and V together
         split_vals = [
@@ -343,11 +349,16 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         val = val.reshape(hidden_dim, num_kv_heads * len_vals // tp_size, q_num + 2, size_per_head)
 
         # Split the QKV to separate variables.
-        qkv = np.split(val, [q_num, q_num + 1], axis=2)
+        q_param, k_param, v_param = np.split(val, [q_num, q_num + 1], axis=2)
+        if num_kv_heads < split_factor:
+            assert split_factor % num_kv_heads == 0
+            num_dups = split_factor // num_kv_heads
+            k_param = k_param.repeat(num_dups, axis=1)
+            v_param = v_param.repeat(num_dups, axis=1)
 
-        q_split = np.split(qkv[0], split_factor, axis=1)
-        k_split = np.split(qkv[1], split_factor, axis=1)
-        v_split = np.split(qkv[2], split_factor, axis=1)
+        q_split = np.split(q_param, split_factor, axis=1)
+        k_split = np.split(k_param, split_factor, axis=1)
+        v_split = np.split(v_param, split_factor, axis=1)
 
         # Concatenate Q, K, and V together
         split_vals = [
