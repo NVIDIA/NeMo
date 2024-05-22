@@ -4,6 +4,7 @@ try:
 except ImportError:
     pass
 
+from nemo.collections.llm.api import export_ckpt, import_ckpt, pretrain, train, validate
 from nemo.collections.llm.gpt.data import (
     DollyDataModule,
     FineTuningDataModule,
@@ -34,4 +35,9 @@ __all__ = [
     "FineTuningDataModule",
     "SquadDataModule",
     "DollyDataModule",
+    "train",
+    "import_ckpt",
+    "export_ckpt",
+    "pretrain",
+    "validate"
 ]
