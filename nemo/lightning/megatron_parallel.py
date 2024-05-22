@@ -212,7 +212,7 @@ class MegatronParallel(nn.ModuleList):
         if wrap_forward_step:
             _data_step = data_step or self.data_step
             forward_step_func = self.wrapped_forward_step(
-                _forward_step, data_step=_data_step, loss_reduction=loss_reduction, context=context,
+                _forward_step, data_step=_data_step, loss_reduction=_loss_reduction, context=context,
             )
         else:
             forward_step_func = _forward_step
