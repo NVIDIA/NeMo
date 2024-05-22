@@ -7,6 +7,7 @@ import torch
 from nemo.collections.common.tokenizers import AggregateTokenizer, TokenizerSpec
 
 PROMPT_LANGUAGE_KEY = "|PROMPT_LANGUAGE|"
+PREAMBLE_ROLE = "preamble"
 
 
 class PromptFormatter(ABC):
@@ -20,8 +21,10 @@ class PromptFormatter(ABC):
     and variable parts which we call "slots", that will be provided by the user during training or inference.
 
     A role is typically "user" and "assistant", and some popular models also use a "system" role.
-    Other roles may be defined as well. We expected the role corresponding to the model's responses
+    Other roles may be defined as well. We expect the role corresponding to the model's responses
     will be registered under class attribute called INFERENCE_ROLE.
+    We reserve a special "preamble" role with no slots that will be inserted at the beginning of
+    the formatted prompt, if "preamble" is present in TEMPLATE.
 
     A turn is a dict with keys "role" and "slots", where "slots" are a dict that maps slot names
     to values that should be filled in the template.
@@ -99,6 +102,10 @@ class PromptFormatter(ABC):
                     getattr(cls, attr, None) is not None
                 ), f"Programmer's error: PromptFormatter subclass {cls} did not define a class attribute {attr}"
             cls._REGISTERED_FORMATTERS[cls.REGISTER_NAME] = cls
+        if "preamble" in cls.TEMPLATE:
+            assert (
+                len(cls.TEMPLATE["preamble"].get("slots", [])) == 0
+            ), f"Slots are not allowed for preamble template, but we found: {cls.TEMPLATE['preamble']}"
         super().__init_subclass__(**kwargs)
 
     @classmethod
@@ -114,7 +121,7 @@ class PromptFormatter(ABC):
 
     def get_slots(self, role: str) -> dict[str, Type]:
         # returns a copy to avoid accidential mutation of a global object by the user
-        return self.TEMPLATE[role]["slots"].copy()
+        return self.TEMPLATE[role].get("slots", {}).copy()
 
     def get_template(self, role: str) -> str:
         return self.TEMPLATE[role]["template"]
@@ -133,15 +140,27 @@ class PromptFormatter(ABC):
         turn_tokens = []
         turn_token_counts = []
         turn_mask_values = []
+
+        if "preamble" in self.TEMPLATE:
+            preamble_turns = [idx for idx, t in enumerate(turns) if t["role"] == "preamble"]
+            if not preamble_turns:
+                turns = [{"role": "preamble", **self.TEMPLATE["preamble"]}] + turns
+            else:
+                assert (
+                    len(preamble_turns) == 1 and preamble_turns[0] == 0
+                ), f"Preamble can only be presented at turn 0, but we found preamble turns at indexes {preamble_turns}."
+
         for turn in turns:
-            assert all(
-                k in turn for k in ("role", "slots")
-            ), f"A turn must have keys 'role' and 'slots'. We received {turn=}"
+            assert "role" in turn, f"A turn must have have a 'role' key. We received {turn=}"
             role = turn["role"]
             assert role in roles, f"Found turn with {role=}, but availables roles are {roles}"
             expected_slots = self.get_slots(role)
-            slot_values = turn["slots"]
-            self._validate_slot_values(expected_slots, slot_values)
+            slot_values = turn.get("slots", {})
+            if expected_slots:
+                assert (
+                    slot_values
+                ), f"A turn for role {role} must have have a non-empty value under 'slots' key. We received {turn=}"
+                self._validate_slot_values(expected_slots, slot_values)
             template = self.get_template(role)
             tokens = self.encode_turn(template, expected_slots, slot_values)
             turn_tokens.extend(tokens)
@@ -176,10 +195,5 @@ class PromptFormatter(ABC):
         return self.tokenizer.text_to_ids(text)
 
     def _validate_slot_values(self, expected: dict, received: dict) -> None:
-        missing = set(k for k, v in expected.items() if not is_optional(k)) - set(received)
-        assert not missing, f"The following non-optional slot values were not provided: {missing}"
-
-
-def is_optional(field: typing.Type) -> bool:
-    # Source: https://stackoverflow.com/a/58841311
-    return typing.get_origin(field) is typing.Union and type(None) in typing.get_args(field)
+        missing = set(expected) - set(received)
+        assert not missing, f"The following slot values were not provided: {missing}"
