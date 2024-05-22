@@ -35,7 +35,7 @@ class IOMixin:
 
     Examples
     --------
-        from nemo import io
+        from nemo.lightning import io
 
         class ExampleClass(io.IOMixin):
             def __init__(self, param1, param2):
@@ -170,7 +170,7 @@ class ConnectorMixin:
             path (str): The path to the model file to be imported.
 
         Example:
-            from nemo import llm
+            from nemo.collections import llm
             model = llm.Mistral7BModel.import_from("hf")
 
         Returns

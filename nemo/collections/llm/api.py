@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Callable, Optional
 
-import lightning as L
+import pytorch_lightning as pl
 
 from nemo.collections.llm.utils import task
 from nemo.lightning import MegatronStrategy, Trainer, io, teardown
@@ -9,8 +9,8 @@ from nemo.lightning import MegatronStrategy, Trainer, io, teardown
 
 @task(namespace="llm")
 def train(
-    model: L.LightningModule,
-    data: L.LightningDataModule,
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
     trainer: Trainer,
     tokenizer: Optional[str] = None,
     source: Optional[str] = None,
@@ -20,8 +20,8 @@ def train(
     Trains a model using the specified data and trainer, with optional tokenizer, source, and export.
 
     Args:
-        model (L.LightningModule): The model to be trained.
-        data (L.LightningDataModule): The data module containing training data.
+        model (pl.LightningModule): The model to be trained.
+        data (pl.LightningDataModule): The data module containing training data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         tokenizer (Optional[str]): Tokenizer setting to be applied. Can be 'data' or 'model'.
         source (Optional[str]): Path to a checkpoint from which to continue training.
@@ -73,8 +73,8 @@ def train(
 
 @task(namespace="llm")
 def pretrain(
-    model: L.LightningModule,
-    data: L.LightningDataModule,
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
     trainer: Trainer,
     source: Optional[str] = None,
     # export: Optional[str] = None
@@ -84,8 +84,8 @@ def pretrain(
 
 @task(namespace="llm")
 def validate(
-    model: L.LightningModule,
-    data: L.LightningDataModule,
+    model: pl.LightningModule,
+    data: pl.LightningDataModule,
     trainer: Trainer,
     tokenizer: Optional[str] = None,
     source: Optional[str] = None,
@@ -115,7 +115,7 @@ def validate(
 
 @task(name="import", namespace="llm")
 def import_ckpt(
-    model: L.LightningModule,
+    model: pl.LightningModule,
     source: str,
     output_path: Optional[Path] = None,
     overwrite: bool = False,
@@ -138,7 +138,7 @@ def export_ckpt(
     return io.export_ckpt(path, target, output_path, overwrite, load_connector)
 
 
-def _use_tokenizer(model: L.LightningModule, data: L.LightningDataModule, tokenizer: str) -> None:
+def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: str) -> None:
     if tokenizer == "data":
         model.tokenizer = data.tokenizer
     elif tokenizer == "model":

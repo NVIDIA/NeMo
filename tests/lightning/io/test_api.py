@@ -1,5 +1,5 @@
 from nemo import lightning as nl
-from nemo import llm
+from nemo.collections import llm
 from nemo.lightning import io
 
 

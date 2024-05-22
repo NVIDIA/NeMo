@@ -120,7 +120,7 @@ class MegatronParallel(nn.ModuleList):
 
         if vp_size is not None:
             if len(_pipeline) == 1 and parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                from nemo import io
+                from nemo.lightning import io
 
                 parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
                 for i in range(1, vp_size):

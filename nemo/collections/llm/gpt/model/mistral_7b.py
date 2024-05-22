@@ -4,10 +4,9 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 
 import torch
 import torch.nn.functional as F
-from nemo_ext.lightning import teardown
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
-from nemo.lightning import io
+from nemo.lightning import io, teardown
 
 if TYPE_CHECKING:
     from transformers import MistralConfig, MistralForCausalLM
