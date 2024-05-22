@@ -174,6 +174,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         super().setup_distributed()
 
         from megatron.core import parallel_state
+
         from nemo.utils import AppState
 
         # init model parallel if needed
@@ -227,6 +228,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def _setup_model(self, model: nn.Module) -> DistributedDataParallel:
         """Only called when we need to wrap the model for pytorch's ddp."""
         from megatron.core import parallel_state
+
         from nemo.utils import AppState
 
         app_state = AppState()
