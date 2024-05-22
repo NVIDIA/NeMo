@@ -63,7 +63,9 @@ def get_args():
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
-    parser.add_argument("--post_process", type=bool, default=False, required=False, help="Whether to have the postprocessing modules")
+    parser.add_argument(
+        "--post_process", type=bool, default=False, required=False, help="Whether to have the postprocessing modules"
+    )
     parser.add_argument(
         "--precision", type=str, default="32", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
@@ -84,7 +86,12 @@ def convert(args):
     model = MegatronBertModel(nemo_config.model, trainer)
 
     if not args.post_process:
-        model.model.lm_head, model.model.encoder.final_layernorm, model.model.binary_head, model.model.output_layer = None, None, None, None
+        model.model.lm_head, model.model.encoder.final_layernorm, model.model.binary_head, model.model.output_layer = (
+            None,
+            None,
+            None,
+            None,
+        )
 
     nemo_state_dict = {}
     hf_config = hf_model.config.to_dict()
@@ -188,11 +195,19 @@ def convert(args):
             LayerNorm2_bias_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.bias'
         nemo_state_dict[LayerNorm2_weight_base_name] = param_to_weights(LayerNorm2_weight)
         nemo_state_dict[LayerNorm2_bias_base_name] = param_to_weights(LayerNorm2_bias)
-        
-        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state']
-        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state']
-        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state']
-        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'] = model.state_dict()[f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state']
+
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'
+        ]
 
     # Non-layer dependent keys
     word_embeddings_weight = hf_model.state_dict()['embeddings.word_embeddings.weight']
