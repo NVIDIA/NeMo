@@ -116,15 +116,18 @@ class PromptFormatter(ABC):
             )
         return cls._REGISTERED_FORMATTERS[name]
 
-    def get_roles(self) -> list[str]:
-        return list(self.TEMPLATE.keys())
+    @classmethod
+    def get_roles(cls) -> list[str]:
+        return list(cls.TEMPLATE.keys())
 
-    def get_slots(self, role: str) -> dict[str, Type]:
+    @classmethod
+    def get_slots(cls, role: str) -> dict[str, Type]:
         # returns a copy to avoid accidential mutation of a global object by the user
-        return self.TEMPLATE[role].get("slots", {}).copy()
+        return cls.TEMPLATE[role].get("slots", {}).copy()
 
-    def get_template(self, role: str) -> str:
-        return self.TEMPLATE[role]["template"]
+    @classmethod
+    def get_template(cls, role: str) -> str:
+        return cls.TEMPLATE[role]["template"]
 
     def encode_turn(self, prompt_template: str, expected_slots: dict, slot_values: dict) -> list[int]:
         prompt = prompt_template

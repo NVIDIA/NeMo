@@ -26,8 +26,12 @@ class CanaryPromptFormatter(PromptFormatter):
 
 def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[str, str]:
     slot_values = slot_values.copy()
-    slot_values["|SOURCE_LANG|"] = "<|" + slot_values["|SOURCE_LANG|"] + "|>"
-    slot_values["|TARGET_LANG|"] = "<|" + slot_values["|TARGET_LANG|"] + "|>"
-    slot_values["|PNC|"] = CANARY_PNC if slot_values["|PNC|"] in ("yes", "1", "True", "true") else CANARY_NOPNC
-    slot_values["|TASKNAME|"] = "<|transcribe|>" if slot_values["|TASKNAME|"] == "asr" else "<|translate|>"
+    if not ((v := slot_values["|SOURCE_LANG|"]).startswith("<|") and v.endswith("|>")):
+        slot_values["|SOURCE_LANG|"] = "<|" + slot_values["|SOURCE_LANG|"] + "|>"
+    if not ((v := slot_values["|TARGET_LANG|"]).startswith("<|") and v.endswith("|>")):
+        slot_values["|TARGET_LANG|"] = "<|" + slot_values["|TARGET_LANG|"] + "|>"
+    if slot_values["|PNC|"] not in (CANARY_PNC, CANARY_NOPNC):
+        slot_values["|PNC|"] = CANARY_PNC if slot_values["|PNC|"] in ("yes", "1", "True", "true") else CANARY_NOPNC
+    if slot_values["|TASKNAME|"] not in ("<|transcribe|>", "<|translate|>"):
+        slot_values["|TASKNAME|"] = "<|transcribe|>" if slot_values["|TASKNAME|"] == "asr" else "<|translate|>"
     return slot_values

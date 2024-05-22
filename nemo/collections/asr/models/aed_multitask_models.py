@@ -46,6 +46,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.common.prompts.canary import map_manifest_values_to_special_tokens
 from nemo.collections.common.prompts.formatter import PromptFormatter
+from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -107,6 +108,35 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     target_lang: Optional[str] = None
     text_field: str = "answer"
     lang_field: str = "target_lang"
+
+    def get_prompt_turns_with_slot_values(self, prompt_format: str) -> list[dict[str, str]]:
+        formatter = PromptFormatter.resolve(prompt_format)
+        # Canary requires special handling to satisfy prompt formatter API.
+        if prompt_format == "canary":
+            # First level of indirection: map trcfg field names to prompt formatter slot names.
+            slot_to_trcfg_key = {
+                "|TASKNAME|": "task",
+                "|PNC|": "pnc",
+                "|SOURCE_LANG|": "source_lang",
+                "|TARGET_LANG|": "target_lang",
+            }
+            # Now ask the prompt formatter about which slots are required
+            # (we know it up-front for canary, but in a generic case this is how it would have looked like).
+            slots = formatter.get_slots(role="user")
+            for slot in slots:
+                slots[slot] = getattr(self, slot_to_trcfg_key[slot])
+            # Extra slot for aggregate tokenizer support.
+            slots["|PROMPT_LANGUAGE|"] = CANARY_SPECIAL_TOKENIZER
+            # Second level of indirection: map values provided in trcfg to the actual special tokens
+            # expected to be present in canary prompt. It used to be done in Dataset class corresponding
+            # to Canary, but we are not using it here anymore.
+            # This maps things such as '|TASKNAME|: "asr"' to '|TASKNAME|: "<|transcribe|>"'.
+            slots = map_manifest_values_to_special_tokens(slots)
+            return [{"role": "user", "slots": slots}]
+        else:
+            raise NotImplementedError(
+                f"We dont support other prompt formats than 'canary' yet (received {prompt_format=})"
+            )
 
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
@@ -791,28 +821,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch[0], input_signal_length=batch[1]
         )
-        if len(batch) >= 4:
-            # Backward compatibility: the decoder_input_ids were provided by the dataloader.
-            decoder_input_ids = batch[-2].to(trcfg._internal.device)
+        if len(batch) == 6:
+            # Prompt provided by the dataloader.
+            decoder_input_ids = batch[4]
         else:
             # The dataloader provided only audio + audio_lens, so we
             # are constructing the prompt dynamically using TranscribeConfig.
-            # TODO: have 'slots' dict/dataclass in trcfg instead of getattr()
-            #       for now to get a POC working, I'm manually mapping the specific existing canary's format
-            turns = [
-                dict(
-                    role="user",
-                    slots=map_manifest_values_to_special_tokens(
-                        {
-                            "|TASKNAME|": trcfg.task,
-                            "|SOURCE_LANG|": trcfg.source_lang,
-                            "|TARGET_LANG|": trcfg.target_lang,
-                            "|PNC|": trcfg.pnc,
-                            "|PROMPT_LANGUAGE|": "spl_tokens",
-                        }
-                    ),
-                )
-            ]
+            turns = trcfg.get_prompt_turns_with_slot_values(self.prompt_format)
             decoder_input_ids = (
                 self.prompt_formatter.encode_dialog(turns=turns)["context_ids"]
                 .unsqueeze(0)
