@@ -433,6 +433,7 @@ def generate_cluster_labels(segment_ranges: List[str], cluster_labels: List[int]
     diar_hyp = merge_stamps(cont_lines)
     return diar_hyp, lines
 
+
 def uem_timeline_from_manifest(manifest_dic, uniq_name):
     """
     Generate pyannote timeline segments for uem file
@@ -441,7 +442,7 @@ def uem_timeline_from_manifest(manifest_dic, uniq_name):
      UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
     """
     timeline = Timeline(uri=uniq_name)
-    start_time = float(manifest_dic['offset']) 
+    start_time = float(manifest_dic['offset'])
     end_time = start_time + float(manifest_dic['duration'])
     timeline.add(Segment(float(start_time), float(end_time)))
     return timeline
@@ -607,7 +608,7 @@ def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list,
             Number of decimals to round the offset and duration values.
     """
     audio_path = AUDIO_RTTM_MAP[uniq_id]['audio_filepath']
-    for (stt, end) in overlap_range_list:
+    for stt, end in overlap_range_list:
         meta = {
             "audio_filepath": audio_path,
             "offset": round(stt, decimals),
@@ -767,14 +768,14 @@ def fl2int(x: float, decimals: int = 3) -> int:
     """
     Convert floating point number to integer.
     """
-    return torch.round(torch.tensor([x * (10 ** decimals)]), decimals=0).int().item()
+    return torch.round(torch.tensor([x * (10**decimals)]), decimals=0).int().item()
 
 
 def int2fl(x: int, decimals: int = 3) -> float:
     """
     Convert integer to floating point number.
     """
-    return torch.round(torch.tensor([x / (10 ** decimals)]), decimals=decimals).item()
+    return torch.round(torch.tensor([x / (10**decimals)]), decimals=decimals).item()
 
 
 def merge_float_intervals(ranges: List[List[float]], decimals: int = 5, margin: int = 2) -> List[List[float]]:
@@ -923,9 +924,10 @@ def segments_manifest_to_subsegments_manifest(
         pwd = os.getcwd()
         subsegments_manifest_file = os.path.join(pwd, 'subsegments.json')
 
-    with open(segments_manifest_file, 'r') as segments_manifest, open(
-        subsegments_manifest_file, 'w'
-    ) as subsegments_manifest:
+    with (
+        open(segments_manifest_file, 'r') as segments_manifest,
+        open(subsegments_manifest_file, 'w') as subsegments_manifest,
+    ):
         segments = segments_manifest.readlines()
         for segment in segments:
             segment = segment.strip()
@@ -977,7 +979,13 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
     return subsegments
 
 
-def get_target_sig(sig, start_sec: float, end_sec: float, slice_length: int, sample_rate: int,) -> torch.Tensor:
+def get_target_sig(
+    sig,
+    start_sec: float,
+    end_sec: float,
+    slice_length: int,
+    sample_rate: int,
+) -> torch.Tensor:
     """
     Extract time-series signal from the given audio buffer based on the start and end
     timestamps.
@@ -1091,9 +1099,12 @@ def get_speech_labels_for_update(
     return speech_label_for_new_segments, cumulative_speech_labels
 
 
-def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[float]],) -> Tuple[float, int]:
+def get_new_cursor_for_update(
+    frame_start: float,
+    segment_range_ts: List[List[float]],
+) -> Tuple[float, int]:
     """
-    Function for updating a cursor online speaker diarization. 
+    Function for updating a cursor online speaker diarization.
     Remove the old segments that overlap with the new frame (self.frame_start)
     cursor_for_old_segments is set to the onset of the t_range popped lastly.
 
@@ -1251,7 +1262,10 @@ def get_online_subsegments_from_buffer(
         range_t = [max(0, range_offs[0]), range_offs[1]]
 
         subsegments = get_subsegments(
-            offset=range_t[0], window=window, shift=shift, duration=(range_t[1] - range_t[0]),
+            offset=range_t[0],
+            window=window,
+            shift=shift,
+            duration=(range_t[1] - range_t[0]),
         )
         ind_offset, sigs, ranges, inds = get_online_segments_from_slices(
             sig=audio_buffer,
@@ -1425,8 +1439,7 @@ def generate_speaker_timestamps(
 
 
 def get_uniq_id_list_from_manifest(manifest_file: str):
-    """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list.
-    """
+    """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list."""
     uniq_id_list = []
     with open(manifest_file, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):
@@ -1593,7 +1606,9 @@ def make_rttm_with_overlap(
             clus_labels = clus_label_dict[uniq_id]
             manifest_file_lengths_list.append(len(clus_labels))
             if manifest_dic['offset'] is not None:
-                maj_labels, ovl_labels = generate_speaker_timestamps(clus_labels, msdd_preds[i], manifest_dic['offset'], **params)
+                maj_labels, ovl_labels = generate_speaker_timestamps(
+                    clus_labels, msdd_preds[i], manifest_dic['offset'], **params
+                )
             else:
                 maj_labels, ovl_labels = generate_speaker_timestamps(clus_labels, msdd_preds[i], None, **params)
 
@@ -1618,7 +1633,7 @@ def make_rttm_with_overlap(
                 no_references = True
                 all_reference = []
     all_uem = None if len(all_uem) == 0 else all_uem
-    return all_reference, all_hypothesis, all_uem 
+    return all_reference, all_hypothesis, all_uem
 
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):

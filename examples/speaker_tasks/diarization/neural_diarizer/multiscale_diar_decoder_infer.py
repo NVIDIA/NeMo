@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.models.msdd_models import NeuralDiarizer
-from nemo.core.config import hydra_runner
 import torch
 
+from nemo.collections.asr.models.msdd_models import NeuralDiarizer
+from nemo.core.config import hydra_runner
 
 """
 Run the entire speaker diarization pipeline: VAD, clustering diarizer for initializing clustering then Multi-scale Diarization Decoder (MSDD).
@@ -30,7 +30,7 @@ python multiscale_diar_decoder_infer.py --config-path='../conf/inference' --conf
 
 @hydra_runner(config_path="../conf/inference", config_name="diar_infer_telephonic.yaml")
 def main(cfg):
-    torch.backends.cudnn.enabled = False  
+    torch.backends.cudnn.enabled = False
     diarizer_model = NeuralDiarizer(cfg=cfg).to(cfg.device)
     diarizer_model.diarize()
 
