@@ -83,10 +83,11 @@ class TensorRTLLM(ITritonDeployable):
     """
 
     def __init__(
-            self, model_dir: str,
-            lora_ckpt_list: List[str] = None,
-            load_model: bool = True,
-            use_python_runtime: bool = True,
+        self,
+        model_dir: str,
+        lora_ckpt_list: List[str] = None,
+        load_model: bool = True,
+        use_python_runtime: bool = True,
     ):
         """
         Args:

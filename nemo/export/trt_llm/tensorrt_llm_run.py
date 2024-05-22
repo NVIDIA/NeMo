@@ -26,7 +26,7 @@ from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import ModelConfig, ModelRunnerCpp, ModelRunner, SamplingConfig
+from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
 from transformers import PreTrainedTokenizer
 
 from nemo.export.trt_llm.tensor_utils import get_tensor_parallel_group
@@ -129,11 +129,7 @@ def _read_config(config_path: Path):
 
 
 def _load(
-        tokenizer: PreTrainedTokenizer,
-        engine_dir,
-        lora_ckpt_list=None,
-        num_beams=1,
-        use_python_runtime: bool = True
+    tokenizer: PreTrainedTokenizer, engine_dir, lora_ckpt_list=None, num_beams=1, use_python_runtime: bool = True
 ):
     """The impl of `load` API for on a single GPU worker."""
     try:
@@ -266,11 +262,11 @@ def _forward(
 
 
 def load(
-        tokenizer: PreTrainedTokenizer,
-        engine_dir: str,
-        lora_ckpt_list: List[str] = None,
-        num_beams: int = 1,
-        use_python_runtime: bool = True,
+    tokenizer: PreTrainedTokenizer,
+    engine_dir: str,
+    lora_ckpt_list: List[str] = None,
+    num_beams: int = 1,
+    use_python_runtime: bool = True,
 ) -> TensorrtLLMHostContext:
     """Loaded the compiled LLM model and run it.
 

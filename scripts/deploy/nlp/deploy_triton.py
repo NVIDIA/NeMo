@@ -214,9 +214,7 @@ def nemo_deploy(argv):
                 return
 
     trt_llm_exporter = TensorRTLLM(
-        model_dir=trt_llm_path,
-        lora_ckpt_list=args.lora_ckpt,
-        use_python_runtime=(not args.use_cpp_runtime)
+        model_dir=trt_llm_path, lora_ckpt_list=args.lora_ckpt, use_python_runtime=(not args.use_cpp_runtime)
     )
 
     if args.nemo_checkpoint is not None:
