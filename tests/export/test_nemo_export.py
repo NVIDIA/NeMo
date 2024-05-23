@@ -200,7 +200,7 @@ def run_trt_llm_inference(
                 print("---- LoRA could not be enabled and skipping the test.")
                 return None, None, None, None, None
 
-        trt_llm_exporter = TensorRTLLM(trt_llm_model_dir, lora_ckpt_list)
+        trt_llm_exporter = TensorRTLLM(trt_llm_model_dir, lora_ckpt_list, load_model=False)
 
         trt_llm_exporter.export(
             nemo_checkpoint_path=checkpoint_path,
@@ -460,8 +460,8 @@ def get_args():
     )
     parser.add_argument(
         "--run_accuracy",
-        type=str,
-        default="False",
+        default=False,
+        action='store_true',
     )
     parser.add_argument("--streaming", default=False, action="store_true")
     parser.add_argument(
@@ -483,11 +483,6 @@ def get_args():
         "--test_data_path",
         type=str,
         default=None,
-    )
-    parser.add_argument(
-        "--save_trt_engine",
-        type=str,
-        default="False",
     )
 
     return parser.parse_args()
