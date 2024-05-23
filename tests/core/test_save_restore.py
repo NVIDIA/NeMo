@@ -764,7 +764,9 @@ class TestSaveRestore:
             my_connector = MySaveRestoreConnector()
 
             with tempfile.TemporaryDirectory() as config_tmpdir:
-                my_connector._unpack_nemo_file(true_save_path, out_folder=config_tmpdir, extract_fn=lambda name: '.yaml' in name)
+                my_connector._unpack_nemo_file(
+                    true_save_path, out_folder=config_tmpdir, extract_fn=lambda name: '.yaml' in name
+                )
                 current_files = list(os.listdir(config_tmpdir))
 
                 assert len(current_files) == 1  # only config file should have been extracted, no pytorch params
