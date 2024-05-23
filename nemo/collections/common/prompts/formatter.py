@@ -1,12 +1,31 @@
-import typing
 from abc import ABC
-from typing import Type
+from enum import Enum
+from functools import lru_cache
+from typing import Any, Type
 
 import torch
 
 from nemo.collections.common.tokenizers import AggregateTokenizer, TokenizerSpec
 
 PREAMBLE_ROLE = "preamble"
+
+
+class Modality(Enum):
+    """
+    Modalities supported as PromptFormatter slot values.
+    """
+
+    Text = "text"
+
+    def matches(self, value: Any) -> bool:
+        """
+        Checks if the provided value is compatible with an instance of Modality.
+        """
+        match self:
+            case Modality.Text:
+                return isinstance(value, str)
+            case _:
+                return False
 
 
 class PromptFormatter(ABC):
@@ -82,11 +101,11 @@ class PromptFormatter(ABC):
     # * from a role name string (system/user/assistant/etc)
     # * to a dict with keys
     #   * "template" that has a string value (the prompt template)
-    #   * "slots" that has a value of dict[str, Type]
+    #   * "slots" that has a value of dict[str, Modality]
     #       * keys of slots are the names of formattable slots in the prompt template
-    #       * values of slots are types:
-    #           * 'str' indicates a required slot
-    #           * 'str | None' indicates an optional slot
+    #       * values of slots are :class:`Modality` objects that can be used to check
+    #           whether a specific value conforms to a given modality requirements
+    #           (e.g., Modality.Text may expect string objects).
     # Template is intended to be defined by the child classes.
     TEMPLATE = None
 
@@ -99,7 +118,8 @@ class PromptFormatter(ABC):
 
     def __init__(self, tokenizer: TokenizerSpec, defaults: list[dict] | None = None) -> None:
         self.tokenizer = tokenizer
-        self.defaults = defaults
+        self._defaults = defaults
+        self._validate_defaults()
 
     def __init_subclass__(cls, **kwargs) -> None:
         ERR = "PromptFormatter subclass definition error:"
@@ -130,11 +150,12 @@ class PromptFormatter(ABC):
         return cls._REGISTERED_FORMATTERS[name]
 
     @classmethod
+    @lru_cache(1)
     def get_roles(cls) -> list[str]:
         return list(cls.TEMPLATE.keys())
 
     @classmethod
-    def get_slots(cls, role: str) -> dict[str, Type]:
+    def get_slots(cls, role: str) -> dict[str, Modality]:
         # returns a copy to avoid accidential mutation of a global object by the user
         return cls.TEMPLATE[role].get("slots", {}).copy()
 
@@ -142,7 +163,24 @@ class PromptFormatter(ABC):
     def get_template(cls, role: str) -> str:
         return cls.TEMPLATE[role]["template"]
 
-    def encode_turn(self, prompt_template: str, expected_slots: dict, slot_values: dict) -> list[int]:
+    def get_default_dialog_slots(self) -> list[dict]:
+        """
+        Returns a list of dialog turns that can be used as a skeleton to fill with actual slot values.
+        If ``PromptFormatter`` was initialized with ``defaults`` argument, this method will return the
+        defaults. Otherwise, every slot is pre-filled with ``None``.
+        """
+        if self._defaults is not None:
+            return self._defaults.copy()
+        else:
+            return [
+                {"role": role, "slots": {slot: None for slot in self.get_slots(role)}}
+                for role in self.get_roles()
+                if role != self.INFERENCE_ROLE
+            ]
+
+    def encode_turn(
+        self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
+    ) -> list[int]:
         prompt = prompt_template
         for slot in expected_slots:
             # For the final substitution of 'slot' in the template we have to mangle it to '|slot|' anyway,
@@ -214,9 +252,34 @@ class PromptFormatter(ABC):
             return self.tokenizer.text_to_ids(text, lang)
         return self.tokenizer.text_to_ids(text)
 
-    def _validate_slot_values(self, expected: dict, received: dict) -> None:
+    def _validate_slot_values(self, expected: dict[str, Modality], received: dict[str, Any]) -> None:
         missing = set(expected) - set(received)
         assert not missing, f"The following slot values were not provided: {missing}"
+        for slot in expected:
+            expected_modality = expected[slot]
+            value = received[slot]
+            assert expected_modality.matches(
+                value
+            ), f"{slot=} received {value=} which does not match modality {expected_modality}"
+
+    def _validate_defaults(self):
+        if self._defaults is None:
+            return
+
+        err = "Error in default prompt definition:"
+        assert isinstance(self._defaults, list)
+        for turn in self._defaults:
+            assert isinstance(turn, dict)
+            assert "role" in turn, f"{err} Missing required 'role' key. We received {turn=}"
+            role = turn["role"]
+            assert role in self.get_roles(), (
+                f"{err} Invalid {role=} in {turn=} - " f"supported roles are: {self.get_roles()}."
+            )
+            if expected_slots := self.get_slots(role):
+                assert "slots" in turn, (
+                    f"{err} Missing required 'slots' key in {turn=} - "
+                    f"we expected the following slots to be provided: {expected_slots}."
+                )
 
 
 def _mangled(slot: str) -> str:

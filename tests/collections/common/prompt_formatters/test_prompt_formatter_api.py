@@ -1,13 +1,14 @@
 import pytest
 
 from nemo.collections.common.prompts.canary import PromptFormatter
+from nemo.collections.common.prompts.formatter import Modality
 
 
 class _DummyPromptFormatter(PromptFormatter):
     REGISTER_NAME = "_dummy_test_formatter"
     TEMPLATE = {
-        "user": {"template": "<s>|text|</s>", "slots": {"text": str}},
-        "assistant": {"template": "|text|</s>", "slots": {"text": str}},
+        "user": {"template": "<s>|text|</s>", "slots": {"text": Modality.Text}},
+        "assistant": {"template": "|text|</s>", "slots": {"text": Modality.Text}},
     }
     INFERENCE_ROLE = "assistant"
 
@@ -85,8 +86,8 @@ class _DummyPreamblePromptFormatter(PromptFormatter):
     REGISTER_NAME = "_dummy_test_formatter"
     TEMPLATE = {
         "preamble": {"template": "TEST"},
-        "user": {"template": "<s>|text|</s>", "slots": {"text": str}},
-        "assistant": {"template": "|text|</s>", "slots": {"text": str}},
+        "user": {"template": "<s>|text|</s>", "slots": {"text": Modality.Text}},
+        "assistant": {"template": "|text|</s>", "slots": {"text": Modality.Text}},
     }
     INFERENCE_ROLE = "assistant"
 

@@ -143,7 +143,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
         assert isinstance(cut, MonoCut), "Expected MonoCut."
 
         # first, validate the utterance
-        expected_slots = {"source_lang", "target_lang", "task", "pnc"}
+        expected_slots = set(formatter.get_slots("user"))
         missing_keys = expected_slots - set(cut.custom)
         if "task" in missing_keys and "taskname" in cut.custom:
             # Compatibility with "old" Canary manifest format.

@@ -2,7 +2,7 @@
 Implemented following the guide at https://www.promptingguide.ai/models/phi-2#phi-2-usage
 """
 
-from nemo.collections.common.prompts.formatter import PromptFormatter
+from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 
 
 class Phi2QAPromptFormatter(PromptFormatter):
@@ -10,15 +10,15 @@ class Phi2QAPromptFormatter(PromptFormatter):
     INFERENCE_ROLE = "assistant"
     TEMPLATE = {
         "user": {
-            "template": f"Instruct: |message|\n",
+            "template": f"Instruct: |message|\nOutput: ",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"Output: |message|",
+            "template": f"|message|",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
     }
@@ -29,15 +29,15 @@ class Phi2ChatPromptFormatter(PromptFormatter):
     INFERENCE_ROLE = "assistant"
     TEMPLATE = {
         "user": {
-            "template": f"Human: |message|",
+            "template": f"Human: |message|\nAI: ",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"AI: |message|",
+            "template": f"|message|",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
     }
@@ -50,13 +50,13 @@ class Phi2CodePromptFormatter(PromptFormatter):
         "user": {
             "template": f"|message|\n",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         INFERENCE_ROLE: {
             "template": f"|message|",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
     }

@@ -1,4 +1,4 @@
-from nemo.collections.common.prompts.formatter import PromptFormatter
+from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 
 
 class Llama2PromptFormatter(PromptFormatter):
@@ -12,19 +12,19 @@ class Llama2PromptFormatter(PromptFormatter):
         "system": {
             "template": "<<SYS>>\n|message|\n<</SYS>>\n",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         "user": {
             "template": "[INST]\nUser:|message|\n[/INST]\n\n",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         INFERENCE_ROLE: {
             "template": f"Assistant:|message|",
             "slots": {
-                "message": str | None,
+                "message": Modality.Text,
             },
         },
     }
@@ -52,19 +52,19 @@ class Llama3PromptFormatter(PromptFormatter):
         "system": {
             "template": f"{LLAMA3_HEADER_BEGIN}system{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         "user": {
             "template": f"{LLAMA3_HEADER_BEGIN}user{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         INFERENCE_ROLE: {
             "template": f"{LLAMA3_HEADER_BEGIN}assistant{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
     }

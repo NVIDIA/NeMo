@@ -45,7 +45,6 @@ from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.common.prompts.formatter import PromptFormatter
-from nemo.collections.common.tokenizers.canary_tokenizer import CANARY_SPECIAL_TOKENIZER
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -101,27 +100,14 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     Configuration for Multi Task Transcription
     """
 
-    slots: dict[str, str] = field(default_factory=dict)
+    slots: dict[str, dict[str, str]] | None = None
     text_field: str = "answer"
     lang_field: str = "target_lang"
 
-    def get_prompt_turns_with_slot_values(self, prompt_format: str) -> list[dict[str, str]]:
-        formatter = PromptFormatter.resolve(prompt_format)
-        # Canary requires special handling to satisfy prompt formatter API.
-        if prompt_format == "canary":
-            # Now ask the prompt formatter about which slots are required
-            # (we know it up-front for canary, but in a generic case this is how it would have looked like).
-            slots = formatter.get_slots(role="user")
-            for slot in slots:
-                if slot in self.slots:
-                    slots[slot] = self.slots[slot]
-            # Extra slot for aggregate tokenizer support.
-            slots[formatter.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
-            return [{"role": "user", "slots": slots}]
-        else:
-            raise NotImplementedError(
-                f"We dont support other prompt formats than 'canary' yet (received {prompt_format=})"
-            )
+    def __post_init__(self):
+        # Could have been slots = field(..) but this is more robust against users setting this to None.
+        if self.slots is None:
+            self.slots = {}
 
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
@@ -143,6 +129,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
+
+        prompt_cls = PromptFormatter.resolve(self.prompt_format)
+        self.prompt = prompt_cls(
+            tokenizer=self.tokenizer,
+            defaults=cfg.get("prompt_defaults"),
+        )
 
         # Setup audio preprocessor
         self.preprocessor = EncDecMultiTaskModel.from_config_dict(self.cfg.preprocessor)
@@ -406,7 +398,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
-        **slots,
+        slots: dict[str, dict[str, str]] = None,
     ) -> Union[List[str], List[Hypothesis]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -427,7 +419,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[MultiTaskTranscriptionConfig]) A config to override the default config.
-            **slots: Optional key-value pairs to be provided to the prompt formatter. Specific keys depend on the prompt format; see :module:`nemo.collections.common.prompts` for more details.
+            slots: Optional dict of turns with slots for building the prompt for the model. Each entry is represented as ``"<role-name>": {"<slot-name>": <slot-value>, ...}``.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -440,7 +432,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 channel_selector=channel_selector,
                 augmentor=augmentor,
                 verbose=verbose,
-                slots=slots,
+                slots={} if slots is None else slots,
             )
         else:
             if not isinstance(override_config, MultiTaskTranscriptionConfig):
@@ -801,7 +793,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         else:
             # The dataloader provided only audio + audio_lens, so we
             # are constructing the prompt dynamically using TranscribeConfig.
-            turns = trcfg.get_prompt_turns_with_slot_values(self.prompt_format)
+
+            # Now ask the prompt formatter about which slots are required.
+            # It will return a default prompt structure with default slot values (if available, None otherwise).
+            # We iterate over that structure and update slot values based on ``trcfg.slots``.
+            turns = self.prompt.get_default_dialog_slots()
+            for turn in turns:
+                role = turn["role"]
+                if role in trcfg.slots:
+                    for slot, value in turn["slots"].items():
+                        if slot in (slots := trcfg.slots[role]):
+                            turn["slots"][slot] = slots[slot]
+
             decoder_input_ids = (
                 self.prompt_formatter.encode_dialog(turns=turns)["context_ids"]
                 .unsqueeze(0)
@@ -939,7 +942,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 raise ValueError(f"Expected str or dict, got {type(item)}")
             for k, dv in (("source_lang", "en"), ("target_lang", "en"), ("taskname", "asr"), ("pnc", "yes")):
                 if k not in entry:
-                    entry[k] = trcfg.slots.get(k, dv)
+                    entry[k] = trcfg.slots.get("user", {}).get(k, dv)
             out_json_items.append(entry)
         return out_json_items
 

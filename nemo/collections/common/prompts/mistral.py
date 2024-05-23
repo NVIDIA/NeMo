@@ -2,8 +2,7 @@
 Implemented following the guide at https://www.promptingguide.ai/models/mistral-7b#chat-template-for-mistral-7b-instruct
 """
 
-from nemo.collections.common.prompts.formatter import PromptFormatter
-
+from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 
 MISTRAL_BOS = "<s>"
 MISTRAL_PROMPT_BEGIN = "[INST]"
@@ -22,13 +21,13 @@ class MistralPromptFormatter(PromptFormatter):
         "user": {
             "template": f"{MISTRAL_PROMPT_BEGIN} |message| {MISTRAL_PROMPT_END} ",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
         INFERENCE_ROLE: {
             "template": f"|message|{MISTRAL_END_OF_TURN}",
             "slots": {
-                "message": str,
+                "message": Modality.Text,
             },
         },
     }
