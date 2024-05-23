@@ -151,7 +151,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_trainer_loggers(self, tmp_path):
-        """ Test that a trainer with logger errors out with a number of arguments. Test that it works with
+        """Test that a trainer with logger errors out with a number of arguments. Test that it works with
         create_tensorboard_logger set to False
         """
         test_trainer = pl.Trainer(accelerator='cpu')  # Should create logger and modelcheckpoint
@@ -235,7 +235,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_checkpoint_configurations(self):
-        """ Test that trainer creating modelcheckpoint and asking exp_manager to do it too results in errors, but
+        """Test that trainer creating modelcheckpoint and asking exp_manager to do it too results in errors, but
         is error free if only one is asked to do so.
         """
         disable_tb_logger = {"create_tensorboard_logger": False}
@@ -297,7 +297,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_resume(self, tmp_path):
-        """ Tests the resume capabilities of exp_manager"""
+        """Tests the resume capabilities of exp_manager"""
         test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
 
         # Error because explicit_log_dir does not exist
@@ -428,7 +428,8 @@ class TestExpManager:
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
         test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4)
         exp_manager(
-            test_trainer, {"explicit_log_dir": str(tmp_path / "test")},
+            test_trainer,
+            {"explicit_log_dir": str(tmp_path / "test")},
         )
         model = ExampleModel()
         test_trainer.fit(model)
@@ -470,7 +471,9 @@ class TestExpManager:
         test_trainer.fit(model)
 
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
-        assert len(list((tmp_path / "test" / "checkpoints").glob("default*.nemo"))) == 1  # check number of `.nemo` checkpoints
+        assert (
+            len(list((tmp_path / "test" / "checkpoints").glob("default*.nemo"))) == 1
+        )  # check number of `.nemo` checkpoints
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
@@ -531,7 +534,7 @@ class TestExpManager:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize('test_dist_ckpt', [False, True])
     def test_base_checkpoints_are_not_overwritten(self, tmp_path, test_dist_ckpt):
-        """ Simulates already existing checkpoints in the ckpt directory and tests non-nemo ckpt versioning"""
+        """Simulates already existing checkpoints in the ckpt directory and tests non-nemo ckpt versioning"""
         strategy = NLPDDPStrategy() if test_dist_ckpt else 'auto'
         test_trainer = pl.Trainer(
             accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4, strategy=strategy
@@ -612,6 +615,7 @@ class TestExpManager:
         model_path = checkpoint_dir / "val_loss=0.0300-epoch=1-step=64-last.ckpt"
         last_saved_checkpoint = torch.load(model_path)
         assert max_steps == last_saved_checkpoint['global_step']
+
         # restart training, ensure global step starts correctly
         class AssertCallback(Callback):
             def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
@@ -701,8 +705,7 @@ class TestExpManager:
         """
         tmp_path = tmp_path / "test_3"
 
-        class CustomLoop(_TrainingEpochLoop):
-            ...
+        class CustomLoop(_TrainingEpochLoop): ...
 
         trainer = pl.Trainer(
             accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=1, val_check_interval=0.33
@@ -779,7 +782,8 @@ class TestExpManager:
 
         restored_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         exp_manager(
-            restored_trainer, {"resume_if_exists": True, "explicit_log_dir": str(test_dir)},
+            restored_trainer,
+            {"resume_if_exists": True, "explicit_log_dir": str(test_dir)},
         )
 
         # Check that last complete (w/o unifinished marker) checkpoint was found
@@ -823,7 +827,8 @@ class TestExpManager:
 
         restored_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         exp_manager(
-            restored_trainer, {"resume_if_exists": True, "explicit_log_dir": str(test_dir)},
+            restored_trainer,
+            {"resume_if_exists": True, "explicit_log_dir": str(test_dir)},
         )
 
         # Check that last complete (w/o unifinished marker) checkpoint was found
@@ -870,13 +875,17 @@ class TestExpManager:
 
         # unfinished checkpoint with EMA part, both parts should be removed
         self._write_fake_checkpoint(
-            checkpoints_dir / "incomplete01-EMA.ckpt", isdir=False, add_unfinished_marker=False,
+            checkpoints_dir / "incomplete01-EMA.ckpt",
+            isdir=False,
+            add_unfinished_marker=False,
         )
         self._write_fake_checkpoint(checkpoints_dir / "incomplete01.ckpt", isdir=False, add_unfinished_marker=True)
 
         # just EMA part - should be removed. NOTE marker path is the same for base part and for EMA part
         self._write_fake_checkpoint(
-            checkpoints_dir / "incomplete02-EMA.ckpt", isdir=False, add_unfinished_marker=False,
+            checkpoints_dir / "incomplete02-EMA.ckpt",
+            isdir=False,
+            add_unfinished_marker=False,
         )
         (checkpoints_dir / f"incomplete02{NeMoModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}").touch()
 
@@ -884,7 +893,10 @@ class TestExpManager:
 
         exp_manager(
             test_trainer,
-            {"checkpoint_callback_params": {"save_top_k": 0, "save_last": False}, "explicit_log_dir": str(test_dir),},
+            {
+                "checkpoint_callback_params": {"save_top_k": 0, "save_last": False},
+                "explicit_log_dir": str(test_dir),
+            },
         )
 
         model = ExampleModel()
@@ -929,7 +941,10 @@ class TestExpManager:
 
         exp_manager(
             test_trainer,
-            {"checkpoint_callback_params": {"save_top_k": 0, "save_last": False}, "explicit_log_dir": str(test_dir),},
+            {
+                "checkpoint_callback_params": {"save_top_k": 0, "save_last": False},
+                "explicit_log_dir": str(test_dir),
+            },
         )
 
         model = ExampleModel()
