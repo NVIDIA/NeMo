@@ -123,10 +123,7 @@ class UnpackedNemoCheckpointDir:
         model_configs_paths = list(self._checkpoints_dir.rglob(model_config_filename))
         if model_configs_paths:
             if len(model_configs_paths) > 1:
-                LOGGER.debug(
-                    f"There are more than single {model_config_filename} in"
-                    f" {self._checkpoints_dir}"
-                )
+                LOGGER.debug(f"There are more than single {model_config_filename} in" f" {self._checkpoints_dir}")
             model_config_path = model_configs_paths[0]
             LOGGER.debug("Loading model config from %s", model_config_path)
             with model_config_path.open("r") as model_config_file:
