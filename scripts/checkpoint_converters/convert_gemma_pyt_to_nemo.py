@@ -152,7 +152,8 @@ def adjust_tensor_shapes(model, nemo_state_dict):
             # [(head_num + 2 * num_query_groups) * head_size, hidden_size]
             # -> [head_num, head_size, hidden_size], 2 * [num_query_groups, head_size, hidden_size]
             q_weight, k_weight, v_weight = qkv_weight.split(
-                [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0,
+                [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size],
+                dim=0,
             )
             q_weight = q_weight.reshape(head_num, head_size, hidden_size)
             k_weight = k_weight.reshape(num_query_groups, head_size, hidden_size)

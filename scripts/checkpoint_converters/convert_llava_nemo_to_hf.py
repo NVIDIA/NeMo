@@ -28,9 +28,9 @@ from omegaconf import OmegaConf
 from transformers import LlamaTokenizer, LlavaForConditionalGeneration
 
 from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
@@ -58,9 +58,18 @@ def create_rename_keys(num_hidden_layers):
                     f"model.decoder.layers.{i}.self_attention.linear_v.weight",
                 ),
                 # MLP and LayerNorm
-                (f"language_model.model.layers.{i}.mlp.gate_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_gate.weight"),
-                (f"language_model.model.layers.{i}.mlp.up_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc1_proj.weight"),
-                (f"language_model.model.layers.{i}.mlp.down_proj.weight", f"model.decoder.layers.{i}.mlp.linear_fc2.weight"),
+                (
+                    f"language_model.model.layers.{i}.mlp.gate_proj.weight",
+                    f"model.decoder.layers.{i}.mlp.linear_fc1_gate.weight",
+                ),
+                (
+                    f"language_model.model.layers.{i}.mlp.up_proj.weight",
+                    f"model.decoder.layers.{i}.mlp.linear_fc1_proj.weight",
+                ),
+                (
+                    f"language_model.model.layers.{i}.mlp.down_proj.weight",
+                    f"model.decoder.layers.{i}.mlp.linear_fc2.weight",
+                ),
                 (
                     f"language_model.model.layers.{i}.input_layernorm.weight",
                     f"model.decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight",
@@ -72,19 +81,29 @@ def create_rename_keys(num_hidden_layers):
             ]
         )
 
-    rename_keys.extend([
-        ("multi_modal_projector.linear_1.weight",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.weight"),
-        ("multi_modal_projector.linear_1.bias",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.bias"),
-        ("multi_modal_projector.linear_2.weight",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.weight"),
-        ("multi_modal_projector.linear_2.bias",
-         "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias"),
-        ("language_model.model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
-        ("language_model.model.norm.weight", "model.decoder.final_layernorm.weight"),
-        ("language_model.lm_head.weight", "model.output_layer.weight")
-    ])
+    rename_keys.extend(
+        [
+            (
+                "multi_modal_projector.linear_1.weight",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.weight",
+            ),
+            (
+                "multi_modal_projector.linear_1.bias",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.0.bias",
+            ),
+            (
+                "multi_modal_projector.linear_2.weight",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.weight",
+            ),
+            (
+                "multi_modal_projector.linear_2.bias",
+                "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias",
+            ),
+            ("language_model.model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
+            ("language_model.model.norm.weight", "model.decoder.final_layernorm.weight"),
+            ("language_model.lm_head.weight", "model.output_layer.weight"),
+        ]
+    )
 
     return rename_keys
 
@@ -171,7 +190,9 @@ def reverse_adjust_tensor_shapes(model, hf_model, nemo_state_dict):
 
             qkv_index = 0
             for i in range(num_query_groups):
-                q_weight[i * heads_per_group: (i + 1) * heads_per_group, :, :] = qkv_weight[qkv_index: qkv_index + heads_per_group, :, :]
+                q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :] = qkv_weight[
+                    qkv_index : qkv_index + heads_per_group, :, :
+                ]
                 qkv_index += heads_per_group
                 k_weight[i, :, :] = qkv_weight[qkv_index, :, :]
                 qkv_index += 1
@@ -221,7 +242,11 @@ def adjust_nemo_config(model_config, ref_config):
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to .nemo file or extracted folder",
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file or extracted folder",
     )
     parser.add_argument(
         "--hf_input_path",
@@ -246,9 +271,9 @@ def convert(args):
     hf_model = LlavaForConditionalGeneration.from_pretrained(args.hf_input_path)
     logging.info("HF Model loading done.")
 
-    nemo_config = OmegaConf.load(os.path.join(
-        os.path.dirname(__file__), '../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml'
-    ))
+    nemo_config = OmegaConf.load(
+        os.path.join(os.path.dirname(__file__), '../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml')
+    )
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronNevaModel.restore_from(
         restore_path=args.input_name_or_path,
@@ -297,7 +322,7 @@ def convert(args):
     logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'.")
     logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'.")
     assert (
-            hf_next_token == next_token
+        hf_next_token == next_token
     ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
     logging.info(f'=' * 100)
 
