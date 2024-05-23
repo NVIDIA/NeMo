@@ -1300,7 +1300,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 else:
                     # Extract the nemo file into the temporary directory
                     self._unpack_nemo_file(
-                        path2file=restore_path, out_folder=tmpdir, extract_config_only=return_config is True
+                        path2file=restore_path, out_folder=tmpdir, extract_fn=return_config and (lambda name: '.yaml' in name)
                     )
                 # remove model weights extension
                 tmp_model_weights_ckpt = os.path.join(tmpdir, self.model_weights_ckpt)
