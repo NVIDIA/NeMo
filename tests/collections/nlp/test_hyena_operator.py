@@ -14,26 +14,29 @@
 
 import pytest
 import torch.nn
-
-from nemo.collections.nlp.modules.common.hyena.hyena import HyenaOperator, SingleHeadHyenaConv, MultiHeadHyenaConv
-from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_hyena_layer_with_transformer_engine_spec
 from megatron.core.transformer.transformer_config import TransformerConfig
+
+from nemo.collections.nlp.modules.common.hyena.hyena import HyenaOperator, MultiHeadHyenaConv, SingleHeadHyenaConv
+from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_hyena_layer_with_transformer_engine_spec
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 
 try:
     import fftconv
+
     HAVE_FFTCONV = True
 except ImportError:
     HAVE_FFTCONV = False
 
 try:
     import flashfftconv
+
     HAVE_FLASHFFTCONV = True
 except ImportError:
     HAVE_FLASHFFTCONV = False
 
 try:
     import causal_conv1d
+
     HAVE_CAUSAL_CONV1D = True
 except ImportError:
     HAVE_CAUSAL_CONV1D = False
@@ -41,9 +44,7 @@ except ImportError:
 
 @pytest.fixture()
 def transformer_config():
-    cfg = TransformerConfig(
-        num_layers=2, hidden_size=864, num_attention_heads=1
-    )
+    cfg = TransformerConfig(num_layers=2, hidden_size=864, num_attention_heads=1)
     return cfg
 
 
@@ -58,7 +59,6 @@ def hyena_config():
         'dropout': 0.0,
         'short_filter_order': 3,
         'activation': "identity",
-
         # HyenaFilter parameters
         'precision': 'bf16',
         'fftconv_type': None,
@@ -68,14 +68,13 @@ def hyena_config():
         'bias': True,
         'normalized': False,
         'num_inner_mlps': 2,
-
         # ExponentialModulation parameters
         'fast_decay_pct': 0.3,
         'slow_decay_pct': 1.5,
         'target': 1e-2,
         'learn_modulation': False,
         'modulate': True,
-        'shift': 0.0
+        'shift': 0.0,
     }
     return cfg
 
@@ -89,10 +88,13 @@ def submodules(hyena_config):
 @pytest.mark.skipif(not HAVE_CAUSAL_CONV1D, reason='causal-conv-1d not installed')
 class TestHyenaOperator:
     @pytest.mark.skipif(not HAVE_FFTCONV, reason='Safari fftconv not installed')
-    @pytest.mark.parametrize("optionals_enabled, num_heads, expected_num_weights",
-                             [(False, 1, 3068256), (True, 1, 3102912), (True, 8, 3053016)])
-    def test_parameters(self, optionals_enabled, num_heads, expected_num_weights,
-                        transformer_config, hyena_config, submodules):
+    @pytest.mark.parametrize(
+        "optionals_enabled, num_heads, expected_num_weights",
+        [(False, 1, 3068256), (True, 1, 3102912), (True, 8, 3053016)],
+    )
+    def test_parameters(
+        self, optionals_enabled, num_heads, expected_num_weights, transformer_config, hyena_config, submodules
+    ):
         # Expected num weights calculation:
         #
         # Denote: inner_width = d_model * (order + 1)

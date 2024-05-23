@@ -11,6 +11,7 @@ from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 # Code mostly taken from:
 # https://github.com/HazyResearch/safari/blob/flashfftconv/src/models/sequence/hyena.py
 
+
 @dataclass
 class HyenaFilterSubmodules:
     positional_embedding: Union[ModuleSpec, type] = IdentityOp
@@ -37,10 +38,10 @@ class Sin(nn.Module):
 
 class PositionalEmbedding(nn.Module):
     def __init__(
-            self,
-            emb_dim: int,
-            seq_len: int,
-            learn_pos_emb_z: bool = True,
+        self,
+        emb_dim: int,
+        seq_len: int,
+        learn_pos_emb_z: bool = True,
     ):
         """Complex exponential positional embeddings for Hyena filters."""
         super().__init__()
@@ -67,14 +68,14 @@ class PositionalEmbedding(nn.Module):
 
 class ExponentialModulation(nn.Module):
     def __init__(
-            self,
-            d_model: int,
-            fast_decay_pct: float = 0.3,
-            slow_decay_pct: float = 1.5,
-            target: float = 1e-2,
-            learn_modulation: bool = False,
-            modulate: bool = True,
-            shift: float = 0.0
+        self,
+        d_model: int,
+        fast_decay_pct: float = 0.3,
+        slow_decay_pct: float = 1.5,
+        target: float = 1e-2,
+        learn_modulation: bool = False,
+        modulate: bool = True,
+        shift: float = 0.0,
     ):
         super().__init__()
         self.modulate = modulate
@@ -93,17 +94,17 @@ class ExponentialModulation(nn.Module):
 
 class HyenaFilter(nn.Module):
     def __init__(
-            self,
-            d_model: int,
-            emb_dim: int = 3,
-            order: int = 16,
-            seq_len: int = 1024,
-            learn_pos_emb_z: bool = True,
-            w: int = 1,
-            num_inner_mlps: int = 2,
-            normalized: bool = False,
-            submodules: HyenaFilterSubmodules = None,
-            **modulation_kwargs
+        self,
+        d_model: int,
+        emb_dim: int = 3,
+        order: int = 16,
+        seq_len: int = 1024,
+        learn_pos_emb_z: bool = True,
+        w: int = 1,
+        num_inner_mlps: int = 2,
+        normalized: bool = False,
+        submodules: HyenaFilterSubmodules = None,
+        **modulation_kwargs,
     ):
         """
         Implicit long filter with modulation.
@@ -125,7 +126,7 @@ class HyenaFilter(nn.Module):
                 positional_embedding=PositionalEmbedding,
                 linear=nn.Linear,
                 activation=Sin,
-                modulation=ExponentialModulation
+                modulation=ExponentialModulation,
             )
 
         self.d_model = d_model
@@ -136,9 +137,7 @@ class HyenaFilter(nn.Module):
             raise ValueError("emb_dim must be odd and greater or equal to 3 (time, sine and cosine)")
         self.seq_len = seq_len
 
-        self.pos_emb = build_module(
-            submodules.positional_embedding, emb_dim, seq_len, learn_pos_emb_z
-        )
+        self.pos_emb = build_module(submodules.positional_embedding, emb_dim, seq_len, learn_pos_emb_z)
 
         # uses a variable number of inner linear layers
         self.implicit_filter = nn.Sequential(

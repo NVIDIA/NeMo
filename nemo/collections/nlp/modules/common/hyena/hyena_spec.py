@@ -1,17 +1,22 @@
 import torch.nn as nn
-
-from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TELayerNormColumnParallelLinear,
     TERowParallelLinear,
 )
-from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
+from megatron.core.transformer.spec_utils import ModuleSpec
 
 from nemo.collections.nlp.modules.common.hyena.hyena import (
-    HyenaOperator, CausalDepthWiseConv1d, HyenaOperatorSubmodules
+    CausalDepthWiseConv1d,
+    HyenaOperator,
+    HyenaOperatorSubmodules,
 )
 from nemo.collections.nlp.modules.common.hyena.hyena_filter import (
-    HyenaFilter, ExponentialModulation, Sin, PositionalEmbedding, HyenaFilterSubmodules
+    ExponentialModulation,
+    HyenaFilter,
+    HyenaFilterSubmodules,
+    PositionalEmbedding,
+    Sin,
 )
 
 
@@ -28,12 +33,13 @@ def get_hyena_layer_with_transformer_engine_spec(hyena_cfg):
                     positional_embedding=PositionalEmbedding,
                     linear=nn.Linear,
                     activation=Sin,
-                    modulation=ExponentialModulation
-                )
+                    modulation=ExponentialModulation,
+                ),
             ),
-            out_proj=TERowParallelLinear
+            out_proj=TERowParallelLinear,
         ),
     )
+
 
 def get_gpt_layer_with_te_and_hyena_spec(hyena_cfg):
     spec = get_gpt_layer_with_transformer_engine_spec()

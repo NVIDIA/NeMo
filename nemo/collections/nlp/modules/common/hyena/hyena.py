@@ -22,30 +22,30 @@ from typing import Union
 
 import torch
 import torch.nn as nn
-
 from einops import rearrange
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TELayerNormColumnParallelLinear,
+    TERowParallelLinear,
+)
+from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
+from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.common.parts.utils import activation_registry
+from nemo.collections.nlp.modules.common.hyena.hyena_filter import HyenaFilter, HyenaFilterSubmodules
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils.metaclasses import Singleton
 
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TELayerNormColumnParallelLinear, TERowParallelLinear
-)
-
-from nemo.collections.nlp.modules.common.hyena.hyena_filter import HyenaFilter, HyenaFilterSubmodules
-
 try:
     from nemo.collections.nlp.modules.common.hyena.fftconv_wrapper import fftconv_func as safari_fftconv_fn
+
     HAVE_FFTCONV = True
 except ImportError:
     HAVE_FFTCONV = False
 
 try:
     from flashfftconv import FlashFFTConv as FlashFFTConvImpl
+
     HAVE_FLASHFFTCONV = True
 
     class FlashFFTConv(metaclass=Singleton):
@@ -59,6 +59,7 @@ except ImportError:
 
 try:
     from causal_conv1d import causal_conv1d_fn
+
     HAVE_CAUSAL_CONV1D = True
 except ImportError:
     HAVE_CAUSAL_CONV1D = False
@@ -91,7 +92,7 @@ class CausalDepthWiseConv1d(nn.Module):
             kernel_size=width,
             padding=width - 1,
             groups=channels,
-            bias=bias
+            bias=bias,
         )
 
     def forward(self, x):
@@ -100,15 +101,15 @@ class CausalDepthWiseConv1d(nn.Module):
 
 class HyenaConv(nn.Module):
     def __init__(
-            self,
-            d_model: int,
-            l_max: int,
-            order: int,
-            filter_order: int,
-            bias: bool = True,
-            filter_cls: Union[ModuleSpec, type] = HyenaFilter,
-            filter_submodules: HyenaFilterSubmodules = None,
-            **filter_kwargs
+        self,
+        d_model: int,
+        l_max: int,
+        order: int,
+        filter_order: int,
+        bias: bool = True,
+        filter_cls: Union[ModuleSpec, type] = HyenaFilter,
+        filter_submodules: HyenaFilterSubmodules = None,
+        **filter_kwargs,
     ):
         super().__init__()
         self.d_model = d_model
@@ -123,27 +124,33 @@ class HyenaConv(nn.Module):
             submodules=filter_submodules,
             order=filter_order,
             seq_len=l_max,
-            **filter_kwargs
+            **filter_kwargs,
         )
 
 
 class SingleHeadHyenaConv(HyenaConv):
     def __init__(
-            self,
-            d_model: int,
-            l_max: int,
-            order: int,
-            filter_order: int,
-            bias: bool = True,
-            filter_cls: Union[ModuleSpec, type] = HyenaFilter,
-            filter_submodules: HyenaFilterSubmodules = None,
-            fftconv_type: str = None,
-            precision: str = 'bf16',
-            **filter_kwargs
+        self,
+        d_model: int,
+        l_max: int,
+        order: int,
+        filter_order: int,
+        bias: bool = True,
+        filter_cls: Union[ModuleSpec, type] = HyenaFilter,
+        filter_submodules: HyenaFilterSubmodules = None,
+        fftconv_type: str = None,
+        precision: str = 'bf16',
+        **filter_kwargs,
     ):
         super().__init__(
-            d_model, l_max, order, filter_order, bias=bias,
-            filter_cls=filter_cls, filter_submodules=filter_submodules, **filter_kwargs
+            d_model,
+            l_max,
+            order,
+            filter_order,
+            bias=bias,
+            filter_cls=filter_cls,
+            filter_submodules=filter_submodules,
+            **filter_kwargs,
         )
 
         if fftconv_type is None:
@@ -185,18 +192,18 @@ class SingleHeadHyenaConv(HyenaConv):
 
 class MultiHeadHyenaConv(HyenaConv):
     def __init__(
-            self,
-            d_model: int,
-            l_max: int,
-            order: int,
-            filter_order: int,
-            num_heads: int,
-            bias: bool = True,
-            filter_cls: Union[ModuleSpec, type] = HyenaFilter,
-            filter_submodules: HyenaFilterSubmodules = None,
-            fftconv_type: str = None,
-            precision: str = 'bf16',
-            **filter_kwargs
+        self,
+        d_model: int,
+        l_max: int,
+        order: int,
+        filter_order: int,
+        num_heads: int,
+        bias: bool = True,
+        filter_cls: Union[ModuleSpec, type] = HyenaFilter,
+        filter_submodules: HyenaFilterSubmodules = None,
+        fftconv_type: str = None,
+        precision: str = 'bf16',
+        **filter_kwargs,
     ):
         if num_heads == 1:
             raise ValueError('Expecting num_heads > 1')
@@ -206,8 +213,14 @@ class MultiHeadHyenaConv(HyenaConv):
             raise ImportError('fftconv library not found. Please see README at <tbd> for instructions.')
 
         super().__init__(
-            d_model, l_max, order, filter_order, bias=bias,
-            filter_cls=filter_cls, filter_submodules=filter_submodules, **filter_kwargs
+            d_model,
+            l_max,
+            order,
+            filter_order,
+            bias=bias,
+            filter_cls=filter_cls,
+            filter_submodules=filter_submodules,
+            **filter_kwargs,
         )
         self.num_heads = num_heads
 
@@ -221,18 +234,18 @@ class MultiHeadHyenaConv(HyenaConv):
 
 class HyenaOperator(nn.Module):
     def __init__(
-            self,
-            config: TransformerConfig,
-            l_max: int,
-            order: int = 2,
-            filter_order: int = 64,
-            num_heads: int = 1,
-            dropout: float = 0.0,
-            short_filter_order: int = 3,
-            activation: str = "identity",
-            submodules: HyenaOperatorSubmodules = None,
-            layer_number=None,
-            **long_conv_kwargs,
+        self,
+        config: TransformerConfig,
+        l_max: int,
+        order: int = 2,
+        filter_order: int = 64,
+        num_heads: int = 1,
+        dropout: float = 0.0,
+        short_filter_order: int = 3,
+        activation: str = "identity",
+        submodules: HyenaOperatorSubmodules = None,
+        layer_number=None,
+        **long_conv_kwargs,
     ):
         r"""
         Hyena operator described in the paper https://arxiv.org/pdf/2302.10866.pdf
@@ -253,7 +266,7 @@ class HyenaOperator(nn.Module):
                 in_proj=TELayerNormColumnParallelLinear,
                 short_filter=CausalDepthWiseConv1d,
                 implicit_filter=HyenaFilter,
-                out_proj=TERowParallelLinear
+                out_proj=TERowParallelLinear,
             )
 
         if order < 2:
@@ -265,10 +278,16 @@ class HyenaOperator(nn.Module):
         head_dim = d_model // num_heads
 
         auto_assign_attrs(
-            self, d_model=d_model, order=order, l_max=l_max, num_heads=num_heads,
-            head_dim=head_dim, filter_order=filter_order,
+            self,
+            d_model=d_model,
+            order=order,
+            l_max=l_max,
+            num_heads=num_heads,
+            head_dim=head_dim,
+            filter_order=filter_order,
             short_filter_order=short_filter_order,
-            activation=activation, mcore_config=config
+            activation=activation,
+            mcore_config=config,
         )
         self.activation = activation_registry[activation]()
         self.dropout = nn.Dropout(dropout)
@@ -302,16 +321,10 @@ class HyenaOperator(nn.Module):
 
         # Setup short filter
         total_width = self.d_model * (self.order + 1)
-        self.short_filter = build_module(
-            submodules.short_filter,
-            total_width,
-            self.short_filter_order
-        )
+        self.short_filter = build_module(submodules.short_filter, total_width, self.short_filter_order)
 
         # Setup long convolution with implicit filter
-        long_conv_args = [
-            self.head_dim, self.l_max, self.order, self.filter_order
-        ]
+        long_conv_args = [self.head_dim, self.l_max, self.order, self.filter_order]
         long_conv_kwargs['filter_cls'] = submodules.implicit_filter
         long_conv_kwargs['filter_submodules'] = submodules.implicit_filter.submodules
         if self.num_heads == 1:
