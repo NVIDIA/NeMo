@@ -19,7 +19,7 @@ import shutil
 import tarfile
 import tempfile
 import uuid
-from typing import Optional, Set, Union
+from typing import Callable, Optional, Set, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -141,7 +141,7 @@ class SaveRestoreConnector:
                 else:
                     # Extract the nemo file into the temporary directory
                     self._unpack_nemo_file(
-                        path2file=restore_path, out_folder=tmpdir, extract_config_only=return_config is True
+                        path2file=restore_path, out_folder=tmpdir, extract_fn=return_config and (lambda name: '.yaml' in name)
                     )
 
                 # Change current working directory to
@@ -475,41 +475,70 @@ class SaveRestoreConnector:
         if len(tarfile_artifacts) > 0 and len(restoration_paths) == 0:
             # TODO: see cases when this can occur, and if we can fix them
             logging.warning("Model contains registered artifacts, but no restoration paths found")
+        #from torch.distributed import breakpoint
+        #breakpoint()
+        #if len(tarfile_artifacts) > 0 and len(restoration_paths) > 0:
+        #    # Need to step into nemo archive to extract file
+        #    # Get path where the command is executed - the artifacts will be "retrieved" there
+        #    # (original .nemo behavior)
+        #    cwd = os.getcwd()
+        #    # Step into the nemo archive to try and find the file
+        #    # TemporaryDirectory context must always be outer to try-catch chdir otherwise it crashes on Windows
+        #    with tempfile.TemporaryDirectory() as archive_dir:
+        #        try:
+        #            # unpack all restorations paths (nemo checkpoints)
+        #            # in nemo checkpoints all resources contain hash in name, so there should be no collisions
+        #            for path in restoration_paths:
+        #                if self.model_extracted_dir:
+        #                    shutil.copytree(src=path, dst=archive_dir, dirs_exist_ok=True)
+        #                else:
+        #                    self._unpack_nemo_file(path2file=path, out_folder=archive_dir)
+        #            os.chdir(archive_dir)
+        #            for conf_path, artiitem in tarfile_artifacts:
+        #                # Get basename and copy it to nemo_file_folder
+        #                if 'nemo:' in artiitem.path:
+        #                    artifact_base_name = artiitem.path.split('nemo:')[1]
+        #                else:
+        #                    artifact_base_name = os.path.basename(artiitem.path)
+        #                # no need to hash here as we are in tarfile_artifacts which are already hashed
+        #                artifact_uniq_name = artifact_base_name
+        #                shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
+
+        #                # Update artifacts registry
+        #                new_artiitem = model_utils.ArtifactItem()
+        #                new_artiitem.path = "nemo:" + artifact_uniq_name
+        #                new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
+        #                model.artifacts[conf_path] = new_artiitem
+        #        finally:
+        #            # change back working directory
+        #            os.chdir(cwd)
         if len(tarfile_artifacts) > 0 and len(restoration_paths) > 0:
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
-            cwd = os.getcwd()
-            # Step into the nemo archive to try and find the file
-            # TemporaryDirectory context must always be outer to try-catch chdir otherwise it crashes on Windows
-            with tempfile.TemporaryDirectory() as archive_dir:
-                try:
-                    # unpack all restorations paths (nemo checkpoints)
-                    # in nemo checkpoints all resources contain hash in name, so there should be no collisions
-                    for path in restoration_paths:
-                        if self.model_extracted_dir:
-                            shutil.copytree(src=path, dst=archive_dir, dirs_exist_ok=True)
-                        else:
-                            self._unpack_nemo_file(path2file=path, out_folder=archive_dir)
-                    os.chdir(archive_dir)
-                    for conf_path, artiitem in tarfile_artifacts:
-                        # Get basename and copy it to nemo_file_folder
-                        if 'nemo:' in artiitem.path:
-                            artifact_base_name = artiitem.path.split('nemo:')[1]
-                        else:
-                            artifact_base_name = os.path.basename(artiitem.path)
-                        # no need to hash here as we are in tarfile_artifacts which are already hashed
-                        artifact_uniq_name = artifact_base_name
-                        shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
+            for conf_path, artiitem in tarfile_artifacts:
+                # Get basename and copy it to nemo_file_folder
+                if 'nemo:' in artiitem.path:
+                    artifact_base_name = artiitem.path.split('nemo:')[1]
+                else:
+                    artifact_base_name = os.path.basename(artiitem.path)
 
-                        # Update artifacts registry
-                        new_artiitem = model_utils.ArtifactItem()
-                        new_artiitem.path = "nemo:" + artifact_uniq_name
-                        new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
-                        model.artifacts[conf_path] = new_artiitem
-                finally:
-                    # change back working directory
-                    os.chdir(cwd)
+                # no need to hash here as we are in tarfile_artifacts which are already hashed
+                artifact_uniq_name = artifact_base_name
+
+                # Loop over all restorations paths (nemo checkpoints)
+                # in nemo checkpoints all resources contain hash in name, so there should be no collisions
+                for path in restoration_paths:
+                    if self.model_extracted_dir:
+                        shutil.copy2(os.path.join(path, artifact_base_name), os.path.join(nemo_file_folder, artifact_uniq_name))
+                    else:
+                        self._unpack_nemo_file(path2file=path, out_folder=nemo_file_folder, extract_fn=lambda name: os.path.basename(name) == artifact_base_name)
+
+                # Update artifacts registry
+                new_artiitem = model_utils.ArtifactItem()
+                new_artiitem.path = "nemo:" + artifact_uniq_name
+                new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
+                model.artifacts[conf_path] = new_artiitem
 
     @staticmethod
     def _update_subconfigs(model: "nemo_classes.ModelPT", path2yaml_file):
@@ -554,7 +583,7 @@ class SaveRestoreConnector:
             tar.add(source_dir, arcname=".")
 
     @staticmethod
-    def _unpack_nemo_file(path2file: str, out_folder: str, extract_config_only: bool = False) -> str:
+    def _unpack_nemo_file(path2file: str, out_folder: str, extract_fn: Optional[Callable[[str], bool]] = None) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
 
@@ -568,10 +597,10 @@ class SaveRestoreConnector:
             # can be older checkpoint => try compressed tar
             tar_header = "r:gz"
         tar = tarfile.open(path2file, tar_header)
-        if not extract_config_only:
+        if not extract_fn:
             tar.extractall(path=out_folder)
         else:
-            members = [x for x in tar.getmembers() if ".yaml" in x.name]
+            members = [x for x in tar.getmembers() if extract_fn(x.name)]
             tar.extractall(path=out_folder, members=members)
         tar.close()
         return out_folder
