@@ -21,9 +21,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import tensorrt_llm
 import torch
-import numpy as np
 from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraManager
