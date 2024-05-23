@@ -1135,7 +1135,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 else:
                     # Extract the nemo file into the temporary directory
                     self._unpack_nemo_file(
-                        path2file=restore_path, out_folder=tmpdir, extract_fn=return_config and (lambda name: '.yaml' in name)
+                        path2file=restore_path,
+                        out_folder=tmpdir,
+                        extract_fn=return_config and (lambda name: '.yaml' in name),
                     )
                 checkpoint = {}
                 sharded_state_dict = instance.sharded_state_dict()
