@@ -89,10 +89,91 @@ jobs:
           python setup.py style
           python tests/check_copyright_header.py --dir .
 
-          # These checks are not crucial
-          exit 0
-        '
-        ### \'\'
+            # Copyright Headers check
+            python tests/check_copyright_header.py --dir .
+
+            # NeMo Installation
+            ./reinstall.sh release
+
+            # Transformer Engine installation
+            git clone https://github.com/NVIDIA/TransformerEngine.git && \
+                pushd TransformerEngine && \
+                git fetch origin bfe21c3d68b0a9951e5716fb520045db53419c5e && \
+                git checkout FETCH_HEAD && \
+                git submodule init && git submodule update && \
+                NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip install .  && \
+                popd
+
+            # Apex installation
+            git clone https://github.com/NVIDIA/apex.git && \
+                pushd apex && \
+                git checkout 810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c && \
+                cp -R apex /usr/local/lib/python3.10/dist-packages && \
+                popd
+
+            # pip package should be working with main, if not we can update the commit here
+            # until the pip package is updated
+            # Megatron Core installation
+            git clone https://github.com/NVIDIA/Megatron-LM.git && \
+                pushd Megatron-LM && \
+                git checkout dace0330ac8b5bbc3a21ff14f7ef7544abb16334 && \
+                pip install . && \
+                  pushd megatron/core/datasets && \
+                  make && \
+                  popd && \
+                popd
+            export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
+
+            # Install only for test: L2: Segmentation Tool
+            pushd tools/ctc_segmentation && \
+                pip install -r requirements.txt && \
+                apt-get update && apt-get install libsox-fmt-all -y && \
+                popd
+
+            # ModelOpt installation
+            pip install nvidia-modelopt[torch]~=0.11.0 --extra-index-url https://pypi.nvidia.com --no-cache-dir
+
+            # PyTorch Lightning version
+            python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"
+
+            # PyTorch Lightning DDP Checks
+            CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
+
+            # Basic Import Checks
+            python -c "import nemo.collections.asr as nemo_asr"
+            python -c "import nemo.collections.nlp as nemo_nlp"
+            python -c "import nemo.collections.tts as nemo_tts"
+
+            # set permission
+            chmod 777 -R /workspace
+            '
+            ### \'\'
+
+    - name: Push container to registry for future use
+      run: |
+        # Push container
+        echo "Docker: List containers" && docker ps -a
+        DOCKER_COMMIT=$(docker ps --latest --quiet)  # latest container
+        docker commit $DOCKER_COMMIT nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+        docker tag nemoci.azurecr.io/nemo_container_${{ github.run_id }} nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+        docker push nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+
+    # - name: Build and push to local registry
+    #   uses: docker/build-push-action@v5
+    #   with:
+    #       context: .
+    #       push: true
+    #       tags: nemoci.azurecr.io/name/app:latest
+
+    # - name: Inspect
+    #   run: |
+    #     docker buildx imagetools inspect nemoci.azurecr.io/name/app:latest
+
+    #- name: Post-workflow execution
+    #  uses: gacts/run-and-post-run@v1
+    #  with:
+    #    post: |
+    #      chmod -R 777 .
 
 
   OPTIONAL_L0_Unit_Tests_GPU:
