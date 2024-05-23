@@ -228,6 +228,12 @@ def _forward(
 
         with torch.no_grad():
             prompt_tasks = None if task_ids is None else ",".join(str(task) for task in task_ids)
+            if prompt_table is not None:
+                prompt_table = prompt_table.reshape(1, *prompt_table.shape)
+                tmp_dir = tempfile.TemporaryDirectory()
+                prompt_table_path = os.path.join(tmp_dir.name, 'prompt_table.npy')
+                np.save(prompt_table_path, prompt_table.cpu().float().numpy())
+                prompt_table = prompt_table_path
 
             outputs = decoder.generate(
                 input_tensors,
@@ -241,7 +247,7 @@ def _forward(
                 stop_words_list=stop_words_list,
                 bad_words_list=bad_words_list,
                 lora_uids=lora_uids,
-                prompt_table=prompt_table,
+                prompt_table_path=prompt_table,
                 prompt_tasks=prompt_tasks,
                 streaming=streaming,
                 output_sequence_lengths=True,
@@ -249,6 +255,9 @@ def _forward(
             )
 
             torch.cuda.synchronize()
+
+            if prompt_table is not None:
+                tmp_dir.cleanup()
 
         runtime_rank = tensorrt_llm.mpi_rank()
         if runtime_rank == 0 or multiprocessed_env:
