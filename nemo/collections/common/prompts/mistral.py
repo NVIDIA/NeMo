@@ -20,15 +20,15 @@ class MistralPromptFormatter(PromptFormatter):
             "template": MISTRAL_BOS,
         },
         "user": {
-            "template": f"{MISTRAL_PROMPT_BEGIN} |MESSAGE| {MISTRAL_PROMPT_END} ",
+            "template": f"{MISTRAL_PROMPT_BEGIN} |message| {MISTRAL_PROMPT_END} ",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"|MESSAGE|{MISTRAL_END_OF_TURN}",
+            "template": f"|message|{MISTRAL_END_OF_TURN}",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
     }

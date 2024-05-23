@@ -143,7 +143,13 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
         assert isinstance(cut, MonoCut), "Expected MonoCut."
 
         # first, validate the utterance
-        missing_keys = [k for k in ("source_lang", "target_lang", "taskname", "pnc") if k not in cut.custom]
+        expected_slots = {"source_lang", "target_lang", "task", "pnc"}
+        missing_keys = expected_slots - set(cut.custom)
+        if "task" in missing_keys and "taskname" in cut.custom:
+            # Compatibility with "old" Canary manifest format.
+            # For compatbility with inference options, this slot is now called "task".
+            cut.custom["task"] = cut.custom["taskname"]
+            missing_keys.remove("task")
         if missing_keys:
             raise RuntimeError(
                 f"We found cut with ID {cut.id} that is missing the following keys: {missing_keys}"
@@ -155,18 +161,15 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
                 dict(
                     role="user",
                     slots={
-                        "|SOURCE_LANG|": cut.custom['source_lang'],
-                        "|TARGET_LANG|": cut.custom['target_lang'],
-                        "|TASK|": cut.custom['taskname'],
-                        "|PNC|": cut.custom['pnc'],
-                        "|PROMPT_LANGUAGE|": CANARY_SPECIAL_TOKENIZER,
+                        **{slot: cut.custom[slot] for slot in expected_slots},
+                        formatter.PROMPT_LANGUAGE_SLOT: CANARY_SPECIAL_TOKENIZER,
                     },
                 ),
                 dict(
                     role="assistant",
                     slots={
-                        "|TEXT|": ' '.join(s.text for s in cut.supervisions),
-                        "|PROMPT_LANGUAGE|": cut.custom["target_lang"],
+                        "text": ' '.join(s.text for s in cut.supervisions),
+                        formatter.PROMPT_LANGUAGE_SLOT: cut.custom["target_lang"],
                     },
                 ),
             ]

@@ -5,8 +5,8 @@ def test_mistral_prompt_formatter_training(bpe_tokenizer):
     formatter = MistralPromptFormatter(bpe_tokenizer)
     ans = formatter.encode_dialog(
         [
-            {"role": "user", "slots": {"|MESSAGE|": "TEST"}},
-            {"role": "assistant", "slots": {"|MESSAGE|": "TEST"}},
+            {"role": "user", "slots": {"message": "TEST"}},
+            {"role": "assistant", "slots": {"message": "TEST"}},
         ]
     )
     assert set(ans) == {"input_ids", "context_ids", "answer_ids", "mask"}
@@ -22,7 +22,7 @@ def test_mistral_prompt_formatter_inference(bpe_tokenizer):
     formatter = MistralPromptFormatter(bpe_tokenizer)
     ans = formatter.encode_dialog(
         [
-            {"role": "user", "slots": {"|MESSAGE|": "TEST"}},
+            {"role": "user", "slots": {"message": "TEST"}},
         ]
     )
     assert set(ans) == {"input_ids", "context_ids"}

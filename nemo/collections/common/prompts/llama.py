@@ -10,21 +10,21 @@ class Llama2PromptFormatter(PromptFormatter):
     INFERENCE_ROLE = "assistant"
     TEMPLATE = {
         "system": {
-            "template": "<<SYS>>\n|SYSTEM|\n<</SYS>>\n",
+            "template": "<<SYS>>\n|message|\n<</SYS>>\n",
             "slots": {
-                "|SYSTEM|": str,
+                "message": str,
             },
         },
         "user": {
-            "template": "[INST]\nUser:|USER|\n[/INST]\n\n",
+            "template": "[INST]\nUser:|message|\n[/INST]\n\n",
             "slots": {
-                "|USER|": str,
+                "message": str,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"Assistant:|TEXT|",
+            "template": f"Assistant:|message|",
             "slots": {
-                "|TEXT|": str | None,
+                "message": str | None,
             },
         },
     }
@@ -50,21 +50,21 @@ class Llama3PromptFormatter(PromptFormatter):
             "template": LLAMA3_BOS,
         },
         "system": {
-            "template": f"{LLAMA3_HEADER_BEGIN}system{LLAMA3_HEADER_END}{LLAMA3_NL}|MESSAGE|{LLAMA3_END_OF_TURN}",
+            "template": f"{LLAMA3_HEADER_BEGIN}system{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
         "user": {
-            "template": f"{LLAMA3_HEADER_BEGIN}user{LLAMA3_HEADER_END}{LLAMA3_NL}|MESSAGE|{LLAMA3_END_OF_TURN}",
+            "template": f"{LLAMA3_HEADER_BEGIN}user{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"{LLAMA3_HEADER_BEGIN}assistant{LLAMA3_HEADER_END}{LLAMA3_NL}|MESSAGE|{LLAMA3_END_OF_TURN}",
+            "template": f"{LLAMA3_HEADER_BEGIN}assistant{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
     }

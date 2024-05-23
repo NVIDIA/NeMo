@@ -101,10 +101,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     Configuration for Multi Task Transcription
     """
 
-    task: Optional[str] = None
-    pnc: Optional[bool] = None
-    source_lang: Optional[str] = None
-    target_lang: Optional[str] = None
+    slots: dict[str, str] = field(default_factory=dict)
     text_field: str = "answer"
     lang_field: str = "target_lang"
 
@@ -112,20 +109,14 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
         formatter = PromptFormatter.resolve(prompt_format)
         # Canary requires special handling to satisfy prompt formatter API.
         if prompt_format == "canary":
-            # First level of indirection: map trcfg field names to prompt formatter slot names.
-            slot_to_trcfg_key = {
-                "|TASK|": "task",
-                "|PNC|": "pnc",
-                "|SOURCE_LANG|": "source_lang",
-                "|TARGET_LANG|": "target_lang",
-            }
             # Now ask the prompt formatter about which slots are required
             # (we know it up-front for canary, but in a generic case this is how it would have looked like).
             slots = formatter.get_slots(role="user")
             for slot in slots:
-                slots[slot] = getattr(self, slot_to_trcfg_key[slot])
+                if slot in self.slots:
+                    slots[slot] = self.slots[slot]
             # Extra slot for aggregate tokenizer support.
-            slots["|PROMPT_LANGUAGE|"] = CANARY_SPECIAL_TOKENIZER
+            slots[formatter.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
             return [{"role": "user", "slots": slots}]
         else:
             raise NotImplementedError(
@@ -135,12 +126,6 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
     )
-
-    def __post_init__(self):
-        required_fields = ['task', 'pnc', 'source_lang', 'target_lang', 'text_field', 'lang_field']
-        for field in required_fields:
-            if not hasattr(self, field):
-                raise ValueError(f"`{field}` must be present in the transcription config: {self}")
 
 
 class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTranscriptionMixin):
@@ -416,15 +401,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         audio: Union[List[str], str],
         batch_size: int = 4,
         return_hypotheses: bool = False,
-        task: Optional[str] = None,
-        pnc: Optional[bool] = None,
-        source_lang: Optional[str] = None,
-        target_lang: Optional[str] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
+        **slots,
     ) -> Union[List[str], List[Hypothesis]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -445,6 +427,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[MultiTaskTranscriptionConfig]) A config to override the default config.
+            **slots: Optional key-value pairs to be provided to the prompt formatter. Specific keys depend on the prompt format; see :module:`nemo.collections.common.prompts` for more details.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -457,10 +440,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 channel_selector=channel_selector,
                 augmentor=augmentor,
                 verbose=verbose,
-                task=task,
-                pnc=pnc,
-                source_lang=source_lang,
-                target_lang=target_lang,
+                slots=slots,
             )
         else:
             if not isinstance(override_config, MultiTaskTranscriptionConfig):
@@ -948,28 +928,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 entry = {
                     'audio_filepath': item,
                     'duration': 100000,
-                    'source_lang': 'en' if trcfg.source_lang is None else trcfg.source_lang,
-                    'taskname': 'asr' if trcfg.task is None else trcfg.task,
-                    'target_lang': 'en' if trcfg.target_lang is None else trcfg.target_lang,
-                    'pnc': 'yes' if trcfg.pnc is None else 'yes' if trcfg.pnc else 'no',
                     trcfg.text_field: 'nothing',
                 }
             elif isinstance(item, dict):
                 entry = item
                 entry['audio_filepath'] = get_full_path(entry['audio_filepath'], manifest_file=manifest_path)
-
-                if 'source_lang' not in entry:
-                    entry['source_lang'] = 'en' if trcfg.source_lang is None else trcfg.source_lang
-                if 'taskname' not in entry:
-                    entry['taskname'] = 'asr' if trcfg.task is None else trcfg.task
-                if 'target_lang' not in entry:
-                    entry['target_lang'] = 'en' if trcfg.target_lang is None else trcfg.target_lang
-                if 'pnc' not in entry:
-                    entry['pnc'] = 'yes' if trcfg.pnc is None else 'yes' if trcfg.pnc else 'no'
                 if trcfg.text_field not in entry:
                     entry[trcfg.text_field] = 'nothing'
             else:
                 raise ValueError(f"Expected str or dict, got {type(item)}")
+            for k, dv in (("source_lang", "en"), ("target_lang", "en"), ("taskname", "asr"), ("pnc", "yes")):
+                if k not in entry:
+                    entry[k] = trcfg.slots.get(k, dv)
             out_json_items.append(entry)
         return out_json_items
 

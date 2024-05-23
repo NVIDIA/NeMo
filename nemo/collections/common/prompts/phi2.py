@@ -10,15 +10,15 @@ class Phi2QAPromptFormatter(PromptFormatter):
     INFERENCE_ROLE = "assistant"
     TEMPLATE = {
         "user": {
-            "template": f"Instruct: |MESSAGE|\n",
+            "template": f"Instruct: |message|\n",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"Output: |MESSAGE|",
+            "template": f"Output: |message|",
             "slots": {
-                "|MESSAGE|": str | None,
+                "message": str,
             },
         },
     }
@@ -29,15 +29,15 @@ class Phi2ChatPromptFormatter(PromptFormatter):
     INFERENCE_ROLE = "assistant"
     TEMPLATE = {
         "user": {
-            "template": f"Human: |MESSAGE|",
+            "template": f"Human: |message|",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"AI: |MESSAGE|",
+            "template": f"AI: |message|",
             "slots": {
-                "|MESSAGE|": str | None,
+                "message": str,
             },
         },
     }
@@ -48,15 +48,15 @@ class Phi2CodePromptFormatter(PromptFormatter):
     INFERENCE_ROLE = "assistant"
     TEMPLATE = {
         "user": {
-            "template": f"|MESSAGE|\n",
+            "template": f"|message|\n",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
         INFERENCE_ROLE: {
-            "template": f"|MESSAGE|",
+            "template": f"|message|",
             "slots": {
-                "|MESSAGE|": str | None,
+                "message": str,
             },
         },
     }

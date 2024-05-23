@@ -15,16 +15,16 @@ class GemmaPromptFormatter(PromptFormatter):
     INFERENCE_ROLE = "assistant"
     TEMPLATE = {
         "user": {
-            "template": f"{GEMMA_BOS}user\n|MESSAGE|{GEMMA_END_OF_TURN}\n{GEMMA_BOS}model\n",
+            "template": f"{GEMMA_BOS}user\n|message|{GEMMA_END_OF_TURN}\n{GEMMA_BOS}model\n",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
         INFERENCE_ROLE: {
             # Note: that trailing NL is bothering me.
-            "template": f"|MESSAGE|{GEMMA_END_OF_TURN}\n",
+            "template": f"|message|{GEMMA_END_OF_TURN}\n",
             "slots": {
-                "|MESSAGE|": str,
+                "message": str,
             },
         },
     }

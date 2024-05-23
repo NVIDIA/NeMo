@@ -8,14 +8,14 @@ def test_canary_prompt_formatter_training(canary_tokenizer):
             {
                 "role": "user",
                 "slots": {
-                    "|SOURCE_LANG|": "<|en|>",
-                    "|TARGET_LANG|": "<|en|>",
-                    "|TASK|": "<|transcribe|>",
-                    "|PNC|": "<|pnc|>",
-                    "|PROMPT_LANGUAGE|": "spl_tokens",
+                    "source_lang": "<|en|>",
+                    "target_lang": "<|en|>",
+                    "task": "<|transcribe|>",
+                    "pnc": "<|pnc|>",
+                    "prompt_language": "spl_tokens",
                 },
             },
-            {"role": "assistant", "slots": {"|TEXT|": "TEST", "|PROMPT_LANGUAGE|": "en"}},
+            {"role": "assistant", "slots": {"text": "TEST", "prompt_language": "en"}},
         ]
     )
     assert set(ans) == {"input_ids", "context_ids", "answer_ids", "mask"}
@@ -34,11 +34,11 @@ def test_canary_prompt_formatter_inference(canary_tokenizer):
             {
                 "role": "user",
                 "slots": {
-                    "|SOURCE_LANG|": "<|en|>",
-                    "|TARGET_LANG|": "<|en|>",
-                    "|TASK|": "<|transcribe|>",
-                    "|PNC|": "<|pnc|>",
-                    "|PROMPT_LANGUAGE|": "spl_tokens",
+                    "source_lang": "<|en|>",
+                    "target_lang": "<|en|>",
+                    "task": "<|transcribe|>",
+                    "pnc": "<|pnc|>",
+                    "prompt_language": "spl_tokens",
                 },
             },
         ]

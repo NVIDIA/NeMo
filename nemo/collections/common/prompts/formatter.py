@@ -6,7 +6,6 @@ import torch
 
 from nemo.collections.common.tokenizers import AggregateTokenizer, TokenizerSpec
 
-PROMPT_LANGUAGE_KEY = "|PROMPT_LANGUAGE|"
 PREAMBLE_ROLE = "preamble"
 
 
@@ -28,10 +27,10 @@ class PromptFormatter(ABC):
 
     A turn is a dict with keys "role" and "slots", where "slots" are a dict that maps slot names
     to values that should be filled in the template.
-    For example, a user role template may be ``"Question: |MESSAGE| "`` and corresponding ``slots`` would then be
-    ``{"|MESSAGE|": "What time is it?"}``.
+    For example, a user role template may be ``"Question: |message|"`` and corresponding ``slots`` would then be
+    ``{"message": "What time is it?"}``.
 
-    There is a special slot called ``|PROMPT_LANGUAGE|`` that's used to select the sub-tokenizer in
+    There is a special slot called ``|prompt_language|`` that's used to select the sub-tokenizer in
     :class:`~nemo.collections.common.tokenizers.aggregate_tokenizer.AggregateTokenizer`.
     It's only used when the tokenizer is aggregate; otherwise it's discarded.
 
@@ -52,10 +51,10 @@ class PromptFormatter(ABC):
         >>> formatter = PromptFormatter(tokenizer)
         ... encoded_for_training = formatter.encode_dialog(
         ...     turns=[
-        ...         {"role": "user", "slots": {"|MESSAGE|": "What time is it?"}},
-        ...         {"role": "assistant", "slots": {"|MESSAGE|": "Ten o'clock."}},
-        ...         {"role": "user", "slots": {"|MESSAGE|": "PM or AM?"}},
-        ...         {"role": "assistant", "slots": {"|MESSAGE|": "AM, naturally! It's bright outside"}},
+        ...         {"role": "user", "slots": {"message": "What time is it?"}},
+        ...         {"role": "assistant", "slots": {"message": "Ten o'clock."}},
+        ...         {"role": "user", "slots": {"message": "PM or AM?"}},
+        ...         {"role": "assistant", "slots": {"message": "AM, naturally! It's bright outside"}},
         ...     ]
         ... )
 
@@ -65,14 +64,18 @@ class PromptFormatter(ABC):
         >>> formatter = PromptFormatter(tokenizer)
         ... encoded_for_training = formatter.encode_dialog(
         ...     turns=[
-        ...         {"role": "user", "slots": {"|MESSAGE|": "What time is it?"}},
-        ...         {"role": "assistant", "slots": {"|MESSAGE|": "Ten o'clock."}},
-        ...         {"role": "user", "slots": {"|MESSAGE|": "PM or AM?"}},
+        ...         {"role": "user", "slots": {"message": "What time is it?"}},
+        ...         {"role": "assistant", "slots": {"message": "Ten o'clock."}},
+        ...         {"role": "user", "slots": {"message": "PM or AM?"}},
         ...     ]
         ... )
 
     """
 
+    # Used to support AggregateTokenizer; this key selects the right sub-tokenizer for each turn.
+    PROMPT_LANGUAGE_SLOT = "prompt_language"
+
+    # Sub-classes will be registered under this name, to be used via PromptFormatter.resolve(name).
     REGISTER_NAME = None
 
     # Template is a dict that maps:
@@ -87,8 +90,11 @@ class PromptFormatter(ABC):
     # Template is intended to be defined by the child classes.
     TEMPLATE = None
 
+    # Turns under this role indicate responses by the model; if the last turn in
+    # PromptFormatter.encode_dialog() ends with this role, it indicates a training example.
     INFERENCE_ROLE = None
 
+    # Internal reserved field.
     _REGISTERED_FORMATTERS = {}
 
     def __init__(self, tokenizer: TokenizerSpec, defaults: list[dict] | None = None) -> None:
@@ -110,7 +116,9 @@ class PromptFormatter(ABC):
         for role in cls.get_roles():
             template = cls.get_template(role)
             for slot in cls.get_slots(role):
-                assert slot in template, f"{ERR} Slot '{slot}' not found in template '{template}' for role '{role}'"
+                assert (
+                    _mangled(slot) in template
+                ), f"{ERR} Slot '{slot}' not found in template '{template}' for role '{role}'"
         super().__init_subclass__(**kwargs)
 
     @classmethod
@@ -137,9 +145,13 @@ class PromptFormatter(ABC):
     def encode_turn(self, prompt_template: str, expected_slots: dict, slot_values: dict) -> list[int]:
         prompt = prompt_template
         for slot in expected_slots:
-            assert slot in slot_values, f"Missing required {slot=} in {slot_values=} for {prompt_template=}"
-            prompt = prompt.replace(slot, slot_values[slot])
-        return self._apply_tokenizer(prompt, lang=slot_values.get(PROMPT_LANGUAGE_KEY))
+            # For the final substitution of 'slot' in the template we have to mangle it to '|slot|' anyway,
+            # but 'slot' form enables to use valid python identifiers as **kwargs
+            # for passing slots around in user functions.
+            value = slot_values.get(slot)
+            assert value is not None, f"Missing required {slot=} in {slot_values=} for {prompt_template=}"
+            prompt = prompt.replace(_mangled(slot), value)
+        return self._apply_tokenizer(prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT))
 
     def encode_dialog(self, turns: list[dict]) -> dict[str, torch.Tensor]:
         assert len(turns) > 0, "Empty dialog is not supported."
@@ -196,7 +208,7 @@ class PromptFormatter(ABC):
     def _apply_tokenizer(self, text: str, lang: str | None = None) -> list[int]:
         if isinstance(self.tokenizer, AggregateTokenizer):
             assert lang is not None, (
-                f"Missing key '{PROMPT_LANGUAGE_KEY}' in slot_values -- cannot resolve "
+                f"Missing key '{self.PROMPT_LANGUAGE_SLOT}' in slot_values -- cannot resolve "
                 f"the correct sub-tokenizer in the aggregate tokenizer."
             )
             return self.tokenizer.text_to_ids(text, lang)
@@ -205,3 +217,13 @@ class PromptFormatter(ABC):
     def _validate_slot_values(self, expected: dict, received: dict) -> None:
         missing = set(expected) - set(received)
         assert not missing, f"The following slot values were not provided: {missing}"
+
+
+def _mangled(slot: str) -> str:
+    if not (slot[0] == "|" and slot[-1] == "|"):
+        return f"|{slot}|"
+
+
+def _unmangled(slot: str) -> str:
+    if slot[0] == "|" and slot[-1] == "|":
+        return slot[1:-1]
