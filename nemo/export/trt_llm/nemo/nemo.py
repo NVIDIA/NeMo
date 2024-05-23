@@ -106,7 +106,9 @@ def extract_layers_with_prefix(model_, prefix):
 
 class UnpackedNemoCheckpointDir:
     def __init__(
-        self, checkpoints_dir: typing.Union[pathlib.Path, TarPath], load_checkpoints_to_cpu: bool = False,
+        self,
+        checkpoints_dir: typing.Union[pathlib.Path, TarPath],
+        load_checkpoints_to_cpu: bool = False,
     ):
         assert isinstance(checkpoints_dir, (pathlib.Path, TarPath))
         self._checkpoints_dir = checkpoints_dir
