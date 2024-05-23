@@ -148,7 +148,9 @@ class RequestDataSet(Dataset):
         super().__init__()
         self.sentences = sentences
 
-    def __len__(self,):
+    def __len__(
+        self,
+    ):
         return len(self.sentences)
 
     def __getitem__(self, idx):
@@ -173,7 +175,9 @@ def main(cfg) -> None:
         callbacks.append(CustomProgressBar())
     # trainer required for restoring model parallel models
     trainer = Trainer(
-        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)), **cfg.trainer, callbacks=callbacks,
+        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
+        **cfg.trainer,
+        callbacks=callbacks,
     )
 
     if cfg.gpt_model_file is not None:
