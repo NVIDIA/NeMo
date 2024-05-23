@@ -100,14 +100,14 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     Configuration for Multi Task Transcription
     """
 
-    slots: dict[str, dict[str, str]] | None = None
+    prompt: dict[str, dict[str, str]] | None = None
     text_field: str = "answer"
     lang_field: str = "target_lang"
 
     def __post_init__(self):
-        # Could have been slots = field(..) but this is more robust against users setting this to None.
-        if self.slots is None:
-            self.slots = {}
+        # Could have been prompt = field(..) but this is more robust against users setting this to None.
+        if self.prompt is None:
+            self.prompt = {}
 
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
@@ -398,7 +398,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
-        slots: dict[str, dict[str, str]] = None,
+        prompt: dict[str, dict[str, str]] = None,
     ) -> Union[List[str], List[Hypothesis]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -419,7 +419,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[MultiTaskTranscriptionConfig]) A config to override the default config.
-            slots: Optional dict of turns with slots for building the prompt for the model. Each entry is represented as ``"<role-name>": {"<slot-name>": <slot-value>, ...}``.
+            prompt: Optional dict of turns with slots for building the prompt for the model. Each entry (turn) is represented as ``"<role-name>": {"<slot-name>": <slot-value>, ...}``.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -432,7 +432,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 channel_selector=channel_selector,
                 augmentor=augmentor,
                 verbose=verbose,
-                slots={} if slots is None else slots,
+                prompt=prompt,
             )
         else:
             if not isinstance(override_config, MultiTaskTranscriptionConfig):
@@ -796,13 +796,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
 
             # Now ask the prompt formatter about which slots are required.
             # It will return a default prompt structure with default slot values (if available, None otherwise).
-            # We iterate over that structure and update slot values based on ``trcfg.slots``.
+            # We iterate over that structure and update slot values based on ``trcfg.prompt``.
             turns = self.prompt.get_default_dialog_slots()
             for turn in turns:
                 role = turn["role"]
-                if role in trcfg.slots:
+                if role in trcfg.prompt:
                     for slot, value in turn["slots"].items():
-                        if slot in (slots := trcfg.slots[role]):
+                        if slot in (slots := trcfg.prompt[role]):
                             turn["slots"][slot] = slots[slot]
 
             decoder_input_ids = (
@@ -942,7 +942,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                 raise ValueError(f"Expected str or dict, got {type(item)}")
             for k, dv in (("source_lang", "en"), ("target_lang", "en"), ("taskname", "asr"), ("pnc", "yes")):
                 if k not in entry:
-                    entry[k] = trcfg.slots.get("user", {}).get(k, dv)
+                    entry[k] = trcfg.prompt.get("user", {}).get(k, dv)
             out_json_items.append(entry)
         return out_json_items
 

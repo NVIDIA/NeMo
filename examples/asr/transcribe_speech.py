@@ -165,8 +165,8 @@ class TranscriptionConfig:
 
     # Decoding strategy for AED models
     multitask_decoding: MultiTaskDecodingConfig = MultiTaskDecodingConfig()
-    # Prompt slots for prompted models, e.g. for Canary-1B: +prompt_slots.source_lang=en
-    prompt_slots: Optional[dict[str, str]] = None
+    # Prompt slots for prompted models, e.g. for Canary-1B: +prompt.user.source_lang=en
+    prompt_slots: Optional[dict[str, dict[str, str]]] = None
 
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
@@ -409,8 +409,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
+                if hasattr(override_cfg, "prompt"):
+                    override_cfg.prompt = cfg.prompt
                 transcriptions = asr_model.transcribe(
-                    audio=filepaths, override_config=override_cfg, **cfg.prompt_slots
+                    audio=filepaths,
+                    override_config=override_cfg,
                 )
 
     if cfg.dataset_manifest is not None:
