@@ -457,6 +457,25 @@ class TestExpManager:
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
 
     @pytest.mark.unit
+    def test_nemo_checkpoint_doesnt_produce_too_many_nemo_ckpts(self, tmp_path):
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True, "save_top_k": 2},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
+        assert len(list((tmp_path / "test" / "checkpoints").glob("default*.nemo"))) == 1  # check number of `.nemo` checkpoints
+
+        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
+        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
+
+    @pytest.mark.unit
     def test_nemo_checkpoint_make_checkpoint_dir(self, tmp_path):
         test_trainer = pl.Trainer(
             accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4, check_val_every_n_epoch=5
@@ -511,8 +530,8 @@ class TestExpManager:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize('test_dist_ckpt', [False, True])
-    def test_checkpoints_are_not_overwritten(self, tmp_path, test_dist_ckpt):
-        """ Simulates already existing checkpoints in the ckpt directory and tests ckpt versioning """
+    def test_base_checkpoints_are_not_overwritten(self, tmp_path, test_dist_ckpt):
+        """ Simulates already existing checkpoints in the ckpt directory and tests non-nemo ckpt versioning"""
         strategy = NLPDDPStrategy() if test_dist_ckpt else 'auto'
         test_trainer = pl.Trainer(
             accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4, strategy=strategy
@@ -563,7 +582,8 @@ class TestExpManager:
 
         assert _get_versioned_name(ckpt_1).exists(), all_checkpoints
         assert not _get_versioned_name(ckpt_2).exists(), all_checkpoints  # ckpt2 didn't exist before
-        assert _get_versioned_name(ckpt_nemo, nemo=True).exists(), all_checkpoints
+        # .nemo checkpoints are not versioned:
+        assert not _get_versioned_name(ckpt_nemo, nemo=True).exists(), all_checkpoints
 
     @pytest.mark.unit
     def test_last_checkpoint_saved(self, tmp_path):
