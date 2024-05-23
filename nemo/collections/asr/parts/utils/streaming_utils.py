@@ -1611,17 +1611,13 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                     f"We found sample that is missing the following keys: {missing_keys}"
                     f"Please ensure that every utterance in the input manifests contains these keys. Sample: {sample}"
                 )
-            formatter = CanaryPromptFormatter(self.asr_model.tokenizer)
-            tokens = formatter.encode_dialog(
+            tokens = self.asr_model.prompt.encode_dialog(
                 turns=[
                     {
                         "role": "user",
                         "slots": {
-                            "|SOURCE_LANG|": sample["source_lang"],
-                            "|TARGET_LANG|": sample["target_lang"],
-                            "|PNC|": sample["pnc"],
-                            "|TASK|": sample["taskname"],
-                            "|PROMPT_LANGUAGE|": "spl_tokens",
+                            **sample,
+                            self.asr_model.prompt.PROMPT_LANGUAGE_SLOT: "spl_tokens",
                         },
                     }
                 ]
