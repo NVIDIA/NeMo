@@ -14,9 +14,9 @@
 
 """
 Requires HF transformers updated to support Gemma Models
-   python3 /opt/NeMo/scripts/nlp_language_modeling/convert_gemma_hf_to_nemo.py \
-   --input_name_or_path /path/to/gemma/checkpoints/hf/7b \
-   --output_path /path/to/gemma-7b.nemo \
+   python3 /opt/NeMo/scripts/checkpoint_converters/convert_llava_hf_to_nemo.py \
+   --input_name_or_path llava-hf/llava-1.5-7b-hf \
+   --output_path /path/to/llava-7b.nemo \
    --tokenizer_path /path/to/tokenizer.model
 """
 
