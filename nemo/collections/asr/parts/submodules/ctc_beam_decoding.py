@@ -29,7 +29,8 @@ DEFAULT_TOKEN_OFFSET = 100
 
 
 def pack_hypotheses(
-    hypotheses: List[rnnt_utils.NBestHypotheses], logitlen: torch.Tensor,
+    hypotheses: List[rnnt_utils.NBestHypotheses],
+    logitlen: torch.Tensor,
 ) -> List[rnnt_utils.NBestHypotheses]:
 
     if logitlen is not None:
@@ -74,8 +75,7 @@ class AbstractBeamCTCInfer(Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "decoder_output": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -83,8 +83,7 @@ class AbstractBeamCTCInfer(Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(self, blank_id: int, beam_size: int):
@@ -147,7 +146,9 @@ class AbstractBeamCTCInfer(Typing):
 
     @typecheck()
     def forward(
-        self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
+        self,
+        decoder_output: torch.Tensor,
+        decoder_lengths: torch.Tensor,
     ) -> Tuple[List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
@@ -246,7 +247,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
     @typecheck()
     def forward(
-        self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
+        self,
+        decoder_output: torch.Tensor,
+        decoder_lengths: torch.Tensor,
     ) -> Tuple[List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
