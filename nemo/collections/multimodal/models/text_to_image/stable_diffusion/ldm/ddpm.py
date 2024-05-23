@@ -1674,8 +1674,15 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # megatron_amp_O2 is not yet supported in diffusion models
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
-        if self.cfg.precision in ['16', 16, 'bf16']:
+        if self.megatron_amp_O2 and self.cfg.precision in ['16', 16, 'bf16']:
             self.model_parallel_config.enable_autocast = False
+            if not hasattr(self.cfg.unet_config, 'unet_precision') or not '16' in str(
+                self.cfg.unet_config.unet_precision
+            ):
+                logging.info(
+                    'trainer.precision was set but unet_config.unet_precision was not! Setting unet_precision to fp16.'
+                )
+                self.cfg.unet_config.unet_precision = 'fp16'
 
         self.model = self.model_provider_func()
 
@@ -1770,12 +1777,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             # we can avoid this broadcast by updating the PTL log function to accept specific ranks
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 if self.loss_broadcast_src_rank is None:
-                    dp_size = parallel_state.get_data_parallel_world_size()
-                    tp_size = parallel_state.get_tensor_model_parallel_world_size()
-                    pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-                    rank_in_dp_tp_group = torch.distributed.get_rank() % (dp_size * tp_size)
-                    last_pipeline_stage_offset = (tp_size * dp_size) * (pp_size - 1)
-                    self.loss_broadcast_src_rank = last_pipeline_stage_offset + rank_in_dp_tp_group
+                    self.loss_broadcast_src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
                 torch.distributed.broadcast(
                     loss_mean, self.loss_broadcast_src_rank, group=parallel_state.get_pipeline_model_parallel_group(),
                 )

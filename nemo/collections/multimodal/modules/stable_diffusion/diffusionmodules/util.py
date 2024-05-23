@@ -29,10 +29,17 @@ from inspect import isfunction
 import numpy as np
 import torch
 import torch.nn as nn
-from apex.contrib.group_norm import GroupNorm
 from einops import repeat
 from torch._dynamo import disable
 from torch.cuda.amp import custom_bwd, custom_fwd
+
+try:
+    from apex.contrib.group_norm import GroupNorm
+
+    OPT_GROUP_NORM = True
+except Exception:
+    print('Fused optimized group norm has not been installed.')
+    OPT_GROUP_NORM = False
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
@@ -207,7 +214,7 @@ def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False, cach
     if not repeat_only:
         if cached_embedding is not None:
             # using cached embedding and lookup in the cache
-            embedding = cached_embedding[timesteps, :]
+            embedding = cached_embedding[timesteps.to(dtype=torch.int), :]
         else:
             half = dim // 2
             idx = get_idx(half, timesteps.device)

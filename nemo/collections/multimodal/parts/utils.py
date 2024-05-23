@@ -15,6 +15,7 @@ import os
 import tempfile
 from typing import Any, Callable, Tuple
 
+import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
@@ -25,6 +26,7 @@ from transformers import CLIPImageProcessor
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -136,7 +138,8 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
                 tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
                 assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
                 checkpoint = dist_checkpointing.load(
-                    sharded_state_dict=checkpoint, checkpoint_dir=tmp_model_weights_dir,
+                    sharded_state_dict=checkpoint,
+                    checkpoint_dir=tmp_model_weights_dir,
                 )
                 state_dict = checkpoint["state_dict"]
 
@@ -147,7 +150,9 @@ def load_nemo_model_weights(nemo_path, sharded_state_dict=None):
 
 
 def setup_trainer_and_models_for_inference(
-    model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
+    model_provider: Any,
+    cfg: DictConfig,
+    model_cfg_modifier: Callable,
 ):
     """
     Set up a trainer and NeMo model for inference.
@@ -170,7 +175,10 @@ def setup_trainer_and_models_for_inference(
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
     # We don't use DDP for async grad allreduce and don't find unused parameters.
-    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        find_unused_parameters=False,
+    )
 
     # Set up the trainer with the specified plugins and strategy.
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
@@ -178,7 +186,6 @@ def setup_trainer_and_models_for_inference(
     # Create the NLPSaveRestoreConnector object for model saving and restoring.
     save_restore_connector = NLPSaveRestoreConnector()
 
-    print(f'Loading {cfg.models} models')
     models = []
     for single_model_cfg in cfg.models:
         if not single_model_cfg.restore_from_path:
@@ -214,7 +221,9 @@ def setup_trainer_and_models_for_inference(
             )
 
             model = model_provider.load_from_checkpoint(
-                single_model_cfg.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer,
+                single_model_cfg.restore_from_path,
+                hparams_file=cfg.model.get("hparams_file"),
+                trainer=trainer,
             )
             models.append(model)
 
@@ -238,7 +247,9 @@ def setup_trainer_and_models_for_inference(
 
 
 def setup_trainer_and_model_for_inference(
-    model_provider: Any, cfg: DictConfig, model_cfg_modifier: Callable,
+    model_provider: Any,
+    cfg: DictConfig,
+    model_cfg_modifier: Callable,
 ) -> Tuple[Trainer, Any]:
     """
     Set up a trainer and NeMo model for inference.
@@ -260,7 +271,10 @@ def setup_trainer_and_model_for_inference(
 
     # Use the NLPDDPStrategy for the distributed data parallel strategy.
     # We don't use DDP for async grad allreduce and don't find unused parameters.
-    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        find_unused_parameters=False,
+    )
 
     # Set up the trainer with the specified plugins and strategy.
     trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
@@ -298,7 +312,9 @@ def setup_trainer_and_model_for_inference(
         )
 
         model = model_provider.load_from_checkpoint(
-            cfg.model.restore_from_path, hparams_file=cfg.model.get("hparams_file"), trainer=trainer,
+            cfg.model.restore_from_path,
+            hparams_file=cfg.model.get("hparams_file"),
+            trainer=trainer,
         )
 
     else:
@@ -320,27 +336,13 @@ def setup_trainer_and_model_for_inference(
 
 
 def create_neva_model_and_processor(cfg):
-    from nemo.collections.multimodal.models.neva.neva_model import MegatronNevaModel
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
 
     plugins = []
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=plugins, strategy=NLPDDPStrategy(), **cfg.trainer)
-
-    if (
-        cfg.tensor_model_parallel_size < 0
-        or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
-    ):
-        model_config = MegatronNevaModel.restore_from(
-            restore_path=cfg.neva_model_file, trainer=trainer, return_config=True,
-        )
-
-        with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
@@ -366,6 +368,9 @@ def create_neva_model_and_processor(cfg):
             neva_cfg.precision = trainer.precision
             neva_cfg.mm_cfg.llm.from_pretrained = cfg.get('base_model_file', None)
             neva_cfg.apply_rope_fusion = False
+            neva_cfg.fp8 = False
+            neva_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
+            neva_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
         #    neva_cfg.mm_cfg.vision_encoder.from_pretrained = None
 
         model = MegatronNevaModel.restore_from(
@@ -388,6 +393,7 @@ def create_neva_model_and_processor(cfg):
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
+                app_state.expert_model_parallel_rank,
                 app_state.model_parallel_size,
                 app_state.data_parallel_size,
                 app_state.pipeline_model_parallel_split_rank,
@@ -458,13 +464,71 @@ def create_neva_model_and_processor(cfg):
         else:
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
 
-        if neva_cfg.precision in [16, '16', '16-mixed']:
-            media = image.type(torch.float16)
-        elif neva_cfg.precision in [32, '32', '32-true']:
-            media = image.type(torch.float32)
-        else:
-            media = image.type(torch.bfloat16)
-
+        media = image.type(torch_dtype_from_precision(neva_cfg.precision))
         return media.unsqueeze(dim=0).unsqueeze(dim=0).unsqueeze(dim=0)
 
-    return model, image_processor
+    # add video processor for video neva
+    def video_processor(maybe_video_path):
+        from decord import VideoReader
+
+        if isinstance(maybe_video_path, str):
+            vr = VideoReader(maybe_video_path)
+            if neva_cfg.data.splice_single_frame == 'first':
+                frames = [Image.fromarray(vr[0].asnumpy()[:, :, ::-1]).convert('RGB')]
+            elif neva_cfg.data.splice_single_frame == 'middle':
+                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()[:, :, ::-1]).convert('RGB')]
+            elif neva_cfg.data.splice_single_frame == 'last':
+                frames = [Image.fromarray(vr[-1].asnumpy()[:, :, ::-1]).convert('RGB')]
+            else:
+                if neva_cfg.data.num_frames == -1:
+                    frames = [Image.fromarray(frame.asnumpy()[:, :, ::-1]).convert('RGB') for frame in vr]
+                else:
+                    num_frames = min(len(vr), neva_cfg.data.num_frames)
+                    indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
+                    frames = [Image.fromarray(vr[i].asnumpy()[:, :, ::-1]).convert('RGB') for i in indices]
+
+                    while len(frames) < neva_cfg.data.num_frames:
+                        frames.append(frames[-1])
+        else:
+            frames = maybe_video_path
+
+        if neva_cfg.mm_cfg.vision_encoder.from_hf:
+            processor = CLIPImageProcessor.from_pretrained(
+                neva_cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        else:
+            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14", torch_dtype=torch.bfloat16)
+
+        # support single video inference
+        if neva_cfg.data.image_aspect_ratio == 'keep':
+            max_hw, min_hw = max(frames.size), min(frames.size)
+            aspect_ratio = max_hw / min_hw
+            max_len, min_len = 448, 224
+            shortest_edge = int(min(max_len / aspect_ratio, min_len))
+            frames = processor.preprocess(
+                frames, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
+            )['pixel_values']
+        elif neva_cfg.data.image_aspect_ratio == 'pad':
+
+            def expand2square(pil_img, background_color):
+                width, height = pil_img.size
+                if width == height:
+                    return pil_img
+                elif width > height:
+                    result = Image.new(pil_img.mode, (width, width), background_color)
+                    result.paste(pil_img, (0, (width - height) // 2))
+                    return result
+                else:
+                    result = Image.new(pil_img.mode, (height, height), background_color)
+                    result.paste(pil_img, ((height - width) // 2, 0))
+                    return result
+
+            frames = expand2square(frames, tuple(int(x * 255) for x in processor.image_mean))
+            frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
+        else:
+            frames = processor.preprocess(frames, return_tensors='pt')['pixel_values']
+
+        media_tensors = frames.type(torch_dtype_from_precision(neva_cfg.precision))
+        return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0)
+
+    return model, image_processor, video_processor

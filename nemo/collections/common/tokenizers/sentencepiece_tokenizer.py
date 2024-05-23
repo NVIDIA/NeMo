@@ -28,7 +28,7 @@ __all__ = ['SentencePieceTokenizer', 'create_spt_model']
 class SentencePieceTokenizer(TokenizerSpec):
     """
     Sentencepiecetokenizer https://github.com/google/sentencepiece.
-    
+
     Args:
         model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
         special_tokens: either list of special tokens or dictionary of token name to token value
@@ -87,7 +87,7 @@ class SentencePieceTokenizer(TokenizerSpec):
 
         return self.tokenizer.encode_as_pieces(text)
 
-    def text_to_ids(self, text):
+    def text_to_ids(self, text, sample_alpha=None):
         if self.legacy:
             ids = []
             idx = 0
@@ -115,7 +115,10 @@ class SentencePieceTokenizer(TokenizerSpec):
             ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
             return ids
 
-        return self.tokenizer.encode_as_ids(text)
+        if sample_alpha is not None:
+            return self.tokenizer.encode_as_ids(text, enable_sampling=True, alpha=sample_alpha, nbest_size=-1)
+        else:
+            return self.tokenizer.encode_as_ids(text)
 
     def tokens_to_text(self, tokens):
         if isinstance(tokens, np.ndarray):
@@ -376,7 +379,9 @@ def create_spt_model(
     # Add BERT control symbols
     tokens = []
 
-    with open(f"{output_dir}/tokenizer.vocab", "r") as f:
+    # Encoding arg is added for compatibility with systems which enforce
+    # ASCII encoding in Python. Sentencepiece always uses Unicode (UTF8).
+    with open(f"{output_dir}/tokenizer.vocab", "r", encoding="utf8") as f:
         # Read tokens from each line and parse for vocab
         for line in f:
             piece = line.split("\t")[0]
@@ -394,7 +399,7 @@ def create_spt_model(
 
     # Save vocabulary to output file
     vocab_file = f'{output_dir}/vocab.txt'
-    with open(vocab_file, "w") as f:
+    with open(vocab_file, "w", encoding="utf8") as f:
         for token in vocab:
             f.write(f"{token}\n")
     return f'{output_dir}/tokenizer.model', vocab_file
