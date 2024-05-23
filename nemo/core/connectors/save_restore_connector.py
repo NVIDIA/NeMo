@@ -142,7 +142,9 @@ class SaveRestoreConnector:
                 else:
                     # Extract the nemo file into the temporary directory
                     self._unpack_nemo_file(
-                        path2file=restore_path, out_folder=tmpdir, extract_fn=return_config and (lambda name: '.yaml' in name)
+                        path2file=restore_path,
+                        out_folder=tmpdir,
+                        extract_fn=return_config and (lambda name: '.yaml' in name),
                     )
 
                 # Change current working directory to
@@ -502,9 +504,15 @@ class SaveRestoreConnector:
                 # in nemo checkpoints all resources contain hash in name, so there should be no collisions
                 for path in restoration_paths:
                     if self.model_extracted_dir:
-                        shutil.copy2(os.path.join(path, artifact_base_name), os.path.join(nemo_file_folder, artifact_uniq_name))
+                        shutil.copy2(
+                            os.path.join(path, artifact_base_name), os.path.join(nemo_file_folder, artifact_uniq_name)
+                        )
                     else:
-                        self._unpack_nemo_file(path2file=path, out_folder=nemo_file_folder, extract_fn=lambda name: os.path.basename(name) == artifact_base_name)
+                        self._unpack_nemo_file(
+                            path2file=path,
+                            out_folder=nemo_file_folder,
+                            extract_fn=lambda name: os.path.basename(name) == artifact_base_name,
+                        )
 
                 # Update artifacts registry
                 new_artiitem = model_utils.ArtifactItem()
