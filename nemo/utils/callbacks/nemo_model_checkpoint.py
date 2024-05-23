@@ -200,7 +200,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             logging.warning(f'always_save_nemo will slow down training for model_parallel > 1.')
         # since we are creating tarfile artifacts we need to update .nemo path
-        backup_path = self._backup_existing_nemo_ckpt(trainer)
         app_state.model_restore_path = self._format_nemo_checkpoint_name()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             maybe_injected_best_model_path = inject_model_parallel_rank(self.best_model_path)
@@ -224,12 +223,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             pl_module.load_state_dict(checkpoint, strict=True)
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
+            backup_path = self._backup_existing_nemo_ckpt(trainer)
             pl_module.save_to(save_path=app_state.model_restore_path)
             logging.info(f"New best .nemo model saved to: {app_state.model_restore_path}")
             pl_module.load_state_dict(old_state_dict, strict=True)
         else:
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
+            backup_path = self._backup_existing_nemo_ckpt(trainer)
             pl_module.save_to(save_path=app_state.model_restore_path)
             logging.info(f"New .nemo model saved to: {app_state.model_restore_path}")
         if backup_path is not None and is_global_rank_zero():
