@@ -285,8 +285,10 @@ class PromptFormatter(ABC):
 def _mangled(slot: str) -> str:
     if not (slot[0] == "|" and slot[-1] == "|"):
         return f"|{slot}|"
+    return slot
 
 
 def _unmangled(slot: str) -> str:
     if slot[0] == "|" and slot[-1] == "|":
         return slot[1:-1]
+    return slot
