@@ -12,11 +12,11 @@ noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest
 rir_manifest="/media/data2/simulated_data/rir_noise_data/real_rirs_isotropic_noises_1ch.json"
 
 EXP_NAME="titanet_large_WavLM"
-POSTFIX=debug2
+POSTFIX=debug3
 
 SSL_CKPT="/home/heh/codes/nemo-ssl/workspace/nemo_experiments/pretrained_checkpoints/oci_ll_unlab-60k_bs2048_adamwlr0.004_wd1e-3_warmup25000_epoch1000_mask0.01x40pre_conv_wavLM0.2x0.1_n16_r5--val_loss5.0808-epoch43-last.ckpt"
 
-batch_size=128
+batch_size=64
 num_workers=8
 
 # model.train_ds.augmentor.impulse.manifest_path=$rir_manifest \
@@ -25,7 +25,7 @@ num_workers=8
 
 CUDA_VISIBLE_DEVICES="0" python speaker_id_train.py \
     --config-path="configs" \
-    --config-name="ecapa_tdnn_small" \
+    --config-name="ecapa_tdnn_small_cyclic" \
     trainer.log_every_n_steps=10 \
     model.train_ds.manifest_filepath=$train_manifests \
     model.train_ds.augmentor.noise.manifest_path=$noise_manifest \

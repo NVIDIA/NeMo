@@ -433,8 +433,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         _, audio_emb1 = self.forward(input_signal=audio_signal_1, input_signal_length=audio_signal_len_1)
         _, audio_emb2 = self.forward(input_signal=audio_signal_2, input_signal_length=audio_signal_len_2)
 
-        loss_labels = (1 - labels) * -1 + labels
-        loss_value = torch.nn.functional.cosine_embedding_loss(audio_emb1, audio_emb2, loss_labels.long())
+        # convert binary labels to -1, 1
+        loss_labels = (labels.float() - 0.5) * 2
+        loss_value = torch.nn.functional.cosine_embedding_loss(audio_emb1, audio_emb2, loss_labels.long(), -1)
         cosine_sim = torch.cosine_similarity(audio_emb1, audio_emb2)
 
         output = {f"{tag}_loss": loss_value, f"{tag}_scores": cosine_sim, f"{tag}_labels": labels}
