@@ -223,7 +223,7 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def vocab(self):
-        id2vocab = {v: k for k, v in self.tokenizer.vocab.items()}
+        id2vocab = {v: k for k, v in self.tokenizer.get_vocab().items()}
         return [id2vocab[i] for i in range(len(id2vocab))]
 
     @property
