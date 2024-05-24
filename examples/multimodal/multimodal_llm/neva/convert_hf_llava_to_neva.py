@@ -61,6 +61,7 @@ def get_args():
         "--tokenizer-model", type=str, default=None, required=False, help="Path to sentencepiece tokenizer model."
     )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
+    parser.add_argument("--config-file", type=str, default="llava_config.yaml")
     args = parser.parse_args()
     return args
 
@@ -110,7 +111,7 @@ def load_model(cls, checkpoint, strict, **kwargs):
 
 
 def load_config(args, llava_config):
-    nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf/llava_config.yaml')).model
+    nemo_config = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'conf', args.config_file)).model
     nemo_config.mm_cfg.mm_mlp_adapter_type = llava_config.get('mm_projector_type', 'linear')
     nemo_config.mm_cfg.vision_encoder.from_pretrained = llava_config.get(
         'mm_vision_tower', 'openai/clip-vit-large-patch14'

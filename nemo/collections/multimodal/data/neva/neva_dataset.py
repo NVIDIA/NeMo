@@ -230,6 +230,23 @@ def tokenize(
         result = result[0]
     return result
 
+def get_tokens_ids(tokenizer, tokens):
+    """
+    Returns the token id for a given token.
+
+    Parameters
+    ----------
+    tokenizer : nemo tokenizer
+        A tokenizer to be used for tokenization.
+    tokens : list
+        A list of tokens to get the token id for.
+
+    Returns
+    -------
+    List
+        The token ids.
+    """
+    return [tokenizer.token_to_id(token) for token in tokens]
 
 def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
     """
@@ -271,6 +288,26 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_patches
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_patches - 2)
+
+    if media_type == 'video' and multimodal_cfg.get("use_lita", False):
+        if not multimodal_cfg.get('lita', None):
+            raise ValueError("LITA config is missing")
+        lita_video_arch = multimodal_cfg['lita']['lita_video_arch']
+        num_frames = multimodal_cfg['num_frames']
+        if lita_video_arch == 'temporal_all_resolution':
+            sample_frames = min(multimodal_cfg['lita']['sample_frames'], num_frames)
+            # num_frames for temporal tokens, sample_frames * num_patches for spatial tokens
+            num_tokens = num_frames + sample_frames * image_token_len
+        else:
+            # num_frames for temporal tokens and num_patches for spatial tokens
+            num_tokens = num_frames + image_token_len
+        visual_token_format = multimodal_cfg['lita'].get('visual_token_format', 'v1')
+        if visual_token_format == 'im_vid_start_end':
+            num_tokens += 4  # 2 for temporal tokens and 2 for spatial tokens
+        if multimodal_cfg['use_im_start_end']:
+            replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_tokens
+        else:
+            replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_tokens - 2)
 
     replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
 
@@ -340,9 +377,12 @@ def preprocess_llama_2(sources: dict, tokenizer, cfg,) -> Dict:
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    DEFAULT_TOKENS = [DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
@@ -425,9 +465,12 @@ def preprocess_v1(sources: dict, tokenizer, cfg,) -> Dict:
     )
 
     # llama tricks
-    tokens[tokens == 32003] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
-    tokens[tokens == 32006] = 1  # <s>
-    tokens[tokens == 32007] = 2  # </s>
+    # 32003, 32006, 32007
+    DEFAULT_TOKENS = [DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_BOS_TOKEN, DEFAULT_EOS_TOKEN]
+    img_patch_id, bos_id, eos_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
+    tokens[tokens == bos_id] = 1  # <s>
+    tokens[tokens == eos_id] = 2  # </s>
     labels = tokens.clone().detach()
 
     # Mask labels
