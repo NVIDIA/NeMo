@@ -2050,7 +2050,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v4
         - run: |
-            NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
             trainer.accelerator=gpu \
             trainer.log_every_n_steps=1 \
@@ -2058,7 +2058,8 @@ jobs:
             trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=10 \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
+            model.megatron_amp_O2=True \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
             model.pipeline_model_parallel_size=2 \
@@ -2079,7 +2080,7 @@ jobs:
             model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
             model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
 
-            NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
             trainer.accelerator=gpu \
             trainer.log_every_n_steps=1 \
@@ -2087,7 +2088,8 @@ jobs:
             trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=20 \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
+            model.megatron_amp_O2=True \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
             exp_manager.resume_if_exists=True \
@@ -2127,7 +2129,7 @@ jobs:
         - name: Checkout repository
           uses: actions/checkout@v4
         - run: |
-            NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
             trainer.accelerator=gpu \
             trainer.log_every_n_steps=1 \
@@ -2135,7 +2137,8 @@ jobs:
             trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=10 \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
+            model.megatron_amp_O2=True \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
             model.tensor_model_parallel_size=2 \
@@ -2157,7 +2160,7 @@ jobs:
             model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
             model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
 
-            NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+            NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python examples/nlp/language_modeling/megatron_bert_pretraining.py \
             trainer.devices=2 \
             trainer.accelerator=gpu \
             trainer.log_every_n_steps=1 \
@@ -2165,7 +2168,8 @@ jobs:
             trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=20 \
-            trainer.precision=16 \
+            trainer.precision=bf16 \
+            model.megatron_amp_O2=True \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
             exp_manager.resume_if_exists=True \
