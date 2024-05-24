@@ -72,7 +72,10 @@ def main():
         help="Path to the output directory containing unpacked lora checkpoints.",
     )
     parser.add_argument(
-        "--tp", type=int, required=True, help="Tensor parallelism for the input lora checkpoint",
+        "--tp",
+        type=int,
+        required=True,
+        help="Tensor parallelism for the input lora checkpoint",
     )
     args = parser.parse_args()
 
