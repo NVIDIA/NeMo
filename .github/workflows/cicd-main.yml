@@ -6612,7 +6612,7 @@ jobs:
         run: |
           source .github/scripts/slackHelper.sh
 
-          WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_TEST }}
+          WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK }}
           PIPELINE_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
           sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
