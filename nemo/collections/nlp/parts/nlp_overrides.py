@@ -346,33 +346,67 @@ class NLPDDPStrategy(DDPStrategy):
             hasattr(self.lightning_module, 'sharded_state_dict')
             and self.lightning_module.sharded_state_dict() is not None
         ):
-            assert (
-                len(checkpoint['optimizer_states']) == 1
-            ), "Currently only support checkpointing 1 distributed optimizer per time!"
-            # converts the optimizer states to their sharded equivalents
-            sharded_optim_state = self.optimizer_sharded_state_dict(
-                unsharded_optim_state=checkpoint['optimizer_states'][0]
-            )
-            checkpoint['optimizer_states'] = [sharded_optim_state]
-            # dist_checkpointing expects a directory so we will name the directory
-            # using the path with the file extension removed
-            checkpoint_dir = ckpt_to_dir(filepath)
+            from nemo_aligner.utils.utils import is_save_top_k
+            if is_save_top_k():
+                checkpoint['optimizer_states'] = {}
+                # dist_checkpointing expects a directory so we will name the directory
+                # using the path with the file extension removed
+                checkpoint_dir = ckpt_to_dir(filepath)
 
-            fs = get_filesystem(checkpoint_dir)
-            if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
-                logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
-                return
+                fs = get_filesystem(checkpoint_dir)
+                if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                    logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
+                    return
 
-            if is_global_rank_zero():
-                fs.makedirs(checkpoint_dir, exist_ok=True)
+                model_weights_dir = os.path.join(checkpoint_dir, "model_weights")
+                if is_global_rank_zero():
+                    fs.makedirs(model_weights_dir, exist_ok=True)
 
-            # remove device state_dict
-            checkpoint['state_dict'] = OrderedDict([])
+                torch.distributed.barrier()
 
-            sharded_strategy = ('torch_dist', 1) if self.torch_dist_ckpt else ('zarr', 1)
-            dist_checkpointing.save(
-                sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir, sharded_strategy=sharded_strategy
-            )
+                # remove device state_dict
+                checkpoint['state_dict'] = OrderedDict([])
+                dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=model_weights_dir)
+
+                if torch.distributed.get_rank() == 0:
+                    yaml_file = os.path.join(checkpoint_dir, "model_config.yaml")
+                    self.lightning_module.to_config_file(yaml_file)
+
+                    model = self.lightning_module
+                    if hasattr(model, 'artifacts') and model.artifacts is not None:
+                        model._save_restore_connector._handle_artifacts(model, nemo_file_folder=checkpoint_dir)
+                        model._save_restore_connector._update_artifact_paths(model, path2yaml_file=yaml_file)
+
+                torch.distributed.barrier()
+
+            else:
+                assert (
+                    len(checkpoint['optimizer_states']) == 1
+                ), "Currently only support checkpointing 1 distributed optimizer per time!"
+                # converts the optimizer states to their sharded equivalents
+                sharded_optim_state = self.optimizer_sharded_state_dict(
+                    unsharded_optim_state=checkpoint['optimizer_states'][0]
+                )
+                checkpoint['optimizer_states'] = [sharded_optim_state]
+                # dist_checkpointing expects a directory so we will name the directory
+                # using the path with the file extension removed
+                checkpoint_dir = ckpt_to_dir(filepath)
+
+                fs = get_filesystem(checkpoint_dir)
+                if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
+                    logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
+                    return
+
+                if is_global_rank_zero():
+                    fs.makedirs(checkpoint_dir, exist_ok=True)
+
+                # remove device state_dict
+                checkpoint['state_dict'] = OrderedDict([])
+
+                sharded_strategy = ('torch_dist', 1) if self.torch_dist_ckpt else ('zarr', 1)
+                dist_checkpointing.save(
+                    sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir, sharded_strategy=sharded_strategy
+                )
         else:
             # PTL override to accomodate model parallel checkpoints
             filepath = inject_model_parallel_rank(filepath)
