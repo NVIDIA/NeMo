@@ -160,6 +160,8 @@ class sd_noise_scheduler(nn.Module):
         assert not torch.isnan(self.lvlb_weights).all()
 
     def forward(self, x_start, t, noise=None):
+        print("x_start shape:", x_start.shape)
+        print("t shape:", t.shape)
         noise = default(noise, lambda: torch.randn_like(x_start))
         return (
             extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start

@@ -24,6 +24,8 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+import thunder
+from thunder.examine import examine
 
 
 class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
@@ -61,6 +63,13 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronLatentDiffusion(cfg.model, trainer)
+
+    # x = torch.randn((1,4,64,64), device='cuda')
+    # c = torch.randn((1,80,768), device='cuda')
+    # model.to('cuda:0')
+    # examine(model, x=x, c=c)
+    # import sys
+    # sys.exit(1)
 
     if cfg.model.get('peft', None):
 

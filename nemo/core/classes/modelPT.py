@@ -27,6 +27,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import model_summary, rank_zero_only
+import thunder
+from thunder.examine import examine
 
 from nemo import package_info
 from nemo.core import optim
@@ -1727,7 +1729,24 @@ class ModelPT(LightningModule, Model):
             https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
             We use it here to enable nsys profiling and dynamic freezing.
         """
-
+        batch = self.get_batch(batch, tuning=False)
+        forward_args = {
+                'input_ids': batch['tokens'],
+                'position_ids': batch['position_ids'],
+                'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
+                'labels': batch['labels'],
+                'loss_mask': batch['loss_mask'],
+            }
+        forward_args_cuda = {}
+        for key, value in forward_args.items():
+            if torch.is_tensor(value):
+                forward_args_cuda[key] = value.to('cuda:0')
+            else:
+                forward_args_cuda[key] = value
+        self.model.to('cuda:0')
+        examine(self.model, **forward_args_cuda)
+        import sys
+        sys.exit(1)
         # nsys profiling
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):

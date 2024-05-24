@@ -22,6 +22,10 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+import torch
+import thunder
+from thunder.examine import examine
+
 mp.set_start_method("spawn", force=True)
 
 
@@ -34,6 +38,18 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronNevaModel(cfg.model, trainer)
+
+    # input_ids = torch.ones((2, 340), dtype=torch.int64, device='cuda')
+    # position_ids = torch.ones((2, 340), dtype=torch.int64, device='cuda')
+    # attention_mask = None
+    # labels = torch.zeros((2, 340), dtype=torch.int64, device='cuda')
+    # media = torch.randn((2, 1, 1, 3, 224, 224), dtype=torch.float32, device='cuda')
+    # caal = None
+    # model.model.to('cuda:0')
+    # examine(model.model, input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask, 
+    #         labels=labels, media=media, checkpoint_activations_all_layers=caal)
+    # import sys
+    # sys.exit(1)
 
     trainer.fit(model)
 

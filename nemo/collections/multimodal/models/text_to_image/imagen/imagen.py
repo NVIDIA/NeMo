@@ -125,6 +125,11 @@ class Imagen(torch.nn.Module, Serialization):
         return T5Encoder(max_seq_len=self.conditioning.token_length, encoder_path=encoder_path)
 
     def forward(self, x_start, text_embed, text_mask, x_lowres=None):
+        print("xstart shape:", x_start.shape, "dtype=", x_start.dtype)
+        print("text_embed shape:", text_embed.shape, "dtype=", text_embed.dtype)
+        print("text_mask shape:", text_mask.shape, "dtype=", text_mask.dtype)
+        if x_lowres is not None:
+            print("x_lowres shape:", x_lowres.shape, "type:", x_lowres.dtype)
         if self.unet_type == 'base':
             assert x_lowres[0].item() == DUMMY_TENSOR.item(), 'Base model should have no low-resolution conditioning'
             x_lowres = None

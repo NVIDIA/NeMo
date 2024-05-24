@@ -21,6 +21,9 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+import torch
+import thunder
+from thunder.examine import examine
 
 @hydra_runner(config_path="conf", config_name="megatron_clip_config")
 def main(cfg) -> None:
@@ -37,6 +40,14 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronCLIPModel(cfg.model, trainer)
+
+    images = torch.randn((1, 3, 224, 224), device='cuda')
+    #captions = torch.randn((1, 77), dtype=torch.int64, device='cuda')
+    captions = torch.ones((1, 77), dtype=torch.int64, device='cuda')
+    model.model.to('cuda:0')
+    examine(model.model, images=images, captions=captions)
+    import sys
+    sys.exit(1)
 
     trainer.fit(model)
 

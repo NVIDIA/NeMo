@@ -23,6 +23,8 @@ from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerB
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+import thunder
+from thunder.examine import examine
 
 
 @hydra_runner(config_path='conf', config_name='base64-500m')
@@ -38,6 +40,18 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronImagen(cfg.model, trainer)
+
+    x_s = torch.randn((1,3,64,64), device='cuda')
+    t_e = torch.randn((1,128,64), device='cuda')
+    t_m = torch.randn((1,128), device='cuda')
+    x_lr = torch.tensor([1.0], device='cuda')
+    model.model.to('cuda:0')
+    examine(model.model, x_start=x_s, text_embed=t_e,
+            text_mask=t_m, x_lowres=x_lr)
+    import sys
+    sys.exit(1)
+
+    model.model = thunder.jit(model.model)
 
     if cfg.model.get("inductor", False):
         # Temporary hack to get rid of TorchDynamo issue with DDP

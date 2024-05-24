@@ -15,6 +15,7 @@ from contextlib import contextmanager
 
 import pytorch_lightning as pl
 import torch
+import thunder
 import torch.nn.functional as F
 
 try:
@@ -327,6 +328,14 @@ class AutoencoderKL(pl.LightningModule):
         assert ddconfig["double_z"]
         self.quant_conv = torch.nn.Conv2d(2 * ddconfig["z_channels"], 2 * embed_dim, 1)
         self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+
+        ## thunder.jit
+        self.encoder = thunder.jit(self.encoder)
+        self.decoder = thunder.jit(self.decoder)
+        self.loss = thunder.jit(self.loss)
+        self.quant_conv = thunder.jit(self.quant_conv)
+        self.post_quant_conv = thunder.jit(self.post_quant_conv)
+
         self.embed_dim = embed_dim
         if colorize_nlabels is not None:
             assert type(colorize_nlabels) == int

@@ -21,6 +21,9 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+import torch
+import thunder
+from thunder.examine import examine
 
 @hydra_runner(config_path="conf", config_name="megatron_vit_classification_config")
 def main(cfg) -> None:
@@ -31,6 +34,12 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronVitClassificationModel(cfg.model, trainer)
+
+    tokens = torch.randn((2, 3, 224, 224), device='cuda')
+    model.to('cuda:0')
+    examine(model, tokens=tokens)
+    import sys
+    sys.exit(1)
 
     trainer.fit(model)
 

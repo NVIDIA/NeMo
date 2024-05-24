@@ -17,6 +17,7 @@ from functools import partial
 
 import open_clip
 import torch
+import thunder
 import torch.nn as nn
 from omegaconf import OmegaConf
 from torch.utils.checkpoint import checkpoint
@@ -263,6 +264,11 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         super().__init__(enable_lora_finetune, target_block=["CLIPAttention", "CLIPMLP"], target_module=["Linear"])
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
         self.transformer = CLIPTextModel.from_pretrained(version)
+
+        ### thunder
+        self.tokenizer = thunder.jit(self.tokenizer)
+        self.transformer = thunder.jit(self.transformer)
+
         self.device = device
         self.max_length = max_length
         self.freeze()

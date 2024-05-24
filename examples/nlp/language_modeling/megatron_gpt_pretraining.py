@@ -24,6 +24,9 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+import thunder
+from thunder.examine import examine
+
 torch._dynamo.config.suppress_errors = True
 
 mp.set_start_method("spawn", force=True)
@@ -38,6 +41,17 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronGPTModel(cfg.model, trainer)
+
+    # input_ids = torch.ones((4, 128), dtype=torch.int64, device='cuda')
+    # position_ids = torch.ones((4, 128), dtype=torch.int64, device='cuda')
+    # attention_mask = None
+    # labels = torch.zeros((4, 128), dtype=torch.int64, device='cuda')
+    # caal = None
+    # model.model.to('cuda:0')
+    # examine(model.model, input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask, 
+    #         labels=labels, checkpoint_activations_all_layers=caal)
+    # import sys
+    # sys.exit(1)
 
     trainer.fit(model)
 
