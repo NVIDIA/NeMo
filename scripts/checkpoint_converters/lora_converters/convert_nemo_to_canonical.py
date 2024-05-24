@@ -36,12 +36,10 @@ from typing import Any, Dict
 
 import torch
 from omegaconf import OmegaConf, open_dict
+from scripts.checkpoint_converters.lora_converters.to_tp1 import extract_lora_state_dict_from_tar, load_lora, to_tp1
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from scripts.checkpoint_converters.lora_converters.to_tp1 import extract_lora_state_dict_from_tar, load_lora, to_tp1
-
-
 
 target_map = {
     "all": ["gate_proj", "o_proj", "up_proj", "down_proj", "k_proj", "q_proj", "v_proj"],
@@ -206,7 +204,7 @@ def convert_lora(lora_nemo, save_path, hf_format=False):
             lora_state_dict = to_tp1(load_lora(tmpdir, tp_size))
         else:
             lora_state_dict = lora_state_dict[0]
-            
+
         if lora_config.peft.lora_tuning.variant == "nemo":
             with open_dict(lora_config):
                 lora_config.peft.lora_tuning.variant = "canonical"
