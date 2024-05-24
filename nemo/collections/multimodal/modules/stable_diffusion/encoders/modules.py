@@ -699,8 +699,7 @@ class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         after = orig_vocab_size
         multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
+        after = ((after + multiple - 1) // multiple) * multiple
         return after
 
     def forward(self, text):
