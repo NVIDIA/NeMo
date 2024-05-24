@@ -25,7 +25,6 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.utils.audio_utils import get_samples
-from nemo.collections.common.prompts.canary import CanaryPromptFormatter
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 

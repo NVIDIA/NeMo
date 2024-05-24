@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Callable, Sequence
 
-import omegaconf
 import torch.utils.data
 from lhotse import CutSet
 from lhotse.cut import MixedCut, MonoCut
@@ -59,21 +58,21 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: CutSet) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        tokens, prompt_tokens = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
+        prompts_with_answers, prompts = self.prompt_format_fn(cuts, self.tokenizer, inference=self.inference)
 
-        tokens = [torch.as_tensor(t) for t in tokens]
-        token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
-        tokens = collate_vectors(tokens, padding_value=self.padding_value)
+        prompts_with_answers = [torch.as_tensor(t) for t in prompts_with_answers]
+        prompts_with_answers_lens = torch.tensor([t.size(0) for t in prompts_with_answers], dtype=torch.long)
+        prompts_with_answers = collate_vectors(prompts_with_answers, padding_value=self.padding_value)
 
         if self.inference:
-            prompt_tokens = [torch.as_tensor(t) for t in prompt_tokens]
-            prompt_token_lens = torch.tensor([t.size(0) for t in prompt_tokens], dtype=torch.long)
-            prompt_tokens = collate_vectors(prompt_tokens, padding_value=self.padding_value)
+            prompts = [torch.as_tensor(t) for t in prompts]
+            prompts_lens = torch.tensor([t.size(0) for t in prompts], dtype=torch.long)
+            prompts = collate_vectors(prompts, padding_value=self.padding_value)
         else:
-            prompt_tokens = None
-            prompt_token_lens = None
+            prompts = None
+            prompts_lens = None
 
-        return audio, audio_lens, tokens, token_lens, prompt_tokens, prompt_token_lens
+        return audio, audio_lens, prompts_with_answers, prompts_with_answers_lens, prompts, prompts_lens
 
 
 # Mapping from a string name to a known prompt formatter function.
@@ -107,7 +106,9 @@ def get_prompt_format_fn(name: str) -> Callable[[CutSet, TokenizerWrapper, bool]
 
 
 @registered_prompt_format_fn
-def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -> Sequence[Sequence[int]]:
+def canary(
+    cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False
+) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
     """
     Prepend and append control tokens to the token sequence as per Canary format.
 
@@ -136,7 +137,7 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
     ), "To use 'canary' prompt format, you must use the CanaryTokenizer."
     formatter = CanaryPromptFormatter(tokenizer._tokenizer)
 
-    tokens, prompts = [], []
+    prompts_with_answers, prompts = [], []
     for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
@@ -174,10 +175,10 @@ def canary(cuts: CutSet, tokenizer: TokenizerWrapper, inference: bool = False) -
                 ),
             ]
         )
-        tokens.append(encoded["input_ids"])
+        prompts_with_answers.append(encoded["input_ids"])
         prompts.append(encoded["context_ids"])
 
-    return tokens, prompts
+    return prompts_with_answers, prompts
 
 
 class ProbablyIncorrectLanguageKeyError(RuntimeError):

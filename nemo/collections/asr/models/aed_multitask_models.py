@@ -399,7 +399,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         augmentor: DictConfig = None,
         verbose: bool = True,
         override_config: Optional[MultiTaskTranscriptionConfig] = None,
-        prompt: dict[str, dict[str, str]] = None,
+        prompt: dict[str, dict[str, Any]] = None,
     ) -> Union[List[str], List[Hypothesis]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -716,8 +716,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         # Switch model to evaluation mode
         self.transf_decoder.freeze()
 
-        self.prompt_formatter = PromptFormatter.resolve(self.prompt_format)(self.tokenizer)
-
         if isinstance(audio, list):
             logging.debug(f"Found 'audio' to be a list of {len(audio)} items.")
             logging.debug(f"Assuming each item in 'audio' is a path to audio file.")
@@ -808,7 +806,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
                             turn["slots"][slot] = slots[slot]
 
             decoder_input_ids = (
-                self.prompt_formatter.encode_dialog(turns=turns)["context_ids"]
+                self.prompt.encode_dialog(turns=turns)["context_ids"]
                 .unsqueeze(0)
                 .repeat(batch[0].shape[0], 1)
                 .to(trcfg._internal.device)

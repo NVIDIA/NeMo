@@ -16,7 +16,7 @@ import contextlib
 import glob
 import json
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from tempfile import NamedTemporaryFile
 from typing import List, Optional, Union
 
@@ -170,7 +170,7 @@ class TranscriptionConfig:
     # Decoding strategy for AED models
     multitask_decoding: MultiTaskDecodingConfig = MultiTaskDecodingConfig()
     # Prompt slots for prompted models, e.g. for Canary-1B: +prompt.user.source_lang=en
-    prompt_slots: Optional[dict[str, dict[str, str]]] = None
+    prompt: dict[str, dict[str, str]] = field(default_factory=dict)
 
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
