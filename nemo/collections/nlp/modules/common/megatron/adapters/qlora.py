@@ -159,10 +159,10 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
         '''
         if self.normalization == 'LayerNorm':
             from transformer_engine.pytorch.module.layernorm import _LayerNorm
-            layer_norm_fn = _LayerNorm.forward
+            layer_norm_fn = _LayerNorm.apply
         elif self.normalization == 'RMSNorm':
             from transformer_engine.pytorch.module.rmsnorm import _RMSNorm
-            layer_norm_fn = _RMSNorm.forward
+            layer_norm_fn = _RMSNorm.apply
         else:
             raise ValueError("Unsupported normalization type:", self.normalization)
 
@@ -170,20 +170,19 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
 
     def forward(self, x):
         layer_norm_args = [
-            None,  # ctx
             x,  # inp
             self.layer_norm_weight,
             1e-5,  # eps,
             0,  # fwd_rmsnorm_sm_margin,
             0,  # bwd_rmsnorm_sm_margin,
             self.zero_centered_gamma,
-            False,  # is_grad_enabled,
+            True,  # is_grad_enabled,
             x.dtype,  # activation_dtype,
         ]
         if te_version >= packaging.version.Version("1.6"):
-            layer_norm_args.insert(6, 0)  # inf_rmsnorm_sm_margin
+            layer_norm_args.insert(5, 0)  # inf_rmsnorm_sm_margin
         if self.normalization == "LayerNorm":
-            layer_norm_args.insert(3, self.layer_norm_bias)
+            layer_norm_args.insert(2, self.layer_norm_bias)
         layernorm_output = self.layer_norm_fn(*layer_norm_args)
         linear_output = _LinearNF4.apply(layernorm_output, self.weight)
         return (linear_output, layernorm_output), None
