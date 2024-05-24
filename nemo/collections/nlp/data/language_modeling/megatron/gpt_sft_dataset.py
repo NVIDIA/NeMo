@@ -299,6 +299,11 @@ class GPTSFTDataset(Dataset):
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
             num_fields = len(self.truncation_fields)
+            if num_fields == 0:
+                logging.warning(f'`truncation_field` is empty, default to truncate answer part field (from right).')
+                self.truncation_fields = template_ids_keys[-1]
+                num_fields = 1
+                
             # sorted equal divide length to each field
             # examples:
             #   truncation_length_total = 3
@@ -312,18 +317,18 @@ class GPTSFTDataset(Dataset):
             for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
                 if key in self.truncation_fields:
                     truncation_length = truncation_length_list.pop()
+                    if len(ids) < truncation_length:
+                        logging.warning(f'{key} is not long enough to truncate.')
+                        truncation_length = len(ids)
 
-                    # set the offset for truncation method
                     if self.truncation_method == 'left':
-                        window_offset = max([len(ids) - truncation_length, 0])
-                        window_length = len(ids)
+                        window_offset = truncation_length
                     elif self.truncation_method == 'right':
                         window_offset = 0
-                        window_length = min([truncation_length, len(ids)])
                     else:
                         raise ValueError(f'{self.truncation_method} is not supported')
 
-                    # perform the truncation
+                    window_length = len(ids) - truncation_length
                     template_ids[i] = ids[window_offset : window_offset + window_length]
 
         context_ids = [i for ids in template_ids[:-1] for i in ids]
