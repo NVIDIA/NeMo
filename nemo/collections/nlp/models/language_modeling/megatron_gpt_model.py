@@ -1850,7 +1850,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
             def skip_fp8_load(x):
-                if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
+                if isinstance(x, ShardedObject) and '_extra_state' in x.key:
                     x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
                 return x
 
