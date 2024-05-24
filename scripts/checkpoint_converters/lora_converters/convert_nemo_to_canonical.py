@@ -15,7 +15,7 @@
 
 """
 Convert nemo style (fused) lora checkpoint to canonical (unfused) lora checkpoint.
-Currently supports TP=PP=1 only.
+Currently supports TP > 1 and PP=1.
 
 Example usage:
 python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.py \
@@ -39,6 +39,9 @@ from omegaconf import OmegaConf, open_dict
 from scripts.nlp_language_modeling.merge_lora_weights.merge import replace_number_add_offset
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from scripts.checkpoint_converters.lora_converters.to_tp1 import extract_lora_state_dict_from_tar, load_lora, to_tp1
+
+
 
 target_map = {
     "all": ["gate_proj", "o_proj", "up_proj", "down_proj", "k_proj", "q_proj", "v_proj"],
@@ -197,8 +200,13 @@ def convert_lora(lora_nemo, save_path, hf_format=False):
                         new_key = replace_number_add_offset(key, layer_offset)
                         lora_state_dict[tp][new_key] = value
 
-        # TODO: currently suport tp=1
-        lora_state_dict = lora_state_dict[0]
+        # TODO: currently suport tp > 1
+        if tp_size > 1:
+            # if tp > 1, we combine loras from different ranks
+            lora_state_dict = to_tp1(load_lora(tmpdir, tp_size))
+        else:
+            lora_state_dict = lora_state_dict[0]
+            
         if lora_config.peft.lora_tuning.variant == "nemo":
             with open_dict(lora_config):
                 lora_config.peft.lora_tuning.variant = "canonical"
