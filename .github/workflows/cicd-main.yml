@@ -3967,7 +3967,7 @@ jobs:
             python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
             trainer.devices=1 \
             trainer.num_nodes=1 \
-            trainer.precision=32 \
+            trainer.precision=bf16 \
             trainer.max_steps=4 \
             trainer.val_check_interval=4 \
             trainer.enable_checkpointing=False \
