@@ -3199,36 +3199,50 @@ jobs:
 
   L2_Megatron_GPT_Finetuning_StarCoder_PP1:
     needs: [cicd-test-container-setup]
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
-        trainer.devices=1 \
-        trainer.num_nodes=1 \
-        trainer.precision=32 \
-        trainer.max_steps=4 \
-        trainer.val_check_interval=4 \
-        trainer.enable_checkpointing=False \
-        +trainer.limit_val_batches=2 \
-        +trainer.limit_test_batches=2 \
-        exp_manager.checkpoint_callback_params.save_best_model=False \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
-        model.peft.peft_scheme=none \
-        model.optim.name=distributed_fused_adam \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/megatron_starcoder_tp1_pp1.nemo \
-        model.tensor_model_parallel_size=1 \
-        model.pipeline_model_parallel_size=1 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.train_ds.num_workers=0 \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.test_ds.num_workers=0 \
-        model.data.train_ds.concat_sampling_probabilities=[1.0]
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_sft_results
-
+    runs-on: self-hosted-azure-gpus-1
+    timeout-minutes: 10
+    container:
+      image: nemoci.azurecr.io/nemo_container_${{ github.run_id }}
+      options: 
+        # --user 0:128
+        --device=/dev/nvidia0
+        --gpus all
+        --shm-size=8g
+        --env TRANSFORMERS_OFFLINE=0 
+        --env HYDRA_FULL_ERROR=1
+        --volume /mnt/datadrive/TestData:/home/TestData
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        - run: |
+            python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+            trainer.devices=1 \
+            trainer.num_nodes=1 \
+            trainer.precision=bf16 \
+            trainer.max_steps=4 \
+            trainer.val_check_interval=4 \
+            trainer.enable_checkpointing=False \
+            +trainer.limit_val_batches=2 \
+            +trainer.limit_test_batches=2 \
+            exp_manager.checkpoint_callback_params.save_best_model=False \
+            exp_manager.exp_dir=examples/nlp/language_modeling/gpt_sft_results \
+            model.peft.peft_scheme=none \
+            model.optim.name=distributed_fused_adam \
+            model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/megatron_starcoder_tp1_pp1.nemo \
+            model.tensor_model_parallel_size=1 \
+            model.pipeline_model_parallel_size=1 \
+            model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.train_ds.num_workers=0 \
+            model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.validation_ds.num_workers=0 \
+            model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
+            model.data.test_ds.num_workers=0 \
+            model.data.train_ds.concat_sampling_probabilities=[1.0]
+        
+            rm -rf examples/nlp/language_modeling/gpt_sft_results
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: "failure()"
+  
   L2_Megatron_GPT_Embedding:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
