@@ -677,7 +677,7 @@ class UNetModel(nn.Module):
             linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
         )
 
-        self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps))
+        self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps)).to('cuda')
         if unet_precision == 'fp16-mixed' or unet_precision == 'fp16':
             self.time_embeddings = self.time_embeddings.to(torch.float16)
 
@@ -1308,7 +1308,7 @@ class UNetModel(nn.Module):
                 context = context.type(torch.float16)
 
         t_emb = timestep_embedding(
-            timesteps, self.model_channels, cached_embedding=self.time_embeddings.to(timesteps.device)
+            timesteps, self.model_channels, cached_embedding=self.time_embeddings
         )
         emb = self.time_embed(t_emb)
         if self.num_classes is not None:
