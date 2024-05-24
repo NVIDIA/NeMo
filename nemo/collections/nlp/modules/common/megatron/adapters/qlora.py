@@ -4,6 +4,9 @@ from torch import nn, Tensor
 import torch.nn.functional as F
 from nemo.collections.nlp.parts.peft_config import get_target_modules, LORA_CONFIG_TO_MCORE_MAP
 from nemo.utils import logging
+from importlib.metadata import version
+from pkg_resources import packaging
+te_version = packaging.version.Version(version("transformer-engine"))
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt import MCoreGPTModel
@@ -138,10 +141,9 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
             zero_centered_gamma: bool,
         ):
         super().__init__(bf16_linear_weight)
-
-        self.register_parameter("layer_norm_weight", nn.Parameter(layer_norm_weight))
+        self.layer_norm_weight = nn.Parameter(layer_norm_weight)
         if normalization != "RMSNorm":
-            self.register_parameter('layer_norm_bias', nn.Parameter(layer_norm_bias))
+            self.layer_norm_bias = nn.Parameter(layer_norm_bias)
         else:
             self.layer_norm_bias = None
 
@@ -171,13 +173,15 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
             None,  # ctx
             x,  # inp
             self.layer_norm_weight,
-            1e-5,  # self.eps,
-            0,  # self.fwd_rmsnorm_sm_margin,
-            0,  # self.bwd_rmsnorm_sm_margin,
+            1e-5,  # eps,
+            0,  # fwd_rmsnorm_sm_margin,
+            0,  # bwd_rmsnorm_sm_margin,
             self.zero_centered_gamma,
-            False,  # torch.is_grad_enabled(),
-            x.dtype,  # self.activation_dtype,
+            False,  # is_grad_enabled,
+            x.dtype,  # activation_dtype,
         ]
+        if te_version >= packaging.version.Version("1.6"):
+            layer_norm_args.insert(6, 0)  # inf_rmsnorm_sm_margin
         if self.normalization == "LayerNorm":
             layer_norm_args.insert(3, self.layer_norm_bias)
         layernorm_output = self.layer_norm_fn(*layer_norm_args)
