@@ -61,7 +61,7 @@ def main(cfg) -> None:
 
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
     model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer,
-                                             map_location='cpu' if cfg.model.use_cpu_initialization else None)
+                                             map_location='cpu' if cfg.model.get('use_cpu_initialization', False) else None)
     peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
 
     if cfg.model.peft.restore_from_path is not None:
