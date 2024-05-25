@@ -17,10 +17,10 @@ from functools import partial
 from itertools import chain
 from typing import Any, Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
-from einops import rearrange, repeat, reduce
+from einops import rearrange, reduce, repeat
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
@@ -305,16 +305,19 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
         """_summary_
 
         Args:
-            input_ids (_type_): _description_
-            words_embeddings (_type_): _description_
+            input_ids (torch.tensor): The input token ids [B, T]
+            words_embeddings (torch.tensor): The input embeddings [B, T, D]
             media (torch.Tensor): Vision input
                 shape (B, T_img, F, C, H, W)
         """
+        if media is None or input_ids.shape[1] == 1:
+            return inputs_embeds
+
         if type(media) is list:
             raise NotImplementedError("dynamic length of videos not supported yet, only fixed length of videos now")
 
         media_features = self.encode_vision_x(media)  # B T F S(eq) H(idden)
-        B, T, F, S, H = media_features.shape  # 1, 1, 8, 3, 224, 224
+        B, T, F, S, H = media_features.shape  # 1, 1, num_frames, 3, 224, 224
         assert T == 1, "multiple videos per sample not supported yet"
         media_features = media_features.squeeze(1)
         temporal_tokens, spatial_tokens = self.add_lita_layer(media_features) # B, T, D & B, M, D
