@@ -175,6 +175,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             max_cache_len=max_cache_len,
             use_bias=use_bias,
         )
+        self.dropout_rate = dropout_rate
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable biases are used in matrix c and matrix d
@@ -251,7 +252,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             else:
                 attn_mask = matrix_bd
 
-            out = torch.nn.functional.scaled_dot_product_attention(q_with_bias_u, k, v, attn_mask=attn_mask)
+            out = torch.nn.functional.scaled_dot_product_attention(q_with_bias_u, k, v, attn_mask=attn_mask, dropout_p=self.dropout_rate)
             out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
             out = torch.nan_to_num(out, nan=0.0)
             out = self.linear_out(out)  # (batch, time1, d_model)
