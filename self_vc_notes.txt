@@ -1,3 +1,5 @@
+pip install praat-parselmouth
+
 # Training Val Manifests: 
 Train: wget https://expressivecloning.s3.us-east-2.amazonaws.com/libri_train_selfvc.json
 Val: wget https://expressivecloning.s3.us-east-2.amazonaws.com/libri_val_selfvc.json
@@ -9,8 +11,8 @@ HiFiGAN: https://expressivecloning.s3.us-east-2.amazonaws.com/SelfVC_Checkpoints
 
 # Step 1: Conformer Training Command
 python examples/asr/speech_pretraining/speech_pre_training.py \
-model.train_ds.manifest_filepath="/data/SSLTTS/manifests/libri_train_selfvc.json" \
-model.validation_ds.manifest_filepath="/data/SSLTTS/manifests/libri_val_selfvc.json" \
+model.train_ds.manifest_filepath="/datap/LibriTTS/libri_val_selfvc.json" \
+model.validation_ds.manifest_filepath="/datap/LibriTTS/libri_val_selfvc.json" \
 exp_manager.resume_if_exists=true \
 exp_manager.resume_ignore_no_checkpoint=true \
 trainer.devices=-1 \
@@ -27,9 +29,9 @@ model.train_ds.batch_size=4 \
 model.validation_ds.batch_size=4 \
 model.encoder.feat_out=256 \
 model.loss_list.contrastive.loss.num_negatives=20 \
-exp_manager.exp_dir="/data/SSLTTS/PretrainingExperiments/LibriPlusCSS/" \
+exp_manager.exp_dir="/datap/SelfVCRoughExperiments/PretrainingExperiments" \
 exp_manager.name="conformerSSL" \
---config-path="/home/NeMo/examples/asr/conf/ssl/conformer/" \
+--config-path="/home/pneekhara/2023/NemoSelfVC/NeMo/examples/asr/conf/ssl/conformer/" \
 --config-name="conformer_ssl_22050_selfvc" ;
 
 # Step 2: Create Sup Data - Extract conformer embeddings, speaker embeddings and pitch contours
@@ -40,16 +42,16 @@ audio (augmented embeddings are used only in SelfVC for voice conversion).
 # Would need to install parselmouth for augment_embeddings. Also quite slow with augment_embeddings=1
 # This script would create files in sup_data_dir
 
-python ../NeMo/scripts/ssl_tts/make_supdata_self_vc.py \
---ssl_model_ckpt_path /data/SSLTTS/PretrainingExperiments/LibriPlusCSS/conformerSSL/checkpoints/Epoch74_6016.ckpt \
---manifest_paths "/data/SSLTTS/manifests/libri_train_selfvc.json,/data/SSLTTS/manifests/libri_val_selfvc.json" \
---sup_data_dir "/data/SSLTTS/SupDataDirs/SelfVC_LibriCSSSupData"  \
+python scripts/ssl_tts/make_supdata_self_vc.py \
+--ssl_model_ckpt_path /datap/misc/SelfVC_Checkpoints/ConformerICLR.ckpt \
+--manifest_paths "/datap/LibriTTS/libri_val_selfvc.json" \
+--sup_data_dir "/datap/SupDataDirs/SelfVC_LibriValSupData"  \
 --batch_size 32 \
 --augment_embeddings 1 \
 --compute_pitch_contours 1 \
 --extract_only_pitch_contours 0 \
 --pool_workers 8 \
---num_workers 16 \
+--num_workers 16 ;
 
 
 # Step 3: FastPitch training
@@ -63,16 +65,16 @@ pitch_std=38.75 \
 use_unique_tokens=true \
 content_aug_types='["f_transform", "g_transform"]' \
 model.emb_similarity_threshold=0.925 \
-train_dataset="/data/SSLTTS/manifests/libri_train_selfvc.json" \
-validation_datasets="/data/SSLTTS/manifests/libri_val_selfvc.json" \
-ssl_model_ckpt_path="/data/SSLTTS/PretrainingExperiments/LibriPlusCSS/conformerSSL/checkpoints/Epoch74_6016.ckpt" \
-hifi_ckpt_path="/data/SSLTTS/HiFiLibriEpoch334.ckpt" \
+train_dataset="/datap/LibriTTS/libri_val_selfvc.json" \
+validation_datasets="/datap/LibriTTS/libri_val_selfvc.json" \
+ssl_model_ckpt_path="/datap/misc/SelfVC_Checkpoints/ConformerICLR.ckpt" \
+hifi_ckpt_path="/datap/misc/SelfVC_Checkpoints/HiFiGANICLR.ckpt" \
 model.train_ds.dataloader_params.batch_size=32 \
 model.validation_ds.dataloader_params.batch_size=32 \
-exp_manager.exp_dir="/data/SSLTTS/TextlessFastPitchExperimentsLibri360/SelfVC_LibriCSSNewCode" \
+exp_manager.exp_dir="/datap/SelfVCRoughExperiments" \
 exp_manager.name="Run1FromScratch" \
 model.n_datasets=1 \
-sup_data_dir="/data/SSLTTS/SupDataDirs/SelfVC_LibriCSSSupData"  \
+sup_data_dir="/datap/SupDataDirs/SelfVC_LibriValSupData"  \
 ssl_content_emb_type="embedding" \
 model.content_emb_indim=256 \
 model.content_emb_outdim=256 \
@@ -81,7 +83,7 @@ model.speaker_emb_outdim=256 \
 model.symbols_embedding_dim=512 \
 model.optim.lr=0.00007 \
 +model.self_converted_aug_start_step=100000 \
-trainer.max_epochs=500 \
+trainer.max_epochs=500 ;
 
 
 # INFERENCE
@@ -99,4 +101,14 @@ python scripts/ssl_tts/self_vc.py \
 --fastpitch_ckpt_path SelfVC_Checkpoints/FastPitch_LibriCSS.ckpt \
 --ssl_model_ckpt_path SelfVC_Checkpoints/ConformerSSL_LibriCSS.ckpt \
 --hifi_ckpt_path SelfVC_Checkpoints/HiFiFinetuned.ckpt \
+--compute_pitch 1 --compute_duration 0 --use_unique_tokens=0 ;
+
+
+python scripts/ssl_tts/self_vc.py \
+--source_audio_path /datap/source_30.wav \
+--target_audio_path /datap/targetspeaker_29.wav \
+--out_path out.wav \
+--fastpitch_ckpt_path /datap/misc/SelfVC_Checkpoints/FastPitchICLR.ckpt \
+--ssl_model_ckpt_path /datap/misc/SelfVC_Checkpoints/ConformerICLR.ckpt \
+--hifi_ckpt_path /datap/misc/SelfVC_Checkpoints/HiFiGANICLR.ckpt \
 --compute_pitch 1 --compute_duration 0 --use_unique_tokens=0 ;

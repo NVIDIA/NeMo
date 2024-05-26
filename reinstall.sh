@@ -16,15 +16,15 @@ ${PIP} uninstall -y nemo_asr
 ${PIP} uninstall -y nemo_nlp
 ${PIP} uninstall -y nemo_tts
 
-if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
-  echo 'Installing NeMo in NVIDIA PyTorch container:' "${NVIDIA_PYTORCH_VERSION}" 'so will not install numba'
-else
-  if [ -n "${CONDA_PREFIX}" ]; then
-    NUMBA_VERSION=0.57.1
-    echo 'Installing numba=='${NUMBA_VERSION}
-    conda install -y -c conda-forge numba==${NUMBA_VERSION}
-  fi
-fi
+# if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
+#   echo 'Installing NeMo in NVIDIA PyTorch container:' "${NVIDIA_PYTORCH_VERSION}" 'so will not install numba'
+# else
+#   if [ -n "${CONDA_PREFIX}" ]; then
+#     NUMBA_VERSION=0.57.1
+#     echo 'Installing numba=='${NUMBA_VERSION}
+#     conda install -y -c conda-forge numba==${NUMBA_VERSION}
+#   fi
+# fi
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then

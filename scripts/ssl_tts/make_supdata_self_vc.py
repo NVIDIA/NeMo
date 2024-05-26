@@ -438,8 +438,8 @@ def main():
                             print("Transforming {} of {}".format(idx, batch['audio'].shape[0]))
                             transform = transforms[transform_type]
                             audio_transformed.append(transform(batch['audio'][idx].cpu(), sample_rate))
-                            torchaudio.save(os.path.join("./transforms", batch['rel_audio_path_as_text_id'][idx] + '_' + transform_type + '.wav'), 
-                                        audio_transformed[idx].unsqueeze(0), sample_rate)
+                            # torchaudio.save(os.path.join("./transforms", batch['rel_audio_path_as_text_id'][idx] + '_' + transform_type + '.wav'), 
+                            #             audio_transformed[idx].unsqueeze(0), sample_rate)
                             # print("Saved to", os.path.join("./transforms", batch['rel_audio_path_as_text_id'][idx] + '_' + transform_type + '.wav'))
                         
                         audio_transformed = torch.stack(audio_transformed)

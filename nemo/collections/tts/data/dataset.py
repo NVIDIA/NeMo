@@ -1542,7 +1542,7 @@ class FastPitchSSLDataset(Dataset):
         for key in final_batch:
             final_batch[key] = torch.stack(final_batch[key])
 
-        return final_batch
+        return dict(final_batch)
 
     def __getitem__(self, index):
         sample = self.data[index]
