@@ -1,0 +1,102 @@
+# Training Val Manifests: 
+Train: wget https://expressivecloning.s3.us-east-2.amazonaws.com/libri_train_selfvc.json
+Val: wget https://expressivecloning.s3.us-east-2.amazonaws.com/libri_val_selfvc.json
+
+# Pretrained checkpoints
+Conformer: https://expressivecloning.s3.us-east-2.amazonaws.com/SelfVC_Checkpoints/ConformerSSL_LibriCSS.ckpt
+FastPitch: https://expressivecloning.s3.us-east-2.amazonaws.com/SelfVC_Checkpoints/FastPitch_LibriCSS.ckpt
+HiFiGAN: https://expressivecloning.s3.us-east-2.amazonaws.com/SelfVC_Checkpoints/HiFiFinetuned.ckpt
+
+# Step 1: Conformer Training Command
+python examples/asr/speech_pretraining/speech_pre_training.py \
+model.train_ds.manifest_filepath="/data/SSLTTS/manifests/libri_train_selfvc.json" \
+model.validation_ds.manifest_filepath="/data/SSLTTS/manifests/libri_val_selfvc.json" \
+exp_manager.resume_if_exists=true \
+exp_manager.resume_ignore_no_checkpoint=true \
+trainer.devices=-1 \
+trainer.accelerator="gpu" \
+trainer.max_epochs=100 \
+model.optim.name="adamw" \
+model.optim.lr=0.00005 \
+model.optim.betas=[0.9,0.999] \
+model.optim.weight_decay=0.0001 \
+model.train_ds.min_duration=3.0 \
+model.validation_ds.min_duration=3.0 \
+~model.optim.sched \
+model.train_ds.batch_size=4 \
+model.validation_ds.batch_size=4 \
+model.encoder.feat_out=256 \
+model.loss_list.contrastive.loss.num_negatives=20 \
+exp_manager.exp_dir="/data/SSLTTS/PretrainingExperiments/LibriPlusCSS/" \
+exp_manager.name="conformerSSL" \
+--config-path="/home/NeMo/examples/asr/conf/ssl/conformer/" \
+--config-name="conformer_ssl_22050_selfvc" ;
+
+# Step 2: Create Sup Data - Extract conformer embeddings, speaker embeddings and pitch contours
+# NOTE: Sometimes the script hangs while extracting the pitch contour. In that case, 
+# rerun the script and pass --extract_only_pitch_contours=1 .
+# Pass augment_embeddings=0 if you don't want embeddings of transformed 
+audio (augmented embeddings are used only in SelfVC for voice conversion). 
+# Would need to install parselmouth for augment_embeddings. Also quite slow with augment_embeddings=1
+# This script would create files in sup_data_dir
+
+python ../NeMo/scripts/ssl_tts/make_supdata_self_vc.py \
+--ssl_model_ckpt_path /data/SSLTTS/PretrainingExperiments/LibriPlusCSS/conformerSSL/checkpoints/Epoch74_6016.ckpt \
+--manifest_paths "/data/SSLTTS/manifests/libri_train_selfvc.json,/data/SSLTTS/manifests/libri_val_selfvc.json" \
+--sup_data_dir "/data/SSLTTS/SupDataDirs/SelfVC_LibriCSSSupData"  \
+--batch_size 32 \
+--augment_embeddings 1 \
+--compute_pitch_contours 1 \
+--extract_only_pitch_contours 0 \
+--pool_workers 8 \
+--num_workers 16 \
+
+
+# Step 3: FastPitch training
+# Pass content_aug_types='[]' to not use augmentations
+# Remove +model.self_converted_aug_start_step=100000 if you do not want self transformations (only used in voice conversion)
+# hifi_ckpt_path is used to log audio during training
+
+python examples/tts/fastpitch_ssl.py \
+pitch_mean=212.35 \
+pitch_std=38.75 \
+use_unique_tokens=true \
+content_aug_types='["f_transform", "g_transform"]' \
+model.emb_similarity_threshold=0.925 \
+train_dataset="/data/SSLTTS/manifests/libri_train_selfvc.json" \
+validation_datasets="/data/SSLTTS/manifests/libri_val_selfvc.json" \
+ssl_model_ckpt_path="/data/SSLTTS/PretrainingExperiments/LibriPlusCSS/conformerSSL/checkpoints/Epoch74_6016.ckpt" \
+hifi_ckpt_path="/data/SSLTTS/HiFiLibriEpoch334.ckpt" \
+model.train_ds.dataloader_params.batch_size=32 \
+model.validation_ds.dataloader_params.batch_size=32 \
+exp_manager.exp_dir="/data/SSLTTS/TextlessFastPitchExperimentsLibri360/SelfVC_LibriCSSNewCode" \
+exp_manager.name="Run1FromScratch" \
+model.n_datasets=1 \
+sup_data_dir="/data/SSLTTS/SupDataDirs/SelfVC_LibriCSSSupData"  \
+ssl_content_emb_type="embedding" \
+model.content_emb_indim=256 \
+model.content_emb_outdim=256 \
+model.speaker_emb_indim=192 \
+model.speaker_emb_outdim=256 \
+model.symbols_embedding_dim=512 \
+model.optim.lr=0.00007 \
++model.self_converted_aug_start_step=100000 \
+trainer.max_epochs=500 \
+
+
+# INFERENCE
+---------------------------------------------------------------------
+# inference script also supports batched inference, 
+# Can pass source_target_out_pairs.txt instead of source_audio_path, target_audio_path and out_path
+# Each line in source_target_out_pairs.txt is formatted as source.wav;target.wav;out.wav
+# Sample Source Wav: https://expressivecloning.s3.us-east-2.amazonaws.com/AMTEVAL/SRC_UNSEEN_LIBRI/source_30.wav
+# Sample Target Wav: https://expressivecloning.s3.us-east-2.amazonaws.com/AMTEVAL/TARGET_UNSEEN_LIBRI/targetspeaker_29.wav
+
+python scripts/ssl_tts/self_vc.py \
+--source_audio_path source_audio.wav \
+--target_audio_path target_speaker_audio.wav \
+--out_path out.wav \
+--fastpitch_ckpt_path SelfVC_Checkpoints/FastPitch_LibriCSS.ckpt \
+--ssl_model_ckpt_path SelfVC_Checkpoints/ConformerSSL_LibriCSS.ckpt \
+--hifi_ckpt_path SelfVC_Checkpoints/HiFiFinetuned.ckpt \
+--compute_pitch 1 --compute_duration 0 --use_unique_tokens=0 ;

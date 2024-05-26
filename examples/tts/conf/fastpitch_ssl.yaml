@@ -33,12 +33,15 @@ use_unique_tokens: true
 speaker_conditioning_type: per_sample
 segment_speaker_embedding: true
 ssl_downsampling_factor: 4 # How many mel-spectrogram frames map to one content embedding in the SSL model
+content_aug_types: []
 
 model:
   ssl_model_ckpt_path: ${ssl_model_ckpt_path}
   ssl_downsampling_factor: ${ssl_downsampling_factor}
   use_encoder: true
   use_duration_predictor: ${use_unique_tokens}
+  emb_similarity_threshold: 1.0 # Group content embeddings at consecutive timesteps together if their cosine similarity is above this threshold. 1.0 means no grouping.
+
   pitch_conditioning: true
   pitch_loss_scale: 1.0
   learn_alignment: true
@@ -63,6 +66,8 @@ model:
   speaker_emb_indim: 256
   content_emb_outdim: 192
   speaker_emb_outdim: 192
+
+  content_aug_types: ${content_aug_types}
   
   train_ds:
     dataset:
@@ -80,6 +85,8 @@ model:
       pad_multiple: 1024
       speaker_conditioning_type: ${speaker_conditioning_type}
       sup_data_dir: ${sup_data_dir}
+      content_aug_types: ${content_aug_types}
+      emb_similarity_threshold: ${model.emb_similarity_threshold}
 
     dataloader_params:
       drop_last: false

@@ -32,6 +32,11 @@ from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
+import torchaudio
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.models import label_models
+from nemo.collections.tts.models import fastpitch_ssl
+import random
 
 HAVE_WANDB = True
 try:
@@ -558,3 +563,137 @@ class HifiGanModel(Vocoder, Exportable):
         Runs the generator, for inputs and outputs see input_types, and output_types
         """
         return self.generator(x=spec)
+
+class HifiGanSelfVCModel(HifiGanModel):
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        self.use_synthetic_spectrogram = False
+        if self._cfg.get("use_synthetic_spectrogram", False):
+            self.use_synthetic_spectrogram = True
+            ssl_model_ckpt_path = self._cfg.ssl_model_ckpt_path
+            fastpitch_model_ckpt_path = self._cfg.fastpitch_model_ckpt_path
+
+            ssl_model = nemo_asr.models.ssl_models.SpeechEncDecSelfSupervisedModel.load_from_checkpoint(
+                ssl_model_ckpt_path
+            )
+            ssl_model.eval()
+
+            fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(
+                fastpitch_model_ckpt_path, strict=False
+            )
+            fastpitch_model.eval()
+
+            nemo_sv_model = label_models.EncDecSpeakerLabelModel.from_pretrained("titanet_large")
+            nemo_sv_model.eval()
+
+            self.non_trainable_models = {
+                "ssl_model": ssl_model,
+                "fastpitch_model": fastpitch_model,
+                "nemo_sv_model": nemo_sv_model,
+            }
+    
+    def get_synthetic_melspec(self, audio, audio_len):
+        for key in self.non_trainable_models:
+            self.non_trainable_models[key] = self.non_trainable_models[key].to(audio.device)
+
+        with torch.no_grad():
+            audio16 = torchaudio.functional.resample(audio, 22050, 16000)
+            audio16len = (audio_len * 16000 // 22050).long() - 1
+            _, speaker_embeddings = self.non_trainable_models["nemo_sv_model"](
+                input_signal=audio16, input_signal_length=audio16len
+            )
+
+            processed_signal, processed_signal_length = self.non_trainable_models['ssl_model'].preprocessor(
+                input_signal=audio, length=audio_len - 1,
+            )
+            batch_content_embedding, batch_encoded_len = self.non_trainable_models['ssl_model'].encoder(
+                audio_signal=processed_signal, length=processed_signal_length
+            )
+            if self.non_trainable_models['ssl_model']._cfg.get("normalize_content_encoding", False):
+                batch_content_embedding = self.non_trainable_models['ssl_model']._normalize_encoding(
+                    batch_content_embedding
+                )
+
+            final_content_embedding = batch_content_embedding[:, :, : batch_encoded_len[0]]
+            duration = torch.ones([final_content_embedding.shape[0], final_content_embedding.shape[2]]) * 4
+            duration = duration.to(audio.device)
+            synthetic_spec = self.non_trainable_models['fastpitch_model'].generate_wav(
+                final_content_embedding,
+                speaker_embeddings,
+                pitch_contour=None,
+                compute_pitch=True,
+                compute_duration=False,
+                durs_gt=duration,
+                dataset_id=0,
+                only_mel=True,
+            )
+
+            synthetic_spec = synthetic_spec.detach()
+            return synthetic_spec
+    
+    def training_step(self, batch, batch_idx):
+        audio, audio_len, audio_mel, _ = self._process_batch(batch)
+        if self.use_ssl_fastpitch_spec:
+            audio_mel_synthetic = self.get_synthetic_melspec(audio, audio_len)
+            # save audio_mel_synthetic as a png image
+            assert audio_mel_synthetic.shape == audio_mel.shape
+            if random.random() < 0.5:
+                # randomly choose between real and synthetic mel spec as input
+                print("Choosing synthetic mel spec as input")
+                audio_mel = audio_mel_synthetic
+            else:
+                print("Choosing real mel spec as input")
+
+        # Mel as input for L1 mel loss
+        audio_trg_mel, _ = self.trg_melspec_fn(audio, audio_len)
+        audio = audio.unsqueeze(1)
+
+        audio_pred = self.generator(x=audio_mel)
+        audio_pred_mel, _ = self.trg_melspec_fn(audio_pred.squeeze(1), audio_len)
+
+        optim_g, optim_d = self.optimizers()
+
+        # Train discriminator
+        optim_d.zero_grad()
+        mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
+        loss_disc_mpd, _, _ = self.discriminator_loss(
+            disc_real_outputs=mpd_score_real, disc_generated_outputs=mpd_score_gen
+        )
+        msd_score_real, msd_score_gen, _, _ = self.msd(y=audio, y_hat=audio_pred.detach())
+        loss_disc_msd, _, _ = self.discriminator_loss(
+            disc_real_outputs=msd_score_real, disc_generated_outputs=msd_score_gen
+        )
+        loss_d = loss_disc_msd + loss_disc_mpd
+        self.manual_backward(loss_d)
+        optim_d.step()
+
+        # Train generator
+        optim_g.zero_grad()
+        loss_mel = F.l1_loss(audio_pred_mel, audio_trg_mel)
+        _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
+        _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
+        loss_fm_mpd = self.feature_loss(fmap_r=fmap_mpd_real, fmap_g=fmap_mpd_gen)
+        loss_fm_msd = self.feature_loss(fmap_r=fmap_msd_real, fmap_g=fmap_msd_gen)
+        loss_gen_mpd, _ = self.generator_loss(disc_outputs=mpd_score_gen)
+        loss_gen_msd, _ = self.generator_loss(disc_outputs=msd_score_gen)
+        loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel * self.l1_factor
+        self.manual_backward(loss_g)
+        optim_g.step()
+
+        self.update_lr()
+
+        metrics = {
+            "g_loss_fm_mpd": loss_fm_mpd,
+            "g_loss_fm_msd": loss_fm_msd,
+            "g_loss_gen_mpd": loss_gen_mpd,
+            "g_loss_gen_msd": loss_gen_msd,
+            "g_loss": loss_g,
+            "d_loss_mpd": loss_disc_mpd,
+            "d_loss_msd": loss_disc_msd,
+            "d_loss": loss_d,
+            "global_step": self.global_step,
+            "lr": optim_g.param_groups[0]['lr'],
+        }
+        self.log_dict(metrics, on_step=True, sync_dist=True)
+        self.log("g_l1_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
