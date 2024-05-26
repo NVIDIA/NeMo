@@ -230,8 +230,7 @@ def mean_flat(tensor):
 
 
 def normalization(in_channels, act="", gn_groups=32):
-    return GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True, act=act)
-
+    return torch.nn.GroupNorm(num_groups=gn_groups, num_channels=in_channels, eps=1e-5, affine=True)
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
 class SiLU(nn.Module):

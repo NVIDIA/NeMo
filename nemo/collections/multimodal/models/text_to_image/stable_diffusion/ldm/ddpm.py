@@ -2291,6 +2291,10 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
     ):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
+
+        ## thunder.jit on Unet
+        self.diffusion_model = thunder.jit(self.diffusion_model)
+
         self.conditioning_key = conditioning_key
         assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm']
 

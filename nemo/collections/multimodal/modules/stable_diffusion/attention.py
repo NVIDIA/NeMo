@@ -117,8 +117,7 @@ def zero_module(module):
 
 
 def Normalize(in_channels, num_groups=32, act=""):
-    return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
-
+    return torch.nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-5, affine=True)
 
 class LinearAttention(nn.Module):
     def __init__(self, dim, heads=4, dim_head=32):
