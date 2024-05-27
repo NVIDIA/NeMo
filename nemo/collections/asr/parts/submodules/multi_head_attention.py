@@ -95,28 +95,28 @@ class MultiHeadAttention(nn.Module):
 
         return q, k, v
 
-    def forward_attention(self, value, scores, mask):
-        """Compute attention context vector.
-        Args:
-            value (torch.Tensor): (batch, time2, size)
-            scores(torch.Tensor): (batch, time1, time2)
-            mask(torch.Tensor): (batch, time1, time2)
-        returns:
-            value (torch.Tensor): transformed `value` (batch, time2, d_model) weighted by the attention scores
-        """
-        n_batch = value.size(0)
-        if mask is not None:
-            mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
-            scores = scores.masked_fill(mask, -10000.0)
-            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
-        else:
-            attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
+    # def forward_attention(self, value, scores, mask):
+    #     """Compute attention context vector.
+    #     Args:
+    #         value (torch.Tensor): (batch, time2, size)
+    #         scores(torch.Tensor): (batch, time1, time2)
+    #         mask(torch.Tensor): (batch, time1, time2)
+    #     returns:
+    #         value (torch.Tensor): transformed `value` (batch, time2, d_model) weighted by the attention scores
+    #     """
+    #     n_batch = value.size(0)
+    #     if mask is not None:
+    #         mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
+    #         scores = scores.masked_fill(mask, -10000.0)
+    #         attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
+    #     else:
+    #         attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
 
-        p_attn = self.dropout(attn)
-        x = torch.matmul(p_attn, value)  # (batch, head, time1, d_k)
-        x = x.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+    #     p_attn = self.dropout(attn)
+    #     x = torch.matmul(p_attn, value)  # (batch, head, time1, d_k)
+    #     x = x.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
 
-        return self.linear_out(x)  # (batch, time1, d_model)
+    #     return self.linear_out(x)  # (batch, time1, d_model)
 
     def forward(self, query, key, value, mask, pos_emb=None, cache=None):
         """Compute 'Scaled Dot Product Attention'.
@@ -139,8 +139,10 @@ class MultiHeadAttention(nn.Module):
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
-            scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
-            out = self.forward_attention(v, scores, mask)
+            scale = 1 / self.s_d_k
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=self.dropout_rate, scale=scale)
+            out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+            out = self.linear_out(out)  # (batch, time1, d_model)
         if cache is None:
             return out
         else:
@@ -233,8 +235,8 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             # (batch, head, time1, time2)
             matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
             matrix_bd = self.rel_shift(matrix_bd)
-            # drops extra elements in the matrix_bd to match the matrix_ac's size
             scale_factor = 1 / math.sqrt(q_with_bias_u.size(-1))
+            # drops extra elements in the matrix_bd to match the matrix_ac's size
             matrix_bd = matrix_bd[:, :, :, : k.size(-2)] * scale_factor
 
             if mask is not None:
