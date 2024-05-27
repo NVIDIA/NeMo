@@ -337,6 +337,7 @@ jobs:
          --runtime=nvidia
          -e NVIDIA_VISIBLE_DEVICES
          -e CUDA_VISIBLE_DEVICES
+         -e WORLD_SIZE=2
          --shm-size=8g
          --env TRANSFORMERS_OFFLINE=0
          --env HYDRA_FULL_ERROR=1
