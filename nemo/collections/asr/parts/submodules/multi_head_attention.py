@@ -239,13 +239,10 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
             if mask is not None:
                 mask = mask.unsqueeze(1)
-                attn_mask = matrix_bd.masked_fill(mask, float("-inf"))
-            else:
-                attn_mask = matrix_bd
+                matrix_bd.masked_fill_(mask, float("-inf"))
 
-            out = torch.nn.functional.scaled_dot_product_attention(q_with_bias_u, k, v, attn_mask=attn_mask, dropout_p=self.dropout_rate)
+            out = torch.nn.functional.scaled_dot_product_attention(q_with_bias_u, k, v, attn_mask=matrix_bd, dropout_p=self.dropout_rate, scale=scale_factor)
             out = out.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
-            out = torch.nan_to_num(out, nan=0.0)
             out = self.linear_out(out)  # (batch, time1, d_model)
 
         if cache is None:
