@@ -345,6 +345,8 @@ jobs:
          - name: Checkout repository
            uses: actions/checkout@v4
          - run: |
+             nvidia-smi;
+             
              python examples/nlp/language_modeling/megatron_quantization.py \
              model_file=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
              tensor_model_parallel_size=2 \
