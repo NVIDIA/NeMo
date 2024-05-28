@@ -365,17 +365,17 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
 
+            if self.add_pooler:
+                self.pooler = Pooler(
+                    self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
+                )
+
             self.binary_head = None
             if self.add_binary_head:
                 # TODO: Shoudl switch this to TE ?
                 self.binary_head = mcore_get_linear_layer(
                     self.config.hidden_size, 2, self.config.init_method, self.config.perform_initialization
                 )
-
-                if self.add_pooler:
-                    self.pooler = Pooler(
-                        self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
-                    )
 
     def forward(
         self,
