@@ -15,6 +15,7 @@
 import argparse
 import logging
 import sys
+import os
 
 from nemo.export import TensorRTLLM
 
@@ -106,6 +107,11 @@ def get_args(argv):
         help='maximum lora rank for different lora modules. '
         'It is used to compute the workspace size of lora plugin.',
     )
+    parser.add_argument(
+        "--HF_TOKEN",
+        type=str,
+        default=None,
+    )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
 
     args = parser.parse_args(argv)
@@ -129,6 +135,9 @@ def nemo_export_trt_llm(argv):
             "Support for the other precisions will be added in the coming releases."
         )
         return
+
+    if args.HF_TOKEN is not None:
+        os.environ['HF_TOKEN'] = args.HF_TOKEN
 
     try:
         trt_llm_exporter = TensorRTLLM(model_dir=args.model_repository)

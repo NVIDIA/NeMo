@@ -18,6 +18,7 @@ import shutil
 import time
 from pathlib import Path
 import torch
+import os
 
 from tests.infer_data_path import get_infer_test_data
 
@@ -489,6 +490,11 @@ def get_args():
         type=str,
         default="False",
     )
+    parser.add_argument(
+        "--HF_TOKEN",
+        type=str,
+        default=None,
+    )
 
     return parser.parse_args()
 
@@ -514,6 +520,9 @@ def run_inference_tests(args):
             raise Exception("test_data_path param cannot be None.")
 
     result_dic = {}
+
+    if args.HF_TOKEN is not None:
+        os.environ['HF_TOKEN'] = args.HF_TOKEN
 
     if args.existing_test_models:
         n_gpus = args.min_gpus

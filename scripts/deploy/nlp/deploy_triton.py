@@ -133,6 +133,11 @@ def get_args(argv):
     parser.add_argument(
         "-lc", "--lora_ckpt", default=None, type=str, nargs="+", help="The checkpoint list of LoRA weights"
     )
+    parser.add_argument(
+        "--HF_TOKEN",
+        type=str,
+        default=None,
+    )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
 
     args = parser.parse_args(argv)
@@ -205,6 +210,9 @@ def nemo_deploy(argv):
                     "There are {0} tables and {1} task ids.".format(len(ptuning_tables_files), len(args.task_ids))
                 )
                 return
+
+    if args.HF_TOKEN is not None:
+        os.environ['HF_TOKEN'] = args.HF_TOKEN
 
     trt_llm_exporter = TensorRTLLM(model_dir=trt_llm_path, lora_ckpt_list=args.lora_ckpt)
 
