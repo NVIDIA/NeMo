@@ -30,6 +30,7 @@ from nemo.utils import logging
 
 try:
     from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
+    from megatron.core.datasets.megatron_tokenizer import add_unique_description_to_tokenizer
 
     HAVE_MEGATRON_CORE = True
 
@@ -111,31 +112,37 @@ def get_tokenizer(
             merges_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_merges_file(
                 tokenizer_name
             )
-        tokenizer_name = get_megatron_tokenizer(tokenizer_name)
+        base_tokenizer_name = get_megatron_tokenizer(tokenizer_name)
+    else:
+        base_tokenizer_name = tokenizer_name
 
-    if tokenizer_name == 'sentencepiece':
+    if base_tokenizer_name == 'sentencepiece':
         logging.info("tokenizer_model: " + str(tokenizer_model))
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens, legacy=True
         )
-    elif tokenizer_name == 'word':
+    elif base_tokenizer_name == 'word':
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
-    elif tokenizer_name == 'char':
+    elif base_tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
-    elif tokenizer_name == 'regex':
+    elif base_tokenizer_name == 'regex':
         return RegExTokenizer().load_tokenizer(regex_file=tokenizer_model, vocab_file=vocab_file)
 
     logging.info(
-        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, merges_files: {merges_file}, "
+        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {base_tokenizer_name}, vocab_file: {vocab_file}, merges_files: {merges_file}, "
         f"special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
     )
-    return AutoTokenizer(
-        pretrained_model_name=tokenizer_name,
+    tok = AutoTokenizer(
+        pretrained_model_name=base_tokenizer_name,
         vocab_file=vocab_file,
         merges_file=merges_file,
         **special_tokens_dict,
         use_fast=use_fast,
     )
+    if 'megatron' in tokenizer_name:
+        tokenizer_paths = [vocab_file, merges_file]
+        add_unique_description_to_tokenizer(tok, tokenizer_paths, {})
+    return tok
 
 
 def get_nmt_tokenizer(
