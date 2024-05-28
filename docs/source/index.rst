@@ -61,7 +61,7 @@ For more information, browse the developer docs for your area of interest in the
    :caption: Community Model Converters
    :name: CheckpointConverters
 
-   ckpt_converters/intro
+   checkpoints/intro
 
 .. toctree::
    :maxdepth: 1
