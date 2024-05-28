@@ -43,7 +43,7 @@ def map(  # noqa: A001
     --------
         >>> import torch
         >>> import torch.nn as nn
-        >>> from nemo_ext import fn
+        >>> from nemo.collections.llm import fn
 
         # Example: Doubling the weights of all Linear layers in a model
         model = nn.Sequential(nn.Linear(10, 20), nn.ReLU(), nn.Linear(20, 10))
@@ -93,7 +93,7 @@ def walk(
     --------
         >>> import torch
         >>> import torch.nn as nn
-        >>> from nemo_ext import fn
+        >>> from nemo.collections.llm import fn
 
         # Example: Setting the bias of all Conv2d layers to False
         model = nn.Sequential(nn.Conv2d(1, 20, 5), nn.ReLU(), nn.Conv2d(20, 10, 5))

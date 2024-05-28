@@ -1,11 +1,5 @@
-<<<<<<< HEAD:tests/collections/llm/fn/test_mixin.py
 from nemo.collections.llm import fn
-=======
->>>>>>> bcc6ab06f (Apply isort and black reformatting):tests/fn/test_mixin.py
 from torch import nn
-
-from nemo import fn
-
 
 class MockModule(nn.Module, fn.FNMixin):
     def __init__(self):
