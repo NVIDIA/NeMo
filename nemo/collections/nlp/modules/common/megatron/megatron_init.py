@@ -41,6 +41,8 @@ try:
         set_pipeline_model_parallel_world_size,
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
+        set_data_parallel_world_size,
+        set_data_parallel_rank,
         set_virtual_pipeline_model_parallel_rank,
     )
 
@@ -96,6 +98,7 @@ def initialize_model_parallel_for_nemo(
     app_state.use_fp8 = use_fp8
     app_state.init_mpi_proc_group = init_mpi_proc_group
     (
+        app_state.data_parallel_rank,
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,
         app_state.expert_model_parallel_rank,
@@ -121,6 +124,9 @@ def initialize_model_parallel_for_nemo(
 
     set_expert_model_parallel_world_size(app_state.expert_model_parallel_size)
     set_expert_model_parallel_rank(app_state.expert_model_parallel_rank)
+
+    set_data_parallel_world_size(app_state.data_parallel_size)
+    set_data_parallel_rank(app_state.data_parallel_rank)
 
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
     if HAVE_INTERLEAVED:
@@ -354,6 +360,7 @@ def fake_initialize_model_parallel(
     logging.info(f'Rank {rank} has embedding rank: {embedding_rank}')
 
     return (
+        data_parallel_rank,
         tensor_model_parallel_rank,
         pipeline_model_parallel_rank,
         expert_model_parallel_rank,

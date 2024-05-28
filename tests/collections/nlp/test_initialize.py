@@ -117,6 +117,7 @@ def test_fake_initialize(nodes, num_gpu, tp, pp, cp, ep):
     ) = old_fake_initialize_model_parallel(nodes * num_gpu, 0, tp, pp, None, None, ep, cp)
 
     (
+        _,
         m_tensor_model_parallel_rank,
         n_pipeline_model_parallel_rank,
         n_expert_model_parallel_rank,

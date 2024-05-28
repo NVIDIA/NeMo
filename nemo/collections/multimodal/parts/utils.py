@@ -394,6 +394,7 @@ def create_neva_model_and_processor(cfg):
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
+                _,
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
                 app_state.expert_model_parallel_rank,

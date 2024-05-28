@@ -262,6 +262,7 @@ def main(cfg) -> None:
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             app_state.expert_model_parallel_size = cfg.get('expert_model_parallel_size', 1)
             (
+                app_state.data_parallel_rank,
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
                 app_state.expert_model_parallel_rank,
