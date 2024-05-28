@@ -29,10 +29,17 @@ from inspect import isfunction
 import numpy as np
 import torch
 import torch.nn as nn
-from apex.contrib.group_norm import GroupNorm
 from einops import repeat
 from torch._dynamo import disable
 from torch.cuda.amp import custom_bwd, custom_fwd
+
+try:
+    from apex.contrib.group_norm import GroupNorm
+
+    OPT_GROUP_NORM = True
+except Exception:
+    print('Fused optimized group norm has not been installed.')
+    OPT_GROUP_NORM = False
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
@@ -177,7 +184,19 @@ def get_idx(end, device):
     return torch.arange(start=0, end=end, dtype=torch.float32, device=device)
 
 
-def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
+def build_timestep_embedding(dim, max_timesteps, max_period=10000):
+    timesteps = np.arange(start=0, stop=max_timesteps, dtype=np.float32)
+    half = dim // 2
+    idx = np.arange(start=0, stop=half, dtype=np.float32)
+    freqs = np.exp(-math.log(max_period) / half * idx)
+    args = timesteps[:, None] * freqs[None]
+    embedding = np.concatenate([np.cos(args), np.sin(args)], axis=-1)
+    if dim % 2:
+        embedding = np.concatenate([embedding, np.zeros_like(embedding[:, :1])], axis=-1)
+    return embedding
+
+
+def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False, cached_embedding=None):
     """
     Create sinusoidal timestep embeddings.
 
@@ -193,13 +212,17 @@ def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
     """
 
     if not repeat_only:
-        half = dim // 2
-        idx = get_idx(half, timesteps.device)
-        freqs = torch.exp(-math.log(max_period) / half * idx)
-        args = timesteps[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-        if dim % 2:
-            embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+        if cached_embedding is not None:
+            # using cached embedding and lookup in the cache
+            embedding = cached_embedding[timesteps.to(dtype=torch.int), :]
+        else:
+            half = dim // 2
+            idx = get_idx(half, timesteps.device)
+            freqs = torch.exp(-math.log(max_period) / half * idx)
+            args = timesteps[:, None].float() * freqs[None]
+            embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+            if dim % 2:
+                embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
     else:
         embedding = repeat(timesteps, "b -> b d", d=dim)
     return embedding

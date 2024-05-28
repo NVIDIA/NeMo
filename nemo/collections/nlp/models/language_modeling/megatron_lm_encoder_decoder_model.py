@@ -189,6 +189,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 param._disable_greedy_grad_copy = not self.megatron_amp_O2
                 param._disable_overlap_grad_sync = True
 
+            # Make sure embedding grads are reduced in FP32
+            for name, param in self.named_parameters():
+                if 'word_embedding' in name or 'position_embedding' in name or 'output_layer' in name:
+                    param._with_fp32_optimizer = True
+
         return super().configure_optimizers()
 
     def _handle_bias_activation_fusion_args(self, cfg):
@@ -906,9 +911,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+        We setup datasets here as megatron datasets require DDP to instantiate.
+        See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
@@ -1001,7 +1008,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 Format is not defined and should match the expected format of the used hiddens modules.
         """
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
-        if parallel_state.is_unitialized():
+        if not parallel_state.is_initialized():
 
             def dummy():
                 return
@@ -1408,11 +1415,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def complete(self, request: Dict):
         """
-            Autoregressively invokes language model in the inference mode
+        Autoregressively invokes language model in the inference mode
+
         Args:
             request: Dictionary with the following fields
                 * prompt: a string which text the model should complete.
                 * tokens_to_generate: how many tokens to generate while doing prompt completion.
+
         Returns:
             response: A python dictionary with the following fields
                 * prompt: original text of the prompt

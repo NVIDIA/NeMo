@@ -182,16 +182,16 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         return self._train_ds, self._validation_ds, self._test_ds
 
     def setup(self, stage=None):
-        """ PTL hook that is executed after DDP spawns.
-            We setup datasets here as megatron datasets require DDP to instantiate.
-            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        """
+        PTL hook that is executed after DDP spawns.
+        We setup datasets here as megatron datasets require DDP to instantiate.
+        See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
 
-        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert(
-            self.model
-        )
+        num_parameters_on_device, total_num_parameters = self._get_total_params_across_model_parallel_groups_gpt_bert()
 
         logging.info(
             f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
@@ -227,7 +227,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     sync_embeddings = (
-                        module.initialize_last_stage_with_word_embeddings
+                        module.setup_embeddings_and_output_layer
                         if self.mcore_bert
                         else module.sync_initial_word_embeddings
                     )
@@ -235,7 +235,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
                 sync_embeddings = (
-                    self.model.initialize_last_stage_with_word_embeddings
+                    self.model.setup_embeddings_and_output_layer
                     if self.mcore_bert
                     else self.model.sync_initial_word_embeddings
                 )

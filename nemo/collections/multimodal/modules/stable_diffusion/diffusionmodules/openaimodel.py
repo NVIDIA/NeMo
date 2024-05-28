@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+import os
+import re
 from abc import abstractmethod
 from collections.abc import Iterable
+from contextlib import nullcontext
 from functools import partial
 from typing import Iterable
 
@@ -26,6 +29,7 @@ import torch.nn.functional as F
 from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
     avg_pool_nd,
+    build_timestep_embedding,
     checkpoint,
     conv_nd,
     default,
@@ -37,17 +41,72 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 )
 from nemo.utils import logging
 
+try:
+    # FP8 related import
+    import transformer_engine
 
-def convert_module_to_dtype(module, dtype):
+    HAVE_TE = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
+try:
+    from apex.contrib.group_norm import GroupNorm
+
+    OPT_GROUP_NORM = True
+except Exception:
+    print('Fused optimized group norm has not been installed.')
+    OPT_GROUP_NORM = False
+
+
+def convert_module_to_dtype(module, dtype, enable_norm_layers=False):
     # Convert module parameters to dtype
     if isinstance(module, (torch.nn.Conv1d, torch.nn.Conv2d, torch.nn.Linear)):
         module.weight.data = module.weight.data.to(dtype)
         if module.bias is not None:
             module.bias.data = module.bias.data.to(dtype)
 
+    if enable_norm_layers:
+        if isinstance(module, (nn.LayerNorm, nn.GroupNorm, GroupNorm)):
+            module.weight.data = module.weight.data.to(dtype)
+            if module.bias is not None:
+                module.bias.data = module.bias.data.to(dtype)
 
-def convert_module_to_fp16(module):
-    convert_module_to_dtype(module, torch.float16)
+
+def convert_module_to_fp16(module, enable_norm_layers=False):
+    convert_module_to_dtype(module, torch.float16, enable_norm_layers)
+
+
+def convert_module_to_fp32(module, enable_norm_layers=False):
+    convert_module_to_dtype(module, torch.float32, enable_norm_layers)
+
+
+def convert_module_to_fp8(model):
+    def _set_module(model, submodule_key, module):
+        tokens = submodule_key.split('.')
+        sub_tokens = tokens[:-1]
+        cur_mod = model
+        for s in sub_tokens:
+            cur_mod = getattr(cur_mod, s)
+        setattr(cur_mod, tokens[-1], module)
+
+    import copy
+
+    from transformer_engine.pytorch.module import Linear as te_Linear
+
+    for n, v in model.named_modules():
+        if isinstance(v, torch.nn.Linear):
+            # if n in ['class_embed', 'bbox_embed.layers.0', 'bbox_embed.layers.1', 'bbox_embed.layers.2']: continue
+            logging.info(f'[INFO] Replace Linear: {n}, weight: {v.weight.shape}')
+            if v.bias is None:
+                is_bias = False
+            else:
+                is_bias = True
+            newlinear = te_Linear(v.in_features, v.out_features, bias=is_bias)
+            newlinear.weight = copy.deepcopy(v.weight)
+            if v.bias is not None:
+                newlinear.bias = copy.deepcopy(v.bias)
+            _set_module(model, n, newlinear)
 
 
 class AttentionPool2d(nn.Module):
@@ -538,8 +597,10 @@ class UNetModel(nn.Module):
         from_NeMo=False,
         # It must be specified when from pretrained is not None. It indicates loading unet from NeMo trained ckpt or HF
         use_flash_attention: bool = False,
-        enable_amp_o2_fp16: bool = False,
+        unet_precision: str = "fp32",
         lora_network_alpha=None,
+        timesteps=1000,
+        use_te_fp8: bool = False,
     ):
         super().__init__()
         from omegaconf.listconfig import ListConfig
@@ -616,6 +677,10 @@ class UNetModel(nn.Module):
             linear(model_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
         )
 
+        self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps))
+        if unet_precision == 'fp16-mixed' or unet_precision == 'fp16':
+            self.time_embeddings = self.time_embeddings.to(torch.float16)
+
         if self.num_classes is not None:
             if isinstance(self.num_classes, int):
                 self.label_emb = nn.Embedding(num_classes, time_embed_dim)
@@ -631,6 +696,7 @@ class UNetModel(nn.Module):
                 )
             elif self.num_classes == "sequential":
                 assert adm_in_channels is not None
+                self.adm_in_channels = adm_in_channels
                 self.label_emb = nn.Sequential(
                     nn.Sequential(
                         linear(adm_in_channels, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim),
@@ -645,6 +711,7 @@ class UNetModel(nn.Module):
         input_block_chans = [model_channels]
         ch = model_channels
         ds = 1
+        self.use_te_fp8 = use_te_fp8
         for level, mult in enumerate(channel_mult):
             for nr in range(self.num_res_blocks[level]):
                 layers = [
@@ -695,6 +762,7 @@ class UNetModel(nn.Module):
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
                                 lora_network_alpha=lora_network_alpha,
+                                use_te=self.use_te_fp8,
                             )
                         )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -760,6 +828,7 @@ class UNetModel(nn.Module):
                 use_linear=use_linear_in_transformer,
                 use_checkpoint=use_checkpoint,
                 use_flash_attention=use_flash_attention,
+                use_te=self.use_te_fp8,
                 lora_network_alpha=lora_network_alpha,
             ),
             ResBlock(
@@ -787,6 +856,7 @@ class UNetModel(nn.Module):
                         dims=dims,
                         use_checkpoint=use_checkpoint,
                         use_scale_shift_norm=use_scale_shift_norm,
+                        resblock_gn_groups=resblock_gn_groups,
                     )
                 ]
                 ch = model_channels * mult
@@ -825,6 +895,7 @@ class UNetModel(nn.Module):
                                 use_checkpoint=use_checkpoint,
                                 use_flash_attention=use_flash_attention,
                                 lora_network_alpha=lora_network_alpha,
+                                use_te=self.use_te_fp8,
                             )
                         )
                 if level and i == self.num_res_blocks[level]:
@@ -876,8 +947,40 @@ class UNetModel(nn.Module):
                 logging.info(f"Missing keys: {missing_key}")
                 logging.info(f"Unexpected keys: {unexpected_keys}")
 
-        if enable_amp_o2_fp16:
+        if unet_precision == "fp16-mixed":  # AMP O2
             self.convert_to_fp16()
+        elif unet_precision == 'fp16':
+            self.convert_to_fp16(enable_norm_layers=True)
+        elif self.use_te_fp8:
+            assert unet_precision != 'fp16', "fp8 training can't work with fp16 O2 amp recipe"
+            convert_module_to_fp8(self)
+
+            fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
+            fp8_interval = int(os.getenv("FP8_INTERVAL", '1'))
+            fp8_format = os.getenv("FP8_FORMAT", "hybrid")
+            fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", '1024'))
+            fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", 'max')
+            fp8_wgrad = os.getenv("FP8_WGRAD", '1') == '1'
+
+            fp8_format_dict = {
+                'hybrid': transformer_engine.common.recipe.Format.HYBRID,
+                'e4m3': transformer_engine.common.recipe.Format.E4M3,
+            }
+            fp8_format = fp8_format_dict[fp8_format]
+
+            self.fp8_recipe = transformer_engine.common.recipe.DelayedScaling(
+                margin=fp8_margin,
+                interval=fp8_interval,
+                fp8_format=fp8_format,
+                amax_history_len=fp8_amax_history_len,
+                amax_compute_algo=fp8_amax_compute_algo,
+                override_linear_precision=(False, False, not fp8_wgrad),
+            )
+            old_state_dict = self.state_dict()
+            new_state_dict = self.te_fp8_key_mapping(old_state_dict)
+            self.load_state_dict(new_state_dict, strict=False)
+
+        self.unet_precision = unet_precision
 
     def _input_blocks_mapping(self, input_dict):
         res_dict = {}
@@ -977,8 +1080,65 @@ class UNetModel(nn.Module):
             res_dict[new_key_] = value_
         return res_dict
 
+    def _legacy_unet_ckpt_mapping(self, unet_dict):
+        new_dict = {}
+        key_map = {
+            'transformer_blocks.0.norm1.weight': 'transformer_blocks.0.attn1.norm.weight',
+            'transformer_blocks.0.norm1.bias': 'transformer_blocks.0.attn1.norm.bias',
+            'transformer_blocks.0.norm2.weight': 'transformer_blocks.0.attn2.norm.weight',
+            'transformer_blocks.0.norm2.bias': 'transformer_blocks.0.attn2.norm.bias',
+            'transformer_blocks.0.norm3.weight': 'transformer_blocks.0.ff.net.0.weight',
+            'transformer_blocks.0.norm3.bias': 'transformer_blocks.0.ff.net.0.bias',
+            'transformer_blocks.0.ff.net.0.proj.weight': 'transformer_blocks.0.ff.net.1.proj.weight',
+            'transformer_blocks.0.ff.net.0.proj.bias': 'transformer_blocks.0.ff.net.1.proj.bias',
+            'transformer_blocks.0.ff.net.2.weight': 'transformer_blocks.0.ff.net.3.weight',
+            'transformer_blocks.0.ff.net.2.bias': 'transformer_blocks.0.ff.net.3.bias',
+        }
+
+        pattern = re.compile(r'(input_blocks|output_blocks)\.[\d\w]+\.[\d\w]+\.')
+        pattern_middle_block = re.compile(r'middle_block\.[\d\w]+\.')
+        for old_key, value in unet_dict.items():
+            match = pattern.match(old_key)
+            match_middle = pattern_middle_block.match(old_key)
+            if match or match_middle:
+                prefix = match.group(0) if match else match_middle.group(0)
+                suffix = old_key.split('.', 3)[-1] if match else old_key.split('.', 2)[-1]
+                if suffix in key_map:
+                    new_key = prefix + key_map[suffix]
+                    new_dict[new_key] = value
+                else:
+                    new_dict[old_key] = value
+            else:
+                new_dict[old_key] = value
+
+        return new_dict
+
+    def te_fp8_key_mapping(self, unet_dict):
+        new_state_dict = {}
+        for key in unet_dict.keys():
+            if 'extra_state' in key:
+                continue
+
+            ### LayerNormLinear
+            # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
+            # norm_to_q.weight -> to_q.weight
+            new_key = key.replace('attn1.norm.', 'attn1.norm_to_q.layer_norm_')
+            new_key = new_key.replace('attn1.to_q.weight', 'attn1.norm_to_q.weight',)
+            new_key = new_key.replace('attn2.norm.', 'attn2.norm_to_q.layer_norm_')
+            new_key = new_key.replace('attn2.to_q.weight', 'attn2.norm_to_q.weight',)
+
+            ### LayerNormMLP
+            # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
+            # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
+            # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
+            new_key = new_key.replace('ff.net.0.', 'ff.net.layer_norm_')
+            new_key = new_key.replace('ff.net.1.proj.', 'ff.net.fc1_')
+            new_key = new_key.replace('ff.net.3.', 'ff.net.fc2_')
+
+            new_state_dict[new_key] = unet_dict[key]
+        return new_state_dict
+
     def _state_key_mapping(self, state_dict: dict):
-        import re
 
         res_dict = {}
         input_dict = {}
@@ -1004,13 +1164,7 @@ class UNetModel(nn.Module):
         mid_dict = self._mid_blocks_mapping(mid_dict)
         other_dict = self._other_blocks_mapping(other_dict)
         sdxl_dict = self._sdxl_embedding_mapping(sdxl_dict)
-        # key_list = state_dict.keys()
-        # key_str = " ".join(key_list)
 
-        # for key_, val_ in state_dict.items():
-        #     key_ = key_.replace("down_blocks", "input_blocks")\
-        #         .replace("up_blocks", 'output_blocks')
-        #     res_dict[key_] = val_
         res_dict.update(input_dict)
         res_dict.update(output_dict)
         res_dict.update(mid_dict)
@@ -1023,6 +1177,7 @@ class UNetModel(nn.Module):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
             state_dict = self._state_key_mapping(state_dict)
+        state_dict = self._legacy_unet_ckpt_mapping(state_dict)
 
         model_state_dict = self.state_dict()
         loaded_keys = [k for k in state_dict.keys()]
@@ -1036,7 +1191,7 @@ class UNetModel(nn.Module):
             state_dict['output_blocks.2.2.conv.bias'] = state_dict['output_blocks.2.1.conv.bias']
             state_dict['output_blocks.2.2.conv.weight'] = state_dict['output_blocks.2.1.conv.weight']
 
-        if 'out.1.weight' in missing_keys:
+        if 'out.1.weight' in missing_keys and 'out.2.weight' in state_dict.keys():
             state_dict['out.1.weight'] = state_dict['out.2.weight']
             state_dict['out.1.bias'] = state_dict['out.2.bias']
 
@@ -1090,14 +1245,16 @@ class UNetModel(nn.Module):
         for key_, value_ in state_dict.items():
             if key_.startswith('model.diffusion_model'):
                 re_state_dict[key_.replace('model.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model'):
+            elif key_.startswith('model.model.diffusion_model'):
                 re_state_dict[key_.replace('model.model.diffusion_model.', '')] = value_
-            if key_.startswith('model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model._orig_mod.diffusion_model.'):
+            elif key_.startswith('model.model._orig_mod.diffusion_model.'):
                 re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
-            if key_.startswith('model.model.diffusion_model._orig_mod.'):
+            elif key_.startswith('model.model.diffusion_model._orig_mod.'):
                 re_state_dict[key_.replace('model.model.diffusion_model._orig_mod.', '')] = value_
+            else:
+                re_state_dict[key_] = value_
         return re_state_dict
 
     def _load_state_dict_into_model(self, state_dict):
@@ -1120,13 +1277,13 @@ class UNetModel(nn.Module):
 
         return error_msgs
 
-    def convert_to_fp16(self):
+    def convert_to_fp16(self, enable_norm_layers=False):
         """
         Convert the torso of the model to float16.
         """
-        self.apply(convert_module_to_fp16)
+        self.apply(lambda module: convert_module_to_fp16(module=module, enable_norm_layers=enable_norm_layers))
 
-    def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
+    def _forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         """
         Apply the model to an input batch.
 
@@ -1145,7 +1302,14 @@ class UNetModel(nn.Module):
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
         hs = []
-        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+        if self.unet_precision == "fp16-mixed" or self.unet_precision == "fp16":
+            x = x.type(torch.float16)
+            if context is not None:
+                context = context.type(torch.float16)
+
+        t_emb = timestep_embedding(
+            timesteps, self.model_channels, cached_embedding=self.time_embeddings.to(timesteps.device)
+        )
         emb = self.time_embed(t_emb)
         if self.num_classes is not None:
             assert y.shape[0] == x.shape[0]
@@ -1163,6 +1327,13 @@ class UNetModel(nn.Module):
             return self.id_predictor(h)
         else:
             return self.out(h)
+
+    def forward(self, x, timesteps=None, context=None, y=None, **kwargs):
+        with transformer_engine.pytorch.fp8_autocast(
+            enabled=self.use_te_fp8, fp8_recipe=self.fp8_recipe,
+        ) if self.use_te_fp8 else nullcontext():
+            out = self._forward(x, timesteps, context, y, **kwargs)
+        return out
 
 
 class EncoderUNetModel(nn.Module):

@@ -19,6 +19,7 @@ Example to run this conversion script:
      --input_name_or_path "thenlper/gte-large" \
      --output_path /path/to/output/nemo/file.nemo \
      --mcore True \
+     --post_process False \
      --precision 32
 ```
 """
@@ -31,6 +32,7 @@ from omegaconf import OmegaConf
 from transformers import AutoModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 
@@ -62,6 +64,9 @@ def get_args():
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
+        "--post_process", type=bool, default=False, required=False, help="Whether to have the postprocessing modules"
+    )
+    parser.add_argument(
         "--precision", type=str, default="32", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
 
@@ -79,6 +84,14 @@ def convert(args):
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronBertModel(nemo_config.model, trainer)
+
+    if not args.post_process:
+        model.model.lm_head, model.model.encoder.final_layernorm, model.model.binary_head, model.model.output_layer = (
+            None,
+            None,
+            None,
+            None,
+        )
 
     nemo_state_dict = {}
     hf_config = hf_model.config.to_dict()
@@ -183,6 +196,19 @@ def convert(args):
         nemo_state_dict[LayerNorm2_weight_base_name] = param_to_weights(LayerNorm2_weight)
         nemo_state_dict[LayerNorm2_bias_base_name] = param_to_weights(LayerNorm2_bias)
 
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'
+        ]
+
     # Non-layer dependent keys
     word_embeddings_weight = hf_model.state_dict()['embeddings.word_embeddings.weight']
     position_embeddings_weight = hf_model.state_dict()['embeddings.position_embeddings.weight']
@@ -238,6 +264,8 @@ def convert(args):
             nemo_state_dict['model.language_model.embedding.word_embeddings.weight'] = padded_embedding
 
     model.load_state_dict(nemo_state_dict, strict=True)
+    dtype = torch_dtype_from_precision(args.precision)
+    model = model.to(dtype=dtype)
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
 
