@@ -81,9 +81,7 @@ def main(cfg) -> None:
     model = MegatronDiffusionEngine(cfg.model, trainer)
 
     if cfg.model.get('peft', None):
-
         peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
-
         if cfg.model.peft.restore_from_path is not None:
             # initialize peft weights from a checkpoint instead of randomly
             # This is not the same as resume training because optimizer states are not restored.
