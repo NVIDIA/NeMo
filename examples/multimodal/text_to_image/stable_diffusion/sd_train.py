@@ -25,6 +25,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.callbacks import CUDAGraphCallback
 from nemo.utils.exp_manager import exp_manager
+from nemo.lightning.base import teardown
 
 
 class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
@@ -107,8 +108,10 @@ def main(cfg) -> None:
         else:
             logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
 
-    trainer.fit(model)
-
+    try:
+        trainer.fit(model)
+    finally:
+        teardown(trainer)
 
 if __name__ == '__main__':
     main()
