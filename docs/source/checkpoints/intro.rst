@@ -1,8 +1,6 @@
 Checkpoints
 ===========
 
-Checkpoints
-===========
 
 In this section, we present key functionalities of NVIDIA NeMo related to checkpoint management.
 
