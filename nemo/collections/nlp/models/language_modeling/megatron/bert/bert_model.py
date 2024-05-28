@@ -345,11 +345,6 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             transformer_block_type=self.transformer_block_type,
         )
 
-        if self.add_pooler:
-            self.pooler = Pooler(
-                self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
-            )
-
         # Output
         if self.post_process:
             # TODO: Make sure you are passing in the mpu_vocab_size properly
@@ -376,6 +371,11 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 self.binary_head = mcore_get_linear_layer(
                     self.config.hidden_size, 2, self.config.init_method, self.config.perform_initialization
                 )
+
+                if self.add_pooler:
+                    self.pooler = Pooler(
+                        self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
+                    )
 
     def forward(
         self,
