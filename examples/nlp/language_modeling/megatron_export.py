@@ -115,8 +115,10 @@ def nemo_export(cfg):
                 app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
                 app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
                 (
+                    app_state.data_parallel_rank,
                     app_state.tensor_model_parallel_rank,
                     app_state.pipeline_model_parallel_rank,
+                    app_state.expert_model_parallel_rank,
                     app_state.model_parallel_size,
                     app_state.data_parallel_size,
                     app_state.pipeline_model_parallel_split_rank,

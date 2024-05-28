@@ -89,8 +89,10 @@ def main():
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
         app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
         (
+            app_state.data_parallel_rank,
             app_state.tensor_model_parallel_rank,
             app_state.pipeline_model_parallel_rank,
+            app_state.expert_model_parallel_rank,
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,
