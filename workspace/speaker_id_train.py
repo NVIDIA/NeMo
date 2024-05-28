@@ -48,7 +48,7 @@ Optional: Use tarred dataset to speech up data loading.
    For details, please see TarredAudioToClassificationLabelDataset in <NEMO_ROOT>/nemo/collections/asr/data/audio_to_label.py
 """
 
-seed_everything(42)
+# seed_everything(42)
 
 
 def load_ssl_encoder(model, cfg):

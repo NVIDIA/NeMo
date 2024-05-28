@@ -1060,20 +1060,29 @@ class RandomSegmentPerturbation(Perturbation):
         duration_sec (float): duration of the segment to be extracted
         pad_to_duration (bool): zero pad if length of input audio < duration_sec
         rng: Random seed. Default is None
+        min_rms_db: Minimum RMS db value for the perturbed audio. Default is None
+        max_trials: Maximum number of trials to find a segment with RMS db > min_rms_db. Default is 10
+        verbose: If True, logs a warning if RMS db < min_rms_db after max_trials. Default is False
     """
 
-    def __init__(self, duration_sec=32.0, pad_to_duration=False, rng=None):
+    def __init__(
+        self, duration_sec=32.0, pad_to_duration=False, rng=None, min_rms_db=None, max_trials=10, verbose=False
+    ):
         if duration_sec <= 0:
             raise ValueError("duration_sec should be > 0")
 
         self._duration_sec = duration_sec
         self._pad_to_duration = pad_to_duration
+        self._min_rms_db = min_rms_db
+        self._max_trials = max_trials
+        self._verbose = verbose
         random.seed(rng) if rng else None
 
-    def perturb(self, data):
+    def perturb(self, data: AudioSegment):
         if self._duration_sec > data.duration:
             if not self._pad_to_duration:
-                raise ValueError(f"audio length < {self._duration_sec} sec and pad_to_duration is set to False")
+                # don't do anything if pad_to_duration is False
+                return
             start_time = 0.0
             pad_size = self._duration_sec * data.sample_rate - data.num_samples
             data.pad(pad_size=pad_size)
@@ -1081,6 +1090,22 @@ class RandomSegmentPerturbation(Perturbation):
             start_time = random.uniform(0.0, data.duration - self._duration_sec)
 
         end_time = start_time + self._duration_sec
+        new_data = copy.deepcopy(data)
+        new_data.subsegment(start_time=start_time, end_time=end_time)
+        if self._min_rms_db is not None:
+            rms_db = new_data.rms_db if new_data.num_channels == 1 else min(new_data.rms_db)
+            trial = 0
+            while rms_db < self._min_rms_db and trial < self._max_trials:
+                start_time = random.uniform(0.0, data.duration - self._duration_sec)
+                end_time = start_time + self._duration_sec
+                new_data = copy.deepcopy(data)
+                new_data.subsegment(start_time=start_time, end_time=end_time)
+                rms_db = new_data.rms_db if new_data.num_channels == 1 else min(new_data.rms_db)
+                trial += 1
+            if self._verbose and trial == self._max_trials and rms_db < self._min_rms_db:
+                logging.warning(
+                    f"Could not find a segment with RMS db > {self._min_rms_db} after {self._max_trials} trials."
+                )
         data.subsegment(start_time=start_time, end_time=end_time)
 
 
