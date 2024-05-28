@@ -157,13 +157,14 @@ def align_feat_seq_list(
     return new_seq_list, new_seq_len_list
 
 
-def to_cuda(inputs, non_blocking=True):
-    """Recursively move inputs to cuda."""
-    if isinstance(inputs, torch.Tensor):
-        return inputs.cuda(non_blocking=non_blocking)
-    elif isinstance(inputs, dict):
-        return {k: to_cuda(v, non_blocking) for k, v in inputs.items()}
-    elif isinstance(inputs, (list, tuple, set)):
-        return inputs.__class__([to_cuda(x, non_blocking) for x in inputs])
+def build_loss_mask(processed_example: dict, answer_only_loss: bool = True):
+    """Pad input_ids in batch to max batch length while building loss mask"""
+    # function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
+    input_ids = processed_example['input_ids']
+    answer_start_idx = processed_example['answer_start_idx']
+    if answer_only_loss:
+        loss_mask = [float(idx >= answer_start_idx) for idx in range(len(input_ids))]
     else:
-        return inputs
+        loss_mask = [1.0] * len(input_ids)
+
+    return loss_mask

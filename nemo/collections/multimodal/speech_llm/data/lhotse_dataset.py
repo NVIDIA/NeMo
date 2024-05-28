@@ -5,6 +5,8 @@ from typing import Optional
 import numpy as np
 import torch.utils.data
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
+
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import build_loss_mask, ceil_to_nearest
 from nemo.utils import logging
 
 
@@ -20,13 +22,33 @@ def collate_vectors(items, max_length: int, padding_value):
     return vectors
 
 
-def ceil_to_nearest(n, m):
-    return (n + m - 1) // m * m
-
-
 class TextProcessing:
     """
-    Text processing pipeline for AudioQuestionAnswerDataset and TarredAudioQuestionAnswerDataset.
+    Text processing pipeline for lhotse based speech_llm data loader.
+    This class is adapted from the one used in nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py
+    The class follows the interface of _process_example which takes in a context and an output
+      and processes them into a formatted training example.
+
+    Args:
+        tokenizer: text tokenizer object
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
+        add_bos (bool): Whether to add a beginning of sentence token to each data example
+        add_eos (bool): Whether to add an end of sentence token to each data example
+        add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
+        sep_id (int): The id of the separation token
+        separate_prompt_and_response_with_newline (bool): Whether to separate the prompt and response with a newline character
+        answer_only_loss (bool): Whether to compute the loss only on the answer part of the input
+        truncation_field (str): Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
+        pad_to_max_length (bool): Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
+        prompt_template (str): Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
+        virtual_tokens (int): Number of virtual tokens to add to the beginning of the input
+        tokens_to_generate (int): Number of tokens to generate during inference
+        input_key (str): Key to use for the input in your JSONL file
+        output_key (str): Key to use for the output in your JSONL file
+        end_string (Optional[str]): If not None, add this string to the end of the answer.
+        sample_alpha (Optional[float]): For SPE subword sampling
+        input_text_mask_ratio (Optional[float]): If not None, will mask the input text at this ratio.
     """
 
     def __init__(
@@ -234,6 +256,9 @@ class TextProcessing:
         return processed_example
 
 
+# The following function tries to reuse the canary data by following the special
+# tokens in nemo/collections/asr/data/audio_to_text_lhotse_prompted.py
+# TODO: try to move away from canary special token conversion and design a configurable prompting setup instead
 def convert_canary_prompt_to_text(prompt, is_canary_tokens_augment):
     ps = prompt.replace("<pad>", "").split('>')
 
@@ -297,6 +322,19 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     Specifically, it performs tokenization, I/O, augmentation, and feature extraction (if any).
     Managing data, sampling, de-duplication across workers/nodes etc. is all handled
     by Lhotse samplers instead.
+
+    Args:
+        text_processor: TextProcessing object
+        default_question: Default question to use if no question is provided
+        tokens_to_generate: Number of tokens to generate during inference
+        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
+        max_seq_length: Maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
+        canary_processor: Optional Canary processor to convert canary tokens to text
+        convert_canary_prompt_to_text: Whether to convert canary prompt to text
+        prepend_to_exist_question: Optional string to prepend to existing question
+        canary_tokens_augment_ratio: Ratio of canary tokens to augment
+        random_context_prob: Probability of injecting random context
+        random_context_positive_percent: Percentage of positive random context
     """
 
     def __init__(
@@ -306,7 +344,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         tokens_to_generate: int,
         pad_to_max_length: bool,
         max_seq_length: int,
-        noise_cuts: Optional = None,
         canary_processor: Optional = None,
         convert_canary_prompt_to_text: bool = False,
         prepend_to_exist_question: Optional = None,
@@ -319,9 +356,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         super().__init__()
         self.text_processor = text_processor
         self.load_audio = AudioSamples(fault_tolerant=True)
-        self.maybe_mix_noise = (
-            _identity if noise_cuts is None else CutMix(noise_cuts, pad_to_longest=False, random_mix_offset=True)
-        )
         self.tokens_to_generate = tokens_to_generate
         self.pad_to_max_length = pad_to_max_length
         self.max_seq_length = max_seq_length
@@ -355,7 +389,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
-        cuts = self.maybe_mix_noise(cuts)
 
         audio, audio_lens, cuts = self.load_audio(cuts)
 
@@ -372,16 +405,24 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             _, _, _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
             for id, cut in enumerate(cuts):
                 canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(canary_tokens[id].tolist())
-                if audio_ratio[id] == 0.0:
+                if audio_ratio[id] == 0.0:  # text only data should include question
                     assert hasattr(cut, "question")
                 elif self.prepend_to_exist_question and hasattr(cut, "question"):
                     cut.question = self.prepend_to_exist_question + cut.question
                 elif self.convert_canary_prompt_to_text:
                     cut.question = convert_canary_prompt_to_text(canary_text, is_canary_tokens_augment)
                 elif hasattr(cut, "question"):
+                    # if the manifest has question field, use it
                     pass
                 else:
+                    # use the canary special token as it is
                     cut.question = self.question + ' ' + canary_text
+        else:
+            if hasattr(cut, "question"):
+                pass
+            else:
+                cut.question = self.question
+
         metadata = []
         for id, cut in enumerate(cuts):
             self._inject_random_context_into_question(
@@ -456,7 +497,7 @@ def collate_text_data(
         "tokens_length": full_lengths - 1,
         "labels": all_tokens[:, 1:],
         "loss_mask": collate_vectors(
-            [torch.as_tensor(_build_loss_mask(item)) for item in examples], max_length=max_length, padding_value=0
+            [torch.as_tensor(build_loss_mask(item)) for item in examples], max_length=max_length, padding_value=0
         )[:, 1:],
         "position_ids": torch.arange(max_length, dtype=torch.long).repeat(batch_size, 1),
         "contexts": collate_vectors(fields["context_ids"], max_length=max_length, padding_value=pad_id),
@@ -467,27 +508,10 @@ def collate_text_data(
 
 
 def adjust_input_ids(item: dict) -> dict:
-    """Mimics the logic from nemo/collections/multimodal/data/audio_text_qa_dataset.py:131"""
+    """masked_input_ids is used for masking llm input text. Use when exists."""
     item["input_ids"] = item.get("masked_input_ids", item["input_ids"])
     return item
 
 
 def as_dict(arg: list[dict]) -> dict[str, list]:
     return {k: [item[k] for item in arg] for k in arg[0].keys()}
-
-
-def _identity(x):
-    return x
-
-
-def _build_loss_mask(processed_example: dict, answer_only_loss: bool = True):
-    """Pad input_ids in batch to max batch length while building loss mask"""
-    # function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
-    input_ids = processed_example['input_ids']
-    answer_start_idx = processed_example['answer_start_idx']
-    if answer_only_loss:
-        loss_mask = [float(idx >= answer_start_idx) for idx in range(len(input_ids))]
-    else:
-        loss_mask = [1.0] * len(input_ids)
-
-    return loss_mask

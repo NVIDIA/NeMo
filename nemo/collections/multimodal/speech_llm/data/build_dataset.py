@@ -18,7 +18,12 @@ import torch
 from megatron.core import parallel_state
 from omegaconf.omegaconf import OmegaConf
 
+from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
+    PromptedAudioToTextLhotseDataset,
+    get_prompt_format_fn,
+)
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
     get_audio_text_dataset_from_config,
     get_tarred_audio_text_dataset_from_config,
@@ -77,11 +82,6 @@ def build_salm_dataset(model_instance, data_cfg, is_train):
             input_text_mask_ratio=data_cfg.get('input_text_mask_ratio', None),
         )
         if model_instance.cfg.perception.get("is_canary", False):
-            from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
-                PromptedAudioToTextLhotseDataset,
-                get_prompt_format_fn,
-            )
-
             perception_tokenizer = (
                 model_instance.perception.tokenizer
                 if hasattr(model_instance.perception, "tokenizer")
@@ -138,24 +138,19 @@ def build_salm_dataset(model_instance, data_cfg, is_train):
 def build_salm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict=False, is_eval=False):
     """Buld dataloader given an input dataset."""
     if data_cfg.get("use_lhotse"):
-        from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-
-        # for eval, we need to create separate dataset so as to report splitted numbers
-        if data_cfg.get('is_tarred', False) or (is_eval == False and is_predict == False):
+        if is_eval == False and is_predict == False:
             return get_lhotse_dataloader_from_config(
                 data_cfg,
                 global_rank=parallel_state.get_data_parallel_rank(),
                 world_size=parallel_state.get_data_parallel_world_size(),
                 dataset=dataset,
             )
+        # for eval, we need to create separate dataset so as to report splitted numbers
         else:
             dls = []
             for dataset_idx, (cur_manifest_filepath) in enumerate(data_cfg.manifest_filepath):
                 conf = copy.deepcopy(data_cfg)
                 conf['manifest_filepath'] = cur_manifest_filepath
-                question_file_set = data_cfg.get('question_file_set', None)
-                if question_file_set is not None:
-                    conf['question_file_set'] = [question_file_set[dataset_idx]]
                 dls.append(
                     get_lhotse_dataloader_from_config(
                         conf,

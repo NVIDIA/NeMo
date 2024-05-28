@@ -439,7 +439,11 @@ def lens_to_mask(lens, max_length):
 
 
 class TransformerCrossAttention(NeuralModule, Exportable):
-    """Audio perception model with basic modality_adapter (some fc layers)."""
+    """Transformer module for cross-attention between speech and text embeddings.
+    Args:
+        cfg: DictConfig, configuration object for the module which should include:
+            xattn: DictConfig, configuration object for the transformer decoder
+    """
 
     def __init__(self, cfg: DictConfig, *args, **kwargs):
         super().__init__()
@@ -486,12 +490,19 @@ class TransformerCrossAttention(NeuralModule, Exportable):
         if return_mems:
             extra_outpus = {'decoder_mems_list': y}
             y = y[-1][:, -input_embeds.shape[1] :]
+        else:
+            extra_outpus = {}
         assert y.shape == input_embeds.shape
         return y, extra_outpus
 
 
 class ProjectTransformerCrossAttention(NeuralModule, Exportable):
-    """Audio perception model with basic modality_adapter (some fc layers)."""
+    """Transformer module for cross-attention between speech and text embeddings.
+    The difference is that this module projects the input embeddings to a lower dimension before feeding them to the transformer.
+    Args:
+        cfg: DictConfig, configuration object for the module which should include:
+            xattn: DictConfig, configuration object for the transformer decoder
+    """
 
     def __init__(self, cfg: DictConfig, *args, **kwargs):
         super().__init__()
@@ -542,6 +553,8 @@ class ProjectTransformerCrossAttention(NeuralModule, Exportable):
         if return_mems:
             extra_outpus = {'decoder_mems_list': y}
             y = y[-1][:, -input_embeds.shape[1] :]
+        else:
+            extra_outpus = {}
         y = self.output_proj(y) + input_embeds
         assert y.shape == input_embeds.shape
         return y, extra_outpus

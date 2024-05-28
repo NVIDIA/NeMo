@@ -44,10 +44,6 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         """initialize the batch data before the inference steps."""
         # Move to GPU.
 
-        if self.model.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.model.module
-        else:
-            base_module = self.model.model
         audio_feats, audio_feat_lens = self.model.perception(
             input_signal=audio_signal,
             input_signal_length=audio_length,

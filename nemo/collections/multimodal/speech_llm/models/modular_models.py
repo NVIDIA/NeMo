@@ -99,6 +99,8 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if self._cfg.get('tensor_model_parallel_size', 1) == 1:
             audio_model, _ = self.get_audio_encoder_models_and_configs(cfg)
             self.perception.tokenizer = audio_model.tokenizer
+        else:
+            logging.warning("perception.tokenizer is not set for tensor model parallel size > 1.")
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
@@ -811,7 +813,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             with open_dict(cfg):
                 cfg.model.perception = model_cfg.perception
 
-            audio_model, _ = cls.get_audio_encoder_models_and_configs(cfg)
+            audio_model, _ = cls.get_audio_encoder_models_and_configs(cfg.model)
             speaker_model, _ = cls.get_speaker_model_and_config(cfg)
             model = cls.load_pretrained_audio_weights(cfg, model, audio_model, speaker_model)
         return model

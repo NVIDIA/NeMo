@@ -27,13 +27,13 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
 from nemo.collections.multimodal.speech_llm.data.build_dataset import build_salm_dataloader, build_salm_dataset
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
     MultiAudioPerceptionModule,
 )
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import to_cuda
 from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -71,7 +71,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ["ModularizedAudioGPTModel"]
+__all__ = ["ModularizedAudioT5Model"]
 
 
 default_inference_config = {'tokens_to_generate': 30}
@@ -307,7 +307,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
             encoder_input = encoder_input + position_embeddings
         else:
-            encoder_input = encoder_input
+            pass
         encoder_max_length = encoder_input.shape[1]
         if lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.contiguous()
@@ -923,7 +923,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
-        batch = to_cuda(batch, non_blocking=True)
+        batch = move_to_device(batch, device=self.device)
         encoder_input, attention_mask, enc_mask = self.prepare_llm_input(batch)
         # enc_input = speech and text prompt
         # dec_input and label = text output label
@@ -1340,7 +1340,7 @@ class DecoderTextPromptModularizedAudioT5Model(ModularizedAudioT5Model):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
-        batch = to_cuda(batch, non_blocking=True)
+        batch = move_to_device(batch, device=self.device)
         encoder_input, _, enc_mask = self.prepare_llm_input(batch)
         # enc_input = speech prompt
         # dec_input and label = text prompt and text output label

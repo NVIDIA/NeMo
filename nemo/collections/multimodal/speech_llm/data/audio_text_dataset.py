@@ -32,6 +32,7 @@ from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
+    build_loss_mask,
     ceil_to_nearest,
     get_num_samples_from_files,
     maybe_cast_to_list,
@@ -90,19 +91,6 @@ def _audio_collate_fn(audio_signals, audio_lengths):
     return audio_signals_padded, audio_lengths
 
 
-def _build_loss_mask(processed_example: Dict, answer_only_loss: bool = True):
-    """Pad input_ids in batch to max batch length while building loss mask"""
-    # function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
-    input_ids = processed_example['input_ids']
-    answer_start_idx = processed_example['answer_start_idx']
-    if answer_only_loss:
-        loss_mask = [float(idx >= answer_start_idx) for idx in range(len(input_ids))]
-    else:
-        loss_mask = [1.0] * len(input_ids)
-
-    return loss_mask
-
-
 def _collate_item(item: Union[torch.Tensor, np.ndarray, List], max_length: int, pad_id: int = 0):
     # function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
     item = maybe_cast_to_list(item)
@@ -132,7 +120,7 @@ def _speechllm_audio_text_collate_fn(
     context_lengths = torch.LongTensor([item['context_length'] for item in batch])
     answers = [item['answer_ids'] for item in batch]
 
-    loss_mask = [_build_loss_mask(item)[1:] for item in batch]
+    loss_mask = [build_loss_mask(item)[1:] for item in batch]
 
     max_length = max([len(x) for x in input_ids]) + tokens_to_generate
     # increase max length to nearest multiple of 4 or 8
