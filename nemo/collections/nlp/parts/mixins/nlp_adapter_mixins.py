@@ -56,7 +56,7 @@ def replace_prefix(name, old_prefix, new_prefix):
 
 
 class NLPAdapterModelMixin:
-    """ NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
+    """NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
     This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or an `enc_dec_model` submodule.
     This mixin class adds several utility methods to add, load and save adapters.
 
@@ -92,7 +92,9 @@ class NLPAdapterModelMixin:
         logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
         return False
 
-    def _get_all_keys(self,):
+    def _get_all_keys(
+        self,
+    ):
         """
         Returns all the keys in the model
         """
@@ -271,7 +273,10 @@ class NLPAdapterModelMixin:
             super().setup_optimizer_param_groups()
 
     def load_adapters(
-        self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
+        self,
+        filepath: str,
+        peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None,
+        map_location: str = None,
     ):
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
@@ -441,12 +446,12 @@ class NLPAdapterModelMixin:
             cfg_peft = self.cfg.get('peft', None)
             if cfg_peft and cfg_peft['peft_scheme'] == 'qlora':
                 from nemo.collections.nlp.modules.common.megatron.adapters.qlora import qlora_load_model
-                qlora_load_model(self.model.module if self.megatron_amp_O2 else self.model,
-                                 self.cfg,
-                                 checkpoint['state_dict'])
+
+                qlora_load_model(
+                    self.model.module if self.megatron_amp_O2 else self.model, self.cfg, checkpoint['state_dict']
+                )
             else:
                 super().on_load_checkpoint(checkpoint)
-
 
     @classmethod
     def merge_cfg_with(cls, path: str, cfg: DictConfig) -> DictConfig:

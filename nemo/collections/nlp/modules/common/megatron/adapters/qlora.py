@@ -1,11 +1,14 @@
-from typing import Optional, Dict, TYPE_CHECKING
-import torch
-from torch import nn, Tensor
-import torch.nn.functional as F
-from nemo.collections.nlp.parts.peft_config import get_target_modules, LORA_CONFIG_TO_MCORE_MAP
-from nemo.utils import logging
 from importlib.metadata import version
+from typing import TYPE_CHECKING, Dict, Optional
+
+import torch
+import torch.nn.functional as F
 from pkg_resources import packaging
+from torch import Tensor, nn
+
+from nemo.collections.nlp.parts.peft_config import LORA_CONFIG_TO_MCORE_MAP, get_target_modules
+from nemo.utils import logging
+
 te_version = packaging.version.Version(version("transformer-engine"))
 
 if TYPE_CHECKING:
@@ -15,11 +18,11 @@ if TYPE_CHECKING:
 
 class NF4Weight(nn.Parameter):
     def __new__(
-            cls,
-            data: torch.Tensor,
-            is_nf4_quantized: bool = False,
-            block_size: int = 64,
-            scale_block_size: int = 256,
+        cls,
+        data: torch.Tensor,
+        is_nf4_quantized: bool = False,
+        block_size: int = 64,
+        scale_block_size: int = 256,
     ):
         self = torch.Tensor._make_subclass(cls, data, require_grad=False)
         self._nf4_quantizer = None
@@ -34,16 +37,14 @@ class NF4Weight(nn.Parameter):
 
         nf4_desc = QuantDescriptor(
             num_bits=4,
-            block_sizes={-1: self.block_size,
-                         "scale_bits": 8,
-                         "scale_block_sizes": {-1: self.scale_block_size}},
+            block_sizes={-1: self.block_size, "scale_bits": 8, "scale_block_sizes": {-1: self.scale_block_size}},
             fake_quant=False,
         )
         self._nf4_quantizer = TensorQuantizer(nf4_desc)
         nf4_tensor = self._nf4_quantizer(self.data)
         nf4_tensor._quantized_data = nf4_tensor._quantized_data.to(device)
-        self._nf4_quantizer._scale =  self._nf4_quantizer._scale.to(device)
-        self._nf4_quantizer._double_scale =  self._nf4_quantizer._double_scale.to(device)
+        self._nf4_quantizer._scale = self._nf4_quantizer._scale.to(device)
+        self._nf4_quantizer._double_scale = self._nf4_quantizer._double_scale.to(device)
         self.quantized_data = nf4_tensor
         self.is_nf4_quantized = True
         return self
@@ -52,7 +53,7 @@ class NF4Weight(nn.Parameter):
         assert self.is_nf4_quantized, "NF4 Tensor is not yet quantized, cannot dequantize."
         return self._nf4_quantizer(self.quantized_data)
 
-    def cuda(self, device = None, non_blocking = False):
+    def cuda(self, device=None, non_blocking=False):
         return self.to(device="cuda" if device is None else device, non_blocking=non_blocking)
 
     def to(self, *args, **kwargs):
@@ -74,6 +75,7 @@ class NF4Weight(nn.Parameter):
             return f"NF4Weight(is_nf4_quantized=True, quantized_data={self.quantized_data}"
         else:
             return f"NF4Weight(is_nf4_quantized=False, data={self.data}"
+
 
 class _LinearNF4(torch.autograd.Function):
     @staticmethod
@@ -98,6 +100,7 @@ class NF4LinearWrapper(nn.Module):
     Args:
         bf16_linear_weight: Weight tensor in BF16 to wrap with NF4Weight
     """
+
     def __init__(self, bf16_linear_weight: torch.Tensor):
         super().__init__()
 
@@ -132,14 +135,15 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
         normalization: Same as TELayerNormColumnParallelLinear.config.normalization
         zero_centered_gamma: Same as TELayerNormColumnParallelLinear.config.zero_centered_gamma
     """
+
     def __init__(
-            self,
-            bf16_linear_weight: torch.Tensor,
-            layer_norm_weight: torch.Tensor,
-            layer_norm_bias: Optional[torch.Tensor],
-            normalization: str,
-            zero_centered_gamma: bool,
-        ):
+        self,
+        bf16_linear_weight: torch.Tensor,
+        layer_norm_weight: torch.Tensor,
+        layer_norm_bias: Optional[torch.Tensor],
+        normalization: str,
+        zero_centered_gamma: bool,
+    ):
         super().__init__(bf16_linear_weight)
         self.layer_norm_weight = nn.Parameter(layer_norm_weight)
         if normalization != "RMSNorm":
@@ -159,9 +163,11 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
         '''
         if self.normalization == 'LayerNorm':
             from transformer_engine.pytorch.module.layernorm import _LayerNorm
+
             layer_norm_fn = _LayerNorm.apply
         elif self.normalization == 'RMSNorm':
             from transformer_engine.pytorch.module.rmsnorm import _RMSNorm
+
             layer_norm_fn = _RMSNorm.apply
         else:
             raise ValueError("Unsupported normalization type:", self.normalization)
@@ -190,8 +196,9 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
 
 def qlora_load_model(model: 'MCoreGPTModel', model_cfg: 'DictConfig', checkpoint: Dict[str, Tensor]):
     # swap linear layer and cast weight to nf4
-    qlora_targets = [LORA_CONFIG_TO_MCORE_MAP[x] for x in
-                     get_target_modules(model_cfg.peft.lora_tuning, default=('all',))]
+    qlora_targets = [
+        LORA_CONFIG_TO_MCORE_MAP[x] for x in get_target_modules(model_cfg.peft.lora_tuning, default=('all',))
+    ]
 
     # if not load directly on device, need to load the rest of the model
     # this block should only load word_embeddings, final_layernorm and output_layer weights.
@@ -214,8 +221,13 @@ def qlora_load_model(model: 'MCoreGPTModel', model_cfg: 'DictConfig', checkpoint
                     layer_norm_bias = checkpoint.get(f"{prefix}.{name}.layer_norm_bias", None)
                     normalization = module.config.normalization
                     zero_centered_gamma = module.config.layernorm_zero_centered_gamma
-                    setattr(module, name, NF4LayerNormLinearWrapper(bf16_weight, layer_norm_weight, layer_norm_bias,
-                                                                    normalization, zero_centered_gamma))
+                    setattr(
+                        module,
+                        name,
+                        NF4LayerNormLinearWrapper(
+                            bf16_weight, layer_norm_weight, layer_norm_bias, normalization, zero_centered_gamma
+                        ),
+                    )
             else:
                 replace_linear(child, prefix=f"{prefix}.{name}")
 

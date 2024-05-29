@@ -257,6 +257,7 @@ class LoraPEFTConfig(PEFTConfig):
 
         return adapter_cfg
 
+
 class QLoraPEFTConfig(LoraPEFTConfig):
     pass
 
