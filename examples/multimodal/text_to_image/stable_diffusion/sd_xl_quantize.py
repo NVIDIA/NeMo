@@ -92,7 +92,7 @@ def main(cfg):
     QuantModuleRegistry.register({LinearWrapper: "nemo_linear_wrapper"})(_QuantNeMoLinearWrapper)
 
     if cfg.run_quantization:
-        # Start quantization with ammo
+        # Start quantization with ModelOpt
 
         cali_prompts = load_calib_prompts(
             cfg.quantize.batch_size,

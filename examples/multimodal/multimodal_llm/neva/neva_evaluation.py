@@ -24,13 +24,13 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 
 try:
-    import ammo.torch.quantization as atq
+    import modelopt.torch.quantization as atq
 
-    HAVE_AMMO = True
+    HAVE_MODELOPT = True
 
 except (ImportError, ModuleNotFoundError):
 
-    HAVE_AMMO = False
+    HAVE_MODELOPT = False
 
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
@@ -99,7 +99,7 @@ def main(cfg) -> None:
     )
 
     # =================== Start Quantization ====================
-    if HAVE_AMMO and cfg.quantization.enable == True:
+    if HAVE_MODELOPT and cfg.quantization.enable == True:
         print(f"Using quantization algorithm: {cfg.quantization.algorithm}")
         if cfg.quantization.algorithm == "int8_sq":
             atq_config = atq.INT8_SMOOTHQUANT_CFG
