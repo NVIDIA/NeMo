@@ -30,6 +30,7 @@ class NemoTritonQueryLLMBase(ABC):
         self.url = url
         self.model_name = model_name
 
+
 class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
     """
     Sends a query to Triton for LLM inference
@@ -49,6 +50,7 @@ class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
         )
         print("prompts: ", prompts)
     """
+
     def __init__(self, url, model_name):
         super().__init__(
             url=url,
