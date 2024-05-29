@@ -22,6 +22,7 @@ from nemo.collections.common.losses import NLLLoss
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.core.classes.common import typecheck
+from nemo.utils.decorators import deprecated_warning
 from nemo.utils import timers
 
 __all__ = ['MTBottleneckModel']
@@ -57,6 +58,8 @@ class MTBottleneckModel(MTEncDecModel):
     """
 
     def __init__(self, cfg: MTBottleneckModelConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("MTBottleneckModel")
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.model_type: str = cfg.get("model_type", "nll")
