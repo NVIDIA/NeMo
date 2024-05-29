@@ -26,8 +26,13 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, ApproxGELUActivation, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import is_glu_activation, openai_gelu as openai_gelu_func
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    ApproxGELUActivation,
+    erf_gelu,
+    is_glu_activation,
+)
+from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.core import adapter_mixins
 
