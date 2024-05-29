@@ -263,8 +263,8 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
 
         # for positional embedding types that allow length extrapolation, don't clip the max length
         if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
-            if maxlen > self.model.cfg.seq_length + 1:
-                maxlen = self.model.cfg.seq_length + 1
+            if maxlen > self.model.cfg.encoder_seq_length + 1:
+                maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
@@ -325,148 +325,6 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
-
-
-class T5ModelTextGenerationStrategy(TextGenerationStrategy):
-    def __init__(self, model):
-        super().__init__(model)
-        self.forward_model = self.model.enc_dec_model
-        self.pad_id = self.model.tokenizer.pad_id
-        self.bos_id = self.model.tokenizer.bos_id
-
-    def tokenize_batch(self, sentences, tokens_to_generate, add_BOS):
-        tokenizer = self.model.tokenizer
-        if add_BOS:
-            encoder_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
-        elif hasattr(tokenizer.tokenizer, "get_prefix_tokens"):
-            # chatglm: add tokenizer.gmask_id, tokenizer.sop_id
-            encoder_tokens = [tokenizer.tokenizer.get_prefix_tokens() + tokenizer.text_to_ids(s) for s in sentences]
-        else:
-            encoder_tokens = [tokenizer.text_to_ids(s) for s in sentences]
-
-        self.encoder_tokens = torch.LongTensor(pad_batch(encoder_tokens, self.pad_id, 0)[0]).to(self.model.device)
-        
-        decoder_tokens = [[self.bos_id]] * len(encoder_tokens)
-        decoder_tokens, decoder_lengths = pad_batch(decoder_tokens, self.pad_id, tokens_to_generate)
-        decoder_tokens_tensor = torch.LongTensor(decoder_tokens).to(self.model.device)
-        decoder_length_tensor = torch.LongTensor(decoder_lengths).to(self.model.device)
-        return decoder_tokens_tensor, decoder_length_tensor
-    
-    def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
-        # for positional embedding types that allow length extrapolation, don't clip the max length
-        if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
-            if maxlen > self.model.cfg.seq_length + 1:
-                maxlen = self.model.cfg.seq_length + 1
-        return maxlen
-    
-    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
-        """initialize the batch data before the inference steps."""
-        # Move to GPU.
-        tokenizer = self.model.tokenizer
-        batch_size = context_tokens.shape[0]
-        decoder_length = context_tokens.shape[1]
-        
-        # idk why mcore chose >= 1.
-        # https://github.com/hsiehjackson/Megatron-LM/blob/24.03.01.fw/megatron/core/datasets/t5_dataset.py#L206
-        # [b, s, s]
-        self.encoder_attn_mask = ((self.encoder_tokens.unsqueeze(1) != self.pad_id) * (self.encoder_tokens.unsqueeze(2) != self.pad_id)).long()
-        self.encoder_decoder_attn_mask = (self.encoder_tokens != self.pad_id).unsqueeze(1).repeat(1, decoder_length, 1).long()
-        self.encoder_hidden_states = self.init_encode(self.encoder_tokens, self.encoder_attn_mask)
-        if compute_attention_mask:
-            self.decoder_attn_mask = torch.tril(torch.ones(decoder_length, decoder_length)).unsqueeze(0).repeat(batch_size, 1, 1).long()
-    
-        
-    def init_encode(self, encoder_input_ids, encoder_attn_mask):
-        """initialize encoder hidden states before running generation"""
-        batch = [
-            encoder_input_ids, 
-            encoder_attn_mask, 
-        ]
-        forward_step_func = self.model._get_forward_output_only_func(
-            arg_names=[
-                'encoder_input_ids', 
-                'encoder_attn_mask',
-            ], 
-            output_name="hidden"
-        )
-        fwd_bwd_function = get_forward_backward_func()
-        output_tensor = fwd_bwd_function(
-            forward_step_func=forward_step_func,
-            data_iterator=iter([batch,]),
-            model=[self.forward_model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            micro_batch_size=encoder_input_ids.shape[0], 
-            seq_length=encoder_input_ids.shape[1],
-        )
-        return output_tensor[0]['hidden']
-    
-    def prepare_batch_at_step(
-        self,
-        tokens: torch.Tensor,
-        maxlen: int,
-        micro_batch_size: int,
-        step: int,
-        context_length: int,
-        compute_attention_mask: bool = True,
-    ) -> Tuple[List[torch.Tensor], List[int]]:
-        """
-        generate the batch used in inference for each of the steps
-        """
-        # [Add] Original Mcore T5 doesn't support encoder first and decode by steps
-        # [Fix] Original Mcore T5 has the same inference_params for encoder and decoder
-        if step == 0:
-            decoder_input_ids = tokens[:, :context_length]
-            decoder_attn_mask = self.decoder_attn_mask[:, :context_length, :context_length] if compute_attention_mask else None
-            encoder_decoder_attn_mask = self.encoder_decoder_attn_mask[:, :context_length, :]
-            self.inference_params = InferenceParams(
-                max_batch_size=tokens.size(0),
-                max_sequence_length=maxlen,
-            )
-        else:
-            decoder_input_ids = tokens[:, context_length-1:context_length]
-            decoder_attn_mask = self.decoder_attn_mask[:, context_length-1:context_length, context_length-1:context_length] if compute_attention_mask else None
-            encoder_decoder_attn_mask = self.encoder_decoder_attn_mask[:, context_length-1:context_length, :]
-        
-        batch = [
-            decoder_input_ids, 
-            decoder_attn_mask, 
-            encoder_decoder_attn_mask,
-            self.inference_params,
-            self.encoder_hidden_states,
-        ]
-        tensor_shape = [
-            micro_batch_size,
-            self.encoder_hidden_states.shape[0], # encoder length 
-            decoder_input_ids.shape[1], # decoder length
-        ]
-        return batch, tensor_shape
-
-
-    def forward_step(self, batch, tensor_shape):
-        forward_step_func = self.model._get_forward_output_only_func(
-            arg_names=[
-                'decoder_input_ids',
-                'decoder_attn_mask', 
-                'encoder_decoder_attn_mask',
-                'inference_params',
-                'encoder_hidden_states', 
-            ], 
-            output_name="logits"
-        )
-        fwd_bwd_function = get_forward_backward_func()
-        output_tensor = fwd_bwd_function(
-            forward_step_func=forward_step_func,
-            data_iterator=iter([batch,]),
-            model=[self.forward_model],
-            num_microbatches=get_num_microbatches(),
-            forward_only=True,
-            micro_batch_size=tensor_shape[0],
-            seq_length=tensor_shape[1],
-            decoder_seq_length=tensor_shape[2],
-        )
-        return output_tensor
 
 
 def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, conv_template):
@@ -753,15 +611,7 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel):
-        if hasattr(model, 'trainer_parent'):
-            if model.trainer_parent == 'gpt':
-                return GPTModelTextGenerationStrategy(model)
-            elif model.trainer_parent == 't5':
-                return T5ModelTextGenerationStrategy(model)
-            else:
-                raise NotImplementedError('Generation is not supported for your model.')
-        else:
-            return GPTModelTextGenerationStrategy(model)
+        return GPTModelTextGenerationStrategy(model)
         
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']
