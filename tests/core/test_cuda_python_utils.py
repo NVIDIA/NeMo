@@ -8,39 +8,13 @@ from nemo.core.utils.cuda_python_utils import (
 import pytest
 import torch
 
-# custom "add" function with autograd
-class AddFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input1, input2):
-        ctx.save_for_backward(input1, input2)
-        output = input1 + input2
-        return output
+# custom "add" function
+def custom_add(a, b):
+    return a + b
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        input1, input2 = ctx.saved_tensors
-        grad_input1 = grad_input2 = grad_output
-        return grad_input1, grad_input2
-
-def custom_add(input1, input2):
-    return AddFunction.apply(input1, input2)
-
-# custom "mul" function with autograd
-class MulFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input1, input2):
-        ctx.save_for_backward(input1, input2)
-        output = input1 * input2
-        return output
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        input1, input2 = ctx.saved_tensors
-        grad_input1 = grad_input2 = grad_output
-        return grad_input1, grad_input2
-
-def custom_mul(input1, input2):
-    return MulFunction.apply(input1, input2)
+# custom "mul" function
+def custom_mul(a, b):
+    return a * b
 # -----------------------------------------------
 
 def test_my_torch_cond():
@@ -53,7 +27,8 @@ def test_my_torch_cond():
 
     # unit test for if (not in stream capture -> for original use)
     # c = my_torch_cond(pred, torch.add, torch.mul, [a, b]) # this is the original code, works fine
-    c = torch.cond(pred, torch.add, torch.mul, [a, b]) # use torch.cond + torch.add/torch.mul, cause error
+    # c = torch.cond(pred, torch.add, torch.mul, [a, b]) # use torch.cond + torch.add/torch.mul, cause error
+    c = torch.cond(pred, custom_add, custom_mul, [a, b]) # use torch.cond + torch.add/torch.mul, cause error
     # c = torch.cond(pred, custom_add, custom_mul, [a, b]) # use custom function for add/mul, works fine
 
     # unit test for else (in stream capture -> additional function for cuda graphs)
@@ -63,7 +38,7 @@ def test_my_torch_cond():
     with torch.cuda.stream(stream_for_graph), torch.inference_mode(), torch.cuda.graph(
         graph, stream=stream_for_graph
     ):
-        c_graph = my_torch_cond(pred, torch.add, torch.mul, [a, b])
+        c_graph = my_torch_cond(pred, custom_add, custom_mul, [a, b])
 
     # graph.debug_dump("graph.dot")
 
@@ -75,7 +50,7 @@ def test_my_torch_cond():
         
     # test pred = False
     torch.logical_not(pred)
-    c = my_torch_cond(pred, torch.add, torch.mul, [a, b])
+    c = my_torch_cond(pred, custom_add, custom_mul, [a, b])
     with torch.inference_mode():
         graph.replay()
         print(c, c_graph)
@@ -155,6 +130,53 @@ def test_my_torch_while_loop():
     # my_torch_while_loop
     buf_3 = torch.zeros(10, device="cuda")
     _, buf_3 = my_torch_while_loop(cond_fn, body_fn, (it, buf_3))
+
+    assert torch.all(buf_1 == buf_2)
+    assert torch.all(buf_1 == buf_3)
+
+# try "additional inputs"
+def test_my_torch_while_loop_additional_inputs():
+    # imperative programming
+    buf_1 = torch.zeros(10, device="cuda")
+    for i in range(10):
+        buf_1[i] = 10 * i
+    
+    # pytorch while_loop function
+    buf_2 = torch.zeros(10, device="cuda")
+    it = torch.tensor(10, device="cuda")
+
+    # for torch.while_loop
+    def cond_fn(i):
+        return i > 0
+
+    def body_fn(i):
+        buf_2[i - 1] = 10 * (i - 1)
+        return i - 1
+    
+    _ = while_loop(cond_fn, body_fn, [it])
+    # print(buf_2)
+    # _ = while_loop(cond_fn, body_fn, [it])
+    # why does running the while_loop the second time do not chage the buf_2 again?
+
+    # import nvtx
+    # pr = nvtx.Profile()
+    # torch.cuda.cudart().cudaProfilerStart()
+    # pr.enable()  # begin annotating function calls
+    # _ = while_loop(cond_fn, body_fn, [it])
+    # pr.disable()  # stop annotating function calls
+    # torch.cuda.cudart().cudaProfilerStop()
+
+    # for my_torch_while_loop
+    def cond_fn_2(i, x):
+        return i > 0
+    
+    def body_fn_2(i, x):
+        x[i - 1] = 10 * (i - 1)
+        return i - 1, x
+
+    # my_torch_while_loop
+    buf_3 = torch.zeros(10, device="cuda")
+    _, buf_3 = my_torch_while_loop(cond_fn_2, body_fn_2, (it, buf_3))
 
     assert torch.all(buf_1 == buf_2)
     assert torch.all(buf_1 == buf_3)
