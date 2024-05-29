@@ -92,65 +92,26 @@ def get_args():
         type=str,
         required=True,
     )
-    # parser.add_argument(
-    #     "--existing_test_models", default=False, action='store_true',
-    # )
-    # parser.add_argument(
-    #     "--model_type", type=str, required=False,
-    # )
-    # parser.add_argument(
-    #     "--min_gpus", type=int, default=1, required=True,
-    # )
-    # parser.add_argument(
-    #     "--max_gpus", type=int,
-    # )
     parser.add_argument(
         "--num_gpus",
         type=int,
         default=1,
     )
-    # parser.add_argument(
-    #     "--checkpoint_dir", type=str, default="/tmp/nemo_checkpoint/", required=False,
-    # )
     parser.add_argument(
         "--nemo_checkpoint",
         type=str,
         required=True,
     )
-    # parser.add_argument(
-    #     "--trt_llm_model_dir", type=str,
-    # )
     parser.add_argument(
         "--max_batch_size",
         type=int,
         default=8,
     )
-    # parser.add_argument(
-    #     "--max_input_token", type=int, default=256,
-    # )
     parser.add_argument(
         "--max_output_token",
         type=int,
         default=128,
     )
-    # parser.add_argument(
-    #     "--p_tuning_checkpoint", type=str,
-    # )
-    # parser.add_argument(
-    #     "--ptuning", default=False, action='store_true',
-    # )
-    # parser.add_argument(
-    #     "--lora_checkpoint", type=str,
-    # )
-    # parser.add_argument(
-    #     "--lora", default=False, action='store_true',
-    # )
-    # parser.add_argument(
-    #     "--tp_size", type=int,
-    # )
-    # parser.add_argument(
-    #     "--pp_size", type=int,
-    # )
     parser.add_argument(
         "--top_k",
         type=int,
@@ -166,22 +127,6 @@ def get_args():
         type=float,
         default=1.0,
     )
-    # parser.add_argument(
-    #     "--run_accuracy", default=False, action='store_true',
-    # )
-    # parser.add_argument("--streaming", default=False, action="store_true")
-    # parser.add_argument(
-    #     "--test_deployment", type=str, default="False",
-    # )
-    # parser.add_argument(
-    #     "--debug", default=False, action='store_true',
-    # )
-    # parser.add_argument(
-    #     "--ci_upload_test_results_to_cloud", default=False, action='store_true',
-    # )
-    # parser.add_argument(
-    #     "--test_data_path", type=str, default=None,
-    # )
 
     return parser.parse_args()
 
