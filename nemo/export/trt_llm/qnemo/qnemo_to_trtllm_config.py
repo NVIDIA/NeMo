@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, List, Union, Tuple
+from typing import Dict, List, Tuple, Union
 
 import torch
 from safetensors import safe_open
@@ -8,8 +8,8 @@ from tensorrt_llm.models.modeling_utils import PretrainedConfig
 from transformers import PreTrainedTokenizer
 
 from nemo.export.tarutils import unpack_tarball
-from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 
 CONFIG_NAME = "config.json"
 WEIGHTS_NAME = "rank{}.safetensors"
@@ -37,7 +37,7 @@ def qnemo_to_trtllm_config(
         "Note that setting tensor_parallel_size and pipeline_parallel_size parameters for quantized"
         " models is possible only on the checkpoint export step via nemo.export.quantize module."
         " These parameters are read out from config.json in the case of TensorRT-LLM checkpoint."
-     )
+    )
 
     if os.path.isfile(in_file):  # qnemo is a tarball
         nemo_export_dir = str(nemo_export_dir)
