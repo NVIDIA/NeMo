@@ -27,12 +27,11 @@ import torch
 import wrapt
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.tarutils import TarPath, unpack_tarball
+from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.model_config_trt import model_config_to_tensorrt_llm
 from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer
 from nemo.export.trt_llm.nemo_utils import get_tokenzier, nemo_llm_model_to_model_config, nemo_to_trtllm_config
-from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
-from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
+from nemo.export.trt_llm.qnemo import qnemo_to_trtllm_config
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_refit
 from nemo.export.trt_llm.utils import is_nemo_file
@@ -201,22 +200,20 @@ class TensorRTLLM(ITritonDeployable):
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
-            if nemo_checkpoint_path.endswith("qnemo"):
+            if nemo_checkpoint_path.endswith("qnemo"):  # TODO: Can we detect it in a different way?
+                # TensorRT-LLM a.k.a. "qnemo" checkpoint handling
                 if os.path.isdir(nemo_checkpoint_path):
+                    # Set nemo_export_dir accordingly for saving tokenizer.model later
                     nemo_export_dir = nemo_checkpoint_path
-                else:
-                    unpack_tarball(nemo_checkpoint_path, tmp_dir.name)
-                    nemo_checkpoint_path = tmp_dir.name
-                self.tokenizer = get_nmt_tokenizer(nemo_checkpoint_path)
 
-                qnemo_to_tensorrt_llm(
-                    nemo_checkpoint_path=nemo_checkpoint_path,
-                    engine_dir=self.model_dir,
-                    max_input_len=max_input_token,
-                    max_output_len=max_output_token,
-                    max_batch_size=max_batch_size,
-                    max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                    lora_target_modules=lora_target_modules,
+                weights_dicts, model_configs, self.tokenizer = qnemo_to_trtllm_config(
+                    in_file=nemo_checkpoint_path,
+                    decoder_type=model_type,
+                    # dtype=dtype,
+                    # tensor_parallel_size=tensor_parallel_size,
+                    # pipeline_parallel_size=pipeline_parallel_size,
+                    # use_parallel_embedding=use_parallel_embedding,
+                    nemo_export_dir=nemo_export_dir,
                 )
             else:
                 weights_dicts, model_configs, self.tokenizer = nemo_to_trtllm_config(
@@ -230,26 +227,26 @@ class TensorRTLLM(ITritonDeployable):
                     save_nemo_model_config=save_nemo_model_config,
                 )
 
-                for weight_dict, model_config in zip(weights_dicts, model_configs):
-                    build_and_save_engine(
-                        max_input_len=max_input_token,
-                        max_output_len=max_output_token,
-                        max_batch_size=max_batch_size,
-                        model_config=model_config,
-                        model_weights=weight_dict,
-                        model_dir=self.model_dir,
-                        model_type=model_type,
-                        lora_ckpt_list=self.lora_ckpt_list,
-                        use_lora_plugin=use_lora_plugin,
-                        max_lora_rank=max_lora_rank,
-                        lora_target_modules=lora_target_modules,
-                        max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                        enable_multi_block_mode=enable_multi_block_mode,
-                        paged_kv_cache=paged_kv_cache,
-                        remove_input_padding=remove_input_padding,
-                        max_num_tokens=max_num_tokens,
-                        opt_num_tokens=opt_num_tokens,
-                    )
+            for weight_dict, model_config in zip(weights_dicts, model_configs):
+                build_and_save_engine(
+                    max_input_len=max_input_token,
+                    max_output_len=max_output_token,
+                    max_batch_size=max_batch_size,
+                    model_config=model_config,
+                    model_weights=weight_dict,
+                    model_dir=self.model_dir,
+                    model_type=model_type,
+                    lora_ckpt_list=self.lora_ckpt_list,
+                    use_lora_plugin=use_lora_plugin,
+                    max_lora_rank=max_lora_rank,
+                    lora_target_modules=lora_target_modules,
+                    max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                    enable_multi_block_mode=enable_multi_block_mode,
+                    paged_kv_cache=paged_kv_cache,
+                    remove_input_padding=remove_input_padding,
+                    max_num_tokens=max_num_tokens,
+                    opt_num_tokens=opt_num_tokens,
+                )
 
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
             if os.path.exists(tokenizer_path):

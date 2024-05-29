@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .qnemo_to_tensorrt_llm import qnemo_to_tensorrt_llm
+from .qnemo_to_trtllm_config import qnemo_to_trtllm_config
