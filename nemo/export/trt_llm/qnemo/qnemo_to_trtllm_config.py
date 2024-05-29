@@ -53,6 +53,12 @@ def qnemo_to_trtllm_config(
 
     world_size = model_config.mapping.world_size
 
+    model_configs = [model_config]
+    for i in range(1, world_size):
+        model_config_i = PretrainedConfig.from_dict(model_config.to_dict())  # copy
+        model_config_i.set_rank(i)
+        model_configs.append(model_config_i)
+
     weights = [load_weights(os.path.join(in_file, WEIGHTS_NAME.format(i))) for i in range(world_size)]
     tokenizer = get_nmt_tokenizer(in_file)
-    return weights, [model_config for _ in range(world_size)], tokenizer
+    return weights, model_configs, tokenizer
