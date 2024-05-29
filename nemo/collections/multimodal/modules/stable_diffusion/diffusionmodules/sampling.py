@@ -93,36 +93,44 @@ class SingleStepDiffusionSampler(BaseDiffusionSampler):
 class EDMSampler(SingleStepDiffusionSampler):
     def __init__(self, s_churn=0.0, s_tmin=0.0, s_tmax=float("inf"), s_noise=1.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.s_churn = s_churn
         self.s_tmin = s_tmin
         self.s_tmax = s_tmax
         self.s_noise = s_noise
 
-    def sampler_step(self, sigma, next_sigma, denoiser, x, cond, uc=None, gamma=0.0):
+    def sampler_step(self, sigma, next_sigma, denoiser, x, cond, uc=None, gamma=0.0, return_noise=False):
+        # x is actually \bar{x} as in the DDIM paper
         sigma_hat = sigma * (gamma + 1.0)
         if gamma > 0:
             eps = torch.randn_like(x) * self.s_noise
             x = x + eps * append_dims(sigma_hat ** 2 - sigma ** 2, x.ndim) ** 0.5
 
         denoised = self.denoise(x, denoiser, sigma_hat, cond, uc)
+        # this is the noise (e_t)
         d = to_d(x, sigma_hat, denoised)
         dt = append_dims(next_sigma - sigma_hat, x.ndim)
 
-        euler_step = self.euler_step(x, d, dt)
+        euler_step = self.euler_step(x, d, dt)   # this is x_{t-\delta{t}}
         x = self.possible_correction_step(euler_step, x, d, dt, next_sigma, denoiser, cond, uc)
+        if return_noise:
+            return x, d
         return x
+    
+    def get_gamma(self, sigmas, num_sigmas, index):
+        gamma = (
+            min(self.s_churn / (num_sigmas - 1), 2 ** 0.5 - 1) if self.s_tmin <= sigmas[index] <= self.s_tmax else 0.0
+        )
+        return gamma
 
     def __call__(self, denoiser, x, cond, uc=None, num_steps=None):
+        # prepare_sampling_loop converts x into \bar{x} = x / \sqrt{\tilde{\alpha_t}}
         x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(x, cond, uc, num_steps)
 
         for i in self.get_sigma_gen(num_sigmas):
-            gamma = (
-                min(self.s_churn / (num_sigmas - 1), 2 ** 0.5 - 1) if self.s_tmin <= sigmas[i] <= self.s_tmax else 0.0
-            )
+            gamma = self.get_gamma(sigmas, num_sigmas, i)
             x = self.sampler_step(s_in * sigmas[i], s_in * sigmas[i + 1], denoiser, x, cond, uc, gamma,)
-
         return x
+    
 
 
 class AncestralSampler(SingleStepDiffusionSampler):
