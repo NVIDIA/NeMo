@@ -591,6 +591,51 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             return False
 
     @torch.no_grad()
+    def verify_speakers_batch(self, manifest_filepath1, manifest_filepath2, threshold=0.7, batch_size=32, sample_rate=16000, device='cuda'):
+        """
+        Verify if audio files from the first and second manifests are from the same speaker or not.
+
+        Args:
+            manifest_filepath1: path to manifest file with entries of speaker 1
+            manifest_filepath2: path to manifest file with entries of speaker 2
+            threshold: cosine similarity score used as a threshold to distinguish two embeddings (default = 0.7)
+            batch_size: batch size to perform batch inference
+            sample_rate: sample rate of audio files in manifest file
+            device: compute device to perform operations.
+
+        Returns:
+            True if both audio pair is from same speaker, False otherwise
+        """
+        embs1, _, _, _ = self.batch_inference(manifest_filepath1, batch_size=batch_size, sample_rate=sample_rate, device=device)
+        embs2, _, _, _ = self.batch_inference(manifest_filepath2, batch_size=batch_size, sample_rate=sample_rate, device=device)
+
+        if embs1.shape != embs2.shape:
+            raise ValueError(
+                "Manifests have different number of samples. Can not check the speaker identity for pairs."
+            )
+
+        embs1 = torch.Tensor(embs1).to(device)
+        embs2 = torch.Tensor(embs2).to(device)
+        # Length Normalize
+        embs1 = torch.div(embs1, torch.linalg.norm(embs1, dim=1).unsqueeze(dim=1))
+        embs2 = torch.div(embs2, torch.linalg.norm(embs2, dim=1).unsqueeze(dim=1))
+
+        X = embs1.unsqueeze(dim=1)
+        Y = embs2.unsqueeze(dim=2)
+        # Score
+        similarity_scores = torch.matmul(X, Y).squeeze() / (
+            (
+                torch.matmul(X, X.permute(0, 2, 1)).squeeze() * torch.matmul(Y.permute(0, 2, 1), Y).squeeze()
+            ) ** 0.5
+            )
+        similarity_scores = (similarity_scores + 1) / 2
+
+        # Decision
+        decision = similarity_scores >= threshold
+
+        return decision
+
+    @torch.no_grad()
     def batch_inference(self, manifest_filepath, batch_size=32, sample_rate=16000, device='cuda'):
         """
         Perform batch inference on EncDecSpeakerLabelModel.
@@ -649,7 +694,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.train(mode=mode)
         if mode is True:
             self.unfreeze()
-
+        
         logits, embs, gt_labels = np.asarray(logits), np.asarray(embs), np.asarray(gt_labels)
 
         return embs, logits, gt_labels, trained_labels
