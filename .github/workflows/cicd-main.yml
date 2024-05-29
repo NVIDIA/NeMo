@@ -2798,7 +2798,7 @@ jobs:
             model.megatron_amp_O2=True \
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
-            model.tensor_model_parallel_size=2 \
+            model.pipeline_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
             model.optim.sched.warmup_steps=2 \
@@ -2829,7 +2829,7 @@ jobs:
             trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
             exp_manager.resume_if_exists=True \
-            model.tensor_model_parallel_size=2 \
+            model.pipeline_model_parallel_size=2 \
             model.optim.name=fused_adam \
             model.optim.lr=2e-4 \
             model.optim.sched.warmup_steps=2 \
@@ -5170,8 +5170,10 @@ jobs:
                 trainer.max_steps=10 \
                 trainer.limit_val_batches=7 \
                 trainer.val_check_interval=10 \
+                trainer.precision=16 \
                 exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
                 model.mcore_gpt=True \
+                model.megatron_amp_O2=False \
                 model.data.data_impl=mock \
                 model.data.data_prefix=[]
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
