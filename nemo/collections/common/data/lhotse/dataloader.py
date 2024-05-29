@@ -28,13 +28,15 @@ from lhotse.dataset import (
     DynamicCutSampler,
     IterableDatasetWrapper,
     ReverbWithImpulseResponse,
+    RoundRobinSampler,
+    ZipSampler,
     make_worker_init_fn,
 )
 from lhotse.dataset.dataloading import resolve_seed
-from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
+from lhotse.dataset.sampling.base import CutSampler, SamplingConstraint, TimeConstraint, TokenConstraint
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
 from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample, TextExample
@@ -77,6 +79,8 @@ class LhotseDataLoadingConfig:
     shard_seed: int | str = "trng"
     max_open_streams: int | None = None
     cuda_expandable_segments: bool = True
+    sampler_fusion: str = "mux"  # mux | zip | round_robin | randomized_round_robin
+    sampler_weights: list[float] | None = None  # only applicable to randomized_round_robin
 
     # 2.1 Multimodal sampling override options
     use_multimodal_sampling: bool = False
@@ -177,6 +181,77 @@ def get_lhotse_dataloader_from_config(
     seed = resolve_seed(config.seed)
     fix_random_seed(seed)
 
+    if config.sampler_fusion == "mux":
+        # Default strategy: every dataset is treated as a stream that is stochastically multiplexed (interleaved).
+        # Supports all types of dataloader input specifications (manifest_filepath, cuts_path, input_cfg, etc.).
+        sampler, is_tarred = get_lhotse_sampler_from_config(
+            config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+        )
+    else:
+        # Custom sampler fusion strategy: that means we will create a separate sampler for each entry in input_cfg list,
+        # and fuse the sampler later. Strategies supported at the moment are:
+        # * zip: ZipSampler iterates a step on each sub-sampler and merges the results into one mini-batch.
+        # * round_robin: with RoundRobinSampler, the sub-samplers take turns to yield their mini-batches.
+        # * randomized_round_robin: similar to round_robin, except we use RNG to choose which sub-sampler takes the current turn (weights can be provided via sampler_weights).
+        assert (
+            config.input_cfg is not None
+        ), "In order to use a different sampler fusion strategy than 'mux', you have to provide the dataloader inputs via input_cfg parameter."
+        source_samplers, source_tarred = [], []
+        for input_cfg in config.input_cfg:
+            source_config = config.copy()
+            source_config.input_cfg = input_cfg if isinstance(input_cfg, str) else [input_cfg]
+            s, t = get_lhotse_sampler_from_config(
+                config=source_config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+            )
+            source_samplers.append(s)
+            source_tarred.append(t)
+        assert all(
+            st == source_tarred[0] for st in source_tarred[1:]
+        ), "When using multiple input_cfg sources ensure they are all tarred or non-tarred (can't mix)."
+        is_tarred = all(source_tarred)
+        if config.sampler_fusion == "zip":
+            sampler = ZipSampler(*source_samplers)
+        elif config.sampler_fusion == "round_robin":
+            sampler = RoundRobinSampler(*source_samplers)
+        elif config.sampler_fusion == "randomized_round_robin":
+            sampler = RoundRobinSampler(
+                *source_samplers,
+                randomize=True if config.sampler_weights is None else config.sampler_weights,
+                seed=seed,
+            )
+        else:
+            raise RuntimeError(f"Unsupported sampler fusion strategy: {config.sampler_fusion}")
+
+    # 4. Creating dataloader.
+    if is_tarred:
+        # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
+        # because then I/O happens upon sampler iteration. Normally, the sampler resides
+        # in the training loop process, but when we use iterable dataset, we can move it to
+        # the dataloading worker process.
+        # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
+        # worker_id, etc. to set a different random seed for each (node, worker) combination.
+        # This together with infinite datasets removes the need to split data across nodes/workers.
+        dloader_kwargs = dict(
+            dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
+            persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
+        )
+    else:
+        # For non-tarred data, the sampler resides in the training loop process and
+        # reads only light-weight JSON objects; it samples mini-batches and passes
+        # the meta-data to Dataset, which performs the actual I/O inside its __getitem__ method.
+        dloader_kwargs = dict(dataset=dataset, sampler=sampler)
+    dloader = torch.utils.data.DataLoader(
+        **dloader_kwargs,
+        batch_size=None,
+        num_workers=config.num_workers,
+        pin_memory=config.pin_memory,
+    )
+
+    return dloader
+
+
+def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)
 
@@ -329,33 +404,7 @@ def get_lhotse_dataloader_from_config(
             )
         )
 
-    # 4. Creating dataloader.
-    if is_tarred:
-        # Wrapper here is necessary when using NeMo tarred data or Lhotse Shar data,
-        # because then I/O happens upon sampler iteration. Normally, the sampler resides
-        # in the training loop process, but when we use iterable dataset, we can move it to
-        # the dataloading worker process.
-        # We use lhotse's own worker_init_fn which leverages information such as rank, world_size,
-        # worker_id, etc. to set a different random seed for each (node, worker) combination.
-        # This together with infinite datasets removes the need to split data across nodes/workers.
-        dloader_kwargs = dict(
-            dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
-            persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
-        )
-    else:
-        # For non-tarred data, the sampler resides in the training loop process and
-        # reads only light-weight JSON objects; it samples mini-batches and passes
-        # the meta-data to Dataset, which performs the actual I/O inside its __getitem__ method.
-        dloader_kwargs = dict(dataset=dataset, sampler=sampler)
-    dloader = torch.utils.data.DataLoader(
-        **dloader_kwargs,
-        batch_size=None,
-        num_workers=config.num_workers,
-        pin_memory=config.pin_memory,
-    )
-
-    return dloader
+    return sampler, is_tarred
 
 
 def determine_bucket_duration_bins(config):

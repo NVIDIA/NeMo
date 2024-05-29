@@ -24,13 +24,13 @@ import torch
 from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, SupervisionSegment, compute_num_samples
 from lhotse.audio import AudioLoadingError
 from lhotse.cut import Cut, MixedCut
-from lhotse.cut.text import TextPairExample
 from lhotse.testing.dummies import dummy_recording
+from lhotse.dataset import RoundRobinSampler, ZipSampler
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.common.data.lhotse.text_adapters import TextExample
+from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample, TextExample
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 
@@ -1263,13 +1263,13 @@ def test_text_file_pairs_input(txt_en_path, txt_es_path):
 
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
@@ -1319,13 +1319,13 @@ def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str]):
 
     b = batches[0]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
     b = batches[1]
     assert isinstance(b, lhotse.CutSet)
-    assert all(isinstance(c, TextPairExample) for c in b)
+    assert all(isinstance(c, SourceTargetTextExample) for c in b)
     assert all(c.source.language == "en" for c in b)
     assert all(c.target.language == "es" for c in b)
 
@@ -1339,10 +1339,19 @@ def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> TokenizerWrap
     return TokenizerWrapper(SentencePieceTokenizer(str(tmpdir / "tokenizer.model")))
 
 
+@pytest.fixture(scope="session")
+def questions_path(tmp_path_factory) -> str:
+    tmpdir = tmp_path_factory.mktemp("questions")
+    qp = tmpdir / "questions.txt"
+    qp.write_text("translate the following to spanish")
+    return str(qp)
+
+
 def test_multimodal_text_audio_dataloading(
     txt_pair_paths_shards: tuple[str, str],
     nemo_tarred_manifest_path_multi: tuple[str, str],
     en_es_tokenizer: TokenizerWrapper,
+    questions_path: str,
 ):
     en_paths, es_paths = txt_pair_paths_shards
     manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
@@ -1355,9 +1364,9 @@ def test_multimodal_text_audio_dataloading(
                     "target_paths": es_paths,
                     "source_language": "en",
                     "target_language": "es",
-                    "tags": {
-                        "modality": "text",
-                    },
+                    "questions_path": questions_path,
+                    "questions_language": "en",
+                    "tags": {"modality": "text",},
                 },
                 {
                     "type": "nemo_tarred",
@@ -1403,13 +1412,13 @@ def test_multimodal_text_audio_dataloading(
     assert min(ex.num_tokens for ex in b) == pytest.approx(10)
     assert max(ex.num_tokens for ex in b) == pytest.approx(16)
     assert sum(isinstance(ex, Cut) for ex in b) == 29
-    assert sum(isinstance(ex, TextPairExample) for ex in b) == 19
+    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 19
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
             assert isinstance(ex.load_audio(), np.ndarray)
             assert isinstance(ex.supervisions[0].text, str)
-        if isinstance(ex, TextPairExample):
+        if isinstance(ex, SourceTargetTextExample):
             assert ex.modality == "text"
             assert ex.source.language == "en"
             assert ex.target.language == "es"
@@ -1425,13 +1434,13 @@ def test_multimodal_text_audio_dataloading(
     assert min(ex.num_tokens for ex in b) == pytest.approx(10)
     assert max(ex.num_tokens for ex in b) == pytest.approx(16)
     assert sum(isinstance(ex, Cut) for ex in b) == 21
-    assert sum(isinstance(ex, TextPairExample) for ex in b) == 27
+    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 27
     for ex in b:
         if isinstance(ex, Cut):
             assert ex.modality == "audio"
             assert isinstance(ex.load_audio(), np.ndarray)
             assert isinstance(ex.supervisions[0].text, str)
-        if isinstance(ex, TextPairExample):
+        if isinstance(ex, SourceTargetTextExample):
             assert ex.modality == "text"
             assert ex.source.language == "en"
             assert ex.target.language == "es"
@@ -1439,6 +1448,194 @@ def test_multimodal_text_audio_dataloading(
             assert isinstance(ex.target.text, str)
             assert isinstance(ex.source.tokens, np.ndarray)
             assert isinstance(ex.target.tokens, np.ndarray)
+
+
+def test_multimodal_text_audio_dataloading_zip_strategy(
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: TokenizerWrapper,
+    questions_path: str,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": en_paths,
+                    "target_paths": es_paths,
+                    "source_language": "en",
+                    "target_language": "es",
+                    "questions_path": questions_path,
+                    "questions_language": "en",
+                    "tags": {"modality": "text",},
+                },
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": manifest_filepath,
+                    "tarred_audio_filepaths": tarred_audio_filepaths,
+                    "tags": {"modality": "audio",},
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "use_multimodal_sampling": True,
+            "batch_tokens": 64,
+            # How to set token equivalent duration in actual training?
+            #   assuming fbank frames: 0.01 is the base due to frame shift;
+            #       + subsampling x8 gives us 0.08
+            #   assuming discrete audio tokens, with frame rate 50Hz,
+            #       we'd get 0.02
+            #   in this test we'll just use 0.1 for simplicity
+            "token_equivalent_duration": 0.1,
+            "quadratic_factor": 50,
+            "sampler_fusion": "zip",  # <---- !!! this option is being tested here !!!
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=en_es_tokenizer,
+    )
+
+    assert isinstance(dl.dataset.sampler, ZipSampler)
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 6
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(109)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(50)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(59)
+    assert sum(isinstance(ex, Cut) for ex in b) == 5
+    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 1
+    for ex in b:
+        if isinstance(ex, Cut):
+            assert ex.modality == "audio"
+            assert isinstance(ex.load_audio(), np.ndarray)
+            assert isinstance(ex.supervisions[0].text, str)
+        if isinstance(ex, SourceTargetTextExample):
+            assert ex.modality == "text"
+            assert ex.source.language == "en"
+            assert ex.target.language == "es"
+            assert isinstance(ex.input_ids, np.ndarray)
+            assert isinstance(ex.context_ids, np.ndarray)
+            assert isinstance(ex.answer_ids, np.ndarray)
+            assert isinstance(ex.mask, np.ndarray)
+
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 6
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(107)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(50)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(57)
+    assert sum(isinstance(ex, Cut) for ex in b) == 5
+    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 1
+    for ex in b:
+        if isinstance(ex, Cut):
+            assert ex.modality == "audio"
+            assert isinstance(ex.load_audio(), np.ndarray)
+            assert isinstance(ex.supervisions[0].text, str)
+        if isinstance(ex, SourceTargetTextExample):
+            assert ex.modality == "text"
+            assert ex.source.language == "en"
+            assert ex.target.language == "es"
+            assert isinstance(ex.input_ids, np.ndarray)
+            assert isinstance(ex.context_ids, np.ndarray)
+            assert isinstance(ex.answer_ids, np.ndarray)
+            assert isinstance(ex.mask, np.ndarray)
+
+
+def test_multimodal_text_audio_dataloading_round_robin_strategy(
+    txt_pair_paths_shards: tuple[str, str],
+    nemo_tarred_manifest_path_multi: tuple[str, str],
+    en_es_tokenizer: TokenizerWrapper,
+    questions_path: str,
+):
+    en_paths, es_paths = txt_pair_paths_shards
+    manifest_filepath, tarred_audio_filepaths = nemo_tarred_manifest_path_multi
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "txt_pair",
+                    "source_paths": en_paths,
+                    "target_paths": es_paths,
+                    "source_language": "en",
+                    "target_language": "es",
+                    "questions_path": questions_path,
+                    "questions_language": "en",
+                    "tags": {"modality": "text",},
+                },
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": manifest_filepath,
+                    "tarred_audio_filepaths": tarred_audio_filepaths,
+                    "tags": {"modality": "audio",},
+                },
+            ],
+            "shuffle": True,
+            "num_workers": 0,
+            "use_multimodal_sampling": True,
+            "batch_tokens": 64,
+            # How to set token equivalent duration in actual training?
+            #   assuming fbank frames: 0.01 is the base due to frame shift;
+            #       + subsampling x8 gives us 0.08
+            #   assuming discrete audio tokens, with frame rate 50Hz,
+            #       we'd get 0.02
+            #   in this test we'll just use 0.1 for simplicity
+            "token_equivalent_duration": 0.1,
+            "quadratic_factor": 50,
+            "sampler_fusion": "round_robin",  # <---- !!! this option is being tested here !!!
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=en_es_tokenizer,
+    )
+
+    assert isinstance(dl.dataset.sampler, RoundRobinSampler)
+
+    # Note: we use islice here because the dataloader will be infinite.
+    batches = [batch for batch in islice(dl, 2)]
+
+    # Batch 0 is text-only
+    b = batches[0]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 1
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(59)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(0)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(59)
+    assert sum(isinstance(ex, Cut) for ex in b) == 0
+    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 1
+    for ex in b:
+        assert ex.modality == "text"
+        assert ex.source.language == "en"
+        assert ex.target.language == "es"
+        assert isinstance(ex.input_ids, np.ndarray)
+        assert isinstance(ex.context_ids, np.ndarray)
+        assert isinstance(ex.answer_ids, np.ndarray)
+        assert isinstance(ex.mask, np.ndarray)
+
+    # Batch 1 is audio-only
+    b = batches[1]
+    assert isinstance(b, lhotse.CutSet)
+    assert len(b) == 5
+    assert sum(ex.num_tokens for ex in b) == pytest.approx(50)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, Cut)) == pytest.approx(50)
+    assert sum(ex.num_tokens for ex in b if isinstance(ex, SourceTargetTextExample)) == pytest.approx(0)
+    assert sum(isinstance(ex, Cut) for ex in b) == 5
+    assert sum(isinstance(ex, SourceTargetTextExample) for ex in b) == 0
+    for ex in b:
+        assert ex.modality == "audio"
+        assert isinstance(ex.load_audio(), np.ndarray)
+        assert isinstance(ex.supervisions[0].text, str)
 
 
 def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):
