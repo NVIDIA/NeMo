@@ -14,9 +14,11 @@
 
 import os
 import itertools
-from functools import partial
+from functools import cache, partial
 from typing import Any, Optional
 from contextlib import nullcontext
+from omegaconf import OmegaConf
+from dataclasses import fields
 
 import numpy as np
 import torch
@@ -26,6 +28,7 @@ from pytorch_lightning.accelerators import CPUAccelerator
 from pytorch_lightning.trainer.trainer import Trainer
 from tqdm import tqdm
 
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import get_specs, mcore_supports_moe
 from nemo.collections.multimodal.data.clip.clip_dataset import (
     build_imagenet_validation_dataloader,
     build_train_valid_datasets,
@@ -42,7 +45,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_from_precision
+
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank, activation_to_func
+
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -56,8 +61,18 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
+    from megatron.core.transformer.transformer_config import TransformerConfig
+    from megatron.core.transformer.custom_layers.transformer_engine import TENorm
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.models.vision.clip_vit_model import CLIPViTModel
+    from megatron.core.models.gpt import GPTModel as MCoreGPTModel
+    from megatron.core.utils import (
+        drain_embedding_wgrad_compute,
+        get_model_config,
+        init_method_normal,
+        scaled_init_method_normal,
+    )
 
     HAVE_MEGATRON_CORE = True
 
@@ -73,6 +88,19 @@ try:
 
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
+
+
+@cache
+def mcore_supports_moe() -> bool:
+    global HAVE_MEGATRON_CORE
+    if not HAVE_MEGATRON_CORE:
+        return False
+    try:
+        from megatron.core.transformer.moe.router import TopKRouter
+
+        return True
+    except ImportError:
+        return False
 
 
 class CLIPVisionTransformer(MegatronModule):
@@ -184,7 +212,7 @@ class CLIPTextTransformer(MegatronModule):
             openai_gelu=model_cfg.openai_gelu,
             onnx_safe=model_cfg.onnx_safe,
             megatron_legacy=model_cfg.megatron_legacy,
-            transformer_engine=model_cfg.transformer_engine,
+            transformer_engine=False,
             fp8=model_cfg.fp8,
             fp8_e4m3=model_cfg.fp8_e4m3,
             fp8_hybrid=model_cfg.fp8_hybrid,
@@ -204,7 +232,6 @@ class CLIPTextTransformer(MegatronModule):
             hidden_size=model_cfg.hidden_size,
         )
 
-        # TODO (yuya): check this position id
         self.position_ids = None
         if self.pre_process:
             self.position_ids = torch.arange(model_cfg.max_position_embeddings).expand(1, -1).cuda()
@@ -256,25 +283,110 @@ class CLIPTextTransformer(MegatronModule):
         return hidden_states
 
 
+class MCoreCLIPViTModel(CLIPViTModel):
+    def __init__(self, *args, **kwargs):
+        # TODO (yuya): need to handle post_process correctly in order to enable PP
+        self.output_dim = kwargs.pop('output_dim')
+        super().__init__(*args, **kwargs)
+        self.final_layernorm = TENorm(
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
+        self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=False, )
+
+    def forward(self, x):
+        x = super().forward(x)
+        x = self.final_layernorm(x)
+        x = x[:, 0]
+        x = self.head(x)
+        return x
+
+class MCoreCLIPTextModel(MCoreGPTModel):
+    def __init__(self, *args, **kwargs):
+        # TODO (yuya): need to handle post_process correctly in order to enable PP
+        self.output_dim = kwargs.pop('output_dim')
+        super().__init__(*args, **kwargs)
+        self.final_layernorm = TENorm(
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
+        self.head = torch.nn.Linear(self.config.hidden_size, self.output_dim, bias=False, )
+        self.position_ids = None
+        if self.pre_process:
+            self.position_ids = torch.arange(kwargs['max_sequence_length']).expand(1, -1).cuda()
+
+    def forward(self, input_ids):
+        x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
+        x = self.final_layernorm(x)
+        x = x[input_ids.argmax(dim=-1), torch.arange(x.shape[1])]
+        x = self.head(x)
+        return x
+
+
 class CLIPModel(MegatronModule):
     """CLIP Model"""
 
-    def __init__(self, model_cfg, model_parallel_config, padded_vocab_size, pre_process=True, post_process=True):
+    def __init__(self, model_cfg, model_parallel_config,
+                 vision_transformer_config, text_transformer_config,
+                 padded_vocab_size, pre_process=True, post_process=True):
         super(CLIPModel, self).__init__()
 
         self.config = model_parallel_config
         self.pre_process = pre_process
         self.post_process = post_process
-        self.vision_encoder = CLIPVisionTransformer(
-            model_cfg.vision, model_parallel_config, pre_process=self.pre_process, post_process=self.post_process,
-        )
-        self.text_encoder = CLIPTextTransformer(
-            model_cfg.text,
-            model_parallel_config,
-            padded_vocab_size,
-            pre_process=self.pre_process,
-            post_process=self.post_process,
-        )
+        self.output_dim = model_cfg.output_dim
+        self.get_attention_mask_from_fusion = model_cfg.get('get_attention_mask_from_fusion', True)
+
+        if model_cfg.get("mcore_gpt", False):
+            if model_cfg.get("class_token_length") is None or model_cfg.get("class_token_length") <= 0:
+                add_class_token = False
+            else:
+                add_class_token = True
+            self.vision_encoder = MCoreCLIPViTModel(
+                transformer_config=vision_transformer_config,
+                transformer_layer_spec=get_specs(''),
+                patch_dim=model_cfg.vision.get('patch_dim', 16),
+                img_h=model_cfg.vision.get('img_h', 224),
+                img_w=model_cfg.vision.get('img_w', 224),
+                add_class_token=add_class_token,
+                class_token_len=model_cfg.vision.get('class_token_length'),
+                output_dim=model_cfg.output_dim,
+            )
+
+            self.text_encoder = MCoreCLIPTextModel(
+                config=text_transformer_config,
+                transformer_layer_spec=get_specs(
+                    model_cfg.text.get('name', ''),
+                    text_transformer_config.num_moe_experts,
+                    text_transformer_config.moe_grouped_gemm,
+                    model_cfg.get('transformer_engine', True),
+                ),
+                vocab_size=model_cfg.text.get('override_vocab_size', padded_vocab_size),
+                max_sequence_length=model_cfg.text.get('encoder_seq_length', 512),
+                pre_process=pre_process,
+                post_process=False,
+                parallel_output=True,
+                share_embeddings_and_output_weights=False,
+                position_embedding_type=model_cfg.text.get('position_embedding_type', 'learned_absolute'),
+                rotary_percent=model_cfg.text.get('rotary_percentage', 1.0),
+                seq_len_interpolation_factor=model_cfg.text.get('seq_len_interpolation_factor', None),
+                rotary_base=model_cfg.text.get('rotary_base', 10000),
+                output_dim=model_cfg.output_dim,
+            )
+
+        else:
+            self.vision_encoder = CLIPVisionTransformer(
+                model_cfg.vision, model_parallel_config, pre_process=self.pre_process, post_process=self.post_process,
+            )
+            self.text_encoder = CLIPTextTransformer(
+                model_cfg.text,
+                model_parallel_config,
+                padded_vocab_size,
+                pre_process=self.pre_process,
+                post_process=self.post_process,
+            )
 
         self.logit_scale = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -385,6 +497,9 @@ class MegatronCLIPModel(MegatronBaseModel):
 
         self._validate_trainer()
 
+        # placeholder for O2 wrapper
+        self.transformer_config = self.build_transformer_config(self.cfg.text)
+
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
 
         self.mcore_gpt = cfg.get('mcore_gpt', False)
@@ -450,7 +565,6 @@ class MegatronCLIPModel(MegatronBaseModel):
                 self._memory_profile_start_step *= grad_accum_steps
                 self._memory_profile_end_step *= grad_accum_steps
 
-        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
         self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
@@ -463,9 +577,14 @@ class MegatronCLIPModel(MegatronBaseModel):
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
+        vision_transformer_config = self.build_transformer_config(self.cfg.vision) if self.mcore_gpt else None
+        text_transformer_config = self.build_transformer_config(self.cfg.text) if self.mcore_gpt else None
+
         model = CLIPModel(
             model_cfg=self.cfg,
             model_parallel_config=self.model_parallel_config,
+            vision_transformer_config=vision_transformer_config,
+            text_transformer_config=text_transformer_config,
             padded_vocab_size=self.padded_vocab_size,
             pre_process=pre_process,
             post_process=post_process,
@@ -670,10 +789,7 @@ class MegatronCLIPModel(MegatronBaseModel):
 
                 embedding_activation_buffer = embedding_module.embedding_activation_buffer
                 grad_output_buffer = embedding_module.grad_output_buffer
-                if self.cfg.get('share_embeddings_and_output_weights', True):
-                    weight = embedding_module.shared_embedding_or_output_weight()
-                else:
-                    weight = embedding_module.output_layer.weight
+                weight = embedding_module.output_layer.weight
 
                 drain_embedding_wgrad_compute(
                     embedding_module.config, embedding_activation_buffer, grad_output_buffer, weight
@@ -1118,3 +1234,177 @@ class MegatronCLIPModel(MegatronBaseModel):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
+
+    def build_transformer_config(self, model_cfg) -> TransformerConfig:
+        """Builds the megatron core gpt transformer config for the model.
+        For attributes in the nemo model config that are the same
+        as the megatron core TransformerConfig, we will use the value from the nemo model config.
+        For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
+        """
+
+        normalization = model_cfg.get('normalization', 'layernorm').lower()
+        layernorm_zero_centered_gamma = model_cfg.get('normalization', 'layernorm') == 'layernorm1p'
+        if normalization == 'layernorm':
+            normalization = 'LayerNorm'
+        elif normalization == 'rmsnorm':
+            normalization = 'RMSNorm'
+        elif normalization == 'layernorm1p':
+            normalization = 'LayerNorm'
+            layernorm_zero_centered_gamma = True
+        else:
+            logging.warning(
+                f"The normalization type: {normalization} might not be supported in megatron core."
+                f"Supported types are LayerNorm and RMSNorm."
+            )
+
+        ub_tp_comm_overlap = model_cfg.get('ub_tp_comm_overlap', False)
+
+        if not model_cfg.get('fp8', False):
+            fp8 = None
+        elif model_cfg.get('fp8_e4m3', False):
+            fp8 = 'e4m3'
+        elif model_cfg.get('fp8_hybrid', False):
+            fp8 = 'hybrid'
+        else:
+            raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
+
+        # any configs that are not in the nemo model config will be added here
+        model_specific_configs = {
+            'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
+            'normalization': normalization,
+            'fp8': fp8,
+            'tp_comm_overlap': ub_tp_comm_overlap,
+            # MoE related
+            'num_moe_experts': model_cfg.get('num_moe_experts', None),
+            'moe_router_load_balancing_type': model_cfg.get('moe_router_load_balancing_type', 'aux_loss'),
+            'moe_router_topk': model_cfg.get('moe_router_topk', 2),
+            'moe_grouped_gemm': model_cfg.get('moe_grouped_gemm', False),
+            'moe_aux_loss_coeff': model_cfg.get(
+                'moe_aux_loss_coeff', 0
+            ),  # 1e-2 would be a good start value for load balance loss.
+            'moe_z_loss_coeff': model_cfg.get('moe_z_loss_coeff', None),  # 1e-3 would be a good start value for z-loss
+            'moe_input_jitter_eps': model_cfg.get('moe_input_jitter_eps', None),
+            'moe_token_dropping': model_cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
+        }
+        if model_specific_configs['num_moe_experts'] is not None:
+            assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
+        elif not mcore_supports_moe():
+            if 'num_moe_experts' in model_specific_configs:
+                del model_specific_configs['num_moe_experts']
+            moe_keys = list(filter(lambda x: x.startswith('moe_'), model_specific_configs.keys()))
+            for k in moe_keys:
+                del model_specific_configs[k]
+
+        # create a dictionary copy of the model config
+        cfg = OmegaConf.to_container(model_cfg, resolve=True)
+
+        # create a dict to store the transformer config arguments
+        transformer_config_dict = {}
+
+        # get model parallel configs from the base class
+        model_parallel_config = self.build_model_parallel_config()
+
+        add_bias_linear = model_cfg.get('bias', True)
+        add_qkv_bias = model_cfg.get('qkv_bias', False)
+
+        activation = model_cfg.get('activation', 'gelu')
+        gated_linear_unit = activation.endswith('glu')
+        # TODO: need to check which activation functions are supported in mcore
+        activation_func = activation_to_func(activation)
+
+        normalization = model_cfg.get('normalization', 'LayerNorm')
+
+        init_method_std = model_cfg.get('init_method_std', 0.02)
+        # default used in mcore
+        init_method = init_method_normal(init_method_std)
+
+        output_layer_init_method = init_method
+        num_layers = model_cfg.get('num_layers', 1)
+        use_scaled_init_method = model_cfg.get('use_scaled_init_method', True)
+        if use_scaled_init_method:
+            output_layer_init_method = scaled_init_method_normal(init_method_std, num_layers=num_layers)
+
+        attention_softmax_in_fp32 = False  # not currently used in NeMo unless apply_query_key_layer_scaling is True
+        apply_query_key_layer_scaling = model_cfg.get('apply_query_key_layer_scaling', False)
+
+        rotary_interleaved = model_cfg.get('rotary_interleaved', False)
+
+        fp16_enabled = self.trainer.precision in [16, '16', '16-mixed']
+        if apply_query_key_layer_scaling:
+            if fp16_enabled:
+                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "1"
+            else:
+                logging.warning(
+                    "apply_query_key_layer_scaling is only enabled when using FP16, setting it to False "
+                    "and setting NVTE_APPLY_QK_LAYER_SCALING=0"
+                )
+                os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "0"
+                apply_query_key_layer_scaling = False
+
+        if apply_query_key_layer_scaling:
+            attention_softmax_in_fp32 = True
+
+        bias_activation_fusion = model_cfg.get('bias_activation_fusion', True)
+
+        bias_dropout_fusion = model_cfg.get('bias_dropout_add_fusion', True)
+
+        apply_rope_fusion = model_cfg.get('apply_rope_fusion', False)
+
+        # TODO: need to check if recompute APIs are matching up properly
+        recompute_granularity = model_cfg.get('activations_checkpoint_granularity', None)
+        recompute_method = model_cfg.get('activations_checkpoint_method', None)
+        recompute_num_layers = model_cfg.get('activations_checkpoint_num_layers', None)
+
+        # any configs that are not in the nemo model config will be added here
+        config_mapping = {
+            'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
+            'apply_residual_connection_post_layernorm': False,  # we don't use this in NeMo
+            'layernorm_zero_centered_gamma': False,
+            'add_bias_linear': add_bias_linear,
+            'add_qkv_bias': add_qkv_bias,
+            'gated_linear_unit': gated_linear_unit,
+            'activation_func': activation_func,
+            'normalization': normalization,
+            'init_method': init_method,
+            'output_layer_init_method': output_layer_init_method,
+            'attention_softmax_in_fp32': attention_softmax_in_fp32,
+            'bias_activation_fusion': bias_activation_fusion,
+            'bias_dropout_fusion': bias_dropout_fusion,
+            'apply_rope_fusion': apply_rope_fusion,
+            'recompute_granularity': recompute_granularity,
+            'recompute_method': recompute_method,
+            'recompute_num_layers': recompute_num_layers,
+            'distribute_saved_activations': False,  # not currently used in NeMo
+            'fp8': None,
+            'rotary_interleaved': rotary_interleaved,
+            'deallocate_pipeline_outputs': True,
+        }
+
+        # populate the transformer config dict
+        for field in fields(TransformerConfig):
+            # config mapping has second highest priority
+            if field.name in config_mapping:
+                transformer_config_dict[field.name] = config_mapping[field.name]
+            # then config
+            elif field.name in cfg:
+                transformer_config_dict[field.name] = cfg[field.name]
+            # then model parallel config
+            elif field in fields(model_parallel_config):
+                transformer_config_dict[field.name] = getattr(model_parallel_config, field.name)
+            else:
+                logging.warning(
+                    f"The model: {self} does not have field.name: {field.name} in its cfg. "
+                    f"Add this key to cfg or config_mapping to make to make it configurable."
+                )
+
+        transformer_config = TransformerConfig(**transformer_config_dict)
+
+        for key, value in model_specific_configs.items():
+            setattr(transformer_config, key, value)
+
+        # pass mcore customization configs directly to mcore
+        mcore_customization_config_dict = model_cfg.get('mcore_customization_config', {})
+        for key, value in mcore_customization_config_dict.items():
+            setattr(transformer_config, key, value)
+
+        return transformer_config
