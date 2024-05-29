@@ -30,26 +30,25 @@ class NemoTritonQueryLLMBase(ABC):
         self.url = url
         self.model_name = model_name
 
-    # @abstractmethod
-    # def query_llm(
-    #     self,
-    #     prompts,
-    #     stop_words_list=None,
-    #     bad_words_list=None,
-    #     no_repeat_ngram_size=None,
-    #     max_output_token=512,
-    #     top_k=1,
-    #     top_p=0.0,
-    #     temperature=1.0,
-    #     random_seed=None,
-    #     task_id=None,
-    #     lora_uids=None,
-    #     init_timeout=60.0,
-    # ):
-    #     pass
-
-
 class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
+    """
+    Sends a query to Triton for LLM inference
+
+    Example:
+        from nemo.deploy import NemoTritonQueryLLMPyTorch
+
+        nq = NemoTritonQueryLLMPyTorch(url="localhost", model_name="GPT-2B")
+
+        prompts = ["hello, testing GPT inference", "another GPT inference test?"]
+        output = nq.query_llm(
+            prompts=prompts,
+            max_length=100,
+            top_k=1,
+            top_p=0.0,
+            temperature=0.0,
+        )
+        print("prompts: ", prompts)
+    """
     def __init__(self, url, model_name):
         super().__init__(
             url=url,
@@ -70,10 +69,28 @@ class NemoTritonQueryLLMPyTorch(NemoTritonQueryLLMBase):
         all_probs: bool = None,
         compute_logprob: bool = None,
         end_strings=None,
-        min_length=None,
-        max_length=None,
+        min_length: int = None,
+        max_length: int = None,
         init_timeout=60.0,
     ):
+        """
+        Query the Triton server synchronously and return a list of responses.
+
+        Args:
+            prompts (List(str)): list of sentences.
+            use_greedy (bool): use greedy sampling, effectively the same as top_k=1
+            temperature (float): A parameter of the softmax function, which is the last layer in the network.
+            top_k (int): limits us to a certain number (K) of the top tokens to consider.
+            top_p (float): limits us to the top tokens within a certain probability mass (p).
+            repetition_penalty (float): penalty applied to repeated sequences, 1.0 means no penalty.
+            add_BOS (bool): whether or not to add a BOS (beginning of sentence) token.
+            all_probs (bool): when using compute_logprob, returns probabilities for all tokens in vocabulary.
+            compute_logprob (bool): get back probabilities of all tokens in the sequence.
+            end_strings (List(str)): list of strings which will terminate generation when they appear in the output.
+            min_length (int): min generated tokens.
+            max_length (int): max generated tokens.
+            init_timeout (flat): timeout for the connection.
+        """
         prompts = str_list2numpy(prompts)
         inputs = {
             "prompts": prompts,
@@ -111,9 +128,9 @@ class NemoTritonQueryLLMTensorRT(NemoTritonQueryLLMBase):
     Sends a query to Triton for LLM inference
 
     Example:
-        from nemo.deploy import NemoQueryLLM
+        from nemo.deploy import NemoTritonQueryLLMTensorRT
 
-        nq = NemoQueryLLM(url="localhost", model_name="GPT-2B")
+        nq = NemoTritonQueryLLMTensorRT(url="localhost", model_name="GPT-2B")
 
         prompts = ["hello, testing GPT inference", "another GPT inference test?"]
         output = nq.query_llm(
