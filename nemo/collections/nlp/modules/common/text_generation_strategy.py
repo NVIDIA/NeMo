@@ -545,7 +545,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             conv_template=self.data_cfg.get("conv_template", "nvgpt"),
             model_type=self.cfg.mm_cfg.llm.get("model_type", "nvgpt"),
             patch_dim=self.cfg.mm_cfg.vision_encoder.patch_dim,
-            crop_size=self.cfg.mm_cfg.llm.get("crop_size", (224, 224)),
+            crop_size=self.cfg.mm_cfg.vision_encoder.get("crop_size", (224, 224)),
             image_folder=self.data_cfg.get('image_folder', None),
             video_folder=self.data_cfg.get('video_folder', None),
             image_aspect_ratio=self.data_cfg.image_aspect_ratio,
