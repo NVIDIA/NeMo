@@ -104,11 +104,15 @@ class ModelPT(LightningModule, Model):
         # set global vars in AppState
         app_state = AppState()
 
+        
+        # try:
         # Convert config to a DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
 
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
+        # except Exception as e:
+        #     print("ModelPT config passthrough")
 
         if 'model' in cfg:
             raise ValueError(
