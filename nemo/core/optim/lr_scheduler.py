@@ -777,7 +777,6 @@ def prepare_lr_scheduler(
     optimizer: optim.Optimizer,
     scheduler_config: Union[Dict[str, Any], DictConfig],
     train_dataloader: Optional[dataloader.DataLoader] = None,
-    ipl_config: Optional[DictConfig] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Constructs an LR Scheduler (optionally) for a given optimizer, based on a config with the following schema
@@ -979,40 +978,15 @@ def prepare_lr_scheduler(
             raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
         drop_last = train_dataloader.drop_last
 
-        if ipl_config:
-            ipl_steps = compute_max_steps(
-                max_epochs=max_epochs,
-                accumulate_grad_batches=accumulate_grad_batches,
-                limit_train_batches=limit_train_batches,
-                num_workers=num_workers,
-                num_samples=num_samples,
-                batch_size=batch_size,
-                drop_last=drop_last,
-                ipl_config=ipl_config,
-            )
-            no_ipl_steps = compute_max_steps(
-                max_epochs=ipl_config.get('m_epochs', 0) + ipl_config.get('n_l_epochs', 0) + 1,
-                accumulate_grad_batches=accumulate_grad_batches,
-                limit_train_batches=limit_train_batches,
-                num_workers=num_workers,
-                num_samples=num_samples,
-                batch_size=batch_size,
-                drop_last=drop_last,
-            )
-            if scheduler_name == 'DoubleCosineAnnealing' and scheduler_args['milestone'] == -1:
-                scheduler_args['milestone'] = no_ipl_steps
-            max_steps = ipl_steps + no_ipl_steps
-
-        else:
-            max_steps = compute_max_steps(
-                max_epochs=max_epochs,
-                accumulate_grad_batches=accumulate_grad_batches,
-                limit_train_batches=limit_train_batches,
-                num_workers=num_workers,
-                num_samples=num_samples,
-                batch_size=batch_size,
-                drop_last=drop_last,
-            )
+        max_steps = compute_max_steps(
+            max_epochs=max_epochs,
+            accumulate_grad_batches=accumulate_grad_batches,
+            limit_train_batches=limit_train_batches,
+            num_workers=num_workers,
+            num_samples=num_samples,
+            batch_size=batch_size,
+            drop_last=drop_last,
+        )
 
     else:
         logging.warning(
@@ -1060,23 +1034,11 @@ def prepare_lr_scheduler(
 
 
 def compute_max_steps(
-    max_epochs,
-    accumulate_grad_batches,
-    limit_train_batches,
-    num_workers,
-    num_samples,
-    batch_size,
-    drop_last,
-    ipl_config=None,
+    max_epochs, accumulate_grad_batches, limit_train_batches, num_workers, num_samples, batch_size, drop_last
 ):
     _round = math.floor if drop_last else math.ceil
-    if ipl_config:
-        all_num_samples = num_samples + sum(ipl_config.num_cache_files)
-        max_epochs = max_epochs - ipl_config.m_epochs - ipl_config.n_l_epochs - 1
-    else:
-        all_num_samples = num_samples
 
-    sampler_num_samples = math.ceil(all_num_samples / max(1, num_workers))
+    sampler_num_samples = math.ceil(num_samples / max(1, num_workers))
 
     if drop_last and num_workers > 1:
         logging.warning(
@@ -1086,16 +1048,14 @@ def compute_max_steps(
         # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
     steps_per_epoch = _round(sampler_num_samples / batch_size)
-    if ipl_config and ipl_config.is_tarred:
-        steps_per_epoch = int(steps_per_epoch)
-    elif isinstance(limit_train_batches, int) or limit_train_batches == 0.0:
-
+    if isinstance(limit_train_batches, int) or limit_train_batches == 0.0:
         steps_per_epoch = min(steps_per_epoch, int(limit_train_batches))
     elif steps_per_epoch != float('inf'):
         # limit_train_batches is a percentage of batches per epoch
         steps_per_epoch = int(steps_per_epoch * limit_train_batches)
 
     return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
+
 
 
 AVAILABLE_SCHEDULERS = {

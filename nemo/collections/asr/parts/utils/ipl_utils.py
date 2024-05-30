@@ -101,7 +101,11 @@ def count_files_for_pseudo_labeling(
 
 
 def create_final_cache_manifest(final_cache_manifest: str, manifests: List[str]):
+    print()
+    print(final_cache_manifest)
+    print(manifests)
     manifests = expand_braces(manifests)
+    print(manifests)
     with open(final_cache_manifest, 'w', encoding='utf-8') as cache_f:
         for manifest in manifests:
             with open(manifest, 'r') as m:
