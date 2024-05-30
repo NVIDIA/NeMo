@@ -450,7 +450,10 @@ class GPTSFTDataset(Dataset):
 
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
         # increase max length to nearest multiple of 4 or 8
-        if self.pad_to_max_length:
+        #if self.pad_to_max_length:
+        if True:
+            self.max_seq_length = 4096 if self.max_seq_length != 4096 else 3072
+            print(f"!!FOO GPTSFTDataset {self.max_seq_length=}")
             max_length = self.max_seq_length
         else:
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult))
@@ -566,7 +569,10 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         token_count = [item.shape[0] for item in input_ids]
 
-        if self.pad_to_max_length:
+        #if self.pad_to_max_length:
+        if True:
+            self.max_seq_length = 4096 if self.max_seq_length != 4096 else 3072
+            print(f"!!FOO GPTSFTPackedDataset {self.max_seq_length=}")
             max_length = self.max_seq_length
         else:
             # pad to the nearest multiple of 16 for FP8 training
