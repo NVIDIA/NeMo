@@ -4941,16 +4941,16 @@ jobs:
       - Speech_Checkpoints_tests
     if: always()
     runs-on: ubuntu-latest
-    steps:
-        # This should depend on all the tests so we block/unblock based on all tests passing
-      - if: ${{ contains(needs.*.result, 'success') }}
+    steps:  
+      # This should depend on all the tests so we block/unblock based on all tests passing
+      - if: ${{ always() && !contains(needs.*.outputs.conclusion, 'failure') }}
         run: exit 0
 
-      - if: ${{ contains(needs.*.result, 'failure') }}
+      - if: ${{ always() && contains(needs.*.outputs.conclusion, 'failure') }}
         name: Checkout repository
         uses: actions/checkout@v4
       
-      - if: ${{ contains(needs.*.result, 'failure') }}
+      - if: ${{ always() && contains(needs.*.outputs.conclusion, 'failure') }}
         run: |
           source .github/scripts/slackHelper.sh
 
