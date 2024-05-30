@@ -1187,7 +1187,7 @@ jobs:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: self-hosted-azure
       SCRIPT: |
         cd examples/nlp/duplex_text_normalization && \
         python duplex_text_normalization_train.py \
