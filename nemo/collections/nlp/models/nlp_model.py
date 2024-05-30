@@ -462,6 +462,9 @@ class NLPModel(ModelPT, Exportable):
             save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(restore_path):
             save_restore_connector.model_extracted_dir = restore_path
+        if isinstance(override_config_path, DictConfig) and override_config_path['use_cpu_initialization'] and map_location is None:
+            logging.info('use_cpu_initialization is True, loading checkpoint on CPU')
+            map_location = 'cpu'
         return super().restore_from(
             restore_path, override_config_path, map_location, strict, return_config, save_restore_connector, trainer
         )
