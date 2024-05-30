@@ -460,8 +460,8 @@ def get_args():
     )
     parser.add_argument(
         "--run_accuracy",
-        default=False,
-        action='store_true',
+        type=str,
+        default="False",
     )
     parser.add_argument("--streaming", default=False, action="store_true")
     parser.add_argument(
@@ -483,6 +483,11 @@ def get_args():
         "--test_data_path",
         type=str,
         default=None,
+    )
+    parser.add_argument(
+        "--save_trt_engine",
+        type=str,
+        default="False",
     )
 
     return parser.parse_args()
