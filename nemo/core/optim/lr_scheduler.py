@@ -1057,7 +1057,6 @@ def compute_max_steps(
     return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 
 
-
 AVAILABLE_SCHEDULERS = {
     'WarmupPolicy': WarmupPolicy,
     'WarmupHoldPolicy': WarmupHoldPolicy,

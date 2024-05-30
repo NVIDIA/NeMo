@@ -37,7 +37,13 @@ from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpe
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, InterCTCMixin, TranscribeConfig, IPLMixin
+from nemo.collections.asr.parts.mixins import (
+    ASRModuleMixin,
+    ASRTranscriptionMixin,
+    InterCTCMixin,
+    IPLMixin,
+    TranscribeConfig,
+)
 from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType, TranscriptionReturnType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
