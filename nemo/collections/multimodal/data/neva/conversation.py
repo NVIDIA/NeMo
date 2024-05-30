@@ -28,7 +28,7 @@ DEFAULT_IMAGE_PATCH_TOKEN = "<extra_id_3>"
 DEFAULT_IM_START_TOKEN = "<extra_id_4>"
 DEFAULT_IM_END_TOKEN = "<extra_id_5>"
 DEFAULT_VID_START_TOKEN = "<extra_id_8>"
-DEFAULT_VID_START_TOKEN = "<extra_id_9>"
+DEFAULT_VID_END_TOKEN = "<extra_id_9>"
 
 
 class SeparatorStyle(Enum):

@@ -46,6 +46,8 @@ from nemo.collections.multimodal.data.neva.conversation import (
     DEFAULT_SYSTEM_TOKEN,
     DEFAULT_UNK_TOKEN,
     DEFAULT_VIDEO_TOKEN,
+    DEFAULT_VID_START_TOKEN,
+    DEFAULT_VID_END_TOKEN
 )
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
@@ -294,20 +296,32 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             raise ValueError("LITA config is missing")
         lita_video_arch = multimodal_cfg['lita']['lita_video_arch']
         num_frames = multimodal_cfg['num_frames']
+        num_temporal_tokens, num_spatial_tokens = num_frames, 0
         if lita_video_arch == 'temporal_all_resolution':
             sample_frames = min(multimodal_cfg['lita']['sample_frames'], num_frames)
             # num_frames for temporal tokens, sample_frames * num_patches for spatial tokens
-            num_tokens = num_frames + sample_frames * image_token_len
+            num_spatial_tokens = sample_frames * image_token_len
         else:
             # num_frames for temporal tokens and num_patches for spatial tokens
-            num_tokens = num_frames + image_token_len
+            num_spatial_tokens = image_token_len
+        num_tokens = num_temporal_tokens + num_spatial_tokens
+
         visual_token_format = multimodal_cfg['lita'].get('visual_token_format', 'v1')
         if visual_token_format == 'im_vid_start_end':
-            num_tokens += 4  # 2 for temporal tokens and 2 for spatial tokens
-        if multimodal_cfg['use_im_start_end']:
-            replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_tokens
+            # insert vid start and vid end tokens & img_start and img_end
+            if multimodal_cfg['use_im_start_end']:
+                replace_token = DEFAULT_VID_START_TOKEN + num_temporal_tokens * DEFAULT_IMAGE_PATCH_TOKEN + DEFAULT_VID_END_TOKEN + \
+                            DEFAULT_IM_START_TOKEN + num_spatial_tokens * DEFAULT_IMAGE_PATCH_TOKEN + DEFAULT_IM_END_TOKEN
+            else:
+                replace_token = DEFAULT_VID_START_TOKEN + (num_temporal_tokens - 1) * DEFAULT_IMAGE_PATCH_TOKEN + DEFAULT_VID_END_TOKEN + \
+                            DEFAULT_IM_START_TOKEN + (num_spatial_tokens - 1) * DEFAULT_IMAGE_PATCH_TOKEN + DEFAULT_IM_END_TOKEN
+            replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
         else:
-            replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_tokens - 2)
+            if multimodal_cfg['use_im_start_end']:
+                replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_tokens
+            else:
+                replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_tokens - 2 )
+            replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
 
     replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
 

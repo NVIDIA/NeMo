@@ -310,26 +310,30 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
             media (torch.Tensor): Vision input
                 shape (B, T_img, F, C, H, W)
         """
-        if media is None or input_ids.shape[1] == 1:
+        if input_ids.shape[1] == 1:
             return inputs_embeds
 
+        if media is None:
+            return inputs_embeds
         if type(media) is list:
             raise NotImplementedError("dynamic length of videos not supported yet, only fixed length of videos now")
-
+        # 1, 1, num_frames, 3, 244, 244
         media_features = self.encode_vision_x(media)  # B T F S(eq) H(idden)
-        B, T, F, S, H = media_features.shape  # 1, 1, num_frames, 3, 224, 224
+        B, T, F, S, H = media_features.shape
         assert T == 1, "multiple videos per sample not supported yet"
         media_features = media_features.squeeze(1)
         temporal_tokens, spatial_tokens = self.add_lita_layer(media_features) # B, T, D & B, M, D
         T = temporal_tokens.shape[1]
         M = spatial_tokens.shape[1]
         for idx, input_id in enumerate(input_ids):
-            media_start_position = torch.where(input_id == self.media_start_id)
-            media_end_position = torch.where(input_id == self.media_end_id)
-            assert len(media_start_position) == 1, "Only 1 video per sample supported"
-            assert len(media_end_position) == 1, "Only 1 video per sample supported"
+            media_start_position = torch.where(input_id == self.media_start_id)[0]
+            media_end_position = torch.where(input_id == self.media_end_id)[0]
+            if self.visual_token_format != 'im_vid_start_end':
+                assert len(media_start_position) == 1, "Only 1 video per sample supported"
+                assert len(media_end_position) == 1, "Only 1 video per sample supported"
+
             media_start_position = media_start_position[0]
-            media_end_position = media_end_position[0]
+            media_end_position = media_end_position[-1]
             if self.use_media_start_end:
                 # replace the tokens between media_start_id and media_end_id
                 start, end = media_start_position + 1, media_end_position - 1
@@ -340,11 +344,18 @@ class LitaWordEmbeddingMixin(NevaWordEmbeddingMixin):
             if self.visual_token_format == 'v1':
                 t_token_start, t_token_end = start, start + T
                 s_token_start, s_token_end = start + T, start + T + M
+                assert s_token_end == end + 1, "Token replacement error"
             elif self.visual_token_format == 'im_vid_start_end':
-                t_token_start, t_token_end = start + 1, start + 1 + T
-                s_token_start, s_token_end = start + 2 + T, start + 2 + T + M
-
-            assert s_token_end == end + 1, "Token replacement error"
+                t_token_start, t_token_end = start + 1, start + 1 + T # + 1 to skip vid_start
+                s_token_start, s_token_end = start + 3 + T, start + 3 + T + M # + 2 to skip vid_end and img_start
+                if not self.use_media_start_end:
+                    # replace the media start and media end embedding with
+                    # vid start embedding and img_end embedding
+                    inputs_embeds[idx, 0] = inputs_embeds[idx, 1]
+                    inputs_embeds[idx, -1] = inputs_embeds[idx, -2]
+                assert s_token_end == end
+            else:
+                raise ValueError(f"Unsupported visual_token_format {self.visual_token_format}")
 
             inputs_embeds[idx, t_token_start:t_token_end] = temporal_tokens[idx]
             inputs_embeds[idx, s_token_start:s_token_end] = spatial_tokens[idx]
