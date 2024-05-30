@@ -22,7 +22,7 @@ from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
 from transformers import CLIPImageProcessor
-
+import decord
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
@@ -469,23 +469,23 @@ def create_neva_model_and_processor(cfg):
 
     # add video processor for video neva
     def video_processor(maybe_video_path):
-        from decord import VideoReader
 
         if isinstance(maybe_video_path, str):
-            vr = VideoReader(maybe_video_path)
+            decord.bridge.set_bridge("torch")
+            vr = decord.VideoReader(maybe_video_path)
             if neva_cfg.data.splice_single_frame == 'first':
-                frames = [Image.fromarray(vr[0].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[0].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'middle':
-                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[len(vr) // 2].asnumpy()).convert('RGB')]
             elif neva_cfg.data.splice_single_frame == 'last':
-                frames = [Image.fromarray(vr[-1].asnumpy()[:, :, ::-1]).convert('RGB')]
+                frames = [Image.fromarray(vr[-1].asnumpy()).convert('RGB')]
             else:
                 if neva_cfg.data.num_frames == -1:
-                    frames = [Image.fromarray(frame.asnumpy()[:, :, ::-1]).convert('RGB') for frame in vr]
+                    frames = [Image.fromarray(frame.asnumpy()).convert('RGB') for frame in vr]
                 else:
                     num_frames = min(len(vr), neva_cfg.data.num_frames)
                     indices = np.linspace(0, len(vr) - 1, num_frames, dtype=int)
-                    frames = [Image.fromarray(vr[i].asnumpy()[:, :, ::-1]).convert('RGB') for i in indices]
+                    frames = vr.get_batch(indices)
 
                     while len(frames) < neva_cfg.data.num_frames:
                         frames.append(frames[-1])

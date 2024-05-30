@@ -145,25 +145,26 @@ class TarOrFolderVideoLoader:
                     cap = decord.VideoReader(f)
                     return self.flatten_frames(cap)
         else:
+            decord.bridge.set_bridge("torch")
             cap = decord.VideoReader(os.path.join(self.video_folder, file_name))
             return self.flatten_frames(cap)
         return None
 
     def flatten_frames(self, cap):
         if self.data_cfg['splice_single_frame'] == 'first':
-            frame = cap[0].asnumpy()[:, :, ::-1]
+            frame = cap[0].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'middle':
-            frame = cap[len(cap) // 2].asnumpy()[:, :, ::-1]
+            frame = cap[len(cap) // 2].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'last':
-            frame = cap[-1].asnumpy()[:, :, ::-1]
+            frame = cap[-1].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         else:
             if self.data_cfg['num_frames'] == -1:
                 frames = []
                 for frame in cap:
-                    rgb_frame = frame.asnumpy()[:, :, ::-1]
+                    rgb_frame = frame.asnumpy()
                     img = Image.fromarray(rgb_frame).convert('RGB')
                     frames.append(img)
                 return frames
@@ -171,10 +172,7 @@ class TarOrFolderVideoLoader:
                 num_frames = min(len(cap), self.data_cfg['num_frames'])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
                 frames = []
-                for i in indices:
-                    rgb_frame = cap[i].asnumpy()[:, :, ::-1]
-                    img = Image.fromarray(rgb_frame).convert('RGB')
-                    frames.append(img)
+                frames = cap.get_batch(indices)  
 
                 while len(frames) < self.data_cfg['num_frames']:
                     frames.append(frames[-1])
