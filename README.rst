@@ -108,7 +108,7 @@ Latest News
 Introduction
 ------------
 
-NVIDIA NeMo Framework is a generative AI framework built for researchers and pytorch developers
+NVIDIA NeMo Framework is a generative AI framework built for researchers and PyTorch developers
 working on large language models (LLMs), multimodal models (MM), automatic speech recognition (ASR),
 and text-to-speech synthesis (TTS).
 The primary objective of NeMo is to provide a scalable framework for researchers and developers from industry and academia
@@ -219,8 +219,8 @@ The NeMo Framework can be installed in a variety of ways, depending on your need
   * NeMo LLM & Multimodal Container - `nvcr.io/nvidia/nemo:24.03.framework`
   * NeMo Speech Container - `nvcr.io/nvidia/nemo:24.01.speech`
 
-* LLM and Multimodal Dependencies - Refer to the `LLM and Multimodal dependencies <#llm-and-multimodal-dependencies>`_ section for isntallation instructions.
-  * It's higly recommended to start with a base NVIDIA PyTorch container: `nvcr.io/nvidia/pytorch:24.02-py3`
+* LLM and Multimodal Dependencies - Refer to the `LLM and Multimodal dependencies <#llm-and-multimodal-dependencies>`_ section for installation instructions.
+  * It's highly recommended to start with a base NVIDIA PyTorch container: `nvcr.io/nvidia/pytorch:24.02-py3`
 
 Conda
 ~~~~~
@@ -239,6 +239,8 @@ Install PyTorch using their `configurator <https://pytorch.org/get-started/local
     conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
 The command used to install PyTorch may depend on your system. Please use the configurator linked above to find the right command for your system.
+
+Then, install NeMo via Pip or from Source. We do not provide NeMo on the conda-forge or any other Conda channel.
 
 Pip
 ~~~
@@ -452,9 +454,9 @@ Megatron Core
 ~~~~~~~~~~~~~
 
 The NeMo LLM Multimodal Domains require that NVIDIA Megatron Core to be installed.
-Megatron core is a library for scaling large transfromer base models. 
+Megatron core is a library for scaling large transformer base models. 
 NeMo LLM and Multimodal models leverage Megatron Core for model parallelism, 
-transformer architectures, and optimized pytorch datasets.
+transformer architectures, and optimized PyTorch datasets.
 
 NeMo LLM and Multimodal may need Megatron Core to be updated to a recent version.
 
