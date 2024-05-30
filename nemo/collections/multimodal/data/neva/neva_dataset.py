@@ -293,7 +293,8 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
 
 def process_image(processor, image, image_aspect_ratio="square"):
-    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
+    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor) \
+        or isinstance(processor, TiledSiglipImageProcessor):
         # image processor from HF
         if image_aspect_ratio == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)
