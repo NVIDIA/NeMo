@@ -394,7 +394,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         if decoder_lengths is None:
             logging.warning(_DECODER_LENGTHS_NONE_WARNING, mode=logging_mode.ONCE)
-            decoder_lengths = torch.tensor([decoder_output.shape[1]], dtype=torch.long, device=decoder_output.device).expand(decoder_output.shape[0])
+            decoder_lengths = torch.tensor(
+                [decoder_output.shape[1]], dtype=torch.long, device=decoder_output.device
+            ).expand(decoder_output.shape[0])
 
         # GreedyCTCInfer::forward(), by accident, works with
         # decoder_lengths on either CPU or GPU when decoder_output is

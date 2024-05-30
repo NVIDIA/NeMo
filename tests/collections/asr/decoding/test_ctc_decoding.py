@@ -206,7 +206,10 @@ class TestCTCDecoding:
             torch.device("cpu"),
             pytest.param(
                 torch.device("cuda"),
-                marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA required for test.',),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
             ),
         ],
     )
@@ -216,12 +219,22 @@ class TestCTCDecoding:
             torch.device("cpu"),
             pytest.param(
                 torch.device("cuda"),
-                marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA required for test.',),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
             ),
         ],
     )
     def test_batched_decoding_logprobs(
-        self, tmp_tokenizer, alignments, timestamps, preserve_frame_confidence, length_is_none, logprobs_device, length_device
+        self,
+        tmp_tokenizer,
+        alignments,
+        timestamps,
+        preserve_frame_confidence,
+        length_is_none,
+        logprobs_device,
+        length_device,
     ):
         cfg = CTCBPEDecodingConfig(
             strategy='greedy',
@@ -275,7 +288,10 @@ class TestCTCDecoding:
             torch.device("cpu"),
             pytest.param(
                 torch.device("cuda"),
-                marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA required for test.',),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
             ),
         ],
     )
@@ -285,7 +301,10 @@ class TestCTCDecoding:
             torch.device("cpu"),
             pytest.param(
                 torch.device("cuda"),
-                marks=pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA required for test.',),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(),
+                    reason='CUDA required for test.',
+                ),
             ),
         ],
     )
