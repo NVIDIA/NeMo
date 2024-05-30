@@ -15,13 +15,14 @@
 import json
 import os
 import tempfile
-from typing import  List
+from typing import List
 import editdistance
 import torch
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
 from nemo.collections.asr.parts.utils.ipl_utils import *
+
 
 class IPLMixin:
     """
@@ -31,18 +32,18 @@ class IPLMixin:
     ipl:
         m_epochs: 0
         restore_pc: false
-        manifest_filepath: /path/to/manifest 
+        manifest_filepath: /path/to/manifest
         tarred_audio_filepaths:  /path/to/tarred/
-        is_tarred: false 
-        dataset_weights: 1 
-        limit_train_batches: 170  
+        is_tarred: false
+        dataset_weights: 1
+        limit_train_batches: 170
         cache_manifest: /path/for/cache/manifest
-        dropout: 0.1 
+        dropout: 0.1
         n_l_epochs: 0
-        p_cache: 0.2 
+        p_cache: 0.2
         cache_prefix: prefix_for_cache - (optional for non-tar datasets)
-        batch_size: 128 
-    
+        batch_size: 128
+
     Call
 
         * ``self.setup_ipl()``
@@ -50,22 +51,21 @@ class IPLMixin:
         * ``self.maybe_do_ipl()``
           in the `on_train_epoch_end` method.
     """
+
     def setup_ipl(self):
-        
+
         ipl_config = self.cfg.get("ipl")
         self._ipl_params = {}
 
-        if ipl_config is not None: 
+        if ipl_config is not None:
             if self.trainer and self.trainer.max_steps < 0:
-                raise ValueError(
-                    " For IPL to work max steps should be provided in the trainer."
-                )
+                raise ValueError(" For IPL to work max steps should be provided in the trainer.")
             self._process_ipl_config_values(ipl_config)
             if self.cfg.train_ds.get("is_tarred", False):
                 self._ipl_params['cache_manifest'] = []
                 self._ipl_params['all_cache_manifests'] = formulate_cache_manifest_names(
-                        self._ipl_params['manifest_filepath'], self._ipl_params['cache_prefix'], is_tarred=True
-                        )
+                    self._ipl_params['manifest_filepath'], self._ipl_params['cache_prefix'], is_tarred=True
+                )
             else:
                 if not self._ipl_params.get("cache_manifest", None):
                     self._ipl_params['cache_manifest'] = formulate_cache_manifest_names(
@@ -78,13 +78,24 @@ class IPLMixin:
 
         Raises an error if trying to set parameters thar are not supported by IPL
         """
-        if param_name not in ['m_epochs', 'restore_pc', 'manifest_filepath', 'tarred_audio_filepaths', 'is_tarred', 'dataset_weights', 'dropout',
-                           'limit_train_batches', 'cache_manifest', 'n_l_epochs', 'p_cache', 'cache_prefix', 'batch_size']:
-            raise ValueError(
-                f"Cannot set {param_name} as ipl parameter."
-            )
+        if param_name not in [
+            'm_epochs',
+            'restore_pc',
+            'manifest_filepath',
+            'tarred_audio_filepaths',
+            'is_tarred',
+            'dataset_weights',
+            'dropout',
+            'limit_train_batches',
+            'cache_manifest',
+            'n_l_epochs',
+            'p_cache',
+            'cache_prefix',
+            'batch_size',
+        ]:
+            raise ValueError(f"Cannot set {param_name} as ipl parameter.")
         self._ipl_params[param_name] = param_value
-   
+
     def _process_ipl_config_values(self, ipl_config):
 
         self.set_ipl_param('m_epochs', ipl_config.get('m_epochs'))
@@ -101,7 +112,6 @@ class IPLMixin:
         self.set_ipl_param('cache_prefix', ipl_config.get('cache_prefix'))
         self.set_ipl_param('batch_size', ipl_config.get('batch_size'))
 
-
     def maybe_do_ipl(self):
         """
         Function implements the logic of iterative pseudo labeling algorithm.
@@ -109,7 +119,7 @@ class IPLMixin:
         if not self.cfg.get("ipl"):
             return
         if self._ipl_params['m_epochs'] > 0:
-            self._ipl_params['m_epochs']-= 1
+            self._ipl_params['m_epochs'] -= 1
             return
         needs_update = True
         if self._ipl_params['m_epochs'] == 0:
@@ -125,7 +135,7 @@ class IPLMixin:
             if needs_update:
                 self.build_cache(update_whole_cache=False)
 
-            if self._ipl_params['n_l_epochs']  == 0:
+            if self._ipl_params['n_l_epochs'] == 0:
                 self.update_training_sets()
                 self._ipl_params['n_l_epochs'] = -1
                 self.trainer.reload_dataloaders_every_n_epochs = 1
@@ -135,7 +145,7 @@ class IPLMixin:
             if self.cfg.train_ds.get("use_lhotse", False):
                 self.setup_training_data(self.cfg.train_ds, do_caching=False, update_limit_train_batches=False)
             else:
-                self.setup_training_data(self.cfg.train_ds, do_caching=False, update_limit_train_batches=True)   
+                self.setup_training_data(self.cfg.train_ds, do_caching=False, update_limit_train_batches=True)
 
     def update_training_sets(self):
         """
@@ -171,7 +181,6 @@ class IPLMixin:
             else:
                 self.cfg.train_ds.manifest_filepath.append(self._ipl_params['cache_manifest'])
 
-            
     def build_cache(self, update_whole_cache: bool):
         """
         Function to build cache file for maintaining pseudo labels.
@@ -181,9 +190,13 @@ class IPLMixin:
         if self.cfg.train_ds.get("is_tarred", False):
 
             if update_whole_cache:
-                self.create_tar_cache_hypotheses(self._ipl_params['manifest_filepath'], self._ipl_params['tarred_audio_filepaths'])
+                self.create_tar_cache_hypotheses(
+                    self._ipl_params['manifest_filepath'], self._ipl_params['tarred_audio_filepaths']
+                )
             else:
-                self.update_tar_cache_hypotheses(self._ipl_params['all_cache_manifests'], self._ipl_params['tarred_audio_filepaths'])
+                self.update_tar_cache_hypotheses(
+                    self._ipl_params['all_cache_manifests'], self._ipl_params['tarred_audio_filepaths']
+                )
         else:
             self.create_cache_hypotheses(self._ipl_params['manifest_filepath'], update_whole_cache)
 
@@ -229,9 +242,10 @@ class IPLMixin:
         torch.distributed.all_gather_object(gathered_data, update_data)
         torch.distributed.all_gather_object(gathered_hypotheses, hypotheses)
         if torch.distributed.get_rank() == 0:
-            write_cache_manifest(self._ipl_params['cache_manifest'], gathered_hypotheses, gathered_data, update_whole_cache)
+            write_cache_manifest(
+                self._ipl_params['cache_manifest'], gathered_hypotheses, gathered_data, update_whole_cache
+            )
         torch.distributed.barrier()
-
 
     def create_tar_cache_hypotheses(
         self, manifests: Union[List[List[str]], str], tarred_audio_filepaths: Union[List[List[str]], str]
@@ -414,7 +428,7 @@ class IPLMixin:
                     final_cache_manifests.append([dataset_manifests])
 
         return final_cache_manifests
-    
+
     def generate_pseudo_labels(
         self,
         cache_manifest: Union[List[List[str]], str],
