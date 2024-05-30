@@ -533,7 +533,6 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
         super().__init__(model)
         self.forward_model = self.model.model
-        self.num_media_latents = model.cfg.data.get("image_token_len", 576)
         self.tokenizer = self.model.tokenizer
         self.image_paths = []
         self.cfg = self.model.cfg
@@ -545,7 +544,6 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             sep_image_conv_front=self.data_cfg.sep_image_conv_front,
             conv_template=self.data_cfg.get("conv_template", "nvgpt"),
             model_type=self.cfg.mm_cfg.llm.get("model_type", "nvgpt"),
-            image_token_len=self.data_cfg.image_token_len,
             patch_dim=self.cfg.model_cfg.mm_cfg.patch_dim,
             crop_size=self.cfg.mm_cfg.llm.get("crop_size", (224, 224)),
             image_folder=self.data_cfg.get('image_folder', None),
