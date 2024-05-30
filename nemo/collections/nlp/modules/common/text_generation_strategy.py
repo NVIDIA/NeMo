@@ -547,7 +547,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             model_type=self.cfg.mm_cfg.llm.get("model_type", "nvgpt"),
             image_token_len=self.data_cfg.image_token_len,
             patch_dim=self.cfg.model_cfg.mm_cfg.patch_dim,
-            crop_size=self.cfg.mm_cfg.llm.get("crop_size", (224,224)),
+            crop_size=self.cfg.mm_cfg.llm.get("crop_size", (224, 224)),
             image_folder=self.data_cfg.get('image_folder', None),
             video_folder=self.data_cfg.get('video_folder', None),
             image_aspect_ratio=self.data_cfg.image_aspect_ratio,
@@ -559,7 +559,9 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             num_frames=getattr(self.data_cfg, 'num_frames', 1),
             mm_mlp_adapter_type=getattr(self.cfg.mm_cfg, 'mm_mlp_adapter_type', 'linear'),
         )
-        self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // self.multimodal_cfg['patch_dim']) * (self.multimodal_cfg['crop_size'][1] // self.multimodal_cfg['patch_dim'])
+        self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // self.multimodal_cfg['patch_dim']) * (
+            self.multimodal_cfg['crop_size'][1] // self.multimodal_cfg['patch_dim']
+        )
 
     def clip_max_len(self, maxlen: int) -> int:
         """clip the max len based on the LM model max sequence length"""
