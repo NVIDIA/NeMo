@@ -396,4 +396,3 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
     global weights_dict
     return weights_dict
-
