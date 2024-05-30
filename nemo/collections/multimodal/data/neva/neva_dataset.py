@@ -925,9 +925,9 @@ class LazySupervisedDataset(Dataset):
             media_tensors = torch.tensor([])
             if images:
                 media_tensors = torch.stack(images)
-                cur_token_len = (media_tensors[0].shape[1] // 14) * (
-                    media_tensors[0].shape[2] // 14
-                )  # FIXME: 14 is hardcoded patch size
+                cur_token_len = (media_tensors[0].shape[1] // self.multimodal_cfg['patch_dim']) * (
+                    media_tensors[0].shape[2] // self.multimodal_cfg['patch_dim']
+                )  
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -981,9 +981,9 @@ class LazySupervisedDataset(Dataset):
             media_tensors = frames
             if videos:
                 media_tensors = torch.stack(videos)
-                cur_token_len = (media_tensors[0].shape[-1] // 14) * (
-                    media_tensors[0].shape[-2] // 14
-                )  # FIXME: 14 is hardcoded patch size
+                cur_token_len = (media_tensors[0].shape[-1] // self.multimodal_cfg['patch_dim']) * (
+                    media_tensors[0].shape[-2] // self.multimodal_cfg['patch_dim']
+                )  
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -1133,11 +1133,7 @@ class DataCollatorForSupervisedDataset(object):
 
         tokens = batch['tokens']
         labels = batch['labels']
-<<<<<<< HEAD
-        media_type = model_cfg.data.get('media_type','image')
-=======
         media_type = model_cfg.data.get('media_type', 'image')
->>>>>>> origin/main
         if media_type == 'image':
             media = batch.get('image')
         elif media_type == 'video':
@@ -1197,11 +1193,12 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
     add_extra_token = 1
     if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
         add_extra_token = 0
-    crop_size = data_cfg.get("crop_size", (224, 224))
+    crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
     if mm_cfg.vision_encoder.from_hf:
         image_processor = CLIPImageProcessor.from_pretrained(
             mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
         )
+        assert crop_size == (image_processor.crop_size['height'], image_processor.crop_size['width']), f"Crop size {crop_size} does not match the HuggingFace CLIP model's crop size {(image_processor.crop_size['height'], image_processor.crop_size['width'])}"
     else:
         # TODO(yuya): Fix this hard-code for our own CLIP
         image_processor = image_transform(
@@ -1219,8 +1216,9 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             sep_image_conv_front=data_cfg.sep_image_conv_front,
             model_type=mm_cfg.llm.get("model_type", "nvgpt"),
             conv_template=data_cfg.get("conv_template", "nvgpt"),
+            patch_dim=model_cfg.mm_cfg.vision_encoder.patch_dim,
             crop_size=crop_size,
-            image_token_len=data_cfg.image_token_len,
+            image_token_len=data_cfg.get('image_token_len',None),
             image_folder=data_cfg.get('image_folder', None),
             video_folder=data_cfg.get('video_folder', None),
             image_aspect_ratio=data_cfg.image_aspect_ratio,

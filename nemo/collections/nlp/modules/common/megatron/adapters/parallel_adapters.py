@@ -908,7 +908,7 @@ class DownSampleBlock(nn.Module):
             b, T, F, h, w, c = x.size()
         x = x.view(b, T, F, h, int(w / 2), int(c * 2))
         x = x.permute(0, 1, 2, 4, 3, 5).contiguous()
-        x = x.view(b, T, F, int(w / 2), int(h / 2), int(c * 4))
+        x = x.view(b, T, F, int(h / 2), int(w / 2), int(c * 4))
         return x
     
 
