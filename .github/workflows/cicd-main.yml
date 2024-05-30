@@ -2891,10 +2891,8 @@ jobs:
             model.enc_cross_attention=[1] \
             model.dec_cross_attention=[1] \
             +model.data.mock=True
-
-            rm -rf examples/nlp/language_modeling/retro_legacy_results
-        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-          if: "failure()"
+      AFTER_SCRIPT: |
+        rm -rf examples/nlp/language_modeling/retro_legacy_results
 
   # L2_Megatron_RETRO_muTransfer_Pretraining_Performance:
   #   needs: [cicd-test-container-setup]
