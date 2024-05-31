@@ -926,16 +926,16 @@ class LazySupervisedDataset(Dataset):
                 media_tensors = torch.stack(images)
                 patch_dim = self.multimodal_cfg['patch_dim']
 
-                height_patch_dim = media_tensors[0].shape[1] // patch_dim
-                width_patch_dim = media_tensors[0].shape[2] // patch_dim
+                height_num_patches = media_tensors[0].shape[1] // patch_dim
+                width_num_patches = media_tensors[0].shape[2] // patch_dim
 
                 if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-                    if height_patch_dim % 2 != 0:
-                        height_patch_dim += 1
-                    if width_patch_dim % 2 != 0:
-                        width_patch_dim += 1
+                    if height_num_patches % 2 != 0:
+                        height_num_patches += 1
+                    if width_num_patches % 2 != 0:
+                        width_num_patches += 1
 
-                cur_token_len = height_patch_dim * width_patch_dim
+                cur_token_len = height_num_patches * width_num_patches
 
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
@@ -992,16 +992,16 @@ class LazySupervisedDataset(Dataset):
                 media_tensors = torch.stack(videos)
                 patch_dim = self.multimodal_cfg['patch_dim']
 
-                height_patch_dim = media_tensors[0].shape[-2] // patch_dim
-                width_patch_dim = media_tensors[0].shape[-1] // patch_dim
+                height_num_patches = media_tensors[0].shape[-2] // patch_dim
+                width_num_patches = media_tensors[0].shape[-1] // patch_dim
 
                 if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-                    if height_patch_dim % 2 != 0:
-                        height_patch_dim += 1
-                    if width_patch_dim % 2 != 0:
-                        width_patch_dim += 1
+                    if height_num_patches % 2 != 0:
+                        height_num_patches += 1
+                    if width_num_patches % 2 != 0:
+                        width_num_patches += 1
 
-                cur_token_len = height_patch_dim * width_patch_dim
+                cur_token_len = height_num_patches * width_num_patches
 
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
