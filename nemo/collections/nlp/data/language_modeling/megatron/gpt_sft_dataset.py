@@ -101,7 +101,7 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.label_key = label_key
         self.answer_only_loss = answer_only_loss
-        self.truncation_fields = truncation_field.split(',')
+        self.truncation_fields = truncation_field.split(',') if truncation_field is not None else []
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
@@ -166,8 +166,9 @@ class GPTSFTDataset(Dataset):
         ), f'{label_placeholder} must be at the end of prompt_template.'
 
         # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
-        if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
-            self.truncation_fields[0] = self.prompt_template_keys[0]
+        if len(self.truncation_fields) > 0:
+            if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+                self.truncation_fields[0] = self.prompt_template_keys[0]
 
         assert set(self.truncation_fields).issubset(
             self.prompt_template_keys
