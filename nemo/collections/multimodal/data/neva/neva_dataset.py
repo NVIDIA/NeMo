@@ -260,11 +260,14 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         return sources
 
     num_patches = image_token_len
+
+
     if media_type == 'video':
         num_patches *= multimodal_cfg['num_frames']
 
     if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
         num_patches //= 4
+    
 
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
@@ -923,9 +926,16 @@ class LazySupervisedDataset(Dataset):
             media_tensors = torch.tensor([])
             if images:
                 media_tensors = torch.stack(images)
-                cur_token_len = (media_tensors[0].shape[1] // self.multimodal_cfg['patch_dim']) * (
-                    media_tensors[0].shape[2] // self.multimodal_cfg['patch_dim']
-                )
+                patch_dim = self.multimodal_cfg['patch_dim']
+
+                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                    if (media_tensors[0].shape[1] // patch_dim) % 2 != 0 or (media_tensors[0].shape[2] // patch_dim) % 2 != 0:
+                        patch_dim += 1
+
+                cur_token_len = (media_tensors[0].shape[1] // patch_dim) * ( 
+                    media_tensors[0].shape[2] // patch_dim
+                    )
+
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -979,9 +989,16 @@ class LazySupervisedDataset(Dataset):
             media_tensors = frames
             if videos:
                 media_tensors = torch.stack(videos)
-                cur_token_len = (media_tensors[0].shape[-1] // self.multimodal_cfg['patch_dim']) * (
-                    media_tensors[0].shape[-2] // self.multimodal_cfg['patch_dim']
-                )
+                patch_dim = self.multimodal_cfg['patch_dim']
+
+                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                    if (media_tensors[0].shape[-1] // patch_dim) % 2 != 0 or (media_tensors[0].shape[-2] // patch_dim) % 2 != 0:
+                        patch_dim += 1
+
+                cur_token_len = (media_tensors[0].shape[-1] // patch_dim) * ( 
+                    media_tensors[0].shape[-2] // patch_dim
+                    )
+                
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
@@ -1219,7 +1236,6 @@ def make_supervised_data_module(tokenizer, model_cfg) -> Dict:
             conv_template=data_cfg.get("conv_template", "nvgpt"),
             patch_dim=model_cfg.mm_cfg.vision_encoder.patch_dim,
             crop_size=crop_size,
-            image_token_len=data_cfg.get('image_token_len', None),
             image_folder=data_cfg.get('image_folder', None),
             video_folder=data_cfg.get('video_folder', None),
             image_aspect_ratio=data_cfg.image_aspect_ratio,

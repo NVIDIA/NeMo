@@ -563,8 +563,12 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             )
             self.multimodal_cfg['crop_size'] = (image_processor.crop_size['height'],image_processor.crop_size['width'])
 
-        self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // self.multimodal_cfg['patch_dim']) * (
-            self.multimodal_cfg['crop_size'][1] // self.multimodal_cfg['patch_dim']
+        patch_dim = self.multimodal_cfg['patch_dim']
+        if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+            if (self.multimodal_cfg['crop_size'][0] // patch_dim % 2) != 0 or (self.multimodal_cfg['crop_size'][1] // patch_dim % 2 != 0):
+                patch_dim += 1
+        self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // patch_dim) * (
+            self.multimodal_cfg['crop_size'][1] // patch_dim
         )
 
     def clip_max_len(self, maxlen: int) -> int:
