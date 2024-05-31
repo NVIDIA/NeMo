@@ -1056,10 +1056,8 @@ def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
     # Example:
     # model.transcribe(
     #     audio,
-    #     prompts=dict(
-    #         role="user",
-    #         slots=dict(source_lang='en', target_lang='de', task='asr', pnc=True, context='translate this text'),
-    #     ),
+    #     role="user",
+    #     slots=dict(source_lang='en', target_lang='de', task='asr', pnc=True, context='translate this text'),
     # )
     if "role" in prompt and "slots" in prompt:
         assert isinstance(prompt["slots"], dict), (

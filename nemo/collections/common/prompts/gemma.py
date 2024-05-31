@@ -10,8 +10,8 @@ GEMMA_NL = "\n\n"
 
 
 class GemmaPromptFormatter(PromptFormatter):
-    REGISTER_NAME = "gemma"
-    INFERENCE_ROLE = "assistant"
+    NAME = "gemma"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "user": {
             "template": f"{GEMMA_BOS}user\n|message|{GEMMA_END_OF_TURN}\n{GEMMA_BOS}model\n",
@@ -19,7 +19,7 @@ class GemmaPromptFormatter(PromptFormatter):
                 "message": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             # Note: that trailing NL is bothering me.
             "template": f"|message|{GEMMA_END_OF_TURN}\n",
             "slots": {

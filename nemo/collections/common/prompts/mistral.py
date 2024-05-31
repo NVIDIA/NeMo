@@ -12,8 +12,8 @@ MISTRAL_NL = "\n\n"
 
 
 class MistralPromptFormatter(PromptFormatter):
-    REGISTER_NAME = "mistral"
-    INFERENCE_ROLE = "assistant"
+    NAME = "mistral"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "preamble": {
             "template": MISTRAL_BOS,
@@ -24,7 +24,7 @@ class MistralPromptFormatter(PromptFormatter):
                 "message": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             "template": f"|message|{MISTRAL_END_OF_TURN}",
             "slots": {
                 "message": Modality.Text,

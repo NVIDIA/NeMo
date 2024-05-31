@@ -6,8 +6,8 @@ from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 
 
 class Phi2QAPromptFormatter(PromptFormatter):
-    REGISTER_NAME = "phi2_qa"
-    INFERENCE_ROLE = "assistant"
+    NAME = "phi2_qa"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "user": {
             "template": f"Instruct: |message|\nOutput: ",
@@ -15,7 +15,7 @@ class Phi2QAPromptFormatter(PromptFormatter):
                 "message": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             "template": f"|message|",
             "slots": {
                 "message": Modality.Text,
@@ -25,8 +25,8 @@ class Phi2QAPromptFormatter(PromptFormatter):
 
 
 class Phi2ChatPromptFormatter(PromptFormatter):
-    REGISTER_NAME = "phi2_chat"
-    INFERENCE_ROLE = "assistant"
+    NAME = "phi2_chat"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "user": {
             "template": f"Human: |message|\nAI: ",
@@ -34,7 +34,7 @@ class Phi2ChatPromptFormatter(PromptFormatter):
                 "message": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             "template": f"|message|",
             "slots": {
                 "message": Modality.Text,
@@ -44,8 +44,8 @@ class Phi2ChatPromptFormatter(PromptFormatter):
 
 
 class Phi2CodePromptFormatter(PromptFormatter):
-    REGISTER_NAME = "phi2_code"
-    INFERENCE_ROLE = "assistant"
+    NAME = "phi2_code"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "user": {
             "template": f"|message|\n",
@@ -53,7 +53,7 @@ class Phi2CodePromptFormatter(PromptFormatter):
                 "message": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             "template": f"|message|",
             "slots": {
                 "message": Modality.Text,

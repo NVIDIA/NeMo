@@ -141,7 +141,10 @@ def canary(
     for cut in cuts:
         if isinstance(cut, MixedCut):
             cut = cut._first_non_padding_cut
-        assert isinstance(cut, MonoCut), "Expected MonoCut."
+        if not isinstance(cut, MonoCut):
+            raise TypeError(
+                f"Expected input audio to have a single channel (required MonoCut/MixedCut, but we received: {cut=})"
+            )
 
         # first, validate the utterance
         expected_slots = set(formatter.get_slots("user"))

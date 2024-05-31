@@ -6,8 +6,8 @@ class Llama2PromptFormatter(PromptFormatter):
     TODO: validate faithfulness of the implemenation
     """
 
-    REGISTER_NAME = "llama2"
-    INFERENCE_ROLE = "assistant"
+    NAME = "llama2"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "system": {
             "template": "<<SYS>>\n|message|\n<</SYS>>\n",
@@ -21,7 +21,7 @@ class Llama2PromptFormatter(PromptFormatter):
                 "message": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             "template": f"Assistant:|message|",
             "slots": {
                 "message": Modality.Text,
@@ -43,8 +43,8 @@ class Llama3PromptFormatter(PromptFormatter):
      https://github.com/meta-llama/llama3/blob/main/llama/test_tokenizer.py#L56
     """
 
-    REGISTER_NAME = "llama3"
-    INFERENCE_ROLE = "assistant"
+    NAME = "llama3"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "preamble": {
             "template": LLAMA3_BOS,
@@ -61,7 +61,7 @@ class Llama3PromptFormatter(PromptFormatter):
                 "message": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             "template": f"{LLAMA3_HEADER_BEGIN}assistant{LLAMA3_HEADER_END}{LLAMA3_NL}|message|{LLAMA3_END_OF_TURN}",
             "slots": {
                 "message": Modality.Text,

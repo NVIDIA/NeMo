@@ -40,7 +40,7 @@ class PromptFormatter(ABC):
 
     A role is typically "user" and "assistant", and some popular models also use a "system" role.
     Other roles may be defined as well. We expect the role corresponding to the model's responses
-    will be registered under class attribute called INFERENCE_ROLE.
+    will be registered under class attribute called OUTPUT_ROLE.
     We reserve a special "preamble" role with no slots that will be inserted at the beginning of
     the formatted prompt, if "preamble" is present in TEMPLATE.
 
@@ -55,14 +55,14 @@ class PromptFormatter(ABC):
 
     PromptFormatter supports constructing prompts for training (complete context and answers)
     and for inference (context-only).
-    Training/inference is determined automatically; if the last role in a dialog is the INFERENCE_ROLE,
+    Training/inference is determined automatically; if the last role in a dialog is the OUTPUT_ROLE,
     that's an 'asked-and-answered' scenario, so we assume it's inteded for training.
     We'll create a dict with tokenized results available under the following keys:
 
     * ``context_ids`` (all turns minus last one),
     * ``answer_ids`` (last turn)
     * ``input_ids`` (previous two values concatenated)
-    * ``mask`` (boolean mask tensor of the same lenth as ``input_ids`` that's set to True on INFERENCE_ROLE turns)
+    * ``mask`` (boolean mask tensor of the same lenth as ``input_ids`` that's set to True on OUTPUT_ROLE turns)
 
     Typically, the user will use the ``encode_dialog`` method providing a list of turns to it.
     Example showing how to construct model inputs/outputs for training::
@@ -94,8 +94,8 @@ class PromptFormatter(ABC):
     # Used to support AggregateTokenizer; this key selects the right sub-tokenizer for each turn.
     PROMPT_LANGUAGE_SLOT = "prompt_language"
 
-    # Sub-classes will be registered under this name, to be used via PromptFormatter.resolve(name).
-    REGISTER_NAME = None
+    # Subclasses will be registered under this name, to be used via PromptFormatter.resolve(name).
+    NAME = None
 
     # Template is a dict that maps:
     # * from a role name string (system/user/assistant/etc)
@@ -111,24 +111,28 @@ class PromptFormatter(ABC):
 
     # Turns under this role indicate responses by the model; if the last turn in
     # PromptFormatter.encode_dialog() ends with this role, it indicates a training example.
-    INFERENCE_ROLE = None
+    OUTPUT_ROLE = None
 
     # Internal reserved field.
     _REGISTERED_FORMATTERS = {}
 
     def __init__(self, tokenizer: TokenizerSpec, defaults: list[dict] | None = None) -> None:
         self.tokenizer = tokenizer
-        self._defaults = defaults
+        self._defaults = defaults if defaults is not None else []
         self._validate_defaults()
 
     def __init_subclass__(cls, **kwargs) -> None:
         ERR = "PromptFormatter subclass definition error:"
         if cls.__name__ not in cls._REGISTERED_FORMATTERS:
-            for attr in ("REGISTER_NAME", "TEMPLATE", "INFERENCE_ROLE"):
+            for attr in ("NAME", "TEMPLATE", "OUTPUT_ROLE"):
                 assert (
                     getattr(cls, attr, None) is not None
                 ), f"{ERR} PromptFormatter subclass {cls} did not define a class attribute {attr}"
-            cls._REGISTERED_FORMATTERS[cls.REGISTER_NAME] = cls
+            assert cls.NAME not in cls._REGISTERED_FORMATTERS, (
+                f"Cannot register {cls.__name__} under {cls.NAME}: another prompt formatter of type "
+                f"{cls._REGISTERED_FORMATTERS[cls.NAME]} has already been registered under this name."
+            )
+            cls._REGISTERED_FORMATTERS[cls.NAME] = cls
         if "preamble" in cls.TEMPLATE:
             assert (
                 len(cls.TEMPLATE["preamble"].get("slots", [])) == 0
@@ -169,14 +173,23 @@ class PromptFormatter(ABC):
         If ``PromptFormatter`` was initialized with ``defaults`` argument, this method will return the
         defaults. Otherwise, every slot is pre-filled with ``None``.
         """
-        if self._defaults is not None:
-            return self._defaults.copy()
-        else:
-            return [
-                {"role": role, "slots": {slot: None for slot in self.get_slots(role)}}
-                for role in self.get_roles()
-                if role != self.INFERENCE_ROLE
-            ]
+
+        def _get_default_for_role(role: str) -> dict:
+            for turn in self._defaults:
+                if turn["role"] == role:
+                    return turn
+            return {}
+
+        return [
+            {
+                "role": role,
+                "slots": {
+                    slot: _get_default_for_role(role).get("slots", {}).get(slot) for slot in self.get_slots(role)
+                },
+            }
+            for role in self.get_roles()
+            if role != self.OUTPUT_ROLE
+        ]
 
     def encode_turn(
         self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
@@ -223,11 +236,11 @@ class PromptFormatter(ABC):
             tokens = self.encode_turn(template, expected_slots, slot_values)
             turn_tokens.extend(tokens)
             turn_token_counts.append(len(tokens))
-            turn_mask_values.append(role == self.INFERENCE_ROLE)
+            turn_mask_values.append(role == self.OUTPUT_ROLE)
 
         ans = {"input_ids": torch.tensor(turn_tokens, dtype=torch.long)}
         if turn_mask_values[-1]:
-            # The last turn comes from INFERENCE_ROLE, i.e. it's a response from the system.
+            # The last turn comes from OUTPUT_ROLE, i.e. it's a response from the system.
             # This indicates it's a training example for which we provide context/answer/mask.
             ans["context_ids"] = ans["input_ids"][: -turn_token_counts[-1]]
             ans["answer_ids"] = ans["input_ids"][-turn_token_counts[-1] :]
@@ -263,7 +276,7 @@ class PromptFormatter(ABC):
             ), f"{slot=} received {value=} which does not match modality {expected_modality}"
 
     def _validate_defaults(self):
-        if self._defaults is None:
+        if not self._defaults:
             return
 
         err = "Error in default prompt definition:"
@@ -280,6 +293,11 @@ class PromptFormatter(ABC):
                     f"{err} Missing required 'slots' key in {turn=} - "
                     f"we expected the following slots to be provided: {expected_slots}."
                 )
+                for slot in turn["slots"]:
+                    assert slot in expected_slots, (
+                        f"{err} Invalid {slot=} in {turn=}. "
+                        f"The following slots are supported for {role=}: {expected_slots}"
+                    )
 
 
 def _mangled(slot: str) -> str:

@@ -5,12 +5,12 @@ from nemo.collections.common.prompts.formatter import Modality
 
 
 class _DummyPromptFormatter(PromptFormatter):
-    REGISTER_NAME = "_dummy_test_formatter"
+    NAME = "_dummy_test_formatter"
     TEMPLATE = {
         "user": {"template": "<s>|text|</s>", "slots": {"text": Modality.Text}},
         "assistant": {"template": "|text|</s>", "slots": {"text": Modality.Text}},
     }
-    INFERENCE_ROLE = "assistant"
+    OUTPUT_ROLE = "assistant"
 
 
 def test_prompt_formatter_empty_dialog_exception(bpe_tokenizer):
@@ -41,7 +41,7 @@ def test_prompt_formatter_training(bpe_tokenizer):
 def test_prompt_formatter_missing_role(bpe_tokenizer):
     formatter = _DummyPromptFormatter(bpe_tokenizer)
     with pytest.raises(AssertionError, match="A turn must have have a 'role' key"):
-        ans = formatter.encode_dialog([{"slots": {"text": "hi"}}])
+        formatter.encode_dialog([{"slots": {"text": "hi"}}])
 
 
 def test_prompt_formatter_missing_slots(bpe_tokenizer):
@@ -83,13 +83,13 @@ def test_prompt_formatter_aggregate_tokenizer_missing_prompt_language(canary_tok
 
 
 class _DummyPreamblePromptFormatter(PromptFormatter):
-    REGISTER_NAME = "_dummy_test_formatter"
+    NAME = "_dummy_preamble_test_formatter"
     TEMPLATE = {
         "preamble": {"template": "TEST"},
         "user": {"template": "<s>|text|</s>", "slots": {"text": Modality.Text}},
         "assistant": {"template": "|text|</s>", "slots": {"text": Modality.Text}},
     }
-    INFERENCE_ROLE = "assistant"
+    OUTPUT_ROLE = "assistant"
 
 
 def test_prompt_formatter_preamble_inference(bpe_tokenizer):

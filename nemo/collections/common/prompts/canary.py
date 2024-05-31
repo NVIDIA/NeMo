@@ -9,8 +9,8 @@ from nemo.collections.common.tokenizers.canary_tokenizer import (
 
 
 class CanaryPromptFormatter(PromptFormatter):
-    REGISTER_NAME = "canary"
-    INFERENCE_ROLE = "assistant"
+    NAME = "canary"
+    OUTPUT_ROLE = "assistant"
     TEMPLATE = {
         "user": {
             "template": f"{CANARY_BOS}|source_lang||task||target_lang||pnc|",
@@ -21,7 +21,7 @@ class CanaryPromptFormatter(PromptFormatter):
                 "pnc": Modality.Text,
             },
         },
-        INFERENCE_ROLE: {
+        OUTPUT_ROLE: {
             "template": f"|text|{CANARY_EOS}",
             "slots": {
                 "text": Modality.Text,
