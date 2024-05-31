@@ -390,20 +390,13 @@ class GPTSFTDataset(Dataset):
             # these pad/eos tokens are placeholders for virtual tokens
             context_ids = [self.tokenizer.eos_id] * self.virtual_tokens + context_ids
 
-        input_ids = context_ids
-        answer_start_idx = len(input_ids)
-
         # Adds bos token in the start
         if self.add_bos:
             context_ids = [self.tokenizer.bos_id] + context_ids
-            input_ids = [self.tokenizer.bos_id] + input_ids
-            answer_start_idx += 1
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             context_ids = context_ids + [self.sep_id]
-            input_ids = input_ids + [self.sep_id]
-            answer_start_idx += 1
 
         input_ids = input_ids + answer_ids
 
@@ -412,9 +405,13 @@ class GPTSFTDataset(Dataset):
             input_ids = input_ids + [self.tokenizer.eos_id]
 
         if len(input_ids) > self.max_seq_length:
-            logging.warning(f'Input ids length {len(input_ids)} exceed max sequence length {self.max_seq_length}')
+            # this only happens if tuncation_field is not enough to truncate.
+            # context_ids can be empty if we truncate contexts.
+            # answer_ids can be empty if we truncate answers.
+            logging.warning(f'After truncation, input ids length {len(input_ids)} still exceeds max sequence length {self.max_seq_length}')
+            context_ids = context_ids[: self.max_seq_length]
             input_ids = input_ids[: self.max_seq_length]
-            answer_ids = input_ids[answer_start_idx:]
+            answer_ids = input_ids[len(context_ids):]
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
@@ -424,7 +421,7 @@ class GPTSFTDataset(Dataset):
 
         processed_example = {
             'input_ids': input_ids,
-            'answer_start_idx': answer_start_idx,
+            'answer_start_idx': len(context_ids),
             'context_ids': context_ids,
             'context_length': len(context_ids),
             'answer_ids': answer_ids,
