@@ -4948,11 +4948,15 @@ jobs:
         name: Checkout repository
         uses: actions/checkout@v4
       
-      # - if: ${{ always() && contains(needs.*.outputs.conclusion, 'failure') }}
-      #   run: |
-      #     source .github/scripts/slackHelper.sh
+      - if: ${{ always() && (contains(needs.*.outputs.conclusion, 'failure') || contains(needs.*.outputs.conclusion, 'cancelled')) }}
+        run: |
+          source .github/scripts/slackHelper.sh
 
-      #     WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK }}
-      #     PIPELINE_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK }}
+          PIPELINE_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-      #     sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
+          sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
+
+      - if: ${{ always() && (contains(needs.*.outputs.conclusion, 'failure') || contains(needs.*.outputs.conclusion, 'cancelled')) }}
+        run: |
+          exit 1
