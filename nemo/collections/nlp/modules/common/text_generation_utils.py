@@ -90,6 +90,7 @@ def get_default_length_params():
 
     return length_params
 
+
 def render_chat_turn(template, input):
     assert input['role'] in template['roles']
     template = template['roles'][input['role']]
@@ -99,13 +100,14 @@ def render_chat_turn(template, input):
     decorated_prompt = f"{prefix}{prompt_part}{suffix}"
     return decorated_prompt, template.get('add_eos_suffix', False)
 
+
 def tokenize_with_chat_template(tokenizer, inputs, template, add_bos):
     assert len(inputs) > 0, "Expected non-empty inputs"
     assert 'roles' in template, "Expected template to have key `roles`."
     ans = []
     tmp_buffer = []
     render_chat_part = lambda x: render_chat_turn(template, x)
-    for (templated_input, has_eos) in map(render_chat_part, inputs):
+    for templated_input, has_eos in map(render_chat_part, inputs):
         tmp_buffer += [templated_input]
         if has_eos:
             ans.append(tokenizer.text_to_ids(''.join(tmp_buffer)) + [tokenizer.eos_id])
@@ -118,6 +120,7 @@ def tokenize_with_chat_template(tokenizer, inputs, template, add_bos):
         return [tokenizer.bos_id] + ans
     return ans
 
+
 def input_is_chat(inputs):
     if len(inputs) == 0:
         return False
@@ -126,6 +129,7 @@ def input_is_chat(inputs):
     if num_chat_prompts > 0 and num_chat_prompts != len(inputs):
         raise ValueError("Mixing chat prompts with regular is not supported yet.")
     return num_chat_prompts == len(inputs)
+
 
 def pad_prompts_to_len(prompts, max_len, pad_id):
     prompt_lengths = list(map(len, prompts))
@@ -172,10 +176,13 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
 
     # Handle chat-inputs
     if input_is_chat(inputs):
-        inputs = list(map(
-            lambda x: tokenize_with_chat_template(
-                model.tokenizer, x, model.cfg.tokenizer.chat_template, sampling_params["add_BOS"]),
-            inputs)
+        inputs = list(
+            map(
+                lambda x: tokenize_with_chat_template(
+                    model.tokenizer, x, model.cfg.tokenizer.chat_template, sampling_params["add_BOS"]
+                ),
+                inputs,
+            )
         )
         max_len = max(map(len, inputs)) + length_params['max_length']
         prompts, prompt_lengths = pad_prompts_to_len(inputs, max_len, model.tokenizer.eos_id)

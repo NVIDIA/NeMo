@@ -14,8 +14,8 @@
 
 import asyncio
 import datetime
-import os
 import json
+import os
 import threading
 from functools import partial
 
@@ -166,6 +166,7 @@ def remove_padded_prompts(response, nb_paddings):
         result[k] = v
     return result
 
+
 def load_model_from_config(trainer, cfg):
     if cfg.gpt_model_file is not None:
         if (
@@ -274,6 +275,7 @@ def load_model_from_config(trainer, cfg):
         raise ValueError("need at least a nemo file or checkpoint dir")
     return model
 
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
@@ -330,9 +332,7 @@ def main(cfg) -> None:
             nb_paddings += [''] * nb_paddings
 
     # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=prompts, length_params=length_params, sampling_params=sampling_params
-    )
+    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
 
     if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
