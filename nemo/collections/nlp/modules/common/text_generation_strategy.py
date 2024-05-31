@@ -561,7 +561,10 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             image_processor = CLIPImageProcessor.from_pretrained(
                 self.cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
-            self.multimodal_cfg['crop_size'] = (image_processor.crop_size['height'],image_processor.crop_size['width'])
+            self.multimodal_cfg['crop_size'] = (
+                image_processor.crop_size['height'],
+                image_processor.crop_size['width'],
+            )
 
         patch_dim = self.multimodal_cfg['patch_dim']
         if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
