@@ -577,7 +577,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
                 width_num_patches += 1
 
         self.num_media_latents = height_num_patches * width_num_patches
-        
+
     def clip_max_len(self, maxlen: int) -> int:
         """clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.cfg.encoder_seq_length + 1:
