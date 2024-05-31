@@ -427,7 +427,7 @@ class GPTSFTDataset(Dataset):
         return item
 
     def _build_loss_mask(self, processed_example):
-        """ Pad input_ids in batch to max batch length while building loss mask """
+        """Pad input_ids in batch to max batch length while building loss mask"""
         input_ids = processed_example['input_ids']
         answer_start_idx = processed_example['answer_start_idx']
         if self.answer_only_loss:
@@ -642,7 +642,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         else:
             attention_mask = [self._create_attention_mask(max_length) for _ in batch]
             processed_batch.update(
-                {'attention_mask': torch.stack(attention_mask),}
+                {
+                    'attention_mask': torch.stack(attention_mask),
+                }
             )
 
         return processed_batch
