@@ -4941,10 +4941,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:  
       # This should depend on all the tests so we block/unblock based on all tests passing
-      - if: ${{ always() && !contains(needs.*.outputs.conclusion, 'failure') }}
+      - if: ${{ always() && !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.outputs.conclusion, 'cancelled') }}
         run: exit 0
 
-      - if: ${{ always() && contains(needs.*.outputs.conclusion, 'failure') }}
+      - if: ${{ always() && (contains(needs.*.outputs.conclusion, 'failure') || contains(needs.*.outputs.conclusion, 'cancelled')) }}
         name: Checkout repository
         uses: actions/checkout@v4
       
