@@ -118,6 +118,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to None.
         conv_dual_mode (bool): specifies if convolution should be dual mode when dual_offline mode is being used. When enables, the left half of the convolution kernel would get masked in streaming cases.
             Defaults to False
+        use_bias (bool): Use bias in all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
+            Defaults to True.
         dropout (float): the dropout rate used in all layers except the attention layers
             Defaults to 0.1.
         dropout_pre_encoder (float): the dropout rate used before the encoder
@@ -282,6 +284,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
         conv_context_size=None,
+        use_bias=True,
         dropout=0.1,
         dropout_pre_encoder=0.1,
         dropout_emb=0.1,
@@ -356,7 +359,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if reduction and reduction_factor > 1:
             assert reduction_position >= -1 and reduction_position < n_layers
             self.reduction_subsampling = SubsamplingReductionModule(
-                reduction=reduction, d_model=d_model, reduction_factor=reduction_factor,
+                reduction=reduction,
+                d_model=d_model,
+                reduction_factor=reduction_factor,
             )
             self.reduction_position = reduction_position
         else:
@@ -424,6 +429,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
                 att_context_size=self.att_context_size,
+                use_bias=use_bias,
             )
             self.layers.append(layer)
 
@@ -804,15 +810,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         max_context: int = 10000,
     ):
         """
-            This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
-            The streaming configuration is needed to simulate streaming inference.
+        This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
+        The streaming configuration is needed to simulate streaming inference.
 
-            Args:
-                chunk_size (int): overrides the chunk size
-                shift_size (int): overrides the shift size for chunks
-                left_chunks (int): overrides the number of left chunks visible to each chunk
-                max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
-                    Defaults to -1 (means feat_out is d_model)
+        Args:
+            chunk_size (int): overrides the chunk size
+            shift_size (int): overrides the shift size for chunks
+            left_chunks (int): overrides the number of left chunks visible to each chunk
+            max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
+                Defaults to -1 (means feat_out is d_model)
         """
         streaming_cfg = CacheAwareStreamingConfig()
 
@@ -903,12 +909,19 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             create_tensor = torch.zeros
         last_time_cache_size = self.conv_context_size[0]
         cache_last_channel = create_tensor(
-            (len(self.layers), batch_size, self.streaming_cfg.last_channel_cache_size, self.d_model,),
+            (
+                len(self.layers),
+                batch_size,
+                self.streaming_cfg.last_channel_cache_size,
+                self.d_model,
+            ),
             device=device,
             dtype=dtype,
         )
         cache_last_time = create_tensor(
-            (len(self.layers), batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype,
+            (len(self.layers), batch_size, self.d_model, last_time_cache_size),
+            device=device,
+            dtype=dtype,
         )
         if max_dim > 0:
             cache_last_channel_len = torch.randint(
@@ -934,7 +947,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         update_config: bool = True,
         device: torch.device = None,
     ):
-
         """
         Update the self_attention_model which changes the positional encoding and attention layers.
 
@@ -1053,7 +1065,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
         """
-        Update the conv_chunking_factor (int) 
+        Update the conv_chunking_factor (int)
         Default is 1 (auto)
         Set it to -1 (disabled) or to a specific value (power of 2) if you OOM in the conv subsampling layers
 
@@ -1098,7 +1110,9 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
         return cfg
 
-    def get_accepted_adapter_types(self,) -> Set[type]:
+    def get_accepted_adapter_types(
+        self,
+    ) -> Set[type]:
         types = super().get_accepted_adapter_types()
 
         if len(types) == 0:
