@@ -567,13 +567,17 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             )
 
         patch_dim = self.multimodal_cfg['patch_dim']
-        if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-            if (self.multimodal_cfg['crop_size'][0] // patch_dim % 2) != 0 or (self.multimodal_cfg['crop_size'][1] // patch_dim % 2 != 0):
-                patch_dim += 1
-        self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // patch_dim) * (
-            self.multimodal_cfg['crop_size'][1] // patch_dim
-        )
+        height_patch_dim = self.multimodal_cfg['crop_size'][0] // patch_dim
+        width_patch_dim = self.multimodal_cfg['crop_size'][1] // patch_dim
 
+        if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+            if height_patch_dim % 2 != 0:
+                height_patch_dim += 1
+            if width_patch_dim % 2 != 0:
+                width_patch_dim += 1
+
+        self.num_media_latents = height_patch_dim * width_patch_dim
+        
     def clip_max_len(self, maxlen: int) -> int:
         """clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.cfg.encoder_seq_length + 1:
