@@ -15,6 +15,7 @@
 import asyncio
 import datetime
 import os
+import json
 import threading
 from functools import partial
 
@@ -313,7 +314,13 @@ def main(cfg) -> None:
         "end_strings": cfg.inference.end_strings,
     }
 
-    prompts = OmegaConf.to_container(cfg_prompts)
+    prompts = []
+    if (cfg_prompts := getattr(cfg, 'prompts', None)) is not None:
+        prompts = OmegaConf.to_container(cfg_prompts)
+    if (prompts_file := getattr(cfg, 'prompts_file', None)) is not None:
+        with open(prompts_file, 'rt') as fp:
+            prompts += list(map(json.loads, map(str.rstrip, fp)))
+    assert len(prompts) > 0, "Expected at least one prompt"
 
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
     if fp8_enabled and len(prompts) > 0:
