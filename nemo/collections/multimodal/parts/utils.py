@@ -321,7 +321,9 @@ def setup_trainer_and_model_for_inference(
         )
 
     else:
-        raise ValueError(f"Unrecognized checkpoint type: {cfg.model.restore_from_path}")
+        model = model_provider(cfg=cfg.model, trainer=trainer)
+        # raise ValueError(f"Unrecognized checkpoint type: {cfg.model.restore_from_path}")
+        # print(f"Unrecognized checkpoint type: {cfg.model.restore_from_path}")
 
     # initialize apex DDP strategy
     def dummy():

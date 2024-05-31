@@ -1014,25 +1014,25 @@ class UNetModel(nn.Module):
             if "resnets" in key_:
                 id_1 = int(key_[23])
                 target_id = 3 * id_0 + 1 + id_1
-                # post_fix = (
-                #     key_[25:]
-                #     .replace('time_emb_proj', 'emb_layers.1')
-                #     .replace('norm1', 'in_layers.0')
-                #     .replace('norm2', 'out_layers.0')
-                #     .replace('conv1', 'in_layers.2')
-                #     .replace('conv2', 'out_layers.3')
-                #     .replace('conv_shortcut', 'skip_connection')
-                # )
-                ## Rohit: I've changed this to make sure it is compatible
                 post_fix = (
                     key_[25:]
                     .replace('time_emb_proj', 'emb_layers.1')
                     .replace('norm1', 'in_layers.0')
                     .replace('norm2', 'out_layers.0')
-                    .replace('conv1', 'in_layers.1')
-                    .replace('conv2', 'out_layers.2')
+                    .replace('conv1', 'in_layers.2')
+                    .replace('conv2', 'out_layers.3')
                     .replace('conv_shortcut', 'skip_connection')
                 )
+                ## Rohit: I've changed this to make sure it is compatible
+                # post_fix = (
+                #     key_[25:]
+                #     .replace('time_emb_proj', 'emb_layers.1')
+                #     .replace('norm1', 'in_layers.0')
+                #     .replace('norm2', 'out_layers.0')
+                #     .replace('conv1', 'in_layers.1')
+                #     .replace('conv2', 'out_layers.2')
+                #     .replace('conv_shortcut', 'skip_connection')
+                # )
                 res_dict["input_blocks." + str(target_id) + '.0.' + post_fix] = value_
             elif "attentions" in key_:
                 id_1 = int(key_[26])

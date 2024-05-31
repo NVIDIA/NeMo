@@ -316,6 +316,7 @@ class AutoencoderKL(pl.LightningModule):
         ignore_keys=[],
         image_key="image",
         colorize_nlabels=None,
+        from_NeMo=False,
         monitor=None,
         from_pretrained: str = None,
     ):
@@ -345,7 +346,7 @@ class AutoencoderKL(pl.LightningModule):
                 state_dict = torch.load(from_pretrained)
             if 'state_dict' in state_dict:
                 state_dict = state_dict['state_dict']
-            missing_key, unexpected_key, _, _ = self._load_pretrained_model(state_dict)
+            missing_key, unexpected_key, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
             if len(missing_key) > 0:
                 print(
                     f'{self.__class__.__name__}: Following keys are missing during loading VAE weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
@@ -355,7 +356,6 @@ class AutoencoderKL(pl.LightningModule):
 
     def _state_key_mapping(self, state_dict: dict):
         import re
-
         res_dict = {}
         key_list = state_dict.keys()
         key_str = " ".join(key_list)
@@ -395,8 +395,9 @@ class AutoencoderKL(pl.LightningModule):
             res_dict[key_] = val_
         return res_dict
 
-    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False):
-        state_dict = self._state_key_mapping(state_dict)
+    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo = False):
+        if not from_NeMo:
+            state_dict = self._state_key_mapping(state_dict)
         model_state_dict = self.state_dict()
         loaded_keys = [k for k in state_dict.keys()]
         expected_keys = list(model_state_dict.keys())
