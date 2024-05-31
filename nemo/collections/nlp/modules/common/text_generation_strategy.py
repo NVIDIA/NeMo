@@ -561,7 +561,10 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             image_processor = CLIPImageProcessor.from_pretrained(
                 self.cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
             )
-            self.multimodal_cfg['crop_size'] = (image_processor.crop_size['height'],image_processor.crop_size['width'])
+            self.multimodal_cfg['crop_size'] = (
+                image_processor.crop_size['height'],
+                image_processor.crop_size['width'],
+            )
 
         self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // self.multimodal_cfg['patch_dim']) * (
             self.multimodal_cfg['crop_size'][1] // self.multimodal_cfg['patch_dim']
