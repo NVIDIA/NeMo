@@ -1002,7 +1002,7 @@ class LazySupervisedDataset(Dataset):
                         width_patch_dim += 1
 
                 cur_token_len = height_patch_dim * width_patch_dim
-                
+
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
