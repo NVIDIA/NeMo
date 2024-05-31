@@ -20,7 +20,7 @@ import warnings
 from typing import List, Set, Tuple
 
 import torch
-
+from transformers import CLIPImageProcessor
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
@@ -545,7 +545,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             conv_template=self.data_cfg.get("conv_template", "nvgpt"),
             model_type=self.cfg.mm_cfg.llm.get("model_type", "nvgpt"),
             patch_dim=self.cfg.mm_cfg.vision_encoder.patch_dim,
-            crop_size=self.cfg.mm_cfg.vision_encoder.get("crop_size", (224, 224)),
+            crop_size=self.cfg.mm_cfg.vision_encoder.get("crop_size", None),
             image_folder=self.data_cfg.get('image_folder', None),
             video_folder=self.data_cfg.get('video_folder', None),
             image_aspect_ratio=self.data_cfg.image_aspect_ratio,
@@ -557,6 +557,12 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             num_frames=getattr(self.data_cfg, 'num_frames', 1),
             mm_mlp_adapter_type=getattr(self.cfg.mm_cfg, 'mm_mlp_adapter_type', 'linear'),
         )
+        if self.multimodal_cfg['crop_size'] is None:
+            image_processor = CLIPImageProcessor.from_pretrained(
+                self.cfg.mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+            self.multimodal_cfg['crop_size'] = (image_processor.crop_size['height'],image_processor.crop_size['width'])
+
         self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // self.multimodal_cfg['patch_dim']) * (
             self.multimodal_cfg['crop_size'][1] // self.multimodal_cfg['patch_dim']
         )
