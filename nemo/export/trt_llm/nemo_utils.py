@@ -13,14 +13,10 @@
 # limitations under the License.
 
 
-import argparse
 import csv
-import datetime
 import logging
-import os
-import sys
-from pathlib import Path
-from typing import Dict, List, Tuple, Union
+
+from typing import Dict, List, Tuple
 
 import numpy as np
 import tensorrt_llm
@@ -28,11 +24,7 @@ from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
-from transformers import AutoTokenizer, LlamaConfig, PreTrainedTokenizer
-
-from nemo.export.tarutils import TarPath
-from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
-from nemo.export.trt_llm.nemo.nemo_ckpt_convert import build_tokenizer, convert_dist_checkpoint
+from nemo.export.trt_llm.nemo.nemo_ckpt_convert import convert_model_trt_llm_ckpt
 
 
 DECODER_MODEL_TYPE = {
@@ -104,75 +96,6 @@ def split(v, tp_size, idx, dim=0):
         return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
 
 
-def _nemo_llm_decode(
-    in_file: str,
-    out_dir: str,
-    tensor_parallelism: int = 1,
-    processes: int = 1,
-    storage_type: str = "bfloat16",
-    load_checkpoints_on_gpu: bool = False,
-    decoder_type: str = "gptnext",
-    use_parallel_embedding: bool = False,
-    save_nemo_model_config: bool = False,
-) -> Tuple[Dict[str, np.ndarray], PretrainedConfig, PreTrainedTokenizer]:
-    """Decodes the NEMO file and returns the weights dict, llm config and tokenizer."""
-    args = argparse.Namespace()
-    args.out_dir = out_dir
-    args.tensor_parallelism = tensor_parallelism
-    args.processes = processes
-    args.storage_type = storage_type
-    args.load_checkpoints_on_gpu = load_checkpoints_on_gpu
-    args.verbose = False
-    args.decoder_type = decoder_type
-    args.use_parallel_embedding = use_parallel_embedding
-
-    if not os.path.exists(in_file):
-        LOGGER.error("%s does not exist", in_file)
-        sys.exit(1)
-
-    if os.path.isdir(in_file):
-        nemo_dir = Path(in_file)
-    else:
-        nemo_dir = TarPath(in_file)
-
-    try:
-        unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(
-            nemo_dir, load_checkpoints_to_cpu=not args.load_checkpoints_on_gpu
-        )
-
-        start_time = datetime.datetime.now()
-        dist_ckpt_folder = nemo_dir / "model_weights"
-
-        if dist_ckpt_folder.exists():
-            weights_dict, llm_config, tokenizer = convert_dist_checkpoint(unpacked_checkpoint_dir, args)
-        else:
-            raise Exception(
-                "Not a supported nemo file format. " "Only distributed mcore nemo checkpoints are support."
-            )
-
-        LOGGER.info("Spent %s (h:m:s) to convert the model", datetime.datetime.now() - start_time)
-
-        if save_nemo_model_config:
-            # Copy the config file without using shutil.copy(...) because input may be a TarPath
-            with (unpacked_checkpoint_dir._checkpoints_dir / "model_config.yaml").open("rb") as infile:
-                with open(os.path.join(args.out_dir, "model_config.yaml"), "wb") as outfile:
-                    outfile.write(infile.read())
-    finally:
-        if isinstance(nemo_dir, TarPath):
-            nemo_dir.tarobject.close()
-
-    return weights_dict, llm_config, tokenizer
-
-
-def get_tokenzier(tokenizer_dir_or_path: Path) -> PreTrainedTokenizer:
-    """Loads the tokenizer from the decoded NEMO weights dir."""
-    if os.path.isdir(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer")):
-        return AutoTokenizer.from_pretrained(os.path.join(tokenizer_dir_or_path, "huggingface_tokenizer"))
-
-    model_path = tokenizer_dir_or_path / "tokenizer.model" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
-    tokenizer_config = {"library": "sentencepiece", "model": str(model_path)}
-    return build_tokenizer(tokenizer_config)
-
 
 def to_word_list_format(
     word_dict: List[List[str]],
@@ -232,29 +155,26 @@ def to_word_list_format(
     return np.array([flat_ids, offsets], dtype="int32").transpose((1, 0, 2))
 
 
-def nemo_to_trtllm_config(
-    in_file: str,
+def model_to_trtllm_ckpt(
+    model,
+    nemo_model_config,
+    nemo_export_dir,
     decoder_type: str,
-    nemo_export_dir: Union[str, Path],
     dtype: str = "bfloat16",
     tensor_parallel_size: int = 1,
     pipeline_parallel_size: int = 1,
     use_parallel_embedding: bool = False,
-    save_nemo_model_config: bool = False,
-) -> Tuple[List[Dict], List[PretrainedConfig], PreTrainedTokenizer]:
-    """Converts the NEMO file and construct the `PretrainedConfig` before tensorrt_llm deployment."""
-    dtype_str = dtype
+) -> Tuple[List[Dict], List[PretrainedConfig]]:
 
-    weights_dict, nemo_model_config, tokenizer = _nemo_llm_decode(
-        in_file=in_file,
-        out_dir=nemo_export_dir,
-        tensor_parallelism=tensor_parallel_size,
+    weights_dict = convert_model_trt_llm_ckpt(
+        model=model,
+        nemo_model_config=nemo_model_config,
+        nemo_export_dir=nemo_export_dir,
+        inference_tp_size=tensor_parallel_size,
         processes=1,
-        storage_type=dtype_str,
+        storage_type=dtype,
         use_parallel_embedding=use_parallel_embedding,
-        load_checkpoints_on_gpu=False,
         decoder_type=decoder_type,
-        save_nemo_model_config=save_nemo_model_config,
     )
 
     world_size = tensor_parallel_size * pipeline_parallel_size
@@ -275,7 +195,7 @@ def nemo_to_trtllm_config(
 
     config = {
         'architecture': DECODER_MODEL_TYPE[decoder_type],
-        'dtype': dtype_str,
+        'dtype': dtype,
         'num_hidden_layers': nemo_model_config.get('num_layers'),
         'num_attention_heads': nemo_model_config.get('num_attention_heads'),
         'num_key_value_heads': nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
@@ -387,4 +307,5 @@ def nemo_to_trtllm_config(
         model_configs.append(model_config)
         weights_dicts.append(weights_dict_local)
 
-    return weights_dicts, model_configs, tokenizer
+    return weights_dicts, model_configs
+

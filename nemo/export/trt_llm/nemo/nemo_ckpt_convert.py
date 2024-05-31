@@ -14,30 +14,24 @@
 
 
 import configparser
-import json
 import logging
 import math
 import multiprocessing
-import os
-import typing
+
 from collections import defaultdict
 from pathlib import Path
 from typing import Union
 
 import numpy as np
-import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
-import zarr
 from tensorrt_llm._utils import np_bfloat16, pad_vocab_size, str_dtype_to_torch, torch_to_numpy
-from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
-from torch.distributed.checkpoint.state_dict_loader import load_state_dict
+from torch.distributed.checkpoint import FileSystemReader
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
-from nemo.export.tarutils import TarPath, ZarrPathStore
+from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.nemo.convert import split_and_save_weight
-from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
-from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.export.trt_llm.nemo.nemo import extract_layers_with_prefix, nemo_to_llm_config
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -124,17 +118,6 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
     return new_key
 
 
-def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    with (checkpoint_dir / 'metadata.json').open(mode='r') as f:
-        config_dict = json.load(f)
-    if config_dict['sharded_backend'] == 'zarr':
-        return load_sharded_metadata_zarr(checkpoint_dir, torch_tensor)
-    elif config_dict['sharded_backend'] == 'torch_dist':
-        return load_sharded_metadata_torch_dist(checkpoint_dir, torch_tensor)
-    else:
-        raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
-
-
 class TarFileSystemReader(FileSystemReader):
     """Reader that accepts both Path and TarPath checkpoint directory.
 
@@ -148,65 +131,24 @@ class TarFileSystemReader(FileSystemReader):
         self.storage_data = dict()
 
 
-def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    fs_reader = TarFileSystemReader(checkpoint_dir)
-    metadata = fs_reader.read_metadata()
-
-    state_dict = {
-        k: torch.empty(tp.size, dtype=tp.properties.dtype)
-        for k, tp in metadata.state_dict_metadata.items()
-        if isinstance(tp, TensorStorageMetadata)
-    }
-    load_state_dict(
-        state_dict,
-        storage_reader=fs_reader,
-        no_dist=True,
-    )
-
-    if not torch_tensor:
-        for k, v in state_dict.items():
-            if v.dtype == torch.bfloat16:
-                state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
-            else:
-                state_dict[k] = v.numpy()
-    return state_dict
-
-
-def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    sharded_state_dict = {}
-    for subdir in checkpoint_dir.iterdir():
-        if not subdir.is_dir() or not (subdir / '.zarray').exists():
-            continue
-        key = subdir.name
-
-        zstore = ZarrPathStore(subdir)
-        arr = zarr.open(zstore, 'r')
-
-        if torch_tensor:
-            # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
-            if arr.dtype.name == "bfloat16":
-                sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
-            else:
-                sharded_state_dict[key] = torch.from_numpy(arr[:])
-        else:
-            sharded_state_dict[key] = arr[:]
-
-    return sharded_state_dict
-
-
 @torch.no_grad()
-def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir, args):
-    nemo_model_config = unpacked_checkpoints_dir.model_config
-    checkpoints_path = unpacked_checkpoints_dir.checkpoints_dir / "model_weights"
+def convert_model_trt_llm_ckpt(
+        nemo_model_config,
+        model,
+        nemo_export_dir,
+        storage_type,
+        inference_tp_size,
+        decoder_type,
+        use_parallel_embedding,
+        processes
+):
 
     # if checkpoints files could be found - start preparing output dir
-    out_dir = create_out_dir(args)
-
-    storage_type = str_dtype_to_torch(args.storage_type)
+    out_dir = create_nemo_export_dir(nemo_export_dir)
+    storage_type = str_dtype_to_torch(storage_type)
     is_mcore = nemo_model_config.get("mcore_gpt", False)
 
     # load position_embedding from rank 0
-    model = load_sharded_metadata(checkpoints_path)
     model_state_dict = model.get("state_dict", model)
 
     prefix, transformer_layer_prefix = get_layer_prefix(model_state_dict.keys(), is_mcore)
@@ -220,12 +162,11 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     num_layers = nemo_model_config["num_layers"]
     training_tp_size = 1
     training_pp_size = 1
-    inference_tp_size = args.tensor_parallelism
     num_kv_heads = nemo_model_config.get("num_query_groups", 0)
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
     kv_channels = nemo_model_config.get("kv_channels", None)
-    use_parallel_embedding = args.use_parallel_embedding
+
     if num_kv_heads == 0:
         if multi_query_mode:
             num_kv_heads = 1
@@ -237,7 +178,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         "tp_size": training_tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
         in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
-        and (args.decoder_type == "gptnext" or is_mcore),
+        and (decoder_type == "gptnext" or is_mcore),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
         "kv_channels": kv_channels,
@@ -326,8 +267,8 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
     starmap_args = tqdm(starmap_args, desc="saving weights")
 
-    if args.processes > 1:
-        with multiprocessing.Pool(args.processes) as pool:
+    if processes > 1:
+        with multiprocessing.Pool(processes) as pool:
             weights_dicts = pool.starmap(split_and_save_weight, starmap_args)
             weights_dict_local = {k: v for d in weights_dicts for k, v in d.items()}
     else:
@@ -339,21 +280,9 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
 
     for key, values in model_level_weights.items():
         model_level_weights[key] = np.concatenate(values, axis=0)
-
         weights_dict[key] = model_level_weights[key]
 
-    if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
-        tokenizer = AutoTokenizer.from_pretrained(
-            nemo_model_config["tokenizer"]["type"], use_fast=nemo_model_config["tokenizer"].get("use_fast", False)
-        )
-    else:
-        tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoints_dir)
-        copy_tokenizer_files(tokenizer_config, out_dir)
-
-        tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
-        tokenizer = build_tokenizer(tokenizer_config)
-
-    return weights_dict, nemo_model_config, tokenizer
+    return weights_dict
 
 
 @torch.no_grad()
@@ -554,94 +483,12 @@ def convert_nemo_model(nemo_model, nemo_model_config, storage_type_str, decoder_
     return trt_inflight_weights, llm_config
 
 
-def create_out_dir(args):
-    out_dir = Path(args.out_dir)
+def create_nemo_export_dir(nemo_export_dir):
+    out_dir = Path(nemo_export_dir)
     if not out_dir.exists():
         out_dir.mkdir(parents=True)
     return out_dir
 
 
-def update_tokenizer_paths(tokenizer_config: typing.Dict, unpacked_checkpoints_dir):
-    def _update_config_entry(key, file_pattern):
-        old_path = tokenizer_config[key]
-        if old_path is None:
-            return
-        old_path = Path(old_path)
-        new_path = unpacked_checkpoints_dir.get_tokenizer_file_path("tokenizer", key, file_pattern)
-        if new_path:
-            LOGGER.debug(f"Update tokenizer {key} {old_path} -> {new_path}")
-            tokenizer_config[key] = new_path
-        elif not old_path.exists():
-            LOGGER.warning(f"Tokenizer {key}'s path {old_path} does not exists: set it to None")
-            tokenizer_config[key] = None
-
-    _update_config_entry("model", "*.model")
-    _update_config_entry("vocab_file", "*vocab*")
-    _update_config_entry("merge_file", "*merge*.txt")
-
-    return tokenizer_config
 
 
-def copy_tokenizer_files(config, out_dir):
-    basenames = {
-        "model": "tokenizer",
-        "vocab_file": "vocab",
-        "merge_file": "merges",
-    }
-
-    for key in basenames.keys():
-        if config[key] is None:
-            continue
-
-        path = config[key]
-
-        if isinstance(path, str):
-            path = Path(path)
-
-        if not path.exists():
-            LOGGER.debug(f"Tokenizer {key}: {path} file not found")
-            continue
-
-        dst_path = out_dir / f"{basenames[key]}{path.suffix}"
-        LOGGER.debug(f"Copy tokenizer {key}: {path}->{dst_path}")
-
-        # Copy 'path' to 'dst_path' without shutil.copy(...) because 'path' may be a TarPath
-        with path.open('rb') as infile:
-            with open(dst_path, 'wb') as outfile:
-                outfile.write(infile.read())
-
-
-def build_tokenizer(tokenizer):
-    if isinstance(tokenizer, dict):
-        tokenizer_config = tokenizer
-        if tokenizer_config["library"] == "sentencepiece":
-            return SentencePieceTokenizer(model_path=tokenizer_config["model"])
-        elif "GPT2" in tokenizer_config["type"]:
-            tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
-        else:
-            raise ValueError(f'Tokenizer type {tokenizer_config["library"]} not handled')
-
-        if tokenizer.bos_token_id is None:
-            tokenizer.add_special_tokens({"bos_token": "<s>"})
-        if tokenizer.eos_token_id is None:
-            tokenizer.add_special_tokens({"eos_token": "</s>"})
-    else:
-        try:
-            # If NeMo tokenizer, monkey patch interface
-            from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
-            if isinstance(tokenizer, TokenizerSpec):
-
-                def batch_encode_patch(self, ids):
-                    if torch.is_tensor(ids):
-                        ids = ids.cpu().numpy()
-                    return self.ids_to_text(ids)
-
-                tokenizer.bos_token_id = tokenizer.bos_id
-                tokenizer.eos_token_id = tokenizer.eos_id
-                tokenizer.encode = tokenizer.text_to_ids
-                TokenizerSpec.batch_decode = batch_encode_patch
-        except:
-            raise TypeError(f'Unsupported tokenizer build input: {type(tokenizer)}')
-
-    return tokenizer
