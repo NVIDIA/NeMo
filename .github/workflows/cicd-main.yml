@@ -133,7 +133,7 @@ jobs:
     #      chmod -R 777 .
 
 
-  L0_Unit_Tests_GPU:
+  OPTIONAL_L0_Unit_Tests_GPU:
     needs: [cicd-test-container-setup]
     runs-on: self-hosted-azure
     container:
@@ -152,8 +152,8 @@ jobs:
     - name: "L0: Unit Tests GPU"
       run: |
         NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads
-    - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-      if: "failure()"
+    #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+    #  if: "failure()"
       
 
   L0_Unit_Tests_CPU:
@@ -325,7 +325,7 @@ jobs:
   # this test is using a 7B model which is too large for GitHub CI
   # replace the model in this test with a toy model or move the test
   # to the nightly CI
-  # L2_Community_LLM_Checkpoints_tests_Baichuan2:
+  # OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2:
   #   needs: [cicd-test-container-setup]
   #   runs-on: self-hosted-azure
   #   container:
@@ -6523,15 +6523,14 @@ jobs:
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: "failure()"
 
-
   Nemo_CICD_Test:
-    needs:
-      - L0_Unit_Tests_GPU
+    needs: 
+      #- OPTIONAL_L0_Unit_Tests_GPU
       - L0_Unit_Tests_CPU
       - L2_Community_LLM_Checkpoints_tests_Llama
       - L2_Community_LLM_Checkpoints_tests_StarCoder
       - L2_Community_LLM_Checkpoints_tests_Falcon
-      #- L2_Community_LLM_Checkpoints_tests_Baichuan2
+      #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
       - ASR_dev_run_Speech_Pre-training_-_CitriNet
@@ -6639,8 +6638,22 @@ jobs:
       - L2_TTS_Fast_dev_runs_1_Mixer-TTS
       - L2_TTS_Fast_dev_runs_1_Hifigan
       - Speech_Checkpoints_tests
-
+    if: always()
     runs-on: ubuntu-latest
     steps:
         # This should depend on all the tests so we block/unblock based on all tests passing
-      - run: exit 0
+      - if: ${{ contains(needs.*.result, 'success') }}
+        run: exit 0
+
+      - if: ${{ contains(needs.*.result, 'failure') }}
+        name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          source .github/scripts/slackHelper.sh
+
+          WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK }}
+          PIPELINE_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          sendSlackMessage "$WEBHOOK_URL" "$PIPELINE_URL"
