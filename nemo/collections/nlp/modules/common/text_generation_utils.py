@@ -90,6 +90,51 @@ def get_default_length_params():
 
     return length_params
 
+def render_chat_turn(template, input):
+    assert input['role'] in template['roles']
+    template = template['roles'][input['role']]
+    prompt_part = input['content']
+    prefix = template.get('prefix', '')
+    suffix = template.get('suffix', '')
+    decorated_prompt = f"{prefix}{prompt_part}{suffix}"
+    return decorated_prompt, template.get('add_eos_suffix', False)
+
+def tokenize_with_chat_template(tokenizer, inputs, template, add_bos):
+    assert len(inputs) > 0, "Expected non-empty inputs"
+    assert 'roles' in template, "Expected template to have key `roles`."
+    ans = []
+    tmp_buffer = []
+    render_chat_part = lambda x: render_chat_turn(template, x)
+    for (templated_input, has_eos) in map(render_chat_part, inputs):
+        tmp_buffer += [templated_input]
+        if has_eos:
+            ans.append(tokenizer.text_to_ids(''.join(tmp_buffer)) + [tokenizer.eos_id])
+            tmp_buffer = []
+    if len(tmp_buffer) > 0:
+        ans.append(tokenizer.text_to_ids(''.join(tmp_buffer)))
+    ans = sum(ans, [])
+    assert len(ans) > 0, 'Expencted non-empty output'
+    if add_bos:
+        return [tokenizer.bos_id] + ans
+    return ans
+
+def input_is_chat(inputs):
+    if len(inputs) == 0:
+        return False
+    is_chat_prompt = lambda x: isinstance(x, list) and len(x) > 0 and isinstance(x[0], dict)
+    num_chat_prompts = sum(map(is_chat_prompt, inputs))
+    if num_chat_prompts > 0 and num_chat_prompts != len(inputs):
+        raise ValueError("Mixing chat prompts with regular is not supported yet.")
+    return num_chat_prompts == len(inputs)
+
+def pad_prompts_to_len(prompts, max_len, pad_id):
+    prompt_lengths = list(map(len, prompts))
+    for i in range(len(prompts)):
+        if len(prompts[i]) < max_len:
+            pad_len = max_len - len(prompts[i])
+            prompts[i] += [pad_id] * pad_len
+    return prompts, prompt_lengths
+
 
 def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, **strategy_args):
     # reproduce the old compute_prob method
@@ -122,31 +167,43 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
         return compute_prob_response
 
-    if isinstance(inputs, (list, tuple)):
-        if isinstance(inputs[0], (str, torch.Tensor)):
-            output = generate(
-                model,
-                inputs=inputs,
-                tokens_to_generate=length_params['max_length'],
-                all_probs=sampling_params['all_probs'],
-                compute_logprob=sampling_params['compute_logprob'],
-                temperature=sampling_params['temperature'],
-                add_BOS=sampling_params['add_BOS'],
-                top_k=sampling_params['top_k'],
-                top_p=sampling_params['top_p'],
-                greedy=sampling_params['use_greedy'],
-                repetition_penalty=sampling_params['repetition_penalty'],
-                end_strings=sampling_params['end_strings'],
-                min_tokens_to_generate=length_params['min_length'],
-                **strategy_args,
-            )
-            return output
-        elif isinstance(inputs[0], dict):
-            raise NotImplementedError("json object not implemented")
-        else:
-            raise NotImplementedError("unknown type is not implemented")
-    else:
-        raise NotImplementedError("unknown type is not implemented")
+    if not isinstance(inputs, (list, tuple)):
+        raise NotImplementedError(f"unknown type {type(inputs)} is not implemented")
+
+    # Handle chat-inputs
+    if input_is_chat(inputs):
+        inputs = list(map(
+            lambda x: tokenize_with_chat_template(
+                model.tokenizer, x, model.cfg.tokenizer.chat_template, sampling_params["add_BOS"]),
+            inputs)
+        )
+        max_len = max(map(len, inputs)) + length_params['max_length']
+        prompts, prompt_lengths = pad_prompts_to_len(inputs, max_len, model.tokenizer.eos_id)
+        make_tensor = lambda x: torch.tensor(x, dtype=torch.int64, device=torch.cuda.current_device())
+        inputs = tuple(map(make_tensor, [prompts, [prompt_lengths]]))
+
+    valid_input = lambda x: isinstance(x, (str, torch.Tensor))
+    if not all(map(valid_input, inputs)):
+        types = ','.join(map(str, filter(lambda x: not valid_input(x), map(type, inputs))))
+        raise NotImplementedError(f"unknown type ({types}) is not implemented")
+
+    output = generate(
+        model,
+        inputs=inputs,
+        tokens_to_generate=length_params['max_length'],
+        all_probs=sampling_params['all_probs'],
+        compute_logprob=sampling_params['compute_logprob'],
+        temperature=sampling_params['temperature'],
+        add_BOS=sampling_params['add_BOS'],
+        top_k=sampling_params['top_k'],
+        top_p=sampling_params['top_p'],
+        greedy=sampling_params['use_greedy'],
+        repetition_penalty=sampling_params['repetition_penalty'],
+        end_strings=sampling_params['end_strings'],
+        min_tokens_to_generate=length_params['min_length'],
+        **strategy_args,
+    )
+    return output
 
 
 def megatron_neva_generate(model, prompt_dict_list, length_params, sampling_params, inference_config, **strategy_args):
