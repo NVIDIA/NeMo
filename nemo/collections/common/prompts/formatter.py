@@ -9,6 +9,16 @@ from nemo.collections.common.tokenizers import AggregateTokenizer, TokenizerSpec
 
 PREAMBLE_ROLE = "preamble"
 
+# Slots used to define when special tokens bos/eos should be inserted.
+# These are special in the sense of how sentencepiece defines special tokens:
+# They have to be specially inserted into the token sequence, and if they appear in the tokenized string,
+# SPE wouldn't use the special token ids but rather tokenize them as if they were normal strings.
+# We mimic SPE's behavior if these special slots are present in the template definition.
+# To achieve that, insert |bos| / |eos| at the beginning/end of template.
+# E.g., inserting only bos in llama2 user role: "template": "|bos|[INST] |message| [\INST]"
+BOS_SLOT = "|bos|"
+EOS_SLOT = "|eos|"
+
 
 class Modality(Enum):
     """
@@ -257,13 +267,38 @@ class PromptFormatter(ABC):
         return ans
 
     def _apply_tokenizer(self, text: str, lang: str | None = None) -> list[int]:
-        if isinstance(self.tokenizer, AggregateTokenizer):
+        # Check if the tokenizer is aggregate and perform extra checks.
+        is_agg = isinstance(self.tokenizer, AggregateTokenizer)
+        if is_agg:
             assert lang is not None, (
                 f"Missing key '{self.PROMPT_LANGUAGE_SLOT}' in slot_values -- cannot resolve "
                 f"the correct sub-tokenizer in the aggregate tokenizer."
             )
-            return self.tokenizer.text_to_ids(text, lang)
-        return self.tokenizer.text_to_ids(text)
+
+        # Strip bos/eos if present and remember to apply them later.
+        has_bos = text.startswith(BOS_SLOT)
+        has_eos = text.endswith(EOS_SLOT)
+        if has_bos:
+            text = text[len(BOS_SLOT) :]
+        if has_eos:
+            text = text[: -len(EOS_SLOT)]
+
+        # Tokenize, selecting the right API depending on aggregate/normal tokenizer.
+        if is_agg:
+            tokens = self.tokenizer.text_to_ids(text, lang)
+        else:
+            tokens = self.tokenizer.text_to_ids(text)
+
+        # Lazily look up bos/eos and apply them. Lazy has the advantage that if a tokenizer
+        # doesn't define bos/eos and the prompt format does not request them, everything just works.
+        if has_eos:
+            eos_id = self.tokenizer.get_eos(lang) if is_agg else self.tokenizer.eos
+            tokens.append(eos_id)
+        if has_bos:
+            bos_id = self.tokenizer.get_bos(lang) if is_agg else self.tokenizer.bos
+            tokens = [bos_id] + tokens
+
+        return tokens
 
     def _validate_slot_values(self, expected: dict[str, Modality], received: dict[str, Any]) -> None:
         missing = set(expected) - set(received)

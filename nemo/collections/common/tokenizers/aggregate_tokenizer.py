@@ -225,6 +225,12 @@ class AggregateTokenizer(TokenizerSpec):
             ids.append(self.token_to_id(token, lang_id))
         return ids
 
+    def get_bos(self, lang_id: str) -> int:
+        return self.tokenizers_dict[lang_id].bos + self.token_id_offset[lang_id]
+
+    def get_eos(self, lang_id: str) -> int:
+        return self.tokenizers_dict[lang_id].eos + self.token_id_offset[lang_id]
+
     @property
     def vocab(self):
         return self.vocabulary

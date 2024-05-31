@@ -1,28 +1,30 @@
-from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
+from nemo.collections.common.prompts.formatter import BOS_SLOT, EOS_SLOT, Modality, PromptFormatter
 
 
 class Llama2PromptFormatter(PromptFormatter):
     """
-    TODO: validate faithfulness of the implemenation
+    This template has been validated to provide identical tokenized results to the official code
+    in https://github.com/meta-llama/llama/blob/main/llama/generation.py
     """
 
     NAME = "llama2"
     OUTPUT_ROLE = "assistant"
     TEMPLATE = {
-        "system": {
-            "template": "<<SYS>>\n|message|\n<</SYS>>\n",
+        "system_and_user": {
+            "template": f"{BOS_SLOT}[INST] <<SYS>>\n|system|\n<</SYS>>\n\n|message| [/INST]",
             "slots": {
+                "system": Modality.Text,
                 "message": Modality.Text,
             },
         },
         "user": {
-            "template": "[INST]\nUser:|message|\n[/INST]\n\n",
+            "template": "|bos|[INST] |message| [/INST]",
             "slots": {
                 "message": Modality.Text,
             },
         },
         OUTPUT_ROLE: {
-            "template": f"Assistant:|message|",
+            "template": f"|message| {EOS_SLOT}",
             "slots": {
                 "message": Modality.Text,
             },
