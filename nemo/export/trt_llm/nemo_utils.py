@@ -96,7 +96,6 @@ def split(v, tp_size, idx, dim=0):
         return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
 
 
-
 def to_word_list_format(
     word_dict: List[List[str]],
     tokenizer=None,
@@ -308,4 +307,3 @@ def model_to_trtllm_ckpt(
         weights_dicts.append(weights_dict_local)
 
     return weights_dicts, model_configs
-
