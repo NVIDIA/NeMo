@@ -398,7 +398,7 @@ class GPTSFTDataset(Dataset):
         if self.add_sep:
             context_ids = context_ids + [self.sep_id]
 
-        input_ids = input_ids + answer_ids
+        input_ids = context_ids + answer_ids
 
         # Only training need to consider eos token
         if self.add_eos:
