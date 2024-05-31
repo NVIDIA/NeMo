@@ -29,7 +29,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     MLPHeadAdapterConfig,
     PromptEncoderAdapterConfig,
