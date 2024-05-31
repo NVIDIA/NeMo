@@ -165,21 +165,7 @@ def remove_padded_prompts(response, nb_paddings):
         result[k] = v
     return result
 
-
-@hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
-def main(cfg) -> None:
-
-    callbacks = []
-    # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
-    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
-        callbacks.append(CustomProgressBar())
-    # trainer required for restoring model parallel models
-    trainer = Trainer(
-        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
-        **cfg.trainer,
-        callbacks=callbacks,
-    )
-
+def load_model_from_config(trainer, cfg):
     if cfg.gpt_model_file is not None:
         if (
             cfg.tensor_model_parallel_size < 0
@@ -285,7 +271,23 @@ def main(cfg) -> None:
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
+    return model
 
+@hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
+def main(cfg) -> None:
+
+    callbacks = []
+    # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
+        callbacks.append(CustomProgressBar())
+    # trainer required for restoring model parallel models
+    trainer = Trainer(
+        strategy=NLPDDPStrategy(timeout=datetime.timedelta(seconds=18000)),
+        **cfg.trainer,
+        callbacks=callbacks,
+    )
+
+    model = load_model_from_config(trainer, cfg)
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
@@ -311,16 +313,18 @@ def main(cfg) -> None:
         "end_strings": cfg.inference.end_strings,
     }
 
+    prompts = OmegaConf.to_container(cfg_prompts)
+
     fp8_enabled = hasattr(model.cfg, "fp8") and (model.cfg.fp8 == True)
-    if fp8_enabled:
-        nb_paddings = 0
-        while len(cfg.prompts) % 8 != 0:
-            cfg.prompts.append("")
-            nb_paddings += 1
+    if fp8_enabled and len(prompts) > 0:
+        padded_len = ((len(prompts) + 7) // 8) * 8
+        nb_paddings = padded_len - len(prompts)
+        if nb_paddings > 0:
+            nb_paddings += [''] * nb_paddings
 
     # First method of running text generation, call model.generate method
     response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+        inputs=prompts, length_params=length_params, sampling_params=sampling_params
     )
 
     if fp8_enabled:
@@ -331,7 +335,7 @@ def main(cfg) -> None:
 
     # Second method of running text generation, call trainer.predict [recommended]
     bs = 8 if fp8_enabled else 2
-    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+    ds = RequestDataSet(prompts)
     request_dl = DataLoader(dataset=ds, batch_size=bs)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
