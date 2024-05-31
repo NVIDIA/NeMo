@@ -229,6 +229,8 @@ Install PyTorch using their `configurator <https://pytorch.org/get-started/local
 
 The command to install PyTorch may depend on your system. Use the configurator linked above to find the right command for your system.
 
+Then, install NeMo via Pip or from Source. We do not provide NeMo on the conda-forge or any other Conda channel.
+
 Pip
 ^^^
 
@@ -442,6 +444,7 @@ Megatron Core
 Megatron Core is required for LLM and MM domains.
 
 Megatron Core is a library for scaling large Transformer-based models. NeMo LLMs and MMs leverage Megatron Core for model parallelism, 
+
 transformer architectures, and optimized PyTorch datasets.
 
 To install Megatron Core, run the following code:
