@@ -203,9 +203,7 @@ The NeMo Framework can be installed in a variety of ways, depending on your need
 
 * Docker Containers - Refer to `Docker containers <#docker-containers>`_ for installation instructions.
 
-  * This is recommended method for LLMs, MMs, and CV domains.
-  * NeMo LLMs and MMs container - `nvcr.io/nvidia/nemo:24.05.framework`
-  * NeMo Speech Container - `nvcr.io/nvidia/nemo:24.01.speech`
+  * NeMo Framework container - `nvcr.io/nvidia/nemo:24.05`
 
 * LLMs and MMs Dependencies - Refer to `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for installation instructions.
 
@@ -522,5 +520,3 @@ Licenses
 * `NeMo GitHub Apache 2.0 license <https://github.com/NVIDIA/NeMo?tab=Apache-2.0-1-ov-file#readme>`__
 
 * NeMo is licensed under the `NVIDIA AI PRODUCT AGREEMENT <https://www.nvidia.com/en-us/data-center/products/nvidia-ai-enterprise/eula/>`__. By pulling and using the container, you accept the terms and conditions of this license.
-
-* This container contains Llama materials governed by the `Meta Llama3 Community License Agreement <https://huggingface.co/meta-llama/Meta-Llama-3-8B/tree/main>`__, and is built with Meta Llama3.
