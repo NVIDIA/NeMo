@@ -306,32 +306,59 @@ class GPTSFTDataset(Dataset):
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
             num_fields = len(self.truncation_fields)
-            # sorted equal divide length to each field
-            # examples:
-            #   truncation_length_total = 3
-            #   num_fields = 11
-            #   truncation_length_list = [3,4,4]
-            truncation_length_list = [
-                truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
-                for i in range(num_fields)[::-1]
-            ]
+            if num_fields > 0:
+                # sorted equal divide length to each field
+                # examples:
+                #   truncation_length_total = 3
+                #   num_fields = 11
+                #   truncation_length_list = [3,4,4]
+                truncation_length_list = [
+                    truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
+                    for i in range(num_fields)[::-1]
+                ]
 
-            for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
-                if key in self.truncation_fields:
-                    truncation_length = truncation_length_list.pop()
-                    if len(ids) < truncation_length:
-                        logging.warning(f'{key} is not long enough to truncate.')
-                        truncation_length = len(ids)
+                for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
+                    if key in self.truncation_fields:
+                        truncation_length = truncation_length_list.pop()
+                        if len(ids) < truncation_length:
+                            logging.warning(f'{key} is not long enough to truncate.')
+                            truncation_length = len(ids)
 
-                    if self.truncation_method == 'left':
-                        window_offset = truncation_length
-                    elif self.truncation_method == 'right':
-                        window_offset = 0
+                        if self.truncation_method == 'left':
+                            window_offset = truncation_length
+                        elif self.truncation_method == 'right':
+                            window_offset = 0
+                        else:
+                            raise ValueError(f'{self.truncation_method} is not supported')
+
+                        window_length = len(ids) - truncation_length
+                        template_ids[i] = ids[window_offset : window_offset + window_length]
+            else:
+                # If truncation_field is empty, we truncate template_ids (List[List[int]]) to make total ids < self.max_seq_length.
+                logging.warning(f'`truncation_field` is empty, we truncate input from {self.truncation_method} based on truncation_method.')
+                template_ids_lengths = [len(ids) for ids in template_ids]
+                if self.truncation_method == 'left':
+                    iters = range(0,len(template_ids_lengths), 1)
+                elif self.truncation_method == 'right':
+                    iters = range(len(template_ids_lengths)-1, -1, -1)
+                else:
+                    raise ValueError(f'{self.truncation_method} is not supported')
+
+                # Iterate all lengths of template_ids.
+                for i in iters:
+                    if template_ids_lengths[i] >= truncation_length_total:
+                        template_ids_lengths[i] -= truncation_length_total
+                        if self.truncation_method == 'left':
+                            template_ids[i] = template_ids[i][-template_ids_lengths[i]:]
+                        elif self.truncation_method == 'right':
+                            template_ids[i] = template_ids[i][:template_ids_lengths[i]]
+                        else:
+                            raise ValueError(f'{self.truncation_method} is not supported')
+                        break
                     else:
-                        raise ValueError(f'{self.truncation_method} is not supported')
-
-                    window_length = len(ids) - truncation_length
-                    template_ids[i] = ids[window_offset : window_offset + window_length]
+                        truncation_length_total -= template_ids_lengths[i]
+                        template_ids_lengths[i] = 0
+                        template_ids[i] = []
 
         context_ids = [i for ids in template_ids[:-1] for i in ids]
         label_ids = template_ids[-1]
