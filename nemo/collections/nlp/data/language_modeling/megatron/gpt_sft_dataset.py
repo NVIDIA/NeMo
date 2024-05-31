@@ -335,12 +335,14 @@ class GPTSFTDataset(Dataset):
                         template_ids[i] = ids[window_offset : window_offset + window_length]
             else:
                 # If truncation_field is empty, we truncate template_ids (List[List[int]]) to make total ids < self.max_seq_length.
-                logging.warning(f'`truncation_field` is empty, we truncate input from {self.truncation_method} based on truncation_method.')
+                logging.warning(
+                    f'`truncation_field` is empty, we truncate input from {self.truncation_method} based on truncation_method.'
+                )
                 template_ids_lengths = [len(ids) for ids in template_ids]
                 if self.truncation_method == 'left':
-                    iters = range(0,len(template_ids_lengths), 1)
+                    iters = range(0, len(template_ids_lengths), 1)
                 elif self.truncation_method == 'right':
-                    iters = range(len(template_ids_lengths)-1, -1, -1)
+                    iters = range(len(template_ids_lengths) - 1, -1, -1)
                 else:
                     raise ValueError(f'{self.truncation_method} is not supported')
 
@@ -349,9 +351,9 @@ class GPTSFTDataset(Dataset):
                     if template_ids_lengths[i] >= truncation_length_total:
                         template_ids_lengths[i] -= truncation_length_total
                         if self.truncation_method == 'left':
-                            template_ids[i] = template_ids[i][-template_ids_lengths[i]:]
+                            template_ids[i] = template_ids[i][-template_ids_lengths[i] :]
                         elif self.truncation_method == 'right':
-                            template_ids[i] = template_ids[i][:template_ids_lengths[i]]
+                            template_ids[i] = template_ids[i][: template_ids_lengths[i]]
                         else:
                             raise ValueError(f'{self.truncation_method} is not supported')
                         break
@@ -408,10 +410,12 @@ class GPTSFTDataset(Dataset):
             # this only happens if tuncation_field is not enough to truncate.
             # context_ids can be empty if we truncate contexts.
             # answer_ids can be empty if we truncate answers.
-            logging.warning(f'After truncation, input ids length {len(input_ids)} still exceeds max sequence length {self.max_seq_length}')
+            logging.warning(
+                f'After truncation, input ids length {len(input_ids)} still exceeds max sequence length {self.max_seq_length}'
+            )
             context_ids = context_ids[: self.max_seq_length]
             input_ids = input_ids[: self.max_seq_length]
-            answer_ids = input_ids[len(context_ids):]
+            answer_ids = input_ids[len(context_ids) :]
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
