@@ -261,13 +261,11 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
     num_patches = image_token_len
 
-
     if media_type == 'video':
         num_patches *= multimodal_cfg['num_frames']
 
     if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
         num_patches //= 4
-    
 
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
@@ -929,12 +927,12 @@ class LazySupervisedDataset(Dataset):
                 patch_dim = self.multimodal_cfg['patch_dim']
 
                 if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-                    if (media_tensors[0].shape[1] // patch_dim) % 2 != 0 or (media_tensors[0].shape[2] // patch_dim) % 2 != 0:
+                    if (media_tensors[0].shape[1] // patch_dim) % 2 != 0 or (
+                        media_tensors[0].shape[2] // patch_dim
+                    ) % 2 != 0:
                         patch_dim += 1
 
-                cur_token_len = (media_tensors[0].shape[1] // patch_dim) * ( 
-                    media_tensors[0].shape[2] // patch_dim
-                    )
+                cur_token_len = (media_tensors[0].shape[1] // patch_dim) * (media_tensors[0].shape[2] // patch_dim)
 
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
@@ -992,13 +990,13 @@ class LazySupervisedDataset(Dataset):
                 patch_dim = self.multimodal_cfg['patch_dim']
 
                 if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-                    if (media_tensors[0].shape[-1] // patch_dim) % 2 != 0 or (media_tensors[0].shape[-2] // patch_dim) % 2 != 0:
+                    if (media_tensors[0].shape[-1] // patch_dim) % 2 != 0 or (
+                        media_tensors[0].shape[-2] // patch_dim
+                    ) % 2 != 0:
                         patch_dim += 1
 
-                cur_token_len = (media_tensors[0].shape[-1] // patch_dim) * ( 
-                    media_tensors[0].shape[-2] // patch_dim
-                    )
-                
+                cur_token_len = (media_tensors[0].shape[-1] // patch_dim) * (media_tensors[0].shape[-2] // patch_dim)
+
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,

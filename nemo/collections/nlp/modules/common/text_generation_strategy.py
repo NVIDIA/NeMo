@@ -568,7 +568,9 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
 
         patch_dim = self.multimodal_cfg['patch_dim']
         if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
-            if (self.multimodal_cfg['crop_size'][0] // patch_dim % 2) != 0 or (self.multimodal_cfg['crop_size'][1] // patch_dim % 2 != 0):
+            if (self.multimodal_cfg['crop_size'][0] // patch_dim % 2) != 0 or (
+                self.multimodal_cfg['crop_size'][1] // patch_dim % 2 != 0
+            ):
                 patch_dim += 1
         self.num_media_latents = (self.multimodal_cfg['crop_size'][0] // patch_dim) * (
             self.multimodal_cfg['crop_size'][1] // patch_dim
