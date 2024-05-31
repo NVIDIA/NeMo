@@ -204,7 +204,7 @@ The NeMo Framework can be installed in a variety of ways, depending on your need
 * Docker Containers - Refer to `Docker containers <#docker-containers>`_ for installation instructions.
 
   * This is recommended method for LLMs, MMs, and CV domains.
-  * NeMo LLMs and MMs container - `nvcr.io/nvidia/nemo:24.03.framework`
+  * NeMo LLMs and MMs container - `nvcr.io/nvidia/nemo:24.05.framework`
   * NeMo Speech Container - `nvcr.io/nvidia/nemo:24.01.speech`
 
 * LLMs and MMs Dependencies - Refer to `LLMs and MMs Dependencies <#install-llms-and-mms-dependencies>`_ for installation instructions.
@@ -505,6 +505,11 @@ Contribute to NeMo
 ------------------
 
 We welcome community contributions! Please refer to `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/stable/CONTRIBUTING.md>`_ for the process.
+
+Publications
+------------------
+
+We provide an ever-growing list of `publications <https://nvidia.github.io/NeMo/publications/>`_ that utilize the NeMo Framework.
 
 To contribute an article to the collection, please submit a pull request to the ``gh-pages-src`` branch of this repository. For detailed information, please consult the README located at the `gh-pages-src branch <https://github.com/NVIDIA/NeMo/tree/gh-pages-src#readme>`_.
 
