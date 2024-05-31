@@ -261,13 +261,11 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
     num_patches = image_token_len
 
-
     if media_type == 'video':
         num_patches *= multimodal_cfg['num_frames']
 
     if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
         num_patches //= 4
-    
 
     if multimodal_cfg['use_im_start_end']:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
