@@ -133,7 +133,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRTran
         prompt_cls = PromptFormatter.resolve(self.prompt_format)
         self.prompt = prompt_cls(
             tokenizer=self.tokenizer,
-            defaults=cfg.get("prompt_defaults"),
+            defaults=OmegaConf.to_container(cfg.get("prompt_defaults")),
         )
 
         # Setup audio preprocessor
