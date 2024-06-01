@@ -903,7 +903,7 @@ class ModelPT(LightningModule, Model):
             output_dict = self.multi_validation_epoch_end(self.validation_step_outputs, dataloader_idx=0)
 
             if output_dict is not None and 'log' in output_dict:
-                self.log_dict(output_dict.pop('log'), on_epoch=True)
+                self.log_dict(output_dict.pop('log'), on_epoch=True, sync_dist=True)
 
             self.validation_step_outputs.clear()  # free memory
             return output_dict
@@ -916,7 +916,7 @@ class ModelPT(LightningModule, Model):
                 # Get prefix and dispatch call to multi epoch end
                 dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
                 dataloader_logs = self.multi_validation_epoch_end(val_outputs, dataloader_idx=dataloader_idx)
-                logging.info(f"Validation dataloader {dataloader_idx} logs: {dataloader_logs}")
+
                 # If result was not provided, generate empty dict
                 dataloader_logs = dataloader_logs or {}
 
@@ -964,8 +964,7 @@ class ModelPT(LightningModule, Model):
                 self.validation_step_outputs[dataloader_idx].clear()  # free memory
 
             if 'log' in output_dict:
-                self.log_dict(output_dict.pop('log'), on_epoch=True)
-            logging.info(f"Validation epoch end output: {output_dict}")
+                self.log_dict(output_dict.pop('log'), on_epoch=True, sync_dist=True)
             # return everything else
             return output_dict
 
