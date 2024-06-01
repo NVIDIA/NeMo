@@ -20,13 +20,15 @@ vox2_dir="/media/data2/datasets/speaker_datasets/voxceleb2"
 # dev_manifests="[${DATA_DIR}/vox2_musan_val/dev.json]"
 
 train_manifests="[${vox1_dir}/vox1_train_manifest_train_chunk3s.json]"
-dev_manifests="[${vox1_dir}/vox1_dev_pairs_manifest.json]"
+# dev_manifests="[${vox1_dir}/vox1_dev_pairs_manifest.json]"
+dev_manifests="[/media/data2/datasets/speaker_datasets/combined_fisher_swbd_voxceleb12_librispeech/dev/dev_tirals_manifest_100k_paired_local.json]"
+
 
 # noise_manifest="/media/data2/simulated_data/rir_noise_data/white_noise_1ch_37h.json"
 noise_manifest="[/media/data3/datasets/noise_data/musan/musan_nonspeech_manifest.json,/media/data3/datasets/noise_data/freesound/freesound_noise_manifest_filtered.json]"
 rir_manifest="/media/data2/simulated_data/rir_noise_data/real_rirs_isotropic_noises_1ch.json"
 
-POSTFIX=debug-pair6
+POSTFIX=debug-pair7
 EXP_NAME="titanet_small"
 
 SSL_CKPT="/home/heh/codes/nemo-ssl/workspace/nemo_experiments/pretrained_checkpoints/oci_ll_unlab-60k_bs2048_adamwlr0.004_wd1e-3_warmup25000_epoch1000_mask0.01x40pre_conv_wavLM0.2x0.1_n16_r5--val_loss5.0808-epoch43-last.ckpt"
@@ -38,7 +40,7 @@ num_workers=8
 SCRIPT_DIR=$NEMO_BASEPATH/examples/speaker_tasks/recognition
 SCRIPT=$SCRIPT_DIR/speaker_reco.py
 
-CUDA_VISIBLE_DEVICES="0" python $SCRIPT \
+CUDA_VISIBLE_DEVICES="0,1" python $SCRIPT \
     --config-path="conf" \
     --config-name="titanet-small" \
     trainer.devices=-1 \
