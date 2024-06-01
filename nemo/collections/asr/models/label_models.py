@@ -457,10 +457,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
         scores = torch.cat([x[f'{tag}_scores'] for x in outputs]).cpu().numpy()
         labels = torch.cat([x[f'{tag}_labels'] for x in outputs]).long().cpu().numpy()
-        logging.info("Computing EER.....")
+        logging.info("Computing ROC.....")
         fpr, tpr, thresholds = roc_curve(y_true=labels, y_score=scores, pos_label=1)
         fnr = 1 - tpr
+        logging.info("Computing EER.....")
         eer = fpr[np.nanargmin(np.absolute((fnr - fpr)))] * 100
+        logging.info(f"Returning EER: {eer}")
         # eer = brentq(lambda x: 1.0 - x - interp1d(fpr, tpr)(x), 0.0, 1.0) * 100
         tensorboard_logs = {f'{tag}_loss': loss_mean, f"{tag}_eer": eer}
         return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
