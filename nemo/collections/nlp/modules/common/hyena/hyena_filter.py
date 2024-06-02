@@ -28,9 +28,12 @@ def register(module: nn.Module, name: str, tensor: torch.Tensor, learnable: bool
 
 
 class Sin(nn.Module):
-    def __init__(self, dim: int, w: float = 10, train_freq: bool = True):
+    def __init__(self, dim: int, freq: float = 10, train_freq: bool = True):
+        """
+        Sinusoidal activation function with (optionally learned) per-channel frequency
+        """
         super().__init__()
-        self.freq = nn.Parameter(w * torch.ones(1, dim)) if train_freq else w * torch.ones(1, dim)
+        self.freq = nn.Parameter(freq * torch.ones(1, dim)) if train_freq else freq * torch.ones(1, dim)
 
     def forward(self, x):
         return torch.sin(self.freq * x)
@@ -70,13 +73,16 @@ class ExponentialModulation(nn.Module):
     def __init__(
         self,
         d_model: int,
+        modulate: bool = True,
+        learn_modulation: bool = False,
         fast_decay_pct: float = 0.3,
         slow_decay_pct: float = 1.5,
         target: float = 1e-2,
-        learn_modulation: bool = False,
-        modulate: bool = True,
         shift: float = 0.0,
     ):
+        """
+        Exponential decay modulation with (optionally learned) per-channel decay rate
+        """
         super().__init__()
         self.modulate = modulate
         self.shift = shift
@@ -96,11 +102,11 @@ class HyenaFilter(nn.Module):
     def __init__(
         self,
         d_model: int,
-        emb_dim: int = 3,
-        order: int = 16,
         seq_len: int = 1024,
+        emb_dim: int = 3,
         learn_pos_emb_z: bool = True,
-        w: int = 1,
+        mlp_width: int = 64,
+        sine_freq: int = 1,
         num_inner_mlps: int = 2,
         normalized: bool = False,
         submodules: HyenaFilterSubmodules = None,
@@ -112,12 +118,12 @@ class HyenaFilter(nn.Module):
         Args:
             d_model (int): number of channels in the input
             emb_dim (int): dimension of the positional encoding (`emb_dim` - 1) // 2 is the number of bands
-            order (int): width of the implicit filter MLP
+            mlp_width (int): Width of the MLP parametrizing the implicit filter. Defaults to 64
             seq_len (int): length of input sequence
             learn_pos_emb_z (bool): whether the positional embeddings are learned
-            w (int): frequency of periodic activations
+            sine_freq (int): frequency of periodic activations
             num_inner_mlps (int): number of inner linear layers inside filter MLP
-            normalized (bool): wheather to apply normalization after modulation
+            normalized (bool): whether to apply normalization after modulation
         """
         super().__init__()
 
@@ -130,8 +136,9 @@ class HyenaFilter(nn.Module):
             )
 
         self.d_model = d_model
+        self.mlp_width = mlp_width
 
-        act = build_module(submodules.activation, dim=order, w=w)
+        act = build_module(submodules.activation, dim=mlp_width, freq=sine_freq)
         self.emb_dim = emb_dim
         if emb_dim % 2 == 0 or emb_dim < 3:
             raise ValueError("emb_dim must be odd and greater or equal to 3 (time, sine and cosine)")
@@ -140,15 +147,15 @@ class HyenaFilter(nn.Module):
         self.pos_emb = build_module(submodules.positional_embedding, emb_dim, seq_len, learn_pos_emb_z)
 
         # uses a variable number of inner linear layers
-        self.implicit_filter = nn.Sequential(
-            build_module(submodules.linear, emb_dim, order),
+        self.mlp = nn.Sequential(
+            build_module(submodules.linear, emb_dim, mlp_width),
             act,
         )
         for i in range(num_inner_mlps):
-            self.implicit_filter.append(build_module(submodules.linear, order, order))
-            self.implicit_filter.append(act)
+            self.mlp.append(build_module(submodules.linear, mlp_width, mlp_width))
+            self.mlp.append(act)
         # final linear layer
-        self.implicit_filter.append(build_module(submodules.linear, order, d_model, bias=False))
+        self.mlp.append(build_module(submodules.linear, mlp_width, d_model, bias=False))
 
         self.modulation = build_module(submodules.modulation, d_model, **modulation_kwargs)
 
@@ -156,7 +163,7 @@ class HyenaFilter(nn.Module):
 
     def forward(self, L):
         z, t = self.pos_emb(L)
-        h = self.implicit_filter(z)
+        h = self.mlp(z)
 
         h = self.modulation(t, h)
 

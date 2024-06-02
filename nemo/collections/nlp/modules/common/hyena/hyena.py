@@ -39,9 +39,9 @@ from nemo.utils.metaclasses import Singleton
 try:
     from nemo.collections.nlp.modules.common.hyena.fftconv_wrapper import fftconv_func as safari_fftconv_fn
 
-    HAVE_FFTCONV = True
+    HAVE_SAFARI_FFTCONV = True
 except ImportError:
-    HAVE_FFTCONV = False
+    HAVE_SAFARI_FFTCONV = False
 
 try:
     from flashfftconv import FlashFFTConv as FlashFFTConvImpl
@@ -103,9 +103,8 @@ class HyenaConv(nn.Module):
     def __init__(
         self,
         d_model: int,
-        l_max: int,
+        max_seq_length: int,
         order: int,
-        filter_order: int,
         bias: bool = True,
         filter_cls: Union[ModuleSpec, type] = HyenaFilter,
         filter_submodules: HyenaFilterSubmodules = None,
@@ -114,16 +113,19 @@ class HyenaConv(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.order = order
-        self.l_max = l_max
+        self.max_seq_length = max_seq_length
         self.use_bias = bias
-        self.bias = nn.Parameter(torch.randn(self.d_model * (self.order - 1))) if self.use_bias else None
+        bias_shape = self.d_model * (self.order - 1)
+        if self.use_bias:
+            self.bias = nn.Parameter(torch.randn(bias_shape))
+        else:
+            self.bias = torch.zeros(bias_shape)
 
         self.filter = build_module(
             filter_cls,
             self.d_model * (self.order - 1),
             submodules=filter_submodules,
-            order=filter_order,
-            seq_len=l_max,
+            seq_len=max_seq_length,
             **filter_kwargs,
         )
 
@@ -132,9 +134,8 @@ class SingleHeadHyenaConv(HyenaConv):
     def __init__(
         self,
         d_model: int,
-        l_max: int,
+        max_seq_length: int,
         order: int,
-        filter_order: int,
         bias: bool = True,
         filter_cls: Union[ModuleSpec, type] = HyenaFilter,
         filter_submodules: HyenaFilterSubmodules = None,
@@ -144,9 +145,8 @@ class SingleHeadHyenaConv(HyenaConv):
     ):
         super().__init__(
             d_model,
-            l_max,
+            max_seq_length,
             order,
-            filter_order,
             bias=bias,
             filter_cls=filter_cls,
             filter_submodules=filter_submodules,
@@ -154,7 +154,7 @@ class SingleHeadHyenaConv(HyenaConv):
         )
 
         if fftconv_type is None:
-            if l_max <= 8192 and HAVE_FFTCONV:
+            if max_seq_length <= 8192 and HAVE_SAFARI_FFTCONV:
                 # safari-fftconv supports seq-len <= 8192 and is a bit faster vs. flashfftconv
                 fftconv_type = 'safari'
             else:
@@ -162,15 +162,19 @@ class SingleHeadHyenaConv(HyenaConv):
 
         if fftconv_type not in ['safari', 'flash']:
             raise ValueError("fftconv_type must be one of ['safari', 'flash']")
-        if fftconv_type == 'safari' and not HAVE_FFTCONV:
-            raise ImportError('fftconv library not found. Please see README at <tbd> for instructions.')
+        if fftconv_type == 'safari' and max_seq_length > 8192:
+            raise ValueError('Safari-fftconv only supports sequence length up to 8192')
+        if fftconv_type == 'safari' and not HAVE_SAFARI_FFTCONV:
+            raise ImportError('Safari-fftconv library not found. Please see README at <tbd> for instructions.')
         if fftconv_type == 'flash' and not HAVE_FLASHFFTCONV:
             raise ImportError('flashfftconv library not found. Please see README at <tbd> for instructions.')
 
         if fftconv_type == 'safari':
             self.fftconv_fn = self._safari_fft
         else:  # fftconv_type == 'flash'
-            self.flashfftconv = FlashFFTConv(2 * self.l_max, torch_dtype_from_precision(precision)).flashfftconv
+            self.flashfftconv = FlashFFTConv(
+                2 * self.max_seq_length, torch_dtype_from_precision(precision)
+            ).flashfftconv
             self.fftconv_fn = self._flash_fft
 
     def _safari_fft(self, x, k, bias):
@@ -183,9 +187,7 @@ class SingleHeadHyenaConv(HyenaConv):
         return y
 
     def forward(self, x, k, recurrence_idx):
-        bias = self.bias if self.use_bias else 0 * self.bias
-        bias = rearrange(bias, '(v o) -> o v', v=self.d_model, o=self.order - 1)[recurrence_idx]
-
+        bias = rearrange(self.bias, '(v o) -> o v', v=self.d_model, o=self.order - 1)[recurrence_idx]
         y = self.fftconv_fn(x, k, bias)
         return y
 
@@ -194,9 +196,8 @@ class MultiHeadHyenaConv(HyenaConv):
     def __init__(
         self,
         d_model: int,
-        l_max: int,
+        max_seq_length: int,
         order: int,
-        filter_order: int,
         num_heads: int,
         bias: bool = True,
         filter_cls: Union[ModuleSpec, type] = HyenaFilter,
@@ -209,14 +210,13 @@ class MultiHeadHyenaConv(HyenaConv):
             raise ValueError('Expecting num_heads > 1')
         if order != 2:
             raise ValueError(f'Multi-head supported only with order == 2 (got order {self.order})')
-        if not HAVE_FFTCONV:
-            raise ImportError('fftconv library not found. Please see README at <tbd> for instructions.')
+        if not HAVE_SAFARI_FFTCONV:
+            raise ImportError('Safari-fftconv library not found. Please see README at <tbd> for instructions.')
 
         super().__init__(
             d_model,
-            l_max,
+            max_seq_length,
             order,
-            filter_order,
             bias=bias,
             filter_cls=filter_cls,
             filter_submodules=filter_submodules,
@@ -225,9 +225,7 @@ class MultiHeadHyenaConv(HyenaConv):
         self.num_heads = num_heads
 
     def forward(self, v, k, x1, x2):
-        bias = self.bias if self.use_bias else 0 * self.bias
-        bias = bias.to(dtype=torch.float32)
-
+        bias = self.bias.to(dtype=torch.float32)
         y = safari_fftconv_fn(v, k, bias, gelu=False, output_hbl_layout=True, v=x2, head_dim=self.num_heads, q=x1)
         return y
 
@@ -236,9 +234,8 @@ class HyenaOperator(nn.Module):
     def __init__(
         self,
         config: TransformerConfig,
-        l_max: int,
+        max_seq_length: int,
         order: int = 2,
-        filter_order: int = 64,
         num_heads: int = 1,
         dropout: float = 0.0,
         short_filter_order: int = 3,
@@ -251,13 +248,12 @@ class HyenaOperator(nn.Module):
         Hyena operator described in the paper https://arxiv.org/pdf/2302.10866.pdf
 
         Args:
-            l_max: (int): Maximum input sequence length.
+            max_seq_length: (int): Maximum input sequence length.
             order: (int): Depth of the Hyena recurrence. Defaults to 2
-            filter_order: (int): Width of the FFN parametrizing the implicit filter. Defaults to 64
             num_heads: (int): Number of heads. Defaults to 1
             dropout: (float): Dropout probability. Defaults to 0.0
             short_filter_order: (int): Length of the explicit input convolutional filter. Defaults to 3
-            activation: (str): type of act between kernel output and FF (default identity)
+            activation: (str): type of act between kernel output and output projection (default identity)
         """
         super().__init__()
 
@@ -281,10 +277,9 @@ class HyenaOperator(nn.Module):
             self,
             d_model=d_model,
             order=order,
-            l_max=l_max,
+            max_seq_length=max_seq_length,
             num_heads=num_heads,
             head_dim=head_dim,
-            filter_order=filter_order,
             short_filter_order=short_filter_order,
             activation=activation,
             mcore_config=config,
@@ -324,7 +319,7 @@ class HyenaOperator(nn.Module):
         self.short_filter = build_module(submodules.short_filter, total_width, self.short_filter_order)
 
         # Setup long convolution with implicit filter
-        long_conv_args = [self.head_dim, self.l_max, self.order, self.filter_order]
+        long_conv_args = [self.head_dim, self.max_seq_length, self.order]
         long_conv_kwargs['filter_cls'] = submodules.implicit_filter
         long_conv_kwargs['filter_submodules'] = submodules.implicit_filter.submodules
         if self.num_heads == 1:
@@ -337,7 +332,7 @@ class HyenaOperator(nn.Module):
 
     def forward(self, u, *args, **kwargs):
         l = u.size(0)
-        l_filter = min(l, self.l_max)
+        l_filter = min(l, self.max_seq_length)
         u = self.in_proj(u)
         u = u[0] if isinstance(u, tuple) else u
         u = rearrange(u, 'l b d -> b d l')  # In MCore the leading dimension is the sequence dimension

@@ -98,29 +98,31 @@ model:
 
   hyena:
     # HyenaOperator parameters
-    l_max: ${model.encoder_seq_length}
-    order: 2
-    filter_order: 64
-    num_heads: 1
+    max_seq_length: ${model.encoder_seq_length} # Maximum input sequence length.
+    order: 2 # Depth of the Hyena recurrence
+    num_heads: 1 # Number of heads (this is separate from model.num_attention_heads)
     dropout: 0.0
-    short_filter_order: 3
-    activation: "identity"
+    short_filter_order: 3 # Length of the explicit input convolutional filter
+    activation: "identity" # type of act between kernel output and output projection
+
+    # HyenaConv parameters
+    precision: ${trainer.precision} # Training precision (required for FlashFFTConv initialization)
+    bias: true # Whether to apply a bias term following long convolution
 
     # HyenaFilter parameters
-    precision: ${trainer.precision}
-    emb_dim: 33
-    learn_pos_emb_z: true
-    w: 14
-    bias: true
-    normalized: False
-    num_inner_mlps: 2
+    emb_dim: 33 # dimension of the filter's internal positional encoding
+    learn_pos_emb_z: true # whether the positional embeddings are learned
+    mlp_width: 64 # Width of the MLP parametrizing the implicit filter
+    sine_freq: 14 # frequency of periodic activations
+    num_inner_mlps: 2 # number of inner linear layers inside filter MLP
+    normalized: False # whether to apply normalization after modulation
 
     # ExponentialModulation parameters
+    modulate: True # Whether to apply exponential decay modulation
+    learn_modulation: False # Whether decay rates are learned
     fast_decay_pct: 0.3
     slow_decay_pct: 1.5
     target: 1e-2
-    learn_modulation: False
-    modulate: True
     shift: 0.0
 
   tokenizer:

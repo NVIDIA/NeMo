@@ -102,9 +102,9 @@ class FFTConvFunc(torch.autograd.Function):
             None,
             None,
             None,
-            dv if v is not None else None,
+            dv,
             None,
-            dq if q is not None else None,
+            dq,
             None,
             dk_rev,
         )
