@@ -177,11 +177,10 @@ def make_seq_mask_like(
 
 
 class WaveformFeaturizer(object):
-    def __init__(self, sample_rate=16000, int_values=False, channel_selector=None, augmentor=None):
+    def __init__(self, sample_rate=16000, int_values=False, augmentor=None):
         self.augmentor = augmentor if augmentor is not None else AudioAugmentor()
         self.sample_rate = sample_rate
         self.int_values = int_values
-        self.channel_selector = channel_selector
 
     def max_augmentation_length(self, length):
         return self.augmentor.max_augmentation_length(length)
