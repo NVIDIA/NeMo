@@ -13,6 +13,9 @@
 # limitations under the License.
 import copy
 import itertools
+import json
+import os
+import tempfile
 from collections import Counter
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -34,6 +37,7 @@ from nemo.collections.asr.data.audio_to_label_dataset import (
 )
 from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
+from nemo.collections.asr.parts.mixins.mixins import VerificationMixin
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.metrics import TopKClassificationAccuracy
@@ -46,7 +50,7 @@ from nemo.utils import logging
 __all__ = ['EncDecSpeakerLabelModel']
 
 
-class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
+class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin):
     """
     Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
@@ -242,6 +246,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 max_duration=config.get('max_duration', None),
                 min_duration=config.get('min_duration', None),
                 trim=config.get('trim_silence', False),
+                channel_selector=config.get('channel_selector', None),
                 normalize_audio=config.get('normalize_audio', False),
                 cal_labels_occurrence=config.get('cal_labels_occurrence', False),
             )
@@ -341,7 +346,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
 
         if self.spec_augmentation is not None and self.training:
@@ -591,13 +597,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             return False
 
     @torch.no_grad()
-    def verify_speakers_batch(self, manifest_filepath1, manifest_filepath2, threshold=0.7, batch_size=32, sample_rate=16000, device='cuda'):
+    def verify_speakers_batch(self, audio_files_pairs, threshold=0.7, batch_size=32, sample_rate=16000, device='cuda'):
         """
         Verify if audio files from the first and second manifests are from the same speaker or not.
 
         Args:
-            manifest_filepath1: path to manifest file with entries of speaker 1
-            manifest_filepath2: path to manifest file with entries of speaker 2
+            audio_files_pairs: list of tuples with audio_files pairs to be verified
             threshold: cosine similarity score used as a threshold to distinguish two embeddings (default = 0.7)
             batch_size: batch size to perform batch inference
             sample_rate: sample rate of audio files in manifest file
@@ -606,13 +611,22 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Returns:
             True if both audio pair is from same speaker, False otherwise
         """
-        embs1, _, _, _ = self.batch_inference(manifest_filepath1, batch_size=batch_size, sample_rate=sample_rate, device=device)
-        embs2, _, _, _ = self.batch_inference(manifest_filepath2, batch_size=batch_size, sample_rate=sample_rate, device=device)
 
-        if embs1.shape != embs2.shape:
-            raise ValueError(
-                "Manifests have different number of samples. Can not check the speaker identity for pairs."
-            )
+        if type(audio_files_pairs) is list:
+            tmp_dir = tempfile.TemporaryDirectory()
+            manifest_filepath1 = os.path.join(tmp_dir.name, 'tmp_manifest1.json')
+            manifest_filepath2 = os.path.join(tmp_dir.name, 'tmp_manifest2.json')
+            self.path2audio_files_to_manifest([p[0] for p in audio_files_pairs], manifest_filepath1)
+            self.path2audio_files_to_manifest([p[1] for p in audio_files_pairs], manifest_filepath2)
+        else:
+            raise ValueError("audio_files_pairs must be of type list of tuples containing a pair of audio files")
+
+        embs1, _, _, _ = self.batch_inference(
+            manifest_filepath1, batch_size=batch_size, sample_rate=sample_rate, device=device
+        )
+        embs2, _, _, _ = self.batch_inference(
+            manifest_filepath2, batch_size=batch_size, sample_rate=sample_rate, device=device
+        )
 
         embs1 = torch.Tensor(embs1).to(device)
         embs2 = torch.Tensor(embs2).to(device)
@@ -624,16 +638,15 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Y = embs2.unsqueeze(dim=2)
         # Score
         similarity_scores = torch.matmul(X, Y).squeeze() / (
-            (
-                torch.matmul(X, X.permute(0, 2, 1)).squeeze() * torch.matmul(Y.permute(0, 2, 1), Y).squeeze()
-            ) ** 0.5
-            )
+            (torch.matmul(X, X.permute(0, 2, 1)).squeeze() * torch.matmul(Y.permute(0, 2, 1), Y).squeeze()) ** 0.5
+        )
         similarity_scores = (similarity_scores + 1) / 2
 
         # Decision
         decision = similarity_scores >= threshold
 
-        return decision
+        tmp_dir.cleanup()
+        return decision.cpu().numpy()
 
     @torch.no_grad()
     def batch_inference(self, manifest_filepath, batch_size=32, sample_rate=16000, device='cuda'):
@@ -667,13 +680,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if trained_labels is not None:
             trained_labels = list(trained_labels)
 
-        featurizer = WaveformFeaturizer(sample_rate=sample_rate)
-
-        dataset = AudioToSpeechLabelDataset(manifest_filepath=manifest_filepath, labels=None, featurizer=featurizer)
-
-        dataloader = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=batch_size, collate_fn=dataset.fixed_seq_collate_fn,
-        )
+        dl_config = {
+            'manifest_filepath': manifest_filepath,
+            'sample_rate': sample_rate,
+            'channel_selector': 0,
+            'batch_size': batch_size,
+            'labels': [
+                'infer',
+            ],
+        }
+        dataloader = self.__setup_dataloader_from_config(config=dl_config)
 
         logits = []
         embs = []
@@ -689,12 +705,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             gt_labels.extend(labels.cpu().numpy())
             embs.extend(emb.cpu().numpy())
 
-        gt_labels = list(map(lambda t: dataset.id2label[t], gt_labels))
+        gt_labels = list(map(lambda t: dataloader.dataset.id2label[t], gt_labels))
 
         self.train(mode=mode)
         if mode is True:
             self.unfreeze()
-        
+
         logits, embs, gt_labels = np.asarray(logits), np.asarray(embs), np.asarray(gt_labels)
 
         return embs, logits, gt_labels, trained_labels
