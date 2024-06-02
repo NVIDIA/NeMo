@@ -130,6 +130,7 @@ class TiledSiglipVisionModel(nn.Module):
     def __init__(self, vision_model: SiglipVisionModel, grid_height: int, grid_width: int, vision_select_layer: int):
         super().__init__()
         self.vision_model = vision_model
+        self.dtype = self.vision_model.dtype
         self.grid_h = grid_height
         self.grid_w = grid_width
         self.return_select_layer = vision_select_layer
@@ -155,10 +156,8 @@ class TiledSiglipVisionModel(nn.Module):
             vision_x,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-            interpolate_pos_encoding=interpolate_pos_encoding
+            return_dict=return_dict, #interpolate_pos_encoding=interpolate_pos_encoding
         )
-
         # Assuming features are (b * grid_h * grid_w, v, d)
         features = vision_x.hidden_states[self.return_select_layer]
 
@@ -292,7 +291,7 @@ class TiledSiglipImageProcessor:
           #print(images.shape)
           tensors = rearrange(images, '(gh gw) c th tw -> 1 c (gh th) (gw tw)', 
                               gh=grid_h, gw=grid_w, c=3, th=tile_h, tw=tile_w)            
-          return tensors
+          return {"pixel_values":tensors}
           
         elif self.grid_width == 1 and self.grid_height == 1:
           return self.processor.preprocess(images, **kwargs)
@@ -360,9 +359,9 @@ class NevaWordEmbeddingMixin(torch.nn.Module, adapter_mixins.AdapterModuleMixin)
                 vision_x = self.vision_encoder(vision_x, output_hidden_states=True)
 
                 # TODO: hack, need to fix this - this is CLIP specific
-                if hasattr(vision_x, "hidden_states"):
+                if not isinstance(self.vision_encoder, TiledSiglipVisionModel) :
                     vision_x = vision_x.hidden_states[self.vision_select_layer]
-                vision_x = vision_x.hidden_states[self.vision_select_layer]
+
             else:
                 self.vision_encoder.backbone.transformer.return_select_layer = self.vision_select_layer
                 vision_x = self.vision_encoder(vision_x)

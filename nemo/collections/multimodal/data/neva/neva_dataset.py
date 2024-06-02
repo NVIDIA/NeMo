@@ -293,6 +293,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
 
 def process_image(processor, image, image_aspect_ratio="square"):
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import TiledSiglipImageProcessor
     if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor) \
         or isinstance(processor, TiledSiglipImageProcessor):
         # image processor from HF
@@ -899,6 +900,7 @@ class LazySupervisedDataset(Dataset):
                 list_data_dict = json.load(file)
         else:
             list_data_dict = []
+        #from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import TiledSiglipImageProcessor
 
         logging.warning("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -916,6 +918,7 @@ class LazySupervisedDataset(Dataset):
         return len(self.list_data_dict)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import TiledSiglipImageProcessor
         sources = self.list_data_dict[i]
         if isinstance(i, int):
             sources = [sources]
@@ -934,9 +937,14 @@ class LazySupervisedDataset(Dataset):
             media_tensors = torch.tensor([])
             if images:
                 media_tensors = torch.stack(images)
-                cur_token_len = (media_tensors[0].shape[1] // 14) * (
-                    media_tensors[0].shape[2] // 14
+                if isinstance(self.processor, TiledSiglipImageProcessor):
+                    cur_token_len = ((media_tensors[0].shape[1] // self.processor.grid_height) // 14) * (
+                    (media_tensors[0].shape[2] // self.processor.grid_width) // 14
                 )  # FIXME: 14 is hardcoded patch size
+                else: 
+                    cur_token_len = (media_tensors[0].shape[1] // 14) * (
+                        media_tensors[0].shape[2] // 14
+                    )  # FIXME: 14 is hardcoded patch size
                 sources = preprocess_multimodal(
                     copy.deepcopy(sources),
                     self.multimodal_cfg,
