@@ -24,6 +24,8 @@ import torch
 import numpy as np
 import json
 from pprint import pprint
+from safetensors import torch as torch_s
+import safetensors
 
 import json
 import os
@@ -159,13 +161,18 @@ def load_hf_ckpt(in_dir, args):
 
     # # model = AutoModel.from_pretrained(in_dir)
     # model = AutoModel.from_config(model_args)
-    if args.model == 'unet':
-        model = UNet2DConditionModel.from_pretrained(in_dir)
-    elif args.model == 'vae':
-        model = AutoencoderKL.from_pretrained(in_dir)
-    print(model)
-    input("enter to continue...")
-    ckpt = model.state_dict()
+    # if args.model == 'unet':
+    #     model = UNet2DConditionModel.from_pretrained(in_dir)
+    # elif args.model == 'vae':
+    #     model = AutoencoderKL.from_pretrained(in_dir)
+    # model = torch_s.load(in_dir + "/diffusion")
+    # print(model)
+    ckpt = {}
+    with safetensors.safe_open(in_dir + "/diffusion_pytorch_model.safetensors", framework="pt") as f:
+        for k in f.keys():
+            ckpt[k] = f.get_tensor(k)
+    # input("enter to continue...")
+    # ckpt = model.state_dict()
     return args, ckpt 
 
 def dup_convert_name_recursive(tree: SegTree, convert_name=None):

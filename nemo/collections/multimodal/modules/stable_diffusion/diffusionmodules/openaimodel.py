@@ -1232,10 +1232,10 @@ class UNetModel(nn.Module):
         missing_keys = list(set(expected_keys) - set(loaded_keys))
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
-        pprint(sorted(missing_keys))
-        input("these are missing...")
-        pprint(sorted(unexpected_keys))
-        input("these are unexpected...")
+        # pprint(sorted(missing_keys))
+        # input("these are missing...")
+        # pprint(sorted(unexpected_keys))
+        # input("these are unexpected...")
 
         # SDXL specific mapping
         if 'output_blocks.2.2.conv.bias' in missing_keys and 'output_blocks.2.1.conv.bias' in loaded_keys:
