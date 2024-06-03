@@ -189,8 +189,7 @@ def build_tokenizer(tokenizer):
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path]):
 
     if not os.path.exists(nemo_ckpt):
-        LOGGER.error("%s does not exist", nemo_ckpt)
-        sys.exit(1)
+        raise TypeError("%s does not exist", nemo_ckpt)
 
     if os.path.isdir(nemo_ckpt):
         nemo_dir = Path(nemo_ckpt)
