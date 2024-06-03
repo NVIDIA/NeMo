@@ -35,6 +35,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
 
 from nemo.collections.nlp.modules.common.megatron.utils import erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApproxGELUActivation
 from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.utils import logging
@@ -188,6 +189,7 @@ def activation_to_func(activation: str, openai_gelu: bool = False, onnx_safe: bo
         'fast-geglu',
         'fast-swiglu',
         'fast-reglu',
+        'approx-gelu',
     ]
 
     if activation not in supported_activations:
@@ -208,6 +210,8 @@ def activation_to_func(activation: str, openai_gelu: bool = False, onnx_safe: bo
         activation_func = F.silu
     elif activation == 'squared-relu':
         activation_func = squared_relu
+    elif activation == 'approx-gelu':
+        activation_func = ApproxGELUActivation
 
     return activation_func
 

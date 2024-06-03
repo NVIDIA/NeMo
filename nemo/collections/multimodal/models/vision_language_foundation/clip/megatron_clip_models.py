@@ -340,13 +340,20 @@ class CLIPModel(MegatronModule):
         self.get_attention_mask_from_fusion = model_cfg.get('get_attention_mask_from_fusion', True)
 
         if model_cfg.get("mcore_gpt", False):
-            if model_cfg.get("class_token_length") is None or model_cfg.get("class_token_length") <= 0:
+            if model_cfg.vision.get("class_token_length") is None or model_cfg.vision.get("class_token_length") <= 0:
                 add_class_token = False
             else:
                 add_class_token = True
+            vision_layer_spec = get_specs(
+                model_cfg.text.get('name', ''),
+                vision_transformer_config.num_moe_experts,
+                vision_transformer_config.moe_grouped_gemm,
+                model_cfg.get('transformer_engine', True),
+            )
+            vision_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding
             self.vision_encoder = MCoreCLIPViTModel(
                 transformer_config=vision_transformer_config,
-                transformer_layer_spec=get_specs(''),
+                transformer_layer_spec=vision_layer_spec,
                 patch_dim=model_cfg.vision.get('patch_dim', 16),
                 img_h=model_cfg.vision.get('img_h', 224),
                 img_w=model_cfg.vision.get('img_w', 224),
