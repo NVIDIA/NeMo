@@ -135,7 +135,11 @@ def load_from_checkpoint_dir(cls, cfg, trainer, modify_confg_fn):
     t5_cfg = modify_confg_fn(hparams_file.cfg, cfg, add_cfg_to_tree=True)
     with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
         OmegaConf.save(config=t5_cfg, f=f.name)
-        model = cls.load_from_checkpoint(checkpoint_path=checkpoint_path, trainer=trainer, hparams_file=f.name,)
+        model = cls.load_from_checkpoint(
+            checkpoint_path=checkpoint_path,
+            trainer=trainer,
+            hparams_file=f.name,
+        )
         return model
 
 
@@ -164,7 +168,7 @@ def main(cfg) -> None:
         scaler = None
         if cfg.trainer.precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                init_scale=cfg.model.get('native_amp_init_scale', 2**32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 hysteresis=cfg.model.get('hysteresis', 2),
             )

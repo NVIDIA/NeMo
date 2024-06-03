@@ -29,8 +29,9 @@ from nemo.collections.nlp.parts.nlp_overrides import HAVE_MEGATRON_CORE
 from nemo.utils import logging
 
 try:
-    from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
     from megatron.core.datasets.megatron_tokenizer import add_unique_description_to_tokenizer
+
+    from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
 
     HAVE_MEGATRON_CORE = True
 
@@ -92,7 +93,7 @@ def get_tokenizer(
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
         bpe_dropout: (experimental) BPE dropout tries to corrupt the standard segmentation
             procedure of BPE to help
-            model better learn word compositionality and become robust to segmentation errors. 
+            model better learn word compositionality and become robust to segmentation errors.
             It has emperically been shown to improve inference time BLEU scores.
     """
     if special_tokens is None:

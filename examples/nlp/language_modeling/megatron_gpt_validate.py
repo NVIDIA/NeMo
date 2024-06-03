@@ -142,7 +142,9 @@ def main(cfg) -> None:
         with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
             OmegaConf.save(config=pretrained_cfg, f=f.name)
             model = MegatronGPTModel.load_from_checkpoint(
-                checkpoint_path=checkpoint_path, trainer=trainer, hparams_file=f.name,
+                checkpoint_path=checkpoint_path,
+                trainer=trainer,
+                hparams_file=f.name,
             )
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")

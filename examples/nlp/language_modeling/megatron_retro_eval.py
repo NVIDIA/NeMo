@@ -60,7 +60,9 @@ class RequestDataSet(Dataset):
         self.sentences = sentences
         self.neighbors = neighbors
 
-    def __len__(self,):
+    def __len__(
+        self,
+    ):
         return len(self.sentences)
 
     def __getitem__(self, idx):
