@@ -9,14 +9,14 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
-  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 40
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
@@ -121,7 +121,7 @@ model:
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
   # Megatron O2-style half-precision
-  megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
+  megatron_amp_O2: True # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
 
   # Fusion
@@ -240,9 +240,9 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: ???
+    data_prefix: []
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_impl: mmap
+    data_impl: mock
     mmap_bin_files: True
     splits_string: 900,50,50
     seq_length: ${model.encoder_seq_length}
@@ -267,7 +267,7 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 2e-4
     weight_decay: 0.01
     betas:
@@ -275,9 +275,10 @@ model:
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 500
-      constant_steps: 0
+      warmup_steps: 15
+      constant_steps: 15
       min_lr: 2e-5
+      reset_lr: True
 
   gc_interval: 0
   # Interval of the host memory garbage collection. When it is zero, collectiion relies on the automatic garbage collector.

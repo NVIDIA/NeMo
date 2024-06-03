@@ -305,6 +305,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_first_step = 0
             self.prev_global_batch_size = None
 
+        self.if_init_step = True
+
         if cfg.get('data', None) is not None:
             self.reset_position_ids = cfg.data.get('reset_position_ids', False)
             self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
@@ -757,6 +759,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         The input batch to each micro-batch is fetched using the dataloader function
         in the micro-batch fwd function.
         """
+        if self.if_init_step:
+            self._optimizer.param_groups[0]['step'] = self.trainer.global_step
+            self.if_init_step = False
+            
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
@@ -914,6 +920,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.log('loss_scale', loss_scale, batch_size=1)
 
         lr = self._optimizer.param_groups[0]['lr']
+
         self.log('lr', lr, rank_zero_only=True, batch_size=1)
         self.log(
             'global_step',
