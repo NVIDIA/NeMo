@@ -9,8 +9,8 @@ from transformers import PreTrainedTokenizer
 
 from nemo.export.tarutils import unpack_tarball
 from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.checkpoint_utils import CONFIG_NAME, WEIGHTS_NAME
+from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 
 
 def load_weights(weights_file: str) -> Dict[str, torch.Tensor]:
