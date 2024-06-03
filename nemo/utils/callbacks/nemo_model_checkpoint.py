@@ -35,8 +35,8 @@ from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, unin
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
-    """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
-    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based 
+    """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
+    Extends Lightning's on_save_checkpoint func to save the .nemo file. Saves the .nemo file based
     on the best checkpoint saved (according to the monitor value).
     Also contains func to save the EMA copy of the model.
     """
@@ -348,15 +348,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
-        """ Format the path to the unfinished checkpoint marker file.
-        
+        """Format the path to the unfinished checkpoint marker file.
+
         If the marker file exists, corresponding checkpoint is considered unfinished/incomplete.
         NOTE: Marker path for the EMA checkpoint part is the same as for the original checkpoint.
-        
+
         Args:
             checkpoint_path: Path to the checkpoint file or dir.
               Does not need to exist.
-            
+
         Returns:
             Path to the unfinished checkpoint marker file.
         """
@@ -368,7 +368,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def is_checkpoint_unfinished(checkpoint_path: Union[Path, str]) -> bool:
-        """ Check if the checkpoint is unfinished.
+        """Check if the checkpoint is unfinished.
 
         Args:
             checkpoint_path: Path to the checkpoint file or dir.
@@ -381,7 +381,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @staticmethod
     def set_checkpoint_unfinished_marker(checkpoint_path: Union[Path, str], barrier_after=False) -> None:
-        """ Marks given checkpoint as unfinished.
+        """Marks given checkpoint as unfinished.
 
         Args:
             checkpoint_filepath: Path to the checkpoint file or dir.
@@ -517,7 +517,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         A checkpoint won't be deleted if any of the cases apply:
         - The previous checkpoint is the same as the current checkpoint (means the old was already overwritten by new)
         - The previous checkpoint is not in the current checkpoint directory and the filesystem is local
-        - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local 
+        - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local
             and the resumed from checkpoint is not the last checkpoint
         """
         if previous == current:
