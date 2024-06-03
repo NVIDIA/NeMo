@@ -430,8 +430,9 @@ def create_neva_model_and_processor(cfg):
         else:
             image = maybe_image_path
 
-        processor = model.model.module.image_processor \
-            if hasattr(model.model, "module") else model.model.image_processor
+        processor = (
+            model.model.module.image_processor if hasattr(model.model, "module") else model.model.image_processor
+        )
         image = process_image(processor, image, neva_cfg.data.image_aspect_ratio)
         if neva_cfg.precision in [16, '16', '16-mixed']:
             media = image.type(torch.float16)

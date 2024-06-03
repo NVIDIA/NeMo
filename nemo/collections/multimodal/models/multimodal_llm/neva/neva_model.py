@@ -300,7 +300,8 @@ class NevaBaseModel:
         if mm_cfg.vision_encoder.get("from_hf", False):
             if "clip" in mm_cfg.vision_encoder.from_pretrained:
                 vision_encoder = CLIPVisionModel.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+                    mm_cfg.vision_encoder.from_pretrained,
+                    torch_dtype=torch.bfloat16,
                 ).cuda()
                 vision_encoder = vision_encoder.to(torch.bfloat16)
                 if mm_cfg.vision_encoder.freeze:
@@ -312,7 +313,8 @@ class NevaBaseModel:
                 )
             elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
                 vision_encoder = SiglipVisionModel.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16,
+                    mm_cfg.vision_encoder.from_pretrained,
+                    torch_dtype=torch.bfloat16,
                 ).cuda()
                 vision_encoder = vision_encoder.to(torch.bfloat16)
                 if mm_cfg.vision_encoder.freeze:
@@ -323,7 +325,7 @@ class NevaBaseModel:
                     mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
                 )
             else:
-                raise(ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
+                raise (ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
         else:
             vision_cfg = MegatronCLIPModel.restore_from(
                 mm_cfg.vision_encoder.from_pretrained, return_config=True
@@ -333,7 +335,12 @@ class NevaBaseModel:
             if mm_cfg.vision_encoder.freeze:
                 vision_encoder.freeze()
             crop_size = mm_cfg.get("crop_size", (224, 224))
-            image_processor = image_transform(crop_size, is_train=False, mean=None, std=None, )
+            image_processor = image_transform(
+                crop_size,
+                is_train=False,
+                mean=None,
+                std=None,
+            )
 
         return vision_encoder, image_processor
 
@@ -1058,8 +1065,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             ds_dict = make_supervised_data_module(
                 tokenizer=self.tokenizer,
-                image_processor=self.model.module.image_processor if hasattr(self.model,
-                                                                             "module") else self.model.image_processor,
+                image_processor=(
+                    self.model.module.image_processor if hasattr(self.model, "module") else self.model.image_processor
+                ),
                 model_cfg=self.cfg,
             )
             self._train_ds = ds_dict["train_dataset"]

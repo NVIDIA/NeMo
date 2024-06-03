@@ -291,6 +291,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
     return sources
 
+
 def process_image(processor, image, image_aspect_ratio="square"):
     if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
         # image processor from HF
@@ -322,11 +323,10 @@ def process_image(processor, image, image_aspect_ratio="square"):
         else:
             image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
     else:
-        assert (
-                image_aspect_ratio == 'square'
-        ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+        assert image_aspect_ratio == 'square', 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
         image = processor(image)
     return image
+
 
 def preprocess_llama_3(
     sources: dict,
@@ -803,9 +803,11 @@ def preprocess_nv_dpo(
             if len(parts) != 2:
                 break
 
-            #handle label if exists
+            # handle label if exists
             labels_match = re.search(rf"{re.escape(DEFAULT_LABELS_TOKEN)}.*?\n", parts[1])
-            instruction_len = len(tokenizer.text_to_ids(parts[0] + sep + (parts[1][:labels_match.end()] if labels_match else "")))
+            instruction_len = len(
+                tokenizer.text_to_ids(parts[0] + sep + (parts[1][: labels_match.end()] if labels_match else ""))
+            )
             round_len = len(tokenizer.text_to_ids(rou + conv.sep))
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
 
