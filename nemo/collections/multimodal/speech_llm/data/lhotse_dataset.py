@@ -261,7 +261,7 @@ class TextProcessing:
 # The following function tries to reuse the canary data by following the special
 # tokens in nemo/collections/asr/data/audio_to_text_lhotse_prompted.py
 # TODO: try to move away from canary special token conversion and design a configurable prompting setup instead
-def convert_canary_prompt_to_text(prompt, is_canary_tokens_augment):
+def convert_canary_prompt_to_text(prompt):
     ps = prompt.replace("<pad>", "").split('>')
 
     def get_lang(text):
@@ -277,17 +277,11 @@ def convert_canary_prompt_to_text(prompt, is_canary_tokens_augment):
             assert False, 'Unknown language {}'.format(prompt)
         return lang
 
-    def get_task_template(text, is_canary_tokens_augment, simple_augment=True):
+    def get_task_template(text):
         if text == "<|transcribe|":
             template = 'Transcribe the spoken content to written <|SLANG|> text, <|PNC|>.'
         elif text == "<|translate|":
-            if is_canary_tokens_augment:
-                if simple_augment:
-                    template = 'Transcribe the spoken content to written <|SLANG|> text, then translate this to <|TLANG|> text, <|PNC|>'
-                else:
-                    template = 'Transcribe the spoken content to written <|SLANG|> text, then translate this to English text, then translate this to <|TLANG|> text, <|PNC|>'
-            else:
-                template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
+            template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
         else:
             assert False, 'Unknown task {}'.format(prompt)
         return template
@@ -305,7 +299,7 @@ def convert_canary_prompt_to_text(prompt, is_canary_tokens_augment):
         source_lang = get_lang(ps[1])
         target_lang = get_lang(ps[3])
         pnc = get_pnc(ps[4])
-        task = get_task_template(ps[2], is_canary_tokens_augment)
+        task = get_task_template(ps[2])
         task = task.replace('<|SLANG|>', source_lang)
         task = task.replace('<|TLANG|>', target_lang)
         task = task.replace('<|PNC|>', pnc)
@@ -331,10 +325,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         tokens_to_generate: Number of tokens to generate during inference
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         max_seq_length: Maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        canary_processor: Optional Canary processor to convert canary tokens to text
+        prompt_format_fn: Optional function to format the prompt
+        prompt_tokenizer: Optional tokenizer to use for the prompt
         convert_canary_prompt_to_text: Whether to convert canary prompt to text
         prepend_to_exist_question: Optional string to prepend to existing question
-        canary_tokens_augment_ratio: Ratio of canary tokens to augment
         random_context_prob: Probability of injecting random context
         random_context_positive_percent: Percentage of positive random context
     """
@@ -350,7 +344,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         prompt_tokenizer: TokenizerWrapper = None,
         convert_canary_prompt_to_text: bool = False,
         prepend_to_exist_question: Optional = None,
-        canary_tokens_augment_ratio: float = 0.0,
         random_context_prob: float = 0.0,
         random_context_positive_percent: float = 0.1,
     ):
@@ -368,7 +361,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.prompt_tokenizer = prompt_tokenizer
         self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
         self.prepend_to_exist_question = prepend_to_exist_question
-        self.canary_tokens_augment_ratio = canary_tokens_augment_ratio
         self.random_context_prob = random_context_prob
         self.random_context_positive_percent = random_context_positive_percent
 
@@ -405,7 +397,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 audio_ratio.append(1.0)
 
         if self.prompt_format_fn != None:
-            is_canary_tokens_augment = torch.rand(1) < self.canary_tokens_augment_ratio
             _, prompt_tokens = self.prompt_format_fn(cuts, self.prompt_tokenizer, inference=True)
 
             for id, cut in enumerate(cuts):
@@ -415,7 +406,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 elif self.prepend_to_exist_question and hasattr(cut, "question"):
                     cut.question = self.prepend_to_exist_question + cut.question
                 elif self.convert_canary_prompt_to_text:
-                    cut.question = convert_canary_prompt_to_text(prompt_text, is_canary_tokens_augment)
+                    cut.question = convert_canary_prompt_to_text(prompt_text)
                 elif hasattr(cut, "question"):
                     # if the manifest has question field, use it
                     pass
