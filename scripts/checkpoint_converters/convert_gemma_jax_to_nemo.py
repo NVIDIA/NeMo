@@ -28,8 +28,8 @@ from argparse import ArgumentParser
 
 import jax
 import torch
-from omegaconf import OmegaConf
 from gemma.params import load_params, nest_params, param_remapper
+from omegaconf import OmegaConf
 from transformer import TransformerConfig
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
