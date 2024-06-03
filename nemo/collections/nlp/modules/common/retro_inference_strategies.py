@@ -460,7 +460,7 @@ class RetroFileQAModelTextGenerationStrategy(RetroQAModelTextGenerationStrategy)
 class RetroQAModelNEIGHBORSREADYTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model, **args):
         super().__init__(model)
-        if args.get("peft", True) and args.get("ptuning", False) is False:
+        if args.get("peft", True) and args.get("ptuning", False) is False and args.get("finetuning", False) is False:
             self.forward_model = self.model.model.model
             # self.forward_model = self.model.frozen_model
         else:

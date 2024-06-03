@@ -350,7 +350,7 @@ def model_inference_strategy_dispatcher(model, **args):
         strategy_name = args['strategy']
         del args['strategy']
         if args.get("peft", True) is True:
-            if args.get("ptuning", False):
+            if args.get("ptuning", False) or args.get("finetuning", False):
                 megatron_lm_compatible = model.frozen_model.model.megatron_lm_compatible
             else:
                 megatron_lm_compatible = model.frozen_model.model.model.megatron_lm_compatible
@@ -365,7 +365,7 @@ def model_inference_strategy_dispatcher(model, **args):
             return RetroFileQAModelTextGenerationStrategy(model, **args)
         elif strategy_name == 'RetroQAModelNEIGHBORSREADYTextGenerationStrategy':
             if args.get("peft", True) is True:
-                if args.get("ptuning", False):
+                if args.get("ptuning", False) or args.get("finetuning", False):
                     return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model, **args)
                 else:
                     return RetroQAModelNEIGHBORSREADYTextGenerationStrategy(model.frozen_model, **args)

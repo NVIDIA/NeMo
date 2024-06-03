@@ -131,23 +131,30 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 save_restore_connector=save_restore_connector,
                 strict=False
             )
-
-            
         else:
             if cfg.task_templates[0].get('chat_type', True):
                 cfg.task_templates[0].prompt_template = "User: Answer the following question with a short span. {question}\n\nAssistant: The answer is {answer}"
             else:
                 cfg.task_templates[0].prompt_template=' {question} {answer}'
-            if not cfg.adapter_tuning.get("adapter_key"):
-                frozen_model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
-                    cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
+            if self.cfg.virtual_prompt_style == 'no-prompts':
+                frozen_model_cfg = MegatronRetrievalModel.restore_from(
+                    cfg.get('language_model_path'),
+                    trainer=trainer,
+                    return_config=True,
+                    save_restore_connector=save_restore_connector,
+                    strict=False
                 )
             else:
-                frozen_model_cfg = MegatronFusedRetrievalLoraModel.restore_from(
-                    cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
-                )
+                if not cfg.adapter_tuning.get("adapter_key"):
+                    frozen_model_cfg = MegatronFusedRetrievalAdapterModel.restore_from(
+                        cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
+                    )
+                else:
+                    frozen_model_cfg = MegatronFusedRetrievalLoraModel.restore_from(
+                        cfg.get('language_model_path'), trainer=trainer, return_config=True, save_restore_connector=save_restore_connector, strict=False
+                    )
 
-            frozen_model_cfg.adapter_tuning = cfg.adapter_tuning
+                frozen_model_cfg.adapter_tuning = cfg.adapter_tuning
 
         # cfg.restore_from_path = '/home/aficek/software/playground/retro_convert/gpt3-800m-pretraining-retro-fitting/converted2/mp_rank_00'
         # frozen_model_cfg.tokenizer = cfg.model.tokenizer
@@ -173,7 +180,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
             frozen_model_cfg.pop("shape_file")
 
         print(frozen_model_cfg)
-        if cfg.get('peft', False):
+        if cfg.get('peft', False) or cfg.virtual_prompt_style == 'no-prompts':
             self.frozen_model = MegatronRetrievalModel.restore_from(
                 cfg.get('language_model_path'),
                 trainer=trainer,
@@ -261,7 +268,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
 
     def first_stage_of_pipeline(self):
         # return self.frozen_model.model.pre_process
-        if self.cfg.get('peft', False):
+        if self.cfg.get('peft', False) or self.cfg.virtual_prompt_style == 'no-prompts':
             return self.frozen_model.model.pre_process
         else:
             return self.frozen_model.model.model.pre_process
@@ -313,7 +320,7 @@ class MegatronRetroPromptLearningModel(MegatronBasePromptLearningModel):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            if self.cfg.get('peft', False):
+            if self.cfg.get('peft', False) or self.cfg.get('virtual_prompt_style', None) == 'no-prompts':
                 output = self.frozen_model.model(
                     input_ids=input_ids,
                     input_attn_mask=input_attn_mask,
