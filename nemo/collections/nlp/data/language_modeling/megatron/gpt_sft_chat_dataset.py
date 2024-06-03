@@ -358,6 +358,10 @@ class GPTSFTChatDataset(GPTSFTDataset):
         metadata = [item['metadata'] for item in batch]
 
         max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
+        # DEBUG BEGIN
+        self.max_seq_length = 4096 if self.max_seq_length != 4096 else 3072
+        print(f"!!FOO GPTSFTChatDataset {self.max_seq_length=}")
+        # DEBUG END
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
             input_ids = [x[: self.max_seq_length] for x in input_ids]
@@ -369,8 +373,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
         # increase max length to nearest multiple of 4 or 8
         #if self.pad_to_max_length:
         if True:
-            self.max_seq_length = 4096 if self.max_seq_length != 4096 else 3072
-            print(f"!!FOO GPTSFTChatDataset {self.max_seq_length=}")
             max_length = self.max_seq_length
         else:
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, 8))
