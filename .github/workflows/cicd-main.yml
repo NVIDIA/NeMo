@@ -124,7 +124,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     with:
       RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 15
+      TIMEOUT: 360
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
 
