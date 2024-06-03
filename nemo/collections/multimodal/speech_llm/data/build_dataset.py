@@ -18,6 +18,7 @@ import torch
 from megatron.core import parallel_state
 from omegaconf.omegaconf import OmegaConf
 
+from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
     get_prompt_format_fn,
@@ -82,26 +83,24 @@ def build_salm_dataset(model_instance, data_cfg, is_train):
             input_text_mask_ratio=data_cfg.get('input_text_mask_ratio', None),
         )
         if model_instance.cfg.perception.get("is_canary", False):
-            perception_tokenizer = (
+            prompt_tokenizer = (
                 model_instance.perception.tokenizer
                 if hasattr(model_instance.perception, "tokenizer")
                 else model_instance.perception.asr_model.tokenizer
             )
-            # get the canary dataset as a processor to read canary prompt from data and convert_canary_prompt_to_text
-            canary_processer = PromptedAudioToTextLhotseDataset(
-                tokenizer=perception_tokenizer,
-                prompt_format_fn=get_prompt_format_fn('canary'),
-                inference=True,
-            )
+            prompt_tokenizer = TokenizerWrapper(prompt_tokenizer)
+            prompt_format_fn = get_prompt_format_fn('canary')
         else:
-            canary_processer = None
+            prompt_format_fn = None
+            prompt_tokenizer = None
         return LhotseAudioQuestionAnswerDataset(
             tp,
             default_question="answer the question according to the previous audio",
             tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
             pad_to_max_length=data_cfg.get('pad_to_max_length', False),
             max_seq_length=data_cfg["max_seq_length"],
-            canary_processor=canary_processer,
+            prompt_format_fn=prompt_format_fn,
+            prompt_tokenizer=prompt_tokenizer,
             convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
             prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
             canary_tokens_augment_ratio=data_cfg.get('canary_tokens_augment_ratio', 0.0),

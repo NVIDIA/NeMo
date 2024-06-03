@@ -1,11 +1,13 @@
 import copy
 import random
-from typing import Optional
+from typing import Callable, Optional, Sequence
 
 import numpy as np
 import torch.utils.data
+from lhotse import CutSet
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
+from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import build_loss_mask, ceil_to_nearest
 from nemo.utils import logging
 
@@ -344,7 +346,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         tokens_to_generate: int,
         pad_to_max_length: bool,
         max_seq_length: int,
-        canary_processor: Optional = None,
+        prompt_format_fn: Optional[Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]]] = None,
+        prompt_tokenizer: TokenizerWrapper = None,
         convert_canary_prompt_to_text: bool = False,
         prepend_to_exist_question: Optional = None,
         canary_tokens_augment_ratio: float = 0.0,
@@ -361,7 +364,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.max_seq_length = max_seq_length
 
         self.question = default_question
-        self.canary_processor = canary_processor
+        self.prompt_format_fn = prompt_format_fn
+        self.prompt_tokenizer = prompt_tokenizer
         self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
         self.prepend_to_exist_question = prepend_to_exist_question
         self.canary_tokens_augment_ratio = canary_tokens_augment_ratio
@@ -400,24 +404,25 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             else:
                 audio_ratio.append(1.0)
 
-        if self.canary_processor != None:
+        if self.prompt_format_fn != None:
             is_canary_tokens_augment = torch.rand(1) < self.canary_tokens_augment_ratio
-            _, _, _, _, canary_tokens, canary_token_lens = self.canary_processor.__getitem__(cuts)
+            _, prompt_tokens = self.prompt_format_fn(cuts, self.prompt_tokenizer, inference=True)
+
             for id, cut in enumerate(cuts):
-                canary_text = self.canary_processor.tokenizer._tokenizer.ids_to_text(canary_tokens[id].tolist())
+                prompt_text = self.prompt_tokenizer._tokenizer.ids_to_text(prompt_tokens[id])
                 if audio_ratio[id] == 0.0:  # text only data should include question
                     assert hasattr(cut, "question")
                 elif self.prepend_to_exist_question and hasattr(cut, "question"):
                     cut.question = self.prepend_to_exist_question + cut.question
                 elif self.convert_canary_prompt_to_text:
-                    cut.question = convert_canary_prompt_to_text(canary_text, is_canary_tokens_augment)
+                    cut.question = convert_canary_prompt_to_text(prompt_text, is_canary_tokens_augment)
                 elif hasattr(cut, "question"):
                     # if the manifest has question field, use it
                     pass
                 else:
                     # use the canary special token as it is
-                    cut.question = self.question + ' ' + canary_text
-        else:
+                    cut.question = self.question + ' ' + prompt_text
+        else:  # the default format for speech_llm
             if hasattr(cut, "question"):
                 pass
             else:
