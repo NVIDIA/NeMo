@@ -14,6 +14,7 @@
 
 
 import configparser
+import json
 import logging
 import math
 import multiprocessing
@@ -27,12 +28,14 @@ import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import zarr
-from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch, torch_to_numpy
+from tensorrt_llm._utils import np_bfloat16, pad_vocab_size, str_dtype_to_torch, torch_to_numpy
+from torch.distributed.checkpoint import FileSystemReader, TensorStorageMetadata
+from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from tqdm import tqdm
 from transformers import AutoTokenizer, GPT2Tokenizer, LlamaConfig
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
-from nemo.export.trt_llm.nemo.convert import save_weight_torch, split_and_save_weight
+from nemo.export.trt_llm.nemo.convert import split_and_save_weight
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir, extract_layers_with_prefix, nemo_to_llm_config
 from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
 
@@ -122,6 +125,54 @@ def rename_key_dist_ckpt(old_key: str, layer: int):
 
 
 def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
+    with (checkpoint_dir / 'metadata.json').open(mode='r') as f:
+        config_dict = json.load(f)
+    if config_dict['sharded_backend'] == 'zarr':
+        return load_sharded_metadata_zarr(checkpoint_dir, torch_tensor)
+    elif config_dict['sharded_backend'] == 'torch_dist':
+        return load_sharded_metadata_torch_dist(checkpoint_dir, torch_tensor)
+    else:
+        raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
+
+
+class TarFileSystemReader(FileSystemReader):
+    """Reader that accepts both Path and TarPath checkpoint directory.
+
+    The FileSystemReader works with TarPath, but expects a pure Path.
+    It's enough to skip the Path check in __init__.
+    """
+
+    def __init__(self, path: Union[Path, TarPath]) -> None:
+        """No call to super().__init__ because it expects pure Path."""
+        self.path = path
+        self.storage_data = dict()
+
+
+def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
+    fs_reader = TarFileSystemReader(checkpoint_dir)
+    metadata = fs_reader.read_metadata()
+
+    state_dict = {
+        k: torch.empty(tp.size, dtype=tp.properties.dtype)
+        for k, tp in metadata.state_dict_metadata.items()
+        if isinstance(tp, TensorStorageMetadata)
+    }
+    load_state_dict(
+        state_dict,
+        storage_reader=fs_reader,
+        no_dist=True,
+    )
+
+    if not torch_tensor:
+        for k, v in state_dict.items():
+            if v.dtype == torch.bfloat16:
+                state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
+            else:
+                state_dict[k] = v.numpy()
+    return state_dict
+
+
+def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
         if not subdir.is_dir() or not (subdir / '.zarray').exists():
@@ -174,6 +225,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
     multi_query_mode = nemo_model_config.get("multi_query_mode", False)
     num_attention_heads = nemo_model_config["num_attention_heads"]
     kv_channels = nemo_model_config.get("kv_channels", None)
+    use_parallel_embedding = args.use_parallel_embedding
     if num_kv_heads == 0:
         if multi_query_mode:
             num_kv_heads = 1
@@ -191,6 +243,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         "kv_channels": kv_channels,
         "use_attention_nemo_shape": True,
         "transpose_weights": True,
+        "use_parallel_embedding": use_parallel_embedding,
     }
 
     # split_factor: in how many parts a TP training node is split
@@ -202,22 +255,30 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
             if has_position_embedding:
                 val = model[get_layer_name("position_embedding", prefix)]
                 val = torch_to_numpy(val.to(storage_type).cpu())
-                model_level_weights["model.wpe.bin"].append(val)
+                model_level_weights["transformer.position_embedding.weight"].append(val)
         if pp_idx == 0:
             val = model.get("state_dict", model)[get_layer_name("word_embedding", prefix)]
             if embedding_scaling:
                 val = val * float(math.sqrt(hidden_size))
 
+            vocab_size = val.shape[0]
+            if use_parallel_embedding:
+                # Pad vocab_size first
+                if vocab_size % inference_tp_size != 0:
+                    vocab_size_padded = pad_vocab_size(vocab_size, inference_tp_size)
+                    pad_width = vocab_size_padded - vocab_size
+                    val = torch.nn.functional.pad(val, (0, 0, 0, pad_width), value=0)
+
             val = torch_to_numpy(val.to(storage_type).cpu())
-            model_level_weights["model.wte.bin"].append(val)
+            model_level_weights["transformer.vocab_embedding.weight"].append(val)
             if share_embeddings_and_output:
                 val = model.get("state_dict", model)[get_layer_name("word_embedding", prefix)]
                 val = torch_to_numpy(val.to(storage_type).cpu())
-                model_level_weights["model.lm_head.weight.bin"].append(val)
+                model_level_weights["lm_head.weight"].append(val)
         if has_lm_head and pp_idx == training_pp_size - 1:
             val = model.get("state_dict", model)[get_layer_name("output_layer", prefix)]
             val = torch_to_numpy(val.to(storage_type).cpu())
-            model_level_weights["model.lm_head.weight.bin"].append(val)
+            model_level_weights["lm_head.weight"].append(val)
 
     weights_dict = {}
 
@@ -280,7 +341,6 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         model_level_weights[key] = np.concatenate(values, axis=0)
 
         weights_dict[key] = model_level_weights[key]
-    vocab_size = model_level_weights["model.wte.bin"].shape[0]
 
     if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
         tokenizer = AutoTokenizer.from_pretrained(
@@ -293,23 +353,7 @@ def convert_dist_checkpoint(unpacked_checkpoints_dir: UnpackedNemoCheckpointDir,
         tokenizer_config["model"] = os.path.join(out_dir, "tokenizer.model")
         tokenizer = build_tokenizer(tokenizer_config)
 
-    llm_config = nemo_to_llm_config(
-        nemo_model_config, vocab_size, tokenizer.eos_token_id, tokenizer.bos_token_id, args.decoder_type,
-    )
-
-    llm_config.is_mcore = is_mcore
-
-    config = configparser.ConfigParser()
-    decoder_name_dict = {"llama": "llama", "falcon": "falcon"}
-    model_name = decoder_name_dict[args.decoder_type] if args.decoder_type in decoder_name_dict else "gpt"
-
-    config[model_name] = {k: str(v) for k, v in vars(llm_config).items()}
-    config[model_name]["storage_dtype"] = args.storage_type
-    config_path = out_dir / "config.ini"
-    with config_path.open("w") as config_file:
-        config.write(config_file)
-
-    return weights_dict, llm_config, tokenizer
+    return weights_dict, nemo_model_config, tokenizer
 
 
 @torch.no_grad()

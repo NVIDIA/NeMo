@@ -509,7 +509,7 @@ class MegatronBaseModel(NLPModel):
 
         bias_dropout_fusion = self.cfg.get('bias_dropout_add_fusion', True)
 
-        apply_rope_fusion = self.cfg.get('apply_rope_fusion', True)
+        apply_rope_fusion = self.cfg.get('apply_rope_fusion', False)
 
         # TODO: need to check if recompute APIs are matching up properly
         recompute_granularity = self.cfg.get('activations_checkpoint_granularity', None)
