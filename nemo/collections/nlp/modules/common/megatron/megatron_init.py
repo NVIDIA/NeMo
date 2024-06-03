@@ -34,6 +34,8 @@ try:
     from megatron.core.parallel_state import (
         RankGenerator,
         get_pipeline_model_parallel_rank,
+        set_data_parallel_rank,
+        set_data_parallel_world_size,
         set_expert_model_parallel_rank,
         set_expert_model_parallel_world_size,
         set_pipeline_model_parallel_rank,
@@ -41,8 +43,6 @@ try:
         set_pipeline_model_parallel_world_size,
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
-        set_data_parallel_world_size,
-        set_data_parallel_rank,
         set_virtual_pipeline_model_parallel_rank,
     )
 
