@@ -39,7 +39,7 @@ Run the container using the following command. It assumes that you have the note
 export FW_VERSION=24.05 ## Make sure to choose the latest available tag
 
 docker run \
-  --gpus device=1 \
+  --gpus all \
   --shm-size=2g \
   --net=host \
   --ulimit memlock=-1 \
@@ -59,7 +59,7 @@ Then, navigate to [this notebook](./llama3-lora-nemofw.ipynb).
 
 
 ## [2. Multi-LoRA inference with NVIDIA NIM](./llama3-lora-deploy-nim.ipynb)
-This is a demonstration of deploying multiple LoRA adapters with NVIDIA NIM. NIM supports LoRA adapters in .nemo (from NeMo Framework), and Hugging Face model formats. We will deploy the PubMedQA LoRA adapter from Notebook 1, alongside two other previously trained LoRA adapters (GSM8K, SQuAD) that are available on NVIDIA NGC as examples.
+This is a demonstration of deploying multiple LoRA adapters with NVIDIA NIM. NIM supports LoRA adapters in .nemo (from NeMo Framework), and Hugging Face model formats. We will deploy the PubMedQA LoRA adapter from Notebook 1, alongside two other already trained LoRA adapters ([GSM8K](https://github.com/openai/grade-school-math), [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/)) that are available on NVIDIA NGC as examples.
 
 `NOTE`: While it's not necessary to complete the LoRA training and obtain the adapter from the previous notebook ("Creating a LoRA adapter with NeMo Framework") to follow along with this one, it is recommended if possible. You can still learn about LoRA deployment with NIM using the other adapters downloaded from NGC.
 
@@ -72,7 +72,7 @@ The following steps assume that you have authenticated with NGC and downloaded t
 ```bash
 # Set path to your LoRA model store
 export LOCAL_PEFT_DIRECTORY="./loras"
-mkdir $LOCAL_PEFT_DIRECTORY
+mkdir -p $LOCAL_PEFT_DIRECTORY
 pushd $LOCAL_PEFT_DIRECTORY
 
 
@@ -98,22 +98,30 @@ Ensure that the the LoRA model store directory has a structure like so - with th
     └── megatron_gpt_peft_lora_tuning.nemo
 ```
 
-The last one is the one we just trained on the pubmedQA dataset in the first notebook.
+The last one was just trained on the pubmedQA dataset in the previous notebook. After training is complete, that LoRA model checkpoint will be created at `./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo`, assuming default paths in the first notebook weren't modified.
 
+To ensure model store is organized as expected, create a folder named `llama3-8b-pubmed-qa`, and move your .nemo checkpoint there.
+
+```bash
+mkdir -p $LOCAL_PEFT_DIRECTORY/llama3-8b-pubmed-qa
+
+# Ensure the source path is correct
+cp ./results/Meta-Llama-3-8B-Instruct/checkpoints/megatron_gpt_peft_lora_tuning.nemo $LOCAL_PEFT_DIRECTORY/llama3-8b-pubmed-qa 
+```
 
 #### 3. Set-up NIM
 From your host OS environment, start the NIM docker container while mounting the LoRA model store, as follows:
 
-```
+```bash
 export NGC_API_KEY=<YOUR_NGC_API_KEY>
 export LOCAL_PEFT_DIRECTORY=</path/to/LoRA-model-store>
-
 chmod -R 777 $LOCAL_PEFT_DIRECTORY
-export NIM_PEFT_SOURCE=/home/nvs/loras
-export NIM_PEFT_REFRESH_INTERVAL=3600  # will check NIM_PEFT_SOURCE for newly added models every hour
+
+export NIM_PEFT_SOURCE=/home/nvs/loras # Path to LoRA models internal to the container
+export NIM_PEFT_REFRESH_INTERVAL=3600  # (in seconds) will check NIM_PEFT_SOURCE for newly added models every hour in this interval
 export CONTAINER_NAME=meta-llama3-8b-instruct
 
-export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Processed Lora models will be stored here
+export NIM_CACHE_PATH=</path/to/LoRA-model-store-cache>  # Processed LoRA models will be stored here
 mkdir -p $NIM_CACHE_PATH
 chmod -R 777 $NIM_CACHE_PATH
 
@@ -130,6 +138,8 @@ docker run -it --rm --name=$CONTAINER_NAME \
     -p 8000:8000 \
     nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
 ```
+The first time you run the command, it will download the model 
+There are several options to configure NIM other than the ones listed above, and you can find a full list in [NIM configuration](https://docs.nvidia.com/nim/large-language-models/latest/configuration.html) documentation.
 
 #### 4. Start the notebook
 From another terminal, follow the same instructions as the previous notebook to launch Jupyter Lab, and navigate to [this notebook](./llama3-lora-deploy-nim.ipynb). You may use the same NeMo Framework docker container which has Jupyter installed.
