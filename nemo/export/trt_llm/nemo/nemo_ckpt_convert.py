@@ -133,14 +133,14 @@ class TarFileSystemReader(FileSystemReader):
 
 @torch.no_grad()
 def convert_model_trt_llm_ckpt(
-        nemo_model_config,
-        model,
-        nemo_export_dir,
-        storage_type,
-        inference_tp_size,
-        decoder_type,
-        use_parallel_embedding,
-        processes
+    nemo_model_config,
+    model,
+    nemo_export_dir,
+    storage_type,
+    inference_tp_size,
+    decoder_type,
+    use_parallel_embedding,
+    processes,
 ):
 
     # if checkpoints files could be found - start preparing output dir
@@ -488,7 +488,3 @@ def create_nemo_export_dir(nemo_export_dir):
     if not out_dir.exists():
         out_dir.mkdir(parents=True)
     return out_dir
-
-
-
-

@@ -13,22 +13,22 @@
 # limitations under the License.
 
 
+import json
 import logging
 import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
-import json
-from nemo.export.tarutils import TarPath, ZarrPathStore
+
+import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import zarr
-import numpy as np
 from transformers import AutoTokenizer, PreTrainedTokenizer
-from nemo.export.tarutils import TarPath
+
+from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
 from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
-
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -197,9 +197,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
         nemo_dir = TarPath(nemo_ckpt)
 
     try:
-        unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(
-            nemo_dir, load_checkpoints_to_cpu=True
-        )
+        unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
         dist_ckpt_folder = nemo_dir / "model_weights"
         if dist_ckpt_folder.exists():
@@ -209,7 +207,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             if nemo_model_config["tokenizer"].get("library", None) == "huggingface":
                 tokenizer = AutoTokenizer.from_pretrained(
                     nemo_model_config["tokenizer"]["type"],
-                    use_fast=nemo_model_config["tokenizer"].get("use_fast", False)
+                    use_fast=nemo_model_config["tokenizer"].get("use_fast", False),
                 )
             else:
                 tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoint_dir)
@@ -226,4 +224,3 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             nemo_dir.tarobject.close()
 
     return model, nemo_model_config, tokenizer
-
