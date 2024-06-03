@@ -8,7 +8,7 @@ type system.
 
 .. note:: *All Neural Modules inherit from ``torch.nn.Module`` and are therefore compatible with the PyTorch ecosystem.*
 
-There are 3 types on Neural Modules:
+There are 3 types of Neural Modules:
 
     - Regular modules
     - Dataset/IterableDataset
@@ -18,7 +18,7 @@ Every Neural Module in NeMo must inherit from `nemo.core.classes.module.NeuralMo
 
 .. autoclass:: nemo.core.classes.module.NeuralModule
 
-Every Neural Modules inherits the ``nemo.core.classes.common.Typing`` interface and needs to define neural types for its inputs and outputs.
+Every Neural Module inherits the ``nemo.core.classes.common.Typing`` interface and needs to define neural types for its inputs and outputs.
 This is done by defining two properties: ``input_types`` and ``output_types``. Each property should return an ordered dictionary of 
 "port name"->"port neural type" pairs. Here is the example from :class:`~nemo.collections.asr.modules.ConvASREncoder` class:
 
