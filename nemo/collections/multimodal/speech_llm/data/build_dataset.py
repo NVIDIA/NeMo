@@ -103,8 +103,6 @@ def build_salm_dataset(model_instance, data_cfg, is_train):
             prompt_tokenizer=prompt_tokenizer,
             convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
             prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
-            random_context_prob=data_cfg.get('random_context_prob', 0.0),
-            random_context_positive_percent=data_cfg.get('random_context_positive_percent', 0.1),
         )
 
     # Notably, the data weights are controlled by either bucketing_weights
