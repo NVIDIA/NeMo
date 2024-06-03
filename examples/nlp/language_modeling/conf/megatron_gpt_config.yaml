@@ -14,9 +14,9 @@ trainer:
   enable_checkpointing: False
   use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
-  max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10
-  val_check_interval: 40
+  max_steps: 150 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 1
+  val_check_interval: 50
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
@@ -28,10 +28,10 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: False
+  create_wandb_logger: True
   wandb_logger_kwargs:
-    project: null
-    name: null
+    project: reset_lr_test
+    name: test_run
   create_neptune_logger: false
   neptune_logger_kwargs:
     project: null
@@ -279,7 +279,6 @@ model:
       constant_steps: 15
       min_lr: 2e-5
       reset_lr: True
-
   gc_interval: 0
   # Interval of the host memory garbage collection. When it is zero, collectiion relies on the automatic garbage collector.
   # If an interger value larger than zero is set, collection is done manually by the batch step interval of `gc_interval`.

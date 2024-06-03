@@ -42,7 +42,7 @@ class WarmupPolicy(_LRScheduler):
             infinite training
     """
 
-    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1, reset_lr=False):
+    def __init__(self, optimizer, *, reset_lr, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
         ), "Either use particular number of step or ratio"
@@ -98,7 +98,7 @@ class SquareRootConstantPolicy(_LRScheduler):
     """
 
     def __init__(
-        self, optimizer, *, constant_steps=None, constant_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1, reset_lr=False
+        self, optimizer, *, reset_lr, constant_steps=None, constant_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
     ):
         assert not (
             constant_steps is not None and constant_ratio is not None
@@ -235,6 +235,7 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         self,
         optimizer,
         *,
+        reset_lr,
         warmup_steps=None,
         warmup_ratio=None,
         constant_steps=None,
@@ -242,7 +243,6 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         max_steps=None,
         min_lr=0.0,
         last_epoch=-1,
-        reset_lr=False,
     ):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
@@ -273,8 +273,7 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
 
         self.min_lr = min_lr
-        self.reset_lr = reset_lr
-        print(self.reset_lr)
+        self.first_step = True
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
@@ -283,10 +282,14 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
                 "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
             )
         
-        if self.reset_lr and 'step' in self.optimizer.param_groups[0].keys():
-            step = self.last_epoch - self.optimizer.param_groups[0]['step']
-        else:
-            step = self.last_epoch
+        step = self.last_epoch
+        if 'reset_lr' in self.optimizer.param_groups[0].keys():
+            init_steps = self.optimizer.param_groups[0]['step']
+            step -= init_steps
+            if self.first_step:
+                self.decay_steps -= init_steps
+                self.max_steps -= init_steps
+                self.first_step = False
 
         # Warmup steps
         if self.warmup_steps > 0 and step <= self.warmup_steps:
@@ -409,7 +412,7 @@ class SquareRootAnnealing(WarmupPolicy):
 
 
 class CosineAnnealing(WarmupAnnealHoldPolicy):
-    def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, reset_lr=False, **kwargs):
+    def __init__(self, optimizer, *, max_steps, reset_lr, min_lr=0, last_epoch=-1, **kwargs):
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, reset_lr=reset_lr, **kwargs)
 
     def _get_lr(self, step):
@@ -461,7 +464,7 @@ class CosineAnnealing(WarmupAnnealHoldPolicy):
 
 class NoamAnnealing(_LRScheduler):
     def __init__(
-        self, optimizer, *, d_model, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1, reset_lr=False
+        self, optimizer, *, d_model, reset_lr, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
     ):
         self._normalize = d_model ** (-0.5)
         assert not (
@@ -697,6 +700,7 @@ def prepare_lr_scheduler(
     optimizer: optim.Optimizer,
     scheduler_config: Union[Dict[str, Any], DictConfig],
     train_dataloader: Optional[dataloader.DataLoader] = None,
+    reset_lr: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
     Constructs an LR Scheduler (optionally) for a given optimizer, based on a config with the following schema

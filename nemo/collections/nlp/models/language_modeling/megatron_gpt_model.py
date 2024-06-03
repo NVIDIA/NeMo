@@ -759,8 +759,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         The input batch to each micro-batch is fetched using the dataloader function
         in the micro-batch fwd function.
         """
-        if self.if_init_step:
+
+        if self.if_init_step and self.cfg.optim.sched.get('reset_lr', False):
             self._optimizer.param_groups[0]['step'] = self.trainer.global_step
+            self._optimizer.param_groups[0]['reset_lr'] = True
             self.if_init_step = False
             
         # Initialize userbuffer communicators.
