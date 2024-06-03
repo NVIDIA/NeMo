@@ -29,7 +29,7 @@ import wrapt
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath
 from nemo.export.trt_llm.nemo_utils import get_tokenzier, is_nemo_file, nemo_to_trtllm_config
-from nemo.export.trt_llm.qnemo import qnemo_to_trtllm_config
+from nemo.export.trt_llm.qnemo import is_trtllm_checkpoint, qnemo_to_trtllm_config
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load
 
@@ -205,8 +205,7 @@ class TensorRTLLM(ITritonDeployable):
         if tensorrt_llm.mpi_rank() == 0:
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
-
-            if nemo_checkpoint_path.endswith("qnemo"):  # TODO: Can we detect it in a different way?
+            if is_trtllm_checkpoint(nemo_checkpoint_path):
                 # TensorRT-LLM a.k.a. "qnemo" checkpoint handling
                 if os.path.isdir(nemo_checkpoint_path):
                     # Set nemo_export_dir accordingly for saving tokenizer.model later
@@ -215,10 +214,8 @@ class TensorRTLLM(ITritonDeployable):
                 weights_dicts, model_configs, self.tokenizer = qnemo_to_trtllm_config(
                     in_file=nemo_checkpoint_path,
                     decoder_type=model_type,
-                    # dtype=dtype,
-                    # tensor_parallel_size=tensor_parallel_size,
-                    # pipeline_parallel_size=pipeline_parallel_size,
-                    # use_parallel_embedding=use_parallel_embedding,
+                    tensor_parallel_size=tensor_parallel_size,
+                    pipeline_parallel_size=pipeline_parallel_size,
                     nemo_export_dir=nemo_export_dir,
                 )
             else:

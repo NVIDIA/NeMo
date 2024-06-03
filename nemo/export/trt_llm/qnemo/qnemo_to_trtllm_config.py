@@ -10,9 +10,7 @@ from transformers import PreTrainedTokenizer
 from nemo.export.tarutils import unpack_tarball
 from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
-
-CONFIG_NAME = "config.json"
-WEIGHTS_NAME = "rank{}.safetensors"
+from nemo.export.trt_llm.qnemo.checkpoint_utils import CONFIG_NAME, WEIGHTS_NAME
 
 
 def load_weights(weights_file: str) -> Dict[str, torch.Tensor]:
@@ -27,10 +25,8 @@ def qnemo_to_trtllm_config(
     in_file: str,
     decoder_type: str,
     nemo_export_dir: Union[str, Path],
-    dtype: str = "bfloat16",
     tensor_parallel_size: int = 1,
     pipeline_parallel_size: int = 1,
-    use_parallel_embedding: bool = False,
 ) -> Tuple[List[Dict[str, torch.Tensor]], List[PretrainedConfig], Union[PreTrainedTokenizer, SentencePieceTokenizer]]:
     """Prepare weights and model config from qnemo file for TensorRT-LLM engine build."""
     print(
@@ -45,7 +41,6 @@ def qnemo_to_trtllm_config(
         in_file = nemo_export_dir
 
     model_config = PretrainedConfig.from_json_file(os.path.join(in_file, CONFIG_NAME))
-    # TODO: model_config.use_parallel_embedding = use_parallel_embedding  # TBD
     # TODO: Llama naming inconsistency: LLaMAForCausalLM vs LLamaForCausalLM
     if model_config.architecture == "LlamaForCausalLM":
         assert decoder_type == "llama", f"decoder_type mismatch: {decoder_type}"

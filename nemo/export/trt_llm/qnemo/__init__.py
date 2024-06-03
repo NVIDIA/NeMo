@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from .qnemo_to_trtllm_config import qnemo_to_trtllm_config
+from .checkpoint_utils import is_trtllm_checkpoint
