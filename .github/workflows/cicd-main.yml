@@ -43,6 +43,7 @@ jobs:
         docker container prune --filter "until=24h" --force
         docker image prune -a --filter "until=24h" --force
 
+
   cicd-test-container-setup:
     needs: [cicd-cluster-clean]
     runs-on: self-hosted-azure-builder
@@ -91,23 +92,7 @@ jobs:
           # These checks are not crucial
           exit 0
         '
-
-    # - name: Build and push to local registry
-    #   uses: docker/build-push-action@v5
-    #   with:
-    #       context: .
-    #       push: true
-    #       tags: nemoci.azurecr.io/name/app:latest
-
-    # - name: Inspect
-    #   run: |
-    #     docker buildx imagetools inspect nemoci.azurecr.io/name/app:latest
-
-    #- name: Post-workflow execution
-    #  uses: gacts/run-and-post-run@v1
-    #  with:
-    #    post: |
-    #      chmod -R 777 .
+        ### \'\'
 
 
   OPTIONAL_L0_Unit_Tests_GPU:
