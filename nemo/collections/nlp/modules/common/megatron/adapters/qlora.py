@@ -49,6 +49,7 @@ class NF4Weight(nn.Parameter):
         from modelopt.torch.quantization.nn import TensorQuantizer
         from modelopt.torch.quantization.tensor_quant import QuantDescriptor
 
+        # initialize the quantizer
         nf4_desc = QuantDescriptor(
             num_bits=4,
             block_sizes={-1: self.block_size, "scale_bits": 8, "scale_block_sizes": {-1: self.scale_block_size}},
@@ -56,6 +57,7 @@ class NF4Weight(nn.Parameter):
         )
         self._nf4_quantizer = TensorQuantizer(nf4_desc)
 
+        # quantize on GPU directly
         nf4_tensor = self._nf4_quantizer(self.data.to(device))
         self.quantized_data = nf4_tensor
         self.is_nf4_quantized = True
@@ -92,13 +94,11 @@ class NF4Weight(nn.Parameter):
 class _LinearNF4(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input: torch.Tensor, weight: NF4Weight):
-        """Save the quantized nf4 weight for backward pass"""
         ctx.nf4_weight = weight
         return F.linear(input, weight.dequantize().to(input.device))
 
     @staticmethod
     def backward(ctx, grad_output):
-        """The nf4 weight will never require grad so we can just return the grad_output @ weight.to(grad_output.dtype)"""
         weight: NF4Weight = ctx.nf4_weight
         return grad_output @ weight.dequantize().to(grad_output.device), None
 
