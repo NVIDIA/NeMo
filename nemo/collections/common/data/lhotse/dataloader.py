@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import warnings
 from dataclasses import dataclass
 from functools import partial
@@ -19,7 +19,7 @@ from typing import Any, Optional, TypeVar, Union
 
 import numpy as np
 import torch
-from lhotse import CutSet
+from lhotse import CutSet, RecordingSet
 from lhotse.cut import Cut
 from lhotse.cut.text import TextExample, TextPairExample
 from lhotse.dataset import (
@@ -27,16 +27,16 @@ from lhotse.dataset import (
     DynamicBucketingSampler,
     DynamicCutSampler,
     IterableDatasetWrapper,
+    ReverbWithImpulseResponse,
     make_worker_init_fn,
 )
+from lhotse.dataset.dataloading import resolve_seed
 from lhotse.dataset.sampling.base import SamplingConstraint, TimeConstraint, TokenConstraint
 from lhotse.lazy import LazyFlattener
-from lhotse.utils import fastcopy
+from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
-from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
-from nemo.collections.common.tokenizers import TokenizerSpec
+from nemo.collections.common.data.lhotse.cutset import guess_parse_cutset, read_cutset_from_config
 from nemo.utils import logging
 
 
@@ -75,6 +75,7 @@ class LhotseDataLoadingConfig:
     drop_last: bool = False
     shard_seed: int | str = "trng"
     max_open_streams: int | None = None
+    cuda_expandable_segments: bool = True
 
     # 2.1 Multimodal sampling override options
     use_multimodal_sampling: bool = False
@@ -87,13 +88,16 @@ class LhotseDataLoadingConfig:
     sample_rate: int = 16000
     min_duration: float | None = -1
     max_duration: float | None = float("inf")
-    seed: int | str = "randomized"  # int | "randomized" | "trng"; the latter two are lazily resolved by Lhotse in dloading worker processes
+    seed: int | str = 0
     num_workers: int = 0
     pin_memory: bool = False
+    channel_selector: int | str | None = None
 
     # 4. Optional Lhotse data augmentation.
     #   a. On-the-fly noise/audio mixing.
-    noise_path: str | None = None
+    noise_path: Any | None = (
+        None  # str | dict where dict can have any of keys: manifest_filepath, tarred_audio_filepaths, cuts_path, shar_path
+    )
     noise_snr: tuple[float, float] = (10.0, 20.0)
     noise_mix_prob: float = 0.5
     #   b. On-the-fly 3-way speed perturbation.
@@ -112,14 +116,21 @@ class LhotseDataLoadingConfig:
     cut_into_windows_duration: Optional[float] = None  # set this to enable
     cut_into_windows_hop: Optional[float] = None
     #       III) common options
-    keep_excessive_supervisions: bool = True  # when a cut is truncated in the middle of a supervision, should we keep them.
+    keep_excessive_supervisions: bool = (
+        True  # when a cut is truncated in the middle of a supervision, should we keep them.
+    )
+    #   e. RIR augmentation (synthetic RIR if rir_path is None)
+    #   at the moment supports only Lhotse recording manifests, e.g. https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/rir_noise.py
+    rir_enabled: bool = False
+    rir_path: str | None = None  # str, must point to a lhotse RecordingSet manifest
+    rir_prob: float = 0.5
 
     # 5. Other Lhotse options.
     text_field: str = "text"  # key to read the transcript from
     lang_field: str = "lang"  # key to read the language tag from
     # Enables iteration of NeMo non-tarred manifests that don't have a "sampling_rate" key without performing any I/O.
     # Note that this will not allow actual dataloading; it's only for manifest iteration as Lhotse objects.
-    missing_sampling_rate_ok: bool = False
+    metadata_only: bool = False
 
 
 def get_lhotse_dataloader_from_config(
@@ -127,7 +138,7 @@ def get_lhotse_dataloader_from_config(
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
-    tokenizer: TokenizerSpec | TokenizerWrapper = None,
+    tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -154,8 +165,19 @@ def get_lhotse_dataloader_from_config(
 
     config = make_structured_with_schema_warnings(config)
 
+    maybe_set_cuda_expandable_segments(enabled=config.cuda_expandable_segments)
+
+    # First, resolve the random seed in case a string value was provided.
+    seed = resolve_seed(config.seed)
+    fix_random_seed(seed)
+
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, is_tarred = read_cutset_from_config(config)
+
+    # Apply channel selector
+    if config.channel_selector is not None:
+        logging.info('Using channel selector %s.', config.channel_selector)
+        cuts = cuts.map(partial(_select_channel, channel_selector=config.channel_selector))
 
     # Resample as a safeguard; it's a no-op when SR is already OK
     cuts = cuts.resample(config.sample_rate)
@@ -167,6 +189,8 @@ def get_lhotse_dataloader_from_config(
         assert (
             tokenizer is not None
         ), "You must pass a tokenizer to `get_lhotse_dataloader_from_config` in order to read text-only datasets (enabled via use_multimodal_dataloading)"
+        from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
+
         if not isinstance(tokenizer, TokenizerWrapper):
             tokenizer = TokenizerWrapper(tokenizer)
         # Note this code can also pre-tokenize the text in cuts, but for now we disable it with apply_fn.
@@ -175,9 +199,13 @@ def get_lhotse_dataloader_from_config(
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
     if config.noise_path is not None:
-        noise = CutSet.from_file(config.noise_path)
+        noise = guess_parse_cutset(config.noise_path)
         cuts = cuts.mix(
-            cuts=noise, snr=config.noise_snr, mix_prob=config.noise_mix_prob, seed="trng", random_mix_offset=True
+            cuts=noise,
+            snr=tuple(config.noise_snr),
+            mix_prob=config.noise_mix_prob,
+            seed=config.shard_seed,
+            random_mix_offset=True,
         )
 
     # 2.b. On-the-fly speed perturbation.
@@ -185,7 +213,11 @@ def get_lhotse_dataloader_from_config(
     #    and applying it here (before sampler/dataset) ensures optimal
     #    bucket allocation.
     if config.perturb_speed:
-        cuts = CutSet.mux(cuts, cuts.perturb_speed(0.9), cuts.perturb_speed(1.1),)
+        cuts = CutSet.mux(
+            cuts,
+            cuts.perturb_speed(0.9),
+            cuts.perturb_speed(1.1),
+        )
 
     # 2.d: truncation/slicing
     if config.truncate_duration is not None:
@@ -229,15 +261,16 @@ def get_lhotse_dataloader_from_config(
             f"Creating a Lhotse DynamicBucketingSampler "
             f"(max_batch_duration={config.batch_duration} max_batch_size={config.batch_size})"
         )
+        # Determine the bucket duration bins
         sampler = DynamicBucketingSampler(
             cuts,
             constraint=constraint,
             shuffle=config.shuffle,
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
-            seed=config.seed,
+            seed=config.shard_seed,
             num_buckets=config.num_buckets,
-            duration_bins=config.bucket_duration_bins,
+            duration_bins=determine_bucket_duration_bins(config),
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
             rank=0 if is_tarred else global_rank,
@@ -257,7 +290,7 @@ def get_lhotse_dataloader_from_config(
             shuffle=config.shuffle,
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
-            seed=config.seed,
+            seed=config.shard_seed,
             rank=0 if is_tarred else global_rank,
             world_size=1 if is_tarred else world_size,
         )
@@ -271,12 +304,23 @@ def get_lhotse_dataloader_from_config(
         # object with texts joined by a whitespace so that "regular" dataset classes don't
         # have to add a special support for multi-supervision cuts.
         sampler = sampler.map(
-            CutConcatenate(gap=config.concatenate_gap_seconds, duration_factor=config.concatenate_duration_factor,)
+            CutConcatenate(
+                gap=config.concatenate_gap_seconds,
+                duration_factor=config.concatenate_duration_factor,
+            )
         )
         if config.db_norm is not None:
             sampler = sampler.map(partial(_normalize_loudness, db_norm=config.db_norm))
         if config.concatenate_merge_supervisions:
             sampler = sampler.map(_merge_supervisions)
+
+    if config.rir_enabled:
+        sampler = sampler.map(
+            ReverbWithImpulseResponse(
+                rir_recordings=RecordingSet.from_file(config.rir_path) if config.rir_path is not None else None,
+                p=config.rir_prob,
+            )
+        )
 
     # 4. Creating dataloader.
     if is_tarred:
@@ -289,7 +333,7 @@ def get_lhotse_dataloader_from_config(
         # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size),
+            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=seed),
             persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
@@ -298,10 +342,36 @@ def get_lhotse_dataloader_from_config(
         # the meta-data to Dataset, which performs the actual I/O inside its __getitem__ method.
         dloader_kwargs = dict(dataset=dataset, sampler=sampler)
     dloader = torch.utils.data.DataLoader(
-        **dloader_kwargs, batch_size=None, num_workers=config.num_workers, pin_memory=config.pin_memory,
+        **dloader_kwargs,
+        batch_size=None,
+        num_workers=config.num_workers,
+        pin_memory=config.pin_memory,
     )
 
     return dloader
+
+
+def determine_bucket_duration_bins(config):
+    if config.bucket_duration_bins is not None:
+        # Bucket duration bins are provided: just use them.
+        return config.bucket_duration_bins
+    # Bucket duration bins are not set.
+    if config.use_multimodal_sampling:
+        # For multimodal sampling it's currently impossible to define a linspace over durations
+        # because the buckets are counted in the number of tokens.
+        # The bins will be auto-estimated by lhotse at the cost of a slight lag in the training start.
+        return None
+    elif config.max_duration is not None and config.max_duration < float("inf"):
+        # If max duration is provided, we can use that to compute uniformly distant bucket bins.
+        # This is not optimal but should be close enough for users who didn't want to estimate these up-front.
+        begin = config.min_duration if config.min_duration is not None and config.min_duration > 0 else 0.0
+        end = config.max_duration
+        return np.linspace(begin, end, config.num_buckets + 1)[1:-1].tolist()
+    else:
+        # If we don't know max_duration, we can't guess a reasonable estimate of the upper bound of
+        # durations.
+        # The bins will be auto-estimated by lhotse at the cost of a slight lag in the training start.
+        return None
 
 
 def make_structured_with_schema_warnings(config: DictConfig) -> DictConfig:
@@ -349,7 +419,9 @@ class MultimodalSamplingConstraint(SamplingConstraint):
 
     def __post_init__(self):
         self._internal = TokenConstraint(
-            max_tokens=self.batch_tokens, max_examples=self.batch_size, quadratic_length=self.quadratic_factor,
+            max_tokens=self.batch_tokens,
+            max_examples=self.batch_size,
+            quadratic_length=self.quadratic_factor,
         )
 
     def add(self, example: Any) -> None:
@@ -438,3 +510,53 @@ def _flatten_alt_text(cut) -> list:
         text_instance.custom = {"text": data.pop("text"), "lang": data.pop("lang"), **data}
         ans.append(text_instance)
     return ans
+
+
+def maybe_set_cuda_expandable_segments(enabled: bool):
+    """
+    Configures PyTorch memory allocator to expand existing allocated segments
+    instead of re-allocating them when tensor shape grows.
+    This can help speed up the training when sequence length and/or batch size change often,
+    and makes GPU more robust towards OOM.
+
+    See here for more details:
+    https://pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf
+    """
+    if enabled and torch.cuda.is_available():
+        if (
+            (value := os.environ.get("PYTORCH_CUDA_ALLOC_CONF")) is not None
+            and len(value) > 0
+            and "expandable_segments:True" not in value
+        ):
+            warnings.warn(
+                "You have set PYTORCH_CUDA_ALLOC_CONF without expandable_segments:True option. We're setting that option anyway. To disable it, set cuda_expandable_segments=False in NeMo dataloader configuration."
+            )
+
+        try:
+            torch.cuda.memory._set_allocator_settings("expandable_segments:True")
+        except RuntimeError:
+            logging.info(
+                "Failed to set expandable_segments:True for PyTorch CUDA allocator. You may get training speed improvements if you enable this"
+            )
+
+
+def _select_channel(cut, channel_selector: int | str) -> list:
+    if isinstance(channel_selector, int):
+        channel_idx = channel_selector
+    elif isinstance(channel_selector, str):
+        if channel_selector in cut.custom:
+            channel_idx = cut.custom[channel_selector]
+        else:
+            raise ValueError(f"Channel selector {channel_selector} not found in cut.custom")
+
+    if channel_idx >= cut.num_channels:
+        raise ValueError(
+            f"Channel index {channel_idx} is larger than the actual number of channels {cut.num_channels}"
+        )
+
+    if cut.num_channels == 1:
+        # one channel available and channel_idx==0
+        return cut
+    else:
+        # with_channels only defined on MultiCut
+        return cut.with_channels(channel_idx)

@@ -261,11 +261,6 @@ Semi Sorted Batching
 
 Sorting samples by duration and spliting them into batches speeds up training, but can degrade the quality of the model. To avoid quality degradation and maintain some randomness in the partitioning process, we add pseudo noise to the sample length when sorting.
 
-  .. image:: images/ssb.png
-    :align: center
-    :alt: semi sorted batching
-    :scale: 50%
-
 It may result into training speeedup of more than 40 percent with the same quality. To enable and use semi sorted batching add some lines in config.
 
   .. code::
@@ -772,30 +767,30 @@ To enable multimodal dataloading, we provide several configuration options:
 
 Example 3. Combine an ASR (audio-text) dataset with an MT (text-only) dataset so that mini-batches have some examples from both datasets. Provide a custom prompt field for both datasets (to be leveraged by a relevant dataset class):
 
-```yaml
-use_multimodal_sampling: true
-batch_tokens: 1024
-token_equivalent_duration: 0.08  # 0.01 frame shift * 8 subsampling factor
-quadratic_factor: 50
-num_buckets: 30
-use_bucketing: true
-input_cfg:
-  - type: nemo_tarred
-    manifest_filepath: /path/to/manifest__OP_0..512_CL_.json
-    tarred_audio_filepath: /path/to/tarred_audio/audio__OP_0..512_CL_.tar
-    weight: 0.5
-    tags:
-      lang: en
-      prompt: "Given the following recording, transcribe what the person is saying:"
-  - type: txt_pair
-    source_path: /path/to/en__OP_0..512_CL_.txt
-    target_path: /path/to/pl__OP_0..512_CL_.txt
-    source_language: en
-    target_language: pl
-    weight: 0.5
-    tags:
-      prompt: "Translate the following text to Polish:"
-```
+.. code-block:: yaml
+
+    use_multimodal_sampling: true
+    batch_tokens: 1024
+    token_equivalent_duration: 0.08  # 0.01 frame shift * 8 subsampling factor
+    quadratic_factor: 50
+    num_buckets: 30
+    use_bucketing: true
+    input_cfg:
+      - type: nemo_tarred
+        manifest_filepath: /path/to/manifest__OP_0..512_CL_.json
+        tarred_audio_filepath: /path/to/tarred_audio/audio__OP_0..512_CL_.tar
+        weight: 0.5
+        tags:
+          lang: en
+          prompt: "Given the following recording, transcribe what the person is saying:"
+      - type: txt_pair
+        source_path: /path/to/en__OP_0..512_CL_.txt
+        target_path: /path/to/pl__OP_0..512_CL_.txt
+        source_language: en
+        target_language: pl
+        weight: 0.5
+        tags:
+          prompt: "Translate the following text to Polish:"
 
 .. caution:: We strongly recommend to use multiple shards for text files as well so that different nodes and dataloading workers are able to randomize the order of text iteration. Otherwise, multi-GPU training has a high risk of duplication of text examples.
 
@@ -822,6 +817,54 @@ For multi-dataset setups, one may provide multiple manifests and even their weig
             num_buckets=30
             bucket_duration_bins=[1.91,3.02,3.56,...
     <other diagnostic information about the dataset>
+
+
+Seeds and randomness
+~~~~~~~~~~~~~~~~~~~~
+
+In Lhotse dataloading configuration we have two parameters controlling randomness: ``seed`` and ``shard_seed``.
+Both of them can be either set to a fixed number, or one of two string options ``"randomized"`` and ``"trng"``.
+Their roles are:
+
+* ``seed`` is the base random seed, and is one of several factors used to initialize various RNGs participating in dataloading.
+
+* ``shard_seed`` controls the shard randomization strategy in distributed data parallel setups when using sharded tarred datasets.
+
+Below are the typical examples of configuration with an explanation of the expected outcome.
+
+Case 1 (default): ``seed=<int>`` and ``shard_seed="trng"``:
+
+* The ``trng`` setting discards ``seed`` and causes the actual random seed to be drawn using OS's true RNG. Each node/GPU/dataloading worker draws its own unique random seed when it first needs it.
+
+* Each node/GPU/dataloading worker yields data in a different order (no mini-batch duplication).
+
+* On each training script run, the order of dataloader examples are **different**.
+
+* Since the random seed is unpredictable, the exact dataloading order is not replicable.
+
+Case 2: ``seed=<int>`` and ``shard_seed="randomized"``:
+
+* The ``randomized`` setting uses ``seed`` along with DDP ``rank`` and dataloading ``worker_id`` to set a unique but deterministic random seed in each dataloading process across all GPUs.
+
+* Each node/GPU/dataloading worker yields data in a different order (no mini-batch duplication).
+
+* On each training script run, the order of dataloader examples are **identical** as long as ``seed`` is the same.
+
+* This setup guarantees 100% dataloading reproducibility.
+
+* Resuming training without changing of the ``seed`` value will cause the model to train on data it has already seen. For large data setups, not managing the ``seed`` may cause the model to never be trained on a majority of data. This is why this mode is not the default.
+
+* If you're combining DDP with model parallelism techniques (Tensor Parallel, Pipeline Parallel, etc.) you need to use ``shard_seed="randomized"``. Using ``"trng"`` will cause different model parallel ranks to desynchronize and cause a deadlock.
+
+* Generally the seed can be managed by the user by providing a different value each time the training script is launched. For example, for most models the option to override would be ``model.train_ds.seed=<value>``. If you're launching multiple tasks queued one after another on a grid system, you can generate a different random seed for each task, e.g. on most Unix systems ``RSEED=$(od -An -N4 -tu4 < /dev/urandom | tr -d ' ')`` would generate a random uint32 number that can be provided as the seed.
+
+Other, more exotic configurations:
+
+* With ``shard_seed=<int>``, all dataloading workers will yield the same results. This is only useful for unit testing and maybe debugging.
+
+* With ``seed="trng"``, the base random seed itself will be drawn using a TRNG. It will be different on each GPU training process. This setting is not recommended.
+
+* With ``seed="randomized"``, the base random seed is set to Python's global RNG seed. It might be different on each GPU training process. This setting is not recommended.
 
 Preparing Text-Only Data for Hybrid ASR-TTS Models
 --------------------------------------------------
