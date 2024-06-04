@@ -144,34 +144,48 @@ class TiledSiglipVisionModel(nn.Module):
         interpolate_pos_encoding: bool = False,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
 
-        # Reshape input from (b, c, H, W) to (b * grid_h * grid_w, c, h, w)
-        b, c, H, W = pixel_values.shape
-        h, w = H // self.grid_h, W // self.grid_w
+        with torch.no_grad():
+            # Reshape input from (b, c, H, W) to (b * grid_h * grid_w, c, h, w)
+            b, c, H, W = pixel_values.shape                     # Batch, color, height, width
+            h, w = H // self.grid_h, W // self.grid_w           # Size of each tile in pixels
 
-        vision_x = rearrange(pixel_values, "b c (gh h) (gw w) -> (b gh gw) c h w",
-                             gh=self.grid_h, gw=self.grid_w, h=h, w=w)
+            vision_x = rearrange(pixel_values, "b c (gh h) (gw w) -> (b gh gw) c h w",
+                                gh=self.grid_h, gw=self.grid_w, h=h, w=w)
 
-        # Pass through the vision model
-        vision_x = self.vision_model(
-            vision_x,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict, #interpolate_pos_encoding=interpolate_pos_encoding
-        )
-        # Assuming features are (b * grid_h * grid_w, v, d)
-        features = vision_x.hidden_states[self.return_select_layer]
+            # Pass through the vision model
+            vision_x = self.vision_model(
+                vision_x,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                #interpolate_pos_encoding=interpolate_pos_encoding
+            )
 
-        # Reshape back to (b, grid_h * grid_w * v, d)
-        b_grid_h_grid_w, v, d = features.shape
-        b = b_grid_h_grid_w // (self.grid_h * self.grid_w)
-        features = rearrange(features, "(b gh gw) v d -> b gh gw v d",
-                             b=b, gh=self.grid_h, gw=self.grid_w)
+            # Assuming it returns features in (b * grid_h * grid_w, v, d)
+            features = vision_x.hidden_states[self.return_select_layer]
 
-        # Downsample concatenating every grid_h x grid_w features
-        features = rearrange(features, "b gh gw v d -> b v (gh gw d)",
-                             b=b, gh=self.grid_h, gw=self.grid_w)
-        return features
+            # Reshape back to b, grid_h, grid_w
+            b_grid_h_grid_w, v, d = features.shape
+            # b = b_grid_h_grid_w // (self.grid_h * self.grid_w)
+            features = rearrange(features, "(b gh gw) v d -> b gh gw v d",
+                                b=b, gh=self.grid_h, gw=self.grid_w)
 
+
+            # Arrange vectors inside each tile into the corresponding shape (should be square)
+            vw = round((w * v // h) ** 0.5)
+            vh = vw * h // w
+            print(vw, vh)
+            features = rearrange(features, "b gh gw (vh vw) d -> b gh gw vh vw d",
+                                b=b, gh=self.grid_h, gw=self.grid_w, vh=vh, vw=vw)
+
+            # Arrange as a continuous H x W
+            features = rearrange(features, "b gh gw vh vw d -> b (gh vh) (gw vw) d")
+
+            # Downsample concatenating every grid_h x grid_w features
+            downsample_h, downsample_w = self.grid_h, self.grid_w
+            features = rearrange(features, "b (hd dh) (wd dw) d -> b (hd wd) (dh dw d)",
+                                b=b, dh=downsample_h, dw=downsample_w)
+            return features
 
 
 
