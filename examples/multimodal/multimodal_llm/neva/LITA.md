@@ -158,7 +158,7 @@ python /opt/NeMo/examples/multimodal/multimodal_llm/neva/convert_hf_llava_to_nev
     --mm_projector_ckpt_dir $mm_projector_ckpt_dir
 ```
 
-Notice the `convert_hf_llava_to_neva.py` script will automatically convert the vocab size from `32110` to `32128` and convert the embedding size from `32000` to `32128`.  (divisible 有关)
+Notice the `convert_hf_llava_to_neva.py` script will automatically expand the vocab size and convert the embedding size to be divisible by some base value.
 
 
 ## Inference with finetuned weights
@@ -170,13 +170,14 @@ neva_model_file=/ws/converted_nemo_model/lita-vicuna-v1-3-13b-finetune.nemo
 prompt_file=/ws/test/prompt_file.json
 output_file=/ws/test/output.json
 video_base_path=/ws/test
-torchrun --nproc_per_node=1 /ws/NeMo/examples/multimodal/multimodal_llm/neva/neva_evaluation.py \
+num_gpus=1
+torchrun --nproc_per_node=$num_gpus /ws/NeMo/examples/multimodal/multimodal_llm/neva/neva_evaluation.py \
     --config-path=/opt/NeMo/examples/multimodal/multimodal_llm/neva/conf/ \
     --config-name=neva_inference.yaml \
-    tensor_model_parallel_size=1 \
+    tensor_model_parallel_size=$num_gpus \
     pipeline_model_parallel_size=1 \
     neva_model_file=$neva_model_file \
-    trainer.devices=1 \
+    trainer.devices=$num_gpus \
     trainer.precision=16 \
     prompt_file=$prompt_file \
     inference.media_base_path=$video_base_path \
@@ -199,9 +200,68 @@ The prompt file can be one json string one line:
 ```
 {"video": "1066647457.mp4", "text": "Can you describe the scene?", "category": "conv", "question_id": 0}
 {"video": "1066647457.mp4", "text": "What's the color of the man's hoodie?", "category": "conv", "question_id": 1}
+{"video": "1066647457.mp4", "text": "When does the man put his hands on the rock wall", "duration": 13.0, "category": "conv", "question_id": 1}
 ```
+Notice if you want to ask questions about time, you need to append `duration` field to the prompt.
 
 ## Finetuning with nemo pretrained model
 
-### Video tasks
-Let's prepare the datasets for `Dense Video Captioning`, `Video Question Answering`, and `classification`
+### Dataset Preprocessing
+The dataset file for finetuning should be `train.json`:
+```
+[
+    # 1st example: video question answer, you need to remove the timestamps in the value field
+    {
+        "id": "1043215450",
+        "video": "076101_076150/1043215450.mp4",   # video_path will be prepended
+        "conversations": 
+        [
+            {"from": "human", "value": "<video>\n Write a terse but informative summary of the following video clip.\n<video>"}, 
+            {"from": "gpt", "value": "Oaxaca de juarez, mexico - circa 1970: mexican tourists on the square of the cathedral of our lady of the assumption in the city of oaxaca. archival of mexico in oaxaca state in the 1970s."}
+        ]       
+    },
+    # 2nd example: dense video captioning
+    {
+        "id": "xxxx",
+        "video: "xxxx.mp4",
+        "conversations":
+        [
+            {"from": "human", "value": "<video>\n "Provide a detailed description of the given video.Prepend each sentence with its start and end timestamps."}, 
+            {"from": "gpt", "value": "<t1> <t2> Apply eyeshadow on the crease with brush <t3> <t4> Apply eyeshadow on the outer corner of eyes with brush"}
+        ]
+    },
+    # 3rd example: event classification
+    {
+        "id": "xxxx",
+        "video: "xxxx.mp4",
+        "conversations":
+        [
+            {"from": "human", "value": "<video>\n "What is the action performed in this video?"}, 
+            {"from": "gpt", "value": "brush hair"}
+        ]
+
+    }
+    ...
+]
+```
+
+Here the `<video>` is the placeholder for the video features. In the 2nd example, `<t1>` `<t2>` are the time tokens to indidate in which time interval we've seen this event or description of the time inverval. You can prepare your time tokens like this:
+```python
+import numpy as np
+TIME_TOKEN_TEMPLATE = "<t{t}>"
+def time_to_string(time, num_time_tokens):
+    max_offset = float(num_time_tokens - 1)
+    time = int(np.round(max_offset * time))
+    return TIME_TOKEN_TEMPLATE.format(t=time)
+
+# example of converting time tokens
+# from 10seconds to 15 seconds
+num_time_tokens = 100
+start = 10.0   # the 10 seconds
+end = 15.0     # the 15 seconds
+duration = 200.0 # total video duration is 200seconds
+start = start / duration 
+end = end / duration
+start_time_token_str = time_to_string(start, num_time_tokens)
+end_time_token_str = time_to_string(end, num_time_tokens,)
+```

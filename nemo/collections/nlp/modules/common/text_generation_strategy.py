@@ -591,6 +591,7 @@ class NevaModelTextGenerationStrategy(TextGenerationStrategy):
             # not using type2use. uncomment it if it is used
             # if type_ids is not None:
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+            media = None
 
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = None

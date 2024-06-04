@@ -159,19 +159,19 @@ class TarOrFolderVideoLoader:
 
     def flatten_frames(self, cap):
         if self.data_cfg['splice_single_frame'] == 'first':
-            frame = cap[0].asnumpy()[:, :, ::-1]
+            frame = cap[0].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'middle':
-            frame = cap[len(cap) // 2].asnumpy()[:, :, ::-1]
+            frame = cap[len(cap) // 2].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         elif self.data_cfg['splice_single_frame'] == 'last':
-            frame = cap[-1].asnumpy()[:, :, ::-1]
+            frame = cap[-1].asnumpy()
             return Image.fromarray(frame).convert('RGB')
         else:
             if self.data_cfg['num_frames'] == -1:
                 frames = []
                 for frame in cap:
-                    rgb_frame = frame.asnumpy()[:, :, ::-1]
+                    rgb_frame = frame.asnumpy()
                     img = Image.fromarray(rgb_frame).convert('RGB')
                     frames.append(img)
                 return frames
@@ -180,7 +180,7 @@ class TarOrFolderVideoLoader:
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
                 frames = []
                 for i in indices:
-                    rgb_frame = cap[i].asnumpy()[:, :, ::-1]
+                    rgb_frame = cap[i].asnumpy()
                     img = Image.fromarray(rgb_frame).convert('RGB')
                     frames.append(img)
 
@@ -290,6 +290,7 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * num_patches
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_patches - 2)
+    replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
 
     if media_type == 'video' and multimodal_cfg.get("use_lita", False):
         if not multimodal_cfg.get('lita', None):
@@ -322,8 +323,6 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             else:
                 replace_token = DEFAULT_IMAGE_PATCH_TOKEN * (num_tokens - 2 )
             replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
-
-    replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
 
     for source in sources:
         conversation = source['conversations']
