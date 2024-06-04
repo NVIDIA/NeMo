@@ -24,8 +24,8 @@ import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import zarr
-from transformers import AutoTokenizer, PreTrainedTokenizer
 from torch.distributed.checkpoint import FileSystemReader
+from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir

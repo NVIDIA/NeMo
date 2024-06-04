@@ -14,10 +14,11 @@
 
 """Utilities for exporting a model to our custom format."""
 
+from typing import List
+
 import numpy as np
 import torch
 from tensorrt_llm._utils import torch_to_numpy
-from typing import List
 
 # A global dicts to store exported weights.
 # This is set to be a global variable to avoid extra code modification from tensorrt_llm.
