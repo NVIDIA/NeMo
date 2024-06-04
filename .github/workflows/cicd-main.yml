@@ -4805,6 +4805,7 @@ jobs:
             dataset_manifest=/home/TestData/librispeech/librivox-dev-other.json \
             batch_size=64 \
             tolerance=0.1012
+      TIMEOUT: 20
       AFTER_SCRIPT: |
         rm -f examples/asr/evaluation_transcripts.json
 
