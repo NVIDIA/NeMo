@@ -863,7 +863,7 @@ class VerificationMixin(ABC):
         with open(manifest_filepath, 'w', encoding='utf-8') as fp:
             for audio_file in paths2audio_files:
                 audio_file = audio_file.strip()
-                entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': 5000, 'text': '-', 'label': 'infer'}
+                entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': None, 'text': '-', 'label': 'infer'}
                 fp.write(json.dumps(entry) + '\n')
 
 
