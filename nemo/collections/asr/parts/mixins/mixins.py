@@ -851,8 +851,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 streaming_buffer.reset_buffer()
 
 
-class DiarizationMixin(ABC):
-
+class VerificationMixin(ABC):
     @staticmethod
     def path2audio_files_to_manifest(paths2audio_files, manifest_filepath):
         """
@@ -867,6 +866,8 @@ class DiarizationMixin(ABC):
                 entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': 5000, 'text': '-', 'label': 'infer'}
                 fp.write(json.dumps(entry) + '\n')
 
+
+class DiarizationMixin(VerificationMixin):
     @abstractmethod
     def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
         """
@@ -877,9 +878,4 @@ class DiarizationMixin(ABC):
         Returns:
             Speaker labels
         """
-        pass
-
-
-class VerificationMixin(DiarizationMixin):
-    def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
         pass

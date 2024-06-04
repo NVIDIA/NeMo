@@ -13,7 +13,6 @@
 # limitations under the License.
 import copy
 import itertools
-import json
 import os
 import tempfile
 from collections import Counter
