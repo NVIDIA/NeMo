@@ -15,7 +15,6 @@
 
 import csv
 import logging
-
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -24,9 +23,9 @@ from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import convert_model_to_trt_llm_ckpt
-from nemo.export.trt_llm.converter.utils import split, to_word_list_format, DECODER_MODEL_TYPE
 
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import convert_model_to_trt_llm_ckpt
+from nemo.export.trt_llm.converter.utils import DECODER_MODEL_TYPE, split, to_word_list_format
 
 LOGGER = logging.getLogger("NeMo")
 
