@@ -289,7 +289,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 logging.info(f'Removing old .nemo backup {backup_path}')
                 get_filesystem(backup_path).rm(backup_path)
 
-
     def _backup_existing_nemo_ckpt(self, trainer) -> Optional[str]:
         """Search for an available name with version infix and rename existing checkpoint.
 
