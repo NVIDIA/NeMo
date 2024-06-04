@@ -21,7 +21,8 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments import TorchElasticEnvironment
-from transformers import CLIPImageProcessor
+from transformers import CLIPImageProcessor, SiglipImageProcessor
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
@@ -508,3 +509,27 @@ def create_neva_model_and_processor(cfg):
         return media_tensors.unsqueeze(dim=0).unsqueeze(dim=0)
 
     return model, image_processor, video_processor
+
+
+def create_image_processor(mm_cfg):
+    if mm_cfg.vision_encoder.get("from_hf", False):
+        if "clip" in mm_cfg.vision_encoder.from_pretrained:
+            image_processor = CLIPImageProcessor.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
+            image_processor = SiglipImageProcessor.from_pretrained(
+                mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
+            )
+        else:
+            raise (ValueError("Currently only support CLIPImageProcessor and SiglipImageProcessor from Huggingface"))
+    else:
+        #Corresponds to MegatronCLIPModel
+        crop_size = mm_cfg.get("crop_size", (224, 224))
+        image_processor = image_transform(
+            crop_size,
+            is_train=False,
+            mean=None,
+            std=None,
+        )
+    return image_processor

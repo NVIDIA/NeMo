@@ -23,10 +23,9 @@ from einops import rearrange, repeat
 from omegaconf.dictconfig import DictConfig
 from pkg_resources import packaging
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import CLIPImageProcessor, CLIPVisionModel, SiglipImageProcessor, SiglipVisionModel
+from transformers import CLIPVisionModel, SiglipVisionModel
 
 from nemo.collections.common.parts.utils import extend_instance
-from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
 from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 from nemo.collections.multimodal.data.neva.neva_dataset import (
     DataCollatorForSupervisedDataset,
@@ -37,7 +36,7 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPVisionTransformer,
     MegatronCLIPModel,
 )
-from nemo.collections.multimodal.parts.utils import load_nemo_model_weights
+from nemo.collections.multimodal.parts.utils import create_image_processor, load_nemo_model_weights
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, get_specs
@@ -308,9 +307,6 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-                image_processor = CLIPImageProcessor.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-                )
             elif "siglip" in mm_cfg.vision_encoder.from_pretrained:
                 vision_encoder = SiglipVisionModel.from_pretrained(
                     mm_cfg.vision_encoder.from_pretrained,
@@ -321,9 +317,6 @@ class NevaBaseModel:
                     for param in vision_encoder.parameters():
                         param.requires_grad = False
                     vision_encoder = vision_encoder.eval()
-                image_processor = SiglipImageProcessor.from_pretrained(
-                    mm_cfg.vision_encoder.from_pretrained, torch_dtype=torch.bfloat16
-                )
             else:
                 raise (ValueError("Currently only support CLIPVisionModel and SigLipVisionModel from Huggingface"))
         else:
@@ -334,13 +327,8 @@ class NevaBaseModel:
             self.load_vision_encoder_weights(vision_encoder, mm_cfg.vision_encoder.from_pretrained)
             if mm_cfg.vision_encoder.freeze:
                 vision_encoder.freeze()
-            crop_size = mm_cfg.get("crop_size", (224, 224))
-            image_processor = image_transform(
-                crop_size,
-                is_train=False,
-                mean=None,
-                std=None,
-            )
+
+        image_processor = create_image_processor(mm_cfg)
 
         return vision_encoder, image_processor
 
