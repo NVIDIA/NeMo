@@ -6608,6 +6608,7 @@ jobs:
       - L2_BioMegatron_Bert_NER_Task
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2
+      - L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
