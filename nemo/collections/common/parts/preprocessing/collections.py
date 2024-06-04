@@ -17,11 +17,11 @@ import json
 import os
 from itertools import combinations
 from typing import Any, Dict, Iterable, List, Optional, Union
-
+import numpy as np
 import pandas as pd
 
 from nemo.collections.common.parts.preprocessing import manifest, parsers
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 
 
 class _Collection(collections.UserList):
@@ -349,6 +349,19 @@ class ASRAudioText(AudioText):
         )
 
 
+class SpeechLLMAudioTextEntity(object):
+    def __init__(self, sid, audio_file, duration, context, answer, offset, speaker, orig_sr, lang) -> None:
+        self.id = sid
+        self.audio_file = audio_file
+        self.duration = duration
+        self.context = context
+        self.answer = answer
+        self.offset = offset
+        self.speaker = speaker
+        self.orig_sr = orig_sr
+        self.lang = lang
+
+
 class ASRVideoText(VideoText):
     """`VideoText` collector from cv structured json files."""
 
@@ -389,6 +402,265 @@ class ASRVideoText(VideoText):
         super().__init__(
             ids, video_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
         )
+
+
+class SpeechLLMAudioText(object):
+    """List of audio-transcript text correspondence with preprocessing.
+
+    All of the audio, duration, context, answer are optional.
+    If answer is not present, text is treated as the answer.
+    """
+
+    def __init__(
+        self,
+        ids: List[int],
+        audio_files: List[str],
+        durations: List[float],
+        context_list: List[str],
+        answers: List[str],
+        offsets: List[str],
+        speakers: List[Optional[int]],
+        orig_sampling_rates: List[Optional[int]],
+        langs: List[Optional[str]],
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
+        max_num_samples: Optional[int] = None,
+    ):
+        """Instantiates audio-context-answer manifest with filters and preprocessing.
+
+
+        Args:
+            ids: List of examples positions.
+            audio_files: List of audio files.
+            durations: List of float durations.
+            context_list: List of raw text transcripts.
+            answers: List of raw text transcripts.
+            offsets: List of duration offsets or None.
+            speakers: List of optional speakers ids.
+            orig_sampling_rates: List of original sampling rates of audio files.
+            langs: List of language ids, one for eadh sample, or None.
+            min_duration: Minimum duration to keep entry with (default: None).
+            max_duration: Maximum duration to keep entry with (default: None).
+            max_number: Maximum number of samples to collect.
+            do_sort_by_duration: True if sort samples list by duration. Not compatible with index_by_file_id.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+        """
+
+        data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
+        if index_by_file_id:
+            self.mapping = {}
+
+        for id_, audio_file, duration, offset, context, answer, speaker, orig_sr, lang in zip(
+            ids, audio_files, durations, offsets, context_list, answers, speakers, orig_sampling_rates, langs
+        ):
+            # Duration filters.
+            if duration is not None:
+                curr_min_dur = min(duration) if isinstance(duration, list) else duration
+                curr_max_dur = max(duration) if isinstance(duration, list) else duration
+                curr_sum_dur = sum(duration) if isinstance(duration, list) else duration
+                if min_duration is not None and curr_min_dur < min_duration:
+                    duration_filtered += curr_sum_dur
+                    num_filtered += 1
+                    continue
+
+                if max_duration is not None and curr_max_dur > max_duration:
+                    duration_filtered += curr_sum_dur
+                    num_filtered += 1
+                    continue
+                total_duration += curr_sum_dur
+
+            if answer is None:
+                duration_filtered += curr_sum_dur
+                num_filtered += 1
+                continue
+
+            data.append(
+                SpeechLLMAudioTextEntity(id_, audio_file, duration, context, answer, offset, speaker, orig_sr, lang)
+            )
+            if index_by_file_id and audio_file is not None:
+                file_id, _ = os.path.splitext(os.path.basename(audio_file))
+                if file_id not in self.mapping:
+                    self.mapping[file_id] = []
+                self.mapping[file_id].append(len(data) - 1)
+
+            # Max number of entities filter.
+            if len(data) == max_number:
+                break
+
+        if max_num_samples is not None and not index_by_file_id:
+            if max_num_samples <= len(data):
+                logging.info(f"Subsampling dataset from {len(data)} to {max_num_samples} samples")
+                data = data[:max_num_samples]
+            else:
+                logging.info(f"Oversampling dataset from {len(data)} to {max_num_samples} samples")
+                data = data * (max_num_samples // len(data))
+                res_num = max_num_samples % len(data)
+                res_data = [data[idx] for idx in np.random.choice(len(data), res_num, replace=False)]
+                data.extend(res_data)
+        elif max_num_samples is not None and index_by_file_id:
+            logging.warning("Tried to subsample dataset by max_num_samples, but cannot since index_by_file_id is set.")
+
+        if do_sort_by_duration:
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
+
+        logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
+        logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
+
+        self.data = data
+
+    def __getitem__(self, idx):
+        if idx < 0 or idx > len(self.data):
+            raise ValueError(f"index out of range [0,{len(self.data)}), got {idx} instead")
+        return self.data[idx]
+
+    def __len__(self):
+        return len(self.data)
+
+
+class SpeechLLMAudioTextCollection(SpeechLLMAudioText):
+    """`SpeechLLMAudioText` collector from SpeechLLM json files.
+
+    This collector also keeps backward compatibility with SpeechLLMAudioText.
+    """
+
+    def __init__(
+        self,
+        manifests_files: Union[str, List[str]],
+        context_file: Optional[Union[List[str], str]] = None,
+        context_key: str = "context",
+        answer_key: str = "answer",
+        *args,
+        **kwargs,
+    ):
+        """Parse lists of audio files, durations and transcripts texts.
+
+        Args:
+            manifests_files: Either single string file or list of such -
+                manifests to yield items from.
+            *args: Args to pass to `AudioText` constructor.
+            **kwargs: Kwargs to pass to `AudioText` constructor.
+        """
+        self.context_key = context_key
+        self.answer_key = answer_key
+
+        (
+            ids,
+            audio_files,
+            durations,
+            context_list,
+            answers,
+            offsets,
+        ) = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        speakers, orig_srs, langs = (
+            [],
+            [],
+            [],
+        )
+        if context_file is not None:
+            question_file_list = context_file.split(",") if isinstance(context_file, str) else context_file
+            self.context_list = []
+            for filepath in question_file_list:
+                with open(filepath, 'r') as f:
+                    for line in f.readlines():
+                        line = line.strip()
+                        if line:
+                            self.context_list.append(line)
+            logging.info(f"Use random text context from {context_file} for {manifests_files}")
+        else:
+            self.context_list = None
+
+        for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
+            ids.append(item['id'])
+            audio_files.append(item['audio_file'])
+            durations.append(item['duration'])
+            context_list.append(item['context'])
+            answers.append(item['answer'])
+            offsets.append(item['offset'])
+            speakers.append(item['speaker'])
+            orig_srs.append(item['orig_sr'])
+            langs.append(item['lang'])
+        super().__init__(
+            ids, audio_files, durations, context_list, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
+        )
+
+    def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
+        item = json.loads(line)
+
+        # Audio file
+        if 'audio_filename' in item:
+            item['audio_file'] = item.pop('audio_filename')
+        elif 'audio_filepath' in item:
+            item['audio_file'] = item.pop('audio_filepath')
+        elif 'audio_file' not in item:
+            item['audio_file'] = None
+
+        # If the audio path is a relative path and does not exist,
+        # try to attach the parent directory of manifest to the audio path.
+        # Revert to the original path if the new path still doesn't exist.
+        # Assume that the audio path is like "wavs/xxxxxx.wav".
+        if item['audio_file'] is not None:
+            item['audio_file'] = manifest.get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+
+        # Duration.
+        if 'duration' not in item:
+            item['duration'] = None
+
+        # Answer.
+        if self.answer_key in item:
+            item['answer'] = item.pop(self.answer_key)
+        elif 'text' in item:
+            # compatability with ASR manifests that uses 'text' as answer key
+            item['answer'] = item.pop('text')
+        elif 'text_filepath' in item:
+            with open(item.pop('text_filepath'), 'r') as f:
+                item['answer'] = f.read()
+        else:
+            item['answer'] = "na"
+
+        # context.
+        if self.context_key in item:
+            item['context'] = item.pop(self.context_key)
+        elif 'context_filepath' in item:
+            with open(item.pop('context_filepath'), 'r') as f:
+                item['context'] = f.read()
+        elif self.context_list is not None:
+            context = np.random.choice(self.context_list).strip()
+            item['context'] = context
+        elif 'question' in item:
+            # compatability with old manifests that uses 'question' as context key
+            logging.warning(
+                f"Neither `{self.context_key}` is found nor `context_file` is set, but found `question` in item: {item}",
+                mode=logging_mode.ONCE,
+            )
+            item['context'] = item.pop('question')
+        else:
+            # default context if nothing is found
+            item['context'] = "what does this audio mean"
+
+        item = dict(
+            audio_file=item['audio_file'],
+            duration=item['duration'],
+            context=str(item['context']),
+            answer=str(item['answer']),
+            offset=item.get('offset', None),
+            speaker=item.get('speaker', None),
+            orig_sr=item.get('orig_sample_rate', None),
+            lang=item.get('lang', None),
+        )
+        return item
 
 
 class SpeechLabel(_Collection):
@@ -688,13 +960,12 @@ class DiarizationLabel(_Collection):
 
     OUTPUT_TYPE = collections.namedtuple(
         typename='DiarizationLabelEntity',
-        field_names='audio_file uniq_id duration rttm_file offset target_spks sess_spk_dict clus_spk_digits rttm_spk_digits',
+        field_names='audio_file duration rttm_file offset target_spks sess_spk_dict clus_spk_digits rttm_spk_digits',
     )
 
     def __init__(
         self,
         audio_files: List[str],
-        uniq_ids: List[str],
         durations: List[float],
         rttm_files: List[str],
         offsets: List[float],
@@ -739,19 +1010,10 @@ class DiarizationLabel(_Collection):
         data, duration_filtered = [], 0.0
 
         zipped_items = zip(
-            audio_files,
-            uniq_ids,
-            durations,
-            rttm_files,
-            offsets,
-            target_spks_list,
-            sess_spk_dicts,
-            clus_spk_list,
-            rttm_spk_list,
+            audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list
         )
         for (
             audio_file,
-            uniq_id,
             duration,
             rttm_file,
             offset,
@@ -767,7 +1029,6 @@ class DiarizationLabel(_Collection):
             data.append(
                 output_type(
                     audio_file,
-                    uniq_id,
                     duration,
                     rttm_file,
                     offset,
@@ -779,12 +1040,6 @@ class DiarizationLabel(_Collection):
             )
 
             if index_by_file_id:
-                if isinstance(audio_file, list):
-                    if len(audio_file) == 0:
-                        raise ValueError(f"Empty audio file list: {audio_file}")
-                    audio_file_name = sorted(audio_file)[0]
-                else:
-                    audio_file_name = audio_file
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 self.mapping[file_id] = len(data) - 1
 
@@ -844,22 +1099,11 @@ class DiarizationSpeechLabel(DiarizationLabel):
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
         self.round_digit = round_digit
-        # self.emb_dict = emb_dict
+        self.emb_dict = emb_dict
         self.clus_label_dict = clus_label_dict
         self.seq_eval_mode = seq_eval_mode
         self.pairwise_infer = pairwise_infer
-        (
-            audio_files,
-            uniq_ids,
-            durations,
-            rttm_files,
-            offsets,
-            target_spks_list,
-            sess_spk_dicts,
-            clus_spk_list,
-            rttm_spk_list,
-        ) = (
-            [],
+        audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list = (
             [],
             [],
             [],
@@ -872,17 +1116,24 @@ class DiarizationSpeechLabel(DiarizationLabel):
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
             # Inference mode
-            self.pairwise_infer = False
             if self.pairwise_infer:
                 clus_speaker_digits = sorted(list(set([x[2] for x in clus_label_dict[item['uniq_id']]])))
-                sess_spk_dict = None
-                rttm_speaker_digits = None
+                if item['rttm_file']:
+                    base_scale_index = max(self.emb_dict.keys())
+                    _sess_spk_dict = self.emb_dict[base_scale_index][item['uniq_id']]['mapping']
+                    sess_spk_dict = {int(v.split('_')[-1]): k for k, v in _sess_spk_dict.items()}
+                    rttm_speaker_digits = [int(v.split('_')[1]) for k, v in _sess_spk_dict.items()]
+                    if self.seq_eval_mode:
+                        clus_speaker_digits = rttm_speaker_digits
+                else:
+                    sess_spk_dict = None
+                    rttm_speaker_digits = None
 
             # Training mode
             else:
                 rttm_labels = []
                 with open(item['rttm_file'], 'r') as f:
-                    for index, line in enumerate(f.readlines()):
+                    for line in f.readlines():
                         start, end, speaker = self.split_rttm_line(line, decimals=3)
                         rttm_labels.append('{} {} {}'.format(start, end, speaker))
                 speaker_set = set()
@@ -894,19 +1145,24 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 target_spks = tuple(sess_spk_dict.keys())
                 clus_speaker_digits = target_spks
                 rttm_speaker_digits = target_spks
-            audio_files.append(item['audio_file'])
-            uniq_ids.append(item['uniq_id'])
-            durations.append(item['duration'])
-            rttm_files.append(item['rttm_file'])
-            offsets.append(item['offset'])
-            target_spks_list.append(target_spks)
-            sess_spk_dicts.append(sess_spk_dict)
-            clus_spk_list.append(clus_speaker_digits)
-            rttm_spk_list.append(rttm_speaker_digits)
+
+            if len(clus_speaker_digits) <= 2:
+                spk_comb_list = [(0, 1)]
+            else:
+                spk_comb_list = [x for x in combinations(clus_speaker_digits, 2)]
+
+            for target_spks in spk_comb_list:
+                audio_files.append(item['audio_file'])
+                durations.append(item['duration'])
+                rttm_files.append(item['rttm_file'])
+                offsets.append(item['offset'])
+                target_spks_list.append(target_spks)
+                sess_spk_dicts.append(sess_spk_dict)
+                clus_spk_list.append(clus_speaker_digits)
+                rttm_spk_list.append(rttm_speaker_digits)
 
         super().__init__(
             audio_files,
-            uniq_ids,
             durations,
             rttm_files,
             offsets,
@@ -962,17 +1218,8 @@ class DiarizationSpeechLabel(DiarizationLabel):
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
-        if isinstance(item['audio_file'], list):
-            item['audio_file'] = [os.path.expanduser(audio_file_path) for audio_file_path in item['audio_file']]
-        else:
-            item['audio_file'] = os.path.expanduser(item['audio_file'])
-
-        if not isinstance(item['audio_file'], list):
-            if 'uniq_id' not in item:
-                item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
-        elif 'uniq_id' not in item:
-            raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper uniq_id key.")
-
+        item['audio_file'] = os.path.expanduser(item['audio_file'])
+        item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
         item = dict(

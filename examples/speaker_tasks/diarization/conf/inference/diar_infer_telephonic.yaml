@@ -33,7 +33,7 @@ diarizer:
       pad_onset: 0.1 # Adding durations before each speech segment 
       pad_offset: 0 # Adding durations after each speech segment 
       min_duration_on: 0 # Threshold for small non_speech deletion
-      min_duration_off: 0 # Threshold for short speech segment deletion
+      min_duration_off: 0.2 # Threshold for short speech segment deletion
       filter_speech_first: True 
 
   speaker_embeddings:
@@ -48,7 +48,7 @@ diarizer:
     parameters:
       oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
       max_num_speakers: 8 # Max number of speakers for each recording. If an oracle number of speakers is passed, this value is ignored.
-      enhanced_count_thres: 1 # If the number of segments is lower than this number, enhanced speaker counting is activated.
+      enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
       maj_vote_spk_count: False  # If True, take a majority vote on multiple p-values to estimate the number of speakers.
