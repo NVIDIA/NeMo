@@ -364,6 +364,16 @@ class GPTSFTDataset(Dataset):
 
         context_ids = [i for ids in template_ids[:-1] for i in ids]
         label_ids = template_ids[-1]
+        
+        # Leave space for generating tokens.
+        if len(context_ids) + max(len(label_ids), self.tokens_to_generate) > self.max_seq_length:
+            if self.truncation_method == 'left':
+                context_ids = context_ids[-(self.max_seq_length - max(len(label_ids), self.tokens_to_generate)):]
+            elif self.truncation_method == 'right':
+                context_ids = context_ids[:self.max_seq_length - max(len(label_ids), self.tokens_to_generate)]
+            else:
+                raise ValueError(f'{self.truncation_method} is not supported')
+        
         return context_ids, label_ids
 
     def _process_example(self, example):
