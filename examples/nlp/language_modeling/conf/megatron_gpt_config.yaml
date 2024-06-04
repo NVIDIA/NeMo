@@ -9,13 +9,13 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: bf16
+  precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   use_distributed_sampler: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
-  max_steps: 500 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 1
+  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
   val_check_interval: 100
   limit_val_batches: 50
   limit_test_batches: 500
@@ -28,10 +28,10 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: True
+  create_wandb_logger: False
   wandb_logger_kwargs:
-    project: reset_lr_test
-    name: test_run
+    project: null
+    name: null
   create_neptune_logger: false
   neptune_logger_kwargs:
     project: null
@@ -122,7 +122,7 @@ model:
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
   # Megatron O2-style half-precision
-  megatron_amp_O2: True # Enable O2-level automatic mixed precision using main parameters
+  megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
 
   # Fusion
@@ -241,9 +241,9 @@ model:
     # Dictionary: can override from CLI "model.data.data_prefix"={"train":[1.0, /path/to/data], "validation":/path/to/data, "test":/path/to/test}
     # Or see example below:
     # "model.data.data_prefix: {train:[1.0,/path/to/data], validation:[/path/to/data], test:[/path/to/test]}"
-    data_prefix: []
+    data_prefix: ???
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_impl: mock
+    data_impl: mmap
     mmap_bin_files: True
     splits_string: 900,50,50
     seq_length: ${model.encoder_seq_length}
@@ -268,17 +268,18 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: distributed_fused_adam
+    name: fused_adam
     lr: 2e-4
-    weight_decay: 0.02
+    weight_decay: 0.01
     betas:
     - 0.9
-    - 0.95
+    - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 25
-      constant_steps: 25
+      warmup_steps: 500
+      constant_steps: 0
       min_lr: 2e-5
+
   gc_interval: 0
   # Interval of the host memory garbage collection. When it is zero, collectiion relies on the automatic garbage collector.
   # If an interger value larger than zero is set, collection is done manually by the batch step interval of `gc_interval`.
