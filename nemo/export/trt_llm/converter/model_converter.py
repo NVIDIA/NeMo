@@ -72,20 +72,6 @@ def prompt_convert(prompt_config, prompt_weights):
     return vtokens_embeddings
 
 
-def is_nemo_file(path):
-    flag = False
-
-    if path is not None:
-        if len(path) > 5:
-            pc = pathlib.Path(path)
-            if pc.exists():
-                if pc.is_file():
-                    if path[-5 : len(path)] == ".nemo":
-                        flag = True
-
-    return flag
-
-
 def split(v, tp_size, idx, dim=0):
     """Splits the np tensor v on dim and return the idx's slice."""
     if tp_size == 1:

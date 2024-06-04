@@ -33,6 +33,20 @@ from nemo.export.trt_llm.nemo.sentencepiece_tokenizer import SentencePieceTokeni
 LOGGER = logging.getLogger("NeMo")
 
 
+def is_nemo_file(path):
+    flag = False
+
+    if path is not None:
+        if len(path) > 5:
+            pc = pathlib.Path(path)
+            if pc.exists():
+                if pc.is_file():
+                    if path[-5 : len(path)] == ".nemo":
+                        flag = True
+
+    return flag
+
+
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     fs_reader = TarFileSystemReader(checkpoint_dir)
     metadata = fs_reader.read_metadata()

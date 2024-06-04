@@ -30,7 +30,7 @@ from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
 from transformers import PreTrainedTokenizer
 
-from nemo.export.trt_llm.nemo_utils import to_word_list_format  # isort:skip
+from nemo.export.trt_llm.converter.model_converter import to_word_list_format  # isort:skip
 
 
 LOGGER = logging.getLogger("NeMo")
