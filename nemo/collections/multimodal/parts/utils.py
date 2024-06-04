@@ -525,7 +525,7 @@ def create_image_processor(mm_cfg):
         else:
             raise (ValueError("Currently only support CLIPImageProcessor and SiglipImageProcessor from Huggingface"))
     else:
-        #Corresponds to MegatronCLIPModel
+        # Corresponds to MegatronCLIPModel
         crop_size = mm_cfg.get("crop_size", (224, 224))
         image_processor = image_transform(
             crop_size,
