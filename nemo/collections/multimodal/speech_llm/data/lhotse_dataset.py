@@ -4,11 +4,15 @@ from typing import Callable, Optional, Sequence
 
 import numpy as np
 import torch.utils.data
-from lhotse import CutSet
+from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import build_loss_mask, ceil_to_nearest
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
+    TextProcessing,
+    build_loss_mask,
+    ceil_to_nearest,
+)
 from nemo.utils import logging
 
 
@@ -22,240 +26,6 @@ def collate_vectors(items, max_length: int, padding_value):
     if items[0].shape[0] < 1:
         vectors = vectors.long()
     return vectors
-
-
-class TextProcessing:
-    """
-    Text processing pipeline for lhotse based speech_llm data loader.
-    This class is adapted from the one used in nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py
-    The class follows the interface of _process_example which takes in a context and an output
-      and processes them into a formatted training example.
-
-    Args:
-        tokenizer: text tokenizer object
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
-        add_bos (bool): Whether to add a beginning of sentence token to each data example
-        add_eos (bool): Whether to add an end of sentence token to each data example
-        add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
-        sep_id (int): The id of the separation token
-        separate_prompt_and_response_with_newline (bool): Whether to separate the prompt and response with a newline character
-        answer_only_loss (bool): Whether to compute the loss only on the answer part of the input
-        truncation_field (str): Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
-        pad_to_max_length (bool): Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
-        prompt_template (str): Prompt template to inject via an fstring. Formatted like Q: {input}\n\nA: {output}
-        virtual_tokens (int): Number of virtual tokens to add to the beginning of the input
-        tokens_to_generate (int): Number of tokens to generate during inference
-        input_key (str): Key to use for the input in your JSONL file
-        output_key (str): Key to use for the output in your JSONL file
-        end_string (Optional[str]): If not None, add this string to the end of the answer.
-        sample_alpha (Optional[float]): For SPE subword sampling
-        input_text_mask_ratio (Optional[float]): If not None, will mask the input text at this ratio.
-    """
-
-    def __init__(
-        self,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
-        max_seq_length: int = 1024,
-        min_seq_length: int = 1,
-        add_bos: bool = False,
-        add_eos: bool = True,
-        add_sep: bool = False,
-        sep_id: Optional[int] = None,
-        seed: int = 1234,
-        separate_prompt_and_response_with_newline: bool = False,
-        answer_only_loss: bool = True,
-        truncation_field: str = "answer",
-        pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
-        prompt_template: str = None,
-        virtual_tokens: int = 0,
-        tokens_to_generate: int = 0,
-        input_key: str = 'input',
-        output_key: str = 'output',
-        end_string: Optional[str] = None,
-        sample_alpha: Optional[float] = None,
-        input_text_mask_ratio: Optional[float] = None,
-    ):
-        self.input_key = input_key
-        self.output_key = output_key
-        self.tokenizer = tokenizer
-        self.max_seq_length = max_seq_length
-        self.min_seq_length = min_seq_length
-        self.seed = seed
-        self.separate_prompt_and_response_with_newline = separate_prompt_and_response_with_newline
-        self.answer_only_loss = answer_only_loss
-        self.truncation_field = truncation_field
-        self.pad_to_max_length = pad_to_max_length
-        self.prompt_template = prompt_template
-        self.virtual_tokens = virtual_tokens
-        self.tokens_to_generate = tokens_to_generate
-        self.add_bos = add_bos
-        self.add_eos = add_eos
-        self.add_sep = add_sep
-        self.end_string = end_string
-        self.sample_alpha = sample_alpha
-        self.input_text_mask_ratio = input_text_mask_ratio
-
-        if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
-            self.bos_id = tokenizer.bos_id
-        else:
-            self.bos_id = None
-
-        if add_eos and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
-            self.eos_id = tokenizer.eos_id
-        else:
-            self.eos_id = None
-        self.pad_id = self.eos_id if self.eos_id is not None else 0
-        self.pad_id = tokenizer.pad_id if tokenizer.pad_id >= 0 else self.pad_id
-
-        self.sep_id = sep_id if add_sep else None
-
-        if self.prompt_template is not None:
-            # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
-            self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
-        assert self.truncation_field in ["answer", "context"]
-
-    def _random_mask_tokens(self, input_tokens, mask_ratio, mask_token, sample_tokens=None):
-        output_tokens = input_tokens[:]
-        mask = []
-        for i, token in enumerate(input_tokens):
-            prob = random.random()
-            mask_or_not = prob < mask_ratio
-            if mask_or_not:
-                output_tokens[i] = mask_token if sample_tokens is None or i >= len(sample_tokens) else sample_tokens[i]
-            mask.append(mask_or_not)
-        return output_tokens, mask
-
-    def _process_example(self, context: str, output: str, lang: str):
-        """
-        Create an example by concatenating text and answer.
-        Truncation is carried out when needed, but it is performed only on the prompt side.
-        BOS, EOS, and SEP, are added if specified.
-
-        function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
-        """
-
-        def _text_to_ids(text, alpha=None, lang=None):
-            from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-
-            if isinstance(self.tokenizer, AggregateTokenizer):
-                return self.tokenizer.text_to_ids(text, lang)
-            else:
-                return self.tokenizer.text_to_ids(text, alpha)
-
-        if self.prompt_template is not None:
-            assert f'{{{self.input_key}}}' in self.prompt_template
-            assert f'{{{self.output_key}}}' in self.prompt_template
-            # Make sure that '{output}' always occurs at the end of the prompt template string
-            assert self.prompt_template.index(f'{{{self.output_key}}}') == len(self.prompt_template) - len(
-                f'{{{self.output_key}}}'
-            )
-            # Get the context by replacing only the input
-            original_context = context
-            context = (
-                self.prompt_template.replace(f'{{{self.input_key}}}', context)
-                .replace(f'{{{self.output_key}}}', '')
-                .strip(' ')
-            )
-            # Replace the input and output placeholders with the actual input and output
-            text = self.prompt_template.replace(f'{{{self.input_key}}}', original_context).replace(
-                f'{{{self.output_key}}}', output
-            )
-
-        elif self.separate_prompt_and_response_with_newline:
-            text = context + '\n' + output
-        else:
-            text = context + ' ' + output
-
-        if self.virtual_tokens:
-            # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
-            # these pad/eos tokens are placeholders for virtual tokens
-            pre_pad = [self.tokenizer.eos_id] * self.virtual_tokens
-        else:
-            pre_pad = []
-        answer_text = text[len(context) :]
-        # if input_text_mask_ratio, only do it on the input but not label
-        answer_ids = pre_pad + _text_to_ids(
-            answer_text, self.sample_alpha if self.input_text_mask_ratio is None else None, lang=lang
-        )
-        if self.end_string:
-            answer_ids += _text_to_ids(self.end_string, lang=lang)
-        context_ids = pre_pad + _text_to_ids(context, lang=lang)
-
-        # for the long context cases, collate_fn includes self.tokens_to_generate for padding
-        total_ids = len(context_ids) + max(len(answer_ids), self.tokens_to_generate)
-        if self.add_bos:
-            total_ids += 1
-        if self.add_sep:
-            total_ids += 1
-        # Only training need to consider eos token
-        if self.add_eos:
-            total_ids += 1
-
-        # If the total number of token is greater than the max, we will try to truncate the answer
-        if total_ids > self.max_seq_length:
-            truncation_length = total_ids - self.max_seq_length
-            answer_ids = answer_ids[: -min(truncation_length, len(answer_ids))]
-            context_ids = context_ids[: -min(truncation_length, len(context_ids))]
-
-        input_ids = context_ids
-        answer_start_idx = len(input_ids)
-
-        # Adds bos token in the start
-        if self.add_bos:
-            context_ids = [self.bos_id] + context_ids
-            input_ids = [self.bos_id] + input_ids
-            answer_start_idx += 1
-
-        # Adds sep token between text/prompt and answer
-        if self.add_sep:
-            context_ids = context_ids + [self.sep_id]
-            input_ids = input_ids + [self.sep_id]
-            answer_start_idx += 1
-
-        # create a copy of answer_ids and mask on it
-        if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
-            if self.sample_alpha is None:
-                masked_answer_ids, _ = self._random_mask_tokens(
-                    answer_ids, self.input_text_mask_ratio, self.tokenizer.unk_id
-                )
-            else:
-                sample_answer_ids = pre_pad + _text_to_ids(answer_text, self.sample_alpha, lang=lang)
-                # does not consider different length for now
-                masked_answer_ids, _ = self._random_mask_tokens(
-                    answer_ids,
-                    self.input_text_mask_ratio,
-                    self.tokenizer.unk_id,
-                    sample_tokens=sample_answer_ids,
-                )
-            masked_input_ids = input_ids + masked_answer_ids
-        input_ids = input_ids + answer_ids
-
-        # Only training need to consider eos token
-        if self.add_eos:
-            input_ids = input_ids + [self.tokenizer.eos_id]
-            answer_ids = answer_ids + [self.tokenizer.eos_id]
-            if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
-                masked_input_ids = masked_input_ids + [self.tokenizer.eos_id]
-
-        if len(input_ids) > self.max_seq_length:
-            logging.warning(f'Input ids length {len(input_ids)} exceed max sequence length {self.max_seq_length}')
-            input_ids = input_ids[: self.max_seq_length]
-            if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
-                masked_input_ids = masked_input_ids[: self.max_seq_length]
-
-        processed_example = {
-            'input_ids': torch.as_tensor(input_ids),
-            'answer_start_idx': torch.as_tensor(answer_start_idx),
-            'context_ids': torch.as_tensor(context_ids),
-            'context_length': len(context_ids),
-            'answer_ids': torch.as_tensor(answer_ids),
-        }
-
-        if self.input_text_mask_ratio is not None and self.input_text_mask_ratio > 0:
-            processed_example['masked_input_ids'] = torch.as_tensor(masked_input_ids)
-
-        return processed_example
 
 
 class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
@@ -289,8 +59,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         context_key: str = "context",
         default_context_key: str = "default_context",
     ):
-        from lhotse.dataset import AudioSamples, CutMix
-
         super().__init__()
         self.text_processor = text_processor
         self.load_audio = AudioSamples(fault_tolerant=True)
@@ -362,7 +130,6 @@ def collate_text_data(
             text_processor._process_example(
                 context=cut.context,
                 output=cut.supervisions[0].text,
-                lang='en' if cut.supervisions[0].language is None else cut.supervisions[0].language,
             )
         )
         for cut in cuts

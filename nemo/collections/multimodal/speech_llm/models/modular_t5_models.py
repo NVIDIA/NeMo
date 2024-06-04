@@ -851,10 +851,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         from the dataloader to produce a list of microbatches.
         The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        # # Initialize userbuffer communicators.
-        # if self.initialize_ub:
-        #     self.initialize_ub_func()
-
         mode = self.training
         self.eval()
         loss = self.fwd_bwd_step(dataloader_iter, 0, True)

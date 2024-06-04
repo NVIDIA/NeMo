@@ -224,8 +224,8 @@ model:
       # non-tar).
       # See audio_text_qa_dataset.py for details.
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
-      context_key: 'input'
-      label_key: 'output'
+      context_key: 'context'
+      answer_key: 'answer'
       add_eos: True
       # add_eos: False
       add_sep: True
@@ -233,7 +233,7 @@ model:
       separate_prompt_and_response_with_newline: False
       truncation_field: "context" # Options: ['context', 'answer']
       index_mapping_dir: null # Path to a directory to write index mapping files.
-      prompt_template: "Q: {input}\nA: {output}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
+      prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       # ASR configs
       sample_rate: 16000 #${model.audio_encoder.preprocessor.sample_rate}
       max_duration: 24 # it is set for LibriSpeech, you may need to update it for your dataset
@@ -247,16 +247,14 @@ model:
       bucketing_batch_size: null
       # sample_alpha: 0.1
       use_lhotse: True
-      duration_bins : [2,4,6,8,10,12,14,16,18]
-      lhotse:
-        text_field : "text"
-        batch_duration : 80  # 0
-        quadratic_duration : 30
-        max_open_streams: 50
-        num_buckets : 30
-        buffer_size : 10000
-        shuffle_buffer_size : 10000
-        duration_bins: [2.92,3.474,3.924,4.335,4.728,5.11,5.487,5.872,6.288,6.696,7.128,7.62,8.208,8.934,9.883,10.56,11.22,11.88,12.51,13.05,13.59,14.13,14.64,15.17875,15.81,16.54,17.37,18.241,19.18]
+      text_field : "text"
+      batch_duration : 80  # 0
+      quadratic_duration : 30
+      max_open_streams: 50
+      num_buckets : 30
+      buffer_size : 10000
+      shuffle_buffer_size : 10000
+      duration_bins: [2.92,3.474,3.924,4.335,4.728,5.11,5.487,5.872,6.288,6.696,7.128,7.62,8.208,8.934,9.883,10.56,11.22,11.88,12.51,13.05,13.59,14.13,14.64,15.17875,15.81,16.54,17.37,18.241,19.18]
       # sample_alpha: 0.1
 
     validation_ds:
@@ -270,7 +268,7 @@ model:
       min_seq_length: 1
       drop_last: False
       context_key: ${model.data.train_ds.context_key}
-      label_key: ${model.data.train_ds.label_key}
+      answer_key: ${model.data.train_ds.answer_key}
       add_eos: ${model.data.train_ds.add_eos}
       add_sep: ${model.data.train_ds.add_sep}
       add_bos: ${model.data.train_ds.add_bos}
