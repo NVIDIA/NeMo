@@ -137,7 +137,10 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         Initialize speaker embedding model with model name or path passed through config
         """
         if speaker_model is not None:
-            self._speaker_model = speaker_model
+            if self._cfg.device is None and torch.cuda.is_available():
+                self._speaker_model = speaker_model.to(torch.device('cuda'))
+            else:
+                self._speaker_model = speaker_model
         else:
             model_path = self._cfg.diarizer.speaker_embeddings.model_path
             if model_path is not None and model_path.endswith('.nemo'):
@@ -158,7 +161,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(
                     model_name=model_path, map_location=self._cfg.device
                 )
-
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
