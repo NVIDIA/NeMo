@@ -32,7 +32,10 @@ from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-from nemo.collections.multimodal.speech_llm.data.build_dataset import build_salm_dataloader, build_salm_dataset
+from nemo.collections.multimodal.speech_llm.data.build_dataset import (
+    build_speechllm_dataloader,
+    build_speechllm_dataset,
+)
 from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
@@ -95,12 +98,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 if "encoders" not in cfg.perception
                 else MultiAudioPerceptionModule(cfg=cfg.perception)
             )
-
-        if self._cfg.get('tensor_model_parallel_size', 1) == 1:
-            audio_model, _ = self.get_audio_encoder_models_and_configs(cfg)
-            self.perception.tokenizer = audio_model.tokenizer
-        else:
-            logging.warning("perception.tokenizer is not set for tensor model parallel size > 1.")
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
@@ -545,10 +542,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         return fwd_output_and_loss_func
 
     def _build_dataset(self, data_cfg, is_train=True):
-        return build_salm_dataset(self, data_cfg, is_train)
+        return build_speechllm_dataset(self, data_cfg, is_train)
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_predict=False, is_eval=False):
-        return build_salm_dataloader(dataset, data_cfg, consumed_samples, is_predict=is_predict, is_eval=is_eval)
+        return build_speechllm_dataloader(dataset, data_cfg, consumed_samples, is_predict=is_predict, is_eval=is_eval)
 
     @classmethod
     def _modify_audio_encoder_config(cls, gpt_cfg, audio_cfg, speaker_cfg=None):

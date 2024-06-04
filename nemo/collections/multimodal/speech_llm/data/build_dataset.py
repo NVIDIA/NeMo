@@ -37,7 +37,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.utils import logging
 
 
-def build_salm_dataset(model_instance, data_cfg, is_train):
+def build_speechllm_dataset(model_instance, data_cfg, is_train):
     if 'augmentor' in data_cfg:
         augmentor = process_augmentations(
             data_cfg['augmentor'], global_rank=model_instance.global_rank, world_size=model_instance.world_size
@@ -82,27 +82,14 @@ def build_salm_dataset(model_instance, data_cfg, is_train):
             sample_alpha=data_cfg.get('sample_alpha', None),
             input_text_mask_ratio=data_cfg.get('input_text_mask_ratio', None),
         )
-        if model_instance.cfg.perception.get("is_canary", False):
-            prompt_tokenizer = (
-                model_instance.perception.tokenizer
-                if hasattr(model_instance.perception, "tokenizer")
-                else model_instance.perception.asr_model.tokenizer
-            )
-            prompt_tokenizer = TokenizerWrapper(prompt_tokenizer)
-            prompt_format_fn = get_prompt_format_fn('canary')
-        else:
-            prompt_format_fn = None
-            prompt_tokenizer = None
         return LhotseAudioQuestionAnswerDataset(
             tp,
-            default_question="answer the question according to the previous audio",
+            default_context="answer the question according to the previous audio",
             tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
             pad_to_max_length=data_cfg.get('pad_to_max_length', False),
             max_seq_length=data_cfg["max_seq_length"],
-            prompt_format_fn=prompt_format_fn,
-            prompt_tokenizer=prompt_tokenizer,
-            convert_canary_prompt_to_text=data_cfg.get('convert_canary_prompt_to_text', False),
-            prepend_to_exist_question=data_cfg.get('prepend_to_exist_question', None),
+            context_key=data_cfg.get('context_key', "context"),
+            default_context_key=data_cfg.get('default_context_key', "default_context"),
         )
 
     # Notably, the data weights are controlled by either bucketing_weights
@@ -131,7 +118,7 @@ def build_salm_dataset(model_instance, data_cfg, is_train):
         )
 
 
-def build_salm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict=False, is_eval=False):
+def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict=False, is_eval=False):
     """Buld dataloader given an input dataset."""
     if data_cfg.get("use_lhotse"):
         if is_eval == False and is_predict == False:
@@ -144,20 +131,43 @@ def build_salm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict=Fals
         # for eval, we need to create separate dataset so as to report splitted numbers
         else:
             dls = []
-            for dataset_idx, (cur_manifest_filepath) in enumerate(data_cfg.manifest_filepath):
-                conf = copy.deepcopy(data_cfg)
-                conf['manifest_filepath'] = cur_manifest_filepath
-                dls.append(
-                    get_lhotse_dataloader_from_config(
-                        conf,
-                        global_rank=parallel_state.get_data_parallel_rank(),
-                        world_size=parallel_state.get_data_parallel_world_size(),
-                        dataset=dataset,
+            if hasattr(data_cfg, 'manifest_filepath'):
+                manifest_filepath = data_cfg.manifest_filepath
+                for cur_manifest_filepath in manifest_filepath:
+                    conf = copy.deepcopy(data_cfg)
+                    conf['manifest_filepath'] = cur_manifest_filepath
+                    dls.append(
+                        get_lhotse_dataloader_from_config(
+                            conf,
+                            global_rank=parallel_state.get_data_parallel_rank(),
+                            world_size=parallel_state.get_data_parallel_world_size(),
+                            dataset=dataset,
+                        )
                     )
-                )
+            else:
+                input_cfg = data_cfg.input_cfg
+                if isinstance(input_cfg, (str, Path)):
+                    # Resolve /path/to/input_cfg.yaml into config contents if needed.
+                    input_cfg = OmegaConf.load(input_cfg)
+                    assert len(input_cfg) == 1, "Only one dataset with multiple manifest paths is supported for eval"
+                    data_cfg.input_cfg = input_cfg
+                    # for getting names
+                    manifest_filepath = [ic.manifest_filepath for ic in input_cfg[0].input_cfg]
+                for cur_input_cfg in input_cfg[0].input_cfg:
+                    conf = copy.deepcopy(data_cfg)
+                    conf.input_cfg[0].input_cfg = [cur_input_cfg]
+                    dls.append(
+                        get_lhotse_dataloader_from_config(
+                            conf,
+                            global_rank=parallel_state.get_data_parallel_rank(),
+                            world_size=parallel_state.get_data_parallel_world_size(),
+                            dataset=dataset,
+                        )
+                    )
+
             if 'names' not in data_cfg:
                 names = []
-                for cur_manifest_filepath in data_cfg.manifest_filepath:
+                for cur_manifest_filepath in manifest_filepath:
                     names.append(Path(cur_manifest_filepath).stem)
                 OmegaConf.update(data_cfg, 'names', names, force_add=True)
                 logging.info(f'Update dataset names as {names}')

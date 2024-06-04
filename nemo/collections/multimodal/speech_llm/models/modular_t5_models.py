@@ -29,7 +29,10 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
 from nemo.collections.asr.parts.mixins.transcription import move_to_device
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
-from nemo.collections.multimodal.speech_llm.data.build_dataset import build_salm_dataloader, build_salm_dataset
+from nemo.collections.multimodal.speech_llm.data.build_dataset import (
+    build_speechllm_dataloader,
+    build_speechllm_dataset,
+)
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
     MultiAudioPerceptionModule,
@@ -93,8 +96,6 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
                 if "encoders" not in cfg.perception
                 else MultiAudioPerceptionModule(cfg=cfg.perception)
             )
-        audio_model = self.load_audio_model(cfg.pretrained_audio_model)
-        self.perception.tokenizer = audio_model.tokenizer
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
@@ -487,10 +488,10 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
         return fwd_output_and_loss_func
 
     def _build_dataset(self, data_cfg, is_train=True):
-        return build_salm_dataset(self, data_cfg, is_train)
+        return build_speechllm_dataset(self, data_cfg, is_train)
 
     def build_data_loader(self, dataset, data_cfg, consumed_samples=0, is_eval=False):
-        return build_salm_dataloader(dataset, data_cfg, consumed_samples, is_eval=is_eval)
+        return build_speechllm_dataloader(dataset, data_cfg, consumed_samples, is_eval=is_eval)
 
     @classmethod
     def _modify_config(cls, gpt_cfg, cfg, audio_cfg, add_cfg_to_tree=False):

@@ -238,7 +238,6 @@ model:
       # Example of how each dataset is formatted
       # {'audio_filepath': 'audio1.wav', 'offset': 0.0, 'duration': 12.3, 'question': 'transcribe this audio', 'answer': 'I have a dream...'}
       # the 'answer' field can also be 'text', and a default 'question' field is added if missing in manigests, so as to work with ASR manifests
-      manifest_filepath: ??? # Path to a list of JSONL files corresponding to the source data.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: True
@@ -284,7 +283,6 @@ model:
       duration_bins: [2.92,3.474,3.924,4.335,4.728,5.11,5.487,5.872,6.288,6.696,7.128,7.62,8.208,8.934,9.883,10.56,11.22,11.88,12.51,13.05,13.59,14.13,14.64,15.17875,15.81,16.54,17.37,18.241,19.18]
 
     validation_ds:
-      manifest_filepath: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
       global_batch_size: ${model.global_batch_size}
       micro_batch_size: ${model.micro_batch_size}
       shuffle: False

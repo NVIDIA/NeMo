@@ -258,56 +258,6 @@ class TextProcessing:
         return processed_example
 
 
-# The following function tries to reuse the canary data by following the special
-# tokens in nemo/collections/asr/data/audio_to_text_lhotse_prompted.py
-# TODO: try to move away from canary special token conversion and design a configurable prompting setup instead
-def convert_canary_prompt_to_text(prompt):
-    ps = prompt.replace("<pad>", "").split('>')
-
-    def get_lang(text):
-        if text == "<|fr|":
-            lang = 'French'
-        elif text == "<|es|":
-            lang = 'Spanish'
-        elif text == "<|de|":
-            lang = 'German'
-        elif text == "<|en|":
-            lang = 'English'
-        else:
-            assert False, 'Unknown language {}'.format(prompt)
-        return lang
-
-    def get_task_template(text):
-        if text == "<|transcribe|":
-            template = 'Transcribe the spoken content to written <|SLANG|> text, <|PNC|>.'
-        elif text == "<|translate|":
-            template = 'Translate the spoken <|SLANG|> content to written <|TLANG|> text, <|PNC|>'
-        else:
-            assert False, 'Unknown task {}'.format(prompt)
-        return template
-
-    def get_pnc(text):
-        if text == "<|nopnc|":
-            pnc = 'ignoring punctuations and capitalization'
-        elif text == "<|pnc|":
-            pnc = 'with punctuations and capitalizations'
-        else:
-            assert False, 'Unknown pnc {}'.format(prompt)
-        return pnc
-
-    if len(ps) == 6:
-        source_lang = get_lang(ps[1])
-        target_lang = get_lang(ps[3])
-        pnc = get_pnc(ps[4])
-        task = get_task_template(ps[2])
-        task = task.replace('<|SLANG|>', source_lang)
-        task = task.replace('<|TLANG|>', target_lang)
-        task = task.replace('<|PNC|>', pnc)
-    else:
-        task = 'Above is not speech.'
-    return task
-
-
 class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
     """
     This dataset is based on Lhotse ASR dataset from ``audio_to_text_lhotse.py``
@@ -321,27 +271,23 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
     Args:
         text_processor: TextProcessing object
-        default_question: Default question to use if no question is provided
+        default_context: Default question to use if no question is provided
         tokens_to_generate: Number of tokens to generate during inference
         pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
         max_seq_length: Maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        prompt_format_fn: Optional function to format the prompt
-        prompt_tokenizer: Optional tokenizer to use for the prompt
-        convert_canary_prompt_to_text: Whether to convert canary prompt to text
-        prepend_to_exist_question: Optional string to prepend to existing question
+        context_key: Key to use for the context in your JSONL file
+        default_context_key: Key to use for the default context in lhotse yaml
     """
 
     def __init__(
         self,
         text_processor: TextProcessing,
-        default_question: str,
+        default_context: str,
         tokens_to_generate: int,
         pad_to_max_length: bool,
         max_seq_length: int,
-        prompt_format_fn: Optional[Callable[[CutSet, TokenizerWrapper, bool], Sequence[Sequence[int]]]] = None,
-        prompt_tokenizer: TokenizerWrapper = None,
-        convert_canary_prompt_to_text: bool = False,
-        prepend_to_exist_question: Optional = None,
+        context_key: str = "context",
+        default_context_key: str = "default_context",
     ):
         from lhotse.dataset import AudioSamples, CutMix
 
@@ -352,11 +298,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.pad_to_max_length = pad_to_max_length
         self.max_seq_length = max_seq_length
 
-        self.question = default_question
-        self.prompt_format_fn = prompt_format_fn
-        self.prompt_tokenizer = prompt_tokenizer
-        self.convert_canary_prompt_to_text = convert_canary_prompt_to_text
-        self.prepend_to_exist_question = prepend_to_exist_question
+        self.default_context = default_context
+        self.context_key = context_key
+        self.default_context_key = default_context_key
 
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         cuts = cuts.sort_by_duration()
@@ -366,33 +310,15 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         return_batch = {}
         audio_ratio = []
         for id, cut in enumerate(cuts):
-            if hasattr(cut, "is_text_only") and cut.is_text_only:
-                audio_ratio.append(0.0)
-            else:
-                audio_ratio.append(1.0)
+            audio_ratio.append(1.0)
 
-        if self.prompt_format_fn != None:
-            _, prompt_tokens = self.prompt_format_fn(cuts, self.prompt_tokenizer, inference=True)
-
-            for id, cut in enumerate(cuts):
-                prompt_text = self.prompt_tokenizer._tokenizer.ids_to_text(prompt_tokens[id])
-                if audio_ratio[id] == 0.0:  # text only data should include question
-                    assert hasattr(cut, "question")
-                elif self.prepend_to_exist_question and hasattr(cut, "question"):
-                    cut.question = self.prepend_to_exist_question + cut.question
-                elif self.convert_canary_prompt_to_text:
-                    cut.question = convert_canary_prompt_to_text(prompt_text)
-                elif hasattr(cut, "question"):
-                    # if the manifest has question field, use it
-                    pass
-                else:
-                    # use the canary special token as it is
-                    cut.question = self.question + ' ' + prompt_text
-        else:  # the default format for speech_llm
-            if hasattr(cut, "question"):
-                pass
+        for _, cut in enumerate(cuts):
+            if hasattr(cut, self.context_key):
+                cut.context = getattr(cut, self.context_key)
+            elif hasattr(cut, self.default_context_key):
+                cut.context = getattr(cut, self.default_context_key)
             else:
-                cut.question = self.question
+                cut.context = self.default_context
 
         metadata = []
         for id, cut in enumerate(cuts):
@@ -400,7 +326,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         collated_text_data = collate_text_data(
             cuts=cuts,
-            default_question=self.question,
+            default_context=self.default_context,
             text_processor=self.text_processor,
             tokens_to_generate=self.tokens_to_generate,
             pad_to_max_length=self.pad_to_max_length,
@@ -422,7 +348,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
 def collate_text_data(
     cuts,
-    default_question: str,
+    default_context: str,
     text_processor: TextProcessing,
     tokens_to_generate: int,
     pad_to_max_length: bool,
@@ -434,7 +360,7 @@ def collate_text_data(
     examples = [
         adjust_input_ids(
             text_processor._process_example(
-                context=cut.question if hasattr(cut, "question") else default_question,
+                context=cut.context,
                 output=cut.supervisions[0].text,
                 lang='en' if cut.supervisions[0].language is None else cut.supervisions[0].language,
             )
