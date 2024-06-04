@@ -25,7 +25,7 @@ run_export_tests = True
 try:
     from nemo.deploy import DeployPyTriton
     from nemo.deploy.nlp import NemoQueryLLM
-    from nemo.export import TensorRTLLM
+    from nemo.export.tensorrt_llm import TensorRTLLM
 except Exception as e:
     run_export_tests = False
 

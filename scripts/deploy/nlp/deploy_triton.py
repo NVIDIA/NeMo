@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from nemo.deploy import DeployPyTriton
-from nemo.export import TensorRTLLM
+from nemo.export.tensorrt_llm import TensorRTLLM
 
 
 LOGGER = logging.getLogger("NeMo")
