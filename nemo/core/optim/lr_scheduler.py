@@ -42,9 +42,7 @@ class WarmupPolicy(_LRScheduler):
             infinite training
     """
 
-    def __init__(
-        self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
-    ):
+    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
         ), "Either use particular number of step or ratio"
@@ -421,9 +419,7 @@ class SquareRootAnnealing(WarmupPolicy):
 
 class CosineAnnealing(WarmupAnnealHoldPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
-        super().__init__(
-            optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs
-        )
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         for initial_lr in self.base_lrs:
