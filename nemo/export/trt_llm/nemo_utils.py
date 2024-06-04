@@ -24,7 +24,7 @@ from tensorrt_llm._utils import pad_vocab_size
 from tensorrt_llm.functional import non_gated_version
 from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
-from nemo.export.trt_llm.nemo.nemo_ckpt_convert import convert_model_trt_llm_ckpt
+from nemo.export.trt_llm.converter.nemo_ckpt_convert import convert_model_trt_llm_ckpt
 
 
 DECODER_MODEL_TYPE = {
