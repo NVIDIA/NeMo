@@ -112,12 +112,6 @@ def add_special_tokens_to_tokenizer(tokenizer):
         tokenizer.add_special_tokens({"eos_token": "</s>"})
 
 
-def extract_layers_with_prefix(model_, prefix):
-    length_to_trim = len(prefix)
-    model_state = model_.get("state_dict", model_)
-    return {key[length_to_trim:]: model_state[key] for key in model_state.keys() if prefix in key}
-
-
 class UnpackedNemoCheckpointDir:
     def __init__(
         self,

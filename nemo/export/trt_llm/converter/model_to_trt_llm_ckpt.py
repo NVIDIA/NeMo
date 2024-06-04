@@ -13,14 +13,12 @@
 # limitations under the License.
 
 
-import configparser
 import logging
 import math
 import multiprocessing
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 import torch
@@ -29,7 +27,6 @@ from tensorrt_llm._utils import np_bfloat16, pad_vocab_size, str_dtype_to_torch,
 from tqdm import tqdm
 
 from nemo.export.trt_llm.converter.utils import split_and_save_weight
-from nemo.export.trt_llm.nemo.nemo import extract_layers_with_prefix, nemo_to_llm_config
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -40,6 +37,12 @@ layer_names = {
     "final_layernorm.weight": "final_layernorm.weight",
     "final_layernorm.bias": "final_layernorm.bias",
 }
+
+
+def extract_layers_with_prefix(model_, prefix):
+    length_to_trim = len(prefix)
+    model_state = model_.get("state_dict", model_)
+    return {key[length_to_trim:]: model_state[key] for key in model_state.keys() if prefix in key}
 
 
 def get_layer_name(layer_type: str, prefix: str):
@@ -65,14 +68,6 @@ def get_layer_prefix(layer_names, is_mcore):
     assert model_prefix is not None, "Cannot extract model prefix from {layer_name}"
 
     return model_prefix, transformer_layer_prefix
-
-
-def get_layer_index(split_key):
-    index = 0
-    for key in split_key:
-        if key == "layers":
-            return index + 1
-        index += 1
 
 
 def rename_key_dist_ckpt(old_key: str, layer: int):
