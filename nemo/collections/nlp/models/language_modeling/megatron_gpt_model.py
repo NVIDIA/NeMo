@@ -764,7 +764,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._optimizer.param_groups[0]['step'] = self.trainer.global_step
             self._optimizer.param_groups[0]['reset_lr'] = True
             self.if_init_step = False
-            
+
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
