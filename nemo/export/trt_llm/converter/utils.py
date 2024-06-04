@@ -17,10 +17,20 @@
 import numpy as np
 import torch
 from tensorrt_llm._utils import torch_to_numpy
+from typing import List
 
 # A global dicts to store exported weights.
 # This is set to be a global variable to avoid extra code modification from tensorrt_llm.
 weights_dict = {}
+
+
+DECODER_MODEL_TYPE = {
+    "gptj": 'GPTForCausalLM',
+    "gptnext": 'GPTForCausalLM',
+    "llama": 'LLaMAForCausalLM',
+    "gemma": 'GemmaForCausalLM',
+    "falcon": 'FalconForCausalLM',
+}
 
 
 def save_val(val, dir, key, tp_num=None):
@@ -396,3 +406,71 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
     global weights_dict
     return weights_dict
+
+
+def split(v, tp_size, idx, dim=0):
+    """Splits the np tensor v on dim and return the idx's slice."""
+    if tp_size == 1:
+        return v
+    if len(v.shape) == 1:
+        return np.ascontiguousarray(np.split(v, tp_size)[idx])
+    else:
+        return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
+
+
+def to_word_list_format(
+    word_dict: List[List[str]],
+    tokenizer=None,
+    ref_str="<extra_id_1>",
+):
+    '''
+    format of word_dict
+        len(word_dict) should be same to batch_size
+        word_dict[i] means the words for batch i
+        len(word_dict[i]) must be 1, which means it only contains 1 string
+        This string can contains several sentences and split by ",".
+        For example, if word_dict[2] = " I am happy, I am sad", then this function will return
+        the ids for two short sentences " I am happy" and " I am sad".
+    '''
+    assert tokenizer is not None, "need to set tokenizer"
+
+    flat_ids = []
+    offsets = []
+    # The encoding of a single word can't always be trusted. See
+    #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229
+    ids_ref = tokenizer.encode(ref_str)
+    for word_dict_item in word_dict:
+        item_flat_ids = []
+        item_offsets = []
+
+        if isinstance(word_dict_item[0], bytes):
+            word_dict_item = [word_dict_item[0].decode()]
+
+        words = list(csv.reader(word_dict_item))[0]
+        for word in words:
+            ids = tokenizer.encode(f"{ref_str}{word}")
+            if ids[0 : len(ids_ref)] == ids_ref:
+                # It worked! We can obtain the token(s) associated to `word` by stripping the prefix tokens.
+                ids = ids[len(ids_ref) :]
+            else:
+                # Unfortunately the prefix was merged with `word`. We could try with a different prefix, but
+                # for now we just use the basic encoding since this should be a very rare edge case.
+                ids = tokenizer.encode(word)
+                logging.warning(f"The encoding of word '{word}' into tokens {ids} might be incorrect")
+
+            if len(ids) == 0:
+                continue
+
+            item_flat_ids += ids
+            item_offsets.append(len(ids))
+
+        flat_ids.append(np.array(item_flat_ids))
+        offsets.append(np.cumsum(np.array(item_offsets)))
+
+    pad_to = max(1, max(len(ids) for ids in flat_ids))
+
+    for i, (ids, offs) in enumerate(zip(flat_ids, offsets)):
+        flat_ids[i] = np.pad(ids, (0, pad_to - len(ids)), constant_values=0)
+        offsets[i] = np.pad(offs, (0, pad_to - len(offs)), constant_values=-1)
+
+    return np.array([flat_ids, offsets], dtype="int32").transpose((1, 0, 2))

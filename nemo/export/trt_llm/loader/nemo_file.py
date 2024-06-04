@@ -25,6 +25,7 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import zarr
 from transformers import AutoTokenizer, PreTrainedTokenizer
+from torch.distributed.checkpoint import FileSystemReader
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.trt_llm.nemo.nemo import UnpackedNemoCheckpointDir
@@ -45,6 +46,19 @@ def is_nemo_file(path):
                         flag = True
 
     return flag
+
+
+class TarFileSystemReader(FileSystemReader):
+    """Reader that accepts both Path and TarPath checkpoint directory.
+
+    The FileSystemReader works with TarPath, but expects a pure Path.
+    It's enough to skip the Path check in __init__.
+    """
+
+    def __init__(self, path: Union[Path, TarPath]) -> None:
+        """No call to super().__init__ because it expects pure Path."""
+        self.path = path
+        self.storage_data = dict()
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
