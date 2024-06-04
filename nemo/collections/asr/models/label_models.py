@@ -371,9 +371,19 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
-        audio_signal, audio_signal_len, labels, _ = batch
-        logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss = self.loss(logits=logits, labels=labels)
+        if len(batch) > 4:
+            audio_signal_1, audio_signal_len_1, audio_signal_2, audio_signal_len_2, labels, _ = batch
+            _, audio_emb1 = self.forward(input_signal=audio_signal_1, input_signal_length=audio_signal_len_1)
+            _, audio_emb2 = self.forward(input_signal=audio_signal_2, input_signal_length=audio_signal_len_2)
+
+            # convert binary labels to -1, 1
+            loss_labels = (labels.float() - 0.5) * 2
+            cosine_sim = torch.cosine_similarity(audio_emb1, audio_emb2)
+            loss = torch.nn.functional.mse_loss(cosine_sim, loss_labels)
+        else:
+            audio_signal, audio_signal_len, labels, _ = batch
+            logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+            loss = self.loss(logits=logits, labels=labels)
 
         if loss.isnan():
             logging.warning(f"Received an NaN loss at step {batch_idx}")
