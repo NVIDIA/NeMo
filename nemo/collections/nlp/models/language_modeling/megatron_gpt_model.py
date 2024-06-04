@@ -305,8 +305,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.if_first_step = 0
             self.prev_global_batch_size = None
 
-        self.if_init_step = True
-
         if cfg.get('data', None) is not None:
             self.reset_position_ids = cfg.data.get('reset_position_ids', False)
             self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
@@ -396,6 +394,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
 
         self.inference_params = None
+        self.if_init_step = True
 
         # default to false since this doesn't work with sequence parallelism currently
         self.use_loss_mask = self.cfg.get('use_loss_mask', False)
@@ -759,15 +758,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         The input batch to each micro-batch is fetched using the dataloader function
         in the micro-batch fwd function.
         """
-
-        if self.if_init_step and self.cfg.optim.sched.get('reset_lr', False):
-            self._optimizer.param_groups[0]['step'] = self.trainer.global_step
-            self._optimizer.param_groups[0]['reset_lr'] = True
-            self.if_init_step = False
-
         # Initialize userbuffer communicators.
         if self.initialize_ub:
             self.initialize_ub_func()
+
+        # Reset learning rate
+        if self.if_init_step and self.cfg.get('reset_lr', False):
+            self._optimizer.param_groups[0]['num_steps'] = self.trainer.global_step
+            self._optimizer.param_groups[0]['reset_lr'] = True
+            self.if_init_step = False
 
         if self.rampup_batch_size:
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
