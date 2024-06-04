@@ -43,10 +43,8 @@ def convert(args):
     # print(nemo_config)
     # import sys
     # sys.exit()
-    # from transformers import AutoConfig, AutoModelForCausalLM
-
-
-    # config = AutoConfig.from_pretrained("ai21labs/Jamba-v0.1")
+    from transformers import AutoConfig, AutoModelForCausalLM
+    config = AutoConfig.from_pretrained("ai21labs/Jamba-v0.1")
 
     # config.hidden_size = int(config.hidden_size / 128)
     # config.intermediate_size = int(config.intermediate_size  / 128)
