@@ -4932,11 +4932,11 @@ jobs:
         run: |
           # Slack notifications are send only on test failure (not cancelled):
           FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') }}
-          
+          echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
+
           # Mark as successful if no job was cancelled:
           SUCCESS=${{ !contains(needs.*.result, 'cancelled') }}
-
-          echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
+          echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
 
       # This should depend on all the tests so we block/unblock based on all tests passing
       - if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
